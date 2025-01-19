@@ -28,20 +28,27 @@ jobs:
                   dotnet-version: "8.0.x"
 
             - name: Install GitVersion
-              uses: gittools/actions/gitversion/setup@v3.1.1
+              uses: gittools/actions/gitversion/setup@v3.1.2
               with:
                   versionSpec: "6.0.x"
+                  preferLatestVersion: true
 
             # Step 3: GitVersion
             # This action will read GitVersion.yml, look at commits & branches,
             # and produce a semantic version (e.g., 1.2.3, 1.2.3-beta.1, etc.)
             - name: Determine version
               id: gitversion
-              uses: gittools/actions/gitversion/execute@v3.1.1
+              uses: gittools/actions/gitversion/execute@v3.1.2
               with:
                   useConfigFile: true
-                  configFilePath: ${{ github.workspace }}/GitVersion.yml
                   updateAssemblyInfo: true
+
+            - name: Show GitVersion output
+              run: |
+                  echo "GitVersion.Major: ${{ steps.gitversion.outputs.major }}"
+                  echo "GitVersion.Minor: ${{ steps.gitversion.outputs.minor }}"
+                  echo "GitVersion.Patch: ${{ steps.gitversion.outputs.patch }}"
+                  echo "GitVersion.SemVer: ${{ steps.gitversion.outputs.semVer }}"
 
             # Step 4: Build
             - name: Restore .NET dependencies
