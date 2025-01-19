@@ -11,7 +11,7 @@
 		<Version>1.0.0</Version>
 		<Authors>TrigintaFaces</Authors>
 		<Description>A project within Excalibur to define the classes and methods related to the Data Processing Job.</Description>
-		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+		<PackageLicenseExpression>AGPL-3.0-only OR Apache-2.0 OR Excalibur License 1.0</PackageLicenseExpression>
 		<RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
 	</PropertyGroup>
 
