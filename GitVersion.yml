@@ -1,6 +1,7 @@
 mode: ContinuousDelivery
 assembly-versioning-scheme: MajorMinorPatch
 versioning-mode: ContinuousDelivery
+next-version: 1.0.0
 
 # commit-message-increments: This block tells GitVersion
 # to look for commit messages containing certain keywords that
