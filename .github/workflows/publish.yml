@@ -48,9 +48,9 @@ jobs:
               run: |
                   $branch = "${{ github.ref_name }}"
                   if ($branch -eq "main") {
-                    Write-Host "::set-output name=version::${{ steps.gitversion.outputs.MajorMinorPatch }}"
+                    echo "version=${{ steps.gitversion.outputs.MajorMinorPatch }}" >> $env:GITHUB_OUTPUT
                   } else {
-                    Write-Host "::set-output name=version::${{ steps.gitversion.outputs.SemVer }}"
+                    echo "version=${{ steps.gitversion.outputs.SemVer }}" >> $env:GITHUB_OUTPUT
                   }
               shell: powershell
 
@@ -108,6 +108,7 @@ jobs:
                       dotnet nuget push $pkg.FullName `
                         --api-key $env:NUGET_API_KEY `
                         --source https://api.nuget.org/v3/index.json
+                        --skip-duplicate
                   }
               shell: powershell
 
