@@ -63,7 +63,12 @@ jobs:
             # Step 5: Replace <ProjectReference> with <PackageReference>
             - name: Replace ProjectReferences
               run: |
-                  $env:PACKAGE_VERSION = "${{ steps.gitversion.outputs.SemVer }}"
+                  $branchName = "${{ github.ref_name }}"
+                  if ($branchName -eq "main") {
+                    $env:PACKAGE_VERSION = "${{ steps.gitversion.outputs.MajorMinorPatch }}"
+                  } else {
+                    $env:PACKAGE_VERSION = "${{ steps.gitversion.outputs.SemVer }}"
+                  }
                   Write-Host "Using GitVersion's SemVer: $($env:PACKAGE_VERSION)"
                   powershell -ExecutionPolicy Bypass -File scripts/ReplaceProjectReferences.ps1
               shell: powershell
@@ -71,7 +76,12 @@ jobs:
             # Step 6: Pack .csproj files using GitVersion's SemVer
             - name: Create NuGet packages
               run: |
-                  $version = "${{ steps.gitversion.outputs.SemVer }}"
+                  $branchName = "${{ github.ref_name }}"
+                  if ($branchName -eq "main") {
+                    $version = "${{ steps.gitversion.outputs.MajorMinorPatch }}"
+                  } else {
+                    $version = "${{ steps.gitversion.outputs.SemVer }}"
+                  }
                   Write-Host "Packing projects with version: $version"
 
                   $artifactPath = Join-Path $env:GITHUB_WORKSPACE 'artifacts'
