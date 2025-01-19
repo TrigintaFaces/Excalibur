@@ -81,7 +81,7 @@ jobs:
                         -p:PackageVersion=$version `
                         -p:Version=$version `
                         --no-build `
-                        --output "$(System.DefaultWorkingDirectory)/artifacts"
+                        --output "env:GITHUB_WORKSPACE/artifacts"
                   }
               shell: powershell
 
@@ -90,7 +90,7 @@ jobs:
               if: startsWith(github.ref_name, 'main') || startsWith(github.ref_name, 'develop') || startsWith(github.ref_name, 'release/')
               run: |
                   $env:NUGET_API_KEY = "${{ secrets.NUGET_API_KEY }}"
-                  $packages = Get-ChildItem "$(System.DefaultWorkingDirectory)/artifacts" -Filter *.nupkg
+                  $packages = Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts" -Filter *.nupkg
 
                   foreach ($pkg in $packages) {
                       Write-Host "Publishing package: $($pkg.FullName)"
