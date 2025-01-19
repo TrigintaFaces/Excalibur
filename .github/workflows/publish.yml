@@ -74,6 +74,12 @@ jobs:
                   $version = "${{ steps.gitversion.outputs.SemVer }}"
                   Write-Host "Packing projects with version: $version"
 
+                  $artifactPath = Join-Path $env:GITHUB_WORKSPACE 'artifacts'
+
+                  if (-Not (Test-Path $artifactPath)) {
+                    New-Item -ItemType Directory -Path $artifactPath | Out-Null
+                  }
+
                   $csprojFiles = Get-ChildItem -Path . -Recurse -Filter *.csproj
                   foreach ($file in $csprojFiles) {
                       dotnet pack $file.FullName `
@@ -81,7 +87,7 @@ jobs:
                         -p:PackageVersion=$version `
                         -p:Version=$version `
                         --no-build `
-                        --output "env:GITHUB_WORKSPACE/artifacts"
+                        --output $artifactPath
                   }
               shell: powershell
 
@@ -90,7 +96,8 @@ jobs:
               if: startsWith(github.ref_name, 'main') || startsWith(github.ref_name, 'develop') || startsWith(github.ref_name, 'release/')
               run: |
                   $env:NUGET_API_KEY = "${{ secrets.NUGET_API_KEY }}"
-                  $packages = Get-ChildItem "$env:GITHUB_WORKSPACE/artifacts" -Filter *.nupkg
+                  $artifactPath = Join-Path $env:GITHUB_WORKSPACE 'artifacts'
+                  $packages = Get-ChildItem $artifactPath -Filter *.nupkg
 
                   foreach ($pkg in $packages) {
                       Write-Host "Publishing package: $($pkg.FullName)"
