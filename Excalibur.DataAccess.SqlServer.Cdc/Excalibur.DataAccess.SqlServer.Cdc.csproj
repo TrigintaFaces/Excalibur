@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<IsPackable>true</IsPackable>
+
+		<!-- NuGet package metadata -->
+		<PackageId>Excalibur.DataAccess.SqlServer.Cdc</PackageId>
+		<Version>1.0.0</Version>
+		<Authors>TrigintaFaces</Authors>
+		<Description>A project within Excalibur to define the classes and methods related to the DataAccess layer within a DDD solution specifically related to interfacing with MSSql Change Data Capture (CDC).</Description>
+		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+		<RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="../LICENSE.txt" Pack="true" PackagePath="" />
+		<None Include="../licenses/**/*" Pack="true" PackagePath="" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Excalibur.DataAccess.SqlServer\Excalibur.DataAccess.SqlServer.csproj" />
+	</ItemGroup>
+
+</Project>

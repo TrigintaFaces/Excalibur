@@ -1,0 +1,64 @@
+name: 🐛 Bug Report
+description: Report a problem or issue with the project.
+title: "[BUG]: "
+labels:
+    - bug
+body:
+    - type: markdown
+      attributes:
+          value: |
+              Thank you for reporting a bug! Please provide detailed information to help us resolve the issue.
+
+    - type: input
+      id: title
+      attributes:
+          label: Bug Title
+          description: Provide a brief title for the bug.
+          placeholder: Enter the bug title
+      validations:
+          required: true
+
+    - type: textarea
+      id: description
+      attributes:
+          label: Bug Description
+          description: Describe the bug, including steps to reproduce and expected vs. actual behavior.
+          placeholder: Enter detailed bug description
+      validations:
+          required: true
+
+    - type: textarea
+      id: steps_to_reproduce
+      attributes:
+          label: Steps to Reproduce
+          description: Provide step-by-step instructions to reproduce the issue.
+          placeholder: Enter reproduction steps
+      validations:
+          required: true
+
+    - type: textarea
+      id: expected_behavior
+      attributes:
+          label: Expected Behavior
+          description: Describe what you expected to happen.
+          placeholder: Enter the expected behavior
+      validations:
+          required: true
+
+    - type: input
+      id: environment
+      attributes:
+          label: Environment
+          description: Specify the environment (OS, browser, .NET version, etc.).
+          placeholder: Enter environment details
+
+    - type: textarea
+      id: additional_context
+      attributes:
+          label: Additional Context
+          description: Provide any other information or context about the problem.
+
+    - type: markdown
+      attributes:
+          value: >
+              Thanks for contributing 🎉!
