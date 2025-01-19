@@ -43,12 +43,16 @@ jobs:
                   useConfigFile: true
                   updateAssemblyInfo: true
 
-            - name: Show GitVersion output
+            - name: Set Release Version
+              id: set_release_version
               run: |
-                  echo "GitVersion.Major: ${{ steps.gitversion.outputs.major }}"
-                  echo "GitVersion.Minor: ${{ steps.gitversion.outputs.minor }}"
-                  echo "GitVersion.Patch: ${{ steps.gitversion.outputs.patch }}"
-                  echo "GitVersion.SemVer: ${{ steps.gitversion.outputs.semVer }}"
+                  $branch = "${{ github.ref_name }}"
+                  if ($branch -eq "main") {
+                    Write-Host "::set-output name=version::${{ steps.gitversion.outputs.MajorMinorPatch }}"
+                  } else {
+                    Write-Host "::set-output name=version::${{ steps.gitversion.outputs.SemVer }}"
+                  }
+              shell: powershell
 
             # Step 4: Build
             - name: Restore .NET dependencies
@@ -63,12 +67,7 @@ jobs:
             # Step 5: Replace <ProjectReference> with <PackageReference>
             - name: Replace ProjectReferences
               run: |
-                  $branchName = "${{ github.ref_name }}"
-                  if ($branchName -eq "main") {
-                    $env:PACKAGE_VERSION = "${{ steps.gitversion.outputs.MajorMinorPatch }}"
-                  } else {
-                    $env:PACKAGE_VERSION = "${{ steps.gitversion.outputs.SemVer }}"
-                  }
+                  $env:PACKAGE_VERSION = "${{ steps.set_release_version.outputs.version }}"
                   Write-Host "Using GitVersion's SemVer: $($env:PACKAGE_VERSION)"
                   powershell -ExecutionPolicy Bypass -File scripts/ReplaceProjectReferences.ps1
               shell: powershell
@@ -76,12 +75,7 @@ jobs:
             # Step 6: Pack .csproj files using GitVersion's SemVer
             - name: Create NuGet packages
               run: |
-                  $branchName = "${{ github.ref_name }}"
-                  if ($branchName -eq "main") {
-                    $version = "${{ steps.gitversion.outputs.MajorMinorPatch }}"
-                  } else {
-                    $version = "${{ steps.gitversion.outputs.SemVer }}"
-                  }
+                  $version = "${{ steps.set_release_version.outputs.version }}"
                   Write-Host "Packing projects with version: $version"
 
                   $artifactPath = Join-Path $env:GITHUB_WORKSPACE 'artifacts'
@@ -123,8 +117,8 @@ jobs:
               id: create_release
               uses: softprops/action-gh-release@v1
               with:
-                  tag_name: v${{ steps.gitversion.outputs.SemVer }}
-                  name: Release v${{ steps.gitversion.outputs.SemVer }}
+                  tag_name: v${{ steps.set_release_version.outputs.version }}
+                  name: Release v${{ steps.set_release_version.outputs.version }}
                   body: "Automated release based on commit history."
                   prerelease: ${{ github.ref != 'refs/heads/main' }}
                   generate_release_notes: true
