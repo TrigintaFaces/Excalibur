@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<IsPackable>true</IsPackable>
+
+		<!-- NuGet package metadata -->
+		<PackageId>Excalibur.Jobs.Quartz.Cdc</PackageId>
+		<Version>1.0.0</Version>
+		<Authors>TrigintaFaces</Authors>
+		<Description>A project within Excalibur to define the classes and methods related to the CDC Job.</Description>
+		<PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+		<RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Excalibur.DataAccess.SqlServer.Cdc\Excalibur.DataAccess.SqlServer.Cdc.csproj" />
+		<ProjectReference Include="..\Excalibur.DataAccess.SqlServer\Excalibur.DataAccess.SqlServer.csproj" />
+		<ProjectReference Include="..\Excalibur.Jobs\Excalibur.Jobs.csproj" />
+	</ItemGroup>
+
+</Project>

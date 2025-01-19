@@ -1,0 +1,9 @@
+<Project>
+	<ItemGroup>
+		<!-- Include the solution-level LICENSE.txt for all projects -->
+		<None Include="LICENSE.txt" Pack="true" PackagePath="" />
+
+		<!-- Include all files from the solution-level licenses folder -->
+		<None Include="licenses\**\*" Pack="true" PackagePath="licenses/" />
+	</ItemGroup>
+</Project>

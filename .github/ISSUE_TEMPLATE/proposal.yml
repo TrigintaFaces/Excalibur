@@ -1,0 +1,62 @@
+name: 💬 Proposal
+description: Suggest a new idea, major enhancement, or architectural change for this project.
+title: "[PROPOSAL]: "
+labels:
+    - "proposal"
+    - "discussion"
+
+body:
+    - type: markdown
+      attributes:
+          value: |
+              Thank you for proposing an idea for this project! Please provide as much detail as possible to help us evaluate your proposal. Ensure that you explain the problem it solves and any relevant context.
+
+    - type: input
+      id: summary
+      attributes:
+          label: Proposal Summary
+          description: Provide a short summary of your proposed idea or enhancement.
+          placeholder: Briefly describe your proposal in one or two sentences.
+      validations:
+          required: true
+
+    - type: textarea
+      id: problem
+      attributes:
+          label: Problem Statement
+          description: Describe the problem you’re trying to solve with this proposal.
+          placeholder: Explain the current issue or limitation.
+      validations:
+          required: true
+
+    - type: textarea
+      id: solution
+      attributes:
+          label: Proposed Solution
+          description: Describe your proposed solution in detail.
+          placeholder: Outline your solution, including implementation details if applicable.
+      validations:
+          required: true
+
+    - type: textarea
+      id: alternatives
+      attributes:
+          label: Alternatives Considered
+          description: List any alternative solutions or approaches you’ve considered.
+          placeholder: Include other ideas or why this proposal is better.
+      validations:
+          required: false
+
+    - type: textarea
+      id: additional_context
+      attributes:
+          label: Additional Context
+          description: Provide any other context or information you think is important.
+          placeholder: Links, references, diagrams, or related discussions.
+      validations:
+          required: false
+
+    - type: markdown
+      attributes:
+          value: >
+              Thanks for contributing 🎉!
