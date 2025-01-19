@@ -1,51 +1,165 @@
-mode: ContinuousDelivery
-assembly-versioning-scheme: MajorMinorPatch
-versioning-mode: ContinuousDelivery
 next-version: 1.0.0
-
-# commit-message-increments: This block tells GitVersion
-# to look for commit messages containing certain keywords that
-# indicate a major/minor patch increment.
-# e.g. "feat:" => minor, "fix:" => patch, and "BREAKING CHANGE" => major
-# This is how "Conventional Commits" typically do auto-incrementing.
-commit-message-increments: enabled
-
+assembly-versioning-scheme: MajorMinorPatch
+assembly-file-versioning-scheme: MajorMinorPatch
+tag-prefix: "[vV]?"
+version-in-branch-pattern: (?<version>[vV]?\d+(\.\d+)?(\.\d+)?).*
 major-version-bump-message: "^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\\([\\w\\s-,/\\\\]*\\))?(!:|:.*\\n\\n((.+\\n)+\\n)?BREAKING CHANGE:\\s.+)"
 minor-version-bump-message: "^(feat)(\\([\\w\\s-,/\\\\]*\\))?:"
 patch-version-bump-message: "^(fix|perf)(\\([\\w\\s-,/\\\\]*\\))?:"
-
+no-bump-message: \+semver:\s?(none|skip)
+tag-pre-release-weight: 60000
+commit-date-format: yyyy-MM-dd
+merge-message-formats: {}
+update-build-number: true
+semantic-version-format: Strict
+strategies:
+    - Fallback
+    - ConfiguredNextVersion
+    - MergeMessage
+    - TaggedCommit
+    - TrackReleaseBranches
+    - VersionInBranchName
 branches:
     main:
-        regex: ^(master|main)$
-        is-mainline: true
-        incremental: false
-        prevent-increment-of-merged-branch-version: true
+        regex: ^master$|^main$
+        mode: ContinuousDelivery
+        label: ""
+        increment: Patch
+        prevent-increment:
+            of-merged-branch: true
+        track-merge-target: false
+        track-merge-message: true
+        source-branches: []
+        is-source-branch-for: []
+        tracks-release-branches: false
+        is-release-branch: false
+        is-main-branch: true
+        pre-release-weight: 55000
 
     develop:
-        regex: ^develop$
-        increment: Minor
+        regex: ^dev(elop)?(ment)?$
+        mode: ContinuousDeployment
         label: alpha
+        increment: Minor
+        prevent-increment:
+            when-current-commit-tagged: false
+        track-merge-target: true
+        track-merge-message: true
+        source-branches: ["main"]
+        is-source-branch-for: []
+        tracks-release-branches: true
+        is-release-branch: false
+        is-main-branch: false
+        pre-release-weight: 0
 
     feature:
-        regex: ^feature[/-]
+        regex: ^features?[/-]
+        mode: ManualDeployment
+        label: "{BranchName}"
         increment: Inherit
-        source-branches: ["develop", "feature", "master", "main"]
-        is-release-branch: false
+        prevent-increment:
+            when-current-commit-tagged: false
+        track-merge-message: true
+        source-branches: ["develop", "main", "release", "support", "hotfix"]
+        is-source-branch-for: []
+        is-main-branch: false
+        pre-release-weight: 30000
 
     release:
-        regex: ^release[/-]
-        is-release-branch: true
-        pre-release-weight: 3000
+        regex: ^releases?[/-](?<BranchName>.+)
+        mode: ManualDeployment
         label: beta
+        increment: Minor
+        prevent-increment:
+            of-merged-branch: true
+            when-current-commit-tagged: false
+        track-merge-target: false
+        source-branches: ["main", "support"]
+        is-source-branch-for: []
+        tracks-release-branches: false
+        is-release-branch: true
+        is-main-branch: false
+        pre-release-weight: 30000
+
+    pull-request:
+        regex: ^(pull|pull\-requests|pr)[/-]
+        mode: ContinuousDelivery
+        label: PullRequest
+        increment: Inherit
+        prevent-increment:
+            of-merged-branch: true
+            when-current-commit-tagged: false
+        label-number-pattern: '[/-](?<number>\d+)[-/]'
+        track-merge-message: true
+        source-branches:
+            ["develop", "main", "release", "feature", "support", "hotfix"]
+        is-source-branch-for: []
+        pre-release-weight: 30000
 
     hotfix:
-        regex: ^hotfix[/-]
-        is-release-branch: true
+        regex: ^hotfix(es)?[/-](?<BranchName>.+)
+        mode: ManualDeployment
+        label: beta
+        increment: Inherit
+        prevent-increment:
+            when-current-commit-tagged: true
+        track-merge-target: false
+        source-branches: ["main", "support"]
+        is-source-branch-for: []
+        is-release-branch: false
+        is-main-branch: false
+        pre-release-weight: 30000
+
+    support:
+        regex: ^support[/-](?<BranchName>.+)
+        label: ""
         increment: Patch
-        label: hotfix
+        prevent-increment:
+            of-merged-branch: true
+        track-merge-target: false
+        source-branches: ["main"]
+        is-source-branch-for: []
+        tracks-release-branches: false
+        is-release-branch: false
+        is-main-branch: true
+        pre-release-weight: 55000
+
+    unknown:
+        mode: ManualDeployment
+        label: "{BranchName}"
+        increment: Inherit
+        prevent-increment:
+            when-current-commit-tagged: true
+        regex: (?<BranchName>.+)
+        source-branches:
+            [
+                "main",
+                "develop",
+                "main",
+                "release",
+                "feature",
+                "pull-request",
+                "support",
+                "hotfix",
+            ]
+        is-source-branch-for: []
+        is-main-branch: false
 
 ignore:
     sha: []
-    message:
-        - "^Merge branch 'main' into develop"
-        - "^chore: merge main into develop"
+mode: ContinuousDelivery
+label: "{BranchName}"
+increment: Inherit
+prevent-increment:
+    of-merged-branch: false
+    when-branch-merged: false
+    when-current-commit-tagged: true
+track-merge-target: false
+track-merge-message: true
+commit-message-incrementing: Enabled
+regex: ""
+source-branches: []
+is-source-branch-for: []
+tracks-release-branches: false
+is-release-branch: false
+is-main-branch: false
