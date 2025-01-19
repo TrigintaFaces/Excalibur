@@ -1,9 +1,0 @@
-<Project>
-	<ItemGroup>
-		<!-- Include the solution-level LICENSE.txt for all projects using an absolute path -->
-		<None Include="$(MSBuildThisFileDirectory)LICENSE.txt" Pack="true" />
-
-		<!-- Include all files from the solution-level licenses folder -->
-		<None Include="$(MSBuildThisFileDirectory)licenses\**\*" Pack="true" />
-	</ItemGroup>
-</Project>
