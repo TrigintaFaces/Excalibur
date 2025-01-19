@@ -24,7 +24,7 @@ branches:
         regex: ^master$|^main$
         mode: ContinuousDelivery
         label: ""
-        increment: Patch
+        increment: None
         prevent-increment:
             of-merged-branch: true
         track-merge-target: false
