@@ -8,8 +8,9 @@ using Excalibur.A3.Authorization;
 using Excalibur.A3.Authorization.Grants.Domain.QueryProviders;
 using Excalibur.A3.Authorization.PolicyData;
 using Excalibur.Application;
+using Excalibur.Core;
+using Excalibur.Core.Exceptions;
 using Excalibur.DataAccess;
-using Excalibur.Exceptions;
 
 using MediatR;
 

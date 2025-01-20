@@ -2,6 +2,7 @@ using System.Text.Json;
 
 using Excalibur.A3.Authentication;
 using Excalibur.A3.Authorization.PolicyData;
+using Excalibur.Core;
 using Excalibur.Data.Serialization;
 
 using Microsoft.Extensions.Caching.Distributed;

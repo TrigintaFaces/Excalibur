@@ -1,4 +1,4 @@
-using Excalibur.Extensions;
+using Excalibur.Core.Extensions;
 
 namespace Excalibur.Data.Outbox;
 

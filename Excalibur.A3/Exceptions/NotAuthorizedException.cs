@@ -1,5 +1,5 @@
 using Excalibur.A3.Authentication;
-using Excalibur.Exceptions;
+using Excalibur.Core.Exceptions;
 
 namespace Excalibur.A3.Exceptions;
 

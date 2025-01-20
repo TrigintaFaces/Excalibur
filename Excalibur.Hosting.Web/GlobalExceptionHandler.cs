@@ -1,7 +1,7 @@
 using System.Diagnostics;
 
-using Excalibur.Exceptions;
-using Excalibur.Extensions;
+using Excalibur.Core.Exceptions;
+using Excalibur.Core.Extensions;
 
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;

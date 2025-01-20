@@ -1,5 +1,5 @@
-using Excalibur.Domain.Events;
-using Excalibur.Extensions;
+using Excalibur.Core.Domain.Events;
+using Excalibur.Core.Extensions;
 
 namespace Excalibur.Domain.Model;
 

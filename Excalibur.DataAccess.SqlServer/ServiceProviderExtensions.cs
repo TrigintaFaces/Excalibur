@@ -1,4 +1,4 @@
-using Excalibur.Exceptions;
+using Excalibur.Core.Exceptions;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;

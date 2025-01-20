@@ -2,7 +2,7 @@ using System.Data;
 
 using Dapper;
 
-using Excalibur.Domain.Model.ValueObjects;
+using Excalibur.Core.Domain.Model.ValueObjects;
 
 using Microsoft.Data.SqlClient;
 

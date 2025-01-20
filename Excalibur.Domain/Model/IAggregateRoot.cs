@@ -1,4 +1,4 @@
-using Excalibur.Domain.Events;
+using Excalibur.Core.Domain.Events;
 
 namespace Excalibur.Domain.Model;
 

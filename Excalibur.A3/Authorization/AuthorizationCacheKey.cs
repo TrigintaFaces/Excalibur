@@ -1,3 +1,5 @@
+using Excalibur.Core;
+
 namespace Excalibur.A3.Authorization;
 
 /// <summary>

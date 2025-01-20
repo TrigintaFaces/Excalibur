@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Application.Requests;
+using Excalibur.Core;
 
 using MediatR;
 

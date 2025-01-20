@@ -1,4 +1,5 @@
 using Excalibur.A3.Authorization.Events;
+using Excalibur.Core;
 using Excalibur.Domain.Model;
 
 namespace Excalibur.A3.Authorization.Grants.Domain.Model;

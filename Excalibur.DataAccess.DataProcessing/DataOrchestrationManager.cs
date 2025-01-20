@@ -2,7 +2,7 @@ using System.Data;
 
 using Dapper;
 
-using Excalibur.Extensions;
+using Excalibur.Core.Extensions;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

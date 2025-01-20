@@ -3,6 +3,7 @@ using System.Text.Json;
 
 using Dapper;
 
+using Excalibur.Core;
 using Excalibur.Data.Outbox;
 using Excalibur.Data.Outbox.Serialization;
 using Excalibur.Data.Serialization;

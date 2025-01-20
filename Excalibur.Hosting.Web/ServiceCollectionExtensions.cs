@@ -3,7 +3,8 @@ using System.Reflection;
 using Asp.Versioning;
 
 using Excalibur.Application;
-using Excalibur.Concurrency;
+using Excalibur.Core;
+using Excalibur.Core.Concurrency;
 using Excalibur.Data;
 
 using Microsoft.Extensions.Configuration;

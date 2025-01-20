@@ -1,9 +1,9 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.A3.Audit.Events;
+using Excalibur.Core.Exceptions;
 using Excalibur.Data.Serialization;
 using Excalibur.Domain;
-using Excalibur.Exceptions;
 
 using Newtonsoft.Json;
 

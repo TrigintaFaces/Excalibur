@@ -1,8 +1,8 @@
 using System.Data;
 using System.Diagnostics;
 
+using Excalibur.Core.Exceptions;
 using Excalibur.DataAccess.Exceptions;
-using Excalibur.Exceptions;
 
 namespace Excalibur.DataAccess;
 

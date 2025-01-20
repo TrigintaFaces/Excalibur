@@ -1,4 +1,5 @@
-using Excalibur.Concurrency;
+using Excalibur.Core;
+using Excalibur.Core.Concurrency;
 using Excalibur.Domain;
 
 using Microsoft.Extensions.Configuration;

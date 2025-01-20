@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using Excalibur.A3.Authentication;
 using Excalibur.A3.Authorization.Grants.Domain.Model;
 using Excalibur.A3.Authorization.Grants.Domain.QueryProviders;
+using Excalibur.Core;
 using Excalibur.DataAccess.Exceptions;
 
 using Microsoft.Extensions.Caching.Distributed;

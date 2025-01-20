@@ -25,7 +25,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\Excalibur\Excalibur.csproj" />
+		<ProjectReference Include="..\Excalibur.Core\Excalibur.Core.csproj" />
 	</ItemGroup>
 
 </Project>

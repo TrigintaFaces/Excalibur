@@ -1,7 +1,8 @@
 using System.Diagnostics;
 
 using Excalibur.Application.Requests;
-using Excalibur.Exceptions;
+using Excalibur.Core;
+using Excalibur.Core.Exceptions;
 
 using MediatR;
 

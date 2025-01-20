@@ -1,5 +1,7 @@
 using System.Diagnostics;
 
+using Excalibur.Core;
+
 using IOpaPolicy = DOPA.IOpaPolicy;
 
 namespace Excalibur.A3.Authorization;

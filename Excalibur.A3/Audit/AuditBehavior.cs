@@ -1,9 +1,10 @@
 using Excalibur.A3.Audit.Events;
 using Excalibur.A3.Audit.Requests;
 using Excalibur.Application.Requests.Jobs;
+using Excalibur.Core;
+using Excalibur.Core.Extensions;
 using Excalibur.Data.Outbox;
 using Excalibur.Domain;
-using Excalibur.Extensions;
 
 using MediatR;
 

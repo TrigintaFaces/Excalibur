@@ -1,4 +1,5 @@
-using Excalibur.Extensions;
+using Excalibur.Core;
+using Excalibur.Core.Extensions;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

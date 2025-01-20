@@ -3,12 +3,13 @@ using System.Text.Json;
 
 using Dapper;
 
+using Excalibur.Core;
+using Excalibur.Core.Domain.Events;
+using Excalibur.Core.Extensions;
 using Excalibur.Data.Outbox.Serialization;
 using Excalibur.DataAccess;
 using Excalibur.Domain;
-using Excalibur.Domain.Events;
 using Excalibur.Domain.Model;
-using Excalibur.Extensions;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

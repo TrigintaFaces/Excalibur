@@ -2,7 +2,8 @@ using System.Net;
 using System.Reflection;
 
 using Excalibur.Application;
-using Excalibur.Concurrency;
+using Excalibur.Core;
+using Excalibur.Core.Concurrency;
 using Excalibur.Data;
 using Excalibur.Jobs;
 

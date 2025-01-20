@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.12.35527.113
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur", "Excalibur\Excalibur.csproj", "{B5C48924-EA0A-47CA-84FA-50C3A19DA423}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Core", "Excalibur.Core\Excalibur.Core.csproj", "{B5C48924-EA0A-47CA-84FA-50C3A19DA423}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Application", "Excalibur.Application\Excalibur.Application.csproj", "{5681887D-3C5C-4CD7-871C-D273303287A2}"
 EndProject

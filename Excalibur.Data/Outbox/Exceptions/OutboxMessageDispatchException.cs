@@ -1,4 +1,4 @@
-﻿using Excalibur.Exceptions;
+using Excalibur.Core.Exceptions;
 
 namespace Excalibur.Data.Outbox.Exceptions;
 

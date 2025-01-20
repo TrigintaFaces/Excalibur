@@ -1,8 +1,8 @@
 using System.Text.Json;
 
+using Excalibur.Core.Extensions;
 using Excalibur.Data.Outbox;
 using Excalibur.Data.Outbox.Serialization;
-using Excalibur.Extensions;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
