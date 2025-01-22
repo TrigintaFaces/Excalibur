@@ -2,6 +2,7 @@
 <!-- badges -->
 [![github-release-badge]][github-release]
 [![github-release-date-badge]][github-release-date]
+![github-downloads-total-badge](https://img.shields.io/github/downloads/TrigintaFaces/Excalibur/total?logo=github&style=flat-square "Total Downloads")
 [![github-downloads-badge]][github-downloads]
 <!-- badges -->
 
@@ -119,7 +120,7 @@ We welcome contributions! Check out our [Contributing Guidelines](CONTRIBUTING.m
 [github-release-date-badge]: https://img.shields.io/github/release-date/TrigintaFaces/Excalibur?style=flat-square "Release Date"
 
 [github-downloads]: https://github.com/TrigintaFaces/Excalibur/releases/latest
-[github-downloads-badge]: https://img.shields.io/github/downloads/TrigintaFaces/Excalibur/latest/total?logo=github&style=flat-square "Downloads"
+[github-downloads-badge]: https://img.shields.io/github/downloads/TrigintaFaces/Excalibur/latest/total?logo=github&style=flat-square "Latest Release"
 
 [nuget-p1]: https://www.nuget.org/packages/Excalibur.A3/
 [nuget-p1-version]: https://img.shields.io/nuget/v/Excalibur.A3.svg?logo=nuget&style=flat-square "NuGet Version"
