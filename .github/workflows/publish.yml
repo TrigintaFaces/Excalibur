@@ -10,33 +10,11 @@ on:
             - hotfix/*
     pull_request:
 
-env:
-    IS_RELEASE: false
-    IS_PRERELEASE: false
-    PUBLISH: false
-
 jobs:
     build-and-publish:
         runs-on: windows-latest
 
         steps:
-            - name: Determine if release or prerelease
-              id: determine_release
-              run: |
-                  $branch = "${{ github.ref_name }}"
-                  if ($branch -eq "main" -or $branch -eq "master") {
-                      echo "IS_RELEASE=true" >> $GITHUB_ENV
-                  } elseif ($branch -like "release/*") {
-                      echo "IS_PRERELEASE=true" >> $GITHUB_ENV
-                  }
-
-                  if ($env:IS_RELEASE -eq "true" -or $env:IS_PRERELEASE -eq "true") {
-                      if ($github.event_name -ne 'pull_request') {
-                          echo "PUBLISH=true" >> $GITHUB_ENV
-                      }
-                  }
-              shell: powershell
-
             # Step 1: Check out the code
             - name: Checkout
               uses: actions/checkout@v4
@@ -49,15 +27,14 @@ jobs:
               with:
                   dotnet-version: "8.0.x"
 
+            # Step 3: Install GitVersion
             - name: Install GitVersion
               uses: gittools/actions/gitversion/setup@v3.1.2
               with:
                   versionSpec: "6.0.x"
                   preferLatestVersion: true
 
-            # Step 3: GitVersion
-            # This action will read GitVersion.yml, look at commits & branches,
-            # and produce a semantic version (e.g., 1.2.3, 1.2.3-beta.1, etc.)
+            # Step 4: Determine version with GitVersion
             - name: Determine version
               id: gitversion
               uses: gittools/actions/gitversion/execute@v3.1.2
@@ -65,35 +42,66 @@ jobs:
                   useConfigFile: true
                   updateAssemblyInfo: true
 
+            # Step 5: Set Release Variables
+            - name: Set Release Variables
+              run: |
+                  $branch = $env:GitVersion_BranchName
+                  Write-Host "Branch is: '$branch'"
+
+                  # Logic to set IS_RELEASE or IS_PRERELEASE
+                  if ($branch -eq "main" -or $branch -eq "master") {
+                    Write-Host "Setting IS_RELEASE to true"
+                    "IS_RELEASE=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                  } elseif ($branch -like "release/*") {
+                    Write-Host "Setting IS_PRERELEASE to true"
+                    "IS_PRERELEASE=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                  }
+              shell: pwsh
+
+            # Step 6: Set PUBLISH variable based on branch and event
+            - name: Set PUBLISH variable based on branch and event
+              run: |
+                  if ($env:IS_RELEASE -eq "true" -or $env:IS_PRERELEASE -eq "true") {
+                      if ($github.event_name -ne 'pull_request') {
+                          "PUBLISH=true" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                      }
+                  }
+              shell: pwsh
+
+            # Step 7: Set Release Version
             - name: Set Release Version
               id: set_release_version
               run: |
                   if ($env:IS_RELEASE -eq "true") {
-                    echo "version=${{ steps.gitversion.outputs.MajorMinorPatch }}" >> $GITHUB_ENV
+                    "version=${{ steps.gitversion.outputs.MajorMinorPatch }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
                   } else {
-                    echo "version=${{ steps.gitversion.outputs.SemVer }}" >> $GITHUB_ENV
+                    "version=${{ steps.gitversion.outputs.SemVer }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
                   }
-                  echo "version=$env:version" >> $GITHUB_OUTPUT
-              shell: powershell
+                  "version=$env:version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+              shell: pwsh
 
+            # Step 8: Set GitVersion Variables
             - name: Set GitVersion Variables
               run: |
-                  echo "GitVersion_NuGetVersion=${{ steps.set_release_version.outputs.version }}" >> $GITHUB_ENV
-                  echo "GitVersion_AssemblySemVer=${{ steps.gitversion.outputs.AssemblySemVer }}" >> $GITHUB_ENV
-                  echo "GitVersion_AssemblySemFileVer=${{ steps.gitversion.outputs.AssemblySemFileVer }}" >> $GITHUB_ENV
-                  echo "GitVersion_InformationalVersion=${{ steps.gitversion.outputs.InformationalVersion }}" >> $GITHUB_ENV
+                  "GitVersion_NuGetVersion=${{ steps.set_release_version.outputs.version }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                  "GitVersion_AssemblySemVer=${{ steps.gitversion.outputs.AssemblySemVer }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                  "GitVersion_AssemblySemFileVer=${{ steps.gitversion.outputs.AssemblySemFileVer }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                  "GitVersion_InformationalVersion=${{ steps.gitversion.outputs.InformationalVersion }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+              shell: pwsh
 
-            # Step 4: Build
+            # Step 9: Restore .NET dependencies
             - name: Restore .NET dependencies
               run: dotnet restore
 
+            # Step 10: Build .NET solution
             - name: Build .NET solution
               run: dotnet build --configuration Release
 
+            # Step 11: Run tests
             - name: Run tests
               run: dotnet test --configuration Release
 
-            # Step 5: Replace <ProjectReference> with <PackageReference>
+            # Step 12: Replace <ProjectReference> with <PackageReference>
             - name: Replace ProjectReferences
               if: env.PUBLISH == 'true'
               run: |
@@ -102,7 +110,7 @@ jobs:
                   powershell -ExecutionPolicy Bypass -File scripts/ReplaceProjectReferences.ps1
               shell: powershell
 
-            # Step 6: Pack .csproj files using GitVersion's SemVer
+            # Step 13: Pack .csproj files using GitVersion's SemVer
             - name: Create NuGet packages
               if: env.PUBLISH == 'true'
               run: |
@@ -126,7 +134,7 @@ jobs:
                   }
               shell: powershell
 
-            # Step 7: Publish NuGet packages.
+            # Step 14: Publish NuGet packages
             - name: Publish NuGet packages
               if: env.PUBLISH == 'true'
               run: |
@@ -143,7 +151,7 @@ jobs:
                   }
               shell: powershell
 
-            # Step 8: Create Release.
+            # Step 15: Create Release
             - name: Create GitHub Release
               if: env.PUBLISH == 'true'
               id: create_release
