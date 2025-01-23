@@ -77,14 +77,12 @@ jobs:
                   } else {
                     "version=${{ steps.gitversion.outputs.SemVer }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
                   }
-
-                   echo "version=$env:version" >> $GITHUB_OUTPUT
               shell: pwsh
 
             # Step 8: Set GitVersion NuGetVersion
             - name: Set GitVersion NuGetVersion
               run: |
-                  "GitVersion_NuGetVersion=${{ steps.set_release_version.outputs.version }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                  "GitVersion_NuGetVersion=$env:version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
               shell: pwsh
 
             # Step 9: Restore .NET dependencies
