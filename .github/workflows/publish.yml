@@ -77,30 +77,23 @@ jobs:
                   } else {
                     "version=${{ steps.gitversion.outputs.SemVer }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
                   }
-              shell: pwsh
 
-            # Step 8: Set GitVersion Variables
-            - name: Set GitVersion Variables
-              run: |
                   "GitVersion_NuGetVersion=$env:version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-                  "GitVersion_AssemblySemVer=${{ steps.gitversion.outputs.AssemblySemVer }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-                  "GitVersion_AssemblySemFileVer=${{ steps.gitversion.outputs.AssemblySemFileVer }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-                  "GitVersion_InformationalVersion=${{ steps.gitversion.outputs.InformationalVersion }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
               shell: pwsh
 
-            # Step 9: Restore .NET dependencies
+            # Step 8: Restore .NET dependencies
             - name: Restore .NET dependencies
               run: dotnet restore
 
-            # Step 10: Build .NET solution
+            # Step 9: Build .NET solution
             - name: Build .NET solution
               run: dotnet build --configuration Release
 
-            # Step 11: Run tests
+            # Step 10: Run tests
             - name: Run tests
               run: dotnet test --configuration Release
 
-            # Step 12: Replace <ProjectReference> with <PackageReference>
+            # Step 11: Replace <ProjectReference> with <PackageReference>
             - name: Replace ProjectReferences
               if: env.PUBLISH == 'true'
               run: |
@@ -109,7 +102,7 @@ jobs:
                   powershell -ExecutionPolicy Bypass -File scripts/ReplaceProjectReferences.ps1
               shell: powershell
 
-            # Step 13: Pack .csproj files using GitVersion's SemVer
+            # Step 12: Pack .csproj files using GitVersion's SemVer
             - name: Create NuGet packages
               if: env.PUBLISH == 'true'
               run: |
@@ -133,7 +126,7 @@ jobs:
                   }
               shell: powershell
 
-            # Step 14: Publish NuGet packages
+            # Step 13: Publish NuGet packages
             - name: Publish NuGet packages
               if: env.PUBLISH == 'true'
               run: |
@@ -150,14 +143,14 @@ jobs:
                   }
               shell: powershell
 
-            # Step 15: Create Release
+            # Step 14: Create Release
             - name: Create GitHub Release
               if: env.PUBLISH == 'true'
               id: create_release
               uses: softprops/action-gh-release@v1
               with:
-                  tag_name: v$env:version
-                  name: Release v$env:version
+                  tag_name: v${{ env.version }}
+                  name: Release v${{ env.version }}
                   body: "Automated release based on commit history."
                   prerelease: $env:IS_PRERELEASE -eq "true"
                   generate_release_notes: true
