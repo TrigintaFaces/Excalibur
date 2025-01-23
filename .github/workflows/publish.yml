@@ -77,13 +77,12 @@ jobs:
                   } else {
                     "version=${{ steps.gitversion.outputs.SemVer }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
                   }
-                  "version=$env:version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
               shell: pwsh
 
             # Step 8: Set GitVersion Variables
             - name: Set GitVersion Variables
               run: |
-                  "GitVersion_NuGetVersion=${{ steps.set_release_version.outputs.version }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+                  "GitVersion_NuGetVersion=$env:version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
                   "GitVersion_AssemblySemVer=${{ steps.gitversion.outputs.AssemblySemVer }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
                   "GitVersion_AssemblySemFileVer=${{ steps.gitversion.outputs.AssemblySemFileVer }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
                   "GitVersion_InformationalVersion=${{ steps.gitversion.outputs.InformationalVersion }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
