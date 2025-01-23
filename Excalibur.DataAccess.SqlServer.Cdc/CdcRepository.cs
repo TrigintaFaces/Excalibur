@@ -12,7 +12,7 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 /// </summary>
 public class CdcRepository : ICdcRepository
 {
-	private readonly IDbConnection connection;
+	private readonly IDbConnection _connection;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="CdcRepository" /> class using a provided database connection.
@@ -23,7 +23,7 @@ public class CdcRepository : ICdcRepository
 	{
 		ArgumentNullException.ThrowIfNull(connection);
 
-		this.connection = connection;
+		_connection = connection;
 	}
 
 	/// <summary>
@@ -35,13 +35,13 @@ public class CdcRepository : ICdcRepository
 	{
 		ArgumentNullException.ThrowIfNull(db);
 
-		connection = db.Connection;
+		_connection = db.Connection;
 	}
 
 	/// <summary>
 	///     Gets a ready-to-use database connection.
 	/// </summary>
-	internal IDbConnection Connection => connection.Ready();
+	internal IDbConnection Connection => _connection.Ready();
 
 	/// <inheritdoc />
 	public Task<byte[]> GetNextLsn(byte[] lastProcessedLsn, CancellationToken cancellationToken)

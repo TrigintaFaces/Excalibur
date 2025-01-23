@@ -10,11 +10,33 @@ on:
             - hotfix/*
     pull_request:
 
+env:
+    IS_RELEASE: false
+    IS_PRERELEASE: false
+    PUBLISH: false
+
 jobs:
     build-and-publish:
         runs-on: windows-latest
 
         steps:
+            - name: Determine if release or prerelease
+              id: determine_release
+              run: |
+                  $branch = "${{ github.ref_name }}"
+                  if ($branch -eq "main" -or $branch -eq "master") {
+                      echo "IS_RELEASE=true" >> $GITHUB_ENV
+                  } elseif ($branch -like "release/*") {
+                      echo "IS_PRERELEASE=true" >> $GITHUB_ENV
+                  }
+
+                  if ($env:IS_RELEASE -eq "true" -or $env:IS_PRERELEASE -eq "true") {
+                      if ($github.event_name -ne 'pull_request') {
+                          echo "PUBLISH=true" >> $GITHUB_ENV
+                      }
+                  }
+              shell: powershell
+
             # Step 1: Check out the code
             - name: Checkout
               uses: actions/checkout@v4
@@ -46,13 +68,20 @@ jobs:
             - name: Set Release Version
               id: set_release_version
               run: |
-                  $branch = "${{ github.ref_name }}"
-                  if ($branch -eq "main") {
-                    echo "version=${{ steps.gitversion.outputs.MajorMinorPatch }}" >> $env:GITHUB_OUTPUT
+                  if ($env:IS_RELEASE -eq "true") {
+                    echo "version=${{ steps.gitversion.outputs.MajorMinorPatch }}" >> $GITHUB_ENV
                   } else {
-                    echo "version=${{ steps.gitversion.outputs.SemVer }}" >> $env:GITHUB_OUTPUT
+                    echo "version=${{ steps.gitversion.outputs.SemVer }}" >> $GITHUB_ENV
                   }
+                  echo "version=$env:version" >> $GITHUB_OUTPUT
               shell: powershell
+
+            - name: Set GitVersion Variables
+              run: |
+                  echo "GitVersion_NuGetVersion=${{ steps.set_release_version.outputs.version }}" >> $GITHUB_ENV
+                  echo "GitVersion_AssemblySemVer=${{ steps.gitversion.outputs.AssemblySemVer }}" >> $GITHUB_ENV
+                  echo "GitVersion_AssemblySemFileVer=${{ steps.gitversion.outputs.AssemblySemFileVer }}" >> $GITHUB_ENV
+                  echo "GitVersion_InformationalVersion=${{ steps.gitversion.outputs.InformationalVersion }}" >> $GITHUB_ENV
 
             # Step 4: Build
             - name: Restore .NET dependencies
@@ -66,17 +95,19 @@ jobs:
 
             # Step 5: Replace <ProjectReference> with <PackageReference>
             - name: Replace ProjectReferences
+              if: env.PUBLISH == 'true'
               run: |
-                  $env:PACKAGE_VERSION = "${{ steps.set_release_version.outputs.version }}"
-                  Write-Host "Using GitVersion's SemVer: $($env:PACKAGE_VERSION)"
+                  $env:PACKAGE_VERSION = $env:GitVersion_NuGetVersion
+                  Write-Host "Using GitVersion's NuGetVersion: $($env:GitVersion_NuGetVersion)"
                   powershell -ExecutionPolicy Bypass -File scripts/ReplaceProjectReferences.ps1
               shell: powershell
 
             # Step 6: Pack .csproj files using GitVersion's SemVer
             - name: Create NuGet packages
+              if: env.PUBLISH == 'true'
               run: |
-                  $version = "${{ steps.set_release_version.outputs.version }}"
-                  Write-Host "Packing projects with version: $version"
+                  Write-Host "Packing projects with PackageVersion: $env:GitVersion_NuGetVersion"
+                  Write-Host "Packing projects with Version: $env:GitVersion_InformationalVersion"
 
                   $artifactPath = Join-Path $env:GITHUB_WORKSPACE 'artifacts'
 
@@ -88,8 +119,8 @@ jobs:
                   foreach ($file in $csprojFiles) {
                       dotnet pack $file.FullName `
                         --configuration Release `
-                        -p:PackageVersion=$version `
-                        -p:Version=$version `
+                        -p:PackageVersion=$env:GitVersion_NuGetVersion `
+                        -p:Version=$env:GitVersion_NuGetVersion `
                         --no-build `
                         --output $artifactPath
                   }
@@ -97,7 +128,7 @@ jobs:
 
             # Step 7: Publish NuGet packages.
             - name: Publish NuGet packages
-              if: startsWith(github.ref_name, 'main') || startsWith(github.ref_name, 'develop') || startsWith(github.ref_name, 'release/')
+              if: env.PUBLISH == 'true'
               run: |
                   $env:NUGET_API_KEY = "${{ secrets.NUGET_API_KEY }}"
                   $artifactPath = Join-Path $env:GITHUB_WORKSPACE 'artifacts'
@@ -114,14 +145,14 @@ jobs:
 
             # Step 8: Create Release.
             - name: Create GitHub Release
-              if: startsWith(github.ref_name, 'main') || startsWith(github.ref_name, 'develop') || github.ref == 'refs/heads/release' || startsWith(github.ref_name, 'release/')
+              if: env.PUBLISH == 'true'
               id: create_release
               uses: softprops/action-gh-release@v1
               with:
-                  tag_name: v${{ steps.set_release_version.outputs.version }}
-                  name: Release v${{ steps.set_release_version.outputs.version }}
+                  tag_name: v$env:version
+                  name: Release v$env:version
                   body: "Automated release based on commit history."
-                  prerelease: ${{ github.ref != 'refs/heads/main' }}
+                  prerelease: $env:IS_PRERELEASE -eq "true"
                   generate_release_notes: true
                   files: |
                       artifacts/*.nupkg

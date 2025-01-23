@@ -14,10 +14,10 @@ namespace Excalibur.DataAccess.DataProcessing;
 /// </summary>
 public class DataOrchestrationManager : IDataOrchestrationManager
 {
-	private readonly IDataProcessorDb db;
-	private readonly IDataProcessorRegistry processorRegistry;
-	private readonly IOptions<DataProcessingConfiguration> configuration;
-	private readonly ILogger<DataOrchestrationManager> logger;
+	private readonly IDataProcessorDb _db;
+	private readonly IDataProcessorRegistry _processorRegistry;
+	private readonly IOptions<DataProcessingConfiguration> _configuration;
+	private readonly ILogger<DataOrchestrationManager> _logger;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="DataOrchestrationManager" /> class.
@@ -37,10 +37,10 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 		ArgumentNullException.ThrowIfNull(configuration);
 		ArgumentNullException.ThrowIfNull(logger);
 
-		this.db = db;
-		this.processorRegistry = processorRegistry;
-		this.configuration = configuration;
-		this.logger = logger;
+		_db = db;
+		_processorRegistry = processorRegistry;
+		_configuration = configuration;
+		_logger = logger;
 	}
 
 	/// <inheritdoc />
@@ -48,10 +48,10 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 		CancellationToken cancellationToken = default)
 	{
 		var dataTaskId = Uuid7Extensions.GenerateGuid();
-		var command = DataTaskCommands.InsertDataTaskRequest(dataTaskId, recordType, configuration.Value, DbTimeouts.RegularTimeoutSeconds,
+		var command = DataTaskCommands.InsertDataTaskRequest(dataTaskId, recordType, _configuration.Value, DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
 
-		_ = await db.Connection.Ready().ExecuteAsync(command).ConfigureAwait(false);
+		_ = await _db.Connection.Ready().ExecuteAsync(command).ConfigureAwait(false);
 
 		return dataTaskId;
 	}
@@ -59,19 +59,19 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 	/// <inheritdoc />
 	public async Task ProcessDataTask(CancellationToken cancellationToken = default)
 	{
-		var command = DataTaskCommands.GetDataTaskRequests(configuration.Value, DbTimeouts.RegularTimeoutSeconds, cancellationToken);
-		var requests = (await db.Connection.Ready().QueryAsync<DataTaskRequest>(command).ConfigureAwait(false)).ToList();
+		var command = DataTaskCommands.GetDataTaskRequests(_configuration.Value, DbTimeouts.RegularTimeoutSeconds, cancellationToken);
+		var requests = (await _db.Connection.Ready().QueryAsync<DataTaskRequest>(command).ConfigureAwait(false)).ToList();
 
 		foreach (var request in requests)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
-			if (!processorRegistry.TryGetProcessor(request.RecordType, out var processor))
+			if (!_processorRegistry.TryGetProcessor(request.RecordType, out var processor))
 			{
 				request.Attempts++;
 				await UpdateAttemptsAsync(request.DataTaskId, request.Attempts, cancellationToken).ConfigureAwait(false);
 
-				logger.LogWarning("Error processing back fill for table '{RecordType}. No processor found.'", request.RecordType);
+				_logger.LogWarning("Error processing back fill for table '{RecordType}. No processor found.'", request.RecordType);
 				continue;
 			}
 
@@ -99,11 +99,11 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 		var command = DataTaskCommands.UpdateDataTaskRequest(
 			dataTaskId,
 			attempts,
-			configuration.Value,
+			_configuration.Value,
 			DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
 
-		_ = await db.Connection.Ready().ExecuteAsync(command).ConfigureAwait(false);
+		_ = await _db.Connection.Ready().ExecuteAsync(command).ConfigureAwait(false);
 	}
 
 	private async Task UpdateCompletedCountAsync(
@@ -114,22 +114,22 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 		var command = DataTaskCommands.UpdateCompletedCountRequest(
 			dataTaskId,
 			complete,
-			configuration.Value,
+			_configuration.Value,
 			DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
 
-		_ = await db.Connection.Ready().ExecuteAsync(command).ConfigureAwait(false);
+		_ = await _db.Connection.Ready().ExecuteAsync(command).ConfigureAwait(false);
 	}
 
 	private async Task DeleteRequestAsync(Guid dataTaskId, CancellationToken cancellationToken = default)
 	{
 		var command = DataTaskCommands.DeleteDataTaskRequest(
 			dataTaskId,
-			configuration.Value,
+			_configuration.Value,
 			DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
 
-		_ = await db.Connection.Ready().ExecuteAsync(command).ConfigureAwait(false);
+		_ = await _db.Connection.Ready().ExecuteAsync(command).ConfigureAwait(false);
 	}
 
 	internal static class DataTaskCommands

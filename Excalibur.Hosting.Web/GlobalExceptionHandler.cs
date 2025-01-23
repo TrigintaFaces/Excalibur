@@ -21,8 +21,8 @@ namespace Excalibur.Hosting.Web;
 public class GlobalExceptionHandler : IExceptionHandler
 {
 	private const string UnHandledExceptionMessage = "An unhandled exception has occurred.";
-	private readonly IHostEnvironment env;
-	private readonly ILogger<GlobalExceptionHandler> logger;
+	private readonly IHostEnvironment _env;
+	private readonly ILogger<GlobalExceptionHandler> _logger;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="GlobalExceptionHandler" /> class.
@@ -34,8 +34,8 @@ public class GlobalExceptionHandler : IExceptionHandler
 		ArgumentNullException.ThrowIfNull(env, nameof(env));
 		ArgumentNullException.ThrowIfNull(logger, nameof(logger));
 
-		this.env = env;
-		this.logger = logger;
+		_env = env;
+		_logger = logger;
 	}
 
 	/// <inheritdoc />
@@ -49,7 +49,7 @@ public class GlobalExceptionHandler : IExceptionHandler
 		var exceptionId = exception is ApiException apiException ? apiException.Id : Uuid7Extensions.GenerateGuid();
 		var problemDetails = BuildProblemDetails(exception, statusCode, traceId, exceptionId);
 
-		LogException(httpContext, exception, traceId, exceptionId, statusCode, logger);
+		LogException(httpContext!, exception, traceId, exceptionId, statusCode, _logger);
 
 		httpContext!.Response.StatusCode = statusCode;
 		httpContext.Response.ContentType = "application/problem+json";
@@ -141,7 +141,7 @@ public class GlobalExceptionHandler : IExceptionHandler
 		{
 			Title = reasonPhrase,
 			Status = statusCode,
-			Instance = $"urn:{env.ApplicationName}:error:{exceptionId:D}",
+			Instance = $"urn:{_env.ApplicationName}:error:{exceptionId:D}",
 			Extensions = { ["TraceId"] = traceId }
 		};
 
@@ -150,7 +150,7 @@ public class GlobalExceptionHandler : IExceptionHandler
 			problemDetails.Extensions["ValidationErrors"] = validationException.Errors;
 		}
 
-		if (!env.IsDevelopment() && statusCode >= 500)
+		if (!_env.IsDevelopment() && statusCode >= 500)
 		{
 			problemDetails.Title = UnHandledExceptionMessage;
 			problemDetails.Status = StatusCodes.Status500InternalServerError;
