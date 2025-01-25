@@ -7,31 +7,31 @@ using Excalibur.DataAccess.Exceptions;
 namespace Excalibur.DataAccess;
 
 /// <summary>
-///     Provides extension methods for <see cref="IDbConnection" /> to enhance connection management and query execution.
+///     Provides extension methods for <see cref="IDbConnection" /> to enhance connection management and request execution.
 /// </summary>
 public static class DbConnectionExtensions
 {
 	/// <summary>
-	///     Executes a data query asynchronously on the specified database connection.
+	///     Executes a data request asynchronously on the specified database connection.
 	/// </summary>
 	/// <typeparam name="TModel"> The type of the result model. </typeparam>
-	/// <param name="connection"> The database connection to use for the query. </param>
-	/// <param name="dataQuery"> The query to execute, including the command and resolver. </param>
-	/// <returns> The result of the query execution as an instance of <typeparamref name="TModel" />. </returns>
-	/// <exception cref="OperationFailedException"> Thrown if an error occurs while executing the query. </exception>
-	public static async Task<TModel> QueryAsync<TModel>(this IDbConnection connection, IDataQuery<IDbConnection, TModel> dataQuery)
+	/// <param name="connection"> The database connection to use for the request. </param>
+	/// <param name="dataRequest"> The request to execute, including the command and resolver. </param>
+	/// <returns> The result of the request execution as an instance of <typeparamref name="TModel" />. </returns>
+	/// <exception cref="OperationFailedException"> Thrown if an error occurs while executing the request. </exception>
+	public static async Task<TModel> ResolveAsync<TModel>(this IDbConnection connection, IDataRequest<IDbConnection, TModel> dataRequest)
 	{
-		ArgumentNullException.ThrowIfNull(dataQuery);
+		ArgumentNullException.ThrowIfNull(dataRequest);
 
 		try
 		{
-			return await dataQuery.Resolve(connection).ConfigureAwait(false);
+			return await dataRequest.ResolveAsync(connection).ConfigureAwait(false);
 		}
 		catch (Exception ex) when (ex is not ApiException)
 		{
 			throw new OperationFailedException(
 				TypeNameHelper.GetTypeDisplayName(typeof(TModel), false, true),
-				TypeNameHelper.GetTypeDisplayName(dataQuery.GetType(), false, true),
+				TypeNameHelper.GetTypeDisplayName(dataRequest.GetType(), false, true),
 				innerException: ex
 			);
 		}

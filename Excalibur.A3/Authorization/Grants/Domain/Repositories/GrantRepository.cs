@@ -2,7 +2,7 @@ using System.Data;
 using System.Diagnostics;
 
 using Excalibur.A3.Authorization.Grants.Domain.Model;
-using Excalibur.A3.Authorization.Grants.Domain.QueryProviders;
+using Excalibur.A3.Authorization.Grants.Domain.RequestProviders;
 using Excalibur.Data;
 using Excalibur.Data.Outbox;
 using Excalibur.Data.Repositories;
@@ -20,21 +20,22 @@ namespace Excalibur.A3.Authorization.Grants.Domain.Repositories;
 /// </summary>
 public class GrantRepository : AggregateRepository<Grant, string>, IGrantRepository
 {
-	private readonly IGrantQueryProvider _queryProvider;
+	private readonly IGrantRequestProvider _requestProvider;
 	private readonly IDbConnection _connection;
 	private readonly ILogger<GrantRepository> _logger;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="GrantRepository" /> class.
 	/// </summary>
-	/// <param name="queryProvider"> The database specific query provider. </param>
+	/// <param name="requestProvider"> The database specific request provider. </param>
 	/// <param name="context"> The activity context containing metadata about the current activity. </param>
 	/// <param name="outbox"> The outbox used to queue messages for eventual consistency. </param>
 	/// <param name="logger"> Logger for logging messages and errors. </param>
-	public GrantRepository(IGrantQueryProvider queryProvider, IActivityContext context, IOutbox outbox, ILogger<GrantRepository> logger) :
+	public GrantRepository(IGrantRequestProvider requestProvider, IActivityContext context, IOutbox outbox,
+		ILogger<GrantRepository> logger) :
 		base(context, outbox)
 	{
-		_queryProvider = queryProvider;
+		_requestProvider = requestProvider;
 		_logger = logger;
 		_connection = context.DomainDb().Connection;
 	}
@@ -45,8 +46,9 @@ public class GrantRepository : AggregateRepository<Grant, string>, IGrantReposit
 		ArgumentNullException.ThrowIfNull(scope);
 		ArgumentException.ThrowIfNullOrEmpty(userId);
 
-		var query = _queryProvider.GetMatchingGrants(userId, scope.TenantId, scope.GrantType, scope.Qualifier, CancellationToken.None);
-		return await query.Resolve(_connection).ConfigureAwait(false);
+		var getMatchingGrants =
+			_requestProvider.GetMatchingGrants(userId, scope.TenantId, scope.GrantType, scope.Qualifier, CancellationToken.None);
+		return await getMatchingGrants.ResolveAsync(_connection).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -56,8 +58,8 @@ public class GrantRepository : AggregateRepository<Grant, string>, IGrantReposit
 
 		try
 		{
-			var query = _queryProvider.GetAllGrants(userId, CancellationToken.None);
-			return await query.Resolve(_connection).ConfigureAwait(false);
+			var getAllGrants = _requestProvider.GetAllGrants(userId, CancellationToken.None);
+			return await getAllGrants.ResolveAsync(_connection).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
@@ -75,11 +77,11 @@ public class GrantRepository : AggregateRepository<Grant, string>, IGrantReposit
 		DomainException.ThrowIf(!aggregate.IsRevoked() || aggregate.IsExpired(), statusCode: 400,
 			message: "A grant must be revoked or expired before deleting it.");
 
-		var query = _queryProvider.DeleteGrant(
+		var deleteGrant = _requestProvider.DeleteGrant(
 			aggregate.UserId, aggregate.Scope.TenantId, aggregate.Scope.GrantType, aggregate.Scope.Qualifier, aggregate.RevokedBy,
 			aggregate.RevokedOn, cancellationToken);
 
-		return await query.Resolve(_connection).ConfigureAwait(false);
+		return await deleteGrant.ResolveAsync(_connection).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -88,10 +90,10 @@ public class GrantRepository : AggregateRepository<Grant, string>, IGrantReposit
 		ArgumentException.ThrowIfNullOrEmpty(key);
 		var id = new GrantKey(key);
 
-		var query = _queryProvider.GrantExists(id.UserId, id.Scope.TenantId, id.Scope.GrantType, id.Scope.Qualifier,
+		var grantExists = _requestProvider.GrantExists(id.UserId, id.Scope.TenantId, id.Scope.GrantType, id.Scope.Qualifier,
 			CancellationToken.None);
 
-		return await query.Resolve(_connection).ConfigureAwait(false);
+		return await grantExists.ResolveAsync(_connection).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -101,9 +103,10 @@ public class GrantRepository : AggregateRepository<Grant, string>, IGrantReposit
 
 		var id = new GrantKey(key);
 
-		var query = _queryProvider.GetGrant(id.UserId, id.Scope.TenantId, id.Scope.GrantType, id.Scope.Qualifier, CancellationToken.None);
+		var getGrant = _requestProvider.GetGrant(id.UserId, id.Scope.TenantId, id.Scope.GrantType, id.Scope.Qualifier,
+			CancellationToken.None);
 
-		return await query.Resolve(_connection).ConfigureAwait(false);
+		return await getGrant.ResolveAsync(_connection).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -114,8 +117,8 @@ public class GrantRepository : AggregateRepository<Grant, string>, IGrantReposit
 
 		try
 		{
-			var query = _queryProvider.SaveGrant(aggregate, CancellationToken.None);
-			return await query.Resolve(_connection).ConfigureAwait(false);
+			var saveGrant = _requestProvider.SaveGrant(aggregate, CancellationToken.None);
+			return await saveGrant.ResolveAsync(_connection).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{

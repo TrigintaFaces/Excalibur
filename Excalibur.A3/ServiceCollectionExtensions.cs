@@ -5,7 +5,7 @@ using DOPA.DependencyInjection;
 using Excalibur.A3.Audit;
 using Excalibur.A3.Authentication;
 using Excalibur.A3.Authorization;
-using Excalibur.A3.Authorization.Grants.Domain.QueryProviders;
+using Excalibur.A3.Authorization.Grants.Domain.RequestProviders;
 using Excalibur.A3.Authorization.PolicyData;
 using Excalibur.Application;
 using Excalibur.Core;
@@ -95,7 +95,7 @@ public static class ServiceCollectionExtensions
 
 		_ = services
 			.AddOpaPolicy<AuthorizationPolicy>(stream)
-			.AddAuthorizationQueryProviders(databaseType)
+			.AddAuthorizationRequestProviders(databaseType)
 			.AddSingleton<Activities>()
 			.AddTransient<ActivityGroups>()
 			.AddTransient<UserGrants>()
@@ -114,53 +114,53 @@ public static class ServiceCollectionExtensions
 		return services;
 	}
 
-	private static IServiceCollection AddAuthorizationQueryProviders(this IServiceCollection services, SupportedDatabase databaseType)
+	private static IServiceCollection AddAuthorizationRequestProviders(this IServiceCollection services, SupportedDatabase databaseType)
 	{
-		_ = services.AddActivityGroupQueryProvider(databaseType);
-		_ = services.AddGrantQueryProvider(databaseType);
+		_ = services.AddActivityGroupRequestProvider(databaseType);
+		_ = services.AddGrantRequestProvider(databaseType);
 
 		return services;
 	}
 
-	private static IServiceCollection AddActivityGroupQueryProvider(this IServiceCollection services, SupportedDatabase databaseType)
+	private static IServiceCollection AddActivityGroupRequestProvider(this IServiceCollection services, SupportedDatabase databaseType)
 	{
-		var queryProviderType = databaseType switch
+		var requestProviderType = databaseType switch
 		{
 			SupportedDatabase.Postgres => Type.GetType(
-				"Excalibur.A3.Postgres.QueryProviders.Authorization.ActivityGroups.PostgresActivityGroupQueryProvider, Excalibur.A3.Postgres"),
+				"Excalibur.A3.Postgres.RequestProviders.Authorization.ActivityGroups.PostgresActivityGroupRequestProvider, Excalibur.A3.Postgres"),
 			SupportedDatabase.SqlServer => Type.GetType(
-				"Excalibur.A3.SqlServer.QueryProviders.Authorization.ActivityGroups.SqlServerActivityGroupQueryProvider, Excalibur.A3.SqlServer"),
+				"Excalibur.A3.SqlServer.RequestProviders.Authorization.ActivityGroups.SqlServerActivityGroupRequestProvider, Excalibur.A3.SqlServer"),
 			SupportedDatabase.Unknown or _ => throw new NotSupportedException($"Database type '{databaseType}' is not supported.")
 		};
 
-		if (queryProviderType == null)
+		if (requestProviderType == null)
 		{
 			throw new InvalidOperationException(
-				$"The query provider for '{databaseType}' is not available. Ensure the appropriate NuGet package is installed.");
+				$"The request provider for '{databaseType}' is not available. Ensure the appropriate NuGet package is installed.");
 		}
 
-		_ = services.AddSingleton(typeof(IActivityGroupQueryProvider), queryProviderType);
+		_ = services.AddSingleton(typeof(IActivityGroupRequestProvider), requestProviderType);
 		return services;
 	}
 
-	private static IServiceCollection AddGrantQueryProvider(this IServiceCollection services, SupportedDatabase databaseType)
+	private static IServiceCollection AddGrantRequestProvider(this IServiceCollection services, SupportedDatabase databaseType)
 	{
-		var queryProviderType = databaseType switch
+		var requestProviderType = databaseType switch
 		{
 			SupportedDatabase.Postgres => Type.GetType(
-				"Excalibur.A3.Postgres.QueryProviders.Authorization.Grants.PostgresGrantQueryProvider, Excalibur.A3.Postgres"),
+				"Excalibur.A3.Postgres.RequestProviders.Authorization.Grants.PostgresGrantRequestProvider, Excalibur.A3.Postgres"),
 			SupportedDatabase.SqlServer => Type.GetType(
-				"Excalibur.A3.SqlServer.QueryProviders.Authorization.Grants.SqlServerGrantQueryProvider, Excalibur.A3.SqlServer"),
+				"Excalibur.A3.SqlServer.RequestProviders.Authorization.Grants.SqlServerGrantRequestProvider, Excalibur.A3.SqlServer"),
 			SupportedDatabase.Unknown or _ => throw new NotSupportedException($"Database type '{databaseType}' is not supported.")
 		};
 
-		if (queryProviderType == null)
+		if (requestProviderType == null)
 		{
 			throw new InvalidOperationException(
-				$"The query provider for '{databaseType}' is not available. Ensure the appropriate NuGet package is installed.");
+				$"The request provider for '{databaseType}' is not available. Ensure the appropriate NuGet package is installed.");
 		}
 
-		_ = services.AddSingleton(typeof(IGrantQueryProvider), queryProviderType);
+		_ = services.AddSingleton(typeof(IGrantRequestProvider), requestProviderType);
 		return services;
 	}
 }

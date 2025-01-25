@@ -1,4 +1,4 @@
-using Excalibur.A3.Authorization.Grants.Domain.QueryProviders;
+using Excalibur.A3.Authorization.Grants.Domain.RequestProviders;
 using Excalibur.Domain;
 
 namespace Excalibur.A3.Authorization.PolicyData;
@@ -6,7 +6,7 @@ namespace Excalibur.A3.Authorization.PolicyData;
 /// <summary>
 ///     Manages grants in the database.
 /// </summary>
-internal sealed class UserGrants(IDomainDb domainDb, IGrantQueryProvider grantQueryProvider)
+internal sealed class UserGrants(IDomainDb domainDb, IGrantRequestProvider grantRequestProvider)
 {
 	/// <summary>
 	///     Asynchronously retrieves a dictionary of grants for a specific user.
@@ -17,7 +17,8 @@ internal sealed class UserGrants(IDomainDb domainDb, IGrantQueryProvider grantQu
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(userId);
 
-		var query = grantQueryProvider.FindUserGrants(userId, CancellationToken.None);
-		return await query.Resolve(domainDb.Connection).ConfigureAwait(false);
+		return await grantRequestProvider
+			.FindUserGrants(userId, CancellationToken.None).ResolveAsync(domainDb.Connection)
+			.ConfigureAwait(false);
 	}
 }
