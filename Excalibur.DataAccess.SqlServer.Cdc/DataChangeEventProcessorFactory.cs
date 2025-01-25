@@ -42,9 +42,8 @@ public class DataChangeEventProcessorFactory : IDataChangeEventProcessorFactory
 		var cdcRepository = new CdcRepository(cdcConnection);
 		var stateStore = new CdcStateStore(stateStoreConnection);
 		var logger = _serviceProvider.GetRequiredService<ILogger<DataChangeEventProcessor>>();
-		var dataChangeHandlerRegistry = _serviceProvider.GetRequiredService<IDataChangeHandlerRegistry>();
 
-		return new DataChangeEventProcessor(dbConfig, cdcRepository, stateStore, logger, dataChangeHandlerRegistry);
+		return new DataChangeEventProcessor(dbConfig, cdcRepository, stateStore, _serviceProvider, logger);
 	}
 
 	/// <summary>
@@ -66,8 +65,7 @@ public class DataChangeEventProcessorFactory : IDataChangeEventProcessorFactory
 		var cdcRepository = new CdcRepository(cdcDb);
 		var stateStore = new CdcStateStore(stateStoreDb);
 		var logger = _serviceProvider.GetRequiredService<ILogger<DataChangeEventProcessor>>();
-		var dataChangeHandlerRegistry = _serviceProvider.GetRequiredService<IDataChangeHandlerRegistry>();
 
-		return new DataChangeEventProcessor(dbConfig, cdcRepository, stateStore, logger, dataChangeHandlerRegistry);
+		return new DataChangeEventProcessor(dbConfig, cdcRepository, stateStore, _serviceProvider, logger);
 	}
 }

@@ -11,6 +11,7 @@ using Excalibur.DataAccess;
 using Excalibur.Domain;
 using Excalibur.Domain.Model;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -21,25 +22,30 @@ namespace Excalibur.Data.Outbox;
 /// </summary>
 public class Outbox : IOutbox
 {
+	private static readonly JsonSerializerOptions SerializerOptions = new() { Converters = { new OutboxMessageJsonConverter() } };
 	private readonly OutboxConfiguration _config;
 	private readonly IDbConnection _connection;
 	private readonly IActivityContext _context;
+	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger<Outbox> _logger;
-	private readonly JsonSerializerOptions _serializerSettings = new() { Converters = { new OutboxMessageJsonConverter() } };
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="Outbox" /> class.
 	/// </summary>
 	/// <param name="context"> The activity context containing tenant and correlation information. </param>
+	/// <param name="serviceProvider"> The root service provider for creating new scopes. </param>
 	/// <param name="configuration"> The outbox configuration options. </param>
 	/// <param name="logger"> The logger instance for logging events. </param>
-	public Outbox(IActivityContext context, IOptions<OutboxConfiguration> configuration, ILogger<Outbox> logger)
+	public Outbox(IActivityContext context, IServiceProvider serviceProvider, IOptions<OutboxConfiguration> configuration,
+		ILogger<Outbox> logger)
 	{
 		ArgumentNullException.ThrowIfNull(context);
+		ArgumentNullException.ThrowIfNull(serviceProvider);
 		ArgumentNullException.ThrowIfNull(configuration);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_context = context;
+		_serviceProvider = serviceProvider;
 		_logger = logger;
 		_config = configuration.Value;
 		_connection = context.DomainDb().Connection;
@@ -65,17 +71,16 @@ public class Outbox : IOutbox
 	}
 
 	/// <inheritdoc />
-	public async Task<int> DispatchReservedRecordAsync(string dispatcherId, OutboxRecord record, Func<OutboxRecord, Task<int>> dispatch)
+	public async Task<int> DispatchReservedRecordAsync(string dispatcherId, OutboxRecord record)
 	{
 		ArgumentException.ThrowIfNullOrEmpty(dispatcherId);
 		ArgumentNullException.ThrowIfNull(record);
-		ArgumentNullException.ThrowIfNull(dispatch);
 
 		try
 		{
 			_logger.LogInformation("Dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId}", record.OutboxId,
 				dispatcherId);
-			var result = await dispatch(record).ConfigureAwait(false);
+			var result = await Dispatch(record).ConfigureAwait(false);
 			_logger.LogInformation("Successfully dispatched OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId}",
 				record.OutboxId,
 				dispatcherId);
@@ -142,7 +147,7 @@ public class Outbox : IOutbox
 		}
 
 		var outboxRecordId = Uuid7Extensions.GenerateGuid();
-		var eventData = JsonSerializer.Serialize(messages, _serializerSettings);
+		var eventData = JsonSerializer.Serialize(messages, SerializerOptions);
 
 		_logger.LogInformation("Saving {MessageCount} messages to the {OutboxTable} with Id {OutboxId}.", messages.Count(),
 			_config.TableName, outboxRecordId);
@@ -160,6 +165,37 @@ public class Outbox : IOutbox
 		{ ExcaliburHeaderNames.CorrelationId, _context.CorrelationId().ToString() },
 		{ ExcaliburHeaderNames.TenantId, _context.TenantId() }
 	};
+
+	/// <summary>
+	///     Dispatches the outbox messages for a given record.
+	/// </summary>
+	/// <param name="outboxRecord"> The outbox record containing event data. </param>
+	/// <returns> The count of dispatched messages. </returns>
+	private async Task<int> Dispatch(OutboxRecord outboxRecord)
+	{
+		var messages = JsonSerializer.Deserialize<List<OutboxMessage>>(outboxRecord.EventData, SerializerOptions)
+					   ?? [];
+
+		if (messages.Count > 0)
+		{
+			await Task.WhenAll(messages.Select(async message =>
+			{
+				try
+				{
+					using var scope = _serviceProvider.CreateScope();
+					var scopedDispatcher = scope.ServiceProvider.GetRequiredService<IOutboxMessageDispatcher>();
+					await scopedDispatcher.DispatchAsync(message).ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, "Failed to dispatch message with ID {MessageId}", message.MessageId);
+					throw;
+				}
+			})).ConfigureAwait(false);
+		}
+
+		return messages.Count;
+	}
 
 	internal static class OutboxCommands
 	{

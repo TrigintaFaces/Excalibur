@@ -16,6 +16,7 @@ public abstract class BatchedDataProcessor<TRecord> : DataProcessor<TRecord>
 	/// <summary>
 	///     Initializes a new instance of the <see cref="BatchedDataProcessor{TRecord}" /> class.
 	/// </summary>
+	/// <param name="serviceProvider"> The root service provider for creating new scopes. </param>
 	/// <param name="logger"> The logger used for logging processing information and errors. </param>
 	/// <param name="batchSize"> The number of records to process in each batch. Default is <c> BATCH_SIZE </c>. </param>
 	/// <param name="maxDegreeOfParallelism">
@@ -25,9 +26,10 @@ public abstract class BatchedDataProcessor<TRecord> : DataProcessor<TRecord>
 	///     Thrown when <paramref name="batchSize" /> or <paramref name="maxDegreeOfParallelism" /> is less than or equal to zero.
 	/// </exception>
 	protected BatchedDataProcessor(
+		IServiceProvider serviceProvider,
 		ILogger logger,
 		int batchSize = BatchSize,
-		int maxDegreeOfParallelism = MaxDegreeOfParallelism) : base(logger, batchSize, maxDegreeOfParallelism)
+		int maxDegreeOfParallelism = MaxDegreeOfParallelism) : base(serviceProvider, logger, batchSize, maxDegreeOfParallelism)
 	{
 		if (batchSize <= 0)
 		{

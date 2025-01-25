@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.DataAccess.DataProcessing;
@@ -14,9 +15,10 @@ public delegate Task UpdateCompletedCount(long complete, CancellationToken cance
 ///     Provides an abstract base implementation for a batched data processing pipeline.
 /// </summary>
 /// <typeparam name="TRecord"> The type of records being processed. </typeparam>
-public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TRecord>, IRecordHandler<TRecord>
+public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TRecord>
 {
 	private readonly TimeSpan _batchInterval;
+	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger _logger;
 	private readonly int _maxDegreeOfParallelism;
 	private long _processedTotal;
@@ -25,16 +27,19 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	/// <summary>
 	///     Initializes a new instance of the <see cref="DataProcessor{TRecord}" /> class.
 	/// </summary>
+	/// <param name="serviceProvider"> The root service provider for creating new scopes. </param>
 	/// <param name="logger"> The logger used for diagnostic information. </param>
 	/// <param name="batchSize"> The size of batches used during processing. Default is 1000. </param>
 	/// <param name="batchInterval"> The interval, in seconds, between batch updates. Default is 5 seconds. </param>
 	/// <param name="maxDegreeOfParallelism"> The maximum number of concurrent consumer tasks. Default is 4. </param>
 	protected DataProcessor(
+		IServiceProvider serviceProvider,
 		ILogger logger,
 		int batchSize = BatchSize,
 		int batchInterval = BatchIntervalSeconds,
 		int maxDegreeOfParallelism = MaxDegreeOfParallelism)
 	{
+		ArgumentNullException.ThrowIfNull(serviceProvider);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		if (batchSize <= 0)
@@ -52,6 +57,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 			throw new ArgumentOutOfRangeException(nameof(maxDegreeOfParallelism), "Max degree of parallelism must be greater than zero.");
 		}
 
+		_serviceProvider = serviceProvider;
 		_logger = logger;
 		_maxDegreeOfParallelism = maxDegreeOfParallelism;
 		_batchInterval = TimeSpan.FromSeconds(batchInterval);
@@ -85,7 +91,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 			{
 				await foreach (var record in DataQueue.DequeueAllAsync(cancellationToken).ConfigureAwait(false))
 				{
-					await HandleAsync(record, cancellationToken).ConfigureAwait(false);
+					await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false);
 
 #pragma warning disable IDE0058 // Expression value is never used
 					Interlocked.Increment(ref _processedTotal);
@@ -113,13 +119,21 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	/// <returns> An asynchronous enumerable of records. </returns>
 	public abstract IAsyncEnumerable<TRecord> FetchAllAsync(long skip, CancellationToken cancellationToken = default);
 
-	/// <summary>
-	///     Handles the processing of a single record.
-	/// </summary>
-	/// <param name="record"> The record to process. </param>
-	/// <param name="cancellationToken"> A token to signal cancellation. </param>
-	/// <returns> A task that represents the asynchronous operation. </returns>
-	public abstract Task HandleAsync(TRecord record, CancellationToken cancellationToken = default);
+	private async Task ProcessRecordAsync(TRecord record, CancellationToken cancellationToken)
+	{
+		using var scope = _serviceProvider.CreateScope();
+		var handler = scope.ServiceProvider.GetRequiredService<IRecordHandler<TRecord>>();
+
+		try
+		{
+			await handler.HandleAsync(record, cancellationToken).ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Error processing record of type {RecordType}", typeof(TRecord).Name);
+			throw;
+		}
+	}
 
 	private async Task CoordinatorLoop(UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken = default)
 	{

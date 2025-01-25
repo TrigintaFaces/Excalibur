@@ -1,5 +1,6 @@
 using Excalibur.DataAccess.SqlServer.Cdc.Exceptions;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.DataAccess.SqlServer.Cdc;
@@ -10,8 +11,8 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 {
 	private readonly IDatabaseConfig _dbConfig;
+	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger<DataChangeEventProcessor> _logger;
-	private readonly IDataChangeHandlerRegistry _dataChangeHandlerRegistry;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="DataChangeEventProcessor" /> class.
@@ -19,18 +20,18 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 	/// <param name="dbConfig"> The database configuration for the CDC processor. </param>
 	/// <param name="cdcRepository"> The repository for interacting with CDC data. </param>
 	/// <param name="stateStore"> The state store for persisting CDC processing state. </param>
+	/// <param name="serviceProvider"> The root service provider for creating new scopes. </param>
 	/// <param name="logger"> The logger for capturing diagnostics and operational logs. </param>
-	/// <param name="dataChangeHandlerRegistry"> The registry for resolving handlers for specific tables. </param>
 	public DataChangeEventProcessor(
 		IDatabaseConfig dbConfig,
 		ICdcRepository cdcRepository,
 		ICdcStateStore stateStore,
-		ILogger<DataChangeEventProcessor> logger,
-		IDataChangeHandlerRegistry dataChangeHandlerRegistry) : base(dbConfig, cdcRepository, stateStore, logger)
+		IServiceProvider serviceProvider,
+		ILogger<DataChangeEventProcessor> logger) : base(dbConfig, cdcRepository, stateStore, logger)
 	{
 		_dbConfig = dbConfig;
+		_serviceProvider = serviceProvider;
 		_logger = logger;
-		_dataChangeHandlerRegistry = dataChangeHandlerRegistry;
 	}
 
 	/// <summary>
@@ -60,7 +61,9 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 		{
 			try
 			{
-				var handler = _dataChangeHandlerRegistry.GetHandler(changeEvent.TableName);
+				using var scope = _serviceProvider.CreateScope();
+				var scopedHandlerRegistry = scope.ServiceProvider.GetRequiredService<IDataChangeHandlerRegistry>();
+				var handler = scopedHandlerRegistry.GetHandler(changeEvent.TableName);
 				await handler.Handle(changeEvent, cancellationToken).ConfigureAwait(false);
 
 				_logger.LogInformation("Successfully processed change event for table '{TableName}'.", changeEvent.TableName);

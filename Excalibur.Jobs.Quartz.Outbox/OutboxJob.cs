@@ -1,8 +1,5 @@
-using System.Text.Json;
-
 using Excalibur.Core.Extensions;
 using Excalibur.Data.Outbox;
-using Excalibur.Data.Outbox.Serialization;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,28 +23,20 @@ public class OutboxJob : IJob, IConfigurableJob<OutboxJobConfig>
 {
 	private const string JobConfigSectionName = $"Jobs:{nameof(OutboxJob)}";
 	private static readonly string DispatcherId = Uuid7Extensions.GenerateString();
-	private static readonly JsonSerializerOptions SerializerOptions = new() { Converters = { new OutboxMessageJsonConverter() } };
 	private readonly IOutboxManager _outboxManager;
-	private readonly IOutboxMessageDispatcher _dispatcher;
 	private readonly ILogger<OutboxJob> _logger;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="OutboxJob" /> class.
 	/// </summary>
 	/// <param name="outboxManager"> The manager responsible for handling outbox operations. </param>
-	/// <param name="dispatcher"> The dispatcher responsible for sending outbox messages. </param>
 	/// <param name="logger"> The logger for logging job activities. </param>
-	public OutboxJob(
-		IOutboxManager outboxManager,
-		IOutboxMessageDispatcher dispatcher,
-		ILogger<OutboxJob> logger)
+	public OutboxJob(IOutboxManager outboxManager, ILogger<OutboxJob> logger)
 	{
 		ArgumentNullException.ThrowIfNull(outboxManager, nameof(outboxManager));
-		ArgumentNullException.ThrowIfNull(dispatcher, nameof(dispatcher));
 		ArgumentNullException.ThrowIfNull(logger, nameof(logger));
 
 		_outboxManager = outboxManager;
-		_dispatcher = dispatcher;
 		_logger = logger;
 	}
 
@@ -117,7 +106,7 @@ public class OutboxJob : IJob, IConfigurableJob<OutboxJobConfig>
 			{
 				_logger.LogInformation("Starting execution of {JobGroup}:{JobName}.", jobGroup, jobName);
 
-				_ = await _outboxManager.RunOutboxDispatchAsync(DispatcherId, Dispatch).ConfigureAwait(false);
+				_ = await _outboxManager.RunOutboxDispatchAsync(DispatcherId).ConfigureAwait(false);
 
 				JobHealthCheck.Heartbeat(jobName);
 
@@ -131,23 +120,5 @@ public class OutboxJob : IJob, IConfigurableJob<OutboxJobConfig>
 				_logger.LogError(ex, "{Error} executing {JobGroup}:{JobName}: {Message}", ex.GetType().Name, jobGroup, jobName, ex.Message);
 			}
 		}
-	}
-
-	/// <summary>
-	///     Dispatches the outbox messages for a given record.
-	/// </summary>
-	/// <param name="outboxRecord"> The outbox record containing event data. </param>
-	/// <returns> The count of dispatched messages. </returns>
-	private async Task<int> Dispatch(OutboxRecord outboxRecord)
-	{
-		var messages = JsonSerializer.Deserialize<List<OutboxMessage>>(outboxRecord.EventData, SerializerOptions)
-					   ?? [];
-
-		if (messages.Count > 0)
-		{
-			await Task.WhenAll(messages.Select(_dispatcher.DispatchAsync)).ConfigureAwait(false);
-		}
-
-		return messages.Count;
 	}
 }

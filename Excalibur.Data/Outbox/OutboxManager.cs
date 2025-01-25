@@ -32,17 +32,14 @@ public class OutboxManager : IOutboxManager
 	}
 
 	/// <inheritdoc />
-	public async Task<int> RunOutboxDispatchAsync(
-		string dispatcherId,
-		Func<OutboxRecord, Task<int>> dispatch,
-		CancellationToken cancellationToken = default)
+	public async Task<int> RunOutboxDispatchAsync(string dispatcherId, CancellationToken cancellationToken = default)
 	{
 		await _outbox.TryUnReserveOneRecordsAsync(dispatcherId, cancellationToken).ConfigureAwait(false);
 
 		var producerTask = Task.Run(() => ProducerLoop(dispatcherId, cancellationToken), cancellationToken);
 
 		var consumerTasks = Enumerable.Range(0, MaxDegreeOfParallelism)
-			.Select(_ => Task.Run(() => ConsumerLoop(dispatcherId, dispatch, cancellationToken), cancellationToken))
+			.Select(_ => Task.Run(() => ConsumerLoop(dispatcherId, cancellationToken), cancellationToken))
 			.ToArray();
 
 		await producerTask.ConfigureAwait(false);
@@ -101,10 +98,9 @@ public class OutboxManager : IOutboxManager
 	///     The consumer loop responsible for processing records from the queue and dispatching them.
 	/// </summary>
 	/// <param name="dispatcherId"> The ID of the dispatcher. </param>
-	/// <param name="dispatch"> The dispatch function to execute for each record. </param>
 	/// <param name="cancellationToken"> A token to observe for cancellation requests. </param>
 	/// <returns> The total number of successfully dispatched records. </returns>
-	private async Task<int> ConsumerLoop(string dispatcherId, Func<OutboxRecord, Task<int>> dispatch, CancellationToken cancellationToken)
+	private async Task<int> ConsumerLoop(string dispatcherId, CancellationToken cancellationToken)
 	{
 		var localCount = 0;
 		try
@@ -113,7 +109,7 @@ public class OutboxManager : IOutboxManager
 			{
 				cancellationToken.ThrowIfCancellationRequested();
 
-				var result = await _outbox.DispatchReservedRecordAsync(dispatcherId, record, dispatch).ConfigureAwait(false);
+				var result = await _outbox.DispatchReservedRecordAsync(dispatcherId, record).ConfigureAwait(false);
 
 				localCount += result;
 			}
