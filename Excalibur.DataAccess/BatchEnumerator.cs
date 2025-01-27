@@ -17,54 +17,95 @@ public delegate Task<IEnumerable<T>> FetchBatchDelegate<T>(long skip, int take, 
 public class BatchEnumerator<T> : IBatchEnumerator<T>, IRecordFetcher<T>
 {
 	private readonly FetchBatchDelegate<T> _fetchBatch;
+	private readonly int _originalBatchSize;
+	private int _consecutiveSuccesses;
 
-	/// <summary>
-	///     Initializes a new instance of the <see cref="BatchEnumerator{T}" /> class.
-	/// </summary>
-	/// <param name="fetchBatch"> The delegate responsible for fetching a batch of records. </param>
-	/// <param name="batchSize"> The size of each batch. </param>
-	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="fetchBatch" /> is null. </exception>
-	/// <exception cref="ArgumentOutOfRangeException"> Thrown if <paramref name="batchSize" /> is less than 1. </exception>
 	public BatchEnumerator(FetchBatchDelegate<T> fetchBatch, int batchSize)
 	{
 		ArgumentNullException.ThrowIfNull(fetchBatch);
 		ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
 
 		_fetchBatch = fetchBatch;
+		_originalBatchSize = batchSize;
 		BatchSize = batchSize;
 	}
 
-	/// <inheritdoc />
-	public int BatchSize { get; }
+	public int BatchSize { get; private set; }
 
-	/// <inheritdoc cref="IBatchEnumerator{TRecord}.FetchAllAsync" />
 	public async IAsyncEnumerable<T> FetchAllAsync(long complete,
 		[System.Runtime.CompilerServices.EnumeratorCancellation]
 		CancellationToken cancellationToken = default)
 	{
-		var skip = complete;
+		Task<IEnumerable<T>>? nextBatchTask = null;
 
 		while (true)
 		{
-			var batch = (await _fetchBatch(skip, BatchSize, cancellationToken).ConfigureAwait(false)).ToList();
+			var currentBatch = (nextBatchTask == null
+				? await FetchBatchWithRetries(complete, BatchSize, cancellationToken).ConfigureAwait(false)
+				: await nextBatchTask.ConfigureAwait(false)).ToArray();
 
-			if (batch.Count == 0)
+			if (currentBatch.Length == 0)
 			{
 				yield break;
 			}
 
-			foreach (var record in batch)
+			nextBatchTask = FetchBatchWithRetries(complete + currentBatch.Length, BatchSize, cancellationToken);
+
+			foreach (var record in currentBatch)
 			{
 				cancellationToken.ThrowIfCancellationRequested();
 				yield return record;
 			}
 
-			skip += batch.Count;
-
-			if (batch.Count < BatchSize)
+			if (currentBatch.Length < BatchSize)
 			{
 				yield break;
 			}
 		}
+	}
+
+	private async Task<IEnumerable<T>> FetchBatchWithRetries(long skip, int batchSize, CancellationToken cancellationToken)
+	{
+		const int MaxRetries = 3;
+		var attempt = 0;
+
+		while (true)
+		{
+			try
+			{
+				var batch = await _fetchBatch(skip, batchSize, cancellationToken).ConfigureAwait(false);
+				AdjustBatchSizeOnSuccess();
+				return batch;
+			}
+			catch (Exception) when (attempt < MaxRetries)
+			{
+				attempt++;
+				await Task.Delay(TimeSpan.FromMilliseconds(100 * Math.Pow(2, attempt)), cancellationToken).ConfigureAwait(false);
+			}
+			catch
+			{
+				AdjustBatchSizeOnError();
+				throw;
+			}
+		}
+	}
+
+	private void AdjustBatchSizeOnError()
+	{
+		_consecutiveSuccesses = 0; // Reset success counter
+		BatchSize = Math.Max(1, BatchSize / 2); // Reduce batch size
+	}
+
+	private void AdjustBatchSizeOnSuccess()
+	{
+		_consecutiveSuccesses++;
+		if (_consecutiveSuccesses < 5)
+		{
+			return;
+		}
+
+		// Gradually increase batch size after 5 consecutive successes
+		BatchSize = Math.Min(_originalBatchSize, BatchSize + 1);
+		_consecutiveSuccesses = 0; // Reset counter after increasing batch size
 	}
 }

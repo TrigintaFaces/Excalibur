@@ -17,12 +17,9 @@ public delegate Task UpdateCompletedCount(long complete, CancellationToken cance
 /// <typeparam name="TRecord"> The type of records being processed. </typeparam>
 public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TRecord>
 {
-	private readonly TimeSpan _batchInterval;
 	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger _logger;
-	private readonly int _maxDegreeOfParallelism;
 	private long _processedTotal;
-	private CancellationTokenSource? _coordinatorCts;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="DataProcessor{TRecord}" /> class.
@@ -31,13 +28,11 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	/// <param name="logger"> The logger used for diagnostic information. </param>
 	/// <param name="batchSize"> The size of batches used during processing. Default is 1000. </param>
 	/// <param name="batchInterval"> The interval, in seconds, between batch updates. Default is 5 seconds. </param>
-	/// <param name="maxDegreeOfParallelism"> The maximum number of concurrent consumer tasks. Default is 4. </param>
 	protected DataProcessor(
 		IServiceProvider serviceProvider,
 		ILogger logger,
 		int batchSize = BatchSize,
-		int batchInterval = BatchIntervalSeconds,
-		int maxDegreeOfParallelism = MaxDegreeOfParallelism)
+		int batchInterval = BatchIntervalSeconds)
 	{
 		ArgumentNullException.ThrowIfNull(serviceProvider);
 		ArgumentNullException.ThrowIfNull(logger);
@@ -52,15 +47,8 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 			throw new ArgumentOutOfRangeException(nameof(batchInterval), "Batch interval must be greater than zero.");
 		}
 
-		if (maxDegreeOfParallelism <= 0)
-		{
-			throw new ArgumentOutOfRangeException(nameof(maxDegreeOfParallelism), "Max degree of parallelism must be greater than zero.");
-		}
-
 		_serviceProvider = serviceProvider;
 		_logger = logger;
-		_maxDegreeOfParallelism = maxDegreeOfParallelism;
-		_batchInterval = TimeSpan.FromSeconds(batchInterval);
 		DataQueue = new InMemoryDataQueue<TRecord>(batchSize);
 	}
 
@@ -73,42 +61,52 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	public virtual async Task RunAsync(long completedCount, UpdateCompletedCount updateCompletedCount,
 		CancellationToken cancellationToken = default)
 	{
-		_coordinatorCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		var coordinatorTask = Task.Run(() => CoordinatorLoop(updateCompletedCount, _coordinatorCts.Token), _coordinatorCts.Token);
-
 		_ = Interlocked.Exchange(ref _processedTotal, completedCount);
 
-		var producerTask = Task.Run(async () =>
-		{
-			await foreach (var record in FetchAllAsync(_processedTotal, cancellationToken).ConfigureAwait(false))
-			{
-				await DataQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
-			}
-		}, cancellationToken);
+		var scheduledTasks = new List<Task>();
+		var scheduler = new OrderedTaskScheduler();
 
-		var consumerTasks = Enumerable.Range(0, _maxDegreeOfParallelism)
-			.Select(_ => Task.Run(async () =>
+		try
+		{
+			var producerTask = Task.Run(async () =>
+			{
+				await foreach (var record in FetchAllAsync(_processedTotal, cancellationToken).ConfigureAwait(false))
+				{
+					await DataQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
+				}
+			}, cancellationToken);
+
+			var consumerTask = Task.Run(async () =>
 			{
 				await foreach (var record in DataQueue.DequeueAllAsync(cancellationToken).ConfigureAwait(false))
 				{
-					await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false);
+					// ReSharper disable once AccessToDisposedClosure
+					var scheduledTask = scheduler.ScheduleAsync(async () =>
+					{
+						await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false);
+						var updatedTotal = Interlocked.Increment(ref _processedTotal); // Increment and update
+						await updateCompletedCount(updatedTotal, cancellationToken).ConfigureAwait(false);
+					});
 
-#pragma warning disable IDE0058 // Expression value is never used
-					Interlocked.Increment(ref _processedTotal);
-#pragma warning restore IDE0058 // Expression value is never used
+					scheduledTasks.Add(scheduledTask);
 				}
-			}, cancellationToken)).ToArray();
+			}, cancellationToken);
 
-		await producerTask.ConfigureAwait(false);
-
-		if (DataQueue is IDisposable disposable)
-		{
-			disposable.Dispose();
+			// Wait for producer and consumer to finish
+			await Task.WhenAll(producerTask, consumerTask).ConfigureAwait(false);
 		}
+		finally
+		{
+			// Ensure all scheduled tasks are complete before disposing of the scheduler
+			await Task.WhenAll(scheduledTasks).ConfigureAwait(false);
 
-		await Task.WhenAll(consumerTasks).ConfigureAwait(false);
-		await _coordinatorCts.CancelAsync().ConfigureAwait(false);
-		await coordinatorTask.ConfigureAwait(false);
+			scheduler.Dispose();
+
+			if (DataQueue is IDisposable disposableQueue)
+			{
+				disposableQueue.Dispose();
+			}
+		}
 	}
 
 	/// <summary>
@@ -127,38 +125,13 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		try
 		{
 			await handler.HandleAsync(record, cancellationToken).ConfigureAwait(false);
+
+			_logger.LogInformation("Successfully processed record of type {RecordType}.", typeof(TRecord).Name);
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(ex, "Error processing record of type {RecordType}", typeof(TRecord).Name);
 			throw;
 		}
-	}
-
-	private async Task CoordinatorLoop(UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken = default)
-	{
-		try
-		{
-			while (!cancellationToken.IsCancellationRequested)
-			{
-				await Task.Delay(_batchInterval, cancellationToken).ConfigureAwait(false);
-				await UpdateComplete(updateCompletedCount, cancellationToken).ConfigureAwait(false);
-			}
-		}
-		catch (TaskCanceledException)
-		{
-			_logger.LogDebug("Coordinator loop canceled as expected.");
-		}
-		finally
-		{
-			await UpdateComplete(updateCompletedCount, CancellationToken.None).ConfigureAwait(false);
-		}
-	}
-
-	private async Task UpdateComplete(UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken = default)
-	{
-		var totalSoFar = Interlocked.Read(ref _processedTotal);
-
-		await updateCompletedCount(totalSoFar, cancellationToken).ConfigureAwait(false);
 	}
 }

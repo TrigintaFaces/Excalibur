@@ -216,13 +216,15 @@ public class CdcProcessor(
 					buffer.Add(cdcRow);
 					currentLsn ??= rowLsn;
 
-					if (buffer.Count >= 1000)
+					if (buffer.Count < 1000)
 					{
-						var (remainingRows, eventsProcessed) =
-							await ProcessLsnChunk(buffer, eventHandler, cancellationToken).ConfigureAwait(false);
-						buffer = remainingRows;
-						localEventsProcessed += eventsProcessed;
+						continue;
 					}
+
+					var (remainingRows, eventsProcessed) =
+						await ProcessLsnChunk(buffer, eventHandler, cancellationToken).ConfigureAwait(false);
+					buffer = remainingRows;
+					localEventsProcessed += eventsProcessed;
 				}
 				else
 				{

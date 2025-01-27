@@ -62,11 +62,13 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 		var command = DataTaskCommands.GetDataTaskRequests(_configuration.Value, DbTimeouts.RegularTimeoutSeconds, cancellationToken);
 		var requests = (await _db.Connection.Ready().QueryAsync<DataTaskRequest>(command).ConfigureAwait(false)).ToList();
 
+		using var orderedEventProcessor = new OrderedEventProcessor();
+
 		foreach (var request in requests)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
-			if (!_processorRegistry.TryGetProcessor(request.RecordType, out var processor))
+			if (!_processorRegistry.TryGetProcessor(request.RecordType, out var dataProcessor))
 			{
 				request.Attempts++;
 				await UpdateAttemptsAsync(request.DataTaskId, request.Attempts, cancellationToken).ConfigureAwait(false);
@@ -75,19 +77,26 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 				continue;
 			}
 
-			try
+			await orderedEventProcessor.ProcessAsync(async () =>
 			{
-				await processor.RunAsync(
-					request.CompletedCount,
-					(complete, cancellation) => UpdateCompletedCountAsync(request.DataTaskId, complete, cancellation),
-					cancellationToken).ConfigureAwait(false);
-				await DeleteRequestAsync(request.DataTaskId, cancellationToken).ConfigureAwait(false);
-			}
-			catch (Exception)
-			{
-				request.Attempts++;
-				await UpdateAttemptsAsync(request.DataTaskId, request.Attempts, cancellationToken).ConfigureAwait(false);
-			}
+				try
+				{
+					await dataProcessor.RunAsync(
+						request.CompletedCount,
+						(complete, cancellation) => UpdateCompletedCountAsync(request.DataTaskId, complete, cancellation),
+						cancellationToken).ConfigureAwait(false);
+
+					await DeleteRequestAsync(request.DataTaskId, cancellationToken).ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					request.Attempts++;
+					await UpdateAttemptsAsync(request.DataTaskId, request.Attempts, cancellationToken).ConfigureAwait(false);
+					_logger.LogError(ex, "Error processing data task for {RecordType}. Attempts: {Attempts}", request.RecordType,
+						request.Attempts);
+					throw;
+				}
+			}).ConfigureAwait(false);
 		}
 	}
 

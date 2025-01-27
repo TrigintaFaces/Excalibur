@@ -35,14 +35,17 @@ public static class ServiceCollectionExtensions
 		ArgumentException.ThrowIfNullOrWhiteSpace(configurationSection);
 		ArgumentNullException.ThrowIfNull(handlerAssemblies);
 
-		var processors = DataProcessorDiscovery.DiscoverProcessors(handlerAssemblies);
-
 		_ = services.AddScoped<IDataProcessorDb, DataProcessorDb>(sp => new DataProcessorDb(sp.GetRequiredService<TDataProcessorDb>()));
 		_ = services.AddScoped<IDataToProcessDb, DataToProcessDb>(sp => new DataToProcessDb(sp.GetRequiredService<TDataToProcessDb>()));
 
-		foreach (var processor in processors)
+		foreach (var processor in DataProcessorDiscovery.DiscoverProcessors(handlerAssemblies))
 		{
 			_ = services.AddScoped(typeof(IDataProcessor), processor);
+		}
+
+		foreach (var (interfaceType, implementationType) in RecordHandlerDiscovery.DiscoverHandlers(handlerAssemblies))
+		{
+			_ = services.AddScoped(interfaceType, implementationType);
 		}
 
 		_ = services.Configure<DataProcessingConfiguration>(configuration.GetSection(configurationSection));

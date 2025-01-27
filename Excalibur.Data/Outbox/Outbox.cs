@@ -173,25 +173,26 @@ public class Outbox : IOutbox
 	/// <returns> The count of dispatched messages. </returns>
 	private async Task<int> Dispatch(OutboxRecord outboxRecord)
 	{
-		var messages = JsonSerializer.Deserialize<List<OutboxMessage>>(outboxRecord.EventData, SerializerOptions)
-					   ?? [];
+		var messages = JsonSerializer.Deserialize<List<OutboxMessage>>(outboxRecord.EventData, SerializerOptions) ?? [];
 
-		if (messages.Count > 0)
+		if (messages.Count <= 0)
 		{
-			await Task.WhenAll(messages.Select(async message =>
+			return messages.Count;
+		}
+
+		foreach (var message in messages)
+		{
+			try
 			{
-				try
-				{
-					using var scope = _serviceProvider.CreateScope();
-					var scopedDispatcher = scope.ServiceProvider.GetRequiredService<IOutboxMessageDispatcher>();
-					await scopedDispatcher.DispatchAsync(message).ConfigureAwait(false);
-				}
-				catch (Exception ex)
-				{
-					_logger.LogError(ex, "Failed to dispatch message with ID {MessageId}", message.MessageId);
-					throw;
-				}
-			})).ConfigureAwait(false);
+				using var scope = _serviceProvider.CreateScope();
+				var scopedDispatcher = scope.ServiceProvider.GetRequiredService<IOutboxMessageDispatcher>();
+				await scopedDispatcher.DispatchAsync(message).ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Failed to dispatch message with ID {MessageId}", message.MessageId);
+				throw;
+			}
 		}
 
 		return messages.Count;
