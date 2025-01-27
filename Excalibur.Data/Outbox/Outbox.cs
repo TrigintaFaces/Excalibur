@@ -44,7 +44,7 @@ public class Outbox : IOutbox
 	///     The Application Insights TelemetryClient used to record metrics, events, and exceptions for monitoring and analysis.
 	/// </param>
 	public Outbox(IActivityContext context, IDomainDb domainDb, IServiceProvider serviceProvider,
-		IOptions<OutboxConfiguration> configuration, ILogger<Outbox> logger, TelemetryClient? telemetryClient)
+		IOptions<OutboxConfiguration> configuration, ILogger<Outbox> logger, TelemetryClient? telemetryClient = null)
 	{
 		ArgumentNullException.ThrowIfNull(context);
 		ArgumentNullException.ThrowIfNull(domainDb);
