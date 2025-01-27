@@ -283,7 +283,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 
 		try
 		{
-			await foreach (var batch in _cdcQueue.DequeueAllInBatchesAsync(batchSize: 100, cancellationToken))
+			await foreach (var batch in _cdcQueue.DequeueAllInBatchesAsync(batchSize: 100, cancellationToken).ConfigureAwait(false))
 			{
 				cancellationToken.ThrowIfCancellationRequested();
 
