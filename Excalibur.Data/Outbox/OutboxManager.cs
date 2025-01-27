@@ -33,8 +33,11 @@ public class OutboxManager : IOutboxManager
 	///     tasks that need to respond to application lifecycle events.
 	/// </param>
 	/// <param name="logger"> The logger instance for logging events. </param>
+	/// <param name="telemetryClient">
+	///     The Application Insights TelemetryClient used to record metrics, events, and exceptions for monitoring and analysis.
+	/// </param>
 	public OutboxManager(IOutbox outbox, IHostApplicationLifetime appLifetime, ILogger<OutboxManager> logger,
-		TelemetryClient? telemetryClient)
+		TelemetryClient? telemetryClient = null)
 	{
 		ArgumentNullException.ThrowIfNull(outbox);
 		ArgumentNullException.ThrowIfNull(appLifetime);
