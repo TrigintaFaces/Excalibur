@@ -21,7 +21,7 @@ public class OutboxManager : IOutboxManager
 	private readonly IOutbox _outbox;
 	private readonly ILogger<OutboxManager> _logger;
 	private readonly IHostApplicationLifetime _appLifetime;
-	private readonly TelemetryClient _telemetryClient;
+	private readonly TelemetryClient? _telemetryClient;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="OutboxManager" /> class.
@@ -34,12 +34,11 @@ public class OutboxManager : IOutboxManager
 	/// </param>
 	/// <param name="logger"> The logger instance for logging events. </param>
 	public OutboxManager(IOutbox outbox, IHostApplicationLifetime appLifetime, ILogger<OutboxManager> logger,
-		TelemetryClient telemetryClient)
+		TelemetryClient? telemetryClient)
 	{
 		ArgumentNullException.ThrowIfNull(outbox);
 		ArgumentNullException.ThrowIfNull(appLifetime);
 		ArgumentNullException.ThrowIfNull(logger);
-		ArgumentNullException.ThrowIfNull(telemetryClient);
 
 		_outbox = outbox;
 		_appLifetime = appLifetime;
@@ -86,7 +85,7 @@ public class OutboxManager : IOutboxManager
 				var batch = await ReserveBatchRecords(dispatcherId, BatchSize, cancellationToken).ConfigureAwait(false);
 				var count = batch.Count();
 
-				_telemetryClient.GetMetric("Outbox.BatchSize").TrackValue(count);
+				_telemetryClient?.GetMetric("Outbox.BatchSize").TrackValue(count);
 
 				foreach (var record in batch)
 				{
@@ -137,11 +136,11 @@ public class OutboxManager : IOutboxManager
 						var result = await _outbox.DispatchReservedRecordAsync(dispatcherId, record).ConfigureAwait(false);
 						localCount += result;
 
-						_telemetryClient.GetMetric("Outbox.ProcessingTime").TrackValue(stopwatch.Elapsed.TotalMilliseconds);
+						_telemetryClient?.GetMetric("Outbox.ProcessingTime").TrackValue(stopwatch.Elapsed.TotalMilliseconds);
 					}
 					catch (Exception ex)
 					{
-						_telemetryClient.TrackException(new ExceptionTelemetry(ex)
+						_telemetryClient?.TrackException(new ExceptionTelemetry(ex)
 						{
 							Message = "Error in Outbox processing",
 							SeverityLevel = SeverityLevel.Error
@@ -171,7 +170,7 @@ public class OutboxManager : IOutboxManager
 			throw;
 		}
 
-		_telemetryClient.GetMetric("Outbox.RecordsProcessed").TrackValue(localCount);
+		_telemetryClient?.GetMetric("Outbox.RecordsProcessed").TrackValue(localCount);
 
 		return localCount;
 	}

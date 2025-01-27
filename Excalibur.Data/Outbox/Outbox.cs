@@ -30,7 +30,7 @@ public class Outbox : IOutbox
 	private readonly IActivityContext _context;
 	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger<Outbox> _logger;
-	private readonly TelemetryClient _telemetryClient;
+	private readonly TelemetryClient? _telemetryClient;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="Outbox" /> class.
@@ -44,14 +44,13 @@ public class Outbox : IOutbox
 	///     The Application Insights TelemetryClient used to record metrics, events, and exceptions for monitoring and analysis.
 	/// </param>
 	public Outbox(IActivityContext context, IDomainDb domainDb, IServiceProvider serviceProvider,
-		IOptions<OutboxConfiguration> configuration, ILogger<Outbox> logger, TelemetryClient telemetryClient)
+		IOptions<OutboxConfiguration> configuration, ILogger<Outbox> logger, TelemetryClient? telemetryClient)
 	{
 		ArgumentNullException.ThrowIfNull(context);
 		ArgumentNullException.ThrowIfNull(domainDb);
 		ArgumentNullException.ThrowIfNull(serviceProvider);
 		ArgumentNullException.ThrowIfNull(configuration);
 		ArgumentNullException.ThrowIfNull(logger);
-		ArgumentNullException.ThrowIfNull(telemetryClient);
 
 		_context = context;
 		_serviceProvider = serviceProvider;
@@ -81,12 +80,12 @@ public class Outbox : IOutbox
 						OutboxCommands.ReserveOutboxRecords(dispatcherId, batchSize, DbTimeouts.LongRunningTimeoutSeconds, _config))
 					.ConfigureAwait(false)).ToArray();
 
-			_telemetryClient.TrackMetric("Outbox.ReservedOutboxBatchSize", records.Length);
+			_telemetryClient?.TrackMetric("Outbox.ReservedOutboxBatchSize", records.Length);
 			return records;
 		}
 		finally
 		{
-			_telemetryClient.TrackMetric("Outbox.OutboxReservationTime", stopwatch.Elapsed.TotalMilliseconds);
+			_telemetryClient?.TrackMetric("Outbox.OutboxReservationTime", stopwatch.Elapsed.TotalMilliseconds);
 		}
 	}
 
@@ -99,7 +98,7 @@ public class Outbox : IOutbox
 		var stopwatch = ValueStopwatch.StartNew();
 		try
 		{
-			_telemetryClient.TrackEvent("Outbox.OutboxRecordDispatchStarted",
+			_telemetryClient?.TrackEvent("Outbox.OutboxRecordDispatchStarted",
 				new Dictionary<string, string> { { "DispatcherId", dispatcherId }, { "OutboxId", record.OutboxId.ToString() } });
 
 			_logger.LogInformation("Dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId}", record.OutboxId,
@@ -111,8 +110,8 @@ public class Outbox : IOutbox
 				record.OutboxId,
 				dispatcherId);
 
-			_telemetryClient.TrackMetric("Outbox.MessageProcessingDuration", stopwatch.Elapsed.TotalMilliseconds);
-			_telemetryClient.TrackEvent("Outbox.OutboxRecordDispatchSucceeded",
+			_telemetryClient?.TrackMetric("Outbox.MessageProcessingDuration", stopwatch.Elapsed.TotalMilliseconds);
+			_telemetryClient?.TrackEvent("Outbox.OutboxRecordDispatchSucceeded",
 				new Dictionary<string, string> { { "DispatcherId", dispatcherId }, { "OutboxId", record.OutboxId.ToString() } });
 
 			_ = await _connection.ExecuteAsync(
@@ -126,7 +125,7 @@ public class Outbox : IOutbox
 			_logger.LogError(ex, "Error dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId}", record.OutboxId,
 				dispatcherId);
 
-			_telemetryClient.TrackException(ex,
+			_telemetryClient?.TrackException(ex,
 				new Dictionary<string, string>
 				{
 					{ "DispatcherId", dispatcherId }, { "OutboxId", record.OutboxId.ToString() }, { "ErrorType", ex.GetType().Name }
@@ -214,7 +213,7 @@ public class Outbox : IOutbox
 
 		if (messages.Count <= 0)
 		{
-			_telemetryClient.TrackMetric("Outbox.EmptyOutboxMessages", 1);
+			_telemetryClient?.TrackMetric("Outbox.EmptyOutboxMessages", 1);
 			return messages.Count;
 		}
 
@@ -231,7 +230,7 @@ public class Outbox : IOutbox
 			}
 			catch (Exception ex)
 			{
-				_telemetryClient.TrackException(ex,
+				_telemetryClient?.TrackException(ex,
 					new Dictionary<string, string>
 					{
 						{ "MessageId", message.MessageId }, { "OutboxId", outboxRecord.OutboxId.ToString() }
@@ -242,7 +241,7 @@ public class Outbox : IOutbox
 			}
 		}
 
-		_telemetryClient.TrackMetric("OutboxMessagesDispatched", successCount);
+		_telemetryClient?.TrackMetric("OutboxMessagesDispatched", successCount);
 		return successCount;
 	}
 
