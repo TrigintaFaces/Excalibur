@@ -145,7 +145,7 @@ public class CdcProcessor(
 			var startProcessingFrom = await GetInitialStartLsn(processingState.LastProcessedLsn, cancellationToken).ConfigureAwait(false);
 			var commitTime = processingState.LastCommitTime != default
 				? processingState.LastCommitTime
-				: await cdcRepository.GetLsnToTime(startProcessingFrom, cancellationToken).ConfigureAwait(false);
+				: await cdcRepository.GetLsnToTimeAsync(startProcessingFrom, cancellationToken).ConfigureAwait(false);
 
 			ArgumentNullException.ThrowIfNull(commitTime);
 
@@ -344,16 +344,18 @@ public class CdcProcessor(
 	private async Task<(byte[] fromLsn, byte[] toLsn, DateTime toLsnDate)> GetLsnRange(DateTime lastCommitTime, byte[] maxLsn,
 		CancellationToken cancellationToken)
 	{
-		var fromLsn = await cdcRepository.GetTimeToLsn(lastCommitTime, "smallest greater than", cancellationToken).ConfigureAwait(false);
+		var fromLsn = await cdcRepository.GetTimeToLsnAsync(lastCommitTime, "smallest greater than", cancellationToken)
+			.ConfigureAwait(false);
 		ArgumentNullException.ThrowIfNull(fromLsn);
 
-		var fromLsnDate = await cdcRepository.GetLsnToTime(fromLsn, cancellationToken).ConfigureAwait(false);
+		var fromLsnDate = await cdcRepository.GetLsnToTimeAsync(fromLsn, cancellationToken).ConfigureAwait(false);
 		ArgumentNullException.ThrowIfNull(fromLsnDate);
 
 		// Calculate the 'toLsn' based on batch time interval
 		var toLsnDate = fromLsnDate.Value.AddMilliseconds(dbConfig.BatchTimeInterval);
-		var toLsn = await cdcRepository.GetTimeToLsn(toLsnDate, "largest less than or equal", cancellationToken).ConfigureAwait(false) ??
-					maxLsn;
+		var toLsn =
+			await cdcRepository.GetTimeToLsnAsync(toLsnDate, "largest less than or equal", cancellationToken).ConfigureAwait(false) ??
+			maxLsn;
 
 		return (fromLsn, toLsn, toLsnDate);
 	}

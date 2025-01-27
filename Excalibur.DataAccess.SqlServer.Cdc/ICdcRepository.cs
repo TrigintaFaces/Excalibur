@@ -11,7 +11,7 @@ public interface ICdcRepository
 	/// <param name="lastProcessedLsn"> The LSN from which to find the next LSN. </param>
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns> A task that represents the asynchronous operation, containing the next LSN as a byte array. </returns>
-	Task<byte[]> GetNextLsn(byte[] lastProcessedLsn, CancellationToken cancellationToken);
+	Task<byte[]> GetNextLsnAsync(byte[] lastProcessedLsn, CancellationToken cancellationToken);
 
 	/// <summary>
 	///     Maps an LSN to a commit time in the database.
@@ -19,7 +19,7 @@ public interface ICdcRepository
 	/// <param name="lsn"> The LSN to map to a time. </param>
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns> A task that represents the asynchronous operation, containing the mapped commit time as a nullable <see cref="DateTime" />. </returns>
-	Task<DateTime?> GetLsnToTime(byte[] lsn, CancellationToken cancellationToken);
+	Task<DateTime?> GetLsnToTimeAsync(byte[] lsn, CancellationToken cancellationToken);
 
 	/// <summary>
 	///     Maps a time to an LSN using the specified relational operator.
@@ -30,7 +30,7 @@ public interface ICdcRepository
 	/// </param>
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns> A task that represents the asynchronous operation, containing the mapped LSN as a nullable byte array. </returns>
-	Task<byte[]?> GetTimeToLsn(DateTime lsnDate, string relationalOperator, CancellationToken cancellationToken);
+	Task<byte[]?> GetTimeToLsnAsync(DateTime lsnDate, string relationalOperator, CancellationToken cancellationToken);
 
 	/// <summary>
 	///     Retrieves the minimum LSN for a specific capture instance.

@@ -38,73 +38,86 @@ public class CdcRepository : ICdcRepository
 		_connection = db.Connection;
 	}
 
-	/// <summary>
-	///     Gets a ready-to-use database connection.
-	/// </summary>
-	internal IDbConnection Connection => _connection.Ready();
-
 	/// <inheritdoc />
-	public Task<byte[]> GetNextLsn(byte[] lastProcessedLsn, CancellationToken cancellationToken)
+	public async Task<byte[]> GetNextLsnAsync(byte[] lastProcessedLsn, CancellationToken cancellationToken)
 	{
-		const string Query = "SELECT sys.fn_cdc_increment_lsn(@LastProcessedLsn);";
+		const string CommandText = "SELECT sys.fn_cdc_increment_lsn(@LastProcessedLsn);";
 
+		var connection = _connection.Ready();
 		var parameters = new DynamicParameters();
 		parameters.Add("LastProcessedLsn", lastProcessedLsn, DbType.Binary, size: 10);
 
-		var command = new CommandDefinition(Query, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+		var command = new CommandDefinition(CommandText, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		return Connection.QuerySingleAsync<byte[]>(command);
+		var result = await connection.QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
+
+		return result;
 	}
 
 	/// <inheritdoc />
-	public Task<DateTime?> GetLsnToTime(byte[] lsn, CancellationToken cancellationToken)
+	public async Task<DateTime?> GetLsnToTimeAsync(byte[] lsn, CancellationToken cancellationToken)
 	{
-		const string Query = "SELECT CAST(sys.fn_cdc_map_lsn_to_time(@Lsn) AS DATETIME2(3)) AS LSN_TIME;";
+		const string CommandText = "SELECT CAST(sys.fn_cdc_map_lsn_to_time(@Lsn) AS DATETIME2(3)) AS LSN_TIME;";
 
+		var connection = _connection.Ready();
 		var parameters = new DynamicParameters();
 		parameters.Add("Lsn", lsn, DbType.Binary, size: 10);
 
-		var command = new CommandDefinition(Query, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+		var command = new CommandDefinition(CommandText, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		return Connection.QuerySingleOrDefaultAsync<DateTime?>(command);
+		var result = await connection.QuerySingleOrDefaultAsync<DateTime?>(command).ConfigureAwait(false);
+
+		return result;
 	}
 
 	/// <inheritdoc />
-	public Task<byte[]?> GetTimeToLsn(DateTime lsnDate, string relationalOperator, CancellationToken cancellationToken)
+	public async Task<byte[]?> GetTimeToLsnAsync(DateTime lsnDate, string relationalOperator, CancellationToken cancellationToken)
 	{
-		const string Query = "SELECT sys.fn_cdc_map_time_to_lsn(@RelationalOperator, @LsnDate);";
+		const string CommandText = "SELECT sys.fn_cdc_map_time_to_lsn(@RelationalOperator, @LsnDate);";
+
+		var connection = _connection.Ready();
 		var parameters = new DynamicParameters();
 		parameters.Add("LsnDate", lsnDate);
 		parameters.Add("RelationalOperator", relationalOperator);
 
-		var command = new CommandDefinition(Query, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+		var command = new CommandDefinition(CommandText, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		return Connection.QuerySingleAsync<byte[]?>(command);
+		var result = await connection.QuerySingleAsync<byte[]?>(command).ConfigureAwait(false);
+
+		return result;
 	}
 
 	/// <inheritdoc />
-	public Task<byte[]> GetMinPositionAsync(string captureInstance, CancellationToken cancellationToken)
+	public async Task<byte[]> GetMinPositionAsync(string captureInstance, CancellationToken cancellationToken)
 	{
-		const string Query = "SELECT sys.fn_cdc_get_min_lsn(@CaptureInstance);";
+		const string CommandText = "SELECT sys.fn_cdc_get_min_lsn(@CaptureInstance);";
+
+		var connection = _connection.Ready();
 		var parameters = new DynamicParameters();
 		parameters.Add("CaptureInstance", captureInstance);
 
-		var command = new CommandDefinition(Query, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+		var command = new CommandDefinition(CommandText, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		return Connection.QuerySingleAsync<byte[]>(command);
+		var result = await connection.QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
+
+		return result;
 	}
 
 	/// <inheritdoc />
-	public Task<byte[]> GetMaxPositionAsync(CancellationToken cancellationToken)
+	public async Task<byte[]> GetMaxPositionAsync(CancellationToken cancellationToken)
 	{
-		const string Query = "SELECT sys.fn_cdc_get_max_lsn();";
-		var command = new CommandDefinition(Query, commandTimeout: DbTimeouts.RegularTimeoutSeconds, cancellationToken: cancellationToken);
+		const string CommandText = "SELECT sys.fn_cdc_get_max_lsn();";
+		var connection = _connection.Ready();
+		var command = new CommandDefinition(CommandText, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+			cancellationToken: cancellationToken);
 
-		return Connection.QuerySingleAsync<byte[]>(command);
+		var result = await connection.QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
+
+		return result;
 	}
 
 	/// <inheritdoc />
@@ -118,20 +131,20 @@ public class CdcRepository : ICdcRepository
 
 		foreach (var captureInstance in captureInstances)
 		{
-			var query = $"""
-			             SELECT TOP 1 1
-			             FROM cdc.fn_cdc_get_all_changes_{captureInstance}(@from_lsn, @to_lsn, N'all update old')
-			             """;
-
+			var commandText = $"""
+			                   SELECT TOP 1 1
+			                   FROM cdc.fn_cdc_get_all_changes_{captureInstance}(@from_lsn, @to_lsn, N'all update old')
+			                   """;
+			var connection = _connection.Ready();
 			var parameters = new DynamicParameters();
 			parameters.Add("from_lsn", fromPosition, DbType.Binary, size: 10);
 			parameters.Add("to_lsn", toPosition, DbType.Binary, size: 10);
 
-			var command = new CommandDefinition(query, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+			var command = new CommandDefinition(commandText, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 				cancellationToken: cancellationToken);
 
-			var exists = await Connection.ExecuteScalarAsync<int?>(command).ConfigureAwait(false);
-			if (exists.HasValue)
+			var exists = await connection.ExecuteScalarAsync<int?>(command).ConfigureAwait(false);
+			if (exists is > 0)
 			{
 				return true;
 			}
@@ -141,7 +154,7 @@ public class CdcRepository : ICdcRepository
 	}
 
 	/// <inheritdoc />
-	public Task<byte[]?> GetNextValidLsn(byte[] lastProcessedLsn, CancellationToken cancellationToken)
+	public async Task<byte[]?> GetNextValidLsn(byte[] lastProcessedLsn, CancellationToken cancellationToken)
 	{
 		const string CommandText = """
 		                                 SELECT TOP 1 tran_begin_lsn
@@ -150,13 +163,15 @@ public class CdcRepository : ICdcRepository
 		                                 AND tran_begin_time IS NOT NULL
 		                                 ORDER BY tran_begin_lsn ASC;
 		                           """;
-
+		var connection = _connection.Ready();
 		var parameters = new DynamicParameters();
 		parameters.Add("lastProcessedLsn", lastProcessedLsn, DbType.Binary, size: 10);
 
 		var command = new CommandDefinition(CommandText, parameters: parameters, cancellationToken: cancellationToken);
 
-		return Connection.QueryFirstOrDefaultAsync<byte[]>(command);
+		var result = await connection.QueryFirstOrDefaultAsync<byte[]>(command).ConfigureAwait(false);
+
+		return result;
 	}
 
 	/// <inheritdoc />
@@ -185,6 +200,7 @@ public class CdcRepository : ICdcRepository
 			                   ORDER BY Position, SequenceValue
 			                   """;
 
+			var connection = _connection.Ready();
 			var parameters = new DynamicParameters();
 			parameters.Add("from_lsn", fromPosition, DbType.Binary, size: 10);
 			parameters.Add("to_lsn", toPosition, DbType.Binary, size: 10);
@@ -192,7 +208,7 @@ public class CdcRepository : ICdcRepository
 
 			var command = new CommandDefinition(commandText, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 				cancellationToken: cancellationToken);
-			var reader = (DbDataReader)await Connection.ExecuteReaderAsync(command).ConfigureAwait(false);
+			var reader = (DbDataReader)await connection.ExecuteReaderAsync(command).ConfigureAwait(false);
 
 			await using (reader)
 			{
@@ -211,9 +227,9 @@ public class CdcRepository : ICdcRepository
 
 					var changes = new Dictionary<string, object>();
 					foreach (var columnName in dataTypes.Keys.Where(columnName =>
-						         !(columnName.StartsWith("__$", StringComparison.InvariantCultureIgnoreCase) || columnName == "TableName" ||
-						           columnName == "CommitTime" ||
-						           columnName == "OperationCode" || columnName == "SequenceValue")))
+								 !(columnName.StartsWith("__$", StringComparison.InvariantCultureIgnoreCase) || columnName == "TableName" ||
+								   columnName == "CommitTime" ||
+								   columnName == "OperationCode" || columnName == "SequenceValue")))
 					{
 						changes[columnName] = reader[columnName];
 					}
@@ -249,17 +265,20 @@ public class CdcRepository : ICdcRepository
 	private async Task<int> GetRowCountAsync(byte[] fromPosition, byte[] toPosition, string captureInstance,
 		CancellationToken cancellationToken)
 	{
-		var query = $"""
-		             SELECT COUNT(*)
-		             FROM cdc.fn_cdc_get_all_changes_{captureInstance}(@from_lsn, @to_lsn, N'all update old');
-		             """;
+		var commandText = $"""
+		                   SELECT COUNT(*)
+		                   FROM cdc.fn_cdc_get_all_changes_{captureInstance}(@from_lsn, @to_lsn, N'all update old');
+		                   """;
 
+		var connection = _connection.Ready();
 		var parameters = new DynamicParameters();
 		parameters.Add("from_lsn", fromPosition, DbType.Binary, size: 10);
 		parameters.Add("to_lsn", toPosition, DbType.Binary, size: 10);
 
-		var command = new CommandDefinition(query, parameters: parameters, cancellationToken: cancellationToken);
+		var command = new CommandDefinition(commandText, parameters: parameters, cancellationToken: cancellationToken);
 
-		return await Connection.ExecuteScalarAsync<int>(command).ConfigureAwait(false);
+		var result = await connection.ExecuteScalarAsync<int>(command).ConfigureAwait(false);
+
+		return result;
 	}
 }

@@ -20,4 +20,23 @@ public interface IDataQueue<TRecord>
 	/// <param name="cancellationToken"> A token to monitor for cancellation requests. </param>
 	/// <returns> An <see cref="IAsyncEnumerable{T}" /> that yields records from the queue as they are dequeued. </returns>
 	IAsyncEnumerable<TRecord> DequeueAllAsync(CancellationToken cancellationToken = default);
+
+	/// <summary>
+	///     Asynchronously dequeues a batch of records from the queue.
+	/// </summary>
+	/// <param name="batchSize"> The maximum number of records to retrieve in the batch. </param>
+	/// <param name="cancellationToken"> A token to monitor for cancellation requests. </param>
+	/// <returns> A task that represents the asynchronous operation. The result contains a list of records retrieved in the batch. </returns>
+	/// <remarks>
+	///     If the queue contains fewer than <paramref name="batchSize" /> records, the returned batch will contain all available records.
+	///     If the queue is empty, the result will be an empty list.
+	/// </remarks>
+	Task<IList<TRecord>> DequeueBatchAsync(int batchSize, CancellationToken cancellationToken = default);
+
+	/// <summary>
+	///     Determines whether the queue contains pending items.
+	/// </summary>
+	/// <returns> <c> true </c> if the queue contains items that have not yet been dequeued; otherwise, <c> false </c>. </returns>
+	/// <remarks> This method can be used to check if the queue is active or has any remaining records for processing. </remarks>
+	bool HasPendingItems();
 }

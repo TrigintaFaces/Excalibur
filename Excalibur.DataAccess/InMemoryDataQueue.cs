@@ -62,6 +62,36 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>, IDisposabl
 		}
 	}
 
+	/// <inheritdoc />
+	public async Task<IList<TRecord>> DequeueBatchAsync(int batchSize, CancellationToken cancellationToken = default)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		var batch = new List<TRecord>(batchSize);
+		for (var i = 0; i < batchSize; i++)
+		{
+			if (await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+			{
+				if (_channel.Reader.TryRead(out var record))
+				{
+					batch.Add(record);
+				}
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		return batch;
+	}
+
+	public bool HasPendingItems()
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		return !_channel.Reader.Completion.IsCompleted && _channel.Reader.Count > 0;
+	}
+
 	/// <summary>
 	///     Releases resources used by the <see cref="InMemoryDataQueue{TRecord}" />.
 	/// </summary>

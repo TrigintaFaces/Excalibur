@@ -4,6 +4,7 @@ using System.Text.Json;
 using Dapper;
 
 using Excalibur.Core;
+using Excalibur.Core.Diagnostics;
 using Excalibur.Core.Domain.Events;
 using Excalibur.Core.Extensions;
 using Excalibur.Data.Outbox.Serialization;
@@ -11,6 +12,7 @@ using Excalibur.DataAccess;
 using Excalibur.Domain;
 using Excalibur.Domain.Model;
 
+using Microsoft.ApplicationInsights;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -28,27 +30,35 @@ public class Outbox : IOutbox
 	private readonly IActivityContext _context;
 	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger<Outbox> _logger;
+	private readonly TelemetryClient _telemetryClient;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="Outbox" /> class.
 	/// </summary>
 	/// <param name="context"> The activity context containing tenant and correlation information. </param>
+	/// <param name="domainDb"> The domain database connection. </param>
 	/// <param name="serviceProvider"> The root service provider for creating new scopes. </param>
 	/// <param name="configuration"> The outbox configuration options. </param>
 	/// <param name="logger"> The logger instance for logging events. </param>
-	public Outbox(IActivityContext context, IServiceProvider serviceProvider, IOptions<OutboxConfiguration> configuration,
-		ILogger<Outbox> logger)
+	/// <param name="telemetryClient">
+	///     The Application Insights TelemetryClient used to record metrics, events, and exceptions for monitoring and analysis.
+	/// </param>
+	public Outbox(IActivityContext context, IDomainDb domainDb, IServiceProvider serviceProvider,
+		IOptions<OutboxConfiguration> configuration, ILogger<Outbox> logger, TelemetryClient telemetryClient)
 	{
 		ArgumentNullException.ThrowIfNull(context);
+		ArgumentNullException.ThrowIfNull(domainDb);
 		ArgumentNullException.ThrowIfNull(serviceProvider);
 		ArgumentNullException.ThrowIfNull(configuration);
 		ArgumentNullException.ThrowIfNull(logger);
+		ArgumentNullException.ThrowIfNull(telemetryClient);
 
 		_context = context;
 		_serviceProvider = serviceProvider;
 		_logger = logger;
+		_telemetryClient = telemetryClient;
 		_config = configuration.Value;
-		_connection = context.DomainDb().Connection;
+		_connection = domainDb.Connection;
 	}
 
 	/// <inheritdoc />
@@ -61,13 +71,23 @@ public class Outbox : IOutbox
 		int batchSize,
 		CancellationToken cancellationToken)
 	{
-		var records =
-			await _connection
-				.QueryAsync<OutboxRecord>(
-					OutboxCommands.ReserveOutboxRecords(dispatcherId, batchSize, DbTimeouts.LongRunningTimeoutSeconds, _config))
-				.ConfigureAwait(false);
+		var stopwatch = ValueStopwatch.StartNew();
 
-		return records;
+		try
+		{
+			var records =
+				(await _connection
+					.QueryAsync<OutboxRecord>(
+						OutboxCommands.ReserveOutboxRecords(dispatcherId, batchSize, DbTimeouts.LongRunningTimeoutSeconds, _config))
+					.ConfigureAwait(false)).ToArray();
+
+			_telemetryClient.TrackMetric("Outbox.ReservedOutboxBatchSize", records.Length);
+			return records;
+		}
+		finally
+		{
+			_telemetryClient.TrackMetric("Outbox.OutboxReservationTime", stopwatch.Elapsed.TotalMilliseconds);
+		}
 	}
 
 	/// <inheritdoc />
@@ -76,14 +96,24 @@ public class Outbox : IOutbox
 		ArgumentException.ThrowIfNullOrEmpty(dispatcherId);
 		ArgumentNullException.ThrowIfNull(record);
 
+		var stopwatch = ValueStopwatch.StartNew();
 		try
 		{
+			_telemetryClient.TrackEvent("Outbox.OutboxRecordDispatchStarted",
+				new Dictionary<string, string> { { "DispatcherId", dispatcherId }, { "OutboxId", record.OutboxId.ToString() } });
+
 			_logger.LogInformation("Dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId}", record.OutboxId,
 				dispatcherId);
+
 			var result = await Dispatch(record).ConfigureAwait(false);
+
 			_logger.LogInformation("Successfully dispatched OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId}",
 				record.OutboxId,
 				dispatcherId);
+
+			_telemetryClient.TrackMetric("Outbox.MessageProcessingDuration", stopwatch.Elapsed.TotalMilliseconds);
+			_telemetryClient.TrackEvent("Outbox.OutboxRecordDispatchSucceeded",
+				new Dictionary<string, string> { { "DispatcherId", dispatcherId }, { "OutboxId", record.OutboxId.ToString() } });
 
 			_ = await _connection.ExecuteAsync(
 				OutboxCommands.DeleteOutboxRecord(record.OutboxId, DbTimeouts.RegularTimeoutSeconds, _config)).ConfigureAwait(false);
@@ -95,6 +125,13 @@ public class Outbox : IOutbox
 		{
 			_logger.LogError(ex, "Error dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId}", record.OutboxId,
 				dispatcherId);
+
+			_telemetryClient.TrackException(ex,
+				new Dictionary<string, string>
+				{
+					{ "DispatcherId", dispatcherId }, { "OutboxId", record.OutboxId.ToString() }, { "ErrorType", ex.GetType().Name }
+				});
+
 			_ = await _connection.ExecuteAsync(OutboxCommands.IncrementAttemptsOrMoveToDeadLetter(
 				record.OutboxId,
 				record.EventData,
@@ -177,9 +214,11 @@ public class Outbox : IOutbox
 
 		if (messages.Count <= 0)
 		{
+			_telemetryClient.TrackMetric("Outbox.EmptyOutboxMessages", 1);
 			return messages.Count;
 		}
 
+		var successCount = 0;
 		foreach (var message in messages)
 		{
 			try
@@ -187,15 +226,24 @@ public class Outbox : IOutbox
 				using var scope = _serviceProvider.CreateScope();
 				var scopedDispatcher = scope.ServiceProvider.GetRequiredService<IOutboxMessageDispatcher>();
 				await scopedDispatcher.DispatchAsync(message).ConfigureAwait(false);
+
+				successCount++;
 			}
 			catch (Exception ex)
 			{
+				_telemetryClient.TrackException(ex,
+					new Dictionary<string, string>
+					{
+						{ "MessageId", message.MessageId }, { "OutboxId", outboxRecord.OutboxId.ToString() }
+					});
+
 				_logger.LogError(ex, "Failed to dispatch message with ID {MessageId}", message.MessageId);
 				throw;
 			}
 		}
 
-		return messages.Count;
+		_telemetryClient.TrackMetric("OutboxMessagesDispatched", successCount);
+		return successCount;
 	}
 
 	internal static class OutboxCommands
