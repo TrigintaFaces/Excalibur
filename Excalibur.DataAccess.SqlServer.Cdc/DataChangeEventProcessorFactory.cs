@@ -1,5 +1,6 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.DataAccess.SqlServer.Cdc;
@@ -10,16 +11,24 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 public class DataChangeEventProcessorFactory : IDataChangeEventProcessorFactory
 {
 	private readonly IServiceProvider _serviceProvider;
+	private readonly IHostApplicationLifetime _appLifetime;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="DataChangeEventProcessorFactory" /> class.
 	/// </summary>
 	/// <param name="serviceProvider"> The service provider used for resolving dependencies. </param>
-	public DataChangeEventProcessorFactory(IServiceProvider serviceProvider)
+	/// <param name="appLifetime">
+	///     An instance of <see cref="IHostApplicationLifetime" /> that allows the application to perform actions during the application's
+	///     lifecycle events, such as startup, shutdown, or when the application is stopping. This parameter is used to gracefully manage
+	///     tasks that need to respond to application lifecycle events.
+	/// </param>
+	public DataChangeEventProcessorFactory(IServiceProvider serviceProvider, IHostApplicationLifetime appLifetime)
 	{
 		ArgumentNullException.ThrowIfNull(serviceProvider);
+		ArgumentNullException.ThrowIfNull(appLifetime);
 
 		_serviceProvider = serviceProvider;
+		_appLifetime = appLifetime;
 	}
 
 	/// <summary>
@@ -43,7 +52,7 @@ public class DataChangeEventProcessorFactory : IDataChangeEventProcessorFactory
 		var stateStore = new CdcStateStore(stateStoreConnection);
 		var logger = _serviceProvider.GetRequiredService<ILogger<DataChangeEventProcessor>>();
 
-		return new DataChangeEventProcessor(dbConfig, cdcRepository, stateStore, _serviceProvider, logger);
+		return new DataChangeEventProcessor(dbConfig, cdcRepository, stateStore, _serviceProvider, _appLifetime, logger);
 	}
 
 	/// <summary>
@@ -66,6 +75,6 @@ public class DataChangeEventProcessorFactory : IDataChangeEventProcessorFactory
 		var stateStore = new CdcStateStore(stateStoreDb);
 		var logger = _serviceProvider.GetRequiredService<ILogger<DataChangeEventProcessor>>();
 
-		return new DataChangeEventProcessor(dbConfig, cdcRepository, stateStore, _serviceProvider, logger);
+		return new DataChangeEventProcessor(dbConfig, cdcRepository, stateStore, _serviceProvider, _appLifetime, logger);
 	}
 }

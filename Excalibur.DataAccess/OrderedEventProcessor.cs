@@ -35,14 +35,7 @@ public sealed class OrderedEventProcessor : IDisposable
 
 		var eventList = events as IList<TEvent> ?? events.ToList();
 
-		if (eventList.Count == 0)
-		{
-			return ValueTask.CompletedTask;
-		}
-
-		var tasks = eventList.Select(evt => _taskFactory.StartNew(() => processEvent(evt)).Unwrap());
-
-		return new ValueTask(Task.WhenAll(tasks));
+		return eventList.Count == 0 ? ValueTask.CompletedTask : new ValueTask(ProcessEventBatchesAsync(eventList, processEvent));
 	}
 
 	/// <summary>
@@ -64,6 +57,14 @@ public sealed class OrderedEventProcessor : IDisposable
 	{
 		Dispose(true);
 		GC.SuppressFinalize(this);
+	}
+
+	private async Task ProcessEventBatchesAsync<TEvent>(IList<TEvent> events, Func<TEvent, Task> processEvent)
+	{
+		foreach (var evt in events)
+		{
+			await _taskFactory.StartNew(() => processEvent(evt)).Unwrap().ConfigureAwait(false);
+		}
 	}
 
 	/// <summary>

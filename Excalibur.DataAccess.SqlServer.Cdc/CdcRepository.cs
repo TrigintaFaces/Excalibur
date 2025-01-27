@@ -51,7 +51,7 @@ public class CdcRepository : ICdcRepository
 			cancellationToken: cancellationToken);
 
 		var result = await connection.QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
-
+		connection.Close();
 		return result;
 	}
 

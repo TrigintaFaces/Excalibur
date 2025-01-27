@@ -47,28 +47,14 @@ public static class DbConnectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(connection);
 
-		switch (connection.State)
+		if (connection.State == ConnectionState.Broken)
 		{
-			case ConnectionState.Broken:
-				connection.Close();
-				connection.Open();
-				break;
+			connection.Close();
+		}
 
-			case ConnectionState.Closed:
-				connection.Open();
-				break;
-
-			case ConnectionState.Open:
-			case ConnectionState.Connecting:
-			case ConnectionState.Executing:
-			case ConnectionState.Fetching:
-				break;
-
-			default:
-				throw new ArgumentOutOfRangeException(
-					nameof(connection),
-					$"The connection state '{connection.State}' for the provided connection is not valid or recognized."
-				);
+		if (connection.State == ConnectionState.Closed)
+		{
+			connection.Open();
 		}
 
 		return connection;

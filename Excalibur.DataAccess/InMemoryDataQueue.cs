@@ -13,7 +13,7 @@ namespace Excalibur.DataAccess;
 ///     This class is suitable for single-producer, single-consumer scenarios. The queue has a configurable capacity, and when the capacity
 ///     is reached, further enqueue operations will wait until space becomes available.
 /// </remarks>
-public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>, IDisposable
+public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 #pragma warning restore CA1711 // Identifiers should not have incorrect suffix
 {
 	private readonly Channel<TRecord> _channel;
@@ -59,6 +59,31 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>, IDisposabl
 		await foreach (var record in _channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
 		{
 			yield return record;
+		}
+	}
+
+	/// <inheritdoc />
+	public async IAsyncEnumerable<IList<TRecord>> DequeueAllInBatchesAsync(int batchSize,
+		[EnumeratorCancellation] CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
+		var batch = new List<TRecord>();
+
+		await foreach (var record in _channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+		{
+			batch.Add(record);
+
+			if (batch.Count >= batchSize)
+			{
+				yield return batch.ToList();
+				batch.Clear();
+			}
+		}
+
+		if (batch.Count > 0)
+		{
+			yield return batch;
 		}
 	}
 

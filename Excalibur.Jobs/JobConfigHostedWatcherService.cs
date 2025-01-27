@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using Quartz;
@@ -81,11 +81,11 @@ public sealed class JobConfigHostedWatcherService<TJob, TConfig> : IJobConfigHos
 	/// </summary>
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns> A task that represents the asynchronous stop operation. </returns>
-	public async Task StopAsync(CancellationToken cancellationToken)
+	public Task StopAsync(CancellationToken cancellationToken)
 	{
 		if (_disposed)
 		{
-			return;
+			return Task.CompletedTask;
 		}
 
 		try
@@ -105,6 +105,8 @@ public sealed class JobConfigHostedWatcherService<TJob, TConfig> : IJobConfigHos
 			_logger.LogError(ex, "An error occurred while stopping the job watcher service.");
 			throw;
 		}
+
+		return Task.CompletedTask;
 	}
 
 	/// <inheritdoc />

@@ -1,6 +1,7 @@
 using Excalibur.DataAccess.SqlServer.Cdc.Exceptions;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.DataAccess.SqlServer.Cdc;
@@ -21,13 +22,19 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 	/// <param name="cdcRepository"> The repository for interacting with CDC data. </param>
 	/// <param name="stateStore"> The state store for persisting CDC processing state. </param>
 	/// <param name="serviceProvider"> The root service provider for creating new scopes. </param>
+	/// <param name="appLifetime">
+	///     An instance of <see cref="IHostApplicationLifetime" /> that allows the application to perform actions during the application's
+	///     lifecycle events, such as startup, shutdown, or when the application is stopping. This parameter is used to gracefully manage
+	///     tasks that need to respond to application lifecycle events.
+	/// </param>
 	/// <param name="logger"> The logger for capturing diagnostics and operational logs. </param>
 	public DataChangeEventProcessor(
 		IDatabaseConfig dbConfig,
 		ICdcRepository cdcRepository,
 		ICdcStateStore stateStore,
 		IServiceProvider serviceProvider,
-		ILogger<DataChangeEventProcessor> logger) : base(dbConfig, cdcRepository, stateStore, logger)
+		IHostApplicationLifetime appLifetime,
+		ILogger<DataChangeEventProcessor> logger) : base(dbConfig, cdcRepository, stateStore, appLifetime, logger)
 	{
 		_dbConfig = dbConfig;
 		_serviceProvider = serviceProvider;

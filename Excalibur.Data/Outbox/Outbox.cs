@@ -176,16 +176,17 @@ public class Outbox : IOutbox
 	/// <inheritdoc />
 	public Task<int> SaveMessagesAsync(IEnumerable<OutboxMessage> messages)
 	{
-		if (!messages.Any())
+		var outboxMessages = messages as OutboxMessage[] ?? messages.ToArray();
+		if (outboxMessages.Length == 0)
 		{
 			_logger.LogInformation("No messages to save to the outbox.");
 			return Task.FromResult(0);
 		}
 
 		var outboxRecordId = Uuid7Extensions.GenerateGuid();
-		var eventData = JsonSerializer.Serialize(messages, SerializerOptions);
+		var eventData = JsonSerializer.Serialize(outboxMessages, SerializerOptions);
 
-		_logger.LogInformation("Saving {MessageCount} messages to the {OutboxTable} with Id {OutboxId}.", messages.Count(),
+		_logger.LogInformation("Saving {MessageCount} messages to the {OutboxTable} with Id {OutboxId}.", outboxMessages.Length,
 			_config.TableName, outboxRecordId);
 
 		return _connection.ExecuteAsync(OutboxCommands.InsertOutboxRecord(outboxRecordId, eventData, DbTimeouts.RegularTimeoutSeconds,

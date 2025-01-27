@@ -17,9 +17,11 @@ public delegate Task UpdateCompletedCount(long complete, CancellationToken cance
 /// <typeparam name="TRecord"> The type of records being processed. </typeparam>
 public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TRecord>
 {
+	private readonly IDataQueue<TRecord> _dataQueue = new InMemoryDataQueue<TRecord>();
 	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger _logger;
 	private long _processedTotal;
+	private bool _disposed;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="DataProcessor{TRecord}" /> class.
@@ -49,13 +51,12 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 		_serviceProvider = serviceProvider;
 		_logger = logger;
-		DataQueue = new InMemoryDataQueue<TRecord>(batchSize);
 	}
 
 	/// <summary>
-	///     Gets the queue used for storing and retrieving data records.
+	///     Finalizer for <see cref="DataProcessor" /> to ensure cleanup.
 	/// </summary>
-	public IDataQueue<TRecord> DataQueue { get; }
+	~DataProcessor() => Dispose(false);
 
 	/// <inheritdoc />
 	public virtual async Task RunAsync(long completedCount, UpdateCompletedCount updateCompletedCount,
@@ -72,13 +73,13 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 			{
 				await foreach (var record in FetchAllAsync(_processedTotal, cancellationToken).ConfigureAwait(false))
 				{
-					await DataQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
+					await _dataQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
 				}
 			}, cancellationToken);
 
 			var consumerTask = Task.Run(async () =>
 			{
-				await foreach (var record in DataQueue.DequeueAllAsync(cancellationToken).ConfigureAwait(false))
+				await foreach (var record in _dataQueue.DequeueAllAsync(cancellationToken).ConfigureAwait(false))
 				{
 					// ReSharper disable once AccessToDisposedClosure
 					var scheduledTask = scheduler.ScheduleAsync(async () =>
@@ -102,7 +103,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 			scheduler.Dispose();
 
-			if (DataQueue is IDisposable disposableQueue)
+			if (_dataQueue is IDisposable disposableQueue)
 			{
 				disposableQueue.Dispose();
 			}
@@ -116,6 +117,33 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	/// <param name="cancellationToken"> A token to signal cancellation. </param>
 	/// <returns> An asynchronous enumerable of records. </returns>
 	public abstract IAsyncEnumerable<TRecord> FetchAllAsync(long skip, CancellationToken cancellationToken = default);
+
+	/// <inheritdoc />
+	public void Dispose()
+	{
+		Dispose(true);
+		GC.SuppressFinalize(this);
+	}
+
+	/// <summary>
+	///     Disposes of resources used by the DataProcessor.
+	/// </summary>
+	/// <param name="disposing"> Indicates whether the method was called from <see cref="Dispose" /> or a finalizer. </param>
+	protected virtual void Dispose(bool disposing)
+	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		if (disposing)
+		{
+			_logger.LogInformation("Disposing DataProcessor resources.");
+			_dataQueue.Dispose();
+		}
+
+		_disposed = true;
+	}
 
 	private async Task ProcessRecordAsync(TRecord record, CancellationToken cancellationToken)
 	{

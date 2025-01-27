@@ -1,5 +1,6 @@
 using System.Numerics;
 
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.DataAccess.SqlServer.Cdc;
@@ -7,36 +8,77 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 /// <summary>
 ///     Processes Change Data Capture (CDC) changes by reading from a database, managing state, and invoking a specified event handler.
 /// </summary>
-public class CdcProcessor(
-	IDatabaseConfig dbConfig,
-	ICdcRepository cdcRepository,
-	ICdcStateStore stateStore,
-	ILogger<CdcProcessor> logger) : ICdcProcessor
+public class CdcProcessor : ICdcProcessor, IDisposable
 {
 	private readonly IDataQueue<CdcRow> _cdcQueue = new InMemoryDataQueue<CdcRow>();
+	private readonly IDatabaseConfig _dbConfig;
+	private readonly ICdcRepository _cdcRepository;
+	private readonly ICdcStateStore _stateStore;
+	private readonly IHostApplicationLifetime _appLifetime;
+	private readonly ILogger<CdcProcessor> _logger;
+	private bool _disposed;
+
+	/// <summary>
+	///     Initializes a new instance of the <see cref="CdcProcessor" /> class.
+	/// </summary>
+	/// <param name="dbConfig"> The database configuration for CDC processing. </param>
+	/// <param name="cdcRepository"> The repository for querying CDC data. </param>
+	/// <param name="stateStore"> The state store for persisting CDC processing progress. </param>
+	/// <param name="appLifetime"> Provides notifications about application lifetime events. </param>
+	/// <param name="logger"> The logger used to log diagnostics and operational information. </param>
+	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="appLifetime" /> is null. </exception>
+	public CdcProcessor(
+		IDatabaseConfig dbConfig,
+		ICdcRepository cdcRepository,
+		ICdcStateStore stateStore,
+		IHostApplicationLifetime appLifetime,
+		ILogger<CdcProcessor> logger)
+	{
+		ArgumentNullException.ThrowIfNull(dbConfig);
+		ArgumentNullException.ThrowIfNull(cdcRepository);
+		ArgumentNullException.ThrowIfNull(stateStore);
+		ArgumentNullException.ThrowIfNull(appLifetime);
+		ArgumentNullException.ThrowIfNull(logger);
+
+		_dbConfig = dbConfig;
+		_cdcRepository = cdcRepository;
+		_stateStore = stateStore;
+		_appLifetime = appLifetime;
+		_logger = logger;
+
+		_ = _appLifetime.ApplicationStopping.Register(OnApplicationStopping);
+	}
+
+	/// <summary>
+	///     Finalizer for <see cref="CdcProcessor" /> to ensure cleanup.
+	/// </summary>
+	~CdcProcessor() => Dispose(false);
 
 	/// <summary>
 	///     Processes CDC changes asynchronously by producing changes from the database and consuming them with the provided handler.
 	/// </summary>
-	/// <param name="eventHandler"> A delegate that handles the data change events. </param>
+	/// <param name="eventHandler"> A delegate that handles data change events. </param>
 	/// <param name="cancellationToken"> A cancellation token to stop processing. </param>
 	/// <returns> The total number of events processed. </returns>
+	/// <exception cref="ObjectDisposedException"> Thrown if the instance is already disposed. </exception>
 	public async Task<int> ProcessCdcChangesAsync(Func<DataChangeEvent[], CancellationToken, Task<int>> eventHandler,
 		CancellationToken cancellationToken)
 	{
-		var totalEvents = 0;
-		var processingState = await stateStore.GetLastProcessedPositionAsync(
-			dbConfig.DatabaseConnectionIdentifier,
-			dbConfig.DatabaseName, cancellationToken).ConfigureAwait(false) ?? new CdcProcessingState();
+		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		var maxLsn = await cdcRepository.GetMaxPositionAsync(cancellationToken).ConfigureAwait(false);
+		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _appLifetime.ApplicationStopping);
+		var linkedToken = linkedCts.Token;
 
-		var producerTask = Task.Run(() => ProducerLoop(processingState, maxLsn, cancellationToken), cancellationToken);
+		var processingState = await _stateStore.GetLastProcessedPositionAsync(
+			_dbConfig.DatabaseConnectionIdentifier,
+			_dbConfig.DatabaseName,
+			linkedToken).ConfigureAwait(false) ?? new CdcProcessingState();
 
-		const int MaxDegreeOfParallelism = 1;
-		var consumerTasks = Enumerable.Range(0, MaxDegreeOfParallelism)
-			.Select(_ => Task.Run(() => ConsumerLoop(eventHandler, cancellationToken), cancellationToken))
-			.ToArray();
+		var maxLsn = await _cdcRepository.GetMaxPositionAsync(linkedToken).ConfigureAwait(false);
+
+		var producerTask = Task.Run(() => ProducerLoop(processingState, maxLsn, linkedToken), linkedToken);
+
+		var consumerTask = Task.Run(() => ConsumerLoop(eventHandler, linkedToken), linkedToken);
 
 		await producerTask.ConfigureAwait(false);
 
@@ -45,11 +87,36 @@ public class CdcProcessor(
 			disposable.Dispose();
 		}
 
-		var results = await Task.WhenAll(consumerTasks).ConfigureAwait(false);
-
-		totalEvents = results.Sum();
+		var totalEvents = await consumerTask.ConfigureAwait(false);
 
 		return totalEvents;
+	}
+
+	/// <inheritdoc />
+	public void Dispose()
+	{
+		Dispose(true);
+		GC.SuppressFinalize(this);
+	}
+
+	/// <summary>
+	///     Disposes of resources used by the <see cref="CdcProcessor" />.
+	/// </summary>
+	/// <param name="disposing"> Indicates whether the method was called from <see cref="Dispose" /> or a finalizer. </param>
+	protected virtual void Dispose(bool disposing)
+	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		if (disposing)
+		{
+			_logger.LogInformation("Disposing CdcProcessor resources.");
+			_cdcQueue.Dispose();
+		}
+
+		_disposed = true;
 	}
 
 	/// <summary>
@@ -66,6 +133,11 @@ public class CdcProcessor(
 		return lsnInt1.CompareTo(lsnInt2);
 	}
 
+	/// <summary>
+	///     Determines if a given LSN is empty (contains only zero bytes).
+	/// </summary>
+	/// <param name="lsn"> The LSN to check. </param>
+	/// <returns> <c> true </c> if the LSN is empty; otherwise, <c> false </c>. </returns>
 	private static bool IsEmptyLsn(IEnumerable<byte> lsn) => lsn.All(b => b == 0);
 
 	/// <summary>
@@ -102,7 +174,7 @@ public class CdcProcessor(
 					}
 					else
 					{
-						logger.LogWarning("Missing UpdateAfter for UpdateBefore at Position {Position}, SequenceValue {SequenceValue}",
+						_logger.LogWarning("Missing UpdateAfter for UpdateBefore at Position {Position}, SequenceValue {SequenceValue}",
 							change.Lsn, change.SeqVal);
 						i++;
 					}
@@ -120,7 +192,7 @@ public class CdcProcessor(
 					break;
 
 				case CdcOperationCodes.UpdateAfter:
-					logger.LogWarning(
+					_logger.LogWarning(
 						"Unexpected UpdateAfter without corresponding UpdateBefore at Position {Position}, SequenceValue {SequenceValue}",
 						change.Lsn, change.SeqVal);
 					i++;
@@ -128,7 +200,7 @@ public class CdcProcessor(
 
 				case CdcOperationCodes.Unknown:
 				default:
-					logger.LogWarning("Unknown operation {OperationCode} at Position {Position}, SequenceValue {SequenceValue}",
+					_logger.LogWarning("Unknown operation {OperationCode} at Position {Position}, SequenceValue {SequenceValue}",
 						change.OperationCode, change.Lsn, change.SeqVal);
 					i++;
 					break;
@@ -138,6 +210,12 @@ public class CdcProcessor(
 		return [.. dataChangeEvents];
 	}
 
+	/// <summary>
+	///     Executes the producer loop that reads CDC changes from the database and enqueues them for consumption.
+	/// </summary>
+	/// <param name="processingState"> The current CDC processing state. </param>
+	/// <param name="maxLsn"> The maximum LSN to process up to. </param>
+	/// <param name="cancellationToken"> A cancellation token to stop processing. </param>
 	private async Task ProducerLoop(CdcProcessingState processingState, byte[] maxLsn, CancellationToken cancellationToken)
 	{
 		try
@@ -145,7 +223,7 @@ public class CdcProcessor(
 			var startProcessingFrom = await GetInitialStartLsn(processingState.LastProcessedLsn, cancellationToken).ConfigureAwait(false);
 			var commitTime = processingState.LastCommitTime != default
 				? processingState.LastCommitTime
-				: await cdcRepository.GetLsnToTimeAsync(startProcessingFrom, cancellationToken).ConfigureAwait(false);
+				: await _cdcRepository.GetLsnToTimeAsync(startProcessingFrom, cancellationToken).ConfigureAwait(false);
 
 			ArgumentNullException.ThrowIfNull(commitTime);
 
@@ -153,16 +231,14 @@ public class CdcProcessor(
 			{
 				var (fromLsn, toLsn, toLsnDate) = await GetLsnRange(commitTime.Value, maxLsn, cancellationToken).ConfigureAwait(false);
 
-				var fromLsnString = ByteArrayToHex(fromLsn);
-				var toLsnString = ByteArrayToHex(toLsn);
-				logger.LogDebug("Producer chunk from LSN {From} to {To}", ByteArrayToHex(fromLsn), ByteArrayToHex(toLsn));
+				_logger.LogDebug("Producer chunk from LSN {From} to {To}", ByteArrayToHex(fromLsn), ByteArrayToHex(toLsn));
 
 				var cdcRowCount = 0;
-				await foreach (var cdcRow in cdcRepository.FetchChangesAsync(
+				await foreach (var cdcRow in _cdcRepository.FetchChangesAsync(
 								   fromLsn,
 								   toLsn,
 								   processingState.LastProcessedSequenceValue,
-								   dbConfig.CaptureInstances,
+								   _dbConfig.CaptureInstances,
 								   cancellationToken).ConfigureAwait(false))
 				{
 					cancellationToken.ThrowIfCancellationRequested();
@@ -171,7 +247,7 @@ public class CdcProcessor(
 					cdcRowCount++;
 				}
 
-				logger.LogInformation("Enqueued {Count} CDC rows for range {From} - {To}", cdcRowCount, ByteArrayToHex(fromLsn),
+				_logger.LogInformation("Enqueued {Count} CDC rows for range {From} - {To}", cdcRowCount, ByteArrayToHex(fromLsn),
 					ByteArrayToHex(toLsn));
 
 				startProcessingFrom = toLsn;
@@ -185,143 +261,79 @@ public class CdcProcessor(
 		}
 		catch (OperationCanceledException)
 		{
-			logger.LogDebug("Producer canceled");
+			_logger.LogDebug("Producer canceled");
 		}
 		catch (Exception ex)
 		{
-			logger.LogError(ex, "Error in ProducerLoop");
+			_logger.LogError(ex, "Error in ProducerLoop");
 			throw;
 		}
 	}
 
+	/// <summary>
+	///     Executes the consumer loop that processes CDC events in batches.
+	/// </summary>
+	/// <param name="eventHandler"> The handler to process data change events. </param>
+	/// <param name="cancellationToken"> A cancellation token to stop processing. </param>
+	/// <returns> The total number of events processed. </returns>
 	private async Task<int> ConsumerLoop(Func<DataChangeEvent[], CancellationToken, Task<int>> eventHandler,
 		CancellationToken cancellationToken)
 	{
-		var localEventsProcessed = 0;
+		var totalEvents = 0;
 
 		try
 		{
-			var buffer = new List<CdcRow>();
-			BigInteger? currentLsn = null;
-
-			// Dequeue rows until the queue is complete
-			await foreach (var cdcRow in _cdcQueue.DequeueAllAsync(cancellationToken).ConfigureAwait(false))
+			await foreach (var batch in _cdcQueue.DequeueAllInBatchesAsync(batchSize: 100, cancellationToken))
 			{
 				cancellationToken.ThrowIfCancellationRequested();
 
-				var rowLsn = new BigInteger(cdcRow.Lsn.Reverse().ToArray());
+				var events = GetDataChangeEvents(batch);
 
-				if (currentLsn == null || rowLsn == currentLsn)
-				{
-					buffer.Add(cdcRow);
-					currentLsn ??= rowLsn;
+				// Handle the batch of events
+				var batchEventCount = await eventHandler(events, cancellationToken).ConfigureAwait(false);
+				totalEvents += batchEventCount;
 
-					if (buffer.Count < 1000)
-					{
-						continue;
-					}
+				// Update the state store with the last processed LSN and sequence value
+				var lastRow = batch.Last();
+				await _stateStore.UpdateLastProcessedPositionAsync(
+					_dbConfig.DatabaseConnectionIdentifier,
+					_dbConfig.DatabaseName,
+					lastRow.Lsn,
+					lastRow.SeqVal,
+					lastRow.CommitTime,
+					cancellationToken).ConfigureAwait(false);
 
-					var (remainingRows, eventsProcessed) =
-						await ProcessLsnChunk(buffer, eventHandler, cancellationToken).ConfigureAwait(false);
-					buffer = remainingRows;
-					localEventsProcessed += eventsProcessed;
-				}
-				else
-				{
-					// new LSN => process old buffer
-					localEventsProcessed += await ProcessLsnGroup(buffer, eventHandler, cancellationToken).ConfigureAwait(false);
-
-					buffer.Clear();
-					buffer.Add(cdcRow);
-					currentLsn = rowLsn;
-				}
-			}
-
-			// final flush
-			if (buffer.Count > 0)
-			{
-				localEventsProcessed += await ProcessLsnGroup(buffer, eventHandler, cancellationToken).ConfigureAwait(false);
+				_logger.LogInformation("Updated state store with LSN: {Lsn}, SeqVal: {SeqVal}", ByteArrayToHex(lastRow.Lsn),
+					ByteArrayToHex(lastRow.SeqVal));
 			}
 		}
 		catch (OperationCanceledException)
 		{
-			logger.LogDebug("Consumer canceled");
+			_logger.LogDebug("Consumer canceled");
 		}
 		catch (Exception ex)
 		{
-			logger.LogError(ex, "Error in ConsumerLoop");
+			_logger.LogError(ex, "Error in ConsumerLoop");
 			throw;
 		}
 
-		// Return the total events processed by THIS consumer
-		return localEventsProcessed;
+		return totalEvents;
 	}
 
-	private async Task<(List<CdcRow> cdcRows, int eventCount)> ProcessLsnChunk(
-		List<CdcRow> cdcRows,
-		Func<DataChangeEvent[], CancellationToken, Task<int>> eventHandler,
-		CancellationToken cancellationToken)
-	{
-		var processCount = cdcRows.Count;
-		var eventCount = 0;
-		if (processCount > 0 && cdcRows[processCount - 1].OperationCode == CdcOperationCodes.UpdateBefore)
-		{
-			processCount--;
-		}
-
-		if (processCount > 0)
-		{
-			var safeChunk = cdcRows.Take(processCount).ToList();
-			eventCount = await ProcessLsnGroup(safeChunk, eventHandler, cancellationToken).ConfigureAwait(false);
-
-			cdcRows.RemoveRange(0, processCount);
-		}
-
-		return (cdcRows, eventCount);
-	}
-
-	private Task<int> ProcessLsnGroup(
-		List<CdcRow> cdcRows,
-		Func<DataChangeEvent[], CancellationToken, Task<int>> eventHandler,
-		CancellationToken cancellationToken)
-	{
-		// Update the state store with the last processed LSN
-		var lastRow = cdcRows[^1];
-		return ProcessLsnGroup(cdcRows, eventHandler, lastRow.Lsn, lastRow.SeqVal, lastRow.CommitTime, cancellationToken);
-	}
-
-	private async Task<int> ProcessLsnGroup(
-		IEnumerable<CdcRow> cdcRows,
-		Func<DataChangeEvent[], CancellationToken, Task<int>> eventHandler,
-		byte[] position,
-		byte[]? sequenceValue,
-		DateTime commitTime,
-		CancellationToken cancellationToken)
-	{
-		var events = GetDataChangeEvents(cdcRows);
-
-		// Call the event handler with the changes
-		var eventCount = await eventHandler(events, cancellationToken).ConfigureAwait(false);
-
-		// Update the state store with the last processed LSN
-		await stateStore.UpdateLastProcessedPositionAsync(
-			dbConfig.DatabaseConnectionIdentifier,
-			dbConfig.DatabaseName,
-			position,
-			sequenceValue,
-			commitTime,
-			cancellationToken).ConfigureAwait(false);
-
-		return eventCount;
-	}
-
+	/// <summary>
+	///     Retrieves the initial starting LSN for processing CDC changes.
+	/// </summary>
+	/// <param name="startLsn"> The last processed LSN, if any. </param>
+	/// <param name="cancellationToken"> A cancellation token to stop processing. </param>
+	/// <returns> The starting LSN as a byte array. </returns>
+	/// <exception cref="InvalidOperationException"> Thrown if no valid minimum LSN is found in CDC tables. </exception>
 	private async Task<byte[]> GetInitialStartLsn(byte[]? startLsn, CancellationToken cancellationToken)
 	{
 		byte[]? captureMinLsn = null;
 		// Find the lowest LSN across all capture instances
-		foreach (var captureInstance in dbConfig.CaptureInstances)
+		foreach (var captureInstance in _dbConfig.CaptureInstances)
 		{
-			var minPos = await cdcRepository.GetMinPositionAsync(captureInstance, cancellationToken).ConfigureAwait(false);
+			var minPos = await _cdcRepository.GetMinPositionAsync(captureInstance, cancellationToken).ConfigureAwait(false);
 			if (captureMinLsn == null || CompareLsn(minPos, captureMinLsn) < 0)
 			{
 				captureMinLsn = minPos;
@@ -341,22 +353,38 @@ public class CdcProcessor(
 		return startLsn;
 	}
 
+	/// <summary>
+	///     Determines the range of LSNs to process in a single batch.
+	/// </summary>
+	/// <param name="lastCommitTime"> The last commit time. </param>
+	/// <param name="maxLsn"> The maximum LSN. </param>
+	/// <param name="cancellationToken"> A cancellation token to stop processing. </param>
+	/// <returns> A tuple containing the starting LSN, ending LSN, and ending LSN date. </returns>
 	private async Task<(byte[] fromLsn, byte[] toLsn, DateTime toLsnDate)> GetLsnRange(DateTime lastCommitTime, byte[] maxLsn,
 		CancellationToken cancellationToken)
 	{
-		var fromLsn = await cdcRepository.GetTimeToLsnAsync(lastCommitTime, "smallest greater than", cancellationToken)
+		var fromLsn = await _cdcRepository.GetTimeToLsnAsync(lastCommitTime, "smallest greater than", cancellationToken)
 			.ConfigureAwait(false);
 		ArgumentNullException.ThrowIfNull(fromLsn);
 
-		var fromLsnDate = await cdcRepository.GetLsnToTimeAsync(fromLsn, cancellationToken).ConfigureAwait(false);
+		var fromLsnDate = await _cdcRepository.GetLsnToTimeAsync(fromLsn, cancellationToken).ConfigureAwait(false);
 		ArgumentNullException.ThrowIfNull(fromLsnDate);
 
 		// Calculate the 'toLsn' based on batch time interval
-		var toLsnDate = fromLsnDate.Value.AddMilliseconds(dbConfig.BatchTimeInterval);
+		var toLsnDate = fromLsnDate.Value.AddMilliseconds(_dbConfig.BatchTimeInterval);
 		var toLsn =
-			await cdcRepository.GetTimeToLsnAsync(toLsnDate, "largest less than or equal", cancellationToken).ConfigureAwait(false) ??
+			await _cdcRepository.GetTimeToLsnAsync(toLsnDate, "largest less than or equal", cancellationToken).ConfigureAwait(false) ??
 			maxLsn;
 
 		return (fromLsn, toLsn, toLsnDate);
+	}
+
+	/// <summary>
+	///     Handles cleanup when the application is stopping.
+	/// </summary>
+	private void OnApplicationStopping()
+	{
+		_logger.LogInformation("Application is stopping. Ensuring CDC processing cleanup.");
+		Dispose();
 	}
 }

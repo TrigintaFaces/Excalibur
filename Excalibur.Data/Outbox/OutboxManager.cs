@@ -12,7 +12,7 @@ namespace Excalibur.Data.Outbox;
 ///     Manages the dispatch of outbox messages using a producer-consumer pattern. Handles the reservation, processing, and cleanup of
 ///     outbox records.
 /// </summary>
-public class OutboxManager : IOutboxManager
+public class OutboxManager : IOutboxManager, IDisposable
 {
 	private const int MaxDegreeOfParallelism = 1;
 	private const int BatchSize = 10;
@@ -22,6 +22,7 @@ public class OutboxManager : IOutboxManager
 	private readonly ILogger<OutboxManager> _logger;
 	private readonly IHostApplicationLifetime _appLifetime;
 	private readonly TelemetryClient? _telemetryClient;
+	private bool _disposed;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="OutboxManager" /> class.
@@ -47,19 +48,29 @@ public class OutboxManager : IOutboxManager
 		_appLifetime = appLifetime;
 		_logger = logger;
 		_telemetryClient = telemetryClient;
+
+		_ = _appLifetime.ApplicationStopping.Register(OnApplicationStopping);
 	}
+
+	/// <summary>
+	///     Finalizer for <see cref="OutboxManager" /> to ensure cleanup.
+	/// </summary>
+	~OutboxManager() => Dispose(false);
 
 	/// <inheritdoc />
 	public async Task<int> RunOutboxDispatchAsync(string dispatcherId, CancellationToken cancellationToken = default)
 	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
 		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _appLifetime.ApplicationStopping);
+		var linkedToken = linkedCts.Token;
 
-		await _outbox.TryUnReserveOneRecordsAsync(dispatcherId, linkedCts.Token).ConfigureAwait(false);
+		await _outbox.TryUnReserveOneRecordsAsync(dispatcherId, linkedToken).ConfigureAwait(false);
 
-		var producerTask = Task.Run(() => ProducerLoop(dispatcherId, linkedCts.Token), linkedCts.Token);
+		var producerTask = Task.Run(() => ProducerLoop(dispatcherId, linkedToken), linkedToken);
 
 		var consumerTasks = Enumerable.Range(0, MaxDegreeOfParallelism)
-			.Select(_ => Task.Run(() => ConsumerLoop(dispatcherId, linkedCts.Token), linkedCts.Token))
+			.Select(_ => Task.Run(() => ConsumerLoop(dispatcherId, linkedToken), linkedToken))
 			.ToArray();
 
 		await producerTask.ConfigureAwait(false);
@@ -72,6 +83,33 @@ public class OutboxManager : IOutboxManager
 		var results = await Task.WhenAll(consumerTasks).ConfigureAwait(false);
 
 		return results.Sum();
+	}
+
+	/// <inheritdoc />
+	public void Dispose()
+	{
+		Dispose(true);
+		GC.SuppressFinalize(this);
+	}
+
+	/// <summary>
+	///     Disposes of resources used by the <see cref="OutboxManager" />.
+	/// </summary>
+	/// <param name="disposing"> Indicates whether the method was called from <see cref="Dispose" /> or a finalizer. </param>
+	protected virtual void Dispose(bool disposing)
+	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		if (disposing)
+		{
+			_logger.LogInformation("Disposing OutboxManager resources.");
+			_outboxQueue.Dispose();
+		}
+
+		_disposed = true;
 	}
 
 	/// <summary>
@@ -129,7 +167,7 @@ public class OutboxManager : IOutboxManager
 		{
 			while (!cancellationToken.IsCancellationRequested)
 			{
-				var batch = await _outboxQueue.DequeueBatchAsync(10, cancellationToken).ConfigureAwait(false);
+				var batch = await _outboxQueue.DequeueBatchAsync(100, cancellationToken).ConfigureAwait(false);
 
 				foreach (var record in batch)
 				{
@@ -199,5 +237,11 @@ public class OutboxManager : IOutboxManager
 		}
 
 		return records;
+	}
+
+	private void OnApplicationStopping()
+	{
+		_logger.LogInformation("Application is stopping. Ensuring Outbox processing cleanup.");
+		Dispose();
 	}
 }
