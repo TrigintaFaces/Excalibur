@@ -57,31 +57,38 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 	}
 
 	/// <inheritdoc />
-	public async Task ProcessDataTask(CancellationToken cancellationToken = default)
+	public async ValueTask ProcessDataTask(CancellationToken cancellationToken = default)
 	{
 		var command = DataTaskCommands.GetDataTaskRequests(_configuration.Value, DbTimeouts.RegularTimeoutSeconds, cancellationToken);
 		var requests = (await _db.Connection.Ready().QueryAsync<DataTaskRequest>(command).ConfigureAwait(false)).ToList();
 
+		if (requests.Count == 0)
+		{
+			await ValueTask.CompletedTask.ConfigureAwait(false);
+			return;
+		}
+
+		await new ValueTask(ProcessRequestsAsync(requests, cancellationToken)).ConfigureAwait(false);
+	}
+
+	private async Task ProcessRequestsAsync(IList<DataTaskRequest> dataTaskRequests, CancellationToken cancellationToken)
+	{
 		using var orderedEventProcessor = new OrderedEventProcessor();
 
-		foreach (var request in requests)
+		await orderedEventProcessor.ProcessEventsAsync(dataTaskRequests, async request =>
 		{
-			cancellationToken.ThrowIfCancellationRequested();
-
 			if (!_processorRegistry.TryGetProcessor(request.RecordType, out var dataProcessor))
 			{
 				request.Attempts++;
 				await UpdateAttemptsAsync(request.DataTaskId, request.Attempts, cancellationToken).ConfigureAwait(false);
 
 				_logger.LogWarning("Error processing back fill for table '{RecordType}. No processor found.'", request.RecordType);
-				continue;
 			}
-
-			await orderedEventProcessor.ProcessAsync(async () =>
+			else
 			{
 				try
 				{
-					await dataProcessor.RunAsync(
+					_ = await dataProcessor.RunAsync(
 						request.CompletedCount,
 						(complete, cancellation) => UpdateCompletedCountAsync(request.DataTaskId, complete, cancellation),
 						cancellationToken).ConfigureAwait(false);
@@ -96,8 +103,8 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 						request.Attempts);
 					throw;
 				}
-			}).ConfigureAwait(false);
-		}
+			}
+		}).ConfigureAwait(false);
 	}
 
 	private async Task UpdateAttemptsAsync(

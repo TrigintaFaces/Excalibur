@@ -19,5 +19,5 @@ public interface IDataOrchestrationManager
 	/// </summary>
 	/// <param name="cancellationToken"> A token to cancel the operation. </param>
 	/// <returns> A task representing the asynchronous operation. </returns>
-	Task ProcessDataTask(CancellationToken cancellationToken = default);
+	ValueTask ProcessDataTask(CancellationToken cancellationToken = default);
 }

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.DataAccess.DataProcessing;
@@ -17,6 +18,7 @@ public abstract class BatchedDataProcessor<TRecord> : DataProcessor<TRecord>
 	///     Initializes a new instance of the <see cref="BatchedDataProcessor{TRecord}" /> class.
 	/// </summary>
 	/// <param name="serviceProvider"> The root service provider for creating new scopes. </param>
+	/// <param name="appLifetime"> Provides notifications about application lifetime events. </param>
 	/// <param name="logger"> The logger used for logging processing information and errors. </param>
 	/// <param name="batchSize"> The number of records to process in each batch. Default is <c> BATCH_SIZE </c>. </param>
 	/// <param name="maxDegreeOfParallelism">
@@ -27,9 +29,10 @@ public abstract class BatchedDataProcessor<TRecord> : DataProcessor<TRecord>
 	/// </exception>
 	protected BatchedDataProcessor(
 		IServiceProvider serviceProvider,
+		IHostApplicationLifetime appLifetime,
 		ILogger logger,
 		int batchSize = BatchSize,
-		int maxDegreeOfParallelism = MaxDegreeOfParallelism) : base(serviceProvider, logger, batchSize, maxDegreeOfParallelism)
+		int maxDegreeOfParallelism = MaxDegreeOfParallelism) : base(serviceProvider, appLifetime, logger, batchSize, maxDegreeOfParallelism)
 	{
 		if (batchSize <= 0)
 		{

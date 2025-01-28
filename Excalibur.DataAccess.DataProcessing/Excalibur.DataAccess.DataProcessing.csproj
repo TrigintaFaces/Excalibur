@@ -24,6 +24,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.ApplicationInsights" Version="2.22.0" />
+		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.1" />
 		<PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.1" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.1" />
 		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.1" />

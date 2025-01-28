@@ -17,7 +17,7 @@ public class OutboxManager : IOutboxManager, IDisposable
 	private const int MaxDegreeOfParallelism = 1;
 	private const int BatchSize = 10;
 
-	private readonly IDataQueue<OutboxRecord> _outboxQueue = new InMemoryDataQueue<OutboxRecord>();
+	private readonly InMemoryDataQueue<OutboxRecord> _outboxQueue = new();
 	private readonly IOutbox _outbox;
 	private readonly ILogger<OutboxManager> _logger;
 	private readonly IHostApplicationLifetime _appLifetime;

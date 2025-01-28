@@ -10,7 +10,7 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 /// </summary>
 public class CdcProcessor : ICdcProcessor, IDisposable
 {
-	private readonly IDataQueue<CdcRow> _cdcQueue = new InMemoryDataQueue<CdcRow>();
+	private readonly InMemoryDataQueue<CdcRow> _cdcQueue = new();
 	private readonly IDatabaseConfig _dbConfig;
 	private readonly ICdcRepository _cdcRepository;
 	private readonly ICdcStateStore _stateStore;
@@ -261,11 +261,11 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 		}
 		catch (OperationCanceledException)
 		{
-			_logger.LogDebug("Producer canceled");
+			_logger.LogDebug("CdcProcessor Producer canceled");
 		}
 		catch (Exception ex)
 		{
-			_logger.LogError(ex, "Error in ProducerLoop");
+			_logger.LogError(ex, "Error in CdcProcessor ProducerLoop");
 			throw;
 		}
 	}
@@ -280,6 +280,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 		CancellationToken cancellationToken)
 	{
 		var totalEvents = 0;
+		var buffer = new List<CdcRow>();
 
 		try
 		{
@@ -287,24 +288,22 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 			{
 				cancellationToken.ThrowIfCancellationRequested();
 
-				var events = GetDataChangeEvents(batch);
+				buffer.AddRange(batch);
 
-				// Handle the batch of events
-				var batchEventCount = await eventHandler(events, cancellationToken).ConfigureAwait(false);
+				var (remainingRows, batchEventCount) = await ProcessLsnChunk(buffer, eventHandler, cancellationToken).ConfigureAwait(false);
+				buffer = remainingRows;
+
 				totalEvents += batchEventCount;
 
-				// Update the state store with the last processed LSN and sequence value
-				var lastRow = batch.Last();
-				await _stateStore.UpdateLastProcessedPositionAsync(
-					_dbConfig.DatabaseConnectionIdentifier,
-					_dbConfig.DatabaseName,
-					lastRow.Lsn,
-					lastRow.SeqVal,
-					lastRow.CommitTime,
-					cancellationToken).ConfigureAwait(false);
+				if (buffer.Count > 0 && buffer.Last().OperationCode == CdcOperationCodes.UpdateBefore)
+				{
+					_logger.LogDebug("Buffer contains unpaired UpdateBefore.");
+				}
+			}
 
-				_logger.LogInformation("Updated state store with LSN: {Lsn}, SeqVal: {SeqVal}", ByteArrayToHex(lastRow.Lsn),
-					ByteArrayToHex(lastRow.SeqVal));
+			if (buffer.Count > 0)
+			{
+				totalEvents += await ProcessLsnGroup(buffer, eventHandler, cancellationToken).ConfigureAwait(false);
 			}
 		}
 		catch (OperationCanceledException)
@@ -318,6 +317,60 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 		}
 
 		return totalEvents;
+	}
+
+	private async Task<(List<CdcRow> remainingRows, int eventCount)> ProcessLsnChunk(
+		List<CdcRow> cdcRows,
+		Func<DataChangeEvent[], CancellationToken, Task<int>> eventHandler,
+		CancellationToken cancellationToken)
+	{
+		var processCount = cdcRows.Count;
+		var eventCount = 0;
+
+		// Exclude the last row if it is an UpdateBefore to avoid splitting transactions
+		if (processCount > 0 && cdcRows[^1].OperationCode == CdcOperationCodes.UpdateBefore)
+		{
+			processCount--;
+		}
+
+		if (processCount <= 0)
+		{
+			return (cdcRows, eventCount);
+		}
+
+		var safeChunk = cdcRows.Take(processCount).ToList();
+		eventCount = await ProcessLsnGroup(safeChunk, eventHandler, cancellationToken).ConfigureAwait(false);
+
+		// Remove processed rows from the original list
+		cdcRows.RemoveRange(0, processCount);
+
+		return (cdcRows, eventCount);
+	}
+
+	private async Task<int> ProcessLsnGroup(
+		List<CdcRow> cdcRows,
+		Func<DataChangeEvent[], CancellationToken, Task<int>> eventHandler,
+		CancellationToken cancellationToken)
+	{
+		var events = GetDataChangeEvents(cdcRows);
+
+		// Call the event handler with the changes
+		var eventCount = await eventHandler(events, cancellationToken).ConfigureAwait(false);
+
+		// Update the state store with the last processed LSN
+		var lastRow = cdcRows[^1];
+		await _stateStore.UpdateLastProcessedPositionAsync(
+			_dbConfig.DatabaseConnectionIdentifier,
+			_dbConfig.DatabaseName,
+			lastRow.Lsn,
+			lastRow.SeqVal,
+			lastRow.CommitTime,
+			cancellationToken).ConfigureAwait(false);
+
+		_logger.LogInformation("Updated state store with LSN: {Lsn}, SeqVal: {SeqVal}",
+			ByteArrayToHex(lastRow.Lsn), ByteArrayToHex(lastRow.SeqVal));
+
+		return eventCount;
 	}
 
 	/// <summary>

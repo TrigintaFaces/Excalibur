@@ -12,5 +12,5 @@ public interface IDataProcessor : IDisposable
 	/// <param name="updateCompletedCount"> A delegate for updating the count of completed records in the data task. </param>
 	/// <param name="cancellationToken"> A token to signal the cancellation of the processing operation. </param>
 	/// <returns> A task that represents the asynchronous operation. </returns>
-	Task RunAsync(long completedCount, UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken);
+	Task<long> RunAsync(long completedCount, UpdateCompletedCount updateCompletedCount, CancellationToken cancellationToken);
 }
