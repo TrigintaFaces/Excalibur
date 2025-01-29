@@ -25,7 +25,7 @@ namespace Excalibur.Data.Outbox;
 public class Outbox : IOutbox
 {
 	private static readonly JsonSerializerOptions SerializerOptions = new() { Converters = { new OutboxMessageJsonConverter() } };
-	private readonly OutboxConfiguration _config;
+	private readonly OutboxConfiguration _configuration;
 	private readonly IDbConnection _connection;
 	private readonly IActivityContext _context;
 	private readonly IServiceProvider _serviceProvider;
@@ -56,13 +56,13 @@ public class Outbox : IOutbox
 		_serviceProvider = serviceProvider;
 		_logger = logger;
 		_telemetryClient = telemetryClient;
-		_config = configuration.Value;
+		_configuration = configuration.Value;
 		_connection = domainDb.Connection;
 	}
 
 	/// <inheritdoc />
 	public Task TryUnReserveOneRecordsAsync(string dispatcherId, CancellationToken cancellationToken) =>
-		_connection.ExecuteAsync(OutboxCommands.UnReserveOutboxRecords(dispatcherId, DbTimeouts.RegularTimeoutSeconds, _config));
+		_connection.ExecuteAsync(OutboxCommands.UnReserveOutboxRecords(dispatcherId, DbTimeouts.RegularTimeoutSeconds, _configuration));
 
 	/// <inheritdoc />
 	public async Task<IEnumerable<OutboxRecord>> TryReserveOneRecordsAsync(
@@ -77,7 +77,7 @@ public class Outbox : IOutbox
 			var records =
 				(await _connection
 					.QueryAsync<OutboxRecord>(
-						OutboxCommands.ReserveOutboxRecords(dispatcherId, batchSize, DbTimeouts.LongRunningTimeoutSeconds, _config))
+						OutboxCommands.ReserveOutboxRecords(dispatcherId, batchSize, DbTimeouts.LongRunningTimeoutSeconds, _configuration))
 					.ConfigureAwait(false)).ToArray();
 
 			_telemetryClient?.TrackMetric("Outbox.ReservedOutboxBatchSize", records.Length);
@@ -115,7 +115,7 @@ public class Outbox : IOutbox
 				new Dictionary<string, string> { { "DispatcherId", dispatcherId }, { "OutboxId", record.OutboxId.ToString() } });
 
 			_ = await _connection.ExecuteAsync(
-				OutboxCommands.DeleteOutboxRecord(record.OutboxId, DbTimeouts.RegularTimeoutSeconds, _config)).ConfigureAwait(false);
+				OutboxCommands.DeleteOutboxRecord(record.OutboxId, DbTimeouts.RegularTimeoutSeconds, _configuration)).ConfigureAwait(false);
 			_logger.LogInformation("Deleted OutboxRecord with Id {OutboxId} after successful dispatch", record.OutboxId);
 
 			return result;
@@ -136,7 +136,7 @@ public class Outbox : IOutbox
 				record.EventData,
 				ex.Message,
 				DbTimeouts.LongRunningTimeoutSeconds,
-				_config)).ConfigureAwait(false);
+				_configuration)).ConfigureAwait(false);
 
 			return 0;
 		}
@@ -187,10 +187,10 @@ public class Outbox : IOutbox
 		var eventData = JsonSerializer.Serialize(outboxMessages, SerializerOptions);
 
 		_logger.LogInformation("Saving {MessageCount} messages to the {OutboxTable} with Id {OutboxId}.", outboxMessages.Length,
-			_config.TableName, outboxRecordId);
+			_configuration.TableName, outboxRecordId);
 
 		return _connection.ExecuteAsync(OutboxCommands.InsertOutboxRecord(outboxRecordId, eventData, DbTimeouts.RegularTimeoutSeconds,
-			_config));
+			_configuration));
 	}
 
 	/// <summary>
@@ -344,7 +344,7 @@ public class Outbox : IOutbox
 			             WHERE
 			                 OutboxId = @OutboxId
 
-			             ) >= @MaxRetries
+			             ) >= @MaxAttempts
 			           BEGIN
 			             INSERT INTO {configuration.DeadLetterTableName}
 			                 (OutboxId, EventData, ErrorMessage, OriginalAttempts)
@@ -373,7 +373,7 @@ public class Outbox : IOutbox
 
 			var parameters = new DynamicParameters();
 			parameters.Add("OutboxId", outboxRecordId, direction: ParameterDirection.Input);
-			parameters.Add("MaxRetries", configuration.MaxRetries, direction: ParameterDirection.Input);
+			parameters.Add("MaxAttempts", configuration.MaxAttempts, direction: ParameterDirection.Input);
 			parameters.Add("EventData", eventData, direction: ParameterDirection.Input);
 			parameters.Add("ErrorMessage", errorMessage, direction: ParameterDirection.Input);
 

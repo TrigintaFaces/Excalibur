@@ -10,7 +10,7 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 /// </summary>
 public class CdcProcessor : ICdcProcessor, IDisposable
 {
-	private readonly InMemoryDataQueue<CdcRow> _cdcQueue = new();
+	private readonly InMemoryDataQueue<CdcRow> _cdcQueue;
 	private readonly IDatabaseConfig _dbConfig;
 	private readonly ICdcRepository _cdcRepository;
 	private readonly ICdcStateStore _stateStore;
@@ -45,6 +45,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 		_stateStore = stateStore;
 		_appLifetime = appLifetime;
 		_logger = logger;
+		_cdcQueue = new InMemoryDataQueue<CdcRow>(_dbConfig.QueueSize);
 
 		_ = _appLifetime.ApplicationStopping.Register(OnApplicationStopping);
 	}
@@ -238,6 +239,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 								   fromLsn,
 								   toLsn,
 								   processingState.LastProcessedSequenceValue,
+								   _dbConfig.ProducerBatchSize,
 								   _dbConfig.CaptureInstances,
 								   cancellationToken).ConfigureAwait(false))
 				{
@@ -284,7 +286,8 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 
 		try
 		{
-			await foreach (var batch in _cdcQueue.DequeueAllInBatchesAsync(batchSize: 100, cancellationToken).ConfigureAwait(false))
+			await foreach (var batch in _cdcQueue.DequeueAllInBatchesAsync(_dbConfig.ConsumerBatchSize, cancellationToken)
+							   .ConfigureAwait(false))
 			{
 				cancellationToken.ThrowIfCancellationRequested();
 
@@ -416,7 +419,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 	private async Task<(byte[] fromLsn, byte[] toLsn, DateTime toLsnDate)> GetLsnRange(DateTime lastCommitTime, byte[] maxLsn,
 		CancellationToken cancellationToken)
 	{
-		var fromLsn = await _cdcRepository.GetTimeToLsnAsync(lastCommitTime, "smallest greater than", cancellationToken)
+		var fromLsn = await _cdcRepository.GetTimeToLsnAsync(lastCommitTime, "largest less than or equal", cancellationToken)
 			.ConfigureAwait(false);
 		ArgumentNullException.ThrowIfNull(fromLsn);
 

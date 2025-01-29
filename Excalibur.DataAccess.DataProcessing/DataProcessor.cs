@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.DataAccess.DataProcessing;
 
@@ -18,7 +19,8 @@ public delegate Task UpdateCompletedCount(long complete, CancellationToken cance
 /// <typeparam name="TRecord"> The type of records being processed. </typeparam>
 public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TRecord>
 {
-	private readonly InMemoryDataQueue<TRecord> _dataQueue = new();
+	private readonly InMemoryDataQueue<TRecord> _dataQueue;
+	private readonly DataProcessingConfiguration _configuration;
 	private readonly IServiceProvider _serviceProvider;
 	private readonly IHostApplicationLifetime _appLifetime;
 	private readonly ILogger _logger;
@@ -28,41 +30,32 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	/// <summary>
 	///     Initializes a new instance of the <see cref="DataProcessor{TRecord}" /> class.
 	/// </summary>
-	/// <param name="serviceProvider"> The root service provider for creating new scopes. </param>
 	/// <param name="appLifetime"> Provides notifications about application lifetime events. </param>
+	/// <param name="configuration"> The data processing configuration options. </param>
+	/// <param name="serviceProvider"> The root service provider for creating new scopes. </param>
 	/// <param name="logger"> The logger used for diagnostic information. </param>
-	/// <param name="batchSize"> The size of batches used during processing. Default is 1000. </param>
-	/// <param name="batchInterval"> The interval, in seconds, between batch updates. Default is 5 seconds. </param>
 	protected DataProcessor(
-		IServiceProvider serviceProvider,
 		IHostApplicationLifetime appLifetime,
-		ILogger logger,
-		int batchSize = BatchSize,
-		int batchInterval = BatchIntervalSeconds)
+		IOptions<DataProcessingConfiguration> configuration,
+		IServiceProvider serviceProvider,
+		ILogger logger)
 	{
-		ArgumentNullException.ThrowIfNull(serviceProvider);
 		ArgumentNullException.ThrowIfNull(appLifetime);
+		ArgumentNullException.ThrowIfNull(configuration);
+		ArgumentNullException.ThrowIfNull(serviceProvider);
 		ArgumentNullException.ThrowIfNull(logger);
 
-		if (batchSize <= 0)
-		{
-			throw new ArgumentOutOfRangeException(nameof(batchSize), "Batch size must be greater than zero.");
-		}
-
-		if (batchInterval <= 0)
-		{
-			throw new ArgumentOutOfRangeException(nameof(batchInterval), "Batch interval must be greater than zero.");
-		}
-
-		_serviceProvider = serviceProvider;
 		_appLifetime = appLifetime;
+		_configuration = configuration.Value;
+		_serviceProvider = serviceProvider;
 		_logger = logger;
+		_dataQueue = new InMemoryDataQueue<TRecord>(_configuration.QueueSize);
 
 		_ = _appLifetime.ApplicationStopping.Register(OnApplicationStopping);
 	}
 
 	/// <summary>
-	///     Finalizer for <see cref="DataProcessor" /> to ensure cleanup.
+	///     Finalizer for DataProcessor to ensure cleanup.
 	/// </summary>
 	~DataProcessor() => Dispose(false);
 
@@ -132,10 +125,23 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 		try
 		{
-			await foreach (var record in _dataQueue.DequeueAllAsync(cancellationToken).ConfigureAwait(false))
+			while (!cancellationToken.IsCancellationRequested)
 			{
-				await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false);
-				totalEvents++;
+				var batch = await _dataQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
+
+				foreach (var record in batch)
+				{
+					await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false);
+					totalEvents++;
+				}
+
+				if (batch.Count != 0 || _dataQueue.HasPendingItems())
+				{
+					continue;
+				}
+
+				_logger.LogInformation("Queue is empty. Consumer is idle.");
+				break;
 			}
 		}
 		catch (OperationCanceledException)

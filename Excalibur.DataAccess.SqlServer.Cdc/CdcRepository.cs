@@ -179,6 +179,7 @@ public class CdcRepository : ICdcRepository
 		byte[] fromPosition,
 		byte[] toPosition,
 		byte[]? lastSequenceValue,
+		int batchSize,
 		IEnumerable<string> captureInstances,
 		[EnumeratorCancellation] CancellationToken cancellationToken)
 	{
@@ -187,7 +188,7 @@ public class CdcRepository : ICdcRepository
 		foreach (var captureInstance in captureInstances)
 		{
 			var commandText = $"""
-			                   SELECT
+			                   SELECT TOP {batchSize}
 			                       '{captureInstance}' AS TableName,
 			                       sys.fn_cdc_map_lsn_to_time(__$start_lsn) AS CommitTime,
 			                       __$start_lsn AS Position,
