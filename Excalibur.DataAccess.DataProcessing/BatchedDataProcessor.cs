@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.DataAccess.DataProcessing;
 
@@ -12,34 +13,27 @@ namespace Excalibur.DataAccess.DataProcessing;
 /// </remarks>
 public abstract class BatchedDataProcessor<TRecord> : DataProcessor<TRecord>
 {
-	private readonly int _batchSize;
+	private readonly DataProcessingConfiguration _configuration;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="BatchedDataProcessor{TRecord}" /> class.
 	/// </summary>
-	/// <param name="serviceProvider"> The root service provider for creating new scopes. </param>
 	/// <param name="appLifetime"> Provides notifications about application lifetime events. </param>
+	/// <param name="configuration"> The data processing configuration options. </param>
+	/// <param name="serviceProvider"> The root service provider for creating new scopes. </param>
 	/// <param name="logger"> The logger used for logging processing information and errors. </param>
-	/// <param name="batchSize"> The number of records to process in each batch. Default is <c> BATCH_SIZE </c>. </param>
-	/// <param name="maxDegreeOfParallelism">
-	///     The maximum number of concurrent operations allowed. Default is <c> MAX_DEGREE_OF_PARALLELISM </c>.
-	/// </param>
-	/// <exception cref="ArgumentOutOfRangeException">
-	///     Thrown when <paramref name="batchSize" /> or <paramref name="maxDegreeOfParallelism" /> is less than or equal to zero.
-	/// </exception>
 	protected BatchedDataProcessor(
-		IServiceProvider serviceProvider,
 		IHostApplicationLifetime appLifetime,
-		ILogger logger,
-		int batchSize = BatchSize,
-		int maxDegreeOfParallelism = MaxDegreeOfParallelism) : base(serviceProvider, appLifetime, logger, batchSize, maxDegreeOfParallelism)
+		IOptions<DataProcessingConfiguration> configuration,
+		IServiceProvider serviceProvider,
+		ILogger logger) : base(appLifetime, configuration, serviceProvider, logger)
 	{
-		if (batchSize <= 0)
-		{
-			throw new ArgumentOutOfRangeException(nameof(batchSize), "Batch size must be greater than zero.");
-		}
+		ArgumentNullException.ThrowIfNull(appLifetime);
+		ArgumentNullException.ThrowIfNull(configuration);
+		ArgumentNullException.ThrowIfNull(serviceProvider);
+		ArgumentNullException.ThrowIfNull(logger);
 
-		_batchSize = batchSize;
+		_configuration = configuration.Value;
 	}
 
 	/// <summary>
@@ -50,7 +44,7 @@ public abstract class BatchedDataProcessor<TRecord> : DataProcessor<TRecord>
 	/// <returns> An asynchronous enumerable of records of type <typeparamref name="TRecord" />. </returns>
 	public override IAsyncEnumerable<TRecord> FetchAllAsync(long skip, CancellationToken cancellationToken = default)
 	{
-		var batchEnumerator = new BatchEnumerator<TRecord>(FetchBatchAsync, _batchSize);
+		var batchEnumerator = new BatchEnumerator<TRecord>(FetchBatchAsync, _configuration.ProducerBatchSize);
 
 		return batchEnumerator.FetchAllAsync(skip, cancellationToken);
 	}

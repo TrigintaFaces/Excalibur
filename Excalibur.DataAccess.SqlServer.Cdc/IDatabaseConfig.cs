@@ -6,40 +6,54 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 public interface IDatabaseConfig
 {
 	/// <summary>
-	///     Gets or sets the name of the database being processed.
+	///     Gets the name of the database being processed.
 	/// </summary>
-	string DatabaseName { get; set; }
+	string DatabaseName { get; }
 
 	/// <summary>
-	///     Gets or sets the unique identifier for the database connection.
+	///     Gets the unique identifier for the database connection.
 	/// </summary>
 	/// <remarks> This identifier is used to differentiate between multiple database connections. </remarks>
-	string DatabaseConnectionIdentifier { get; set; }
+	string DatabaseConnectionIdentifier { get; }
 
 	/// <summary>
-	///     Gets or sets the unique identifier for the connection to the state store database.
+	///     Gets the unique identifier for the connection to the state store database.
 	/// </summary>
 	/// <remarks> The state store database is used to persist CDC processing state. </remarks>
-	string StateConnectionIdentifier { get; set; }
+	string StateConnectionIdentifier { get; }
 
 	/// <summary>
-	///     Gets or sets a value indicating whether processing should stop when a table handler is missing.
+	///     Gets a value indicating whether processing should stop when a table handler is missing.
 	/// </summary>
 	/// <remarks>
 	///     If <c> true </c>, the processing will stop and throw an exception when a table does not have a registered handler. If <c> false
 	///     </c>, processing will continue despite missing table handlers.
 	/// </remarks>
-	bool StopOnMissingTableHandler { get; set; }
+	bool StopOnMissingTableHandler { get; }
 
 	/// <summary>
-	///     Gets or sets the list of CDC capture instances to process.
+	///     Gets the list of CDC capture instances to process.
 	/// </summary>
 	/// <remarks> Each capture instance corresponds to a table or set of tables tracked by CDC in the database. </remarks>
-	string[] CaptureInstances { get; set; }
+	string[] CaptureInstances { get; }
 
 	/// <summary>
-	///     Gets or sets the time interval (in milliseconds) between processing batches of CDC changes.
+	///     Gets the batch time interval (in milliseconds) for processing changes.
 	/// </summary>
-	/// <remarks> This value determines how often the processor will poll for new changes. </remarks>
-	int BatchTimeInterval { get; set; }
+	int BatchTimeInterval { get; }
+
+	/// <summary>
+	///     Gets the size of the in-memory data queue.
+	/// </summary>
+	int QueueSize { get; }
+
+	/// <summary>
+	///     Gets the batch size used in the producer loop.
+	/// </summary>
+	int ProducerBatchSize { get; }
+
+	/// <summary>
+	///     Gets the batch size used in the consumer loop.
+	/// </summary>
+	int ConsumerBatchSize { get; }
 }

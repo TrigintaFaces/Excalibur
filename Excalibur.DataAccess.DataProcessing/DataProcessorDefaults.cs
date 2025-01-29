@@ -1,5 +1,3 @@
-global using static Excalibur.DataAccess.DataProcessing.DataProcessorDefaults;
-
 namespace Excalibur.DataAccess.DataProcessing;
 
 /// <summary>
@@ -11,18 +9,10 @@ namespace Excalibur.DataAccess.DataProcessing;
 /// </remarks>
 public static class DataProcessorDefaults
 {
-	/// <summary>
-	///     The default batch size for data processing. Indicates the number of records to process in a single batch.
-	/// </summary>
-	public const int BatchSize = 1000;
-
-	/// <summary>
-	///     The default batch interval in seconds. Specifies the delay between processing batches.
-	/// </summary>
-	public const int BatchIntervalSeconds = 30;
-
-	/// <summary>
-	///     The default maximum degree of parallelism for data processing. Limits the number of parallel consumers.
-	/// </summary>
-	public const int MaxDegreeOfParallelism = 1;
+	public const string DataProcessorDefaultTableName = "DataProcessor.DataTaskRequests";
+	public const int DataProcessorDefaultDispatcherTimeout = 60000;
+	public const int DataProcessorDefaultMaxAttempts = 3;
+	public const int DataProcessorDefaultQueueSize = 500;
+	public const int DataProcessorDefaultProducerBatchSize = 50;
+	public const int DataProcessorDefaultConsumerBatchSize = 100;
 }

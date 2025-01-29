@@ -5,6 +5,7 @@ using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Data.Outbox;
 
@@ -14,10 +15,8 @@ namespace Excalibur.Data.Outbox;
 /// </summary>
 public class OutboxManager : IOutboxManager, IDisposable
 {
-	private const int MaxDegreeOfParallelism = 1;
-	private const int BatchSize = 10;
-
-	private readonly InMemoryDataQueue<OutboxRecord> _outboxQueue = new();
+	private readonly OutboxConfiguration _configuration;
+	private readonly InMemoryDataQueue<OutboxRecord> _outboxQueue;
 	private readonly IOutbox _outbox;
 	private readonly ILogger<OutboxManager> _logger;
 	private readonly IHostApplicationLifetime _appLifetime;
@@ -28,6 +27,7 @@ public class OutboxManager : IOutboxManager, IDisposable
 	///     Initializes a new instance of the <see cref="OutboxManager" /> class.
 	/// </summary>
 	/// <param name="outbox"> The outbox instance for managing records. </param>
+	/// <param name="configuration"> The outbox configuration options. </param>
 	/// <param name="appLifetime">
 	///     An instance of <see cref="IHostApplicationLifetime" /> that allows the application to perform actions during the application's
 	///     lifecycle events, such as startup, shutdown, or when the application is stopping. This parameter is used to gracefully manage
@@ -37,17 +37,21 @@ public class OutboxManager : IOutboxManager, IDisposable
 	/// <param name="telemetryClient">
 	///     The Application Insights TelemetryClient used to record metrics, events, and exceptions for monitoring and analysis.
 	/// </param>
-	public OutboxManager(IOutbox outbox, IHostApplicationLifetime appLifetime, ILogger<OutboxManager> logger,
+	public OutboxManager(IOutbox outbox, IOptions<OutboxConfiguration> configuration, IHostApplicationLifetime appLifetime,
+		ILogger<OutboxManager> logger,
 		TelemetryClient? telemetryClient = null)
 	{
 		ArgumentNullException.ThrowIfNull(outbox);
+		ArgumentNullException.ThrowIfNull(configuration);
 		ArgumentNullException.ThrowIfNull(appLifetime);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_outbox = outbox;
+		_configuration = configuration.Value;
 		_appLifetime = appLifetime;
 		_logger = logger;
 		_telemetryClient = telemetryClient;
+		_outboxQueue = new InMemoryDataQueue<OutboxRecord>(_configuration.QueueSize);
 
 		_ = _appLifetime.ApplicationStopping.Register(OnApplicationStopping);
 	}
@@ -69,9 +73,7 @@ public class OutboxManager : IOutboxManager, IDisposable
 
 		var producerTask = Task.Run(() => ProducerLoop(dispatcherId, linkedToken), linkedToken);
 
-		var consumerTasks = Enumerable.Range(0, MaxDegreeOfParallelism)
-			.Select(_ => Task.Run(() => ConsumerLoop(dispatcherId, linkedToken), linkedToken))
-			.ToArray();
+		var consumerTask = Task.Run(() => ConsumerLoop(dispatcherId, linkedToken), linkedToken);
 
 		await producerTask.ConfigureAwait(false);
 
@@ -80,9 +82,9 @@ public class OutboxManager : IOutboxManager, IDisposable
 			disposable.Dispose();
 		}
 
-		var results = await Task.WhenAll(consumerTasks).ConfigureAwait(false);
+		var totalRecords = await consumerTask.ConfigureAwait(false);
 
-		return results.Sum();
+		return totalRecords;
 	}
 
 	/// <inheritdoc />
@@ -123,8 +125,10 @@ public class OutboxManager : IOutboxManager, IDisposable
 		{
 			while (!cancellationToken.IsCancellationRequested)
 			{
-				var batch = await ReserveBatchRecords(dispatcherId, BatchSize, cancellationToken).ConfigureAwait(false);
-				var count = batch.Count();
+				var batch = (await ReserveBatchRecords(dispatcherId, _configuration.ProducerBatchSize, cancellationToken)
+						.ConfigureAwait(false))
+					.ToArray();
+				var count = batch.Length;
 
 				_telemetryClient?.GetMetric("Outbox.BatchSize").TrackValue(count);
 
@@ -167,7 +171,7 @@ public class OutboxManager : IOutboxManager, IDisposable
 		{
 			while (!cancellationToken.IsCancellationRequested)
 			{
-				var batch = await _outboxQueue.DequeueBatchAsync(100, cancellationToken).ConfigureAwait(false);
+				var batch = await _outboxQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
 
 				foreach (var record in batch)
 				{

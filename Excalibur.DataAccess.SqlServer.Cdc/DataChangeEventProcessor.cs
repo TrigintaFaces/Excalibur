@@ -36,6 +36,13 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 		IHostApplicationLifetime appLifetime,
 		ILogger<DataChangeEventProcessor> logger) : base(dbConfig, cdcRepository, stateStore, appLifetime, logger)
 	{
+		ArgumentNullException.ThrowIfNull(dbConfig);
+		ArgumentNullException.ThrowIfNull(cdcRepository);
+		ArgumentNullException.ThrowIfNull(stateStore);
+		ArgumentNullException.ThrowIfNull(serviceProvider);
+		ArgumentNullException.ThrowIfNull(appLifetime);
+		ArgumentNullException.ThrowIfNull(logger);
+
 		_dbConfig = dbConfig;
 		_serviceProvider = serviceProvider;
 		_logger = logger;

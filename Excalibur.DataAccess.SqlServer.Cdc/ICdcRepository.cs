@@ -74,9 +74,10 @@ public interface ICdcRepository
 	/// <param name="lastSequenceValue">
 	///     The last processed sequence value, if any. This is used for processing changes with finer granularity.
 	/// </param>
+	/// <param name="batchSize"> The number of records to retrieve in the batch. </param>
 	/// <param name="captureInstances"> A collection of capture instance names to query for changes. </param>
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns> An asynchronous stream of <see cref="CdcRow" /> instances representing the captured changes. </returns>
-	IAsyncEnumerable<CdcRow> FetchChangesAsync(byte[] fromPosition, byte[] toPosition, byte[]? lastSequenceValue,
+	IAsyncEnumerable<CdcRow> FetchChangesAsync(byte[] fromPosition, byte[] toPosition, byte[]? lastSequenceValue, int batchSize,
 		IEnumerable<string> captureInstances, CancellationToken cancellationToken);
 }

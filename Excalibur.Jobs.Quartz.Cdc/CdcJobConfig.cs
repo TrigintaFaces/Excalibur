@@ -19,5 +19,5 @@ public class CdcJobConfig : JobConfig
 	///     Gets the list of database configurations required for CDC processing.
 	/// </summary>
 	[Required]
-	public Collection<DatabaseConfig> DatabaseConfigs { get; init; }
+	public required Collection<DatabaseConfig> DatabaseConfigs { get; init; } = [];
 }
