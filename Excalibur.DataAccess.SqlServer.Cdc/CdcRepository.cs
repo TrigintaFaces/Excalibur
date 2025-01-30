@@ -188,17 +188,18 @@ public class CdcRepository : ICdcRepository
 		foreach (var captureInstance in captureInstances)
 		{
 			var commandText = $"""
-			                   SELECT TOP {batchSize}
-			                       '{captureInstance}' AS TableName,
-			                       sys.fn_cdc_map_lsn_to_time(__$start_lsn) AS CommitTime,
-			                       __$start_lsn AS Position,
-			                       __$seqval AS SequenceValue,
-			                       __$operation AS OperationCode,
-			                       *
-			                   FROM
-			                       cdc.fn_cdc_get_all_changes_{captureInstance}(@from_lsn, @to_lsn, N'all update old')
-			                   WHERE @lastSequenceValue IS NULL OR __$seqval > @lastSequenceValue
-			                   ORDER BY Position, SequenceValue
+			                       SELECT TOP (@batchSize)
+			                           '{captureInstance}' AS TableName,
+			                           sys.fn_cdc_map_lsn_to_time(__$start_lsn) AS CommitTime,
+			                           CONVERT(VARBINARY(10), __$start_lsn) AS Position,
+			                           CONVERT(VARBINARY(10), __$seqval) AS SequenceValue,
+			                           __$operation AS OperationCode,
+			                           *
+			                       FROM cdc.fn_cdc_get_all_changes_{captureInstance}(@from_lsn, @to_lsn, N'all update old')
+			                       WHERE
+			                           __$start_lsn > @from_lsn OR
+			                           (__$start_lsn = @from_lsn AND (@lastSequenceValue IS NULL OR __$seqval > @lastSequenceValue))
+			                       ORDER BY CONVERT(VARBINARY(10), __$start_lsn), CONVERT(VARBINARY(10), __$seqval)
 			                   """;
 
 			var connection = _connection.Ready();
@@ -206,15 +207,15 @@ public class CdcRepository : ICdcRepository
 			parameters.Add("from_lsn", fromPosition, DbType.Binary, size: 10);
 			parameters.Add("to_lsn", toPosition, DbType.Binary, size: 10);
 			parameters.Add("lastSequenceValue", lastSequenceValue, DbType.Binary, size: 10);
+			parameters.Add("@batchSize", batchSize, DbType.Int32);
 
 			var command = new CommandDefinition(commandText, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 				cancellationToken: cancellationToken);
 			var reader = (DbDataReader)await connection.ExecuteReaderAsync(command).ConfigureAwait(false);
+			var dataTypes = new Dictionary<string, Type?>();
 
 			await using (reader)
 			{
-				var dataTypes = new Dictionary<string, Type?>();
-
 				for (var i = 0; i < reader.FieldCount; i++)
 				{
 					var columnName = reader.GetName(i);
@@ -228,9 +229,11 @@ public class CdcRepository : ICdcRepository
 
 					var changes = new Dictionary<string, object>();
 					foreach (var columnName in dataTypes.Keys.Where(columnName =>
-								 !(columnName.StartsWith("__$", StringComparison.InvariantCultureIgnoreCase) || columnName == "TableName" ||
+								 !(columnName.StartsWith("__$", StringComparison.InvariantCultureIgnoreCase) ||
+								   columnName == "TableName" ||
 								   columnName == "CommitTime" ||
-								   columnName == "OperationCode" || columnName == "SequenceValue")))
+								   columnName == "OperationCode" ||
+								   columnName == "SequenceValue")))
 					{
 						changes[columnName] = reader[columnName];
 					}
