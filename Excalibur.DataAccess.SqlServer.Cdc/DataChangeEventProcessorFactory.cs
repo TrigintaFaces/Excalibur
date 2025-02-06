@@ -52,7 +52,7 @@ public class DataChangeEventProcessorFactory : IDataChangeEventProcessorFactory
 		var stateStore = new CdcStateStore(stateStoreConnection);
 		var logger = _serviceProvider.GetRequiredService<ILogger<DataChangeEventProcessor>>();
 
-		return new DataChangeEventProcessor(dbConfig, cdcRepository, stateStore, _serviceProvider, _appLifetime, logger);
+		return new DataChangeEventProcessor(_appLifetime, dbConfig, cdcRepository, stateStore, _serviceProvider, logger);
 	}
 
 	/// <summary>
@@ -75,6 +75,6 @@ public class DataChangeEventProcessorFactory : IDataChangeEventProcessorFactory
 		var stateStore = new CdcStateStore(stateStoreDb);
 		var logger = _serviceProvider.GetRequiredService<ILogger<DataChangeEventProcessor>>();
 
-		return new DataChangeEventProcessor(dbConfig, cdcRepository, stateStore, _serviceProvider, _appLifetime, logger);
+		return new DataChangeEventProcessor(_appLifetime, dbConfig, cdcRepository, stateStore, _serviceProvider, logger);
 	}
 }

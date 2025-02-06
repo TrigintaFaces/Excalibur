@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 namespace Excalibur.DataAccess.ElasticSearch;
 
@@ -33,7 +34,12 @@ public static class HealthChecksBuilderExtensions
 			throw new ArgumentOutOfRangeException(nameof(timeout), "Timeout must be a positive value.");
 		}
 
-		_ = healthChecks.AddElasticsearch(connectionString, name: name, timeout: timeout);
+		_ = healthChecks.AddElasticsearch(
+			connectionString,
+			name: name,
+			failureStatus: HealthStatus.Unhealthy,
+			tags: ["Feedback", "Database"],
+			timeout: timeout);
 
 		return healthChecks;
 	}

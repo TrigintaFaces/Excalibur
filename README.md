@@ -100,11 +100,26 @@
    1. **Unit Tests**:
       - Use `xUnit` with `shouldly` for assertions and `FakeItEasy` to mock dependencies in clear well defined tests.
       - Focus on services and repositories in isolation.
+      
    2. **Integration Tests**:
       - Test `DataQuery` classes with real databases (PostgreSQL or SQL Server).
       - Validate query provider correctness.
+      
    3. **Functional Tests**:
       - Simulate end-to-end flows for APIs or job services.
+      
+
+------
+
+### 📖 Documentation
+
+Full documentation for **Excalibur Framework** is available in our **[GitHub Wiki](https://github.com/TrigintaFaces/Excalibur/wiki)**.
+
+🔹 Learn how to get started, configure modules, and explore advanced features.
+
+🔹 Find integration details and best practices.
+
+[📚 View the Documentation →](https://github.com/TrigintaFaces/Excalibur/wiki)
 
 ------
 

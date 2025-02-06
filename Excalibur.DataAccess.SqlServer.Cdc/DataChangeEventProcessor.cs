@@ -18,29 +18,29 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 	/// <summary>
 	///     Initializes a new instance of the <see cref="DataChangeEventProcessor" /> class.
 	/// </summary>
-	/// <param name="dbConfig"> The database configuration for the CDC processor. </param>
-	/// <param name="cdcRepository"> The repository for interacting with CDC data. </param>
-	/// <param name="stateStore"> The state store for persisting CDC processing state. </param>
-	/// <param name="serviceProvider"> The root service provider for creating new scopes. </param>
 	/// <param name="appLifetime">
 	///     An instance of <see cref="IHostApplicationLifetime" /> that allows the application to perform actions during the application's
 	///     lifecycle events, such as startup, shutdown, or when the application is stopping. This parameter is used to gracefully manage
 	///     tasks that need to respond to application lifecycle events.
 	/// </param>
+	/// <param name="dbConfig"> The database configuration for the CDC processor. </param>
+	/// <param name="cdcRepository"> The repository for interacting with CDC data. </param>
+	/// <param name="stateStore"> The state store for persisting CDC processing state. </param>
+	/// <param name="serviceProvider"> The root service provider for creating new scopes. </param>
 	/// <param name="logger"> The logger for capturing diagnostics and operational logs. </param>
 	public DataChangeEventProcessor(
+		IHostApplicationLifetime appLifetime,
 		IDatabaseConfig dbConfig,
 		ICdcRepository cdcRepository,
 		ICdcStateStore stateStore,
 		IServiceProvider serviceProvider,
-		IHostApplicationLifetime appLifetime,
-		ILogger<DataChangeEventProcessor> logger) : base(dbConfig, cdcRepository, stateStore, appLifetime, logger)
+		ILogger<DataChangeEventProcessor> logger) : base(appLifetime, dbConfig, cdcRepository, stateStore, logger)
 	{
+		ArgumentNullException.ThrowIfNull(appLifetime);
 		ArgumentNullException.ThrowIfNull(dbConfig);
 		ArgumentNullException.ThrowIfNull(cdcRepository);
 		ArgumentNullException.ThrowIfNull(stateStore);
 		ArgumentNullException.ThrowIfNull(serviceProvider);
-		ArgumentNullException.ThrowIfNull(appLifetime);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_dbConfig = dbConfig;

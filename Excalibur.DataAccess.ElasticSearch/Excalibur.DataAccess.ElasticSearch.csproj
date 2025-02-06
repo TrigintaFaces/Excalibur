@@ -26,6 +26,7 @@
 		<PackageReference Include="AspNetCore.HealthChecks.Elasticsearch" Version="9.0.0" />
 		<PackageReference Include="Elastic.Clients.Elasticsearch" Version="8.17.1" />
 		<PackageReference Include="MediatR.Contracts" Version="2.0.1" />
+		<PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.0" />
 		<PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.1" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.1" />
 		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="9.0.1" />
