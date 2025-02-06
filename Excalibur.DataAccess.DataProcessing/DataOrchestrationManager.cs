@@ -44,8 +44,7 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 	}
 
 	/// <inheritdoc />
-	public async Task<Guid> AddDataTaskForRecordType(string recordType, DateTime dataTaskTimeoutUtc,
-		CancellationToken cancellationToken = default)
+	public async Task<Guid> AddDataTaskForRecordType(string recordType, CancellationToken cancellationToken = default)
 	{
 		var dataTaskId = Uuid7Extensions.GenerateGuid();
 		var command = DataTaskCommands.InsertDataTaskRequest(dataTaskId, recordType, _configuration.Value, DbTimeouts.RegularTimeoutSeconds,
@@ -57,7 +56,7 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 	}
 
 	/// <inheritdoc />
-	public async ValueTask ProcessDataTask(CancellationToken cancellationToken = default)
+	public async ValueTask ProcessDataTasks(CancellationToken cancellationToken = default)
 	{
 		var command = DataTaskCommands.GetDataTaskRequests(_configuration.Value, DbTimeouts.RegularTimeoutSeconds, cancellationToken);
 		var requests = (await _db.Connection.Ready().QueryAsync<DataTaskRequest>(command).ConfigureAwait(false)).ToList();

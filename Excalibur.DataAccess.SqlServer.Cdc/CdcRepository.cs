@@ -188,18 +188,20 @@ public class CdcRepository : ICdcRepository
 		foreach (var captureInstance in captureInstances)
 		{
 			var commandText = $"""
-			                       SELECT TOP (@batchSize)
-			                           '{captureInstance}' AS TableName,
-			                           sys.fn_cdc_map_lsn_to_time(__$start_lsn) AS CommitTime,
-			                           CONVERT(VARBINARY(10), __$start_lsn) AS Position,
-			                           CONVERT(VARBINARY(10), __$seqval) AS SequenceValue,
-			                           __$operation AS OperationCode,
-			                           *
-			                       FROM cdc.fn_cdc_get_all_changes_{captureInstance}(@from_lsn, @to_lsn, N'all update old')
-			                       WHERE
-			                           __$start_lsn > @from_lsn OR
-			                           (__$start_lsn = @from_lsn AND (@lastSequenceValue IS NULL OR __$seqval > @lastSequenceValue))
-			                       ORDER BY CONVERT(VARBINARY(10), __$start_lsn), CONVERT(VARBINARY(10), __$seqval)
+			                      SELECT TOP (@batchSize)
+			                         '{captureInstance}' AS TableName,
+			                         sys.fn_cdc_map_lsn_to_time(__$start_lsn) AS CommitTime,
+			                         CONVERT(VARBINARY(10), __$start_lsn) AS Position,
+			                         CONVERT(VARBINARY(10), __$seqval) AS SequenceValue,
+			                         __$operation AS OperationCode,
+			                         *
+			                     FROM cdc.fn_cdc_get_all_changes_{captureInstance}(@from_lsn, @to_lsn, N'all update old')
+			                     WHERE
+			                         (__$start_lsn = @from_lsn AND (@lastSequenceValue IS NULL OR __$seqval > @lastSequenceValue))
+			                         OR __$start_lsn > @from_lsn
+			                     ORDER BY
+			                         CONVERT(VARBINARY(10), __$start_lsn),
+			                         CONVERT(VARBINARY(10), __$seqval)
 			                   """;
 
 			var connection = _connection.Ready();

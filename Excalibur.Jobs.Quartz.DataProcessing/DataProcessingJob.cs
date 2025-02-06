@@ -95,7 +95,7 @@ public class DataProcessingJob : IJob, IConfigurableJob<DataProcessingJobConfig>
 			{
 				_logger.LogInformation("Starting execution of {JobGroup}:{JobName}.", jobGroup, jobName);
 
-				await _dataOrchestrationManager.ProcessDataTask(context.CancellationToken).ConfigureAwait(false);
+				await _dataOrchestrationManager.ProcessDataTasks(context.CancellationToken).ConfigureAwait(false);
 
 				JobHealthCheck.Heartbeat(jobName);
 

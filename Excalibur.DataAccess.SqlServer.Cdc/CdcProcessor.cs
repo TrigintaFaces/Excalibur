@@ -10,40 +10,40 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 /// </summary>
 public class CdcProcessor : ICdcProcessor, IDisposable
 {
-	private readonly InMemoryDataQueue<CdcRow> _cdcQueue;
+	private readonly IHostApplicationLifetime _appLifetime;
 	private readonly IDatabaseConfig _dbConfig;
 	private readonly ICdcRepository _cdcRepository;
 	private readonly ICdcStateStore _stateStore;
-	private readonly IHostApplicationLifetime _appLifetime;
 	private readonly ILogger<CdcProcessor> _logger;
+	private readonly InMemoryDataQueue<CdcRow> _cdcQueue;
 	private bool _disposed;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="CdcProcessor" /> class.
 	/// </summary>
+	/// <param name="appLifetime"> Provides notifications about application lifetime events. </param>
 	/// <param name="dbConfig"> The database configuration for CDC processing. </param>
 	/// <param name="cdcRepository"> The repository for querying CDC data. </param>
 	/// <param name="stateStore"> The state store for persisting CDC processing progress. </param>
-	/// <param name="appLifetime"> Provides notifications about application lifetime events. </param>
 	/// <param name="logger"> The logger used to log diagnostics and operational information. </param>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="appLifetime" /> is null. </exception>
 	public CdcProcessor(
+		IHostApplicationLifetime appLifetime,
 		IDatabaseConfig dbConfig,
 		ICdcRepository cdcRepository,
 		ICdcStateStore stateStore,
-		IHostApplicationLifetime appLifetime,
 		ILogger<CdcProcessor> logger)
 	{
+		ArgumentNullException.ThrowIfNull(appLifetime);
 		ArgumentNullException.ThrowIfNull(dbConfig);
 		ArgumentNullException.ThrowIfNull(cdcRepository);
 		ArgumentNullException.ThrowIfNull(stateStore);
-		ArgumentNullException.ThrowIfNull(appLifetime);
 		ArgumentNullException.ThrowIfNull(logger);
 
+		_appLifetime = appLifetime;
 		_dbConfig = dbConfig;
 		_cdcRepository = cdcRepository;
 		_stateStore = stateStore;
-		_appLifetime = appLifetime;
 		_logger = logger;
 		_cdcQueue = new InMemoryDataQueue<CdcRow>(_dbConfig.QueueSize);
 

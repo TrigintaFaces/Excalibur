@@ -58,9 +58,9 @@ public static class ServiceCollectionExtensions
 			$"The handler of type '{handlerType.FullName}' does not specify a generic type and cannot be registered.");
 
 		var addHandlerMethod = typeof(SqlMapper)
-			                       .GetMethods()
-			                       .FirstOrDefault(m => m is { Name: nameof(SqlMapper.AddTypeHandler), IsGenericMethod: true }) ??
-		                       throw new InvalidOperationException("Could not locate the generic AddTypeHandler method on SqlMapper.");
+								   .GetMethods()
+								   .FirstOrDefault(m => m is { Name: nameof(SqlMapper.AddTypeHandler), IsGenericMethod: true }) ??
+							   throw new InvalidOperationException("Could not locate the generic AddTypeHandler method on SqlMapper.");
 
 		var genericAddHandlerMethod = addHandlerMethod.MakeGenericMethod(handledType);
 		_ = genericAddHandlerMethod.Invoke(null, [handler]);
