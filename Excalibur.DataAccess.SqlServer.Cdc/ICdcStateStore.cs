@@ -12,10 +12,10 @@ public interface ICdcStateStore
 	/// <param name="databaseName"> The name of the database to retrieve the processing state for. </param>
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns>
-	///     A task that represents the asynchronous operation, containing the last processed <see cref="CdcProcessingState" /> if found, or
-	///     <c> null </c> if no state exists.
+	///     A task that represents the asynchronous operation, containing a collection of the last processed
+	///     <see cref="CdcProcessingState" /> for each capture instance.
 	/// </returns>
-	Task<CdcProcessingState?> GetLastProcessedPositionAsync(
+	Task<IEnumerable<CdcProcessingState>> GetLastProcessedPositionAsync(
 		string databaseConnectionIdentifier,
 		string databaseName,
 		CancellationToken cancellationToken);
@@ -25,6 +25,7 @@ public interface ICdcStateStore
 	/// </summary>
 	/// <param name="databaseConnectionIdentifier"> The unique identifier for the database connection. </param>
 	/// <param name="databaseName"> The name of the database to update the processing state for. </param>
+	/// <param name="tableName"> The name of the table to update the processing state for. </param>
 	/// <param name="position"> The LSN position to set as the last processed position. </param>
 	/// <param name="sequenceValue"> The sequence value associated with the last processed position, if any. </param>
 	/// <param name="commitTime"> The commit time of the last processed LSN. </param>
@@ -33,6 +34,7 @@ public interface ICdcStateStore
 	Task UpdateLastProcessedPositionAsync(
 		string databaseConnectionIdentifier,
 		string databaseName,
+		string tableName,
 		byte[] position,
 		byte[]? sequenceValue,
 		DateTime commitTime,
