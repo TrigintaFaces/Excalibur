@@ -1,7 +1,6 @@
 using System.Data;
 using System.Data.Common;
 using System.Globalization;
-using System.Runtime.CompilerServices;
 
 using Dapper;
 
@@ -175,88 +174,88 @@ public class CdcRepository : ICdcRepository
 	}
 
 	/// <inheritdoc />
-	public async IAsyncEnumerable<CdcRow> FetchChangesAsync(
+	public async Task<IEnumerable<CdcRow>> FetchChangesAsync(
+		string captureInstance,
 		byte[] fromPosition,
 		byte[] toPosition,
 		byte[]? lastSequenceValue,
-		int batchSize,
-		IEnumerable<string> captureInstances,
-		[EnumeratorCancellation] CancellationToken cancellationToken)
+		CancellationToken cancellationToken)
 	{
-		ArgumentNullException.ThrowIfNull(captureInstances);
+		ArgumentException.ThrowIfNullOrWhiteSpace(captureInstance);
+		ArgumentNullException.ThrowIfNull(fromPosition);
+		ArgumentNullException.ThrowIfNull(toPosition);
 
-		foreach (var captureInstance in captureInstances)
+		var commandText = $"""
+		                      SELECT
+		                         '{captureInstance}' AS TableName,
+		                         sys.fn_cdc_map_lsn_to_time(__$start_lsn) AS CommitTime,
+		                         CONVERT(VARBINARY(10), __$start_lsn) AS Position,
+		                         CONVERT(VARBINARY(10), __$seqval) AS SequenceValue,
+		                         __$operation AS OperationCode,
+		                         *
+		                     FROM cdc.fn_cdc_get_all_changes_{captureInstance}(@from_lsn, @to_lsn, N'all update old')
+		                     WHERE
+		                         (__$start_lsn = @from_lsn AND (@lastSequenceValue IS NULL OR __$seqval > @lastSequenceValue))
+		                         OR __$start_lsn > @from_lsn
+		                     ORDER BY
+		                         CONVERT(VARBINARY(10), __$start_lsn),
+		                         CONVERT(VARBINARY(10), __$seqval)
+		                   """;
+
+		var connection = _connection.Ready();
+		var parameters = new DynamicParameters();
+		parameters.Add("from_lsn", fromPosition, DbType.Binary, size: 10);
+		parameters.Add("to_lsn", toPosition, DbType.Binary, size: 10);
+		parameters.Add("lastSequenceValue", lastSequenceValue, DbType.Binary, size: 10);
+
+		var command = new CommandDefinition(commandText, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+			cancellationToken: cancellationToken);
+		var reader = (DbDataReader)await connection.ExecuteReaderAsync(command).ConfigureAwait(false);
+		var dataTypes = new Dictionary<string, Type?>();
+		var resultList = new List<CdcRow>();
+
+		await using (reader)
 		{
-			var commandText = $"""
-			                      SELECT TOP (@batchSize)
-			                         '{captureInstance}' AS TableName,
-			                         sys.fn_cdc_map_lsn_to_time(__$start_lsn) AS CommitTime,
-			                         CONVERT(VARBINARY(10), __$start_lsn) AS Position,
-			                         CONVERT(VARBINARY(10), __$seqval) AS SequenceValue,
-			                         __$operation AS OperationCode,
-			                         *
-			                     FROM cdc.fn_cdc_get_all_changes_{captureInstance}(@from_lsn, @to_lsn, N'all update old')
-			                     WHERE
-			                         (__$start_lsn = @from_lsn AND (@lastSequenceValue IS NULL OR __$seqval > @lastSequenceValue))
-			                         OR __$start_lsn > @from_lsn
-			                     ORDER BY
-			                         CONVERT(VARBINARY(10), __$start_lsn),
-			                         CONVERT(VARBINARY(10), __$seqval)
-			                   """;
-
-			var connection = _connection.Ready();
-			var parameters = new DynamicParameters();
-			parameters.Add("from_lsn", fromPosition, DbType.Binary, size: 10);
-			parameters.Add("to_lsn", toPosition, DbType.Binary, size: 10);
-			parameters.Add("lastSequenceValue", lastSequenceValue, DbType.Binary, size: 10);
-			parameters.Add("@batchSize", batchSize, DbType.Int32);
-
-			var command = new CommandDefinition(commandText, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
-				cancellationToken: cancellationToken);
-			var reader = (DbDataReader)await connection.ExecuteReaderAsync(command).ConfigureAwait(false);
-			var dataTypes = new Dictionary<string, Type?>();
-
-			await using (reader)
+			for (var i = 0; i < reader.FieldCount; i++)
 			{
-				for (var i = 0; i < reader.FieldCount; i++)
+				var columnName = reader.GetName(i);
+				var fieldType = reader.GetFieldType(i);
+				dataTypes.Add(columnName, fieldType);
+			}
+
+			while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+			{
+				cancellationToken.ThrowIfCancellationRequested();
+
+				var changes = new Dictionary<string, object>();
+				foreach (var columnName in dataTypes.Keys.Where(columnName =>
+							 !(columnName.StartsWith("__$", StringComparison.InvariantCultureIgnoreCase) ||
+							   columnName == "TableName" ||
+							   columnName == "CommitTime" ||
+							   columnName == "OperationCode" ||
+							   columnName == "SequenceValue")))
 				{
-					var columnName = reader.GetName(i);
-					var fieldType = reader.GetFieldType(i);
-					dataTypes.Add(columnName, fieldType);
+					changes[columnName] = reader[columnName];
 				}
 
-				while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+				var cdcRow = new CdcRow
 				{
-					cancellationToken.ThrowIfCancellationRequested();
+					TableName = (string)reader["TableName"],
+					OperationCode = GetOperationCode(Convert.ToInt32(reader["OperationCode"], CultureInfo.CurrentCulture)),
+					Lsn = (byte[])reader["Position"],
+					SeqVal = (byte[])reader["SequenceValue"],
+					CommitTime = (DateTime)reader["CommitTime"],
+					Changes = changes,
+					DataTypes = dataTypes
+						.Where(ct => changes.ContainsKey(ct.Key))
+						.ToDictionary(kvp => kvp.Key, kvp => kvp.Value)
+				};
 
-					var changes = new Dictionary<string, object>();
-					foreach (var columnName in dataTypes.Keys.Where(columnName =>
-								 !(columnName.StartsWith("__$", StringComparison.InvariantCultureIgnoreCase) ||
-								   columnName == "TableName" ||
-								   columnName == "CommitTime" ||
-								   columnName == "OperationCode" ||
-								   columnName == "SequenceValue")))
-					{
-						changes[columnName] = reader[columnName];
-					}
-
-					var cdcRow = new CdcRow
-					{
-						TableName = (string)reader["TableName"],
-						OperationCode = GetOperationCode(Convert.ToInt32(reader["OperationCode"], CultureInfo.CurrentCulture)),
-						Lsn = (byte[])reader["Position"],
-						SeqVal = (byte[])reader["SequenceValue"],
-						CommitTime = (DateTime)reader["CommitTime"],
-						Changes = changes,
-						DataTypes = dataTypes
-							.Where(ct => changes.ContainsKey(ct.Key))
-							.ToDictionary(kvp => kvp.Key, kvp => kvp.Value)
-					};
-
-					yield return cdcRow;
-				}
+				resultList.Add(cdcRow);
 			}
 		}
+
+		return resultList;
 	}
 
 	private static CdcOperationCodes GetOperationCode(int operationCode) => operationCode switch

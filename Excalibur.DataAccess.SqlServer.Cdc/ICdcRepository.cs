@@ -78,6 +78,10 @@ public interface ICdcRepository
 	/// <param name="captureInstances"> A collection of capture instance names to query for changes. </param>
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns> An asynchronous stream of <see cref="CdcRow" /> instances representing the captured changes. </returns>
-	IAsyncEnumerable<CdcRow> FetchChangesAsync(byte[] fromPosition, byte[] toPosition, byte[]? lastSequenceValue, int batchSize,
-		IEnumerable<string> captureInstances, CancellationToken cancellationToken);
+	Task<IEnumerable<CdcRow>> FetchChangesAsync(
+		string captureInstance,
+		byte[] fromPosition,
+		byte[] toPosition,
+		byte[]? lastSequenceValue,
+		CancellationToken cancellationToken);
 }

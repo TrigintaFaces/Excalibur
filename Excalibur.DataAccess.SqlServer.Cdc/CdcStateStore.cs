@@ -40,22 +40,17 @@ public class CdcStateStore : ICdcStateStore
 	/// </summary>
 	internal IDbConnection Connection => _connection.Ready();
 
-	/// <summary>
-	///     Retrieves the last processed CDC position for a specified database and connection.
-	/// </summary>
-	/// <param name="databaseConnectionIdentifier"> The identifier for the database connection. </param>
-	/// <param name="databaseName"> The name of the database. </param>
-	/// <param name="cancellationToken"> The cancellation token to stop the operation if needed. </param>
-	/// <returns> The last processed CDC position as a <see cref="CdcProcessingState" />, or <c> null </c> if not found. </returns>
-	public async Task<CdcProcessingState?> GetLastProcessedPositionAsync(
+	/// <inheritdoc />
+	public async Task<IEnumerable<CdcProcessingState>> GetLastProcessedPositionAsync(
 		string databaseConnectionIdentifier,
 		string databaseName,
 		CancellationToken cancellationToken)
 	{
 		const string CommandText = """
-		                           SELECT TOP 1
+		                           SELECT
 		                              DatabaseConnectionIdentifier,
 		                              DatabaseName,
+		                              TableName,
 		                              LastProcessedLsn,
 		                              LastProcessedSequenceValue,
 		                              LastCommitTime,
@@ -77,21 +72,14 @@ public class CdcStateStore : ICdcStateStore
 		var command = new CommandDefinition(CommandText, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		return await Connection.QuerySingleOrDefaultAsync<CdcProcessingState?>(command).ConfigureAwait(false);
+		return await Connection.QueryAsync<CdcProcessingState?>(command).ConfigureAwait(false);
 	}
 
-	/// <summary>
-	///     Updates the last processed CDC position for a specified database and connection.
-	/// </summary>
-	/// <param name="databaseConnectionIdentifier"> The identifier for the database connection. </param>
-	/// <param name="databaseName"> The name of the database. </param>
-	/// <param name="position"> The LSN of the last processed position. </param>
-	/// <param name="sequenceValue"> The sequence value of the last processed row. </param>
-	/// <param name="commitTime"> The commit time of the last processed row. </param>
-	/// <param name="cancellationToken"> The cancellation token to stop the operation if needed. </param>
+	/// <inheritdoc />
 	public async Task UpdateLastProcessedPositionAsync(
 		string databaseConnectionIdentifier,
 		string databaseName,
+		string tableName,
 		byte[] position,
 		byte[]? sequenceValue,
 		DateTime commitTime,
@@ -101,12 +89,14 @@ public class CdcStateStore : ICdcStateStore
 		                           MERGE
 		                              Cdc.CdcProcessingState AS target
 		                           USING ( VALUES
-		                              (@databaseConnectionIdentifier, @databaseName, @position, @sequenceValue, @commitTime)) AS source
-		                              (DatabaseConnectionIdentifier, DatabaseName, LastProcessedLsn, LastProcessedSequenceValue, LastCommitTime)
+		                              (@databaseConnectionIdentifier, @databaseName, @tableName, @position, @sequenceValue, @commitTime)) AS source
+		                              (DatabaseConnectionIdentifier, DatabaseName, TableName, LastProcessedLsn, LastProcessedSequenceValue, LastCommitTime)
 		                           ON
 		                              target.DatabaseConnectionIdentifier = source.DatabaseConnectionIdentifier
 		                           AND
 		                              target.DatabaseName = source.DatabaseName
+		                           AND
+		                              target.TableName = source.TableName
 		                           WHEN MATCHED THEN
 		                              UPDATE SET
 		                                  LastProcessedLsn = source.LastProcessedLsn,
@@ -114,13 +104,14 @@ public class CdcStateStore : ICdcStateStore
 		                                  LastCommitTime = source.LastCommitTime,
 		                                  ProcessedAt = GETUTCDATE()
 		                           WHEN NOT MATCHED THEN
-		                              INSERT (DatabaseConnectionIdentifier, DatabaseName, LastProcessedLsn, LastProcessedSequenceValue, LastCommitTime)
-		                              VALUES (source.DatabaseConnectionIdentifier, source.DatabaseName, source.LastProcessedLsn, source.LastProcessedSequenceValue, source.LastCommitTime);
+		                              INSERT (DatabaseConnectionIdentifier, DatabaseName, TableName, LastProcessedLsn, LastProcessedSequenceValue, LastCommitTime)
+		                              VALUES (source.DatabaseConnectionIdentifier, source.DatabaseName, source.TableName, source.LastProcessedLsn, source.LastProcessedSequenceValue, source.LastCommitTime);
 		                           """;
 
 		var parameters = new DynamicParameters();
 		parameters.Add("databaseConnectionIdentifier", databaseConnectionIdentifier, DbType.String);
 		parameters.Add("databaseName", databaseName, DbType.String);
+		parameters.Add("tableName", tableName, DbType.String);
 		parameters.Add("position", position, DbType.Binary, size: 10);
 		parameters.Add("sequenceValue", sequenceValue, DbType.Binary, size: 10);
 		parameters.Add("commitTime", commitTime, DbType.DateTime2);
