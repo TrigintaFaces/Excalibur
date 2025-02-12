@@ -75,9 +75,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 			_dbConfig.DatabaseName,
 			linkedToken).ConfigureAwait(false) ?? new CdcProcessingState();
 
-		var maxLsn = await _cdcRepository.GetMaxPositionAsync(linkedToken).ConfigureAwait(false);
-
-		var producerTask = Task.Run(() => ProducerLoop(processingState, maxLsn, linkedToken), linkedToken);
+		var producerTask = Task.Run(() => ProducerLoop(processingState, linkedToken), linkedToken);
 
 		var consumerTask = Task.Run(() => ConsumerLoop(eventHandler, linkedToken), linkedToken);
 
@@ -215,29 +213,25 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 	///     Executes the producer loop that reads CDC changes from the database and enqueues them for consumption.
 	/// </summary>
 	/// <param name="processingState"> The current CDC processing state. </param>
-	/// <param name="maxLsn"> The maximum LSN to process up to. </param>
 	/// <param name="cancellationToken"> A cancellation token to stop processing. </param>
-	private async Task ProducerLoop(CdcProcessingState processingState, byte[] maxLsn, CancellationToken cancellationToken)
+	private async Task ProducerLoop(CdcProcessingState processingState, CancellationToken cancellationToken)
 	{
 		try
 		{
-			var startProcessingFrom = await GetInitialStartLsn(processingState.LastProcessedLsn, cancellationToken).ConfigureAwait(false);
-			var commitTime = processingState.LastCommitTime != default
-				? processingState.LastCommitTime
-				: await _cdcRepository.GetLsnToTimeAsync(startProcessingFrom, cancellationToken).ConfigureAwait(false);
+			_logger.LogDebug("Producer loop started with last processed LSN {LastProcessedLsn}",
+				ByteArrayToHex(processingState.LastProcessedLsn));
 
-			ArgumentNullException.ThrowIfNull(commitTime);
+			var startProcessingFrom = await GetInitialStartLsn(processingState.LastProcessedLsn, cancellationToken).ConfigureAwait(false);
+			var maxLsn = await _cdcRepository.GetMaxPositionAsync(cancellationToken).ConfigureAwait(false);
 
 			while (CompareLsn(startProcessingFrom, maxLsn) < 0 && !cancellationToken.IsCancellationRequested)
 			{
-				var (fromLsn, toLsn, toLsnDate) = await GetLsnRange(commitTime.Value, maxLsn, cancellationToken).ConfigureAwait(false);
-
-				_logger.LogDebug("Producer chunk from LSN {From} to {To}", ByteArrayToHex(fromLsn), ByteArrayToHex(toLsn));
+				_logger.LogDebug("Producer chunk from LSN {From} to {To}", ByteArrayToHex(startProcessingFrom), ByteArrayToHex(maxLsn));
 
 				var cdcRowCount = 0;
 				await foreach (var cdcRow in _cdcRepository.FetchChangesAsync(
-								   fromLsn,
-								   toLsn,
+								   startProcessingFrom,
+								   maxLsn,
 								   processingState.LastProcessedSequenceValue,
 								   _dbConfig.ProducerBatchSize,
 								   _dbConfig.CaptureInstances,
@@ -249,11 +243,11 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 					cdcRowCount++;
 				}
 
-				_logger.LogInformation("Enqueued {Count} CDC rows for range {From} - {To}", cdcRowCount, ByteArrayToHex(fromLsn),
-					ByteArrayToHex(toLsn));
+				_logger.LogInformation("Enqueued {Count} CDC rows for range {From} - {To}", cdcRowCount,
+					ByteArrayToHex(startProcessingFrom),
+					ByteArrayToHex(maxLsn));
 
-				startProcessingFrom = toLsn;
-				commitTime = toLsnDate;
+				startProcessingFrom = maxLsn;
 
 				if (cdcRowCount == 0)
 				{
@@ -407,32 +401,6 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 		}
 
 		return startLsn;
-	}
-
-	/// <summary>
-	///     Determines the range of LSNs to process in a single batch.
-	/// </summary>
-	/// <param name="lastCommitTime"> The last commit time. </param>
-	/// <param name="maxLsn"> The maximum LSN. </param>
-	/// <param name="cancellationToken"> A cancellation token to stop processing. </param>
-	/// <returns> A tuple containing the starting LSN, ending LSN, and ending LSN date. </returns>
-	private async Task<(byte[] fromLsn, byte[] toLsn, DateTime toLsnDate)> GetLsnRange(DateTime lastCommitTime, byte[] maxLsn,
-		CancellationToken cancellationToken)
-	{
-		var fromLsn = await _cdcRepository.GetTimeToLsnAsync(lastCommitTime, "largest less than or equal", cancellationToken)
-			.ConfigureAwait(false);
-		ArgumentNullException.ThrowIfNull(fromLsn);
-
-		var fromLsnDate = await _cdcRepository.GetLsnToTimeAsync(fromLsn, cancellationToken).ConfigureAwait(false);
-		ArgumentNullException.ThrowIfNull(fromLsnDate);
-
-		// Calculate the 'toLsn' based on batch time interval
-		var toLsnDate = fromLsnDate.Value.AddMilliseconds(_dbConfig.BatchTimeInterval);
-		var toLsn =
-			await _cdcRepository.GetTimeToLsnAsync(toLsnDate, "largest less than or equal", cancellationToken).ConfigureAwait(false) ??
-			maxLsn;
-
-		return (fromLsn, toLsn, toLsnDate);
 	}
 
 	/// <summary>
