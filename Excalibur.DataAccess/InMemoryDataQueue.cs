@@ -17,6 +17,7 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 #pragma warning restore CA1711 // Identifiers should not have incorrect suffix
 {
 	private readonly Channel<TRecord> _channel;
+	private int _count;
 	private bool _disposed;
 
 	/// <summary>
@@ -43,12 +44,18 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 	/// </summary>
 	~InMemoryDataQueue() => Dispose(false);
 
+	/// <summary>
+	///     Gets the current number of items in the queue.
+	/// </summary>
+	public int Count => Volatile.Read(ref _count);
+
 	/// <inheritdoc />
-	public ValueTask EnqueueAsync(TRecord record, CancellationToken cancellationToken = default)
+	public async ValueTask EnqueueAsync(TRecord record, CancellationToken cancellationToken = default)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		return _channel.Writer.WriteAsync(record, cancellationToken);
+		await _channel.Writer.WriteAsync(record, cancellationToken).ConfigureAwait(false);
+		_ = Interlocked.Increment(ref _count);
 	}
 
 	/// <inheritdoc />
@@ -58,32 +65,8 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 
 		await foreach (var record in _channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
 		{
+			_ = Interlocked.Decrement(ref _count);
 			yield return record;
-		}
-	}
-
-	/// <inheritdoc />
-	public async IAsyncEnumerable<IList<TRecord>> DequeueAllInBatchesAsync(int batchSize,
-		[EnumeratorCancellation] CancellationToken cancellationToken)
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-
-		var batch = new List<TRecord>();
-
-		await foreach (var record in _channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
-		{
-			batch.Add(record);
-
-			if (batch.Count >= batchSize)
-			{
-				yield return batch.ToList();
-				batch.Clear();
-			}
-		}
-
-		if (batch.Count > 0)
-		{
-			yield return batch;
 		}
 	}
 
@@ -100,6 +83,7 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 				if (_channel.Reader.TryRead(out var record))
 				{
 					batch.Add(record);
+					_ = Interlocked.Decrement(ref _count);
 				}
 			}
 			else
@@ -111,11 +95,9 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 		return batch;
 	}
 
-	public bool HasPendingItems()
-	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
-		return !_channel.Reader.Completion.IsCompleted && _channel.Reader.Count > 0;
-	}
+	public bool HasPendingItems() => Count > 0;
+
+	public bool IsEmpty() => Count == 0;
 
 	/// <summary>
 	///     Releases resources used by the <see cref="InMemoryDataQueue{TRecord}" />.

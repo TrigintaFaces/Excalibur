@@ -24,8 +24,10 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	private readonly IServiceProvider _serviceProvider;
 	private readonly IHostApplicationLifetime _appLifetime;
 	private readonly ILogger _logger;
+	private long _skipCount;
 	private long _processedTotal;
 	private bool _disposed;
+	private bool _producerCompleted;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="DataProcessor{TRecord}" /> class.
@@ -66,31 +68,18 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _appLifetime.ApplicationStopping);
 		var linkedToken = linkedCts.Token;
+		_ = Interlocked.Exchange(ref _skipCount, completedCount);
 		_ = Interlocked.Exchange(ref _processedTotal, completedCount);
 
 		var producerTask = Task.Run(() => ProducerLoop(linkedToken), linkedToken);
-
 		var consumerTask = Task.Run(() => ConsumerLoop(completedCount, linkedToken), linkedToken);
 
-		await producerTask.ConfigureAwait(false);
+		await Task.WhenAll(producerTask, consumerTask).ConfigureAwait(false);
 
-		if (_dataQueue is IDisposable disposable)
-		{
-			disposable.Dispose();
-		}
+		_dataQueue.Dispose();
 
-		var totalEvents = await consumerTask.ConfigureAwait(false);
-
-		return totalEvents;
+		return _processedTotal;
 	}
-
-	/// <summary>
-	///     Fetches all records asynchronously starting from a specific point.
-	/// </summary>
-	/// <param name="skip"> The number of records to skip. </param>
-	/// <param name="cancellationToken"> A token to signal cancellation. </param>
-	/// <returns> An asynchronous enumerable of records. </returns>
-	public abstract IAsyncEnumerable<TRecord> FetchAllAsync(long skip, CancellationToken cancellationToken = default);
 
 	/// <inheritdoc />
 	public void Dispose()
@@ -98,6 +87,8 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		Dispose(true);
 		GC.SuppressFinalize(this);
 	}
+
+	public abstract Task<IEnumerable<TRecord>> FetchBatchAsync(long skip, int batchSize, CancellationToken cancellationToken);
 
 	/// <summary>
 	///     Disposes of resources used by the DataProcessor.
@@ -119,6 +110,54 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		_disposed = true;
 	}
 
+	private async Task ProducerLoop(CancellationToken cancellationToken)
+	{
+		try
+		{
+			while (!cancellationToken.IsCancellationRequested)
+			{
+				if (_dataQueue.Count >= _configuration.QueueSize - _configuration.ProducerBatchSize)
+				{
+					_logger.LogInformation("DataProcessor Queue is almost full. Producer is pausing...");
+					await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+					continue;
+				}
+
+				var batch = (await FetchBatchAsync(_skipCount, _configuration.ProducerBatchSize, cancellationToken)
+						.ConfigureAwait(false))
+					.ToArray();
+
+				if (batch.Length == 0)
+				{
+					_logger.LogInformation("No more DataProcessor records. Producer exiting.");
+					_producerCompleted = true;
+					break;
+				}
+
+				_logger.LogInformation("Enqueuing {BatchSize} DataProcessor records", batch.Length);
+
+				foreach (var record in batch)
+				{
+					cancellationToken.ThrowIfCancellationRequested();
+
+					await _dataQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
+					_ = Interlocked.Increment(ref _skipCount);
+				}
+
+				_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} DataProcessor records", batch.Length);
+			}
+		}
+		catch (OperationCanceledException)
+		{
+			_logger.LogDebug("DataProcessor Producer canceled");
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Error in DataProcessor ProducerLoop");
+			throw;
+		}
+	}
+
 	private async Task<long> ConsumerLoop(long completedCount, CancellationToken cancellationToken)
 	{
 		var totalEvents = completedCount;
@@ -129,19 +168,31 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 			{
 				var batch = await _dataQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
 
+				if (batch.Count == 0)
+				{
+					_logger.LogInformation("DataProcessor Queue is empty. Waiting for producer...");
+
+					await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+
+					if (_producerCompleted && _dataQueue.IsEmpty())
+					{
+						_logger.LogInformation("No more DataProcessor records. Consumer is exiting.");
+						break;
+					}
+
+					continue;
+				}
+
 				foreach (var record in batch)
 				{
 					await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false);
 					totalEvents++;
+
+					_ = Interlocked.Increment(ref _processedTotal);
 				}
 
-				if (batch.Count != 0 || _dataQueue.HasPendingItems())
-				{
-					continue;
-				}
-
-				_logger.LogInformation("Queue is empty. Consumer is idle.");
-				break;
+				_logger.LogInformation("Completed batch processing in DataProcessor, total records processed so far: {TotalRecords}",
+					totalEvents);
 			}
 		}
 		catch (OperationCanceledException)
@@ -155,26 +206,6 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		}
 
 		return totalEvents;
-	}
-
-	private async Task ProducerLoop(CancellationToken cancellationToken)
-	{
-		try
-		{
-			await foreach (var record in FetchAllAsync(_processedTotal, cancellationToken).ConfigureAwait(false))
-			{
-				await _dataQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
-			}
-		}
-		catch (OperationCanceledException)
-		{
-			_logger.LogDebug("DataProcessor Producer canceled");
-		}
-		catch (Exception ex)
-		{
-			_logger.LogError(ex, "Error in DataProcessor ProducerLoop");
-			throw;
-		}
 	}
 
 	private async Task ProcessRecordAsync(TRecord record, CancellationToken cancellationToken)

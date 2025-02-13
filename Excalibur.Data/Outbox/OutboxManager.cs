@@ -21,7 +21,9 @@ public class OutboxManager : IOutboxManager, IDisposable
 	private readonly ILogger<OutboxManager> _logger;
 	private readonly IHostApplicationLifetime _appLifetime;
 	private readonly TelemetryClient? _telemetryClient;
+	private int _totalRecords;
 	private bool _disposed;
+	private bool _producerCompleted;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="OutboxManager" /> class.
@@ -72,19 +74,13 @@ public class OutboxManager : IOutboxManager, IDisposable
 		await _outbox.TryUnReserveOneRecordsAsync(dispatcherId, linkedToken).ConfigureAwait(false);
 
 		var producerTask = Task.Run(() => ProducerLoop(dispatcherId, linkedToken), linkedToken);
-
 		var consumerTask = Task.Run(() => ConsumerLoop(dispatcherId, linkedToken), linkedToken);
 
-		await producerTask.ConfigureAwait(false);
+		await Task.WhenAll(producerTask, consumerTask).ConfigureAwait(false);
 
-		if (_outboxQueue is IDisposable disposable)
-		{
-			disposable.Dispose();
-		}
+		_outboxQueue.Dispose();
 
-		var totalRecords = await consumerTask.ConfigureAwait(false);
-
-		return totalRecords;
+		return _totalRecords;
 	}
 
 	/// <inheritdoc />
@@ -125,12 +121,26 @@ public class OutboxManager : IOutboxManager, IDisposable
 		{
 			while (!cancellationToken.IsCancellationRequested)
 			{
+				if (_outboxQueue.Count >= _configuration.QueueSize - _configuration.ProducerBatchSize)
+				{
+					_logger.LogInformation("Outbox Queue is almost full. Producer is pausing...");
+					await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+					continue;
+				}
+
 				var batch = (await ReserveBatchRecords(dispatcherId, _configuration.ProducerBatchSize, cancellationToken)
 						.ConfigureAwait(false))
 					.ToArray();
-				var count = batch.Length;
 
-				_telemetryClient?.GetMetric("Outbox.BatchSize").TrackValue(count);
+				if (batch.Length == 0)
+				{
+					_logger.LogInformation("No more outbox records. Producer exiting.");
+					_producerCompleted = true;
+					break;
+				}
+
+				_telemetryClient?.GetMetric("Outbox.BatchSize").TrackValue(batch.Length);
+				_logger.LogInformation("Enqueuing {BatchSize} outbox records", batch.Length);
 
 				foreach (var record in batch)
 				{
@@ -138,22 +148,16 @@ public class OutboxManager : IOutboxManager, IDisposable
 					await _outboxQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
 				}
 
-				if (count != 0)
-				{
-					continue;
-				}
-
-				_logger.LogInformation("No outbox records found. Producer is idle.");
-				break;
+				_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} outbox records", batch.Length);
 			}
 		}
 		catch (OperationCanceledException)
 		{
-			_logger.LogDebug("Producer canceled");
+			_logger.LogDebug("Outbox Producer canceled");
 		}
 		catch (Exception ex)
 		{
-			_logger.LogError(ex, "Error in ProducerLoop");
+			_logger.LogError(ex, "Error in Outbox ProducerLoop");
 			throw;
 		}
 	}
@@ -166,12 +170,29 @@ public class OutboxManager : IOutboxManager, IDisposable
 	/// <returns> The total number of successfully dispatched records. </returns>
 	private async Task<int> ConsumerLoop(string dispatcherId, CancellationToken cancellationToken)
 	{
-		var localCount = 0;
+		int batchProcessedCount = 0;
 		try
 		{
 			while (!cancellationToken.IsCancellationRequested)
 			{
 				var batch = await _outboxQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
+
+				if (batch.Count == 0)
+				{
+					_logger.LogInformation("Outbox Queue is empty. Waiting for producer...");
+
+					await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+
+					if (_producerCompleted && _outboxQueue.IsEmpty())
+					{
+						_logger.LogInformation("No more Outbox records. Consumer is exiting.");
+						break;
+					}
+
+					continue;
+				}
+
+				_logger.LogInformation("Processing Outbox batch of {BatchSize} records", batch.Count);
 
 				foreach (var record in batch)
 				{
@@ -179,7 +200,8 @@ public class OutboxManager : IOutboxManager, IDisposable
 					try
 					{
 						var result = await _outbox.DispatchReservedRecordAsync(dispatcherId, record).ConfigureAwait(false);
-						localCount += result;
+						batchProcessedCount += result;
+						_ = Interlocked.Add(ref _totalRecords, result);
 
 						_telemetryClient?.GetMetric("Outbox.ProcessingTime").TrackValue(stopwatch.Elapsed.TotalMilliseconds);
 					}
@@ -196,13 +218,7 @@ public class OutboxManager : IOutboxManager, IDisposable
 					}
 				}
 
-				if (batch.Count != 0 || _outboxQueue.HasPendingItems())
-				{
-					continue;
-				}
-
-				_logger.LogInformation("Queue is empty. Consumer is idle.");
-				break;
+				_logger.LogInformation("Completed batch processing, total records processed so far: {TotalRecords}", _totalRecords);
 			}
 		}
 		catch (OperationCanceledException)
@@ -215,9 +231,9 @@ public class OutboxManager : IOutboxManager, IDisposable
 			throw;
 		}
 
-		_telemetryClient?.GetMetric("Outbox.RecordsProcessed").TrackValue(localCount);
+		_telemetryClient?.GetMetric("Outbox.RecordsProcessed").TrackValue(_totalRecords);
 
-		return localCount;
+		return batchProcessedCount;
 	}
 
 	/// <summary>
