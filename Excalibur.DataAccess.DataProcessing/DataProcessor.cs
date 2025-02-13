@@ -71,8 +71,8 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		_ = Interlocked.Exchange(ref _skipCount, completedCount);
 		_ = Interlocked.Exchange(ref _processedTotal, completedCount);
 
-		var producerTask = Task.Run(() => ProducerLoop(linkedToken), linkedToken);
 		var consumerTask = Task.Run(() => ConsumerLoop(completedCount, linkedToken), linkedToken);
+		var producerTask = Task.Run(() => ProducerLoop(linkedToken), linkedToken);
 
 		await Task.WhenAll(producerTask, consumerTask).ConfigureAwait(false);
 
@@ -119,7 +119,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 				if (_dataQueue.Count >= _configuration.QueueSize - _configuration.ProducerBatchSize)
 				{
 					_logger.LogInformation("DataProcessor Queue is almost full. Producer is pausing...");
-					await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+					await Task.Delay(50, cancellationToken).ConfigureAwait(false);
 					continue;
 				}
 
@@ -145,6 +145,8 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 				}
 
 				_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} DataProcessor records", batch.Length);
+
+				await Task.Yield();
 			}
 		}
 		catch (OperationCanceledException)
@@ -160,7 +162,9 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 	private async Task<long> ConsumerLoop(long completedCount, CancellationToken cancellationToken)
 	{
+		const int MaxEmptyCycles = 100;
 		var totalEvents = completedCount;
+		var emptyCycles = 0;
 
 		try
 		{
@@ -172,9 +176,10 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 				{
 					_logger.LogInformation("DataProcessor Queue is empty. Waiting for producer...");
 
-					await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+					emptyCycles++;
+					await Task.Delay(10, cancellationToken).ConfigureAwait(false);
 
-					if (_producerCompleted && _dataQueue.IsEmpty())
+					if (_producerCompleted && _dataQueue.IsEmpty() && emptyCycles >= MaxEmptyCycles)
 					{
 						_logger.LogInformation("No more DataProcessor records. Consumer is exiting.");
 						break;
@@ -193,6 +198,8 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 				_logger.LogInformation("Completed batch processing in DataProcessor, total records processed so far: {TotalRecords}",
 					totalEvents);
+
+				emptyCycles = 0;
 			}
 		}
 		catch (OperationCanceledException)
