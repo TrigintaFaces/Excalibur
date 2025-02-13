@@ -142,11 +142,7 @@ public class OutboxManager : IOutboxManager, IDisposable
 				_telemetryClient?.GetMetric("Outbox.BatchSize").TrackValue(batch.Length);
 				_logger.LogInformation("Enqueuing {BatchSize} outbox records", batch.Length);
 
-				foreach (var record in batch)
-				{
-					cancellationToken.ThrowIfCancellationRequested();
-					await _outboxQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
-				}
+				await _outboxQueue.EnqueueBatchAsync(batch, cancellationToken).ConfigureAwait(false);
 
 				_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} outbox records", batch.Length);
 			}

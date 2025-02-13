@@ -136,13 +136,8 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 				_logger.LogInformation("Enqueuing {BatchSize} DataProcessor records", batch.Length);
 
-				foreach (var record in batch)
-				{
-					cancellationToken.ThrowIfCancellationRequested();
-
-					await _dataQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
-					_ = Interlocked.Increment(ref _skipCount);
-				}
+				await _dataQueue.EnqueueBatchAsync(batch, cancellationToken).ConfigureAwait(false);
+				_ = Interlocked.Add(ref _skipCount, batch.Length);
 
 				_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} DataProcessor records", batch.Length);
 			}
