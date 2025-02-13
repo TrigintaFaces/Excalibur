@@ -200,8 +200,6 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 				emptyCycles = 0;
 
 				batch.Clear();
-				batch = null;
-				GC.Collect();
 			}
 		}
 		catch (OperationCanceledException)

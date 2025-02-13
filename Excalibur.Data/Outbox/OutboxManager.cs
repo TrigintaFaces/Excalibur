@@ -227,8 +227,6 @@ public class OutboxManager : IOutboxManager, IDisposable
 				emptyCycles = 0;
 
 				batch.Clear();
-				batch = null;
-				GC.Collect();
 			}
 		}
 		catch (OperationCanceledException)
