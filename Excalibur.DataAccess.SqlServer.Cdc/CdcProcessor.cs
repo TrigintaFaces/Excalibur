@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Numerics;
 
 using Excalibur.Core.Diagnostics;
 
@@ -159,26 +158,23 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 	/// <summary>
 	///     Processes CDC rows into data change events.
 	/// </summary>
-	/// <param name="cdcRows"> The rows of CDC data to process. </param>
+	/// <param name="sortedCdcRows"> The sorted rows of CDC data to process. </param>
 	/// <returns> An array of <see cref="DataChangeEvent" /> representing the processed changes. </returns>
-	private DataChangeEvent[] GetDataChangeEvents(IEnumerable<CdcRow> cdcRows)
+	private DataChangeEvent[] GetDataChangeEvents(CdcRow[] sortedCdcRows)
 	{
-		var operations = cdcRows.ToArray();
-		Array.Sort(operations, new CdcRowComparer());
-
 		var i = 0;
 		var dataChangeEvents = new List<DataChangeEvent>();
 
-		while (i < operations.Length)
+		while (i < sortedCdcRows.Length)
 		{
-			var change = operations[i];
+			var change = sortedCdcRows[i];
 
 			switch (change.OperationCode)
 			{
 				case CdcOperationCodes.UpdateBefore:
-					if (i + 1 < operations.Length && operations[i + 1].OperationCode == CdcOperationCodes.UpdateAfter)
+					if (i + 1 < sortedCdcRows.Length && sortedCdcRows[i + 1].OperationCode == CdcOperationCodes.UpdateAfter)
 					{
-						var afterChange = operations[i + 1];
+						var afterChange = sortedCdcRows[i + 1];
 						dataChangeEvents.Add(DataChangeEvent.CreateUpdateEvent(change, afterChange));
 						i += 2;
 					}
@@ -241,7 +237,6 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 
 				var maxLsn = await _cdcRepository.GetMaxPositionAsync(cancellationToken).ConfigureAwait(false);
 				var allChanges = new List<CdcRow>();
-				var enqueuedTracking = new Dictionary<string, CdcPosition>();
 				var processingLastBatch = _dbConfig.CaptureInstances.Length <= 0;
 
 				foreach (var captureInstance in _dbConfig.CaptureInstances)
@@ -286,17 +281,12 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 					{
 						_logger.LogInformation("No changes found for {TableName}, advancing LSN.", captureInstance);
 
-						enqueuedTracking[captureInstance] = new CdcPosition(toLsn, null, toLsnDate);
+						_ = _tracking.AddOrUpdate(captureInstance, new CdcPosition(toLsn, null, toLsnDate),
+							(_, _) => new CdcPosition(toLsn, null, toLsnDate));
 					}
 					else
 					{
 						allChanges.AddRange(changes);
-
-						var lastRow = changes.Last();
-						enqueuedTracking[captureInstance] = new CdcPosition(lastRow.Lsn, lastRow.SeqVal, lastRow.CommitTime);
-
-						_logger.LogDebug("Tracking Update: {TableName} - LSN {Lsn}, SeqVal {SeqVal}",
-							captureInstance, ByteArrayToHex(lastRow.Lsn), ByteArrayToHex(lastRow.SeqVal));
 					}
 				}
 
@@ -319,15 +309,12 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 				foreach (var cdcRow in sortedChanges)
 				{
 					await _cdcQueue.EnqueueAsync(cdcRow, cancellationToken).ConfigureAwait(false);
+
+					var cdcPosition = new CdcPosition(cdcRow.Lsn, cdcRow.SeqVal, cdcRow.CommitTime);
+					_ = _tracking.AddOrUpdate(cdcRow.TableName, cdcPosition, (_, _) => cdcPosition);
 				}
 
 				_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} CDC rows", sortedChanges.Length);
-
-				// Persist new last-seen sequence values
-				foreach (var cdcPosition in enqueuedTracking)
-				{
-					_ = _tracking.AddOrUpdate(cdcPosition.Key, cdcPosition.Value, (_, _) => cdcPosition.Value);
-				}
 			}
 		}
 		catch (OperationCanceledException)
@@ -455,25 +442,20 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 		Func<DataChangeEvent[], CancellationToken, Task<int>> eventHandler,
 		CancellationToken cancellationToken)
 	{
-		var events = GetDataChangeEvents(cdcRows);
+		var sortedCdcRows = cdcRows.OrderBy(c => c, new CdcRowComparer()).ToArray();
+		var events = GetDataChangeEvents(sortedCdcRows);
 
 		// Call the event handler with the changes
 		var eventCount = await eventHandler(events, cancellationToken).ConfigureAwait(false);
 
-		var groupedByTable = cdcRows.GroupBy(c => c.TableName)
-			.ToDictionary(
-				g => g.Key,
-				g => g.OrderByDescending(c => new BigInteger(c.Lsn.Reverse().ToArray()))
-					.ThenByDescending(c => new BigInteger(c.SeqVal.Reverse().ToArray()))
-					.First()
-			);
-
-		foreach (var (tableName, lastRow) in groupedByTable)
+		foreach (var group in sortedCdcRows.GroupBy(c => c.TableName))
 		{
+			var lastRow = group.Last();
+
 			await _stateStore.UpdateLastProcessedPositionAsync(
 				_dbConfig.DatabaseConnectionIdentifier,
 				_dbConfig.DatabaseName,
-				tableName,
+				group.Key,
 				lastRow.Lsn,
 				lastRow.SeqVal,
 				lastRow.CommitTime,
@@ -481,7 +463,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 			).ConfigureAwait(false);
 
 			_logger.LogInformation("Updated state for {TableName} with LSN: {Lsn}, SeqVal: {SeqVal}",
-				tableName, ByteArrayToHex(lastRow.Lsn), ByteArrayToHex(lastRow.SeqVal));
+				group.Key, ByteArrayToHex(lastRow.Lsn), ByteArrayToHex(lastRow.SeqVal));
 		}
 
 		return eventCount;
