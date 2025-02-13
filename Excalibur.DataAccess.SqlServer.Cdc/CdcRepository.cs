@@ -211,23 +211,26 @@ public class CdcRepository : ICdcRepository
 		var command = new CommandDefinition(commandText, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 		var reader = (DbDataReader)await connection.ExecuteReaderAsync(command).ConfigureAwait(false);
-		var dataTypes = new Dictionary<string, Type?>();
 		var resultList = new List<CdcRow>();
 
 		await using (reader)
 		{
-			for (var i = 0; i < reader.FieldCount; i++)
+			var dataTypes = CdcRow.GetOrCreateDataTypes(captureInstance, rentedDict =>
 			{
-				var columnName = reader.GetName(i);
-				var fieldType = reader.GetFieldType(i);
-				dataTypes.Add(columnName, fieldType);
-			}
+				for (var i = 0; i < reader.FieldCount; i++)
+				{
+					var columnName = reader.GetName(i);
+					var fieldType = reader.GetFieldType(i);
+
+					rentedDict[columnName] = fieldType;
+				}
+			});
 
 			while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
 			{
 				cancellationToken.ThrowIfCancellationRequested();
 
-				var changes = new Dictionary<string, object>();
+				var changes = CdcRow.RentChangesDictionary();
 				foreach (var columnName in dataTypes.Keys.Where(columnName =>
 							 !(columnName.StartsWith("__$", StringComparison.InvariantCultureIgnoreCase) ||
 							   columnName == "TableName" ||
@@ -238,6 +241,12 @@ public class CdcRepository : ICdcRepository
 					changes[columnName] = reader[columnName];
 				}
 
+				var matchedDataTypes = CdcRow.RentDataTypesDictionary();
+				foreach (var kvp in dataTypes.Where(ct => changes.ContainsKey(ct.Key)))
+				{
+					matchedDataTypes[kvp.Key] = kvp.Value;
+				}
+
 				var cdcRow = new CdcRow
 				{
 					TableName = (string)reader["TableName"],
@@ -246,9 +255,7 @@ public class CdcRepository : ICdcRepository
 					SeqVal = (byte[])reader["SequenceValue"],
 					CommitTime = (DateTime)reader["CommitTime"],
 					Changes = changes,
-					DataTypes = dataTypes
-						.Where(ct => changes.ContainsKey(ct.Key))
-						.ToDictionary(kvp => kvp.Key, kvp => kvp.Value)
+					DataTypes = matchedDataTypes
 				};
 
 				resultList.Add(cdcRow);
