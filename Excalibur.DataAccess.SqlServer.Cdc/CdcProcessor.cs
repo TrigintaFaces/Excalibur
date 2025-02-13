@@ -283,16 +283,18 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 						var noChangesPosition = new CdcPosition(toLsn, null, toLsnDate);
 						_ = _tracking.AddOrUpdate(captureInstance, noChangesPosition, (_, _) => noChangesPosition);
 					}
+					else
+					{
+						await _cdcQueue.EnqueueBatchAsync(changes, cancellationToken).ConfigureAwait(false);
 
-					await _cdcQueue.EnqueueBatchAsync(changes, cancellationToken).ConfigureAwait(false);
+						var lastRow = changes[^1];
+						var lastRowPosition = new CdcPosition(lastRow.Lsn, lastRow.SeqVal, lastRow.CommitTime);
 
-					var lastRow = changes[^1];
-					var lastRowPosition = new CdcPosition(lastRow.Lsn, lastRow.SeqVal, lastRow.CommitTime);
+						_ = _tracking.AddOrUpdate(lastRow.TableName, lastRowPosition, (_, _) => lastRowPosition);
 
-					_ = _tracking.AddOrUpdate(lastRow.TableName, lastRowPosition, (_, _) => lastRowPosition);
-
-					_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} CDC rows for {TableName}", changes.Length,
-						captureInstance);
+						_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} CDC rows for {TableName}", changes.Length,
+							captureInstance);
+					}
 				}
 
 				if (processingLastBatch && _cdcQueue.IsEmpty())
