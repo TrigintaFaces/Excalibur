@@ -303,9 +303,9 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 				var sortedChanges = allChanges.ToArray();
 				Array.Sort(sortedChanges, new CdcRowComparer());
 
-				sortedChanges = allChanges
-					.Take(_dbConfig.ProducerBatchSize)
-					.ToArray();
+				//sortedChanges = allChanges
+				//	.Take(_dbConfig.ProducerBatchSize)
+				//	.ToArray();
 
 				if (sortedChanges.Length == 0 && processingLastBatch)
 				{
