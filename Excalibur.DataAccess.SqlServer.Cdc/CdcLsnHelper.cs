@@ -7,7 +7,8 @@ public static class CdcLsnHelper
 		ArgumentNullException.ThrowIfNull(lsn1);
 		ArgumentNullException.ThrowIfNull(lsn2);
 
-		for (var i = lsn1.Length - 1; i >= 0; i--)
+		var minLength = Math.Min(lsn1.Length, lsn2.Length);
+		for (var i = 0; i < minLength; i++)
 		{
 			if (lsn1[i] != lsn2[i])
 			{
@@ -15,6 +16,6 @@ public static class CdcLsnHelper
 			}
 		}
 
-		return 0;
+		return lsn1.Length.CompareTo(lsn2.Length);
 	}
 }
