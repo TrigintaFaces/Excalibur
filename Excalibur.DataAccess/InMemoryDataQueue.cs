@@ -59,6 +59,21 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 	}
 
 	/// <inheritdoc />
+	public async ValueTask EnqueueBatchAsync(IEnumerable<TRecord> records, CancellationToken cancellationToken = default)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		ArgumentNullException.ThrowIfNull(records);
+
+		foreach (var record in records)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+
+			await _channel.Writer.WriteAsync(record, cancellationToken).ConfigureAwait(false);
+			_ = Interlocked.Increment(ref _count);
+		}
+	}
+
+	/// <inheritdoc />
 	public async IAsyncEnumerable<TRecord> DequeueAllAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);

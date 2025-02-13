@@ -15,6 +15,11 @@ public interface IDataQueue<TRecord> : IDisposable
 	ValueTask EnqueueAsync(TRecord record, CancellationToken cancellationToken = default);
 
 	/// <summary>
+	///     Asynchronously enqueues a batch of records into the queue.
+	/// </summary>
+	ValueTask EnqueueBatchAsync(IEnumerable<TRecord> records, CancellationToken cancellationToken = default);
+
+	/// <summary>
 	///     Asynchronously dequeues all records from the queue.
 	/// </summary>
 	/// <param name="cancellationToken"> A token to monitor for cancellation requests. </param>

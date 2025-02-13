@@ -236,7 +236,6 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 				}
 
 				var maxLsn = await _cdcRepository.GetMaxPositionAsync(cancellationToken).ConfigureAwait(false);
-				var allChanges = new List<CdcRow>();
 				var processingLastBatch = _dbConfig.CaptureInstances.Length <= 0;
 
 				foreach (var captureInstance in _dbConfig.CaptureInstances)
@@ -281,40 +280,27 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 					{
 						_logger.LogInformation("No changes found for {TableName}, advancing LSN.", captureInstance);
 
-						_ = _tracking.AddOrUpdate(captureInstance, new CdcPosition(toLsn, null, toLsnDate),
-							(_, _) => new CdcPosition(toLsn, null, toLsnDate));
+						var noChangesPosition = new CdcPosition(toLsn, null, toLsnDate);
+						_ = _tracking.AddOrUpdate(captureInstance, noChangesPosition, (_, _) => noChangesPosition);
 					}
-					else
-					{
-						allChanges.AddRange(changes);
-					}
+
+					await _cdcQueue.EnqueueBatchAsync(changes, cancellationToken).ConfigureAwait(false);
+
+					var lastRow = changes[^1];
+					var lastRowPosition = new CdcPosition(lastRow.Lsn, lastRow.SeqVal, lastRow.CommitTime);
+
+					_ = _tracking.AddOrUpdate(lastRow.TableName, lastRowPosition, (_, _) => lastRowPosition);
+
+					_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} CDC rows for {TableName}", changes.Length,
+						captureInstance);
 				}
 
-				var sortedChanges = allChanges.ToArray();
-				Array.Sort(sortedChanges, new CdcRowComparer());
-
-				//sortedChanges = allChanges
-				//	.Take(_dbConfig.ProducerBatchSize)
-				//	.ToArray();
-
-				if (sortedChanges.Length == 0 && processingLastBatch)
+				if (processingLastBatch && _cdcQueue.IsEmpty())
 				{
 					_logger.LogInformation("No more CDC records. Producer exiting.");
 					_producerCompleted = true;
 					break;
 				}
-
-				_logger.LogInformation("Enqueuing {BatchSize} CDC rows", sortedChanges.Length);
-
-				foreach (var cdcRow in sortedChanges)
-				{
-					await _cdcQueue.EnqueueAsync(cdcRow, cancellationToken).ConfigureAwait(false);
-
-					var cdcPosition = new CdcPosition(cdcRow.Lsn, cdcRow.SeqVal, cdcRow.CommitTime);
-					_ = _tracking.AddOrUpdate(cdcRow.TableName, cdcPosition, (_, _) => cdcPosition);
-				}
-
-				_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} CDC rows", sortedChanges.Length);
 			}
 		}
 		catch (OperationCanceledException)
