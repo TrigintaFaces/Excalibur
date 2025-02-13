@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using System.Collections.Immutable;
+
 namespace Excalibur.DataAccess.SqlServer.Cdc;
 
 /// <summary>
@@ -7,7 +10,7 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 ///     A CDC row contains metadata about the operation (e.g., insert, update, delete), the associated LSN (Log Sequence Number), and the
 ///     actual data changes.
 /// </remarks>
-public record CdcRow
+public record CdcRow : IDisposable
 {
 	/// <summary>
 	///     Gets or initializes the name of the table from which the CDC row originates.
@@ -37,17 +40,89 @@ public record CdcRow
 	/// </summary>
 	public DateTime CommitTime { get; init; }
 
+	private static readonly ConcurrentDictionary<string, ImmutableDictionary<string, Type?>> DataTypeCache = new();
+	private static readonly ConcurrentBag<Dictionary<string, object>> ChangesPool = [];
+	private static readonly ConcurrentBag<Dictionary<string, Type?>> DataTypesPool = [];
+
 	/// <summary>
 	///     Gets or sets a dictionary containing the actual data changes for the CDC row.
 	/// </summary>
 	/// <remarks> The dictionary contains column names as keys and their corresponding new values as values. </remarks>
-	public required IDictionary<string, object> Changes { get; init; }
+	public required Dictionary<string, object> Changes { get; init; }
 
 	/// <summary>
 	///     Gets or sets a dictionary mapping column names to their data types.
 	/// </summary>
 	/// <remarks> This is useful for interpreting the data changes with their corresponding data types. </remarks>
 	public required Dictionary<string, Type?> DataTypes { get; init; }
+
+	public static ImmutableDictionary<string, Type?>? GetOrCreateDataTypes(string tableName, Action<Dictionary<string, Type?>> populateFunc)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
+		ArgumentNullException.ThrowIfNull(populateFunc);
+
+		return DataTypeCache.GetOrAdd(tableName, _ =>
+		{
+			var rentedDict = RentDataTypesDictionary();
+			populateFunc(rentedDict);
+			var immutableDict = rentedDict.ToImmutableDictionary();
+			DataTypesPool.Add(rentedDict); // Return the rented dictionary to the pool
+			return immutableDict;
+		});
+	}
+
+	public static Dictionary<string, object> RentChangesDictionary()
+	{
+		if (!ChangesPool.TryTake(out var dict))
+		{
+			return [];
+		}
+
+		dict.Clear();
+		return dict;
+	}
+
+	public static Dictionary<string, Type?> RentDataTypesDictionary()
+	{
+		if (!DataTypesPool.TryTake(out var dict))
+		{
+			return [];
+		}
+
+		dict.Clear();
+		return dict;
+	}
+
+	private void ReleaseUnmanagedResources()
+	{
+		if (Changes.Count > 0)
+		{
+			Changes.Clear();
+			ChangesPool.Add(Changes);
+		}
+
+		if (DataTypes.Count > 0)
+		{
+			DataTypes.Clear();
+			DataTypesPool.Add(DataTypes);
+		}
+	}
+
+	protected virtual void Dispose(bool disposing)
+	{
+		ReleaseUnmanagedResources();
+		if (disposing)
+		{
+		}
+	}
+
+	public void Dispose()
+	{
+		Dispose(true);
+		GC.SuppressFinalize(this);
+	}
+
+	~CdcRow() => Dispose(false);
 }
 
 public class CdcRowComparer : IComparer<CdcRow>
