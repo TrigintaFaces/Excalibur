@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Numerics;
 
 using Excalibur.Core.Diagnostics;
@@ -32,7 +33,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 	private readonly ICdcStateStore _stateStore;
 	private readonly ILogger<CdcProcessor> _logger;
 	private readonly InMemoryDataQueue<CdcRow> _cdcQueue;
-	private Dictionary<string, CdcPosition> _tracking;
+	private readonly ConcurrentDictionary<string, CdcPosition> _tracking = new();
 	private int _totalRecords;
 	private bool _disposed;
 	private bool _producerCompleted;
@@ -94,10 +95,14 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 			_dbConfig.DatabaseName,
 			cancellationToken).ConfigureAwait(false);
 
-		_tracking = processingStates.ToDictionary(
-			x => x.TableName,
-			x => new CdcPosition(x.LastProcessedLsn, x.LastProcessedSequenceValue, x.LastCommitTime)
-		);
+		foreach (var processingState in processingStates)
+		{
+			var lastRow = new CdcPosition(processingState.LastProcessedLsn, processingState.LastProcessedSequenceValue,
+				processingState.LastCommitTime);
+			_ = _tracking.AddOrUpdate(processingState.TableName, lastRow, (_, _) => lastRow);
+		}
+
+		;
 
 		var producerTask = Task.Run(() => ProducerLoop(linkedToken), linkedToken);
 		var consumerTask = Task.Run(() => ConsumerLoop(eventHandler, linkedToken), linkedToken);
@@ -137,20 +142,6 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 	}
 
 	/// <summary>
-	///     Compares two Log Sequence Numbers (LSNs) as byte arrays.
-	/// </summary>
-	/// <param name="lsn1"> The first LSN. </param>
-	/// <param name="lsn2"> The second LSN. </param>
-	/// <returns> An integer indicating the relative order of the two LSNs. </returns>
-	private static int CompareLsn(byte[] lsn1, byte[] lsn2)
-	{
-		var lsnInt1 = new BigInteger(lsn1.Reverse().ToArray());
-		var lsnInt2 = new BigInteger(lsn2.Reverse().ToArray());
-
-		return lsnInt1.CompareTo(lsnInt2);
-	}
-
-	/// <summary>
 	///     Determines if a given LSN is empty (contains only zero bytes).
 	/// </summary>
 	/// <param name="lsn"> The LSN to check. </param>
@@ -172,18 +163,20 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 	/// <returns> An array of <see cref="DataChangeEvent" /> representing the processed changes. </returns>
 	private DataChangeEvent[] GetDataChangeEvents(IEnumerable<CdcRow> cdcRows)
 	{
-		var operations = cdcRows.OrderBy(c => new BigInteger(c.SeqVal.Reverse().ToArray())).ToList();
+		var operations = cdcRows.ToArray();
+		Array.Sort(operations, new CdcRowComparer());
+
 		var i = 0;
 		var dataChangeEvents = new List<DataChangeEvent>();
 
-		while (i < operations.Count)
+		while (i < operations.Length)
 		{
 			var change = operations[i];
 
 			switch (change.OperationCode)
 			{
 				case CdcOperationCodes.UpdateBefore:
-					if (i + 1 < operations.Count && operations[i + 1].OperationCode == CdcOperationCodes.UpdateAfter)
+					if (i + 1 < operations.Length && operations[i + 1].OperationCode == CdcOperationCodes.UpdateAfter)
 					{
 						var afterChange = operations[i + 1];
 						dataChangeEvents.Add(DataChangeEvent.CreateUpdateEvent(change, afterChange));
@@ -260,7 +253,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 						? cdcPosition.CommitTime
 						: await _cdcRepository.GetLsnToTimeAsync(startProcessingFrom, cancellationToken).ConfigureAwait(false);
 
-					if (CompareLsn(startProcessingFrom, maxLsn) > 0)
+					if (startProcessingFrom.CompareLsn(maxLsn) > 0)
 					{
 						_logger.LogDebug("Skipping {CaptureInstance} - No new changes beyond max LSN.", captureInstance);
 						continue;
@@ -269,7 +262,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 					byte[]? lastSequenceValue = null;
 					var (fromLsn, toLsn, toLsnDate) = await GetLsnRange(commitTime.Value, maxLsn, cancellationToken).ConfigureAwait(false);
 
-					if (cdcPosition != null && CompareLsn(fromLsn, cdcPosition.LSN) == 0)
+					if (cdcPosition != null && fromLsn.CompareLsn(cdcPosition.LSN) == 0)
 					{
 						lastSequenceValue = cdcPosition.SequenceValue;
 					}
@@ -279,7 +272,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 						ByteArrayToHex(fromLsn), ByteArrayToHex(toLsn),
 						lastSequenceValue != null ? ByteArrayToHex(lastSequenceValue) : "null");
 
-					processingLastBatch = CompareLsn(toLsn, maxLsn) == 0;
+					processingLastBatch = toLsn.CompareLsn(maxLsn) == 0;
 					var changes = (await _cdcRepository.FetchChangesAsync(
 						captureInstance,
 						fromLsn,
@@ -294,22 +287,23 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 						_logger.LogInformation("No changes found for {TableName}, advancing LSN.", captureInstance);
 
 						enqueuedTracking[captureInstance] = new CdcPosition(toLsn, null, toLsnDate);
-
-						continue;
 					}
+					else
+					{
+						allChanges.AddRange(changes);
 
-					allChanges.AddRange(changes);
+						var lastRow = changes.Last();
+						enqueuedTracking[captureInstance] = new CdcPosition(lastRow.Lsn, lastRow.SeqVal, lastRow.CommitTime);
 
-					var lastRow = changes.Last();
-					enqueuedTracking[captureInstance] = new CdcPosition(lastRow.Lsn, lastRow.SeqVal, lastRow.CommitTime);
-
-					_logger.LogDebug("Tracking Update: {TableName} - LSN {Lsn}, SeqVal {SeqVal}",
-						captureInstance, ByteArrayToHex(lastRow.Lsn), ByteArrayToHex(lastRow.SeqVal));
+						_logger.LogDebug("Tracking Update: {TableName} - LSN {Lsn}, SeqVal {SeqVal}",
+							captureInstance, ByteArrayToHex(lastRow.Lsn), ByteArrayToHex(lastRow.SeqVal));
+					}
 				}
 
-				var sortedChanges = allChanges
-					.OrderBy(c => new BigInteger(c.Lsn.Reverse().ToArray()))
-					.ThenBy(c => new BigInteger(c.SeqVal.Reverse().ToArray()))
+				var sortedChanges = allChanges.ToArray();
+				Array.Sort(sortedChanges, new CdcRowComparer());
+
+				sortedChanges = allChanges
 					.Take(_dbConfig.ProducerBatchSize)
 					.ToArray();
 
@@ -332,7 +326,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 				// Persist new last-seen sequence values
 				foreach (var cdcPosition in enqueuedTracking)
 				{
-					_tracking[cdcPosition.Key] = cdcPosition.Value;
+					_ = _tracking.AddOrUpdate(cdcPosition.Key, cdcPosition.Value, (_, _) => cdcPosition.Value);
 				}
 			}
 		}
@@ -391,17 +385,14 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 				buffer.AddRange(batch);
 
 				batch.Clear();
-				batch = null;
-				GC.Collect();
 
 				_logger.LogInformation("Processing CDC batch of {BatchSize} events", batch.Count);
 
 				var (remainingRows, batchEventCount) = await ProcessLsnChunk(buffer, eventHandler, cancellationToken).ConfigureAwait(false);
 				batchProcessedCount += batchEventCount;
-				_ = Interlocked.Add(ref _totalRecords, batchEventCount);
+				_totalRecords += batchEventCount;
 
 				buffer = remainingRows;
-				buffer.TrimExcess();
 
 				if (buffer.Count > 0 && buffer.Last().OperationCode == CdcOperationCodes.UpdateBefore)
 				{
@@ -513,7 +504,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 			throw new InvalidOperationException("Cannot start processing; no valid minimum LSN found in CDC tables.");
 		}
 
-		if (startLsn == null || IsEmptyLsn(startLsn) || CompareLsn(startLsn, captureMinLsn) < 0)
+		if (startLsn == null || IsEmptyLsn(startLsn) || startLsn.CompareLsn(captureMinLsn) < 0)
 		{
 			return captureMinLsn;
 		}

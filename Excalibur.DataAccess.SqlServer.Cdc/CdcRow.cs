@@ -49,3 +49,18 @@ public record CdcRow
 	/// <remarks> This is useful for interpreting the data changes with their corresponding data types. </remarks>
 	public required Dictionary<string, Type?> DataTypes { get; init; }
 }
+
+public class CdcRowComparer : IComparer<CdcRow>
+{
+	public int Compare(CdcRow? x, CdcRow? y)
+	{
+		if (x == null || y == null)
+		{
+			return 0;
+		}
+
+		var lsnComparison = x.Lsn.CompareLsn(y.Lsn);
+
+		return lsnComparison != 0 ? lsnComparison : x.SeqVal.CompareLsn(y.SeqVal);
+	}
+}
