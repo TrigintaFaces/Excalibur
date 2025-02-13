@@ -73,8 +73,8 @@ public class OutboxManager : IOutboxManager, IDisposable
 
 		await _outbox.TryUnReserveOneRecordsAsync(dispatcherId, linkedToken).ConfigureAwait(false);
 
-		var producerTask = Task.Run(() => ProducerLoop(dispatcherId, linkedToken), linkedToken);
 		var consumerTask = Task.Run(() => ConsumerLoop(dispatcherId, linkedToken), linkedToken);
+		var producerTask = Task.Run(() => ProducerLoop(dispatcherId, linkedToken), linkedToken);
 
 		await Task.WhenAll(producerTask, consumerTask).ConfigureAwait(false);
 
@@ -124,7 +124,7 @@ public class OutboxManager : IOutboxManager, IDisposable
 				if (_outboxQueue.Count >= _configuration.QueueSize - _configuration.ProducerBatchSize)
 				{
 					_logger.LogInformation("Outbox Queue is almost full. Producer is pausing...");
-					await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+					await Task.Delay(50, cancellationToken).ConfigureAwait(false);
 					continue;
 				}
 
@@ -149,6 +149,8 @@ public class OutboxManager : IOutboxManager, IDisposable
 				}
 
 				_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} outbox records", batch.Length);
+
+				await Task.Yield();
 			}
 		}
 		catch (OperationCanceledException)
@@ -170,7 +172,10 @@ public class OutboxManager : IOutboxManager, IDisposable
 	/// <returns> The total number of successfully dispatched records. </returns>
 	private async Task<int> ConsumerLoop(string dispatcherId, CancellationToken cancellationToken)
 	{
-		int batchProcessedCount = 0;
+		const int MaxEmptyCycles = 100;
+		var batchProcessedCount = 0;
+		var emptyCycles = 0;
+
 		try
 		{
 			while (!cancellationToken.IsCancellationRequested)
@@ -181,9 +186,10 @@ public class OutboxManager : IOutboxManager, IDisposable
 				{
 					_logger.LogInformation("Outbox Queue is empty. Waiting for producer...");
 
-					await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+					emptyCycles++;
+					await Task.Delay(10, cancellationToken).ConfigureAwait(false);
 
-					if (_producerCompleted && _outboxQueue.IsEmpty())
+					if (_producerCompleted && _outboxQueue.IsEmpty() && emptyCycles >= MaxEmptyCycles)
 					{
 						_logger.LogInformation("No more Outbox records. Consumer is exiting.");
 						break;
@@ -219,6 +225,8 @@ public class OutboxManager : IOutboxManager, IDisposable
 				}
 
 				_logger.LogInformation("Completed batch processing, total records processed so far: {TotalRecords}", _totalRecords);
+
+				emptyCycles = 0;
 			}
 		}
 		catch (OperationCanceledException)

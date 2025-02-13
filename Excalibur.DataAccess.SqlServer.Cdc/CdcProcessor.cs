@@ -1,5 +1,7 @@
 using System.Numerics;
 
+using Excalibur.Core.Diagnostics;
+
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -97,8 +99,8 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 			x => new CdcPosition(x.LastProcessedLsn, x.LastProcessedSequenceValue, x.LastCommitTime)
 		);
 
-		var producerTask = Task.Run(() => ProducerLoop(linkedToken), linkedToken);
 		var consumerTask = Task.Run(() => ConsumerLoop(eventHandler, linkedToken), linkedToken);
+		var producerTask = Task.Run(() => ProducerLoop(linkedToken), linkedToken);
 
 		await Task.WhenAll(producerTask, consumerTask).ConfigureAwait(false);
 
@@ -240,7 +242,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 				if (_cdcQueue.Count >= _dbConfig.QueueSize - _dbConfig.ProducerBatchSize)
 				{
 					_logger.LogInformation("Queue is almost full. Producer is pausing...");
-					await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+					await Task.Delay(50, cancellationToken).ConfigureAwait(false);
 					continue;
 				}
 
@@ -332,6 +334,8 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 				{
 					_tracking[cdcPosition.Key] = cdcPosition.Value;
 				}
+
+				await Task.Yield();
 			}
 		}
 		catch (OperationCanceledException)
@@ -354,22 +358,30 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 	private async Task<int> ConsumerLoop(Func<DataChangeEvent[], CancellationToken, Task<int>> eventHandler,
 		CancellationToken cancellationToken)
 	{
+		const int MaxEmptyCycles = 100;
 		var batchProcessedCount = 0;
 		var buffer = new List<CdcRow>();
+		var emptyCycles = 0;
 
 		try
 		{
+			_logger.LogInformation("CDC Consumer loop started...");
+
 			while (!cancellationToken.IsCancellationRequested)
 			{
+				_logger.LogDebug("Attempting to dequeue CDC messages...");
+				var stopwatch = ValueStopwatch.StartNew();
 				var batch = await _cdcQueue.DequeueBatchAsync(_dbConfig.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
+				_logger.LogDebug("Dequeued {BatchSize} messages in {ElapsedMs}ms", batch.Count, stopwatch.Elapsed.TotalMilliseconds);
 
 				if (batch.Count == 0)
 				{
 					_logger.LogInformation("CDC Queue is empty. Waiting for producer...");
 
-					await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+					emptyCycles++;
+					await Task.Delay(10, cancellationToken).ConfigureAwait(false);
 
-					if (_producerCompleted && _cdcQueue.IsEmpty())
+					if (_producerCompleted && _cdcQueue.IsEmpty() && emptyCycles >= MaxEmptyCycles)
 					{
 						_logger.LogInformation("No more CDC records. Consumer is exiting.");
 						break;
@@ -398,6 +410,8 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 				}
 
 				_logger.LogInformation("Completed CDC processing, total events processed: {TotalEvents}", batchProcessedCount);
+
+				emptyCycles = 0;
 			}
 		}
 		catch (OperationCanceledException)
