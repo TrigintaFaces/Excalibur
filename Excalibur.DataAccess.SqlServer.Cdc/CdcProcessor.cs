@@ -7,7 +7,7 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 
 public class CdcPosition
 {
-	public CdcPosition(byte[] lsn, byte[] seqVal, DateTime commitTime)
+	public CdcPosition(byte[] lsn, byte[]? seqVal, DateTime commitTime)
 	{
 		LSN = lsn;
 		SequenceValue = seqVal;
@@ -15,7 +15,7 @@ public class CdcPosition
 	}
 
 	public byte[] LSN { get; init; }
-	public byte[] SequenceValue { get; init; }
+	public byte[]? SequenceValue { get; init; }
 	public DateTime CommitTime { get; init; }
 }
 
@@ -94,7 +94,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 
 		_tracking = processingStates.ToDictionary(
 			x => x.TableName,
-			x => new CdcPosition(x.LastProcessedLsn, x.LastProcessedLsn, x.LastCommitTime)
+			x => new CdcPosition(x.LastProcessedLsn, x.LastProcessedSequenceValue, x.LastCommitTime)
 		);
 
 		var producerTask = Task.Run(() => ProducerLoop(linkedToken), linkedToken);
