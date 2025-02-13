@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Numerics;
 
 using Excalibur.Core.Diagnostics;
@@ -32,7 +33,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 	private readonly ICdcStateStore _stateStore;
 	private readonly ILogger<CdcProcessor> _logger;
 	private readonly InMemoryDataQueue<CdcRow> _cdcQueue;
-	private Dictionary<string, CdcPosition> _tracking;
+	private readonly ConcurrentDictionary<string, CdcPosition> _tracking = new();
 	private int _totalRecords;
 	private bool _disposed;
 	private bool _producerCompleted;
@@ -94,10 +95,14 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 			_dbConfig.DatabaseName,
 			cancellationToken).ConfigureAwait(false);
 
-		_tracking = processingStates.ToDictionary(
-			x => x.TableName,
-			x => new CdcPosition(x.LastProcessedLsn, x.LastProcessedSequenceValue, x.LastCommitTime)
-		);
+		foreach (var processingState in processingStates)
+		{
+			var lastRow = new CdcPosition(processingState.LastProcessedLsn, processingState.LastProcessedSequenceValue,
+				processingState.LastCommitTime);
+			_ = _tracking.AddOrUpdate(processingState.TableName, lastRow, (_, _) => lastRow);
+		}
+
+		;
 
 		var producerTask = Task.Run(() => ProducerLoop(linkedToken), linkedToken);
 		var consumerTask = Task.Run(() => ConsumerLoop(eventHandler, linkedToken), linkedToken);
@@ -321,7 +326,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 				// Persist new last-seen sequence values
 				foreach (var cdcPosition in enqueuedTracking)
 				{
-					_tracking[cdcPosition.Key] = cdcPosition.Value;
+					_ = _tracking.AddOrUpdate(cdcPosition.Key, cdcPosition.Value, (_, _) => cdcPosition.Value);
 				}
 			}
 		}
