@@ -71,8 +71,8 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		_ = Interlocked.Exchange(ref _skipCount, completedCount);
 		_ = Interlocked.Exchange(ref _processedTotal, completedCount);
 
-		var consumerTask = Task.Run(() => ConsumerLoop(completedCount, linkedToken), linkedToken);
 		var producerTask = Task.Run(() => ProducerLoop(linkedToken), linkedToken);
+		var consumerTask = Task.Run(() => ConsumerLoop(completedCount, linkedToken), linkedToken);
 
 		await Task.WhenAll(producerTask, consumerTask).ConfigureAwait(false);
 
@@ -119,7 +119,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 				if (_dataQueue.Count >= _configuration.QueueSize - _configuration.ProducerBatchSize)
 				{
 					_logger.LogInformation("DataProcessor Queue is almost full. Producer is pausing...");
-					await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+					await Task.Delay(100, cancellationToken).ConfigureAwait(false);
 					continue;
 				}
 
@@ -145,8 +145,6 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 				}
 
 				_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} DataProcessor records", batch.Length);
-
-				await Task.Yield();
 			}
 		}
 		catch (OperationCanceledException)
@@ -200,6 +198,10 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 					totalEvents);
 
 				emptyCycles = 0;
+
+				batch.Clear();
+				batch = null;
+				GC.Collect();
 			}
 		}
 		catch (OperationCanceledException)
