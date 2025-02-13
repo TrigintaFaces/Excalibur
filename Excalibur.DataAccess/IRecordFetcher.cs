@@ -4,7 +4,7 @@ namespace Excalibur.DataAccess;
 ///     Defines a contract for fetching records asynchronously.
 /// </summary>
 /// <typeparam name="TRecord"> The type of the records being fetched. </typeparam>
-public interface IRecordFetcher<out TRecord>
+public interface IRecordFetcher<TRecord>
 {
 	/// <summary>
 	///     Fetches all records asynchronously, starting from the specified position.
@@ -14,5 +14,5 @@ public interface IRecordFetcher<out TRecord>
 	/// </param>
 	/// <param name="cancellationToken"> A token that can be used to cancel the operation. </param>
 	/// <returns> An asynchronous enumerable of records of type <typeparamref name="TRecord" />. </returns>
-	IAsyncEnumerable<TRecord> FetchAllAsync(long skip, CancellationToken cancellationToken = default);
+	Task<IEnumerable<TRecord>> FetchBatchAsync(long skip, int batchSize, CancellationToken cancellationToken);
 }

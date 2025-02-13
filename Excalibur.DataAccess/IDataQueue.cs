@@ -1,5 +1,3 @@
-using System.Runtime.CompilerServices;
-
 namespace Excalibur.DataAccess;
 
 /// <summary>
@@ -22,8 +20,6 @@ public interface IDataQueue<TRecord> : IDisposable
 	/// <param name="cancellationToken"> A token to monitor for cancellation requests. </param>
 	/// <returns> An <see cref="IAsyncEnumerable{T}" /> that yields records from the queue as they are dequeued. </returns>
 	IAsyncEnumerable<TRecord> DequeueAllAsync(CancellationToken cancellationToken = default);
-
-	IAsyncEnumerable<IList<TRecord>> DequeueAllInBatchesAsync(int batchSize, [EnumeratorCancellation] CancellationToken cancellationToken);
 
 	/// <summary>
 	///     Asynchronously dequeues a batch of records from the queue.

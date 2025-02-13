@@ -104,8 +104,8 @@ public class CdcStateStore : ICdcStateStore
 		                                  LastCommitTime = source.LastCommitTime,
 		                                  ProcessedAt = GETUTCDATE()
 		                           WHEN NOT MATCHED THEN
-		                              INSERT (DatabaseConnectionIdentifier, DatabaseName, TableName, LastProcessedLsn, LastProcessedSequenceValue, LastCommitTime)
-		                              VALUES (source.DatabaseConnectionIdentifier, source.DatabaseName, source.TableName, source.LastProcessedLsn, source.LastProcessedSequenceValue, source.LastCommitTime);
+		                              INSERT (DatabaseConnectionIdentifier, DatabaseName, TableName, LastProcessedLsn, LastProcessedSequenceValue, LastCommitTime, ProcessedAt)
+		                              VALUES (source.DatabaseConnectionIdentifier, source.DatabaseName, source.TableName, source.LastProcessedLsn, source.LastProcessedSequenceValue, source.LastCommitTime, GETUTCDATE());
 		                           """;
 
 		var parameters = new DynamicParameters();
