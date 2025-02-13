@@ -59,6 +59,12 @@ public class CdcRowComparer : IComparer<CdcRow>
 			return 0;
 		}
 
+		var tableComparison = string.Compare(x.TableName, y.TableName, StringComparison.Ordinal);
+		if (tableComparison != 0)
+		{
+			return tableComparison;
+		}
+
 		var lsnComparison = x.Lsn.CompareLsn(y.Lsn);
 
 		return lsnComparison != 0 ? lsnComparison : x.SeqVal.CompareLsn(y.SeqVal);
