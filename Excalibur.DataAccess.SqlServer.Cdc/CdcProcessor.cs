@@ -99,8 +99,8 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 			x => new CdcPosition(x.LastProcessedLsn, x.LastProcessedSequenceValue, x.LastCommitTime)
 		);
 
-		var consumerTask = Task.Run(() => ConsumerLoop(eventHandler, linkedToken), linkedToken);
 		var producerTask = Task.Run(() => ProducerLoop(linkedToken), linkedToken);
+		var consumerTask = Task.Run(() => ConsumerLoop(eventHandler, linkedToken), linkedToken);
 
 		await Task.WhenAll(producerTask, consumerTask).ConfigureAwait(false);
 
@@ -242,7 +242,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 				if (_cdcQueue.Count >= _dbConfig.QueueSize - _dbConfig.ProducerBatchSize)
 				{
 					_logger.LogInformation("Queue is almost full. Producer is pausing...");
-					await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+					await Task.Delay(100, cancellationToken).ConfigureAwait(false);
 					continue;
 				}
 
@@ -334,8 +334,6 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 				{
 					_tracking[cdcPosition.Key] = cdcPosition.Value;
 				}
-
-				await Task.Yield();
 			}
 		}
 		catch (OperationCanceledException)
@@ -392,12 +390,18 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 
 				buffer.AddRange(batch);
 
+				batch.Clear();
+				batch = null;
+				GC.Collect();
+
 				_logger.LogInformation("Processing CDC batch of {BatchSize} events", batch.Count);
 
 				var (remainingRows, batchEventCount) = await ProcessLsnChunk(buffer, eventHandler, cancellationToken).ConfigureAwait(false);
-				buffer = remainingRows;
 				batchProcessedCount += batchEventCount;
 				_ = Interlocked.Add(ref _totalRecords, batchEventCount);
+
+				buffer = remainingRows;
+				buffer.TrimExcess();
 
 				if (buffer.Count > 0 && buffer.Last().OperationCode == CdcOperationCodes.UpdateBefore)
 				{
