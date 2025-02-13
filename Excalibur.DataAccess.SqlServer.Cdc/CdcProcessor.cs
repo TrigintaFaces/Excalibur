@@ -272,8 +272,10 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 						lastSequenceValue = cdcPosition.SequenceValue;
 					}
 
-					_logger.LogInformation("Fetching CDC changes from LSN {FromLsn} to {ToLsn} for {CaptureInstance}",
-						ByteArrayToHex(fromLsn), ByteArrayToHex(toLsn), captureInstance);
+					_logger.LogInformation(
+						"Fetching CDC changes: {TableName} - LSN {FromLsn} to {ToLsn}, SeqVal {SeqVal}", captureInstance,
+						ByteArrayToHex(fromLsn), ByteArrayToHex(toLsn),
+						lastSequenceValue != null ? ByteArrayToHex(lastSequenceValue) : "null");
 
 					processingLastBatch = CompareLsn(toLsn, maxLsn) == 0;
 					var changes = (await _cdcRepository.FetchChangesAsync(
@@ -283,15 +285,24 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 						lastSequenceValue,
 						cancellationToken).ConfigureAwait(false)).ToArray();
 
-					_logger.LogDebug("Fetched {RowCount} rows for {CaptureInstance}", changes.Length, captureInstance);
+					_logger.LogDebug("Fetched {RowCount} rows for {TableName}", changes.Length, captureInstance);
 
-					if (changes.Length > 0)
+					if (changes.Length == 0)
 					{
-						allChanges.AddRange(changes);
+						_logger.LogInformation("No changes found for {TableName}, advancing LSN.", captureInstance);
 
-						var lastRow = changes.Last();
-						enqueuedTracking[captureInstance] = new CdcPosition(lastRow.Lsn, lastRow.SeqVal, lastRow.CommitTime);
+						enqueuedTracking[captureInstance] = new CdcPosition(toLsn, null, toLsnDate);
+
+						continue;
 					}
+
+					allChanges.AddRange(changes);
+
+					var lastRow = changes.Last();
+					enqueuedTracking[captureInstance] = new CdcPosition(lastRow.Lsn, lastRow.SeqVal, lastRow.CommitTime);
+
+					_logger.LogDebug("Tracking Update: {TableName} - LSN {Lsn}, SeqVal {SeqVal}",
+						captureInstance, ByteArrayToHex(lastRow.Lsn), ByteArrayToHex(lastRow.SeqVal));
 				}
 
 				var sortedChanges = allChanges
