@@ -7,7 +7,7 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 
 public class CdcPosition
 {
-	public CdcPosition(byte[] lsn, byte[] seqVal, DateTime commitTime)
+	public CdcPosition(byte[] lsn, byte[]? seqVal, DateTime commitTime)
 	{
 		LSN = lsn;
 		SequenceValue = seqVal;
@@ -15,7 +15,7 @@ public class CdcPosition
 	}
 
 	public byte[] LSN { get; init; }
-	public byte[] SequenceValue { get; init; }
+	public byte[]? SequenceValue { get; init; }
 	public DateTime CommitTime { get; init; }
 }
 
@@ -94,7 +94,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 
 		_tracking = processingStates.ToDictionary(
 			x => x.TableName,
-			x => new CdcPosition(x.LastProcessedLsn, x.LastProcessedLsn, x.LastCommitTime)
+			x => new CdcPosition(x.LastProcessedLsn, x.LastProcessedSequenceValue, x.LastCommitTime)
 		);
 
 		var producerTask = Task.Run(() => ProducerLoop(linkedToken), linkedToken);
@@ -264,7 +264,13 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 						continue;
 					}
 
+					byte[]? lastSequenceValue = null;
 					var (fromLsn, toLsn, toLsnDate) = await GetLsnRange(commitTime.Value, maxLsn, cancellationToken).ConfigureAwait(false);
+
+					if (cdcPosition != null && CompareLsn(fromLsn, cdcPosition.LSN) == 0)
+					{
+						lastSequenceValue = cdcPosition.SequenceValue;
+					}
 
 					_logger.LogInformation("Fetching CDC changes from LSN {FromLsn} to {ToLsn} for {CaptureInstance}",
 						ByteArrayToHex(fromLsn), ByteArrayToHex(toLsn), captureInstance);
@@ -274,7 +280,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 						captureInstance,
 						fromLsn,
 						toLsn,
-						cdcPosition?.SequenceValue,
+						lastSequenceValue,
 						cancellationToken).ConfigureAwait(false)).ToArray();
 
 					_logger.LogDebug("Fetched {RowCount} rows for {CaptureInstance}", changes.Length, captureInstance);
