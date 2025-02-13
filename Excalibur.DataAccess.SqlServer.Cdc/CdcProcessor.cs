@@ -264,7 +264,13 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 						continue;
 					}
 
+					byte[]? lastSequenceValue = null;
 					var (fromLsn, toLsn, toLsnDate) = await GetLsnRange(commitTime.Value, maxLsn, cancellationToken).ConfigureAwait(false);
+
+					if (cdcPosition != null && CompareLsn(fromLsn, cdcPosition.LSN) == 0)
+					{
+						lastSequenceValue = cdcPosition.SequenceValue;
+					}
 
 					_logger.LogInformation("Fetching CDC changes from LSN {FromLsn} to {ToLsn} for {CaptureInstance}",
 						ByteArrayToHex(fromLsn), ByteArrayToHex(toLsn), captureInstance);
@@ -274,7 +280,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 						captureInstance,
 						fromLsn,
 						toLsn,
-						cdcPosition?.SequenceValue,
+						lastSequenceValue,
 						cancellationToken).ConfigureAwait(false)).ToArray();
 
 					_logger.LogDebug("Fetched {RowCount} rows for {CaptureInstance}", changes.Length, captureInstance);
