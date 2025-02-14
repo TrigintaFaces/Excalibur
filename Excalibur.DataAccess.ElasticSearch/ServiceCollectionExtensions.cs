@@ -75,8 +75,8 @@ public static class ServiceCollectionExtensions
 		where TRepository : class, TRepositoryInterface, IInitializeElasticIndex
 		where TRepositoryInterface : class
 	{
-		_ = services.AddSingleton<TRepositoryInterface, TRepository>();
-		_ = services.AddSingleton<IInitializeElasticIndex, TRepository>();
+		_ = services.AddScoped<TRepositoryInterface, TRepository>();
+		_ = services.AddScoped<IInitializeElasticIndex, TRepository>();
 
 		return services;
 	}

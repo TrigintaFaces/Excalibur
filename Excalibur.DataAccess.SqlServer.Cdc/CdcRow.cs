@@ -64,10 +64,17 @@ public record CdcRow : IDisposable
 		return DataTypeCache.GetOrAdd(tableName, _ =>
 		{
 			var rentedDict = RentDataTypesDictionary();
-			populateFunc(rentedDict);
-			var immutableDict = rentedDict.ToImmutableDictionary();
-			DataTypesPool.Add(rentedDict); // Return the rented dictionary to the pool
-			return immutableDict;
+
+			try
+			{
+				populateFunc(rentedDict);
+				return rentedDict.ToImmutableDictionary();
+			}
+			finally
+			{
+				rentedDict.Clear();
+				DataTypesPool.Add(rentedDict);
+			}
 		});
 	}
 
