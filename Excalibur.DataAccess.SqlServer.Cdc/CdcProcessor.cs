@@ -167,49 +167,56 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 
 		while (i < sortedCdcRows.Length)
 		{
-			var change = sortedCdcRows[i];
+			var cdcRow = sortedCdcRows[i];
 
-			switch (change.OperationCode)
+			try
 			{
-				case CdcOperationCodes.UpdateBefore:
-					if (i + 1 < sortedCdcRows.Length && sortedCdcRows[i + 1].OperationCode == CdcOperationCodes.UpdateAfter)
-					{
-						var afterChange = sortedCdcRows[i + 1];
-						dataChangeEvents.Add(DataChangeEvent.CreateUpdateEvent(change, afterChange));
-						i += 2;
-					}
-					else
-					{
-						_logger.LogWarning("Missing UpdateAfter for UpdateBefore at Position {Position}, SequenceValue {SequenceValue}",
-							change.Lsn, change.SeqVal);
+				switch (cdcRow.OperationCode)
+				{
+					case CdcOperationCodes.UpdateBefore:
+						if (i + 1 < sortedCdcRows.Length && sortedCdcRows[i + 1].OperationCode == CdcOperationCodes.UpdateAfter)
+						{
+							var afterChange = sortedCdcRows[i + 1];
+							dataChangeEvents.Add(DataChangeEvent.CreateUpdateEvent(cdcRow, afterChange));
+							i += 2;
+						}
+						else
+						{
+							_logger.LogWarning("Missing UpdateAfter for UpdateBefore at Position {Position}, SequenceValue {SequenceValue}",
+								cdcRow.Lsn, cdcRow.SeqVal);
+							i++;
+						}
+
+						break;
+
+					case CdcOperationCodes.Insert:
+						dataChangeEvents.Add(DataChangeEvent.CreateInsertEvent(cdcRow));
 						i++;
-					}
+						break;
 
-					break;
+					case CdcOperationCodes.Delete:
+						dataChangeEvents.Add(DataChangeEvent.CreateDeleteEvent(cdcRow));
+						i++;
+						break;
 
-				case CdcOperationCodes.Insert:
-					dataChangeEvents.Add(DataChangeEvent.CreateInsertEvent(change));
-					i++;
-					break;
+					case CdcOperationCodes.UpdateAfter:
+						_logger.LogWarning(
+							"Unexpected UpdateAfter without corresponding UpdateBefore at Position {Position}, SequenceValue {SequenceValue}",
+							cdcRow.Lsn, cdcRow.SeqVal);
+						i++;
+						break;
 
-				case CdcOperationCodes.Delete:
-					dataChangeEvents.Add(DataChangeEvent.CreateDeleteEvent(change));
-					i++;
-					break;
-
-				case CdcOperationCodes.UpdateAfter:
-					_logger.LogWarning(
-						"Unexpected UpdateAfter without corresponding UpdateBefore at Position {Position}, SequenceValue {SequenceValue}",
-						change.Lsn, change.SeqVal);
-					i++;
-					break;
-
-				case CdcOperationCodes.Unknown:
-				default:
-					_logger.LogWarning("Unknown operation {OperationCode} at Position {Position}, SequenceValue {SequenceValue}",
-						change.OperationCode, change.Lsn, change.SeqVal);
-					i++;
-					break;
+					case CdcOperationCodes.Unknown:
+					default:
+						_logger.LogWarning("Unknown operation {OperationCode} at Position {Position}, SequenceValue {SequenceValue}",
+							cdcRow.OperationCode, cdcRow.Lsn, cdcRow.SeqVal);
+						i++;
+						break;
+				}
+			}
+			finally
+			{
+				cdcRow.Dispose();
 			}
 		}
 
