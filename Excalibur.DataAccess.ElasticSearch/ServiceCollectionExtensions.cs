@@ -33,29 +33,30 @@ public static class ServiceCollectionExtensions
 
 		_ = services.Configure<ElasticsearchConfigurationSettings>(configuration.GetSection("ElasticSearch"));
 
-		_ = services.AddSingleton(sp =>
-		{
-			var elasticConfig = sp.GetRequiredService<IOptions<ElasticsearchConfigurationSettings>>().Value;
-			var settings = new ElasticsearchClientSettings(new Uri(elasticConfig.Url));
-
-			if (!string.IsNullOrWhiteSpace(elasticConfig.CertificateFingerprint))
+		_ = services.AddSingleton(
+			(IServiceProvider sp) =>
 			{
-				_ = settings.CertificateFingerprint(elasticConfig.CertificateFingerprint);
-			}
+				var elasticConfig = sp.GetRequiredService<IOptions<ElasticsearchConfigurationSettings>>().Value;
+				var settings = new ElasticsearchClientSettings(new Uri(elasticConfig.Url));
 
-			if (!string.IsNullOrWhiteSpace(elasticConfig.ApiKey))
-			{
-				_ = settings.Authentication(new ApiKey(elasticConfig.ApiKey));
-			}
-			else if (!string.IsNullOrWhiteSpace(elasticConfig.Username) && !string.IsNullOrWhiteSpace(elasticConfig.Password))
-			{
-				_ = settings.Authentication(new BasicAuthentication(elasticConfig.Username, elasticConfig.Password));
-			}
+				if (!string.IsNullOrWhiteSpace(elasticConfig.CertificateFingerprint))
+				{
+					_ = settings.CertificateFingerprint(elasticConfig.CertificateFingerprint);
+				}
 
-			configureSettings?.Invoke(settings);
+				if (!string.IsNullOrWhiteSpace(elasticConfig.ApiKey))
+				{
+					_ = settings.Authentication(new ApiKey(elasticConfig.ApiKey));
+				}
+				else if (!string.IsNullOrWhiteSpace(elasticConfig.Username) && !string.IsNullOrWhiteSpace(elasticConfig.Password))
+				{
+					_ = settings.Authentication(new BasicAuthentication(elasticConfig.Username, elasticConfig.Password));
+				}
 
-			return new ElasticsearchClient(settings);
-		});
+				configureSettings?.Invoke(settings);
+
+				return new ElasticsearchClient(settings);
+			});
 
 		_ = services.AddSingleton<IndexInitializer>();
 
@@ -72,11 +73,10 @@ public static class ServiceCollectionExtensions
 	/// <param name="services"> The <see cref="IServiceCollection" /> to which the repository will be added. </param>
 	/// <returns> The updated <see cref="IServiceCollection" /> with the repository registered. </returns>
 	public static IServiceCollection AddRepository<TRepositoryInterface, TRepository>(this IServiceCollection services)
-		where TRepository : class, TRepositoryInterface, IInitializeElasticIndex
-		where TRepositoryInterface : class
+		where TRepository : class, TRepositoryInterface, IInitializeElasticIndex where TRepositoryInterface : class
 	{
 		_ = services.AddScoped<TRepositoryInterface, TRepository>();
-		_ = services.AddScoped<IInitializeElasticIndex, TRepository>();
+		_ = services.AddSingleton<IInitializeElasticIndex, TRepository>();
 
 		return services;
 	}
