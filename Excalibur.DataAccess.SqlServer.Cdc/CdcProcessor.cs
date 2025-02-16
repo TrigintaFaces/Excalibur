@@ -1,8 +1,6 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 
-using Excalibur.Core.Diagnostics;
-
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -113,10 +111,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 				processingState.LastProcessedLsn,
 				processingState.LastProcessedSequenceValue,
 				processingState.LastCommitTime);
-			if (!_tracking.TryUpdate(processingState.TableName, lastRow, _tracking.GetValueOrDefault(processingState.TableName)))
-			{
-				_tracking[processingState.TableName] = lastRow;
-			}
+			_ = _tracking.AddOrUpdate(processingState.TableName, lastRow, (string _, CdcPosition _) => lastRow);
 		}
 
 		var producerTask = Task.Run(() => ProducerLoop(linkedToken), linkedToken);
@@ -337,10 +332,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 						_logger.LogInformation("No changes found for {TableName}, advancing LSN.", captureInstance);
 
 						var noChangesPosition = new CdcPosition(toLsn, null, toLsnDate);
-						if (!_tracking.TryUpdate(captureInstance, noChangesPosition, _tracking.GetValueOrDefault(captureInstance)))
-						{
-							_tracking[captureInstance] = noChangesPosition;
-						}
+						_ = _tracking.AddOrUpdate(captureInstance, noChangesPosition, (string _, CdcPosition _) => noChangesPosition);
 					}
 					else
 					{
@@ -349,10 +341,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 						var lastRow = changes.Last();
 						var lastRowPosition = new CdcPosition(lastRow.Lsn, lastRow.SeqVal, lastRow.CommitTime);
 
-						if (!_tracking.TryUpdate(captureInstance, lastRowPosition, _tracking.GetValueOrDefault(captureInstance)))
-						{
-							_tracking[captureInstance] = lastRowPosition;
-						}
+						_ = _tracking.AddOrUpdate(captureInstance, lastRowPosition, (string _, CdcPosition _) => lastRowPosition);
 
 						_logger.LogInformation(
 							"Successfully enqueued {EnqueuedRowCount} CDC rows for {TableName}",
@@ -395,115 +384,51 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 		Func<DataChangeEvent[], CancellationToken, Task<int>> eventHandler,
 		CancellationToken cancellationToken)
 	{
-		const int MaxEmptyCycles = 100;
 		var totalProcessedCount = 0;
-		var emptyCycles = 0;
-		CdcRow? remainingUpdateBeforeLast = null;
 
 		try
 		{
 			_logger.LogInformation("CDC Consumer loop started...");
+			var batch = ArrayPool<CdcRow>.Shared.Rent(_dbConfig.ConsumerBatchSize);
+			var index = 0;
 
-			while (!cancellationToken.IsCancellationRequested)
+			await foreach (var record in _cdcQueue.DequeueAllAsync(cancellationToken).ConfigureAwait(false))
 			{
-				_logger.LogDebug("Attempting to dequeue CDC messages...");
-				var stopwatch = ValueStopwatch.StartNew();
-				var batchMemory = await _cdcQueue.DequeueBatchAsync(_dbConfig.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
-				_logger.LogDebug("Dequeued {BatchSize} messages in {ElapsedMs}ms", batchMemory.Length, stopwatch.Elapsed.TotalMilliseconds);
+				cancellationToken.ThrowIfCancellationRequested();
 
-				if (batchMemory.Length == 0)
+				if (index == _dbConfig.ConsumerBatchSize)
 				{
-					_logger.LogInformation("CDC Queue is empty. Waiting for producer...");
-
-					emptyCycles++;
-					await Task.Delay(10, cancellationToken).ConfigureAwait(false);
-
-					if (Interlocked.CompareExchange(ref _producerCompleted, 0, 0) == 1 && _cdcQueue.IsEmpty()
-																					   && emptyCycles >= MaxEmptyCycles)
+					if (record.OperationCode == CdcOperationCodes.UpdateBefore)
 					{
-						_logger.LogInformation("No more CDC records. Consumer is exiting.");
-						break;
-					}
+						await ProcessBatch(batch, eventHandler, cancellationToken).ConfigureAwait(false);
+						Array.Clear(batch, 0, _dbConfig.ConsumerBatchSize);
 
-					continue;
-				}
-
-				var batch = ArrayPool<CdcRow>.Shared.Rent(batchMemory.Length + 1);
-				Array.Clear(batch, 0, batchMemory.Length + 1);
-				var batchOffset = 0;
-
-				if (remainingUpdateBeforeLast != null)
-				{
-					batch[0] = remainingUpdateBeforeLast;
-					batchOffset = 1;
-					remainingUpdateBeforeLast = null;
-				}
-
-				for (var i = 0; i < batchMemory.Length; i++)
-				{
-					var cdcRow = batchMemory.Span[i];
-
-					if (cdcRow is null)
-					{
-						continue;
-					}
-
-					if (i == batchMemory.Length - 1 && cdcRow.OperationCode == CdcOperationCodes.UpdateBefore)
-					{
-						remainingUpdateBeforeLast = cdcRow;
-						_logger.LogDebug("Batch contains unpaired UpdateBefore. Retaining for next iteration.");
+						batch[0] = record;
+						index = 1;
 					}
 					else
 					{
-						batch[i + batchOffset] = cdcRow;
+						await ProcessBatch(batch, eventHandler, cancellationToken).ConfigureAwait(false);
+						Array.Clear(batch, 0, _dbConfig.ConsumerBatchSize);
+						index = 0;
 					}
 				}
-
-				var events = GetDataChangeEvents(batch);
-				var batchProcessedCount = await eventHandler(events, cancellationToken).ConfigureAwait(false);
-
-				var updateTasks = new List<Task>();
-				var lastTableName = string.Empty;
-
-				for (var i = 0; i < batch.Length; i++)
+				else
 				{
-					var currentRow = batch[i];
-
-					if (currentRow is null)
-					{
-						continue;
-					}
-
-					if (i == batch.Length - 1 || batch[i + 1].TableName != currentRow.TableName)
-					{
-						lastTableName = currentRow.TableName;
-
-						updateTasks.Add(
-							_stateStore.UpdateLastProcessedPositionAsync(
-								_dbConfig.DatabaseConnectionIdentifier,
-								_dbConfig.DatabaseName,
-								lastTableName,
-								currentRow.Lsn,
-								currentRow.SeqVal,
-								currentRow.CommitTime,
-								cancellationToken));
-
-						_logger.LogInformation("Updated state for {TableName}", lastTableName);
-					}
-
-					currentRow.Dispose();
+					batch[index] = record;
+					index++;
 				}
 
-				await Task.WhenAll(updateTasks).ConfigureAwait(false);
-				updateTasks.Clear();
-
-				ArrayPool<CdcRow>.Shared.Return(batch, clearArray: true);
-
-				totalProcessedCount += batchProcessedCount;
-				emptyCycles = 0;
-
-				_logger.LogInformation("Completed CDC batch of {BatchSize} events", batchProcessedCount);
+				totalProcessedCount++;
 			}
+
+			if (batch.Length > 0)
+			{
+				await ProcessBatch(batch, eventHandler, cancellationToken).ConfigureAwait(false);
+				Array.Clear(batch, 0, _dbConfig.ConsumerBatchSize);
+			}
+
+			ArrayPool<CdcRow>.Shared.Return(batch, clearArray: true);
 
 			_logger.LogInformation("Completed CDC processing, total events processed: {TotalEvents}", totalProcessedCount);
 		}
@@ -520,6 +445,47 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 		_ = Interlocked.Add(ref _totalRecords, totalProcessedCount);
 
 		return totalProcessedCount;
+	}
+
+	private async Task ProcessBatch(
+		CdcRow[] batch,
+		Func<DataChangeEvent[], CancellationToken, Task<int>> eventHandler,
+		CancellationToken cancellationToken)
+	{
+		var events = GetDataChangeEvents(batch);
+		_ = await eventHandler(events, cancellationToken).ConfigureAwait(false);
+
+		var updateTasks = new List<Task>();
+
+		for (var i = 0; i < batch.Length; i++)
+		{
+			var currentRow = batch[i];
+
+			if (currentRow is null)
+			{
+				continue;
+			}
+
+			if (i == batch.Length - 1 || batch[i + 1].TableName != currentRow.TableName)
+			{
+				updateTasks.Add(
+					_stateStore.UpdateLastProcessedPositionAsync(
+						_dbConfig.DatabaseConnectionIdentifier,
+						_dbConfig.DatabaseName,
+						currentRow.TableName,
+						currentRow.Lsn,
+						currentRow.SeqVal,
+						currentRow.CommitTime,
+						cancellationToken));
+
+				_logger.LogInformation("Updated state for {TableName}", currentRow.TableName);
+			}
+
+			currentRow.Dispose();
+		}
+
+		await Task.WhenAll(updateTasks).ConfigureAwait(false);
+		updateTasks.Clear();
 	}
 
 	/// <summary>

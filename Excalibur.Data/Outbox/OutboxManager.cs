@@ -201,55 +201,19 @@ public class OutboxManager : IOutboxManager, IDisposable
 	/// <returns> The total number of successfully dispatched records. </returns>
 	private async Task<int> ConsumerLoop(string dispatcherId, CancellationToken cancellationToken)
 	{
-		const int MaxEmptyCycles = 100;
 		var totalProcessedCount = 0;
-		var emptyCycles = 0;
 
 		try
 		{
-			while (!cancellationToken.IsCancellationRequested)
+			await foreach (var record in _outboxQueue.DequeueAllAsync(cancellationToken).ConfigureAwait(false))
 			{
-				var batch = await _outboxQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
+				cancellationToken.ThrowIfCancellationRequested();
 
-				if (batch.Length == 0)
-				{
-					_logger.LogInformation("Outbox Queue is empty. Waiting for producer...");
+				var stopwatch = ValueStopwatch.StartNew();
+				_ = await _outbox.DispatchReservedRecordAsync(dispatcherId, record).ConfigureAwait(false);
 
-					emptyCycles++;
-					await Task.Delay(10, cancellationToken).ConfigureAwait(false);
-
-					if (Interlocked.CompareExchange(ref _producerCompleted, 0, 0) == 1 && _outboxQueue.IsEmpty()
-																					   && emptyCycles >= MaxEmptyCycles)
-					{
-						_logger.LogInformation("No more Outbox records. Consumer is exiting.");
-						break;
-					}
-
-					continue;
-				}
-
-				_logger.LogInformation("Processing Outbox batch of {BatchSize} records", batch.Length);
-
-				for (var i = 0; i < batch.Length; i++)
-				{
-					var record = batch.Span[i];
-
-					if (record is null)
-					{
-						continue;
-					}
-
-					var stopwatch = ValueStopwatch.StartNew();
-
-					_ = await _outbox.DispatchReservedRecordAsync(dispatcherId, record).ConfigureAwait(false);
-
-					_telemetryClient?.GetMetric("Outbox.ProcessingTime").TrackValue(stopwatch.Elapsed.TotalMilliseconds);
-				}
-
-				totalProcessedCount += batch.Length;
-				emptyCycles = 0;
-
-				_logger.LogInformation("Completed Outbox batch of {BatchSize} events", batch.Length);
+				_telemetryClient?.GetMetric("Outbox.ProcessingTime").TrackValue(stopwatch.Elapsed.TotalMilliseconds);
+				totalProcessedCount++;
 			}
 
 			_logger.LogInformation("Completed Outbox processing, total events processed: {TotalEvents}", totalProcessedCount);
