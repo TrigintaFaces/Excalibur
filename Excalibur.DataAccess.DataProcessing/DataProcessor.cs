@@ -151,22 +151,21 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 				}
 
 				var batch = await FetchBatchAsync(_skipCount, _configuration.ProducerBatchSize, cancellationToken).ConfigureAwait(false)
-							?? [];
-				var batchCount = batch.Count();
+								as ICollection<TRecord> ?? [];
 
-				if (batchCount == 0)
+				if (batch.Count == 0)
 				{
 					_logger.LogInformation("No more DataProcessor records. Producer exiting.");
 					_ = Interlocked.Exchange(ref _producerCompleted, 1);
 					break;
 				}
 
-				_logger.LogInformation("Enqueuing {BatchSize} DataProcessor records", batchCount);
+				_logger.LogInformation("Enqueuing {BatchSize} DataProcessor records", batch.Count);
 
 				await _dataQueue.EnqueueBatchAsync(batch, cancellationToken).ConfigureAwait(false);
-				_ = Interlocked.Add(ref _skipCount, batchCount);
+				_ = Interlocked.Add(ref _skipCount, batch.Count);
 
-				_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} DataProcessor records", batchCount);
+				_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} DataProcessor records", batch.Count);
 			}
 		}
 		catch (OperationCanceledException)
