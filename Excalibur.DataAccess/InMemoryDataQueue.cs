@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
@@ -14,10 +15,13 @@ namespace Excalibur.DataAccess;
 ///     is reached, further enqueue operations will wait until space becomes available.
 /// </remarks>
 public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
-#pragma warning restore CA1711 // Identifiers should not have incorrect suffix
+#pragma warning restore CA1711
 {
+	// Identifiers should not have incorrect suffix
 	private readonly Channel<TRecord> _channel;
+
 	private int _count;
+
 	private bool _disposed;
 
 	/// <summary>
@@ -31,12 +35,8 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 			throw new ArgumentOutOfRangeException(nameof(capacity), "Capacity must be greater than zero.");
 		}
 
-		_channel = Channel.CreateBounded<TRecord>(new BoundedChannelOptions(capacity)
-		{
-			SingleReader = true,
-			SingleWriter = true,
-			FullMode = BoundedChannelFullMode.Wait
-		});
+		_channel = Channel.CreateBounded<TRecord>(
+			new BoundedChannelOptions(capacity) { SingleReader = true, SingleWriter = true, FullMode = BoundedChannelFullMode.Wait });
 	}
 
 	/// <summary>
@@ -86,28 +86,33 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 	}
 
 	/// <inheritdoc />
-	public async Task<IList<TRecord>> DequeueBatchAsync(int batchSize, CancellationToken cancellationToken = default)
+	public async Task<Memory<TRecord>> DequeueBatchAsync(int batchSize, CancellationToken cancellationToken = default)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		var batch = new List<TRecord>(batchSize);
-		for (var i = 0; i < batchSize; i++)
+		var buffer = ArrayPool<TRecord>.Shared.Rent(batchSize);
+		var index = 0;
+
+		try
 		{
-			if (await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+			while (index < batchSize && await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
 			{
 				if (_channel.Reader.TryRead(out var record))
 				{
-					batch.Add(record);
+					buffer[index++] = record;
 					_ = Interlocked.Decrement(ref _count);
 				}
 			}
-			else
+		}
+		finally
+		{
+			if (index == batchSize)
 			{
-				break;
+				ArrayPool<TRecord>.Shared.Return(buffer, clearArray: true);
 			}
 		}
 
-		return batch;
+		return new Memory<TRecord>(buffer, 0, index);
 	}
 
 	public bool HasPendingItems() => Count > 0;

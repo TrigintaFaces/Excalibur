@@ -36,7 +36,7 @@ public interface IDataQueue<TRecord> : IDisposable
 	///     If the queue contains fewer than <paramref name="batchSize" /> records, the returned batch will contain all available records.
 	///     If the queue is empty, the result will be an empty list.
 	/// </remarks>
-	Task<IList<TRecord>> DequeueBatchAsync(int batchSize, CancellationToken cancellationToken = default);
+	Task<Memory<TRecord>> DequeueBatchAsync(int batchSize, CancellationToken cancellationToken = default);
 
 	/// <summary>
 	///     Determines whether the queue contains pending items.
