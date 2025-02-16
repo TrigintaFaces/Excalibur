@@ -177,72 +177,66 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 			return [];
 		}
 
-		var dataChangeEvents = ArrayPool<DataChangeEvent>.Shared.Rent(sortedCdcRows.Length);
-		Array.Clear(dataChangeEvents, 0, sortedCdcRows.Length);
+		Array.Sort(sortedCdcRows, new CdcRowComparer());
+
+		var dataChangeEvents = new DataChangeEvent[sortedCdcRows.Length];
 		var index = 0;
 
-		try
+		for (var i = 0; i < sortedCdcRows.Length; i++)
 		{
-			for (var i = 0; i < sortedCdcRows.Length; i++)
+			var cdcRow = sortedCdcRows[i];
+
+			if (cdcRow is null)
 			{
-				var cdcRow = sortedCdcRows[i];
-
-				if (cdcRow is null)
-				{
-					_logger.LogWarning("Skipping null CdcRow in GetDataChangeEvents.");
-					continue;
-				}
-
-				switch (cdcRow.OperationCode)
-				{
-					case CdcOperationCodes.UpdateBefore:
-						if (i + 1 < sortedCdcRows.Length && sortedCdcRows[i + 1].OperationCode == CdcOperationCodes.UpdateAfter)
-						{
-							dataChangeEvents[index++] = DataChangeEvent.CreateUpdateEvent(cdcRow, sortedCdcRows[i + 1]);
-							i++;
-						}
-						else
-						{
-							_logger.LogWarning(
-								"Missing UpdateAfter for UpdateBefore at Position {Position}, SequenceValue {SequenceValue}",
-								cdcRow.Lsn,
-								cdcRow.SeqVal);
-						}
-
-						break;
-
-					case CdcOperationCodes.Insert:
-						dataChangeEvents[index++] = DataChangeEvent.CreateInsertEvent(cdcRow);
-						break;
-
-					case CdcOperationCodes.Delete:
-						dataChangeEvents[index++] = DataChangeEvent.CreateDeleteEvent(cdcRow);
-						break;
-
-					case CdcOperationCodes.UpdateAfter:
-						_logger.LogWarning(
-							"Unexpected UpdateAfter without corresponding UpdateBefore at Position {Position}, SequenceValue {SequenceValue}",
-							cdcRow.Lsn,
-							cdcRow.SeqVal);
-						break;
-
-					case CdcOperationCodes.Unknown:
-					default:
-						_logger.LogWarning(
-							"Unknown operation {OperationCode} at Position {Position}, SequenceValue {SequenceValue}",
-							cdcRow.OperationCode,
-							cdcRow.Lsn,
-							cdcRow.SeqVal);
-						break;
-				}
+				_logger.LogWarning("Skipping null CdcRow in GetDataChangeEvents.");
+				continue;
 			}
 
-			return [.. dataChangeEvents];
+			switch (cdcRow.OperationCode)
+			{
+				case CdcOperationCodes.UpdateBefore:
+					if (i + 1 < sortedCdcRows.Length && sortedCdcRows[i + 1].OperationCode == CdcOperationCodes.UpdateAfter)
+					{
+						dataChangeEvents[index++] = DataChangeEvent.CreateUpdateEvent(cdcRow, sortedCdcRows[i + 1]);
+						i++;
+					}
+					else
+					{
+						_logger.LogWarning(
+							"Missing UpdateAfter for UpdateBefore at Position {Position}, SequenceValue {SequenceValue}",
+							cdcRow.Lsn,
+							cdcRow.SeqVal);
+					}
+
+					break;
+
+				case CdcOperationCodes.Insert:
+					dataChangeEvents[index++] = DataChangeEvent.CreateInsertEvent(cdcRow);
+					break;
+
+				case CdcOperationCodes.Delete:
+					dataChangeEvents[index++] = DataChangeEvent.CreateDeleteEvent(cdcRow);
+					break;
+
+				case CdcOperationCodes.UpdateAfter:
+					_logger.LogWarning(
+						"Unexpected UpdateAfter without corresponding UpdateBefore at Position {Position}, SequenceValue {SequenceValue}",
+						cdcRow.Lsn,
+						cdcRow.SeqVal);
+					break;
+
+				case CdcOperationCodes.Unknown:
+				default:
+					_logger.LogWarning(
+						"Unknown operation {OperationCode} at Position {Position}, SequenceValue {SequenceValue}",
+						cdcRow.OperationCode,
+						cdcRow.Lsn,
+						cdcRow.SeqVal);
+					break;
+			}
 		}
-		finally
-		{
-			ArrayPool<DataChangeEvent>.Shared.Return(dataChangeEvents, clearArray: true);
-		}
+
+		return dataChangeEvents;
 	}
 
 	/// <summary>
