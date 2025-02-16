@@ -193,57 +193,23 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 		try
 		{
-			while (!cancellationToken.IsCancellationRequested)
+			await foreach (var record in _dataQueue.DequeueAllAsync(cancellationToken).ConfigureAwait(false))
 			{
-				var batch = await _dataQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
+				cancellationToken.ThrowIfCancellationRequested();
 
-				if (batch.Length == 0)
+				try
 				{
-					_logger.LogInformation("DataProcessor Queue is empty. Waiting for producer...");
-
-					emptyCycles++;
-					await Task.Delay(10, cancellationToken).ConfigureAwait(false);
-
-					if (Interlocked.CompareExchange(ref _producerCompleted, 0, 0) == 1 && _dataQueue.IsEmpty()
-																					   && emptyCycles >= MaxEmptyCycles)
-					{
-						_logger.LogInformation("No more DataProcessor records. Consumer is exiting.");
-						break;
-					}
-
-					continue;
+					await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(
+						ex,
+						"Error processing record of type {RecordType}. Continuing with next record...",
+						typeof(TRecord).Name);
 				}
 
-				for (var i = 0; i < batch.Length; i++)
-				{
-					var record = batch.Span[i];
-
-					if (record is null)
-					{
-						continue;
-					}
-
-					try
-					{
-						await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false);
-					}
-					catch (Exception ex)
-					{
-						_logger.LogError(
-							ex,
-							"Error processing record of type {RecordType}. Continuing with next record...",
-							typeof(TRecord).Name);
-					}
-				}
-
-				_logger.LogInformation(
-					"Completed batch processing in DataProcessor, total records processed so far: {TotalRecords}",
-					_processedTotal);
-
-				totalProcessedCount += batch.Length;
-				emptyCycles = 0;
-
-				_logger.LogDebug("Completed DataProcessor batch of {BatchSize} events", batch.Length);
+				totalProcessedCount++;
 			}
 
 			_logger.LogInformation("Completed DataProcessor processing, total events processed: {TotalEvents}", totalProcessedCount);
