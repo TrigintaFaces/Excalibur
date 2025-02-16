@@ -187,9 +187,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 	private async Task<long> ConsumerLoop(CancellationToken cancellationToken)
 	{
-		const int MaxEmptyCycles = 100;
 		var totalProcessedCount = 0;
-		var emptyCycles = 0;
 
 		try
 		{
