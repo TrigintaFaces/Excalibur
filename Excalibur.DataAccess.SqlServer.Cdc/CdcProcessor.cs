@@ -45,7 +45,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 
 	private int _totalRecords;
 
-	private bool _disposed;
+	private int _disposedFlag;
 
 	private int _producerCompleted;
 
@@ -97,7 +97,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 		Func<DataChangeEvent[], CancellationToken, Task<int>> eventHandler,
 		CancellationToken cancellationToken)
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
+		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
 		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _appLifetime.ApplicationStopping);
 		var linkedToken = linkedCts.Token;
@@ -118,8 +118,6 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 				_tracking[processingState.TableName] = lastRow;
 			}
 		}
-
-		;
 
 		var producerTask = Task.Run(() => ProducerLoop(linkedToken), linkedToken);
 		var consumerTask = Task.Run(() => ConsumerLoop(eventHandler, linkedToken), linkedToken);
@@ -144,7 +142,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 	/// <param name="disposing"> Indicates whether the method was called from <see cref="Dispose" /> or a finalizer. </param>
 	protected virtual void Dispose(bool disposing)
 	{
-		if (_disposed)
+		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
 		{
 			return;
 		}
@@ -154,8 +152,6 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 			_logger.LogInformation("Disposing CdcProcessor resources.");
 			_cdcQueue.Dispose();
 		}
-
-		_disposed = true;
 	}
 
 	/// <summary>

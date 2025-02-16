@@ -106,7 +106,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	/// <param name="disposing"> Indicates whether the method was called from <see cref="Dispose" /> or a finalizer. </param>
 	protected virtual void Dispose(bool disposing)
 	{
-		if (Interlocked.Exchange(ref _disposedFlag, 1) == 1)
+		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
 		{
 			return;
 		}
