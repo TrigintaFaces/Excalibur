@@ -231,6 +231,12 @@ public class OutboxManager : IOutboxManager, IDisposable
 				for (var i = 0; i < batch.Length; i++)
 				{
 					var record = batch.Span[i];
+
+					if (record is null)
+					{
+						continue;
+					}
+
 					var stopwatch = ValueStopwatch.StartNew();
 
 					_ = await _outbox.DispatchReservedRecordAsync(dispatcherId, record).ConfigureAwait(false);
@@ -275,7 +281,7 @@ public class OutboxManager : IOutboxManager, IDisposable
 		int batchSize,
 		CancellationToken cancellationToken)
 	{
-		var records = await _outbox.TryReserveOneRecordsAsync(dispatcherId, batchSize, cancellationToken).ConfigureAwait(false);
+		var records = (await _outbox.TryReserveOneRecordsAsync(dispatcherId, batchSize, cancellationToken).ConfigureAwait(false)) ?? [];
 
 		if (!records.Any())
 		{

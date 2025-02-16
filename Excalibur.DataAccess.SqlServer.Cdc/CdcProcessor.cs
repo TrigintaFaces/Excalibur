@@ -432,6 +432,12 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 				for (var i = 0; i < batchMemory.Length; i++)
 				{
 					var cdcRow = batchMemory.Span[i];
+
+					if (cdcRow is null)
+					{
+						continue;
+					}
+
 					if (i == batchMemory.Length - 1 && cdcRow.OperationCode == CdcOperationCodes.UpdateBefore)
 					{
 						remainingUpdateBeforeLast = cdcRow;

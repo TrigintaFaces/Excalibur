@@ -217,6 +217,11 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 				{
 					var record = batch.Span[i];
 
+					if (record is null)
+					{
+						continue;
+					}
+
 					try
 					{
 						await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false);
