@@ -150,22 +150,23 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 					}
 				}
 
-				var batch = (await FetchBatchAsync(_skipCount, _configuration.ProducerBatchSize, cancellationToken).ConfigureAwait(false))
-					.ToArray();
+				var batch = await FetchBatchAsync(_skipCount, _configuration.ProducerBatchSize, cancellationToken).ConfigureAwait(false)
+							?? [];
+				var batchCount = batch.Count();
 
-				if (batch.Length == 0)
+				if (batchCount == 0)
 				{
 					_logger.LogInformation("No more DataProcessor records. Producer exiting.");
 					_ = Interlocked.Exchange(ref _producerCompleted, 1);
 					break;
 				}
 
-				_logger.LogInformation("Enqueuing {BatchSize} DataProcessor records", batch.Length);
+				_logger.LogInformation("Enqueuing {BatchSize} DataProcessor records", batchCount);
 
 				await _dataQueue.EnqueueBatchAsync(batch, cancellationToken).ConfigureAwait(false);
-				_ = Interlocked.Add(ref _skipCount, batch.Length);
+				_ = Interlocked.Add(ref _skipCount, batchCount);
 
-				_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} DataProcessor records", batch.Length);
+				_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} DataProcessor records", batchCount);
 			}
 		}
 		catch (OperationCanceledException)
@@ -264,8 +265,17 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 	private async Task ProcessRecordAsync(TRecord record, CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(record);
+		ArgumentNullException.ThrowIfNull(cancellationToken);
+
 		using var scope = _serviceProvider.CreateScope();
 		var handler = scope.ServiceProvider.GetRequiredService<IRecordHandler<TRecord>>();
+
+		if (handler is null)
+		{
+			_logger.LogError("No handler found for {RecordType}. Skipping record.", typeof(TRecord).Name);
+			return;
+		}
 
 		await handler.HandleAsync(record, cancellationToken).ConfigureAwait(false);
 	}

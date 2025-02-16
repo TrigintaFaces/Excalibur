@@ -91,6 +91,7 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		var buffer = ArrayPool<TRecord>.Shared.Rent(batchSize);
+		Array.Clear(buffer, 0, batchSize);
 		var index = 0;
 
 		try
