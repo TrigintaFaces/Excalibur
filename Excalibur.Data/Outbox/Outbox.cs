@@ -25,11 +25,17 @@ namespace Excalibur.Data.Outbox;
 public class Outbox : IOutbox
 {
 	private static readonly JsonSerializerOptions SerializerOptions = new() { Converters = { new OutboxMessageJsonConverter() } };
+
 	private readonly OutboxConfiguration _configuration;
+
 	private readonly IDbConnection _connection;
+
 	private readonly IActivityContext _context;
+
 	private readonly IServiceProvider _serviceProvider;
+
 	private readonly ILogger<Outbox> _logger;
+
 	private readonly TelemetryClient? _telemetryClient;
 
 	/// <summary>
@@ -43,8 +49,13 @@ public class Outbox : IOutbox
 	/// <param name="telemetryClient">
 	///     The Application Insights TelemetryClient used to record metrics, events, and exceptions for monitoring and analysis.
 	/// </param>
-	public Outbox(IActivityContext context, IDomainDb domainDb, IServiceProvider serviceProvider,
-		IOptions<OutboxConfiguration> configuration, ILogger<Outbox> logger, TelemetryClient? telemetryClient = null)
+	public Outbox(
+		IActivityContext context,
+		IDomainDb domainDb,
+		IServiceProvider serviceProvider,
+		IOptions<OutboxConfiguration> configuration,
+		ILogger<Outbox> logger,
+		TelemetryClient? telemetryClient = null)
 	{
 		ArgumentNullException.ThrowIfNull(context);
 		ArgumentNullException.ThrowIfNull(domainDb);
@@ -74,13 +85,14 @@ public class Outbox : IOutbox
 
 		try
 		{
-			var records =
-				(await _connection
-					.QueryAsync<OutboxRecord>(
-						OutboxCommands.ReserveOutboxRecords(dispatcherId, batchSize, DbTimeouts.LongRunningTimeoutSeconds, _configuration))
-					.ConfigureAwait(false)).ToArray();
+			var records = await _connection.QueryAsync<OutboxRecord>(
+							  OutboxCommands.ReserveOutboxRecords(
+								  dispatcherId,
+								  batchSize,
+								  DbTimeouts.LongRunningTimeoutSeconds,
+								  _configuration)).ConfigureAwait(false);
 
-			_telemetryClient?.TrackMetric("Outbox.ReservedOutboxBatchSize", records.Length);
+			_telemetryClient?.TrackMetric("Outbox.ReservedOutboxBatchSize", records.Count());
 			return records;
 		}
 		finally
@@ -98,52 +110,65 @@ public class Outbox : IOutbox
 		var stopwatch = ValueStopwatch.StartNew();
 		try
 		{
-			_telemetryClient?.TrackEvent("Outbox.OutboxRecordDispatchStarted",
+			_telemetryClient?.TrackEvent(
+				"Outbox.OutboxRecordDispatchStarted",
 				new Dictionary<string, string> { { "DispatcherId", dispatcherId }, { "OutboxId", record.OutboxId.ToString() } });
 
-			_logger.LogInformation("Dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId}", record.OutboxId,
+			_logger.LogInformation(
+				"Dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId}",
+				record.OutboxId,
 				dispatcherId);
 
 			var result = await Dispatch(record).ConfigureAwait(false);
 
-			_logger.LogInformation("Successfully dispatched OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId}",
+			_logger.LogInformation(
+				"Successfully dispatched OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId}",
 				record.OutboxId,
 				dispatcherId);
 
 			_telemetryClient?.TrackMetric("Outbox.MessageProcessingDuration", stopwatch.Elapsed.TotalMilliseconds);
-			_telemetryClient?.TrackEvent("Outbox.OutboxRecordDispatchSucceeded",
+			_telemetryClient?.TrackEvent(
+				"Outbox.OutboxRecordDispatchSucceeded",
 				new Dictionary<string, string> { { "DispatcherId", dispatcherId }, { "OutboxId", record.OutboxId.ToString() } });
 
 			_ = await _connection.ExecuteAsync(
-				OutboxCommands.DeleteOutboxRecord(record.OutboxId, DbTimeouts.RegularTimeoutSeconds, _configuration)).ConfigureAwait(false);
+						OutboxCommands.DeleteOutboxRecord(record.OutboxId, DbTimeouts.RegularTimeoutSeconds, _configuration))
+					.ConfigureAwait(false);
 			_logger.LogInformation("Deleted OutboxRecord with Id {OutboxId} after successful dispatch", record.OutboxId);
 
 			return result;
 		}
 		catch (Exception ex)
 		{
-			_logger.LogError(ex, "Error dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId}", record.OutboxId,
+			_logger.LogError(
+				ex,
+				"Error dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId}",
+				record.OutboxId,
 				dispatcherId);
 
-			_telemetryClient?.TrackException(ex,
+			_telemetryClient?.TrackException(
+				ex,
 				new Dictionary<string, string>
 				{
 					{ "DispatcherId", dispatcherId }, { "OutboxId", record.OutboxId.ToString() }, { "ErrorType", ex.GetType().Name }
 				});
 
-			_ = await _connection.ExecuteAsync(OutboxCommands.IncrementAttemptsOrMoveToDeadLetter(
-				record.OutboxId,
-				record.EventData,
-				ex.Message,
-				DbTimeouts.LongRunningTimeoutSeconds,
-				_configuration)).ConfigureAwait(false);
+			_ = await _connection.ExecuteAsync(
+					OutboxCommands.IncrementAttemptsOrMoveToDeadLetter(
+						record.OutboxId,
+						record.EventData,
+						ex.Message,
+						DbTimeouts.LongRunningTimeoutSeconds,
+						_configuration)).ConfigureAwait(false);
 
 			return 0;
 		}
 	}
 
 	/// <inheritdoc />
-	public async Task<int> SaveEventsAsync<TKey>(IAggregateRoot<TKey> aggregate, IReadOnlyDictionary<string, string> messageHeaders,
+	public async Task<int> SaveEventsAsync<TKey>(
+		IAggregateRoot<TKey> aggregate,
+		IReadOnlyDictionary<string, string> messageHeaders,
 		string destination)
 	{
 		ArgumentNullException.ThrowIfNull(aggregate);
@@ -154,17 +179,20 @@ public class Outbox : IOutbox
 			return 0;
 		}
 
-		var messages = aggregate.DomainEvents.Select(evt => new OutboxMessage
-		{
-			MessageId = Uuid7Extensions.GenerateString(),
-			MessageBody = evt,
-			MessageHeaders = GetDefaultHeaders()
-		}).ToArray();
+		var messages = aggregate.DomainEvents.Select(
+			(IDomainEvent evt) => new OutboxMessage
+			{
+				MessageId = Uuid7Extensions.GenerateString(),
+				MessageBody = evt,
+				MessageHeaders = GetDefaultHeaders()
+			}).ToArray();
 		var result = await SaveMessagesAsync(messages).ConfigureAwait(false);
 
 		if (messages.Length > 0)
 		{
-			_logger.LogInformation("Saved OutboxRecord with {MessageCount} outbox messages for {AggregateType} Aggregate.", messages.Length,
+			_logger.LogInformation(
+				"Saved OutboxRecord with {MessageCount} outbox messages for {AggregateType} Aggregate.",
+				messages.Length,
 				aggregate.GetType());
 		}
 
@@ -186,22 +214,26 @@ public class Outbox : IOutbox
 		var outboxRecordId = Uuid7Extensions.GenerateGuid();
 		var eventData = JsonSerializer.Serialize(outboxMessages, SerializerOptions);
 
-		_logger.LogInformation("Saving {MessageCount} messages to the {OutboxTable} with Id {OutboxId}.", outboxMessages.Length,
-			_configuration.TableName, outboxRecordId);
+		_logger.LogInformation(
+			"Saving {MessageCount} messages to the {OutboxTable} with Id {OutboxId}.",
+			outboxMessages.Length,
+			_configuration.TableName,
+			outboxRecordId);
 
-		return _connection.ExecuteAsync(OutboxCommands.InsertOutboxRecord(outboxRecordId, eventData, DbTimeouts.RegularTimeoutSeconds,
-			_configuration));
+		return _connection.ExecuteAsync(
+			OutboxCommands.InsertOutboxRecord(outboxRecordId, eventData, DbTimeouts.RegularTimeoutSeconds, _configuration));
 	}
 
 	/// <summary>
 	///     Retrieves default message headers for outbox messages.
 	/// </summary>
 	/// <returns> A dictionary containing default headers such as CorrelationId and TenantId. </returns>
-	public IReadOnlyDictionary<string, string> GetDefaultHeaders() => new Dictionary<string, string>
-	{
-		{ ExcaliburHeaderNames.CorrelationId, _context.CorrelationId().ToString() },
-		{ ExcaliburHeaderNames.TenantId, _context.TenantId() }
-	};
+	public IReadOnlyDictionary<string, string> GetDefaultHeaders() =>
+		new Dictionary<string, string>
+		{
+			{ ExcaliburHeaderNames.CorrelationId, _context.CorrelationId().ToString() },
+			{ ExcaliburHeaderNames.TenantId, _context.TenantId() }
+		};
 
 	/// <summary>
 	///     Dispatches the outbox messages for a given record.
@@ -231,7 +263,8 @@ public class Outbox : IOutbox
 			}
 			catch (Exception ex)
 			{
-				_telemetryClient?.TrackException(ex,
+				_telemetryClient?.TrackException(
+					ex,
 					new Dictionary<string, string>
 					{
 						{ "MessageId", message.MessageId }, { "OutboxId", outboxRecord.OutboxId.ToString() }
@@ -258,7 +291,10 @@ public class Outbox : IOutbox
 			return new CommandDefinition(sql, parameters, commandTimeout: sqlTimeOutSeconds);
 		}
 
-		internal static CommandDefinition InsertOutboxRecord(Guid outboxRecordId, string eventData, int sqlTimeOutSeconds,
+		internal static CommandDefinition InsertOutboxRecord(
+			Guid outboxRecordId,
+			string eventData,
+			int sqlTimeOutSeconds,
 			OutboxConfiguration configuration)
 		{
 			var sql = $"INSERT INTO {configuration.TableName} (OutboxId, EventData, CreatedAt) VALUES (@OutboxId, @EventData, @CreatedAt)";
@@ -271,7 +307,9 @@ public class Outbox : IOutbox
 			return new CommandDefinition(sql, parameters, commandTimeout: sqlTimeOutSeconds);
 		}
 
-		internal static CommandDefinition UnReserveOutboxRecords(string dispatcherId, int sqlTimeOutSeconds,
+		internal static CommandDefinition UnReserveOutboxRecords(
+			string dispatcherId,
+			int sqlTimeOutSeconds,
 			OutboxConfiguration configuration)
 		{
 			var sql = $"""
@@ -291,7 +329,10 @@ public class Outbox : IOutbox
 			return new CommandDefinition(sql, parameters, commandTimeout: sqlTimeOutSeconds);
 		}
 
-		internal static CommandDefinition ReserveOutboxRecords(string dispatcherId, int batchSize, int sqlTimeOutSeconds,
+		internal static CommandDefinition ReserveOutboxRecords(
+			string dispatcherId,
+			int batchSize,
+			int sqlTimeOutSeconds,
 			OutboxConfiguration configuration)
 		{
 			var sql = $"""
