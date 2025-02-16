@@ -378,6 +378,8 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 		Func<DataChangeEvent[], CancellationToken, Task<int>> eventHandler,
 		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(eventHandler);
+
 		var totalProcessedCount = 0;
 
 		try
@@ -389,6 +391,12 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 			await foreach (var record in _cdcQueue.DequeueAllAsync(cancellationToken).ConfigureAwait(false))
 			{
 				cancellationToken.ThrowIfCancellationRequested();
+
+				if (record is null)
+				{
+					_logger.LogWarning("Skipping null record in CDC ConsumerLoop.");
+					continue;
+				}
 
 				if (index == _dbConfig.ConsumerBatchSize)
 				{
@@ -446,6 +454,9 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 		Func<DataChangeEvent[], CancellationToken, Task<int>> eventHandler,
 		CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(batch);
+		ArgumentNullException.ThrowIfNull(eventHandler);
+
 		var events = GetDataChangeEvents(batch);
 		_ = await eventHandler(events, cancellationToken).ConfigureAwait(false);
 

@@ -158,23 +158,21 @@ public class OutboxManager : IOutboxManager, IDisposable
 				}
 
 				var batch = await ReserveBatchRecords(dispatcherId, _configuration.ProducerBatchSize, cancellationToken)
-								.ConfigureAwait(false) ?? [];
+								.ConfigureAwait(false) as ICollection<OutboxRecord> ?? [];
 
-				var batchCount = batch.Count();
-
-				if (batchCount == 0)
+				if (batch.Count == 0)
 				{
 					_logger.LogInformation("No more outbox records. Producer exiting.");
 					Interlocked.Exchange(ref _producerCompleted, 1);
 					break;
 				}
 
-				_telemetryClient?.GetMetric("Outbox.BatchSize").TrackValue(batchCount);
-				_logger.LogInformation("Enqueuing {BatchSize} outbox records", batchCount);
+				_telemetryClient?.GetMetric("Outbox.BatchSize").TrackValue(batch.Count);
+				_logger.LogInformation("Enqueuing {BatchSize} outbox records", batch.Count);
 
 				await _outboxQueue.EnqueueBatchAsync(batch, cancellationToken).ConfigureAwait(false);
 
-				_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} outbox records", batchCount);
+				_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} outbox records", batch.Count);
 			}
 		}
 		catch (OperationCanceledException)
