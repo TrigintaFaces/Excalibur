@@ -20,14 +20,22 @@ public delegate Task UpdateCompletedCount(long complete, CancellationToken cance
 public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TRecord>
 {
 	private readonly InMemoryDataQueue<TRecord> _dataQueue;
+
 	private readonly DataProcessingConfiguration _configuration;
+
 	private readonly IServiceProvider _serviceProvider;
+
 	private readonly IHostApplicationLifetime _appLifetime;
+
 	private readonly ILogger _logger;
+
 	private long _skipCount;
+
 	private long _processedTotal;
-	private bool _disposed;
-	private bool _producerCompleted;
+
+	private int _disposedFlag;
+
+	private int _producerCompleted;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="DataProcessor{TRecord}" /> class.
@@ -62,17 +70,19 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	~DataProcessor() => Dispose(false);
 
 	/// <inheritdoc />
-	public virtual async Task<long> RunAsync(long completedCount, UpdateCompletedCount updateCompletedCount,
+	public virtual async Task<long> RunAsync(
+		long completedCount,
+		UpdateCompletedCount updateCompletedCount,
 		CancellationToken cancellationToken = default)
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
+		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _appLifetime.ApplicationStopping);
 		var linkedToken = linkedCts.Token;
 		_ = Interlocked.Exchange(ref _skipCount, completedCount);
 		_ = Interlocked.Exchange(ref _processedTotal, completedCount);
 
 		var producerTask = Task.Run(() => ProducerLoop(linkedToken), linkedToken);
-		var consumerTask = Task.Run(() => ConsumerLoop(completedCount, linkedToken), linkedToken);
+		var consumerTask = Task.Run(() => ConsumerLoop(linkedToken), linkedToken);
 
 		await Task.WhenAll(producerTask, consumerTask).ConfigureAwait(false);
 
@@ -96,7 +106,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	/// <param name="disposing"> Indicates whether the method was called from <see cref="Dispose" /> or a finalizer. </param>
 	protected virtual void Dispose(bool disposing)
 	{
-		if (_disposed)
+		if (Interlocked.Exchange(ref _disposedFlag, 1) == 1)
 		{
 			return;
 		}
@@ -106,8 +116,6 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 			_logger.LogInformation("Disposing DataProcessor resources.");
 			_dataQueue.Dispose();
 		}
-
-		_disposed = true;
 	}
 
 	private async Task ProducerLoop(CancellationToken cancellationToken)
@@ -118,19 +126,37 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 			{
 				if (_dataQueue.Count >= _configuration.QueueSize - _configuration.ProducerBatchSize)
 				{
-					_logger.LogInformation("DataProcessor Queue is almost full. Producer is pausing...");
-					await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-					continue;
+					_logger.LogDebug("DataProcessor Queue is almost full. Producer waiting for consumer...");
+
+					var spinWait = new SpinWait();
+					var spinCount = 0;
+
+					while (_dataQueue.Count >= _configuration.QueueSize - _configuration.ProducerBatchSize)
+					{
+						if (cancellationToken.IsCancellationRequested)
+						{
+							return;
+						}
+
+						if (spinCount < 10)
+						{
+							spinWait.SpinOnce();
+							spinCount++;
+						}
+						else
+						{
+							await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+						}
+					}
 				}
 
-				var batch = (await FetchBatchAsync(_skipCount, _configuration.ProducerBatchSize, cancellationToken)
-						.ConfigureAwait(false))
+				var batch = (await FetchBatchAsync(_skipCount, _configuration.ProducerBatchSize, cancellationToken).ConfigureAwait(false))
 					.ToArray();
 
 				if (batch.Length == 0)
 				{
 					_logger.LogInformation("No more DataProcessor records. Producer exiting.");
-					_producerCompleted = true;
+					_ = Interlocked.Exchange(ref _producerCompleted, 1);
 					break;
 				}
 
@@ -151,12 +177,17 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 			_logger.LogError(ex, "Error in DataProcessor ProducerLoop");
 			throw;
 		}
+
+		if (Interlocked.CompareExchange(ref _producerCompleted, 0, 0) == 1)
+		{
+			_logger.LogInformation("DataProcessor Producer has completed execution.");
+		}
 	}
 
-	private async Task<long> ConsumerLoop(long completedCount, CancellationToken cancellationToken)
+	private async Task<long> ConsumerLoop(CancellationToken cancellationToken)
 	{
 		const int MaxEmptyCycles = 100;
-		var totalEvents = completedCount;
+		var totalProcessedCount = 0;
 		var emptyCycles = 0;
 
 		try
@@ -165,14 +196,15 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 			{
 				var batch = await _dataQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
 
-				if (batch.Count == 0)
+				if (batch.Length == 0)
 				{
 					_logger.LogInformation("DataProcessor Queue is empty. Waiting for producer...");
 
 					emptyCycles++;
 					await Task.Delay(10, cancellationToken).ConfigureAwait(false);
 
-					if (_producerCompleted && _dataQueue.IsEmpty() && emptyCycles >= MaxEmptyCycles)
+					if (Interlocked.CompareExchange(ref _producerCompleted, 0, 0) == 1 && _dataQueue.IsEmpty()
+																					   && emptyCycles >= MaxEmptyCycles)
 					{
 						_logger.LogInformation("No more DataProcessor records. Consumer is exiting.");
 						break;
@@ -181,21 +213,34 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 					continue;
 				}
 
-				foreach (var record in batch)
+				for (var i = 0; i < batch.Length; i++)
 				{
-					await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false);
-					totalEvents++;
+					var record = batch.Span[i];
 
-					_ = Interlocked.Increment(ref _processedTotal);
+					try
+					{
+						await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false);
+					}
+					catch (Exception ex)
+					{
+						_logger.LogError(
+							ex,
+							"Error processing record of type {RecordType}. Continuing with next record...",
+							typeof(TRecord).Name);
+					}
 				}
 
-				_logger.LogInformation("Completed batch processing in DataProcessor, total records processed so far: {TotalRecords}",
-					totalEvents);
+				_logger.LogInformation(
+					"Completed batch processing in DataProcessor, total records processed so far: {TotalRecords}",
+					_processedTotal);
 
+				totalProcessedCount += batch.Length;
 				emptyCycles = 0;
 
-				batch.Clear();
+				_logger.LogDebug("Completed DataProcessor batch of {BatchSize} events", batch.Length);
 			}
+
+			_logger.LogInformation("Completed DataProcessor processing, total events processed: {TotalEvents}", totalProcessedCount);
 		}
 		catch (OperationCanceledException)
 		{
@@ -207,7 +252,9 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 			throw;
 		}
 
-		return totalEvents;
+		_ = Interlocked.Add(ref _processedTotal, totalProcessedCount);
+
+		return totalProcessedCount;
 	}
 
 	private async Task ProcessRecordAsync(TRecord record, CancellationToken cancellationToken)
@@ -215,17 +262,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		using var scope = _serviceProvider.CreateScope();
 		var handler = scope.ServiceProvider.GetRequiredService<IRecordHandler<TRecord>>();
 
-		try
-		{
-			await handler.HandleAsync(record, cancellationToken).ConfigureAwait(false);
-
-			_logger.LogInformation("Successfully processed record of type {RecordType}.", typeof(TRecord).Name);
-		}
-		catch (Exception ex)
-		{
-			_logger.LogError(ex, "Error processing record of type {RecordType}", typeof(TRecord).Name);
-			throw;
-		}
+		await handler.HandleAsync(record, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>
