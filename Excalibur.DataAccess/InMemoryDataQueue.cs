@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 
@@ -22,7 +21,7 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 
 	private int _count;
 
-	private bool _disposed;
+	private int _disposedFlag;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="InMemoryDataQueue{TRecord}" /> class with the specified capacity.
@@ -52,23 +51,31 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 	/// <inheritdoc />
 	public async ValueTask EnqueueAsync(TRecord record, CancellationToken cancellationToken = default)
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
+		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
-		await _channel.Writer.WriteAsync(record, cancellationToken).ConfigureAwait(false);
+		if (!_channel.Writer.TryWrite(record))
+		{
+			await _channel.Writer.WriteAsync(record, cancellationToken).ConfigureAwait(false);
+		}
+
 		_ = Interlocked.Increment(ref _count);
 	}
 
 	/// <inheritdoc />
 	public async ValueTask EnqueueBatchAsync(IEnumerable<TRecord> records, CancellationToken cancellationToken = default)
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
+		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 		ArgumentNullException.ThrowIfNull(records);
 
 		foreach (var record in records)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
-			await _channel.Writer.WriteAsync(record, cancellationToken).ConfigureAwait(false);
+			if (!_channel.Writer.TryWrite(record))
+			{
+				await _channel.Writer.WriteAsync(record, cancellationToken).ConfigureAwait(false);
+			}
+
 			_ = Interlocked.Increment(ref _count);
 		}
 	}
@@ -76,7 +83,7 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 	/// <inheritdoc />
 	public async IAsyncEnumerable<TRecord> DequeueAllAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
+		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
 		await foreach (var record in _channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
 		{
@@ -88,30 +95,25 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 	/// <inheritdoc />
 	public async Task<Memory<TRecord>> DequeueBatchAsync(int batchSize, CancellationToken cancellationToken = default)
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
+		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
-		var buffer = ArrayPool<TRecord>.Shared.Rent(batchSize);
-		Array.Clear(buffer, 0, batchSize);
+		var buffer = new TRecord[batchSize];
 		var index = 0;
 
-		try
+		while (index < batchSize && await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
 		{
-			while (index < batchSize && await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+			if (_channel.Reader.TryRead(out var record) && record is not null)
 			{
-				if (_channel.Reader.TryRead(out var record))
-				{
-					buffer[index++] = record;
-					_ = Interlocked.Decrement(ref _count);
-				}
+				buffer[index++] = record;
 			}
 		}
-		finally
+
+		if (index == 0)
 		{
-			if (index == batchSize)
-			{
-				ArrayPool<TRecord>.Shared.Return(buffer, clearArray: true);
-			}
+			return Memory<TRecord>.Empty;
 		}
+
+		Interlocked.Add(ref _count, -index);
 
 		return new Memory<TRecord>(buffer, 0, index);
 	}
@@ -137,17 +139,14 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 	/// </param>
 	private void Dispose(bool disposing)
 	{
-		if (_disposed)
+		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
 		{
 			return;
 		}
 
 		if (disposing)
 		{
-			// Complete the channel to release managed resources
 			_ = _channel.Writer.TryComplete();
 		}
-
-		_disposed = true;
 	}
 }
