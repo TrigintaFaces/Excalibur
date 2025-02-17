@@ -26,9 +26,11 @@ public class OutboxManager : IOutboxManager, IDisposable
 
 	private readonly TelemetryClient? _telemetryClient;
 
+	private readonly SemaphoreSlim _queueSpaceAvailable;
+
 	private int _totalRecords;
 
-	private bool _disposed;
+	private int _disposedFlag;
 
 	private int _producerCompleted;
 
@@ -64,6 +66,7 @@ public class OutboxManager : IOutboxManager, IDisposable
 		_logger = logger;
 		_telemetryClient = telemetryClient;
 		_outboxQueue = new InMemoryDataQueue<OutboxRecord>(_configuration.QueueSize);
+		_queueSpaceAvailable = new SemaphoreSlim(_configuration.QueueSize, _configuration.QueueSize);
 
 		_ = _appLifetime.ApplicationStopping.Register(OnApplicationStopping);
 	}
@@ -76,7 +79,7 @@ public class OutboxManager : IOutboxManager, IDisposable
 	/// <inheritdoc />
 	public async Task<int> RunOutboxDispatchAsync(string dispatcherId, CancellationToken cancellationToken = default)
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
+		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
 		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _appLifetime.ApplicationStopping);
 		var linkedToken = linkedCts.Token;
@@ -89,6 +92,7 @@ public class OutboxManager : IOutboxManager, IDisposable
 		await Task.WhenAll(producerTask, consumerTask).ConfigureAwait(false);
 
 		_outboxQueue.Dispose();
+		_queueSpaceAvailable.Dispose();
 
 		return _totalRecords;
 	}
@@ -106,7 +110,7 @@ public class OutboxManager : IOutboxManager, IDisposable
 	/// <param name="disposing"> Indicates whether the method was called from <see cref="Dispose" /> or a finalizer. </param>
 	protected virtual void Dispose(bool disposing)
 	{
-		if (_disposed)
+		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
 		{
 			return;
 		}
@@ -115,9 +119,8 @@ public class OutboxManager : IOutboxManager, IDisposable
 		{
 			_logger.LogInformation("Disposing OutboxManager resources.");
 			_outboxQueue.Dispose();
+			_queueSpaceAvailable.Dispose();
 		}
-
-		_disposed = true;
 	}
 
 	/// <summary>
@@ -131,34 +134,17 @@ public class OutboxManager : IOutboxManager, IDisposable
 		{
 			while (!cancellationToken.IsCancellationRequested)
 			{
-				if (_outboxQueue.Count >= _configuration.QueueSize - _configuration.ProducerBatchSize)
+				var availableSlots = Math.Max(0, _configuration.QueueSize - _outboxQueue.Count);
+				if (availableSlots < 1)
 				{
-					_logger.LogDebug("Outbox Queue is almost full. Producer waiting for consumer...");
-
-					var spinWait = new SpinWait();
-					var spinCount = 0;
-
-					while (_outboxQueue.Count >= _configuration.QueueSize - _configuration.ProducerBatchSize)
-					{
-						if (cancellationToken.IsCancellationRequested)
-						{
-							return;
-						}
-
-						if (spinCount < 10)
-						{
-							spinWait.SpinOnce();
-							spinCount++;
-						}
-						else
-						{
-							await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-						}
-					}
+					await Task.Delay(10, cancellationToken).ConfigureAwait(false);
+					continue;
 				}
 
-				var batch = await ReserveBatchRecords(dispatcherId, _configuration.ProducerBatchSize, cancellationToken)
-								.ConfigureAwait(false) as ICollection<OutboxRecord> ?? [];
+				var batchSize = Math.Min(_configuration.ProducerBatchSize, availableSlots);
+				var batch =
+					await ReserveBatchRecords(dispatcherId, batchSize, cancellationToken).ConfigureAwait(false) as ICollection<OutboxRecord>
+					?? [];
 
 				if (batch.Count == 0)
 				{
@@ -170,7 +156,11 @@ public class OutboxManager : IOutboxManager, IDisposable
 				_telemetryClient?.GetMetric("Outbox.BatchSize").TrackValue(batch.Count);
 				_logger.LogInformation("Enqueuing {BatchSize} outbox records", batch.Count);
 
-				await _outboxQueue.EnqueueBatchAsync(batch, cancellationToken).ConfigureAwait(false);
+				foreach (var record in batch)
+				{
+					await _queueSpaceAvailable.WaitAsync(cancellationToken).ConfigureAwait(false);
+					await _outboxQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
+				}
 
 				_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} outbox records", batch.Count);
 			}
@@ -199,19 +189,50 @@ public class OutboxManager : IOutboxManager, IDisposable
 	/// <returns> The total number of successfully dispatched records. </returns>
 	private async Task<int> ConsumerLoop(string dispatcherId, CancellationToken cancellationToken)
 	{
+		const int MaxEmptyCycles = 100;
+		var emptyCycles = 0;
 		var totalProcessedCount = 0;
 
 		try
 		{
-			await foreach (var record in _outboxQueue.DequeueAllAsync(cancellationToken).ConfigureAwait(false))
+			while (!cancellationToken.IsCancellationRequested)
 			{
-				cancellationToken.ThrowIfCancellationRequested();
+				var batch = await _outboxQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
 
-				var stopwatch = ValueStopwatch.StartNew();
-				_ = await _outbox.DispatchReservedRecordAsync(dispatcherId, record).ConfigureAwait(false);
+				if (batch.IsEmpty)
+				{
+					_logger.LogInformation("Outbox Queue is empty. Waiting for producer...");
 
-				_telemetryClient?.GetMetric("Outbox.ProcessingTime").TrackValue(stopwatch.Elapsed.TotalMilliseconds);
-				totalProcessedCount++;
+					emptyCycles++;
+					await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+
+					if (Interlocked.CompareExchange(ref _producerCompleted, 0, 0) == 1)
+					{
+						await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+
+						if (_outboxQueue.IsEmpty() && emptyCycles >= MaxEmptyCycles)
+						{
+							_logger.LogInformation("No more Outbox records. Consumer is exiting.");
+							break;
+						}
+					}
+
+					continue;
+				}
+
+				_logger.LogInformation("Processing Outbox batch of {BatchSize} records", batch.Length);
+
+				for (var index = 0; index < batch.Span.Length; index++)
+				{
+					var record = batch.Span[index];
+					var stopwatch = ValueStopwatch.StartNew();
+					_ = await _outbox.DispatchReservedRecordAsync(dispatcherId, record).ConfigureAwait(false);
+
+					_telemetryClient?.GetMetric("Outbox.ProcessingTime").TrackValue(stopwatch.Elapsed.TotalMilliseconds);
+					totalProcessedCount++;
+
+					_queueSpaceAvailable.Release();
+				}
 			}
 
 			_logger.LogInformation("Completed Outbox processing, total events processed: {TotalEvents}", totalProcessedCount);
