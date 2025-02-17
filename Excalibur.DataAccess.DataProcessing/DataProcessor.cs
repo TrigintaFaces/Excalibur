@@ -33,8 +33,6 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 	private long _skipCount;
 
-	private long _processedTotal;
-
 	private int _disposedFlag;
 
 	private int _producerCompleted;
@@ -82,17 +80,18 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _appLifetime.ApplicationStopping);
 		var linkedToken = linkedCts.Token;
 		_ = Interlocked.Exchange(ref _skipCount, completedCount);
-		_ = Interlocked.Exchange(ref _processedTotal, completedCount);
 
 		var producerTask = Task.Run(() => ProducerLoop(linkedToken), linkedToken);
-		var consumerTask = Task.Run(() => ConsumerLoop(linkedToken), linkedToken);
+		var consumerTasks = Enumerable.Range(0, 1).Select((int _) => Task.Run(() => ConsumerLoop(linkedToken), linkedToken)).ToArray();
 
-		await Task.WhenAll(producerTask, consumerTask).ConfigureAwait(false);
+		await producerTask.ConfigureAwait(false);
+		var results = await Task.WhenAll(consumerTasks).ConfigureAwait(false);
 
 		_dataQueue.Dispose();
 		_queueSpaceAvailable.Dispose();
+		await linkedCts.CancelAsync().ConfigureAwait(false);
 
-		return _processedTotal;
+		return results.Sum();
 	}
 
 	/// <inheritdoc />
@@ -151,6 +150,8 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 				foreach (var record in batch)
 				{
+					cancellationToken.ThrowIfCancellationRequested();
+
 					await _queueSpaceAvailable.WaitAsync(cancellationToken).ConfigureAwait(false);
 					await _dataQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
 				}
@@ -178,38 +179,40 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 	private async Task<long> ConsumerLoop(CancellationToken cancellationToken)
 	{
-		const int MaxEmptyCycles = 100;
-		var emptyCycles = 0;
 		var totalProcessedCount = 0;
 
 		try
 		{
 			while (!cancellationToken.IsCancellationRequested)
 			{
+				var producerCompleted = Interlocked.CompareExchange(ref _producerCompleted, 0, 0);
+
+				if (producerCompleted == 1 && _dataQueue.IsEmpty())
+				{
+					_logger.LogInformation("No more DataProcessor records. Consumer is exiting.");
+					break;
+				}
+
 				var batch = await _dataQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
 
-				if (batch.IsEmpty)
+				if (producerCompleted == 0 && batch.IsEmpty)
 				{
 					_logger.LogInformation("DataProcessor Queue is empty. Waiting for producer...");
 
-					emptyCycles++;
-					await Task.Delay(10, cancellationToken).ConfigureAwait(false);
-
-					if (Interlocked.CompareExchange(ref _producerCompleted, 0, 0) == 1)
+					var waitTime = 10;
+					for (var i = 0; i < 10; i++)
 					{
-						await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-
-						if (_dataQueue.IsEmpty() && emptyCycles >= MaxEmptyCycles)
+						if (!_dataQueue.IsEmpty())
 						{
-							_logger.LogInformation("No more DataProcessor records. Consumer is exiting.");
 							break;
 						}
+
+						await Task.Delay(waitTime, cancellationToken).ConfigureAwait(false);
+						waitTime = Math.Min(waitTime * 2, 100);
 					}
 
 					continue;
 				}
-
-				emptyCycles = 0;
 
 				for (var i = 0; i < batch.Length; i++)
 				{
@@ -238,13 +241,16 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 							disposable.Dispose();
 						}
 
-						_queueSpaceAvailable.Release();
+						_ = _queueSpaceAvailable.Release();
 					}
 				}
 
 				totalProcessedCount += batch.Length;
 
 				_logger.LogDebug("Completed DataProcessor batch of {BatchSize} events", batch.Length);
+
+				GC.Collect();
+				GC.WaitForPendingFinalizers();
 			}
 
 			_logger.LogInformation("Completed DataProcessor processing, total events processed: {TotalEvents}", totalProcessedCount);
@@ -258,8 +264,6 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 			_logger.LogError(ex, "Error in ConsumerLoop");
 			throw;
 		}
-
-		_ = Interlocked.Add(ref _processedTotal, totalProcessedCount);
 
 		return totalProcessedCount;
 	}
