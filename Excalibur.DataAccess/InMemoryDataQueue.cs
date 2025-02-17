@@ -23,6 +23,8 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 
 	private int _disposedFlag;
 
+	private readonly CancellationTokenSource _disposeCts = new();
+
 	/// <summary>
 	///     Initializes a new instance of the <see cref="InMemoryDataQueue{TRecord}" /> class with the specified capacity.
 	/// </summary>
@@ -52,12 +54,9 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 	public async ValueTask EnqueueAsync(TRecord record, CancellationToken cancellationToken = default)
 	{
 		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
+		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCts.Token);
 
-		if (!_channel.Writer.TryWrite(record))
-		{
-			await _channel.Writer.WriteAsync(record, cancellationToken).ConfigureAwait(false);
-		}
-
+		await _channel.Writer.WriteAsync(record, linkedCts.Token).ConfigureAwait(false);
 		_ = Interlocked.Increment(ref _count);
 	}
 
@@ -66,15 +65,13 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 	{
 		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 		ArgumentNullException.ThrowIfNull(records);
+		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCts.Token);
 
 		foreach (var record in records)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
-			if (!_channel.Writer.TryWrite(record))
-			{
-				await _channel.Writer.WriteAsync(record, cancellationToken).ConfigureAwait(false);
-			}
+			await _channel.Writer.WriteAsync(record, linkedCts.Token).ConfigureAwait(false);
 
 			_ = Interlocked.Increment(ref _count);
 		}
@@ -84,12 +81,18 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 	public async IAsyncEnumerable<TRecord> DequeueAllAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
 	{
 		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
+		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCts.Token);
 
-		while (await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+		while (await _channel.Reader.WaitToReadAsync(linkedCts.Token).ConfigureAwait(false))
 		{
+			if (_disposedFlag == 1)
+			{
+				yield break;
+			}
+
 			while (_channel.Reader.TryRead(out var record))
 			{
-				Interlocked.Decrement(ref _count);
+				_ = Interlocked.Decrement(ref _count);
 				yield return record;
 			}
 		}
@@ -99,17 +102,20 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 	public async Task<Memory<TRecord>> DequeueBatchAsync(int batchSize, CancellationToken cancellationToken = default)
 	{
 		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
+		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _disposeCts.Token);
 
-		var buffer = new TRecord[batchSize];
+		var available = Math.Min(batchSize, Count);
+		var buffer = new TRecord[available];
 		var index = 0;
 
-		while (index < batchSize && await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+		while (index < available && await _channel.Reader.WaitToReadAsync(linkedCts.Token).ConfigureAwait(false))
 		{
 			while (_channel.Reader.TryRead(out var record))
 			{
 				buffer[index++] = record;
+				_ = Interlocked.Decrement(ref _count);
 
-				if (index >= batchSize)
+				if (index >= available)
 				{
 					break;
 				}
@@ -121,9 +127,7 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 			return Memory<TRecord>.Empty;
 		}
 
-		Interlocked.Add(ref _count, -index);
-
-		return new Memory<TRecord>(buffer, 0, index);
+		return new(buffer, 0, index);
 	}
 
 	public bool HasPendingItems() => Count > 0;
@@ -139,6 +143,15 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 		GC.SuppressFinalize(this);
 	}
 
+	private void ReleaseUnmanagedResources()
+	{
+		_ = _channel.Writer.TryComplete();
+
+		while (_channel.Reader.TryRead(out _))
+		{
+		}
+	}
+
 	/// <summary>
 	///     Releases the unmanaged and optionally managed resources used by the <see cref="InMemoryDataQueue{TRecord}" />.
 	/// </summary>
@@ -152,9 +165,12 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 			return;
 		}
 
+		_disposeCts.Cancel();
+
 		if (disposing)
 		{
-			_ = _channel.Writer.TryComplete();
+			_disposeCts.Dispose();
+			ReleaseUnmanagedResources();
 		}
 	}
 }

@@ -149,7 +149,7 @@ public class OutboxManager : IOutboxManager, IDisposable
 				if (batch.Count == 0)
 				{
 					_logger.LogInformation("No more outbox records. Producer exiting.");
-					Interlocked.Exchange(ref _producerCompleted, 1);
+					_ = Interlocked.Exchange(ref _producerCompleted, 1);
 					break;
 				}
 
@@ -177,7 +177,7 @@ public class OutboxManager : IOutboxManager, IDisposable
 			throw;
 		}
 
-		if (Interlocked.CompareExchange(ref _producerCompleted, 0, 0) == 1)
+		if (_producerCompleted == 1)
 		{
 			_logger.LogInformation("Outbox Producer has completed execution.");
 		}
@@ -197,9 +197,7 @@ public class OutboxManager : IOutboxManager, IDisposable
 		{
 			while (!cancellationToken.IsCancellationRequested)
 			{
-				var producerCompleted = Interlocked.CompareExchange(ref _producerCompleted, 0, 0);
-
-				if (producerCompleted == 1 && _outboxQueue.IsEmpty())
+				if (_producerCompleted == 1 && _outboxQueue.IsEmpty())
 				{
 					_logger.LogInformation("No more Outbox records. Consumer is exiting.");
 					break;
@@ -207,7 +205,7 @@ public class OutboxManager : IOutboxManager, IDisposable
 
 				var batch = await _outboxQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
 
-				if (producerCompleted == 0 && batch.IsEmpty)
+				if (_producerCompleted == 0 && batch.IsEmpty)
 				{
 					_logger.LogInformation("Outbox Queue is empty. Waiting for producer...");
 
