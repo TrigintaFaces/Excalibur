@@ -244,7 +244,10 @@ public class OutboxManager : IOutboxManager, IDisposable
 					}
 					finally
 					{
-						_ = _queueSpaceAvailable.Release();
+						if (_queueSpaceAvailable.CurrentCount < _configuration.QueueSize)
+						{
+							_ = _queueSpaceAvailable.Release();
+						}
 					}
 				}
 

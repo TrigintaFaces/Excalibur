@@ -152,6 +152,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 		if (disposing)
 		{
 			_logger.LogInformation("Disposing CdcProcessor resources.");
+			_tracking.Clear();
 			_cdcQueue.Dispose();
 			_queueSpaceAvailable.Dispose();
 		}
@@ -368,22 +369,21 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 	{
 		ArgumentNullException.ThrowIfNull(eventHandler);
 
+		_logger.LogInformation("CDC Consumer loop started...");
+
 		var totalProcessedCount = 0;
 		var batchOffset = 0;
-		var batch = ArrayPool<CdcRow>.Shared.Rent(_dbConfig.ConsumerBatchSize + 1);
-
-		try
+		while (!cancellationToken.IsCancellationRequested)
 		{
-			_logger.LogInformation("CDC Consumer loop started...");
-
-			while (!cancellationToken.IsCancellationRequested)
+			if (_producerCompleted == 1 && _cdcQueue.IsEmpty())
 			{
-				if (_producerCompleted == 1 && _cdcQueue.IsEmpty())
-				{
-					_logger.LogInformation("No more CDC records. Consumer is exiting.");
-					break;
-				}
+				_logger.LogInformation("No more CDC records. Consumer is exiting.");
+				break;
+			}
 
+			var batch = ArrayPool<CdcRow>.Shared.Rent(_dbConfig.ConsumerBatchSize + 1);
+			try
+			{
 				_logger.LogDebug("Attempting to dequeue CDC messages...");
 				var stopwatch = ValueStopwatch.StartNew();
 				var batchMemory = await _cdcQueue.DequeueBatchAsync(_dbConfig.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
@@ -442,35 +442,30 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 
 				totalProcessedCount += batch.Length;
 
+				if (batch.Length > 0)
+				{
+					await ProcessBatch(batch, eventHandler, cancellationToken).ConfigureAwait(false);
+					Array.Clear(batch, 0, _dbConfig.ConsumerBatchSize);
+				}
+
 				_logger.LogDebug("Completed CDC batch of {BatchSize} events", batch.Length);
-
-				GC.Collect();
-				GC.WaitForPendingFinalizers();
 			}
-
-			if (batch.Length > 0)
+			catch (OperationCanceledException)
 			{
-				await ProcessBatch(batch, eventHandler, cancellationToken).ConfigureAwait(false);
-				Array.Clear(batch, 0, _dbConfig.ConsumerBatchSize);
+				_logger.LogDebug("Consumer canceled");
 			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Error in ConsumerLoop");
+				throw;
+			}
+			finally
+			{
+				ArrayPool<CdcRow>.Shared.Return(batch, clearArray: true);
+			}
+		}
 
-			ArrayPool<CdcRow>.Shared.Return(batch, clearArray: true);
-
-			_logger.LogInformation("Completed CDC processing, total events processed: {TotalEvents}", totalProcessedCount);
-		}
-		catch (OperationCanceledException)
-		{
-			_logger.LogDebug("Consumer canceled");
-		}
-		catch (Exception ex)
-		{
-			_logger.LogError(ex, "Error in ConsumerLoop");
-			throw;
-		}
-		finally
-		{
-			ArrayPool<CdcRow>.Shared.Return(batch, clearArray: true);
-		}
+		_logger.LogInformation("Completed CDC processing, total events processed: {TotalEvents}", totalProcessedCount);
 
 		return totalProcessedCount;
 	}
@@ -522,7 +517,11 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 			finally
 			{
 				currentRow.Dispose();
-				_ = _queueSpaceAvailable.Release();
+
+				if (_queueSpaceAvailable.CurrentCount < _dbConfig.QueueSize)
+				{
+					_ = _queueSpaceAvailable.Release();
+				}
 			}
 		}
 

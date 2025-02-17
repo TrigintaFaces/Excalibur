@@ -12,6 +12,8 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 /// </remarks>
 public record CdcRow : IDisposable
 {
+	private int _disposedFlag;
+
 	/// <summary>
 	///     Gets or initializes the name of the table from which the CDC row originates.
 	/// </summary>
@@ -41,7 +43,9 @@ public record CdcRow : IDisposable
 	public DateTime CommitTime { get; init; }
 
 	private static readonly ConcurrentDictionary<string, ImmutableDictionary<string, Type?>> DataTypeCache = new();
+
 	private static readonly ConcurrentBag<Dictionary<string, object>> ChangesPool = [];
+
 	private static readonly ConcurrentBag<Dictionary<string, Type?>> DataTypesPool = [];
 
 	/// <summary>
@@ -61,21 +65,23 @@ public record CdcRow : IDisposable
 		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
 		ArgumentNullException.ThrowIfNull(populateFunc);
 
-		return DataTypeCache.GetOrAdd(tableName, _ =>
-		{
-			var rentedDict = RentDataTypesDictionary();
+		return DataTypeCache.GetOrAdd(
+			tableName,
+			(string _) =>
+			{
+				var rentedDict = RentDataTypesDictionary();
 
-			try
-			{
-				populateFunc(rentedDict);
-				return rentedDict.ToImmutableDictionary();
-			}
-			finally
-			{
-				rentedDict.Clear();
-				DataTypesPool.Add(rentedDict);
-			}
-		});
+				try
+				{
+					populateFunc(rentedDict);
+					return rentedDict.ToImmutableDictionary();
+				}
+				finally
+				{
+					rentedDict.Clear();
+					DataTypesPool.Add(rentedDict);
+				}
+			});
 	}
 
 	public static Dictionary<string, object> RentChangesDictionary()
@@ -100,26 +106,26 @@ public record CdcRow : IDisposable
 		return dict;
 	}
 
-	private void ReleaseUnmanagedResources()
-	{
-		if (Changes.Count > 0)
-		{
-			Changes.Clear();
-			ChangesPool.Add(Changes);
-		}
-
-		if (DataTypes.Count > 0)
-		{
-			DataTypes.Clear();
-			DataTypesPool.Add(DataTypes);
-		}
-	}
-
 	protected virtual void Dispose(bool disposing)
 	{
-		ReleaseUnmanagedResources();
+		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
+		{
+			return;
+		}
+
 		if (disposing)
 		{
+			if (Changes.Count > 0)
+			{
+				Changes.Clear();
+				ChangesPool.Add(Changes);
+			}
+
+			if (DataTypes.Count > 0)
+			{
+				DataTypes.Clear();
+				DataTypesPool.Add(DataTypes);
+			}
 		}
 	}
 
