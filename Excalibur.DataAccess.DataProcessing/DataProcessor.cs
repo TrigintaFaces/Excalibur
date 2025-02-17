@@ -239,7 +239,10 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 							disposable.Dispose();
 						}
 
-						_ = _queueSpaceAvailable.Release();
+						if (_queueSpaceAvailable.CurrentCount < _configuration.QueueSize)
+						{
+							_ = _queueSpaceAvailable.Release();
+						}
 					}
 				}
 
