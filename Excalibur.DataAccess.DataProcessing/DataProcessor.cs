@@ -171,7 +171,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 			throw;
 		}
 
-		if (Interlocked.CompareExchange(ref _producerCompleted, 0, 0) == 1)
+		if (_producerCompleted == 1)
 		{
 			_logger.LogInformation("DataProcessor Producer has completed execution.");
 		}
@@ -185,9 +185,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		{
 			while (!cancellationToken.IsCancellationRequested)
 			{
-				var producerCompleted = Interlocked.CompareExchange(ref _producerCompleted, 0, 0);
-
-				if (producerCompleted == 1 && _dataQueue.IsEmpty())
+				if (_producerCompleted == 1 && _dataQueue.IsEmpty())
 				{
 					_logger.LogInformation("No more DataProcessor records. Consumer is exiting.");
 					break;
@@ -195,7 +193,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 				var batch = await _dataQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
 
-				if (producerCompleted == 0 && batch.IsEmpty)
+				if (_producerCompleted == 0 && batch.IsEmpty)
 				{
 					_logger.LogInformation("DataProcessor Queue is empty. Waiting for producer...");
 

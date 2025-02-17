@@ -6,7 +6,9 @@ namespace Excalibur.DataAccess;
 public sealed class OrderedEventProcessor : IDisposable
 {
 	private readonly TaskFactory _taskFactory;
+
 	private readonly OrderedTaskScheduler _scheduler;
+
 	private bool _disposed;
 
 	/// <summary>
@@ -80,13 +82,7 @@ public sealed class OrderedEventProcessor : IDisposable
 
 		if (disposing)
 		{
-			try
-			{
-				_scheduler.Dispose();
-			}
-			finally
-			{
-			}
+			_scheduler.Dispose();
 		}
 
 		_disposed = true;

@@ -335,7 +335,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 				if (processingLastBatch && _cdcQueue.IsEmpty())
 				{
 					_logger.LogInformation("No more CDC records. Producer exiting.");
-					Interlocked.Exchange(ref _producerCompleted, 1);
+					_ = Interlocked.Exchange(ref _producerCompleted, 1);
 					break;
 				}
 			}
@@ -350,7 +350,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 			throw;
 		}
 
-		if (Interlocked.CompareExchange(ref _producerCompleted, 0, 0) == 1)
+		if (_producerCompleted == 1)
 		{
 			_logger.LogInformation("CdcProcessor Producer has completed execution.");
 		}
@@ -378,9 +378,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 
 			while (!cancellationToken.IsCancellationRequested)
 			{
-				var producerCompleted = Interlocked.CompareExchange(ref _producerCompleted, 0, 0);
-
-				if (producerCompleted == 1 && _cdcQueue.IsEmpty())
+				if (_producerCompleted == 1 && _cdcQueue.IsEmpty())
 				{
 					_logger.LogInformation("No more CDC records. Consumer is exiting.");
 					break;
@@ -391,7 +389,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 				var batchMemory = await _cdcQueue.DequeueBatchAsync(_dbConfig.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
 				_logger.LogDebug("Dequeued {BatchSize} messages in {ElapsedMs}ms", batchMemory.Length, stopwatch.Elapsed.TotalMilliseconds);
 
-				if (producerCompleted == 0 && batchMemory.IsEmpty)
+				if (_producerCompleted == 0 && batchMemory.IsEmpty)
 				{
 					_logger.LogInformation("CDC Queue is empty. Waiting for producer...");
 
