@@ -1,6 +1,8 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 
+using Excalibur.Core.Diagnostics;
+
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -41,6 +43,8 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 
 	private readonly ConcurrentDictionary<string, CdcPosition> _tracking = new();
 
+	private readonly SemaphoreSlim _queueSpaceAvailable;
+
 	private int _totalRecords;
 
 	private int _disposedFlag;
@@ -75,6 +79,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 		_stateStore = stateStore;
 		_logger = logger;
 		_cdcQueue = new InMemoryDataQueue<CdcRow>(_dbConfig.QueueSize);
+		_queueSpaceAvailable = new SemaphoreSlim(_dbConfig.QueueSize, _dbConfig.QueueSize);
 
 		_ = _appLifetime.ApplicationStopping.Register(OnApplicationStopping);
 	}
@@ -120,6 +125,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 		await Task.WhenAll(producerTask, consumerTask).ConfigureAwait(false);
 
 		_cdcQueue.Dispose();
+		_queueSpaceAvailable.Dispose();
 
 		return _totalRecords;
 	}
@@ -146,6 +152,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 		{
 			_logger.LogInformation("Disposing CdcProcessor resources.");
 			_cdcQueue.Dispose();
+			_queueSpaceAvailable.Dispose();
 		}
 	}
 
@@ -251,32 +258,6 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 
 			while (!cancellationToken.IsCancellationRequested)
 			{
-				if (_cdcQueue.Count >= _dbConfig.QueueSize - _dbConfig.ProducerBatchSize)
-				{
-					_logger.LogDebug("CDC Queue is almost full. Producer waiting for consumer...");
-
-					var spinWait = new SpinWait();
-					var spinCount = 0;
-
-					while (_cdcQueue.Count >= _dbConfig.QueueSize - _dbConfig.ProducerBatchSize)
-					{
-						if (cancellationToken.IsCancellationRequested)
-						{
-							return;
-						}
-
-						if (spinCount < 10)
-						{
-							spinWait.SpinOnce();
-							spinCount++;
-						}
-						else
-						{
-							await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-						}
-					}
-				}
-
 				var maxLsn = await _cdcRepository.GetMaxPositionAsync(cancellationToken).ConfigureAwait(false);
 				var processingLastBatch = _dbConfig.CaptureInstances.Length <= 0;
 
@@ -330,7 +311,11 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 					}
 					else
 					{
-						await _cdcQueue.EnqueueBatchAsync(changes, cancellationToken).ConfigureAwait(false);
+						foreach (var record in changes)
+						{
+							await _queueSpaceAvailable.WaitAsync(cancellationToken).ConfigureAwait(false);
+							await _cdcQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
+						}
 
 						var lastRow = changes.Last();
 						var lastRowPosition = new CdcPosition(lastRow.Lsn, lastRow.SeqVal, lastRow.CommitTime);
@@ -380,48 +365,79 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 	{
 		ArgumentNullException.ThrowIfNull(eventHandler);
 
+		const int MaxEmptyCycles = 100;
+		var emptyCycles = 0;
 		var totalProcessedCount = 0;
+		var batchOffset = 0;
+		var batch = ArrayPool<CdcRow>.Shared.Rent(_dbConfig.ConsumerBatchSize + 1);
 
 		try
 		{
 			_logger.LogInformation("CDC Consumer loop started...");
-			var batch = ArrayPool<CdcRow>.Shared.Rent(_dbConfig.ConsumerBatchSize);
-			var index = 0;
 
-			await foreach (var record in _cdcQueue.DequeueAllAsync(cancellationToken).ConfigureAwait(false))
+			while (!cancellationToken.IsCancellationRequested)
 			{
-				cancellationToken.ThrowIfCancellationRequested();
+				_logger.LogDebug("Attempting to dequeue CDC messages...");
+				var stopwatch = ValueStopwatch.StartNew();
+				var batchMemory = await _cdcQueue.DequeueBatchAsync(_dbConfig.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
+				_logger.LogDebug("Dequeued {BatchSize} messages in {ElapsedMs}ms", batchMemory.Length, stopwatch.Elapsed.TotalMilliseconds);
 
-				if (record is null)
+				if (batchMemory.IsEmpty)
 				{
-					_logger.LogWarning("Skipping null record in CDC ConsumerLoop.");
+					_logger.LogInformation("CDC Queue is empty. Waiting for producer...");
+
+					emptyCycles++;
+					await Task.Delay(10, cancellationToken).ConfigureAwait(false);
+
+					if (Interlocked.CompareExchange(ref _producerCompleted, 0, 0) == 1)
+					{
+						await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+
+						if (_cdcQueue.IsEmpty() && emptyCycles >= MaxEmptyCycles)
+						{
+							_logger.LogInformation("No more CDC records. Consumer is exiting.");
+							break;
+						}
+					}
+
 					continue;
 				}
 
-				if (index == _dbConfig.ConsumerBatchSize)
-				{
-					if (record.OperationCode == CdcOperationCodes.UpdateBefore)
-					{
-						await ProcessBatch(batch, eventHandler, cancellationToken).ConfigureAwait(false);
-						Array.Clear(batch, 0, _dbConfig.ConsumerBatchSize);
+				emptyCycles = 0;
 
-						batch[0] = record;
-						index = 1;
+				for (var i = 0; i < batchMemory.Length; i++)
+				{
+					var cdcRow = batchMemory.Span[i];
+
+					if (cdcRow is null)
+					{
+						continue;
+					}
+
+					if (i + batchOffset == _dbConfig.ConsumerBatchSize)
+					{
+						if (cdcRow.OperationCode == CdcOperationCodes.UpdateBefore)
+						{
+							await ProcessBatch(batch, eventHandler, cancellationToken).ConfigureAwait(false);
+							Array.Clear(batch, 0, _dbConfig.ConsumerBatchSize);
+
+							batch[0] = cdcRow;
+							batchOffset = 1;
+						}
+						else
+						{
+							await ProcessBatch(batch, eventHandler, cancellationToken).ConfigureAwait(false);
+							Array.Clear(batch, 0, _dbConfig.ConsumerBatchSize);
+							batchOffset = 0;
+						}
 					}
 					else
 					{
-						await ProcessBatch(batch, eventHandler, cancellationToken).ConfigureAwait(false);
-						Array.Clear(batch, 0, _dbConfig.ConsumerBatchSize);
-						index = 0;
+						batch[i + batchOffset] = cdcRow;
 					}
-				}
-				else
-				{
-					batch[index] = record;
-					index++;
-				}
 
-				totalProcessedCount++;
+					totalProcessedCount++;
+				}
 			}
 
 			if (batch.Length > 0)
@@ -442,6 +458,10 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 		{
 			_logger.LogError(ex, "Error in ConsumerLoop");
 			throw;
+		}
+		finally
+		{
+			ArrayPool<CdcRow>.Shared.Return(batch, clearArray: true);
 		}
 
 		_ = Interlocked.Add(ref _totalRecords, totalProcessedCount);
@@ -487,10 +507,13 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 			}
 
 			currentRow.Dispose();
+
+			_queueSpaceAvailable.Release();
 		}
 
 		await Task.WhenAll(updateTasks).ConfigureAwait(false);
 		updateTasks.Clear();
+		updateTasks = null;
 	}
 
 	/// <summary>

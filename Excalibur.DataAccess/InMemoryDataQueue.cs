@@ -85,10 +85,13 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 	{
 		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
-		await foreach (var record in _channel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+		while (await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
 		{
-			_ = Interlocked.Decrement(ref _count);
-			yield return record;
+			while (_channel.Reader.TryRead(out var record))
+			{
+				Interlocked.Decrement(ref _count);
+				yield return record;
+			}
 		}
 	}
 
@@ -102,9 +105,14 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 
 		while (index < batchSize && await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
 		{
-			if (_channel.Reader.TryRead(out var record) && record is not null)
+			while (_channel.Reader.TryRead(out var record))
 			{
 				buffer[index++] = record;
+
+				if (index >= batchSize)
+				{
+					break;
+				}
 			}
 		}
 

@@ -21,6 +21,8 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 {
 	private readonly InMemoryDataQueue<TRecord> _dataQueue;
 
+	private readonly SemaphoreSlim _queueSpaceAvailable;
+
 	private readonly DataProcessingConfiguration _configuration;
 
 	private readonly IServiceProvider _serviceProvider;
@@ -60,6 +62,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		_serviceProvider = serviceProvider;
 		_logger = logger;
 		_dataQueue = new InMemoryDataQueue<TRecord>(_configuration.QueueSize);
+		_queueSpaceAvailable = new SemaphoreSlim(_configuration.QueueSize, _configuration.QueueSize);
 
 		_ = _appLifetime.ApplicationStopping.Register(OnApplicationStopping);
 	}
@@ -87,6 +90,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		await Task.WhenAll(producerTask, consumerTask).ConfigureAwait(false);
 
 		_dataQueue.Dispose();
+		_queueSpaceAvailable.Dispose();
 
 		return _processedTotal;
 	}
@@ -115,6 +119,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		{
 			_logger.LogInformation("Disposing DataProcessor resources.");
 			_dataQueue.Dispose();
+			_queueSpaceAvailable.Dispose();
 		}
 	}
 
@@ -124,34 +129,16 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		{
 			while (!cancellationToken.IsCancellationRequested)
 			{
-				if (_dataQueue.Count >= _configuration.QueueSize - _configuration.ProducerBatchSize)
+				var availableSlots = Math.Max(0, _configuration.QueueSize - _dataQueue.Count);
+				if (availableSlots < 1)
 				{
-					_logger.LogDebug("DataProcessor Queue is almost full. Producer waiting for consumer...");
-
-					var spinWait = new SpinWait();
-					var spinCount = 0;
-
-					while (_dataQueue.Count >= _configuration.QueueSize - _configuration.ProducerBatchSize)
-					{
-						if (cancellationToken.IsCancellationRequested)
-						{
-							return;
-						}
-
-						if (spinCount < 10)
-						{
-							spinWait.SpinOnce();
-							spinCount++;
-						}
-						else
-						{
-							await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-						}
-					}
+					await Task.Delay(10, cancellationToken).ConfigureAwait(false);
+					continue;
 				}
 
-				var batch = await FetchBatchAsync(_skipCount, _configuration.ProducerBatchSize, cancellationToken).ConfigureAwait(false)
-								as ICollection<TRecord> ?? [];
+				var batchSize = Math.Min(_configuration.ProducerBatchSize, availableSlots);
+				var batch = await FetchBatchAsync(_skipCount, batchSize, cancellationToken).ConfigureAwait(false) as ICollection<TRecord>
+							?? [];
 
 				if (batch.Count == 0)
 				{
@@ -162,7 +149,12 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 				_logger.LogInformation("Enqueuing {BatchSize} DataProcessor records", batch.Count);
 
-				await _dataQueue.EnqueueBatchAsync(batch, cancellationToken).ConfigureAwait(false);
+				foreach (var record in batch)
+				{
+					await _queueSpaceAvailable.WaitAsync(cancellationToken).ConfigureAwait(false);
+					await _dataQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
+				}
+
 				_ = Interlocked.Add(ref _skipCount, batch.Count);
 
 				_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} DataProcessor records", batch.Count);
@@ -186,27 +178,73 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 	private async Task<long> ConsumerLoop(CancellationToken cancellationToken)
 	{
+		const int MaxEmptyCycles = 100;
+		var emptyCycles = 0;
 		var totalProcessedCount = 0;
 
 		try
 		{
-			await foreach (var record in _dataQueue.DequeueAllAsync(cancellationToken).ConfigureAwait(false))
+			while (!cancellationToken.IsCancellationRequested)
 			{
-				cancellationToken.ThrowIfCancellationRequested();
+				var batch = await _dataQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
 
-				try
+				if (batch.IsEmpty)
 				{
-					await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false);
-				}
-				catch (Exception ex)
-				{
-					_logger.LogError(
-						ex,
-						"Error processing record of type {RecordType}. Continuing with next record...",
-						typeof(TRecord).Name);
+					_logger.LogInformation("DataProcessor Queue is empty. Waiting for producer...");
+
+					emptyCycles++;
+					await Task.Delay(10, cancellationToken).ConfigureAwait(false);
+
+					if (Interlocked.CompareExchange(ref _producerCompleted, 0, 0) == 1)
+					{
+						await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+
+						if (_dataQueue.IsEmpty() && emptyCycles >= MaxEmptyCycles)
+						{
+							_logger.LogInformation("No more DataProcessor records. Consumer is exiting.");
+							break;
+						}
+					}
+
+					continue;
 				}
 
-				totalProcessedCount++;
+				emptyCycles = 0;
+
+				for (var i = 0; i < batch.Length; i++)
+				{
+					var record = batch.Span[i];
+
+					if (record is null)
+					{
+						continue;
+					}
+
+					try
+					{
+						await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false);
+					}
+					catch (Exception ex)
+					{
+						_logger.LogError(
+							ex,
+							"Error processing record of type {RecordType}. Continuing with next record...",
+							typeof(TRecord).Name);
+					}
+					finally
+					{
+						if (record is IDisposable disposable)
+						{
+							disposable.Dispose();
+						}
+
+						_queueSpaceAvailable.Release();
+					}
+				}
+
+				totalProcessedCount += batch.Length;
+
+				_logger.LogDebug("Completed DataProcessor batch of {BatchSize} events", batch.Length);
 			}
 
 			_logger.LogInformation("Completed DataProcessor processing, total events processed: {TotalEvents}", totalProcessedCount);
