@@ -1,4 +1,3 @@
-using Excalibur.Core.Diagnostics;
 using Excalibur.DataAccess;
 
 using Microsoft.ApplicationInsights;
@@ -27,8 +26,6 @@ public class OutboxManager : IOutboxManager, IDisposable
 	private readonly TelemetryClient? _telemetryClient;
 
 	private readonly SemaphoreSlim _queueSpaceAvailable;
-
-	private int _totalRecords;
 
 	private int _disposedFlag;
 
@@ -87,14 +84,17 @@ public class OutboxManager : IOutboxManager, IDisposable
 		await _outbox.TryUnReserveOneRecordsAsync(dispatcherId, linkedToken).ConfigureAwait(false);
 
 		var producerTask = Task.Run(() => ProducerLoop(dispatcherId, linkedToken), linkedToken);
-		var consumerTask = Task.Run(() => ConsumerLoop(dispatcherId, linkedToken), linkedToken);
+		var consumerTasks = Enumerable.Range(0, 1).Select((int _) => Task.Run(() => ConsumerLoop(dispatcherId, linkedToken), linkedToken))
+			.ToArray();
 
-		await Task.WhenAll(producerTask, consumerTask).ConfigureAwait(false);
+		await producerTask.ConfigureAwait(false);
+		var results = await Task.WhenAll(consumerTasks).ConfigureAwait(false);
 
 		_outboxQueue.Dispose();
 		_queueSpaceAvailable.Dispose();
+		await linkedCts.CancelAsync().ConfigureAwait(false);
 
-		return _totalRecords;
+		return results.Sum();
 	}
 
 	/// <inheritdoc />
@@ -158,6 +158,8 @@ public class OutboxManager : IOutboxManager, IDisposable
 
 				foreach (var record in batch)
 				{
+					cancellationToken.ThrowIfCancellationRequested();
+
 					await _queueSpaceAvailable.WaitAsync(cancellationToken).ConfigureAwait(false);
 					await _outboxQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
 				}
@@ -189,32 +191,36 @@ public class OutboxManager : IOutboxManager, IDisposable
 	/// <returns> The total number of successfully dispatched records. </returns>
 	private async Task<int> ConsumerLoop(string dispatcherId, CancellationToken cancellationToken)
 	{
-		const int MaxEmptyCycles = 100;
-		var emptyCycles = 0;
 		var totalProcessedCount = 0;
 
 		try
 		{
 			while (!cancellationToken.IsCancellationRequested)
 			{
+				var producerCompleted = Interlocked.CompareExchange(ref _producerCompleted, 0, 0);
+
+				if (producerCompleted == 1 && _outboxQueue.IsEmpty())
+				{
+					_logger.LogInformation("No more Outbox records. Consumer is exiting.");
+					break;
+				}
+
 				var batch = await _outboxQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
 
-				if (batch.IsEmpty)
+				if (producerCompleted == 0 && batch.IsEmpty)
 				{
 					_logger.LogInformation("Outbox Queue is empty. Waiting for producer...");
 
-					emptyCycles++;
-					await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-
-					if (Interlocked.CompareExchange(ref _producerCompleted, 0, 0) == 1)
+					var waitTime = 10;
+					for (var i = 0; i < 10; i++)
 					{
-						await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-
-						if (_outboxQueue.IsEmpty() && emptyCycles >= MaxEmptyCycles)
+						if (!_outboxQueue.IsEmpty())
 						{
-							_logger.LogInformation("No more Outbox records. Consumer is exiting.");
 							break;
 						}
+
+						await Task.Delay(waitTime, cancellationToken).ConfigureAwait(false);
+						waitTime = Math.Min(waitTime * 2, 100);
 					}
 
 					continue;
@@ -225,17 +231,30 @@ public class OutboxManager : IOutboxManager, IDisposable
 				for (var index = 0; index < batch.Span.Length; index++)
 				{
 					var record = batch.Span[index];
-					var stopwatch = ValueStopwatch.StartNew();
-					_ = await _outbox.DispatchReservedRecordAsync(dispatcherId, record).ConfigureAwait(false);
 
-					_telemetryClient?.GetMetric("Outbox.ProcessingTime").TrackValue(stopwatch.Elapsed.TotalMilliseconds);
-					totalProcessedCount++;
-
-					_queueSpaceAvailable.Release();
+					try
+					{
+						_ = await _outbox.DispatchReservedRecordAsync(dispatcherId, record).ConfigureAwait(false);
+					}
+					catch (Exception ex)
+					{
+						_logger.LogError(
+							ex,
+							"Error dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId} in OutboxManager",
+							record.OutboxId,
+							record.DispatcherId);
+					}
+					finally
+					{
+						_ = _queueSpaceAvailable.Release();
+					}
 				}
-			}
 
-			_logger.LogInformation("Completed Outbox processing, total events processed: {TotalEvents}", totalProcessedCount);
+				totalProcessedCount += batch.Length;
+
+				GC.Collect();
+				GC.WaitForPendingFinalizers();
+			}
 		}
 		catch (OperationCanceledException)
 		{
@@ -247,9 +266,9 @@ public class OutboxManager : IOutboxManager, IDisposable
 			throw;
 		}
 
-		_telemetryClient?.GetMetric("Outbox.RecordsProcessed").TrackValue(_totalRecords);
+		_logger.LogInformation("Completed Outbox processing, total events processed: {TotalEvents}", totalProcessedCount);
 
-		_ = Interlocked.Add(ref _totalRecords, totalProcessedCount);
+		_telemetryClient?.GetMetric("Outbox.RecordsProcessed").TrackValue(totalProcessedCount);
 
 		return totalProcessedCount;
 	}
