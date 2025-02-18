@@ -65,11 +65,6 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		_ = _appLifetime.ApplicationStopping.Register(OnApplicationStopping);
 	}
 
-	/// <summary>
-	///     Finalizer for DataProcessor to ensure cleanup.
-	/// </summary>
-	~DataProcessor() => Dispose(false);
-
 	/// <inheritdoc />
 	public virtual async Task<long> RunAsync(
 		long completedCount,

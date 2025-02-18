@@ -21,11 +21,6 @@ public sealed class OrderedEventProcessor : IDisposable
 	}
 
 	/// <summary>
-	///     Finalizer for <see cref="OrderedEventProcessor" />.
-	/// </summary>
-	~OrderedEventProcessor() => Dispose(false);
-
-	/// <summary>
 	///     Processes a collection of events asynchronously in the order they are provided.
 	/// </summary>
 	/// <param name="events"> The collection of events to process. </param>
