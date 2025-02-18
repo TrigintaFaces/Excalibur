@@ -260,6 +260,13 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 
 			while (!cancellationToken.IsCancellationRequested)
 			{
+				if (_cdcQueue.Count >= _dbConfig.QueueSize - _dbConfig.ProducerBatchSize)
+				{
+					_logger.LogInformation("CDC Queue is almost full. Producer is pausing...");
+					await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+					continue;
+				}
+
 				var maxLsn = await _cdcRepository.GetMaxPositionAsync(cancellationToken).ConfigureAwait(false);
 				var processingLastBatch = _dbConfig.CaptureInstances.Length <= 0;
 
@@ -300,11 +307,11 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 									  fromLsn,
 									  toLsn,
 									  lastSequenceValue,
-									  cancellationToken).ConfigureAwait(false);
+									  cancellationToken).ConfigureAwait(false) as ICollection<CdcRow> ?? [];
 
-					_logger.LogDebug("Fetched {RowCount} rows for {TableName}", changes.Count(), captureInstance);
+					_logger.LogDebug("Fetched {RowCount} rows for {TableName}", changes.Count, captureInstance);
 
-					if (!changes.Any())
+					if (changes.Count == 0)
 					{
 						_logger.LogInformation("No changes found for {TableName}, advancing LSN.", captureInstance);
 
@@ -328,7 +335,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 
 						_logger.LogInformation(
 							"Successfully enqueued {EnqueuedRowCount} CDC rows for {TableName}",
-							changes.Count(),
+							changes.Count,
 							captureInstance);
 					}
 				}
@@ -573,7 +580,6 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 		var fromLsnDate = await _cdcRepository.GetLsnToTimeAsync(fromLsn, cancellationToken).ConfigureAwait(false);
 		ArgumentNullException.ThrowIfNull(fromLsnDate);
 
-		// Calculate the 'toLsn' based on batch time interval
 		var toLsnDate = fromLsnDate.Value.AddMilliseconds(_dbConfig.BatchTimeInterval);
 		var toLsn = await _cdcRepository.GetTimeToLsnAsync(toLsnDate, "largest less than or equal", cancellationToken).ConfigureAwait(false)
 					?? maxLsn;
