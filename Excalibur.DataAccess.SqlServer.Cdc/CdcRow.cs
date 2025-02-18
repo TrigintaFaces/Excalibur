@@ -7,10 +7,8 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 ///     A CDC row contains metadata about the operation (e.g., insert, update, delete), the associated LSN (Log Sequence Number), and the
 ///     actual data changes.
 /// </remarks>
-public record CdcRow : IDisposable
+public record CdcRow
 {
-	private int _disposedFlag;
-
 	/// <summary>
 	///     Gets or initializes the name of the table from which the CDC row originates.
 	/// </summary>
@@ -50,26 +48,4 @@ public record CdcRow : IDisposable
 	/// </summary>
 	/// <remarks> This is useful for interpreting the data changes with their corresponding data types. </remarks>
 	public required Dictionary<string, Type?> DataTypes { get; init; }
-
-	protected virtual void Dispose(bool disposing)
-	{
-		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
-		{
-			return;
-		}
-
-		if (disposing)
-		{
-			Changes.Clear();
-			DataTypes.Clear();
-		}
-	}
-
-	public void Dispose()
-	{
-		Dispose(true);
-		GC.SuppressFinalize(this);
-	}
-
-	~CdcRow() => Dispose(false);
 }
