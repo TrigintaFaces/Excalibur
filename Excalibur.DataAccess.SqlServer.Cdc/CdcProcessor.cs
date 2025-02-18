@@ -83,11 +83,6 @@ public class CdcProcessor : ICdcProcessor
 	}
 
 	/// <summary>
-	///     Finalizer for <see cref="CdcProcessor" /> to ensure cleanup.
-	/// </summary>
-	~CdcProcessor() => Dispose(false);
-
-	/// <summary>
 	///     Processes CDC changes asynchronously by producing changes from the database and consuming them with the provided handler.
 	/// </summary>
 	/// <param name="eventHandler"> A delegate that handles data change events. </param>
@@ -130,9 +125,6 @@ public class CdcProcessor : ICdcProcessor
 		}
 		finally
 		{
-			_cdcQueue.Dispose();
-			_queueSpaceAvailable.Dispose();
-
 			await linkedCts.CancelAsync().ConfigureAwait(false);
 		}
 	}
@@ -265,6 +257,12 @@ public class CdcProcessor : ICdcProcessor
 
 			while (!cancellationToken.IsCancellationRequested)
 			{
+				if (_disposedFlag == 1)
+				{
+					_logger.LogWarning("ProducerLoop detected disposal. Exiting.");
+					return;
+				}
+
 				if (_cdcQueue.Count >= _dbConfig.QueueSize - _dbConfig.ProducerBatchSize)
 				{
 					_logger.LogInformation("CDC Queue is almost full. Producer is pausing...");
@@ -387,6 +385,12 @@ public class CdcProcessor : ICdcProcessor
 
 		while (!cancellationToken.IsCancellationRequested)
 		{
+			if (_disposedFlag == 1)
+			{
+				_logger.LogWarning("ProducerLoop detected disposal. Exiting.");
+				break;
+			}
+
 			if (_producerCompleted == 1 && _cdcQueue.IsEmpty())
 			{
 				_logger.LogInformation("No more CDC records. Consumer is exiting.");

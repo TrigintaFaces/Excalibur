@@ -70,11 +70,6 @@ public class OutboxManager : IOutboxManager
 		_ = _appLifetime.ApplicationStopping.Register(OnApplicationStopping);
 	}
 
-	/// <summary>
-	///     Finalizer for <see cref="OutboxManager" /> to ensure cleanup.
-	/// </summary>
-	~OutboxManager() => Dispose(false);
-
 	/// <inheritdoc />
 	public async Task<int> RunOutboxDispatchAsync(string dispatcherId, CancellationToken cancellationToken = default)
 	{

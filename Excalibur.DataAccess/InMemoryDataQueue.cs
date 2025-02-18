@@ -39,11 +39,6 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 	}
 
 	/// <summary>
-	///     Finalizes an instance of the <see cref="InMemoryDataQueue{TRecord}" /> class.
-	/// </summary>
-	~InMemoryDataQueue() => Dispose(false);
-
-	/// <summary>
 	///     Gets the current number of items in the queue.
 	/// </summary>
 	public int Count => Volatile.Read(ref _count);

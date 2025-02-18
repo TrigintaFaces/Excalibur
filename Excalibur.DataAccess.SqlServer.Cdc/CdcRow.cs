@@ -70,6 +70,4 @@ public record CdcRow : IDisposable
 		Dispose(true);
 		GC.SuppressFinalize(this);
 	}
-
-	~CdcRow() => Dispose(false);
 }

@@ -9,7 +9,9 @@ namespace Excalibur.DataAccess;
 public sealed class OrderedTaskScheduler : TaskScheduler, IDisposable
 {
 	private readonly BlockingCollection<Task> _tasks = new();
+
 	private readonly Thread _thread;
+
 	private bool _disposed;
 
 	/// <summary>
@@ -23,11 +25,6 @@ public sealed class OrderedTaskScheduler : TaskScheduler, IDisposable
 		};
 		_thread.Start();
 	}
-
-	/// <summary>
-	///     Finalizer for <see cref="OrderedTaskScheduler" />.
-	/// </summary>
-	~OrderedTaskScheduler() => Dispose(false);
 
 	/// <summary>
 	///     Releases all resources used by the scheduler and stops the execution thread.
@@ -64,6 +61,7 @@ public sealed class OrderedTaskScheduler : TaskScheduler, IDisposable
 
 	/// <inheritdoc />
 	protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued) =>
+
 		// Inline execution is not allowed to ensure strict order
 		false;
 
