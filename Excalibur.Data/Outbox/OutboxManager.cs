@@ -205,7 +205,7 @@ public class OutboxManager : IOutboxManager, IDisposable
 
 				var batch = await _outboxQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
 
-				if (_producerCompleted == 0 && batch.IsEmpty)
+				if (_producerCompleted == 0 && batch.Count == 0)
 				{
 					_logger.LogInformation("Outbox Queue is empty. Waiting for producer...");
 
@@ -224,12 +224,10 @@ public class OutboxManager : IOutboxManager, IDisposable
 					continue;
 				}
 
-				_logger.LogInformation("Processing Outbox batch of {BatchSize} records", batch.Length);
+				_logger.LogInformation("Processing Outbox batch of {BatchSize} records", batch.Count);
 
-				for (var index = 0; index < batch.Span.Length; index++)
+				foreach (var record in batch)
 				{
-					var record = batch.Span[index];
-
 					try
 					{
 						_ = await _outbox.DispatchReservedRecordAsync(dispatcherId, record).ConfigureAwait(false);
@@ -251,7 +249,7 @@ public class OutboxManager : IOutboxManager, IDisposable
 					}
 				}
 
-				totalProcessedCount += batch.Length;
+				totalProcessedCount += batch.Count;
 
 				GC.Collect();
 				GC.WaitForPendingFinalizers();
