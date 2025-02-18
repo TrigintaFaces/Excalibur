@@ -176,24 +176,22 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 	/// <summary>
 	///     Processes CDC rows into data change events.
 	/// </summary>
-	/// <param name="sortedCdcRows"> The sorted rows of CDC data to process. </param>
+	/// <param name="cdcRows"> The rows of CDC data to process. </param>
 	/// <returns> An array of <see cref="DataChangeEvent" /> representing the processed changes. </returns>
-	private DataChangeEvent[] GetDataChangeEvents(CdcRow[] sortedCdcRows)
+	private DataChangeEvent[] GetDataChangeEvents(CdcRow[] cdcRows)
 	{
-		if (sortedCdcRows == null || sortedCdcRows.Length == 0)
+		if (cdcRows == null || cdcRows.Length == 0)
 		{
-			_logger.LogWarning("GetDataChangeEvents received a null or empty sortedCdcRows array.");
+			_logger.LogWarning("GetDataChangeEvents received a null or empty cdcRows array.");
 			return [];
 		}
 
-		Array.Sort(sortedCdcRows, new CdcRowComparer());
-
-		var dataChangeEvents = new DataChangeEvent[sortedCdcRows.Length];
+		var dataChangeEvents = new DataChangeEvent[cdcRows.Length];
 		var index = 0;
 
-		for (var i = 0; i < sortedCdcRows.Length; i++)
+		for (var i = 0; i < cdcRows.Length; i++)
 		{
-			var cdcRow = sortedCdcRows[i];
+			var cdcRow = cdcRows[i];
 
 			if (cdcRow is null)
 			{
@@ -204,9 +202,10 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 			switch (cdcRow.OperationCode)
 			{
 				case CdcOperationCodes.UpdateBefore:
-					if (i + 1 < sortedCdcRows.Length && sortedCdcRows[i + 1].OperationCode == CdcOperationCodes.UpdateAfter)
+					var updateAfterRow = cdcRows[i + 1]?.OperationCode == CdcOperationCodes.UpdateAfter ? cdcRows[i + 1] : null;
+					if (i + 1 < cdcRows.Length && updateAfterRow != null)
 					{
-						dataChangeEvents[index++] = DataChangeEvent.CreateUpdateEvent(cdcRow, sortedCdcRows[i + 1]);
+						dataChangeEvents[index++] = DataChangeEvent.CreateUpdateEvent(cdcRow, updateAfterRow);
 						i++;
 					}
 					else

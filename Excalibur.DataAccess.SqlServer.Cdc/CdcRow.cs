@@ -137,24 +137,3 @@ public record CdcRow : IDisposable
 
 	~CdcRow() => Dispose(false);
 }
-
-public class CdcRowComparer : IComparer<CdcRow>
-{
-	public int Compare(CdcRow? x, CdcRow? y)
-	{
-		if (x == null || y == null)
-		{
-			return 0;
-		}
-
-		var tableComparison = string.Compare(x.TableName, y.TableName, StringComparison.Ordinal);
-		if (tableComparison != 0)
-		{
-			return tableComparison;
-		}
-
-		var lsnComparison = x.Lsn.CompareLsn(y.Lsn);
-
-		return lsnComparison != 0 ? lsnComparison : x.SeqVal.CompareLsn(y.SeqVal);
-	}
-}
