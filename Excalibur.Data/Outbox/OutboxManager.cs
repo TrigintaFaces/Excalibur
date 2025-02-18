@@ -1,6 +1,8 @@
+using Excalibur.Core.Diagnostics;
 using Excalibur.DataAccess;
 
 using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -228,12 +230,18 @@ public class OutboxManager : IOutboxManager, IDisposable
 
 				foreach (var record in batch)
 				{
+					var stopwatch = ValueStopwatch.StartNew();
 					try
 					{
 						_ = await _outbox.DispatchReservedRecordAsync(dispatcherId, record).ConfigureAwait(false);
+
+						_telemetryClient?.GetMetric("Outbox.ProcessingTime").TrackValue(stopwatch.Elapsed.TotalMilliseconds);
 					}
 					catch (Exception ex)
 					{
+						_telemetryClient?.TrackException(
+							new ExceptionTelemetry(ex) { Message = "Error in Outbox processing", SeverityLevel = SeverityLevel.Error });
+
 						_logger.LogError(
 							ex,
 							"Error dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId} in OutboxManager",
@@ -250,9 +258,6 @@ public class OutboxManager : IOutboxManager, IDisposable
 				}
 
 				totalProcessedCount += batch.Count;
-
-				GC.Collect();
-				GC.WaitForPendingFinalizers();
 			}
 		}
 		catch (OperationCanceledException)
