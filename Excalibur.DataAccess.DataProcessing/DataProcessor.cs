@@ -193,7 +193,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 				var batch = await _dataQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
 
-				if (_producerCompleted == 0 && batch.IsEmpty)
+				if (_producerCompleted == 0 && batch.Count == 0)
 				{
 					_logger.LogInformation("DataProcessor Queue is empty. Waiting for producer...");
 
@@ -212,10 +212,8 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 					continue;
 				}
 
-				for (var i = 0; i < batch.Length; i++)
+				foreach (var record in batch)
 				{
-					var record = batch.Span[i];
-
 					if (record is null)
 					{
 						continue;
@@ -246,9 +244,9 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 					}
 				}
 
-				totalProcessedCount += batch.Length;
+				totalProcessedCount += batch.Count;
 
-				_logger.LogDebug("Completed DataProcessor batch of {BatchSize} events", batch.Length);
+				_logger.LogDebug("Completed DataProcessor batch of {BatchSize} events", batch.Count);
 
 				GC.Collect();
 				GC.WaitForPendingFinalizers();

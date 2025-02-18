@@ -379,6 +379,8 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 
 		var totalProcessedCount = 0;
 		var batchOffset = 0;
+		CdcRow? remainingUpdateBeforeLast = null;
+
 		while (!cancellationToken.IsCancellationRequested)
 		{
 			if (_producerCompleted == 1 && _cdcQueue.IsEmpty())
@@ -392,10 +394,10 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 			{
 				_logger.LogDebug("Attempting to dequeue CDC messages...");
 				var stopwatch = ValueStopwatch.StartNew();
-				var batchMemory = await _cdcQueue.DequeueBatchAsync(_dbConfig.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
-				_logger.LogDebug("Dequeued {BatchSize} messages in {ElapsedMs}ms", batchMemory.Length, stopwatch.Elapsed.TotalMilliseconds);
+				var batchQueue = await _cdcQueue.DequeueBatchAsync(_dbConfig.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
+				_logger.LogDebug("Dequeued {BatchSize} messages in {ElapsedMs}ms", batchQueue.Count, stopwatch.Elapsed.TotalMilliseconds);
 
-				if (_producerCompleted == 0 && batchMemory.IsEmpty)
+				if (_producerCompleted == 0 && batchQueue.Count == 0)
 				{
 					_logger.LogInformation("CDC Queue is empty. Waiting for producer...");
 
@@ -414,9 +416,9 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 					continue;
 				}
 
-				for (var i = 0; i < batchMemory.Length; i++)
+				for (var i = 0; i < batchQueue.Count; i++)
 				{
-					var cdcRow = batchMemory.Span[i];
+					var cdcRow = batchQueue[i];
 
 					if (cdcRow is null)
 					{

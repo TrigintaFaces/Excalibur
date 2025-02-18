@@ -88,13 +88,17 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 			while (_channel.Reader.TryRead(out var record))
 			{
 				_ = Interlocked.Decrement(ref _count);
-				yield return record;
+
+				if (record != null)
+				{
+					yield return record;
+				}
 			}
 		}
 	}
 
 	/// <inheritdoc />
-	public async Task<Memory<TRecord>> DequeueBatchAsync(int batchSize, CancellationToken cancellationToken = default)
+	public async Task<IList<TRecord>> DequeueBatchAsync(int batchSize, CancellationToken cancellationToken = default)
 	{
 		var available = Math.Min(batchSize, Count);
 		var buffer = new TRecord[available];
@@ -106,7 +110,11 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 
 			while (_channel.Reader.TryRead(out var record))
 			{
-				buffer[index++] = record;
+				if (record != null)
+				{
+					buffer[index++] = record;
+				}
+
 				_ = Interlocked.Decrement(ref _count);
 
 				if (index >= available)
@@ -116,12 +124,7 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 			}
 		}
 
-		if (index == 0)
-		{
-			return Memory<TRecord>.Empty;
-		}
-
-		return new(buffer, 0, index);
+		return buffer;
 	}
 
 	public bool HasPendingItems() => Count > 0;
