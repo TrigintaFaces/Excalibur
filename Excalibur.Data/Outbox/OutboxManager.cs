@@ -13,7 +13,7 @@ namespace Excalibur.Data.Outbox;
 ///     Manages the dispatch of outbox messages using a producer-consumer pattern. Handles the reservation, processing, and cleanup of
 ///     outbox records.
 /// </summary>
-public class OutboxManager : IOutboxManager, IDisposable
+public class OutboxManager : IOutboxManager
 {
 	private readonly OutboxConfiguration _configuration;
 

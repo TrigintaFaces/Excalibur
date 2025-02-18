@@ -22,8 +22,11 @@ namespace Excalibur.Jobs.Quartz.Outbox;
 public class OutboxJob : IJob, IConfigurableJob<OutboxJobConfig>
 {
 	private const string JobConfigSectionName = $"Jobs:{nameof(OutboxJob)}";
+
 	private static readonly string DispatcherId = Uuid7Extensions.GenerateString();
+
 	private readonly IOutboxManager _outboxManager;
+
 	private readonly ILogger<OutboxJob> _logger;
 
 	/// <summary>
@@ -58,16 +61,12 @@ public class OutboxJob : IJob, IConfigurableJob<OutboxJobConfig>
 			return;
 		}
 
-		_ = configurator.AddJob<OutboxJob>(jobKey, job => job
-			.WithIdentity(jobKey)
-			.WithDescription("Dispatch outbox messages job"));
+		_ = configurator.AddJob<OutboxJob>(jobKey, (IJobConfigurator job) => job.WithIdentity(jobKey).WithDescription("Dispatch outbox messages job"));
 
-		_ = configurator.AddTrigger(trigger => trigger
-			.ForJob(jobKey)
-			.WithIdentity($"{jobConfig.JobName}Trigger")
-			.StartAt(DateBuilder.EvenSecondDate(DateTimeOffset.UtcNow.AddSeconds(15)))
-			.WithCronSchedule(jobConfig.CronSchedule)
-			.WithDescription("A cron based trigger for the dispatch of outbox messages"));
+		_ = configurator.AddTrigger(
+			(ITriggerConfigurator trigger) => trigger.ForJob(jobKey).WithIdentity($"{jobConfig.JobName}Trigger")
+				.StartAt(DateBuilder.EvenSecondDate(DateTimeOffset.UtcNow.AddSeconds(15))).WithCronSchedule(jobConfig.CronSchedule)
+				.WithDescription("A cron based trigger for the dispatch of outbox messages"));
 	}
 
 	/// <summary>
@@ -76,8 +75,7 @@ public class OutboxJob : IJob, IConfigurableJob<OutboxJobConfig>
 	/// <param name="healthChecks"> The health checks builder. </param>
 	/// <param name="configuration"> The application configuration. </param>
 	/// <param name="loggerFactory"> The logger factory for creating loggers. </param>
-	public static void ConfigureHealthChecks(IHealthChecksBuilder healthChecks, IConfiguration configuration,
-		ILoggerFactory loggerFactory)
+	public static void ConfigureHealthChecks(IHealthChecksBuilder healthChecks, IConfiguration configuration, ILoggerFactory loggerFactory)
 	{
 		ArgumentNullException.ThrowIfNull(healthChecks);
 		ArgumentNullException.ThrowIfNull(configuration);
@@ -101,6 +99,7 @@ public class OutboxJob : IJob, IConfigurableJob<OutboxJobConfig>
 		var jobGroup = context.JobDetail.Key.Group;
 
 		using (_logger.BeginScope(new Dictionary<string, object> { ["JobGroup"] = jobGroup, ["JobName"] = jobName }))
+		using (_outboxManager)
 		{
 			try
 			{

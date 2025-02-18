@@ -19,9 +19,13 @@ namespace Excalibur.Jobs.Quartz.Cdc;
 public class CdcJob : IJob, IConfigurableJob<CdcJobConfig>
 {
 	private const string JobConfigSectionName = "Jobs:CdcJob";
+
 	private readonly IConfiguration _configuration;
+
 	private readonly IDataChangeEventProcessorFactory _factory;
+
 	private readonly IOptions<CdcJobConfig> _cdcConfigOptions;
+
 	private readonly ILogger<CdcJob> _logger;
 
 	/// <summary>
@@ -61,16 +65,12 @@ public class CdcJob : IJob, IConfigurableJob<CdcJobConfig>
 		var jobConfig = configuration.GetJobConfiguration<CdcJobConfig>(JobConfigSectionName);
 		var jobKey = new JobKey(jobConfig.JobName, jobConfig.JobGroup);
 
-		_ = configurator.AddJob<CdcJob>(jobKey, job => job
-			.WithIdentity(jobKey)
-			.WithDescription("CDC processing job"));
+		_ = configurator.AddJob<CdcJob>(jobKey, (IJobConfigurator job) => job.WithIdentity(jobKey).WithDescription("CDC processing job"));
 
-		_ = configurator.AddTrigger(trigger => trigger
-			.ForJob(jobKey)
-			.WithIdentity($"{jobConfig.JobName}Trigger")
-			.StartAt(DateBuilder.EvenSecondDate(DateTimeOffset.UtcNow.AddSeconds(15)))
-			.WithCronSchedule(jobConfig.CronSchedule)
-			.WithDescription("Trigger for CDC processing job"));
+		_ = configurator.AddTrigger(
+			(ITriggerConfigurator trigger) => trigger.ForJob(jobKey).WithIdentity($"{jobConfig.JobName}Trigger")
+				.StartAt(DateBuilder.EvenSecondDate(DateTimeOffset.UtcNow.AddSeconds(15))).WithCronSchedule(jobConfig.CronSchedule)
+				.WithDescription("Trigger for CDC processing job"));
 	}
 
 	/// <summary>
@@ -79,8 +79,7 @@ public class CdcJob : IJob, IConfigurableJob<CdcJobConfig>
 	/// <param name="healthChecks"> The health checks builder. </param>
 	/// <param name="configuration"> The application configuration. </param>
 	/// <param name="loggerFactory"> The logger factory for creating loggers. </param>
-	public static void ConfigureHealthChecks(IHealthChecksBuilder healthChecks, IConfiguration configuration,
-		ILoggerFactory loggerFactory)
+	public static void ConfigureHealthChecks(IHealthChecksBuilder healthChecks, IConfiguration configuration, ILoggerFactory loggerFactory)
 	{
 		ArgumentNullException.ThrowIfNull(healthChecks);
 		ArgumentNullException.ThrowIfNull(configuration);
@@ -110,20 +109,24 @@ public class CdcJob : IJob, IConfigurableJob<CdcJobConfig>
 			{
 				_logger.LogInformation("Starting execution of {JobGroup}:{JobName}.", jobGroup, jobName);
 
-				var tasks = jobConfig.DatabaseConfigs.Select(dbConfig =>
-				{
-					var cdcDb = _configuration.GetSqlDb(dbConfig.DatabaseConnectionIdentifier)();
-					var stateStoreDb = _configuration.GetSqlDb(dbConfig.StateConnectionIdentifier)();
+				var tasks = jobConfig.DatabaseConfigs.Select(
+					(DatabaseConfig dbConfig) =>
+					{
+						var cdcDb = _configuration.GetSqlDb(dbConfig.DatabaseConnectionIdentifier)();
+						var stateStoreDb = _configuration.GetSqlDb(dbConfig.StateConnectionIdentifier)();
 
-					var processor = _factory.Create(dbConfig, cdcDb, stateStoreDb);
-					return processor.ProcessCdcChangesAsync(context.CancellationToken);
-				});
+						using var processor = _factory.Create(dbConfig, cdcDb, stateStoreDb);
+						return processor.ProcessCdcChangesAsync(context.CancellationToken);
+					});
 
 				var results = await Task.WhenAll(tasks).ConfigureAwait(false);
 
 				JobHealthCheck.Heartbeat(jobName);
 
-				_logger.LogInformation("Completed execution of {JobGroup}:{JobName}. Processed {TotalEvents} events.", jobGroup, jobName,
+				_logger.LogInformation(
+					"Completed execution of {JobGroup}:{JobName}. Processed {TotalEvents} events.",
+					jobGroup,
+					jobName,
 					results.Sum());
 			}
 			catch (Exception ex)
