@@ -12,12 +12,12 @@ public class CdcPosition
 {
 	public CdcPosition(byte[] lsn, byte[]? seqVal, DateTime commitTime)
 	{
-		LSN = lsn;
+		Lsn = lsn;
 		SequenceValue = seqVal;
 		CommitTime = commitTime;
 	}
 
-	public byte[] LSN { get; init; }
+	public byte[] Lsn { get; init; }
 
 	public byte[]? SequenceValue { get; init; }
 
@@ -108,7 +108,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 			var processingStates = await _stateStore.GetLastProcessedPositionAsync(
 									   _dbConfig.DatabaseConnectionIdentifier,
 									   _dbConfig.DatabaseName,
-									   cancellationToken).ConfigureAwait(false);
+									   linkedToken).ConfigureAwait(false);
 
 			foreach (var processingState in processingStates)
 			{
@@ -121,7 +121,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 
 			var producerTask = Task.Run(() => ProducerLoop(linkedToken), linkedToken);
 			var consumerTasks = Enumerable.Range(0, 1)
-				.Select((int _) => Task.Run(() => ConsumerLoop(eventHandler, cancellationToken), cancellationToken)).ToArray();
+				.Select((int _) => Task.Run(() => ConsumerLoop(eventHandler, linkedToken), linkedToken)).ToArray();
 
 			await producerTask.ConfigureAwait(false);
 			var results = await Task.WhenAll(consumerTasks).ConfigureAwait(false);
@@ -278,7 +278,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 				foreach (var captureInstance in _dbConfig.CaptureInstances)
 				{
 					var cdcPosition = _tracking.GetValueOrDefault(captureInstance);
-					var startProcessingFrom = await GetInitialStartLsn(captureInstance, cdcPosition?.LSN, cancellationToken)
+					var startProcessingFrom = await GetInitialStartLsn(captureInstance, cdcPosition?.Lsn, cancellationToken)
 												  .ConfigureAwait(false);
 					var commitTime = cdcPosition != null && cdcPosition.CommitTime != default
 										 ? cdcPosition.CommitTime
@@ -294,7 +294,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 					byte[]? lastSequenceValue = null;
 					var (fromLsn, toLsn, toLsnDate) = await GetLsnRange(commitTime.Value, maxLsn, cancellationToken).ConfigureAwait(false);
 
-					if (cdcPosition != null && fromLsn.CompareLsn(cdcPosition.LSN) == 0)
+					if (cdcPosition != null && fromLsn.CompareLsn(cdcPosition.Lsn) == 0)
 					{
 						lastSequenceValue = cdcPosition.SequenceValue;
 					}
@@ -384,8 +384,6 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 		_logger.LogInformation("CDC Consumer loop started...");
 
 		var totalProcessedCount = 0;
-		var batchOffset = 0;
-		CdcRow? remainingUpdateBeforeLast = null;
 
 		while (!cancellationToken.IsCancellationRequested)
 		{

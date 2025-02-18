@@ -46,7 +46,10 @@ public class CdcRepository : ICdcRepository
 		var parameters = new DynamicParameters();
 		parameters.Add("LastProcessedLsn", lastProcessedLsn, DbType.Binary, size: 10);
 
-		var command = new CommandDefinition(CommandText, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+		var command = new CommandDefinition(
+			CommandText,
+			parameters: parameters,
+			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
 		var result = await connection.QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
@@ -63,7 +66,10 @@ public class CdcRepository : ICdcRepository
 		var parameters = new DynamicParameters();
 		parameters.Add("Lsn", lsn, DbType.Binary, size: 10);
 
-		var command = new CommandDefinition(CommandText, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+		var command = new CommandDefinition(
+			CommandText,
+			parameters: parameters,
+			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
 		var result = await connection.QuerySingleOrDefaultAsync<DateTime?>(command).ConfigureAwait(false);
@@ -81,7 +87,10 @@ public class CdcRepository : ICdcRepository
 		parameters.Add("LsnDate", lsnDate);
 		parameters.Add("RelationalOperator", relationalOperator);
 
-		var command = new CommandDefinition(CommandText, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+		var command = new CommandDefinition(
+			CommandText,
+			parameters: parameters,
+			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
 		var result = await connection.QuerySingleAsync<byte[]?>(command).ConfigureAwait(false);
@@ -98,7 +107,10 @@ public class CdcRepository : ICdcRepository
 		var parameters = new DynamicParameters();
 		parameters.Add("CaptureInstance", captureInstance);
 
-		var command = new CommandDefinition(CommandText, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+		var command = new CommandDefinition(
+			CommandText,
+			parameters: parameters,
+			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
 		var result = await connection.QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
@@ -111,7 +123,9 @@ public class CdcRepository : ICdcRepository
 	{
 		const string CommandText = "SELECT sys.fn_cdc_get_max_lsn();";
 		var connection = _connection.Ready();
-		var command = new CommandDefinition(CommandText, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+		var command = new CommandDefinition(
+			CommandText,
+			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
 		var result = await connection.QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
@@ -139,7 +153,10 @@ public class CdcRepository : ICdcRepository
 			parameters.Add("from_lsn", fromPosition, DbType.Binary, size: 10);
 			parameters.Add("to_lsn", toPosition, DbType.Binary, size: 10);
 
-			var command = new CommandDefinition(commandText, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+			var command = new CommandDefinition(
+				commandText,
+				parameters: parameters,
+				commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 				cancellationToken: cancellationToken);
 
 			var exists = await connection.ExecuteScalarAsync<int?>(command).ConfigureAwait(false);
@@ -208,43 +225,36 @@ public class CdcRepository : ICdcRepository
 		parameters.Add("to_lsn", toPosition, DbType.Binary, size: 10);
 		parameters.Add("lastSequenceValue", lastSequenceValue, DbType.Binary, size: 10);
 
-		var command = new CommandDefinition(commandText, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+		var command = new CommandDefinition(
+			commandText,
+			parameters: parameters,
+			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 		var reader = (DbDataReader)await connection.ExecuteReaderAsync(command).ConfigureAwait(false);
 		var resultList = new List<CdcRow>();
 
 		await using (reader)
 		{
-			var dataTypes = CdcRow.GetOrCreateDataTypes(captureInstance, rentedDict =>
-			{
-				for (var i = 0; i < reader.FieldCount; i++)
-				{
-					var columnName = reader.GetName(i);
-					var fieldType = reader.GetFieldType(i);
+			var dataTypes = new Dictionary<string, Type?>();
 
-					rentedDict[columnName] = fieldType;
-				}
-			});
+			for (var i = 0; i < reader.FieldCount; i++)
+			{
+				var columnName = reader.GetName(i);
+				var fieldType = reader.GetFieldType(i);
+				dataTypes.Add(columnName, fieldType);
+			}
 
 			while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
 			{
 				cancellationToken.ThrowIfCancellationRequested();
 
-				var changes = CdcRow.RentChangesDictionary();
-				foreach (var columnName in dataTypes.Keys.Where(columnName =>
-							 !(columnName.StartsWith("__$", StringComparison.InvariantCultureIgnoreCase) ||
-							   columnName == "TableName" ||
-							   columnName == "CommitTime" ||
-							   columnName == "OperationCode" ||
-							   columnName == "SequenceValue")))
+				var changes = new Dictionary<string, object>();
+				foreach (var columnName in dataTypes.Keys.Where(
+							 (string columnName) => !(columnName.StartsWith("__$", StringComparison.InvariantCultureIgnoreCase)
+													  || columnName == "TableName" || columnName == "CommitTime" || columnName == "OperationCode"
+													  || columnName == "SequenceValue")))
 				{
 					changes[columnName] = reader[columnName];
-				}
-
-				var matchedDataTypes = CdcRow.RentDataTypesDictionary();
-				foreach (var kvp in dataTypes.Where(ct => changes.ContainsKey(ct.Key)))
-				{
-					matchedDataTypes[kvp.Key] = kvp.Value;
 				}
 
 				var cdcRow = new CdcRow
@@ -255,7 +265,8 @@ public class CdcRepository : ICdcRepository
 					SeqVal = (byte[])reader["SequenceValue"],
 					CommitTime = (DateTime)reader["CommitTime"],
 					Changes = changes,
-					DataTypes = matchedDataTypes
+					DataTypes = dataTypes.Where((KeyValuePair<string, Type> ct) => changes.ContainsKey(ct.Key))
+									 .ToDictionary((KeyValuePair<string, Type> kvp) => kvp.Key, (KeyValuePair<string, Type> kvp) => kvp.Value)
 				};
 
 				resultList.Add(cdcRow);
@@ -265,16 +276,20 @@ public class CdcRepository : ICdcRepository
 		return resultList;
 	}
 
-	private static CdcOperationCodes GetOperationCode(int operationCode) => operationCode switch
-	{
-		1 => CdcOperationCodes.Delete,
-		2 => CdcOperationCodes.Insert,
-		3 => CdcOperationCodes.UpdateBefore,
-		4 => CdcOperationCodes.UpdateAfter,
-		_ => CdcOperationCodes.Unknown
-	};
+	private static CdcOperationCodes GetOperationCode(int operationCode) =>
+		operationCode switch
+		{
+			1 => CdcOperationCodes.Delete,
+			2 => CdcOperationCodes.Insert,
+			3 => CdcOperationCodes.UpdateBefore,
+			4 => CdcOperationCodes.UpdateAfter,
+			_ => CdcOperationCodes.Unknown
+		};
 
-	private async Task<int> GetRowCountAsync(byte[] fromPosition, byte[] toPosition, string captureInstance,
+	private async Task<int> GetRowCountAsync(
+		byte[] fromPosition,
+		byte[] toPosition,
+		string captureInstance,
 		CancellationToken cancellationToken)
 	{
 		var commandText = $"""
