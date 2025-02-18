@@ -57,7 +57,9 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns> The total number of events processed. </returns>
 	public Task<int> ProcessCdcChangesAsync(CancellationToken cancellationToken) =>
-		ProcessCdcChangesAsync(HandleCdcDataChangeEvents, cancellationToken);
+		ProcessCdcChangesAsync(
+			(DataChangeEvent[] changeEvents, CancellationToken token) => HandleCdcDataChangeEvents(changeEvents, token).AsTask(),
+			cancellationToken);
 
 	/// <summary>
 	///     Handles a collection of CDC data change events by invoking the appropriate handlers.
@@ -68,7 +70,7 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 	/// <exception cref="CdcMissingTableHandlerException">
 	///     Thrown when no handler is found for a table, and <see cref="IDatabaseConfig.StopOnMissingTableHandler" /> is true.
 	/// </exception>
-	private async Task<int> HandleCdcDataChangeEvents(IEnumerable<DataChangeEvent> changeEvents, CancellationToken cancellationToken)
+	private async ValueTask<int> HandleCdcDataChangeEvents(IEnumerable<DataChangeEvent> changeEvents, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(changeEvents);
 
@@ -76,38 +78,47 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 
 		if (events.Count == 0)
 		{
-			return 0;
+			return await ValueTask.FromResult(0).ConfigureAwait(false);
 		}
 
+		return await new ValueTask<int>(ProcessEventsAsync(events, cancellationToken)).ConfigureAwait(false);
+	}
+
+	private async Task<int> ProcessEventsAsync(ICollection<DataChangeEvent> changeEvents, CancellationToken cancellationToken)
+	{
 		var totalEvents = 0;
 
-		foreach (var changeEvent in events)
-		{
-			try
-			{
-				using var scope = _serviceProvider.CreateScope();
-				var scopedHandlerRegistry = scope.ServiceProvider.GetRequiredService<IDataChangeHandlerRegistry>();
-				var handler = scopedHandlerRegistry.GetHandler(changeEvent.TableName);
-				await handler.Handle(changeEvent, cancellationToken).ConfigureAwait(false);
+		using var orderedEventProcessor = new OrderedEventProcessor();
 
-				_logger.LogInformation("Successfully processed change event for table '{TableName}'.", changeEvent.TableName);
-				totalEvents++;
-			}
-			catch (CdcMissingTableHandlerException ex)
+		await orderedEventProcessor.ProcessEventsAsync(
+			changeEvents,
+			async (DataChangeEvent changeEvent) =>
 			{
-				_logger.LogError(ex, "Error handling data change event for table '{TableName}. No handler found.'", changeEvent.TableName);
-
-				if (_dbConfig.StopOnMissingTableHandler)
+				try
 				{
+					using var scope = _serviceProvider.CreateScope();
+					var scopedHandlerRegistry = scope.ServiceProvider.GetRequiredService<IDataChangeHandlerRegistry>();
+					var handler = scopedHandlerRegistry.GetHandler(changeEvent.TableName);
+					await handler.Handle(changeEvent, cancellationToken).ConfigureAwait(false);
+
+					_logger.LogInformation("Successfully processed change event for table '{TableName}'.", changeEvent.TableName);
+					Interlocked.Increment(ref totalEvents);
+				}
+				catch (CdcMissingTableHandlerException ex)
+				{
+					_logger.LogWarning(ex, "No handler found for table '{TableName}'. Event skipped.", changeEvent.TableName);
+
+					if (_dbConfig.StopOnMissingTableHandler)
+					{
+						throw;
+					}
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, "Unexpected error processing change event for table '{TableName}'.", changeEvent.TableName);
 					throw;
 				}
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, "Unexpected error processing change event for table '{TableName}'.", changeEvent.TableName);
-				throw;
-			}
-		}
+			}).ConfigureAwait(false);
 
 		return totalEvents;
 	}
