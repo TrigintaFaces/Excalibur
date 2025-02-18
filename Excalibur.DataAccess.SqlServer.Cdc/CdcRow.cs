@@ -1,6 +1,3 @@
-using System.Collections.Concurrent;
-using System.Collections.Immutable;
-
 namespace Excalibur.DataAccess.SqlServer.Cdc;
 
 /// <summary>
@@ -42,69 +39,17 @@ public record CdcRow : IDisposable
 	/// </summary>
 	public DateTime CommitTime { get; init; }
 
-	private static readonly ConcurrentDictionary<string, ImmutableDictionary<string, Type?>> DataTypeCache = new();
-
-	private static readonly ConcurrentBag<Dictionary<string, object>> ChangesPool = [];
-
-	private static readonly ConcurrentBag<Dictionary<string, Type?>> DataTypesPool = [];
-
 	/// <summary>
 	///     Gets or sets a dictionary containing the actual data changes for the CDC row.
 	/// </summary>
 	/// <remarks> The dictionary contains column names as keys and their corresponding new values as values. </remarks>
-	public required Dictionary<string, object> Changes { get; init; }
+	public required IDictionary<string, object> Changes { get; init; }
 
 	/// <summary>
 	///     Gets or sets a dictionary mapping column names to their data types.
 	/// </summary>
 	/// <remarks> This is useful for interpreting the data changes with their corresponding data types. </remarks>
 	public required Dictionary<string, Type?> DataTypes { get; init; }
-
-	public static ImmutableDictionary<string, Type?>? GetOrCreateDataTypes(string tableName, Action<Dictionary<string, Type?>> populateFunc)
-	{
-		ArgumentException.ThrowIfNullOrWhiteSpace(tableName);
-		ArgumentNullException.ThrowIfNull(populateFunc);
-
-		return DataTypeCache.GetOrAdd(
-			tableName,
-			(string _) =>
-			{
-				var rentedDict = RentDataTypesDictionary();
-
-				try
-				{
-					populateFunc(rentedDict);
-					return rentedDict.ToImmutableDictionary();
-				}
-				finally
-				{
-					rentedDict.Clear();
-					DataTypesPool.Add(rentedDict);
-				}
-			});
-	}
-
-	public static Dictionary<string, object> RentChangesDictionary()
-	{
-		if (!ChangesPool.TryTake(out var dict))
-		{
-			return [];
-		}
-
-		dict.Clear();
-		return dict;
-	}
-
-	public static Dictionary<string, Type?> RentDataTypesDictionary()
-	{
-		if (!DataTypesPool.TryTake(out var dict))
-		{
-			return [];
-		}
-
-		dict.Clear();
-		return dict;
-	}
 
 	protected virtual void Dispose(bool disposing)
 	{
@@ -115,17 +60,8 @@ public record CdcRow : IDisposable
 
 		if (disposing)
 		{
-			if (Changes.Count > 0)
-			{
-				Changes.Clear();
-				ChangesPool.Add(Changes);
-			}
-
-			if (DataTypes.Count > 0)
-			{
-				DataTypes.Clear();
-				DataTypesPool.Add(DataTypes);
-			}
+			Changes.Clear();
+			DataTypes.Clear();
 		}
 	}
 
