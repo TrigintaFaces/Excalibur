@@ -247,9 +247,6 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 				totalProcessedCount += batch.Count;
 
 				_logger.LogDebug("Completed DataProcessor batch of {BatchSize} events", batch.Count);
-
-				GC.Collect();
-				GC.WaitForPendingFinalizers();
 			}
 
 			_logger.LogInformation("Completed DataProcessor processing, total events processed: {TotalEvents}", totalProcessedCount);

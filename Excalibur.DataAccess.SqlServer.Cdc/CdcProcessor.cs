@@ -27,7 +27,7 @@ public class CdcPosition
 /// <summary>
 ///     Processes Change Data Capture (CDC) changes by reading from a database, managing state, and invoking a specified event handler.
 /// </summary>
-public class CdcProcessor : ICdcProcessor, IDisposable
+public class CdcProcessor : ICdcProcessor
 {
 	private readonly IHostApplicationLifetime _appLifetime;
 
@@ -184,7 +184,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 	/// </summary>
 	/// <param name="cdcRows"> The rows of CDC data to process. </param>
 	/// <returns> An array of <see cref="DataChangeEvent" /> representing the processed changes. </returns>
-	private DataChangeEvent[] GetDataChangeEvents(List<CdcRow> cdcRows)
+	private DataChangeEvent[] GetDataChangeEvents(IList<CdcRow> cdcRows)
 	{
 		if (cdcRows == null || cdcRows.Count == 0)
 		{
@@ -455,6 +455,8 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 					totalProcessedCount += await CompleteBatch(batchList, stopwatch).ConfigureAwait(false);
 					batchList.Clear();
 				}
+
+				batchList = null;
 			}
 			catch (OperationCanceledException)
 			{
@@ -471,7 +473,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 
 		return totalProcessedCount;
 
-		async Task<int> CompleteBatch(List<CdcRow> batch, ValueStopwatch stopwatch)
+		async Task<int> CompleteBatch(IList<CdcRow> batch, ValueStopwatch stopwatch)
 		{
 			_logger.LogDebug("Processing batch of {BatchSize} CDC records", batch.Count);
 
@@ -484,7 +486,7 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 	}
 
 	private async Task ProcessBatch(
-		List<CdcRow> batch,
+		IList<CdcRow> batch,
 		Func<DataChangeEvent[], CancellationToken, Task<int>> eventHandler,
 		CancellationToken cancellationToken)
 	{
@@ -492,25 +494,8 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 		ArgumentNullException.ThrowIfNull(eventHandler);
 
 		var events = GetDataChangeEvents(batch);
-		_ = Task.Run(() => eventHandler(events, cancellationToken), cancellationToken).ContinueWith(
-			(Task<int> t) =>
-			{
-				if (t.IsFaulted)
-				{
-					if (t.Exception.InnerExceptions.Count != 0)
-					{
-						foreach (var ex in t.Exception.InnerExceptions)
-						{
-							_logger.LogError(ex, "Error processing events in event handler.");
-						}
-					}
-					else
-					{
-						_logger.LogError(t.Exception, "Error processing events in event handler.");
-					}
-				}
-			},
-			TaskContinuationOptions.OnlyOnFaulted);
+		_ = await eventHandler(events, cancellationToken).ConfigureAwait(false);
+		Array.Clear(events);
 
 		var updateTasks = new List<Task>();
 
@@ -544,6 +529,10 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 			{
 				_logger.LogError(ex, "Error in updating the last processed position for {TableName}", currentRow.TableName);
 				throw;
+			}
+			finally
+			{
+				currentRow.Dispose();
 			}
 		}
 

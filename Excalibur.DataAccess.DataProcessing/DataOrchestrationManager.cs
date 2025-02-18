@@ -15,8 +15,11 @@ namespace Excalibur.DataAccess.DataProcessing;
 public class DataOrchestrationManager : IDataOrchestrationManager
 {
 	private readonly IDataProcessorDb _db;
+
 	private readonly IDataProcessorRegistry _processorRegistry;
+
 	private readonly IOptions<DataProcessingConfiguration> _configuration;
+
 	private readonly ILogger<DataOrchestrationManager> _logger;
 
 	/// <summary>
@@ -47,7 +50,11 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 	public async Task<Guid> AddDataTaskForRecordType(string recordType, CancellationToken cancellationToken = default)
 	{
 		var dataTaskId = Uuid7Extensions.GenerateGuid();
-		var command = DataTaskCommands.InsertDataTaskRequest(dataTaskId, recordType, _configuration.Value, DbTimeouts.RegularTimeoutSeconds,
+		var command = DataTaskCommands.InsertDataTaskRequest(
+			dataTaskId,
+			recordType,
+			_configuration.Value,
+			DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
 
 		_ = await _db.Connection.Ready().ExecuteAsync(command).ConfigureAwait(false);
@@ -74,42 +81,46 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 	{
 		using var orderedEventProcessor = new OrderedEventProcessor();
 
-		await orderedEventProcessor.ProcessEventsAsync(dataTaskRequests, async request =>
-		{
-			if (!_processorRegistry.TryGetProcessor(request.RecordType, out var dataProcessor))
+		await orderedEventProcessor.ProcessEventsAsync(
+			dataTaskRequests,
+			async (DataTaskRequest request) =>
 			{
-				request.Attempts++;
-				await UpdateAttemptsAsync(request.DataTaskId, request.Attempts, cancellationToken).ConfigureAwait(false);
-
-				_logger.LogWarning("Error processing back fill for table '{RecordType}. No processor found.'", request.RecordType);
-			}
-			else
-			{
-				try
-				{
-					_ = await dataProcessor.RunAsync(
-						request.CompletedCount,
-						(complete, cancellation) => UpdateCompletedCountAsync(request.DataTaskId, complete, cancellation),
-						cancellationToken).ConfigureAwait(false);
-
-					await DeleteRequestAsync(request.DataTaskId, cancellationToken).ConfigureAwait(false);
-				}
-				catch (Exception ex)
+				if (!_processorRegistry.TryGetProcessor(request.RecordType, out var dataProcessor))
 				{
 					request.Attempts++;
 					await UpdateAttemptsAsync(request.DataTaskId, request.Attempts, cancellationToken).ConfigureAwait(false);
-					_logger.LogError(ex, "Error processing data task for {RecordType}. Attempts: {Attempts}", request.RecordType,
-						request.Attempts);
-					throw;
+
+					_logger.LogWarning("Error processing back fill for table '{RecordType}. No processor found.'", request.RecordType);
 				}
-			}
-		}).ConfigureAwait(false);
+				else
+				{
+					try
+					{
+						_ = await dataProcessor.RunAsync(
+								request.CompletedCount,
+								(long complete, CancellationToken cancellation) => UpdateCompletedCountAsync(request.DataTaskId, complete, cancellation),
+								cancellationToken).ConfigureAwait(false);
+
+						dataProcessor.Dispose();
+
+						await DeleteRequestAsync(request.DataTaskId, cancellationToken).ConfigureAwait(false);
+					}
+					catch (Exception ex)
+					{
+						request.Attempts++;
+						await UpdateAttemptsAsync(request.DataTaskId, request.Attempts, cancellationToken).ConfigureAwait(false);
+						_logger.LogError(
+							ex,
+							"Error processing data task for {RecordType}. Attempts: {Attempts}",
+							request.RecordType,
+							request.Attempts);
+						throw;
+					}
+				}
+			}).ConfigureAwait(false);
 	}
 
-	private async Task UpdateAttemptsAsync(
-		Guid dataTaskId,
-		int attempts,
-		CancellationToken cancellationToken = default)
+	private async Task UpdateAttemptsAsync(Guid dataTaskId, int attempts, CancellationToken cancellationToken = default)
 	{
 		var command = DataTaskCommands.UpdateDataTaskRequest(
 			dataTaskId,
@@ -121,10 +132,7 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 		_ = await _db.Connection.Ready().ExecuteAsync(command).ConfigureAwait(false);
 	}
 
-	private async Task UpdateCompletedCountAsync(
-		Guid dataTaskId,
-		long complete,
-		CancellationToken cancellationToken = default)
+	private async Task UpdateCompletedCountAsync(Guid dataTaskId, long complete, CancellationToken cancellationToken = default)
 	{
 		var command = DataTaskCommands.UpdateCompletedCountRequest(
 			dataTaskId,

@@ -3,7 +3,7 @@ namespace Excalibur.Data.Outbox;
 /// <summary>
 ///     Manages the dispatch process for outbox records.
 /// </summary>
-public interface IOutboxManager
+public interface IOutboxManager : IDisposable
 {
 	/// <summary>
 	///     Executes the outbox dispatch logic for a specific dispatcher.

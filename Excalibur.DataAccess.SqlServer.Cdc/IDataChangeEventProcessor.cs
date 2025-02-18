@@ -3,7 +3,7 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 /// <summary>
 ///     Defines the interface for processing Change Data Capture (CDC) events into data change events.
 /// </summary>
-public interface IDataChangeEventProcessor
+public interface IDataChangeEventProcessor : ICdcProcessor
 {
 	/// <summary>
 	///     Processes CDC changes by transforming them into data change events and delegating to appropriate handlers.
