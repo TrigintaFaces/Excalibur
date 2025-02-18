@@ -545,10 +545,6 @@ public class CdcProcessor : ICdcProcessor, IDisposable
 				_logger.LogError(ex, "Error in updating the last processed position for {TableName}", currentRow.TableName);
 				throw;
 			}
-			finally
-			{
-				currentRow.Dispose();
-			}
 		}
 
 		await Task.WhenAll(updateTasks).ConfigureAwait(false);
