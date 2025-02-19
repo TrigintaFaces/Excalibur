@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Collections.Concurrent;
 
 using Excalibur.Core.Diagnostics;
@@ -98,35 +97,27 @@ public class CdcProcessor : ICdcProcessor
 		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _appLifetime.ApplicationStopping);
 		var linkedToken = linkedCts.Token;
 
-		try
+		var processingStates = await _stateStore.GetLastProcessedPositionAsync(
+								   _dbConfig.DatabaseConnectionIdentifier,
+								   _dbConfig.DatabaseName,
+								   linkedToken).ConfigureAwait(false);
+
+		foreach (var processingState in processingStates)
 		{
-			var processingStates = await _stateStore.GetLastProcessedPositionAsync(
-									   _dbConfig.DatabaseConnectionIdentifier,
-									   _dbConfig.DatabaseName,
-									   linkedToken).ConfigureAwait(false);
-
-			foreach (var processingState in processingStates)
-			{
-				var lastRow = new CdcPosition(
-					processingState.LastProcessedLsn,
-					processingState.LastProcessedSequenceValue,
-					processingState.LastCommitTime);
-				_ = _tracking.AddOrUpdate(processingState.TableName, lastRow, (string _, CdcPosition _) => lastRow);
-			}
-
-			var producerTask = Task.Run(() => ProducerLoop(linkedToken), linkedToken);
-			var consumerTasks = Enumerable.Range(0, 1)
-				.Select((int _) => Task.Run(() => ConsumerLoop(eventHandler, linkedToken), linkedToken)).ToArray();
-
-			await producerTask.ConfigureAwait(false);
-			var results = await Task.WhenAll(consumerTasks).ConfigureAwait(false);
-
-			return results.Sum();
+			var lastRow = new CdcPosition(
+				processingState.LastProcessedLsn,
+				processingState.LastProcessedSequenceValue,
+				processingState.LastCommitTime);
+			_ = _tracking.AddOrUpdate(processingState.TableName, lastRow, (string _, CdcPosition _) => lastRow);
 		}
-		finally
-		{
-			await linkedCts.CancelAsync().ConfigureAwait(false);
-		}
+
+		var producerTask = Task.Run(() => ProducerLoop(linkedToken), linkedToken);
+		var consumerTask = Task.Run(() => ConsumerLoop(eventHandler, linkedToken), linkedToken);
+
+		var consumerResult = await consumerTask.ConfigureAwait(false);
+		await producerTask.ConfigureAwait(false);
+
+		return consumerResult;
 	}
 
 	/// <inheritdoc />
@@ -263,13 +254,6 @@ public class CdcProcessor : ICdcProcessor
 					return;
 				}
 
-				if (_cdcQueue.Count >= _dbConfig.QueueSize - _dbConfig.ProducerBatchSize)
-				{
-					_logger.LogInformation("CDC Queue is almost full. Producer is pausing...");
-					await Task.Delay(100, cancellationToken).ConfigureAwait(false);
-					continue;
-				}
-
 				var maxLsn = await _cdcRepository.GetMaxPositionAsync(cancellationToken).ConfigureAwait(false);
 				var processingLastBatch = _dbConfig.CaptureInstances.Length <= 0;
 
@@ -346,7 +330,7 @@ public class CdcProcessor : ICdcProcessor
 				if (processingLastBatch && _cdcQueue.IsEmpty())
 				{
 					_logger.LogInformation("No more CDC records. Producer exiting.");
-					_ = Interlocked.Exchange(ref _producerCompleted, 1);
+					Interlocked.Exchange(ref _producerCompleted, 1);
 					break;
 				}
 			}

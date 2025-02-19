@@ -81,17 +81,12 @@ public class OutboxManager : IOutboxManager
 		await _outbox.TryUnReserveOneRecordsAsync(dispatcherId, linkedToken).ConfigureAwait(false);
 
 		var producerTask = Task.Run(() => ProducerLoop(dispatcherId, linkedToken), linkedToken);
-		var consumerTasks = Enumerable.Range(0, 1).Select((int _) => Task.Run(() => ConsumerLoop(dispatcherId, linkedToken), linkedToken))
-			.ToArray();
+		var consumerTask = Task.Run(() => ConsumerLoop(dispatcherId, linkedToken), linkedToken);
 
+		var consumerResult = await consumerTask.ConfigureAwait(false);
 		await producerTask.ConfigureAwait(false);
-		var results = await Task.WhenAll(consumerTasks).ConfigureAwait(false);
 
-		_outboxQueue.Dispose();
-		_queueSpaceAvailable.Dispose();
-		await linkedCts.CancelAsync().ConfigureAwait(false);
-
-		return results.Sum();
+		return consumerResult;
 	}
 
 	/// <inheritdoc />
@@ -146,7 +141,7 @@ public class OutboxManager : IOutboxManager
 				if (batch.Count == 0)
 				{
 					_logger.LogInformation("No more outbox records. Producer exiting.");
-					_ = Interlocked.Exchange(ref _producerCompleted, 1);
+					Interlocked.Exchange(ref _producerCompleted, 1);
 					break;
 				}
 
