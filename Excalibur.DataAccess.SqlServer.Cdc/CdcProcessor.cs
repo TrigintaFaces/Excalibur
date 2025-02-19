@@ -255,7 +255,7 @@ public class CdcProcessor : ICdcProcessor
 				}
 
 				var maxLsn = await _cdcRepository.GetMaxPositionAsync(cancellationToken).ConfigureAwait(false);
-				var processingLastBatch = _dbConfig.CaptureInstances.Length <= 0;
+				var processingLastBatch = true;
 
 				foreach (var captureInstance in _dbConfig.CaptureInstances)
 				{
@@ -288,7 +288,11 @@ public class CdcProcessor : ICdcProcessor
 						ByteArrayToHex(toLsn),
 						lastSequenceValue != null ? ByteArrayToHex(lastSequenceValue) : "null");
 
-					processingLastBatch = toLsn.CompareLsn(maxLsn) == 0;
+					if (processingLastBatch)
+					{
+						processingLastBatch = toLsn.CompareLsn(maxLsn) == 0;
+					}
+
 					var changes = await _cdcRepository.FetchChangesAsync(
 									  captureInstance,
 									  fromLsn,
