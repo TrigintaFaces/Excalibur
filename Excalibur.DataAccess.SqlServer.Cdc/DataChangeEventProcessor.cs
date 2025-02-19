@@ -78,15 +78,17 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 
 		if (events.Count == 0)
 		{
-			return await ValueTask.FromResult(0).ConfigureAwait(false);
+			return 0;
 		}
 
-		return await new ValueTask<int>(ProcessEventsAsync(events, cancellationToken)).ConfigureAwait(false);
+		return await ProcessEventsAsync(events, cancellationToken).ConfigureAwait(false);
 	}
 
 	private async Task<int> ProcessEventsAsync(ICollection<DataChangeEvent> changeEvents, CancellationToken cancellationToken)
 	{
 		var totalEvents = 0;
+
+		_logger.LogInformation("Processing {EventCount} CDC events...", changeEvents.Count);
 
 		using var orderedEventProcessor = new OrderedEventProcessor();
 
@@ -99,6 +101,7 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 					using var scope = _serviceProvider.CreateScope();
 					var scopedHandlerRegistry = scope.ServiceProvider.GetRequiredService<IDataChangeHandlerRegistry>();
 					var handler = scopedHandlerRegistry.GetHandler(changeEvent.TableName);
+
 					await handler.Handle(changeEvent, cancellationToken).ConfigureAwait(false);
 
 					_logger.LogInformation("Successfully processed change event for table '{TableName}'.", changeEvent.TableName);

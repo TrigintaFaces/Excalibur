@@ -109,7 +109,8 @@ public class CdcJob : IJob, IConfigurableJob<CdcJobConfig>
 			{
 				_logger.LogInformation("Starting execution of {JobGroup}:{JobName}.", jobGroup, jobName);
 
-				var tasks = jobConfig.DatabaseConfigs.Select((DatabaseConfig dbConfig) => ProcessCdcChangesAsync(dbConfig, context.CancellationToken));
+				var tasks = jobConfig.DatabaseConfigs.Select(
+					(DatabaseConfig dbConfig) => ProcessCdcChangesAsync(dbConfig, context.CancellationToken));
 
 				var results = await Task.WhenAll(tasks).ConfigureAwait(false);
 
@@ -136,8 +137,26 @@ public class CdcJob : IJob, IConfigurableJob<CdcJobConfig>
 		var cdcDb = _configuration.GetSqlDb(dbConfig.DatabaseConnectionIdentifier)();
 		var stateStoreDb = _configuration.GetSqlDb(dbConfig.StateConnectionIdentifier)();
 
-		using var processor = _factory.Create(dbConfig, cdcDb, stateStoreDb);
+		var processor = _factory.Create(dbConfig, cdcDb, stateStoreDb);
 
-		return await processor.ProcessCdcChangesAsync(cancellationToken).ConfigureAwait(false);
+		try
+		{
+			return await processor.ProcessCdcChangesAsync(cancellationToken).ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(
+				ex,
+				"{Error} executing ProcessCdcChangesAsync for {DatabaseName}: {Message}",
+				ex.GetType().Name,
+				dbConfig.DatabaseName,
+				ex.Message);
+
+			return 0;
+		}
+		finally
+		{
+			processor.Dispose();
+		}
 	}
 }

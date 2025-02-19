@@ -74,19 +74,16 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _appLifetime.ApplicationStopping);
 		var linkedToken = linkedCts.Token;
+
 		_ = Interlocked.Exchange(ref _skipCount, completedCount);
 
 		var producerTask = Task.Run(() => ProducerLoop(linkedToken), linkedToken);
-		var consumerTasks = Enumerable.Range(0, 1).Select((int _) => Task.Run(() => ConsumerLoop(linkedToken), linkedToken)).ToArray();
+		var consumerTask = Task.Run(() => ConsumerLoop(linkedToken), linkedToken);
 
+		var consumerResult = await consumerTask.ConfigureAwait(false);
 		await producerTask.ConfigureAwait(false);
-		var results = await Task.WhenAll(consumerTasks).ConfigureAwait(false);
 
-		_dataQueue.Dispose();
-		_queueSpaceAvailable.Dispose();
-		await linkedCts.CancelAsync().ConfigureAwait(false);
-
-		return results.Sum();
+		return consumerResult;
 	}
 
 	/// <inheritdoc />
@@ -137,7 +134,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 				if (batch.Count == 0)
 				{
 					_logger.LogInformation("No more DataProcessor records. Producer exiting.");
-					_ = Interlocked.Exchange(ref _producerCompleted, 1);
+					Interlocked.Exchange(ref _producerCompleted, 1);
 					break;
 				}
 
