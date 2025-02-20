@@ -96,6 +96,11 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 			changeEvents,
 			async (DataChangeEvent changeEvent) =>
 			{
+				if (changeEvent is null)
+				{
+					return;
+				}
+
 				try
 				{
 					using var scope = _serviceProvider.CreateScope();
