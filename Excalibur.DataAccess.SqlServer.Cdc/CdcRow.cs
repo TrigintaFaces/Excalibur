@@ -49,7 +49,7 @@ public record CdcRow : IDisposable
 	///     Gets or sets a dictionary mapping column names to their data types.
 	/// </summary>
 	/// <remarks> This is useful for interpreting the data changes with their corresponding data types. </remarks>
-	public required Dictionary<string, Type?> DataTypes { get; init; }
+	public required Dictionary<string, Type> DataTypes { get; init; }
 
 	protected virtual void Dispose(bool disposing)
 	{

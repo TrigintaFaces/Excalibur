@@ -63,19 +63,21 @@ public interface ICdcRepository
 	/// <param name="captureInstances"> A collection of capture instance names to query for changes. </param>
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns> A task that represents the asynchronous operation, containing a boolean indicating whether changes exist. </returns>
-	Task<bool> ChangesExistAsync(byte[] fromPosition, byte[] toPosition, IEnumerable<string> captureInstances,
+	Task<bool> ChangesExistAsync(
+		byte[] fromPosition,
+		byte[] toPosition,
+		IEnumerable<string> captureInstances,
 		CancellationToken cancellationToken);
 
 	/// <summary>
 	///     Fetches change rows between two LSN positions for the specified capture instances.
 	/// </summary>
+	/// <param name="captureInstance"> A capture instance table name to query for changes. </param>
 	/// <param name="fromPosition"> The starting LSN position. </param>
 	/// <param name="toPosition"> The ending LSN position. </param>
 	/// <param name="lastSequenceValue">
 	///     The last processed sequence value, if any. This is used for processing changes with finer granularity.
 	/// </param>
-	/// <param name="batchSize"> The number of records to retrieve in the batch. </param>
-	/// <param name="captureInstances"> A collection of capture instance names to query for changes. </param>
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns> An asynchronous stream of <see cref="CdcRow" /> instances representing the captured changes. </returns>
 	Task<IEnumerable<CdcRow>> FetchChangesAsync(
