@@ -9,11 +9,12 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 
 public class CdcPosition
 {
-	public CdcPosition(byte[] lsn, byte[]? seqVal, DateTime commitTime)
+	public CdcPosition(byte[] lsn, byte[]? seqVal, DateTime commitTime, int attempt)
 	{
 		Lsn = lsn;
 		SequenceValue = seqVal;
 		CommitTime = commitTime;
+		Attempt = attempt;
 	}
 
 	public byte[] Lsn { get; init; }
@@ -21,6 +22,8 @@ public class CdcPosition
 	public byte[]? SequenceValue { get; init; }
 
 	public DateTime CommitTime { get; init; }
+
+	public int Attempt { get; init; }
 }
 
 /// <summary>
@@ -107,7 +110,8 @@ public class CdcProcessor : ICdcProcessor
 			var lastRow = new CdcPosition(
 				processingState.LastProcessedLsn,
 				processingState.LastProcessedSequenceValue,
-				processingState.LastCommitTime);
+				processingState.LastCommitTime,
+				1);
 			_ = _tracking.AddOrUpdate(processingState.TableName, lastRow, (string _, CdcPosition _) => lastRow);
 		}
 
@@ -266,6 +270,7 @@ public class CdcProcessor : ICdcProcessor
 										 ? cdcPosition.CommitTime
 										 : await _cdcRepository.GetLsnToTimeAsync(startProcessingFrom, cancellationToken)
 											   .ConfigureAwait(false);
+					var attempt = cdcPosition?.Attempt ?? 1;
 
 					if (startProcessingFrom.CompareLsn(maxLsn) > 0)
 					{
@@ -274,7 +279,8 @@ public class CdcProcessor : ICdcProcessor
 					}
 
 					byte[]? lastSequenceValue = null;
-					var (fromLsn, toLsn, toLsnDate) = await GetLsnRange(commitTime.Value, maxLsn, cancellationToken).ConfigureAwait(false);
+					var (fromLsn, toLsn, toLsnDate) =
+						await GetLsnRange(commitTime.Value, maxLsn, attempt, cancellationToken).ConfigureAwait(false);
 
 					if (cdcPosition != null && fromLsn.CompareLsn(cdcPosition.Lsn) == 0)
 					{
@@ -306,7 +312,11 @@ public class CdcProcessor : ICdcProcessor
 					{
 						_logger.LogInformation("No changes found for {TableName}, advancing LSN.", captureInstance);
 
-						var noChangesPosition = new CdcPosition(toLsn, null, toLsnDate);
+						var noChangesPosition = new CdcPosition(
+							toLsn,
+							fromLsn.CompareLsn(toLsn) == 0 ? lastSequenceValue : null,
+							toLsnDate,
+							attempt + 1);
 						_ = _tracking.AddOrUpdate(captureInstance, noChangesPosition, (string _, CdcPosition _) => noChangesPosition);
 					}
 					else
@@ -320,7 +330,7 @@ public class CdcProcessor : ICdcProcessor
 						}
 
 						var lastRow = changes.Last();
-						var lastRowPosition = new CdcPosition(lastRow.Lsn, lastRow.SeqVal, lastRow.CommitTime);
+						var lastRowPosition = new CdcPosition(lastRow.Lsn, lastRow.SeqVal, lastRow.CommitTime, 1);
 
 						_ = _tracking.AddOrUpdate(captureInstance, lastRowPosition, (string _, CdcPosition _) => lastRowPosition);
 
@@ -562,11 +572,13 @@ public class CdcProcessor : ICdcProcessor
 	/// </summary>
 	/// <param name="lastCommitTime"> The last commit time. </param>
 	/// <param name="maxLsn"> The maximum LSN. </param>
+	/// <param name="attempt"> The number of times attempting to find data for the capture instance </param>
 	/// <param name="cancellationToken"> A cancellation token to stop processing. </param>
 	/// <returns> A tuple containing the starting LSN, ending LSN, and ending LSN date. </returns>
 	private async Task<(byte[] fromLsn, byte[] toLsn, DateTime toLsnDate)> GetLsnRange(
 		DateTime lastCommitTime,
 		byte[] maxLsn,
+		int attempt,
 		CancellationToken cancellationToken)
 	{
 		var fromLsn = await _cdcRepository.GetTimeToLsnAsync(lastCommitTime, "largest less than or equal", cancellationToken)
@@ -576,7 +588,7 @@ public class CdcProcessor : ICdcProcessor
 		var fromLsnDate = await _cdcRepository.GetLsnToTimeAsync(fromLsn, cancellationToken).ConfigureAwait(false);
 		ArgumentNullException.ThrowIfNull(fromLsnDate);
 
-		var toLsnDate = fromLsnDate.Value.AddMilliseconds(_dbConfig.BatchTimeInterval);
+		var toLsnDate = fromLsnDate.Value.AddMilliseconds(_dbConfig.BatchTimeInterval * attempt);
 		var toLsn = await _cdcRepository.GetTimeToLsnAsync(toLsnDate, "largest less than or equal", cancellationToken).ConfigureAwait(false)
 					?? maxLsn;
 

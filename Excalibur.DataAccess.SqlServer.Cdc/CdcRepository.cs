@@ -42,7 +42,6 @@ public class CdcRepository : ICdcRepository
 	{
 		const string CommandText = "SELECT sys.fn_cdc_increment_lsn(@LastProcessedLsn);";
 
-		var connection = _connection.Ready();
 		var parameters = new DynamicParameters();
 		parameters.Add("LastProcessedLsn", lastProcessedLsn, DbType.Binary, size: 10);
 
@@ -52,8 +51,7 @@ public class CdcRepository : ICdcRepository
 			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		var result = await connection.QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
-		connection.Close();
+		var result = await _connection.Ready().QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
 		return result;
 	}
 
@@ -62,7 +60,6 @@ public class CdcRepository : ICdcRepository
 	{
 		const string CommandText = "SELECT CAST(sys.fn_cdc_map_lsn_to_time(@Lsn) AS DATETIME2(3)) AS LSN_TIME;";
 
-		var connection = _connection.Ready();
 		var parameters = new DynamicParameters();
 		parameters.Add("Lsn", lsn, DbType.Binary, size: 10);
 
@@ -72,7 +69,7 @@ public class CdcRepository : ICdcRepository
 			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		var result = await connection.QuerySingleOrDefaultAsync<DateTime?>(command).ConfigureAwait(false);
+		var result = await _connection.Ready().QuerySingleOrDefaultAsync<DateTime?>(command).ConfigureAwait(false);
 
 		return result;
 	}
@@ -82,7 +79,6 @@ public class CdcRepository : ICdcRepository
 	{
 		const string CommandText = "SELECT sys.fn_cdc_map_time_to_lsn(@RelationalOperator, @LsnDate);";
 
-		var connection = _connection.Ready();
 		var parameters = new DynamicParameters();
 		parameters.Add("LsnDate", lsnDate);
 		parameters.Add("RelationalOperator", relationalOperator);
@@ -93,7 +89,7 @@ public class CdcRepository : ICdcRepository
 			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		var result = await connection.QuerySingleAsync<byte[]?>(command).ConfigureAwait(false);
+		var result = await _connection.Ready().QuerySingleAsync<byte[]?>(command).ConfigureAwait(false);
 
 		return result;
 	}
@@ -103,7 +99,6 @@ public class CdcRepository : ICdcRepository
 	{
 		const string CommandText = "SELECT sys.fn_cdc_get_min_lsn(@CaptureInstance);";
 
-		var connection = _connection.Ready();
 		var parameters = new DynamicParameters();
 		parameters.Add("CaptureInstance", captureInstance);
 
@@ -113,7 +108,7 @@ public class CdcRepository : ICdcRepository
 			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		var result = await connection.QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
+		var result = await _connection.Ready().QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
 
 		return result;
 	}
@@ -122,13 +117,13 @@ public class CdcRepository : ICdcRepository
 	public async Task<byte[]> GetMaxPositionAsync(CancellationToken cancellationToken)
 	{
 		const string CommandText = "SELECT sys.fn_cdc_get_max_lsn();";
-		var connection = _connection.Ready();
+
 		var command = new CommandDefinition(
 			CommandText,
 			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		var result = await connection.QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
+		var result = await _connection.Ready().QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
 
 		return result;
 	}
@@ -148,7 +143,7 @@ public class CdcRepository : ICdcRepository
 			                   SELECT TOP 1 1
 			                   FROM cdc.fn_cdc_get_all_changes_{captureInstance}(@from_lsn, @to_lsn, N'all update old')
 			                   """;
-			var connection = _connection.Ready();
+
 			var parameters = new DynamicParameters();
 			parameters.Add("from_lsn", fromPosition, DbType.Binary, size: 10);
 			parameters.Add("to_lsn", toPosition, DbType.Binary, size: 10);
@@ -159,7 +154,7 @@ public class CdcRepository : ICdcRepository
 				commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 				cancellationToken: cancellationToken);
 
-			var exists = await connection.ExecuteScalarAsync<int?>(command).ConfigureAwait(false);
+			var exists = await _connection.Ready().ExecuteScalarAsync<int?>(command).ConfigureAwait(false);
 			if (exists is > 0)
 			{
 				return true;
@@ -179,13 +174,13 @@ public class CdcRepository : ICdcRepository
 		                                 AND tran_begin_time IS NOT NULL
 		                                 ORDER BY tran_begin_lsn ASC;
 		                           """;
-		var connection = _connection.Ready();
+
 		var parameters = new DynamicParameters();
 		parameters.Add("lastProcessedLsn", lastProcessedLsn, DbType.Binary, size: 10);
 
 		var command = new CommandDefinition(CommandText, parameters: parameters, cancellationToken: cancellationToken);
 
-		var result = await connection.QueryFirstOrDefaultAsync<byte[]>(command).ConfigureAwait(false);
+		var result = await _connection.Ready().QueryFirstOrDefaultAsync<byte[]>(command).ConfigureAwait(false);
 
 		return result;
 	}
@@ -203,34 +198,34 @@ public class CdcRepository : ICdcRepository
 		ArgumentNullException.ThrowIfNull(toPosition);
 
 		var commandText = $"""
-		                      SELECT
-		                         '{captureInstance}' AS TableName,
-		                         sys.fn_cdc_map_lsn_to_time(__$start_lsn) AS CommitTime,
-		                         CONVERT(VARBINARY(10), __$start_lsn) AS Position,
-		                         CONVERT(VARBINARY(10), __$seqval) AS SequenceValue,
-		                         __$operation AS OperationCode,
-		                         *
-		                     FROM cdc.fn_cdc_get_all_changes_{captureInstance}(@from_lsn, @to_lsn, N'all update old')
-		                     WHERE
-		                         (__$start_lsn = @from_lsn AND (@lastSequenceValue IS NULL OR __$seqval > @lastSequenceValue))
-		                         OR __$start_lsn > @from_lsn
-		                     ORDER BY
-		                         CONVERT(VARBINARY(10), __$start_lsn),
-		                         CONVERT(VARBINARY(10), __$seqval)
+		                   SELECT
+		                      '{captureInstance}' AS TableName,
+		                      sys.fn_cdc_map_lsn_to_time(__$start_lsn) AS CommitTime,
+		                      __$start_lsn AS Position,
+		                      __$seqval AS SequenceValue,
+		                      __$operation AS OperationCode,
+		                      *
+		                   FROM cdc.fn_cdc_get_all_changes_{captureInstance}(@from_lsn, @to_lsn, N'all update old')
+		                   WHERE
+		                      __$start_lsn > @from_lsn
+		                      AND
+		                      (__$start_lsn <> @from_lsn OR @lastSequenceValue IS NULL OR __$seqval > @lastSequenceValue)
+		                   ORDER BY
+		                      __$start_lsn,
+		                      __$seqval
 		                   """;
 
-		var connection = _connection.Ready();
 		var parameters = new DynamicParameters();
 		parameters.Add("from_lsn", fromPosition, DbType.Binary, size: 10);
 		parameters.Add("to_lsn", toPosition, DbType.Binary, size: 10);
-		parameters.Add("lastSequenceValue", lastSequenceValue, DbType.Binary, size: 10);
+		parameters.Add("lastSequenceValue", lastSequenceValue, DbType.Binary);
 
 		var command = new CommandDefinition(
 			commandText,
 			parameters: parameters,
 			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
-		var reader = (DbDataReader)await connection.ExecuteReaderAsync(command).ConfigureAwait(false);
+		var reader = (DbDataReader)await _connection.Ready().ExecuteReaderAsync(command).ConfigureAwait(false);
 		var resultList = new List<CdcRow>();
 
 		await using (reader)
@@ -251,8 +246,8 @@ public class CdcRepository : ICdcRepository
 				var changes = new Dictionary<string, object>();
 				foreach (var columnName in dataTypes.Keys.Where(
 							 (string columnName) => !(columnName.StartsWith("__$", StringComparison.InvariantCultureIgnoreCase)
-													  || columnName == "TableName" || columnName == "CommitTime" || columnName == "OperationCode"
-													  || columnName == "SequenceValue")))
+													  || columnName == "TableName" || columnName == "CommitTime"
+													  || columnName == "OperationCode" || columnName == "SequenceValue")))
 				{
 					changes[columnName] = reader[columnName];
 				}
@@ -265,8 +260,9 @@ public class CdcRepository : ICdcRepository
 					SeqVal = (byte[])reader["SequenceValue"],
 					CommitTime = (DateTime)reader["CommitTime"],
 					Changes = changes,
-					DataTypes = dataTypes.Where((KeyValuePair<string, Type> ct) => changes.ContainsKey(ct.Key))
-									 .ToDictionary((KeyValuePair<string, Type> kvp) => kvp.Key, (KeyValuePair<string, Type> kvp) => kvp.Value)
+					DataTypes = dataTypes.Where((KeyValuePair<string, Type> ct) => changes.ContainsKey(ct.Key)).ToDictionary(
+									 (KeyValuePair<string, Type> kvp) => kvp.Key,
+									 (KeyValuePair<string, Type> kvp) => kvp.Value)
 				};
 
 				resultList.Add(cdcRow);
@@ -297,14 +293,13 @@ public class CdcRepository : ICdcRepository
 		                   FROM cdc.fn_cdc_get_all_changes_{captureInstance}(@from_lsn, @to_lsn, N'all update old');
 		                   """;
 
-		var connection = _connection.Ready();
 		var parameters = new DynamicParameters();
 		parameters.Add("from_lsn", fromPosition, DbType.Binary, size: 10);
 		parameters.Add("to_lsn", toPosition, DbType.Binary, size: 10);
 
 		var command = new CommandDefinition(commandText, parameters: parameters, cancellationToken: cancellationToken);
 
-		var result = await connection.ExecuteScalarAsync<int>(command).ConfigureAwait(false);
+		var result = await _connection.Ready().ExecuteScalarAsync<int>(command).ConfigureAwait(false);
 
 		return result;
 	}
