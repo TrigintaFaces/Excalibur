@@ -212,7 +212,8 @@ public class CdcRepository : ICdcRepository
 		                      (__$start_lsn <> @from_lsn OR @lastSequenceValue IS NULL OR __$seqval > @lastSequenceValue)
 		                   ORDER BY
 		                      __$start_lsn,
-		                      __$seqval
+		                      __$seqval,
+		                      __$operation
 		                   """;
 
 		var parameters = new DynamicParameters();
