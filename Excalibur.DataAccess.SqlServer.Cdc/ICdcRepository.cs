@@ -13,6 +13,8 @@ public interface ICdcRepository
 	/// <returns> A task that represents the asynchronous operation, containing the next LSN as a byte array. </returns>
 	Task<byte[]> GetNextLsnAsync(byte[] lastProcessedLsn, CancellationToken cancellationToken);
 
+	Task<byte[]?> GetNextLsnAsync(string captureInstance, byte[] lastProcessedLsn, CancellationToken cancellationToken);
+
 	/// <summary>
 	///     Maps an LSN to a commit time in the database.
 	/// </summary>
@@ -73,8 +75,8 @@ public interface ICdcRepository
 	///     Fetches change rows between two LSN positions for the specified capture instances.
 	/// </summary>
 	/// <param name="captureInstance"> A capture instance table name to query for changes. </param>
-	/// <param name="fromPosition"> The starting LSN position. </param>
-	/// <param name="toPosition"> The ending LSN position. </param>
+	/// <param name="batchSize"> The number of records to retrieve in the batch. </param>
+	/// <param name="lsn"> The LSN position. </param>
 	/// <param name="lastSequenceValue">
 	///     The last processed sequence value, if any. This is used for processing changes with finer granularity.
 	/// </param>
@@ -82,8 +84,8 @@ public interface ICdcRepository
 	/// <returns> An asynchronous stream of <see cref="CdcRow" /> instances representing the captured changes. </returns>
 	Task<IEnumerable<CdcRow>> FetchChangesAsync(
 		string captureInstance,
-		byte[] fromPosition,
-		byte[] toPosition,
+		int batchSize,
+		byte[] lsn,
 		byte[]? lastSequenceValue,
 		CancellationToken cancellationToken);
 }

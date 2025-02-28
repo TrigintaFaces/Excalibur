@@ -35,11 +35,6 @@ public class CdcStateStore : ICdcStateStore
 		_connection = db.Connection;
 	}
 
-	/// <summary>
-	///     Gets the underlying database connection, ensuring it is in a ready state.
-	/// </summary>
-	internal IDbConnection Connection => _connection.Ready();
-
 	/// <inheritdoc />
 	public async Task<IEnumerable<CdcProcessingState>> GetLastProcessedPositionAsync(
 		string databaseConnectionIdentifier,
@@ -69,10 +64,13 @@ public class CdcStateStore : ICdcStateStore
 		parameters.Add("databaseConnectionIdentifier", databaseConnectionIdentifier);
 		parameters.Add("databaseName", databaseName);
 
-		var command = new CommandDefinition(CommandText, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+		var command = new CommandDefinition(
+			CommandText,
+			parameters: parameters,
+			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		return await Connection.QueryAsync<CdcProcessingState?>(command).ConfigureAwait(false);
+		return await _connection.Ready().QueryAsync<CdcProcessingState?>(command).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -116,9 +114,12 @@ public class CdcStateStore : ICdcStateStore
 		parameters.Add("sequenceValue", sequenceValue, DbType.Binary, size: 10);
 		parameters.Add("commitTime", commitTime, DbType.DateTime2);
 
-		var command = new CommandDefinition(CommandText, parameters: parameters, commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+		var command = new CommandDefinition(
+			CommandText,
+			parameters: parameters,
+			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		_ = await Connection.ExecuteAsync(command).ConfigureAwait(false);
+		_ = await _connection.Ready().ExecuteAsync(command).ConfigureAwait(false);
 	}
 }
