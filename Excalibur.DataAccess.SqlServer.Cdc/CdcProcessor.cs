@@ -293,6 +293,9 @@ public class CdcProcessor : ICdcProcessor
 				{
 					var tableTracking = _tracking[captureInstance];
 
+					var nextLsn = await _cdcRepository.GetNextLsnAsync(captureInstance, tableTracking.Lsn, cancellationToken)
+									  .ConfigureAwait(false);
+
 					if (tableTracking.Lsn.CompareLsn(currentGlobalLsn) == 0)
 					{
 						var totalRowsReadInThisLsn = 0;
@@ -344,10 +347,23 @@ public class CdcProcessor : ICdcProcessor
 						else
 						{
 							_logger.LogInformation("No changes found for {TableName}, advancing LSN.", captureInstance);
-						}
 
-						var nextLsn = await _cdcRepository.GetNextLsnAsync(captureInstance, tableTracking.Lsn, cancellationToken)
-										  .ConfigureAwait(false);
+							var nextLsnDate = await _cdcRepository.GetLsnToTimeAsync(nextLsn, cancellationToken).ConfigureAwait(false);
+
+							if (nextLsnDate == null)
+							{
+								throw new InvalidOperationException("nextLsn could not be converted to date value");
+							}
+
+							await _stateStore.UpdateLastProcessedPositionAsync(
+								_dbConfig.DatabaseConnectionIdentifier,
+								_dbConfig.DatabaseName,
+								captureInstance,
+								nextLsn,
+								null,
+								nextLsnDate.Value,
+								cancellationToken).ConfigureAwait(false);
+						}
 
 						_logger.LogDebug(
 							"Table {CaptureInstance}: currentLSN={CurrentLsn}, nextLSN={NextLsn}, maxLSN={MaxLsn}",
