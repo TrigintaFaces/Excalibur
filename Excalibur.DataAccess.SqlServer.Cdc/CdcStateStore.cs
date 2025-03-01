@@ -80,7 +80,7 @@ public class CdcStateStore : ICdcStateStore
 		string tableName,
 		byte[] position,
 		byte[]? sequenceValue,
-		DateTime commitTime,
+		DateTime? commitTime,
 		CancellationToken cancellationToken)
 	{
 		const string CommandText = """

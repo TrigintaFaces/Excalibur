@@ -37,6 +37,6 @@ public interface ICdcStateStore
 		string tableName,
 		byte[] position,
 		byte[]? sequenceValue,
-		DateTime commitTime,
+		DateTime? commitTime,
 		CancellationToken cancellationToken);
 }
