@@ -43,6 +43,8 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 	/// </summary>
 	public int Count => Volatile.Read(ref _count);
 
+	public void CompleteWriter() => _ = _channel.Writer.TryComplete();
+
 	/// <inheritdoc />
 	public async ValueTask EnqueueAsync(TRecord record, CancellationToken cancellationToken = default)
 	{
@@ -71,11 +73,21 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 	/// <inheritdoc />
 	public async IAsyncEnumerable<TRecord> DequeueAllAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
 	{
-		while (await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+		while (true)
 		{
 			ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
 			if (_disposedFlag == 1)
+			{
+				yield break;
+			}
+
+			if (IsEmpty())
+			{
+				yield break;
+			}
+
+			if (!await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
 			{
 				yield break;
 			}
@@ -137,7 +149,7 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 
 	private void ReleaseUnmanagedResources()
 	{
-		_ = _channel.Writer.TryComplete();
+		CompleteWriter();
 
 		while (_channel.Reader.TryRead(out _))
 		{
