@@ -348,6 +348,14 @@ public class CdcProcessor : ICdcProcessor
 
 						var nextLsn = await _cdcRepository.GetNextLsnAsync(captureInstance, tableTracking.Lsn, cancellationToken)
 										  .ConfigureAwait(false);
+
+						_logger.LogDebug(
+							"Table {CaptureInstance}: currentLSN={CurrentLsn}, nextLSN={NextLsn}, maxLSN={MaxLsn}",
+							captureInstance,
+							ByteArrayToHex(tableTracking.Lsn),
+							nextLsn != null ? ByteArrayToHex(nextLsn) : "null",
+							ByteArrayToHex(maxLsn));
+
 						if (nextLsn != null && nextLsn.CompareLsn(maxLsn) < 0)
 						{
 							_tracking[captureInstance] = new CdcPosition(nextLsn, null);
@@ -599,6 +607,8 @@ public class CdcProcessor : ICdcProcessor
 				lowestStartLsn = startLsn;
 			}
 		}
+
+		_logger.LogDebug("Starting new run at LSN {lowestStartLsn}", lowestStartLsn);
 
 		return lowestStartLsn;
 	}
