@@ -23,15 +23,19 @@ public class OutboxManager : IOutboxManager
 
 	private readonly ILogger<OutboxManager> _logger;
 
-	private readonly IHostApplicationLifetime _appLifetime;
-
 	private readonly TelemetryClient? _telemetryClient;
 
 	private readonly SemaphoreSlim _queueSpaceAvailable;
 
+	private volatile bool _isFlushing;
+
 	private int _disposedFlag;
 
 	private int _producerCompleted;
+
+	private Task? _producerTask;
+
+	private Task<int>? _consumerTask;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="OutboxManager" /> class.
@@ -61,13 +65,12 @@ public class OutboxManager : IOutboxManager
 
 		_outbox = outbox;
 		_configuration = configuration.Value;
-		_appLifetime = appLifetime;
 		_logger = logger;
 		_telemetryClient = telemetryClient;
 		_outboxQueue = new InMemoryDataQueue<OutboxRecord>(_configuration.QueueSize);
 		_queueSpaceAvailable = new SemaphoreSlim(_configuration.QueueSize, _configuration.QueueSize);
 
-		_ = _appLifetime.ApplicationStopping.Register(OnApplicationStopping);
+		_ = appLifetime.ApplicationStopping.Register(OnApplicationStopping);
 	}
 
 	/// <inheritdoc />
@@ -75,18 +78,55 @@ public class OutboxManager : IOutboxManager
 	{
 		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
-		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _appLifetime.ApplicationStopping);
-		var linkedToken = linkedCts.Token;
+		await _outbox.TryUnReserveOneRecordsAsync(dispatcherId, cancellationToken).ConfigureAwait(false);
 
-		await _outbox.TryUnReserveOneRecordsAsync(dispatcherId, linkedToken).ConfigureAwait(false);
+		_isFlushing = false;
+		_producerTask = Task.Run(() => ProducerLoop(dispatcherId, cancellationToken), cancellationToken);
+		_consumerTask = Task.Run(() => ConsumerLoop(dispatcherId, cancellationToken), cancellationToken);
 
-		var producerTask = Task.Run(() => ProducerLoop(dispatcherId, linkedToken), linkedToken);
-		var consumerTask = Task.Run(() => ConsumerLoop(dispatcherId, linkedToken), linkedToken);
-
-		var consumerResult = await consumerTask.ConfigureAwait(false);
-		await producerTask.ConfigureAwait(false);
+		var consumerResult = await _consumerTask.ConfigureAwait(false);
+		await _producerTask.ConfigureAwait(false);
 
 		return consumerResult;
+	}
+
+	public async Task FlushAsync()
+	{
+		if (_disposedFlag == 1)
+		{
+			return;
+		}
+
+		_isFlushing = true;
+		_ = Interlocked.Exchange(ref _producerCompleted, 1);
+
+		if (_producerTask != null)
+		{
+			try
+			{
+				await _producerTask.ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Error finishing ProducerLoop in OutboxManager FlushAsync.");
+				throw;
+			}
+		}
+
+		if (_consumerTask != null)
+		{
+			try
+			{
+				_ = await _consumerTask.ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Error finishing ConsumerLoop in OutboxManager FlushAsync.");
+				throw;
+			}
+		}
+
+		_isFlushing = false;
 	}
 
 	/// <inheritdoc />
@@ -141,7 +181,6 @@ public class OutboxManager : IOutboxManager
 				if (batch.Count == 0)
 				{
 					_logger.LogInformation("No more outbox records. Producer exiting.");
-					Interlocked.Exchange(ref _producerCompleted, 1);
 					break;
 				}
 
@@ -168,10 +207,13 @@ public class OutboxManager : IOutboxManager
 			_logger.LogError(ex, "Error in Outbox ProducerLoop");
 			throw;
 		}
-
-		if (_producerCompleted == 1)
+		finally
 		{
-			_logger.LogInformation("Outbox Producer has completed execution.");
+			_ = Interlocked.Exchange(ref _producerCompleted, 1);
+
+			_outboxQueue.CompleteWriter();
+
+			_logger.LogInformation("Outbox Producer has completed execution. Channel marked as complete.");
 		}
 	}
 
@@ -183,6 +225,8 @@ public class OutboxManager : IOutboxManager
 	/// <returns> The total number of successfully dispatched records. </returns>
 	private async Task<int> ConsumerLoop(string dispatcherId, CancellationToken cancellationToken)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(dispatcherId);
+
 		var totalProcessedCount = 0;
 
 		try
@@ -289,9 +333,24 @@ public class OutboxManager : IOutboxManager
 		return records;
 	}
 
-	private void OnApplicationStopping()
+	private async void OnApplicationStopping()
 	{
-		_logger.LogInformation("Application is stopping. Ensuring Outbox processing cleanup.");
-		Dispose();
+		try
+		{
+			if (!_isFlushing)
+			{
+				_logger.LogInformation("Application is stopping. Attempting a graceful flush in Outbox.");
+
+				await FlushAsync().ConfigureAwait(false);
+			}
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Error while gracefully flushing Outbox queue on shutdown.");
+		}
+		finally
+		{
+			Dispose();
+		}
 	}
 }

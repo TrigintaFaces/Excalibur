@@ -27,15 +27,19 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 	private readonly IServiceProvider _serviceProvider;
 
-	private readonly IHostApplicationLifetime _appLifetime;
-
 	private readonly ILogger _logger;
+
+	private volatile bool _isFlushing;
 
 	private long _skipCount;
 
 	private int _disposedFlag;
 
 	private int _producerCompleted;
+
+	private Task? _producerTask;
+
+	private Task<long>? _consumerTask;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="DataProcessor{TRecord}" /> class.
@@ -55,14 +59,13 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		ArgumentNullException.ThrowIfNull(serviceProvider);
 		ArgumentNullException.ThrowIfNull(logger);
 
-		_appLifetime = appLifetime;
 		_configuration = configuration.Value;
 		_serviceProvider = serviceProvider;
 		_logger = logger;
 		_dataQueue = new InMemoryDataQueue<TRecord>(_configuration.QueueSize);
 		_queueSpaceAvailable = new SemaphoreSlim(_configuration.QueueSize, _configuration.QueueSize);
 
-		_ = _appLifetime.ApplicationStopping.Register(OnApplicationStopping);
+		_ = appLifetime.ApplicationStopping.Register(OnApplicationStopping);
 	}
 
 	/// <inheritdoc />
@@ -72,18 +75,56 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		CancellationToken cancellationToken = default)
 	{
 		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
-		using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _appLifetime.ApplicationStopping);
-		var linkedToken = linkedCts.Token;
 
 		_ = Interlocked.Exchange(ref _skipCount, completedCount);
 
-		var producerTask = Task.Run(() => ProducerLoop(linkedToken), linkedToken);
-		var consumerTask = Task.Run(() => ConsumerLoop(linkedToken), linkedToken);
+		_isFlushing = false;
+		_producerTask = Task.Run(() => ProducerLoop(cancellationToken), cancellationToken);
+		_consumerTask = Task.Run(() => ConsumerLoop(cancellationToken), cancellationToken);
 
-		var consumerResult = await consumerTask.ConfigureAwait(false);
-		await producerTask.ConfigureAwait(false);
+		var consumerResult = await _consumerTask.ConfigureAwait(false);
+		await _producerTask.ConfigureAwait(false);
 
 		return consumerResult;
+	}
+
+	public async Task FlushAsync()
+	{
+		if (_disposedFlag == 1)
+		{
+			return;
+		}
+
+		_isFlushing = true;
+		_ = Interlocked.Exchange(ref _producerCompleted, 1);
+
+		if (_producerTask != null)
+		{
+			try
+			{
+				await _producerTask.ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Error finishing ProducerLoop in DataProcessor FlushAsync.");
+				throw;
+			}
+		}
+
+		if (_consumerTask != null)
+		{
+			try
+			{
+				_ = await _consumerTask.ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Error finishing ConsumerLoop in DataProcessor FlushAsync.");
+				throw;
+			}
+		}
+
+		_isFlushing = false;
 	}
 
 	/// <inheritdoc />
@@ -134,7 +175,6 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 				if (batch.Count == 0)
 				{
 					_logger.LogInformation("No more DataProcessor records. Producer exiting.");
-					Interlocked.Exchange(ref _producerCompleted, 1);
 					break;
 				}
 
@@ -162,10 +202,13 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 			_logger.LogError(ex, "Error in DataProcessor ProducerLoop");
 			throw;
 		}
-
-		if (_producerCompleted == 1)
+		finally
 		{
-			_logger.LogInformation("DataProcessor Producer has completed execution.");
+			_ = Interlocked.Exchange(ref _producerCompleted, 1);
+
+			_dataQueue.CompleteWriter();
+
+			_logger.LogInformation("DataProcessor Producer has completed execution. Channel marked as complete.");
 		}
 	}
 
@@ -276,9 +319,24 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	/// <summary>
 	///     Handles cleanup when the application is stopping.
 	/// </summary>
-	private void OnApplicationStopping()
+	private async void OnApplicationStopping()
 	{
-		_logger.LogInformation("Application is stopping. Ensuring data processing cleanup.");
-		Dispose();
+		try
+		{
+			if (!_isFlushing)
+			{
+				_logger.LogInformation("Application is stopping. Attempting a graceful flush in DataProcessor.");
+
+				await FlushAsync().ConfigureAwait(false);
+			}
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Error while gracefully flushing DataProcessor queue on shutdown.");
+		}
+		finally
+		{
+			Dispose();
+		}
 	}
 }
