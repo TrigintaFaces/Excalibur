@@ -25,8 +25,6 @@ public class OutboxManager : IOutboxManager
 
 	private readonly TelemetryClient? _telemetryClient;
 
-	private readonly SemaphoreSlim _queueSpaceAvailable;
-
 	private volatile bool _isFlushing;
 
 	private int _disposedFlag;
@@ -68,7 +66,6 @@ public class OutboxManager : IOutboxManager
 		_logger = logger;
 		_telemetryClient = telemetryClient;
 		_outboxQueue = new InMemoryDataQueue<OutboxRecord>(_configuration.QueueSize);
-		_queueSpaceAvailable = new SemaphoreSlim(_configuration.QueueSize, _configuration.QueueSize);
 
 		_ = appLifetime.ApplicationStopping.Register(OnApplicationStopping);
 	}
@@ -151,7 +148,6 @@ public class OutboxManager : IOutboxManager
 		{
 			_logger.LogInformation("Disposing OutboxManager resources.");
 			_outboxQueue.Dispose();
-			_queueSpaceAvailable.Dispose();
 		}
 	}
 
@@ -189,9 +185,6 @@ public class OutboxManager : IOutboxManager
 
 				foreach (var record in batch)
 				{
-					cancellationToken.ThrowIfCancellationRequested();
-
-					await _queueSpaceAvailable.WaitAsync(cancellationToken).ConfigureAwait(false);
 					await _outboxQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
 				}
 
@@ -281,13 +274,6 @@ public class OutboxManager : IOutboxManager
 							"Error dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId} in OutboxManager",
 							record.OutboxId,
 							record.DispatcherId);
-					}
-					finally
-					{
-						if (_queueSpaceAvailable.CurrentCount < _configuration.QueueSize)
-						{
-							_ = _queueSpaceAvailable.Release();
-						}
 					}
 				}
 

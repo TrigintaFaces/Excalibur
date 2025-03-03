@@ -1,9 +1,10 @@
-using System.Collections.Concurrent;
-
 using Excalibur.Core.Diagnostics;
 
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+
+using Polly;
 
 namespace Excalibur.DataAccess.SqlServer.Cdc;
 
@@ -35,9 +36,11 @@ public class CdcProcessor : ICdcProcessor
 
 	private readonly InMemoryDataQueue<CdcRow> _cdcQueue;
 
-	private readonly ConcurrentDictionary<string, CdcPosition> _tracking = new();
+	private readonly Dictionary<string, CdcPosition> _tracking = new();
 
-	private readonly SemaphoreSlim _queueSpaceAvailable;
+	private readonly SortedSet<(byte[] Lsn, string TableName)> _minHeap = new(new MinHeapComparer());
+
+	private readonly object _minHeapLock = new();
 
 	private volatile bool _isFlushing;
 
@@ -76,7 +79,6 @@ public class CdcProcessor : ICdcProcessor
 		_stateStore = stateStore;
 		_logger = logger;
 		_cdcQueue = new InMemoryDataQueue<CdcRow>(_dbConfig.QueueSize);
-		_queueSpaceAvailable = new SemaphoreSlim(_dbConfig.QueueSize, _dbConfig.QueueSize);
 
 		_ = appLifetime.ApplicationStopping.Register(OnApplicationStopping);
 	}
@@ -94,12 +96,16 @@ public class CdcProcessor : ICdcProcessor
 	{
 		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
-		var lowestStartLsn = await InitializeTrackingAsync(cancellationToken).ConfigureAwait(false);
+		await InitializeTrackingAsync(cancellationToken).ConfigureAwait(false);
+
+		var lowestStartLsn = GetNextLsn();
 
 		if (lowestStartLsn == null)
 		{
 			throw new InvalidOperationException("Cannot start processing; no valid minimum LSN found in CDC tables.");
 		}
+
+		_logger.LogDebug("Starting new run at LSN {lowestStartLsn}", lowestStartLsn);
 
 		_isFlushing = false;
 		_producerTask = Task.Run(() => ProducerLoop(lowestStartLsn, cancellationToken), cancellationToken);
@@ -173,7 +179,6 @@ public class CdcProcessor : ICdcProcessor
 			_logger.LogInformation("Disposing CdcProcessor resources.");
 			_tracking.Clear();
 			_cdcQueue.Dispose();
-			_queueSpaceAvailable.Dispose();
 		}
 	}
 
@@ -221,10 +226,10 @@ public class CdcProcessor : ICdcProcessor
 			switch (cdcRow.OperationCode)
 			{
 				case CdcOperationCodes.UpdateBefore:
-					var updateAfterRow = cdcRows[i + 1]?.OperationCode == CdcOperationCodes.UpdateAfter ? cdcRows[i + 1] : null;
-					if (i + 1 < cdcRows.Count && updateAfterRow != null)
+					var nextRow = i + 1 < cdcRows.Count ? cdcRows[i + 1] : null;
+					if (nextRow?.OperationCode == CdcOperationCodes.UpdateAfter)
 					{
-						dataChangeEvents[index++] = DataChangeEvent.CreateUpdateEvent(cdcRow, updateAfterRow);
+						dataChangeEvents[index++] = DataChangeEvent.CreateUpdateEvent(cdcRow, nextRow);
 						i++;
 					}
 					else
@@ -277,7 +282,8 @@ public class CdcProcessor : ICdcProcessor
 		{
 			var currentGlobalLsn = lowestStartLsn;
 			var maxLsn = await _cdcRepository.GetMaxPositionAsync(cancellationToken).ConfigureAwait(false);
-			_logger.LogDebug("Producer loop started with tracking state for {TableCount} tables", _tracking.Count);
+
+			_logger.LogDebug("Producer loop started with tracking state for {TableCount} tables", _minHeap.Count);
 
 			while (currentGlobalLsn.CompareLsn(maxLsn) <= 0)
 			{
@@ -296,6 +302,7 @@ public class CdcProcessor : ICdcProcessor
 						if (tableTracking.Lsn.CompareLsn(currentGlobalLsn) == 0)
 						{
 							var totalRowsReadInThisLsn = 0;
+							var producerBatchSize = Math.Min(_dbConfig.QueueSize - _cdcQueue.Count, _dbConfig.ProducerBatchSize);
 
 							while (!cancellationToken.IsCancellationRequested)
 							{
@@ -305,12 +312,14 @@ public class CdcProcessor : ICdcProcessor
 									ByteArrayToHex(tableTracking.Lsn),
 									tableTracking.SequenceValue != null ? ByteArrayToHex(tableTracking.SequenceValue) : "null");
 
-								var changes = await _cdcRepository.FetchChangesAsync(
-												  captureInstance,
-												  _dbConfig.ProducerBatchSize,
-												  tableTracking.Lsn,
-												  tableTracking.SequenceValue,
-												  cancellationToken).ConfigureAwait(false) as IList<CdcRow> ?? [];
+								var policy = Policy.Handle<SqlException>().CircuitBreakerAsync(3, TimeSpan.FromMinutes(1));
+								var changes = await policy.ExecuteAsync(
+												  () => _cdcRepository.FetchChangesAsync(
+													  captureInstance,
+													  producerBatchSize,
+													  tableTracking.Lsn,
+													  tableTracking.SequenceValue,
+													  cancellationToken)).ConfigureAwait(false) as IList<CdcRow> ?? [];
 
 								if (changes.Count == 0)
 								{
@@ -328,9 +337,7 @@ public class CdcProcessor : ICdcProcessor
 										var commitTime = await _cdcRepository.GetLsnToTimeAsync(tableTracking.Lsn, cancellationToken)
 															 .ConfigureAwait(false);
 
-										await _stateStore.UpdateLastProcessedPositionAsync(
-											_dbConfig.DatabaseConnectionIdentifier,
-											_dbConfig.DatabaseName,
+										await UpdateTableLastProcessed(
 											captureInstance,
 											tableTracking.Lsn,
 											tableTracking.SequenceValue,
@@ -345,7 +352,6 @@ public class CdcProcessor : ICdcProcessor
 
 								foreach (var record in changes)
 								{
-									await _queueSpaceAvailable.WaitAsync(cancellationToken).ConfigureAwait(false);
 									await _cdcQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
 								}
 
@@ -367,11 +373,11 @@ public class CdcProcessor : ICdcProcessor
 
 							if (nextLsn != null && nextLsn.CompareLsn(maxLsn) < 0)
 							{
-								_tracking[captureInstance] = new CdcPosition(nextLsn, null);
+								UpdateLsnTracking(captureInstance, new CdcPosition(nextLsn, null));
 							}
 							else
 							{
-								_tracking.Remove(captureInstance, out var position);
+								UpdateLsnTracking(captureInstance, null);
 							}
 						}
 					}
@@ -392,9 +398,14 @@ public class CdcProcessor : ICdcProcessor
 		{
 			_logger.LogDebug("CdcProcessor Producer canceled");
 		}
+		catch (SqlException ex)
+		{
+			_logger.LogError(ex, "SQL error in CdcProcessor ProducerLoop");
+			throw;
+		}
 		catch (Exception ex)
 		{
-			_logger.LogError(ex, "Error in CdcProcessor ProducerLoop");
+			_logger.LogError(ex, "Unexpected Error in CdcProcessor ProducerLoop");
 			throw;
 		}
 		finally
@@ -450,7 +461,7 @@ public class CdcProcessor : ICdcProcessor
 					}
 
 					await Task.Delay(waitTime, cancellationToken).ConfigureAwait(false);
-					waitTime = Math.Min(waitTime * 2, 100);
+					waitTime = Math.Min(waitTime * 2, 200);
 				}
 
 				continue;
@@ -467,11 +478,6 @@ public class CdcProcessor : ICdcProcessor
 					if (cdcRow is null)
 					{
 						continue;
-					}
-
-					if (_queueSpaceAvailable.CurrentCount < _dbConfig.QueueSize)
-					{
-						_ = _queueSpaceAvailable.Release();
 					}
 
 					if (batchList.Count < _dbConfig.ConsumerBatchSize)
@@ -521,7 +527,14 @@ public class CdcProcessor : ICdcProcessor
 		{
 			_logger.LogDebug("Processing batch of {BatchSize} CDC records", batch.Count);
 
-			await ProcessBatch(batch, eventHandler, cancellationToken).ConfigureAwait(false);
+			var retryPolicy = Policy.Handle<SqlException>().Or<TimeoutException>().RetryAsync(
+				3,
+				(Exception exception, int retryCount) =>
+				{
+					_logger.LogWarning("Retry {RetryCount} for error: {Message}", retryCount, exception.Message);
+				});
+
+			await retryPolicy.ExecuteAsync(() => ProcessBatch(batch, eventHandler, cancellationToken)).ConfigureAwait(false);
 
 			_logger.LogDebug("Processed {BatchSize} CDC records in {ElapsedMs}ms", batch.Count, stopwatch.Elapsed.TotalMilliseconds);
 
@@ -541,53 +554,62 @@ public class CdcProcessor : ICdcProcessor
 		_ = await eventHandler(events, cancellationToken).ConfigureAwait(false);
 		Array.Clear(events);
 
-		var updateTasks = new List<Task>();
-
-		for (var i = 0; i < batch.Count; i++)
-		{
-			var currentRow = batch[i];
-
-			if (currentRow is null)
+		using var semaphore = new SemaphoreSlim(5);
+		var updateTasks = batch.GroupBy((CdcRow r) => r.TableName).Select(
+			async (IGrouping<string, CdcRow> group) =>
 			{
-				continue;
-			}
+				await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-			try
-			{
-				if (i == batch.Count - 1 || batch[i + 1].TableName != currentRow.TableName)
+				try
 				{
-					updateTasks.Add(
-						_stateStore.UpdateLastProcessedPositionAsync(
-							_dbConfig.DatabaseConnectionIdentifier,
-							_dbConfig.DatabaseName,
-							currentRow.TableName,
-							currentRow.Lsn,
-							currentRow.SeqVal,
-							currentRow.CommitTime,
-							cancellationToken));
+					var lastRow = group.Last();
 
-					_logger.LogInformation("Updated state for {TableName}", currentRow.TableName);
+					var policy = Policy.Handle<SqlException>().CircuitBreakerAsync(3, TimeSpan.FromMinutes(1));
+
+					await policy.ExecuteAsync(
+						() => UpdateTableLastProcessed(
+							lastRow.TableName,
+							lastRow.Lsn,
+							lastRow.SeqVal,
+							lastRow.CommitTime,
+							cancellationToken)).ConfigureAwait(false);
 				}
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, "Error in updating the last processed position for {TableName}", currentRow.TableName);
-				throw;
-			}
-			finally
-			{
-				currentRow.Dispose();
-			}
-		}
+				finally
+				{
+					_ = semaphore.Release();
+				}
+			}).ToArray();
 
 		await Task.WhenAll(updateTasks).ConfigureAwait(false);
-		updateTasks.Clear();
+		Array.Clear(updateTasks);
+
+		foreach (var cdcRow in batch)
+		{
+			cdcRow.Dispose();
+		}
 	}
 
-	private async Task<byte[]?> InitializeTrackingAsync(CancellationToken cancellationToken)
+	private async Task UpdateTableLastProcessed(
+		string tableName,
+		byte[] lsn,
+		byte[]? sequenceValue,
+		DateTime? commitTime,
+		CancellationToken cancellationToken)
 	{
-		byte[]? lowestStartLsn = null;
+		await _stateStore.UpdateLastProcessedPositionAsync(
+			_dbConfig.DatabaseConnectionIdentifier,
+			_dbConfig.DatabaseName,
+			tableName,
+			lsn,
+			sequenceValue,
+			commitTime,
+			cancellationToken).ConfigureAwait(false);
 
+		_logger.LogInformation("Updated state for {TableName}", tableName);
+	}
+
+	private async Task InitializeTrackingAsync(CancellationToken cancellationToken)
+	{
 		var processingStates = await _stateStore.GetLastProcessedPositionAsync(
 								   _dbConfig.DatabaseConnectionIdentifier,
 								   _dbConfig.DatabaseName,
@@ -616,39 +638,55 @@ public class CdcProcessor : ICdcProcessor
 				}
 			}
 
-			_tracking[captureInstance] = new CdcPosition(startLsn, seqVal);
+			UpdateLsnTracking(captureInstance, new CdcPosition(startLsn, seqVal));
+		}
+	}
 
-			if (lowestStartLsn == null || startLsn.CompareLsn(lowestStartLsn) < 0)
+	private void UpdateLsnTracking(string tableName, CdcPosition? newPosition)
+	{
+		lock (_minHeapLock)
+		{
+			if (newPosition == null)
 			{
-				lowestStartLsn = startLsn;
+				if (_tracking.ContainsKey(tableName) && _tracking.Remove(tableName, out _))
+				{
+					_ = _minHeap.RemoveWhere(((byte[] Lsn, string TableName) item) => item.TableName == tableName);
+					_logger.LogDebug("Removed LSN for table {TableName}", tableName);
+				}
+			}
+			else
+			{
+				if (_tracking.TryGetValue(tableName, out var currentPos))
+				{
+					if (newPosition.Lsn.CompareLsn(currentPos.Lsn) > 0)
+					{
+						_tracking[tableName] = newPosition;
+						_ = _minHeap.RemoveWhere(((byte[] Lsn, string TableName) item) => item.TableName == tableName);
+						_ = _minHeap.Add((newPosition.Lsn, tableName));
+						_logger.LogDebug("Updated LSN for table {TableName}: {Lsn}", tableName, ByteArrayToHex(newPosition.Lsn));
+					}
+				}
+				else
+				{
+					_tracking[tableName] = newPosition;
+					_ = _minHeap.Add((newPosition.Lsn, tableName));
+					_logger.LogDebug("Inserted new LSN for table {TableName}: {Lsn}", tableName, ByteArrayToHex(newPosition.Lsn));
+				}
 			}
 		}
-
-		_logger.LogDebug("Starting new run at LSN {lowestStartLsn}", lowestStartLsn);
-
-		return lowestStartLsn;
 	}
 
 	private byte[] GetNextLsn()
 	{
-		if (_tracking.IsEmpty)
+		lock (_minHeapLock)
 		{
-			throw new InvalidOperationException("tracking dictionary is null");
-		}
-
-		byte[]? lowestLsn = null;
-
-		foreach (var kvp in _tracking)
-		{
-			var currentLsn = kvp.Value.Lsn;
-
-			if (lowestLsn == null || currentLsn.CompareLsn(lowestLsn) < 0)
+			if (_minHeap.Count == 0)
 			{
-				lowestLsn = currentLsn;
+				throw new InvalidOperationException("No LSNs to process.");
 			}
-		}
 
-		return lowestLsn!;
+			return _minHeap.Min.Lsn;
+		}
 	}
 
 	/// <summary>
