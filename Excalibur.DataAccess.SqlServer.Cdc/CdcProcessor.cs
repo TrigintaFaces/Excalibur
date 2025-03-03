@@ -500,15 +500,9 @@ public class CdcProcessor : ICdcProcessor
 					else if (cdcRow.OperationCode != CdcOperationCodes.UpdateBefore)
 					{
 						batchList.Add(cdcRow);
-
-						totalProcessedCount += await CompleteBatch(batchList, stopwatch).ConfigureAwait(false);
-						batchList.Clear();
 					}
 					else
 					{
-						totalProcessedCount += await CompleteBatch(batchList, stopwatch).ConfigureAwait(false);
-						batchList.Clear();
-
 						_logger.LogDebug("Storing UpdateBefore record temporarily.");
 						remainingUpdateBeforeLast = cdcRow;
 					}
@@ -520,7 +514,10 @@ public class CdcProcessor : ICdcProcessor
 					batchList.Clear();
 				}
 
+				batchQueue.Clear();
+
 				batchList = null;
+				batchQueue = null;
 			}
 			catch (OperationCanceledException)
 			{
