@@ -433,6 +433,7 @@ public class CdcProcessor : ICdcProcessor
 		_logger.LogInformation("CDC Consumer loop started...");
 
 		var totalProcessedCount = 0;
+		CdcRow? remainingUpdateBeforeLast = null;
 
 		while (!cancellationToken.IsCancellationRequested)
 		{
@@ -472,8 +473,20 @@ public class CdcProcessor : ICdcProcessor
 				_logger.LogDebug("Attempting to dequeue CDC messages...");
 				var stopwatch = ValueStopwatch.StartNew();
 
-				var batchList = new List<CdcRow>(_dbConfig.ConsumerBatchSize);
-				await foreach (var cdcRow in _cdcQueue.DequeueAllAsync(cancellationToken).ConfigureAwait(false))
+				var batchQueue = await _cdcQueue.DequeueBatchAsync(_dbConfig.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
+				_logger.LogDebug("Dequeued {BatchSize} messages in {ElapsedMs}ms", batchQueue.Count, stopwatch.Elapsed.TotalMilliseconds);
+
+				var batchList = new List<CdcRow>(_dbConfig.ConsumerBatchSize + 1);
+
+				if (remainingUpdateBeforeLast != null)
+				{
+					_logger.LogDebug("Carrying over remaining UpdateBefore record for next batch.");
+
+					batchList.Add(remainingUpdateBeforeLast);
+					remainingUpdateBeforeLast = null;
+				}
+
+				foreach (var cdcRow in batchQueue)
 				{
 					if (cdcRow is null)
 					{
@@ -496,7 +509,8 @@ public class CdcProcessor : ICdcProcessor
 						totalProcessedCount += await CompleteBatch(batchList, stopwatch).ConfigureAwait(false);
 						batchList.Clear();
 
-						batchList.Add(cdcRow);
+						_logger.LogDebug("Storing UpdateBefore record temporarily.");
+						remainingUpdateBeforeLast = cdcRow;
 					}
 				}
 
