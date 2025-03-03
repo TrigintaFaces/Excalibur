@@ -21,8 +21,6 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 {
 	private readonly InMemoryDataQueue<TRecord> _dataQueue;
 
-	private readonly SemaphoreSlim _queueSpaceAvailable;
-
 	private readonly DataProcessingConfiguration _configuration;
 
 	private readonly IServiceProvider _serviceProvider;
@@ -63,7 +61,6 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		_serviceProvider = serviceProvider;
 		_logger = logger;
 		_dataQueue = new InMemoryDataQueue<TRecord>(_configuration.QueueSize);
-		_queueSpaceAvailable = new SemaphoreSlim(_configuration.QueueSize, _configuration.QueueSize);
 
 		_ = appLifetime.ApplicationStopping.Register(OnApplicationStopping);
 	}
@@ -151,7 +148,6 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		{
 			_logger.LogInformation("Disposing DataProcessor resources.");
 			_dataQueue.Dispose();
-			_queueSpaceAvailable.Dispose();
 		}
 	}
 
@@ -182,9 +178,6 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 				foreach (var record in batch)
 				{
-					cancellationToken.ThrowIfCancellationRequested();
-
-					await _queueSpaceAvailable.WaitAsync(cancellationToken).ConfigureAwait(false);
 					await _dataQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
 				}
 
@@ -270,11 +263,6 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 						if (record is IDisposable disposable)
 						{
 							disposable.Dispose();
-						}
-
-						if (_queueSpaceAvailable.CurrentCount < _configuration.QueueSize)
-						{
-							_ = _queueSpaceAvailable.Release();
 						}
 					}
 				}

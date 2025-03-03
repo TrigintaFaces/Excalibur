@@ -2,20 +2,52 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 
 public static class CdcLsnHelper
 {
-	public static int CompareLsn(this byte[] lsn1, byte[] lsn2)
-	{
-		ArgumentNullException.ThrowIfNull(lsn1);
-		ArgumentNullException.ThrowIfNull(lsn2);
+	private static readonly ByteArrayComparer ByteArrayComparer = new();
 
-		var minLength = Math.Min(lsn1.Length, lsn2.Length);
-		for (var i = 0; i < minLength; i++)
+	public static int CompareLsn(this byte[] lsn1, byte[] lsn2) => ByteArrayComparer.Compare(lsn1, lsn2);
+}
+
+public class MinHeapComparer : IComparer<(byte[] Lsn, string TableName)>
+{
+	private readonly ByteArrayComparer _byteArrayComparer = new();
+
+	public int Compare((byte[] Lsn, string TableName) x, (byte[] Lsn, string TableName) y)
+	{
+		var lsnComparison = _byteArrayComparer.Compare(x.Lsn, y.Lsn);
+
+		return lsnComparison != 0 ? lsnComparison : string.Compare(x.TableName, y.TableName, StringComparison.Ordinal);
+	}
+}
+
+public class ByteArrayComparer : IComparer<byte[]>
+{
+	public int Compare(byte[]? x, byte[]? y)
+	{
+		if (ReferenceEquals(x, y))
 		{
-			if (lsn1[i] != lsn2[i])
+			return 0;
+		}
+
+		if (x == null)
+		{
+			return -1;
+		}
+
+		if (y == null)
+		{
+			return 1;
+		}
+
+		var length = Math.Min(x.Length, y.Length);
+		for (var i = 0; i < length; i++)
+		{
+			var comparison = x[i].CompareTo(y[i]);
+			if (comparison != 0)
 			{
-				return lsn1[i].CompareTo(lsn2[i]);
+				return comparison;
 			}
 		}
 
-		return lsn1.Length.CompareTo(lsn2.Length);
+		return x.Length.CompareTo(y.Length);
 	}
 }
