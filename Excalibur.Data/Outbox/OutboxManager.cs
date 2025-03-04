@@ -78,8 +78,16 @@ public class OutboxManager : IOutboxManager
 		await _outbox.TryUnReserveOneRecordsAsync(dispatcherId, cancellationToken).ConfigureAwait(false);
 
 		_isFlushing = false;
-		_producerTask = Task.Run(() => ProducerLoop(dispatcherId, cancellationToken), cancellationToken);
-		_consumerTask = Task.Run(() => ConsumerLoop(dispatcherId, cancellationToken), cancellationToken);
+		_producerTask = Task.Factory.StartNew(
+			() => ProducerLoop(dispatcherId, cancellationToken),
+			cancellationToken,
+			TaskCreationOptions.LongRunning,
+			TaskScheduler.Default);
+		_consumerTask = Task.Factory.StartNew(
+			() => ConsumerLoop(dispatcherId, cancellationToken),
+			cancellationToken,
+			TaskCreationOptions.LongRunning,
+			TaskScheduler.Default).Unwrap();
 
 		var consumerResult = await _consumerTask.ConfigureAwait(false);
 		await _producerTask.ConfigureAwait(false);
@@ -94,36 +102,47 @@ public class OutboxManager : IOutboxManager
 			return;
 		}
 
-		_isFlushing = true;
-		_ = Interlocked.Exchange(ref _producerCompleted, 1);
-
-		if (_producerTask != null)
+		try
 		{
-			try
-			{
-				await _producerTask.ConfigureAwait(false);
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, "Error finishing ProducerLoop in OutboxManager FlushAsync.");
-				throw;
-			}
-		}
+			_isFlushing = true;
+			_ = Interlocked.Exchange(ref _producerCompleted, 1);
 
-		if (_consumerTask != null)
+			if (_producerTask != null)
+			{
+				try
+				{
+					await _producerTask.ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, "Error finishing ProducerLoop in OutboxManager FlushAsync.");
+					throw;
+				}
+			}
+
+			if (_consumerTask != null)
+			{
+				try
+				{
+					_ = await _consumerTask.ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, "Error finishing ConsumerLoop in OutboxManager FlushAsync.");
+					throw;
+				}
+			}
+
+			_isFlushing = false;
+		}
+		catch (TaskCanceledException ex)
 		{
-			try
-			{
-				_ = await _consumerTask.ConfigureAwait(false);
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, "Error finishing ConsumerLoop in OutboxManager FlushAsync.");
-				throw;
-			}
+			_logger.LogWarning(ex, "Task was canceled during OutboxManager FlushAsync.");
 		}
-
-		_isFlushing = false;
+		catch (ObjectDisposedException ex)
+		{
+			_logger.LogError(ex, "ObjectDisposedException while finishing OutboxManager FlushAsync.");
+		}
 	}
 
 	/// <inheritdoc />

@@ -108,8 +108,16 @@ public class CdcProcessor : ICdcProcessor
 		_logger.LogDebug("Starting new run at LSN {lowestStartLsn}", lowestStartLsn);
 
 		_isFlushing = false;
-		_producerTask = Task.Run(() => ProducerLoop(lowestStartLsn, cancellationToken), cancellationToken);
-		_consumerTask = Task.Run(() => ConsumerLoop(eventHandler, cancellationToken), cancellationToken);
+		_producerTask = Task.Factory.StartNew(
+			() => ProducerLoop(lowestStartLsn, cancellationToken),
+			cancellationToken,
+			TaskCreationOptions.LongRunning,
+			TaskScheduler.Default);
+		_consumerTask = Task.Factory.StartNew(
+			() => ConsumerLoop(eventHandler, cancellationToken),
+			cancellationToken,
+			TaskCreationOptions.LongRunning,
+			TaskScheduler.Default).Unwrap();
 
 		var consumerResult = await _consumerTask.ConfigureAwait(false);
 		await _producerTask.ConfigureAwait(false);
@@ -124,36 +132,47 @@ public class CdcProcessor : ICdcProcessor
 			return;
 		}
 
-		_isFlushing = true;
-		_ = Interlocked.Exchange(ref _producerCompleted, 1);
-
-		if (_producerTask != null)
+		try
 		{
-			try
-			{
-				await _producerTask.ConfigureAwait(false);
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, "Error finishing ProducerLoop in CdcProcessor FlushAsync.");
-				throw;
-			}
-		}
+			_isFlushing = true;
+			_ = Interlocked.Exchange(ref _producerCompleted, 1);
 
-		if (_consumerTask != null)
+			if (_producerTask != null)
+			{
+				try
+				{
+					await _producerTask.ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, "Error finishing ProducerLoop in CdcProcessor FlushAsync.");
+					throw;
+				}
+			}
+
+			if (_consumerTask != null)
+			{
+				try
+				{
+					_ = await _consumerTask.ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, "Error finishing ConsumerLoop in CdcProcessor FlushAsync.");
+					throw;
+				}
+			}
+
+			_isFlushing = false;
+		}
+		catch (TaskCanceledException ex)
 		{
-			try
-			{
-				_ = await _consumerTask.ConfigureAwait(false);
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, "Error finishing ConsumerLoop in CdcProcessor FlushAsync.");
-				throw;
-			}
+			_logger.LogWarning(ex, "Task was canceled during CdcProcessor FlushAsync.");
 		}
-
-		_isFlushing = false;
+		catch (ObjectDisposedException ex)
+		{
+			_logger.LogError(ex, "ObjectDisposedException while finishing CdcProcessor FlushAsync.");
+		}
 	}
 
 	/// <inheritdoc />
@@ -276,16 +295,19 @@ public class CdcProcessor : ICdcProcessor
 	/// </summary>
 	/// <param name="lowestStartLsn"> The lowest LSN from all the configured capture instances. </param>
 	/// <param name="cancellationToken"> A cancellation token to stop processing. </param>
-	private async Task ProducerLoop(byte[] lowestStartLsn, CancellationToken cancellationToken)
+	private async Task ProducerLoop(byte[]? lowestStartLsn, CancellationToken cancellationToken)
 	{
 		try
 		{
 			var currentGlobalLsn = lowestStartLsn;
 			var maxLsn = await _cdcRepository.GetMaxPositionAsync(cancellationToken).ConfigureAwait(false);
 
-			_logger.LogDebug("Producer loop started with tracking state for {TableCount} tables", _minHeap.Count);
+			lock (_minHeapLock)
+			{
+				_logger.LogDebug("Producer loop started with tracking state for {TableCount} tables", _minHeap.Count);
+			}
 
-			while (currentGlobalLsn.CompareLsn(maxLsn) <= 0)
+			while (currentGlobalLsn != null && currentGlobalLsn.CompareLsn(maxLsn) <= 0)
 			{
 				if (_producerCompleted == 1)
 				{
@@ -295,7 +317,7 @@ public class CdcProcessor : ICdcProcessor
 
 				cancellationToken.ThrowIfCancellationRequested();
 
-				foreach (var captureInstance in _dbConfig.CaptureInstances)
+				foreach (var captureInstance in _tracking.Keys)
 				{
 					if (_tracking.TryGetValue(captureInstance, out var tableTracking))
 					{
@@ -303,22 +325,24 @@ public class CdcProcessor : ICdcProcessor
 						{
 							var totalRowsReadInThisLsn = 0;
 							var producerBatchSize = Math.Min(_dbConfig.QueueSize - _cdcQueue.Count, _dbConfig.ProducerBatchSize);
+							var lsn = tableTracking.Lsn;
+							var sequenceValue = tableTracking.SequenceValue;
 
 							while (!cancellationToken.IsCancellationRequested)
 							{
 								_logger.LogDebug(
 									"Fetching CDC changes: {TableName} - LSN {Lsn}, SeqVal {SeqVal}",
 									captureInstance,
-									ByteArrayToHex(tableTracking.Lsn),
-									tableTracking.SequenceValue != null ? ByteArrayToHex(tableTracking.SequenceValue) : "null");
+									ByteArrayToHex(lsn),
+									sequenceValue != null ? ByteArrayToHex(sequenceValue) : "null");
 
 								var policy = Policy.Handle<SqlException>().CircuitBreakerAsync(3, TimeSpan.FromMinutes(1));
 								var changes = await policy.ExecuteAsync(
 												  () => _cdcRepository.FetchChangesAsync(
 													  captureInstance,
 													  producerBatchSize,
-													  tableTracking.Lsn,
-													  tableTracking.SequenceValue,
+													  lsn,
+													  sequenceValue,
 													  cancellationToken)).ConfigureAwait(false) as IList<CdcRow> ?? [];
 
 								if (changes.Count == 0)
@@ -334,15 +358,11 @@ public class CdcProcessor : ICdcProcessor
 									{
 										_logger.LogInformation("No changes found for {TableName}, advancing LSN.", captureInstance);
 
-										var commitTime = await _cdcRepository.GetLsnToTimeAsync(tableTracking.Lsn, cancellationToken)
+										var commitTime = await _cdcRepository.GetLsnToTimeAsync(lsn, cancellationToken)
 															 .ConfigureAwait(false);
 
-										await UpdateTableLastProcessed(
-											captureInstance,
-											tableTracking.Lsn,
-											tableTracking.SequenceValue,
-											commitTime,
-											cancellationToken).ConfigureAwait(false);
+										await UpdateTableLastProcessed(captureInstance, lsn, sequenceValue, commitTime, cancellationToken)
+											.ConfigureAwait(false);
 									}
 
 									break;
@@ -353,6 +373,8 @@ public class CdcProcessor : ICdcProcessor
 								foreach (var record in changes)
 								{
 									await _cdcQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
+									lsn = record.Lsn;
+									sequenceValue = record.SeqVal;
 								}
 
 								if (changes.Count < _dbConfig.ProducerBatchSize)
@@ -361,13 +383,13 @@ public class CdcProcessor : ICdcProcessor
 								}
 							}
 
-							var nextLsn = await _cdcRepository.GetNextLsnAsync(captureInstance, tableTracking.Lsn, cancellationToken)
+							var nextLsn = await _cdcRepository.GetNextLsnAsync(captureInstance, lsn, cancellationToken)
 											  .ConfigureAwait(false);
 
 							_logger.LogDebug(
 								"Table {CaptureInstance}: currentLSN={CurrentLsn}, nextLSN={NextLsn}, maxLSN={MaxLsn}",
 								captureInstance,
-								ByteArrayToHex(tableTracking.Lsn),
+								ByteArrayToHex(lsn),
 								nextLsn != null ? ByteArrayToHex(nextLsn) : "null",
 								ByteArrayToHex(maxLsn));
 
@@ -488,11 +510,6 @@ public class CdcProcessor : ICdcProcessor
 
 				foreach (var cdcRow in batchQueue)
 				{
-					if (cdcRow is null)
-					{
-						continue;
-					}
-
 					if (batchList.Count < _dbConfig.ConsumerBatchSize)
 					{
 						batchList.Add(cdcRow);
@@ -513,8 +530,6 @@ public class CdcProcessor : ICdcProcessor
 					totalProcessedCount += await CompleteBatch(batchList, stopwatch).ConfigureAwait(false);
 					batchList.Clear();
 				}
-
-				batchQueue.Clear();
 
 				batchList = null;
 				batchQueue = null;
@@ -687,16 +702,11 @@ public class CdcProcessor : ICdcProcessor
 		}
 	}
 
-	private byte[] GetNextLsn()
+	private byte[]? GetNextLsn()
 	{
 		lock (_minHeapLock)
 		{
-			if (_minHeap.Count == 0)
-			{
-				throw new InvalidOperationException("No LSNs to process.");
-			}
-
-			return _minHeap.Min.Lsn;
+			return _minHeap.Count == 0 ? null : _minHeap.Min.Lsn;
 		}
 	}
 
