@@ -76,8 +76,16 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		_ = Interlocked.Exchange(ref _skipCount, completedCount);
 
 		_isFlushing = false;
-		_producerTask = Task.Run(() => ProducerLoop(cancellationToken), cancellationToken);
-		_consumerTask = Task.Run(() => ConsumerLoop(cancellationToken), cancellationToken);
+		_producerTask = Task.Factory.StartNew(
+			() => ProducerLoop(cancellationToken),
+			cancellationToken,
+			TaskCreationOptions.LongRunning,
+			TaskScheduler.Default);
+		_consumerTask = Task.Factory.StartNew(
+			() => ConsumerLoop(cancellationToken),
+			cancellationToken,
+			TaskCreationOptions.LongRunning,
+			TaskScheduler.Default).Unwrap();
 
 		var consumerResult = await _consumerTask.ConfigureAwait(false);
 		await _producerTask.ConfigureAwait(false);
@@ -92,36 +100,47 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 			return;
 		}
 
-		_isFlushing = true;
-		_ = Interlocked.Exchange(ref _producerCompleted, 1);
-
-		if (_producerTask != null)
+		try
 		{
-			try
-			{
-				await _producerTask.ConfigureAwait(false);
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, "Error finishing ProducerLoop in DataProcessor FlushAsync.");
-				throw;
-			}
-		}
+			_isFlushing = true;
+			_ = Interlocked.Exchange(ref _producerCompleted, 1);
 
-		if (_consumerTask != null)
+			if (_producerTask != null)
+			{
+				try
+				{
+					await _producerTask.ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, "Error finishing ProducerLoop in DataProcessor FlushAsync.");
+					throw;
+				}
+			}
+
+			if (_consumerTask != null)
+			{
+				try
+				{
+					_ = await _consumerTask.ConfigureAwait(false);
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, "Error finishing ConsumerLoop in DataProcessor FlushAsync.");
+					throw;
+				}
+			}
+
+			_isFlushing = false;
+		}
+		catch (TaskCanceledException ex)
 		{
-			try
-			{
-				_ = await _consumerTask.ConfigureAwait(false);
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, "Error finishing ConsumerLoop in DataProcessor FlushAsync.");
-				throw;
-			}
+			_logger.LogWarning(ex, "Task was canceled during DataProcessor FlushAsync.");
 		}
-
-		_isFlushing = false;
+		catch (ObjectDisposedException ex)
+		{
+			_logger.LogError(ex, "ObjectDisposedException while finishing DataProcessor FlushAsync.");
+		}
 	}
 
 	/// <inheritdoc />
