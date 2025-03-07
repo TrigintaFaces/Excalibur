@@ -4,7 +4,7 @@ namespace Excalibur.DataAccess;
 ///     Defines a generic data queue interface for enqueuing and dequeuing records asynchronously.
 /// </summary>
 /// <typeparam name="TRecord"> The type of the records in the queue. </typeparam>
-public interface IDataQueue<TRecord> : IDisposable
+public interface IDataQueue<TRecord> : IAsyncDisposable
 {
 	/// <summary>
 	///     Asynchronously enqueues a record into the queue.

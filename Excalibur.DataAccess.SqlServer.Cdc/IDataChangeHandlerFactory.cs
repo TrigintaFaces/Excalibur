@@ -3,7 +3,7 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 /// <summary>
 ///     Provides a registry for managing and retrieving data change handlers based on table names.
 /// </summary>
-public interface IDataChangeHandlerRegistry
+public interface IDataChangeHandlerFactory
 {
 	/// <summary>
 	///     Retrieves the registered <see cref="IDataChangeHandler" /> for the specified table name.

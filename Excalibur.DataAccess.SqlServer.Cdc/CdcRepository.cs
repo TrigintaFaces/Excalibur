@@ -38,7 +38,7 @@ public class CdcRepository : ICdcRepository
 	}
 
 	/// <inheritdoc />
-	public async Task<byte[]> GetNextLsnAsync(byte[] lastProcessedLsn, CancellationToken cancellationToken)
+	public Task<byte[]> GetNextLsnAsync(byte[] lastProcessedLsn, CancellationToken cancellationToken)
 	{
 		const string CommandText = "SELECT sys.fn_cdc_increment_lsn(@LastProcessedLsn);";
 
@@ -51,12 +51,11 @@ public class CdcRepository : ICdcRepository
 			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		var result = await _connection.Ready().QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
-		return result;
+		return _connection.Ready().QuerySingleAsync<byte[]>(command);
 	}
 
 	/// <inheritdoc />
-	public async Task<byte[]?> GetNextLsnAsync(string captureInstance, byte[] lastProcessedLsn, CancellationToken cancellationToken)
+	public Task<byte[]?> GetNextLsnAsync(string captureInstance, byte[] lastProcessedLsn, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(captureInstance);
 		ArgumentNullException.ThrowIfNull(lastProcessedLsn);
@@ -77,12 +76,11 @@ public class CdcRepository : ICdcRepository
 			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		var result = await _connection.Ready().QuerySingleOrDefaultAsync<byte[]?>(command).ConfigureAwait(false);
-		return result;
+		return _connection.Ready().QuerySingleOrDefaultAsync<byte[]?>(command);
 	}
 
 	/// <inheritdoc />
-	public async Task<DateTime?> GetLsnToTimeAsync(byte[] lsn, CancellationToken cancellationToken)
+	public Task<DateTime?> GetLsnToTimeAsync(byte[] lsn, CancellationToken cancellationToken)
 	{
 		const string CommandText = "SELECT CAST(sys.fn_cdc_map_lsn_to_time(@Lsn) AS DATETIME2(3)) AS LSN_TIME;";
 
@@ -95,13 +93,11 @@ public class CdcRepository : ICdcRepository
 			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		var result = await _connection.Ready().QuerySingleOrDefaultAsync<DateTime?>(command).ConfigureAwait(false);
-
-		return result;
+		return _connection.Ready().QuerySingleOrDefaultAsync<DateTime?>(command);
 	}
 
 	/// <inheritdoc />
-	public async Task<byte[]?> GetTimeToLsnAsync(DateTime lsnDate, string relationalOperator, CancellationToken cancellationToken)
+	public Task<byte[]?> GetTimeToLsnAsync(DateTime lsnDate, string relationalOperator, CancellationToken cancellationToken)
 	{
 		const string CommandText = "SELECT sys.fn_cdc_map_time_to_lsn(@RelationalOperator, @LsnDate);";
 
@@ -115,13 +111,11 @@ public class CdcRepository : ICdcRepository
 			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		var result = await _connection.Ready().QuerySingleAsync<byte[]?>(command).ConfigureAwait(false);
-
-		return result;
+		return _connection.Ready().QuerySingleAsync<byte[]?>(command);
 	}
 
 	/// <inheritdoc />
-	public async Task<byte[]> GetMinPositionAsync(string captureInstance, CancellationToken cancellationToken)
+	public Task<byte[]> GetMinPositionAsync(string captureInstance, CancellationToken cancellationToken)
 	{
 		const string CommandText = "SELECT sys.fn_cdc_get_min_lsn(@CaptureInstance);";
 
@@ -134,13 +128,11 @@ public class CdcRepository : ICdcRepository
 			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		var result = await _connection.Ready().QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
-
-		return result;
+		return _connection.Ready().QuerySingleAsync<byte[]>(command);
 	}
 
 	/// <inheritdoc />
-	public async Task<byte[]> GetMaxPositionAsync(CancellationToken cancellationToken)
+	public Task<byte[]> GetMaxPositionAsync(CancellationToken cancellationToken)
 	{
 		const string CommandText = "SELECT sys.fn_cdc_get_max_lsn();";
 
@@ -149,9 +141,7 @@ public class CdcRepository : ICdcRepository
 			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		var result = await _connection.Ready().QuerySingleAsync<byte[]>(command).ConfigureAwait(false);
-
-		return result;
+		return _connection.Ready().QuerySingleAsync<byte[]>(command);
 	}
 
 	/// <inheritdoc />
@@ -191,7 +181,7 @@ public class CdcRepository : ICdcRepository
 	}
 
 	/// <inheritdoc />
-	public async Task<byte[]?> GetNextValidLsn(byte[] lastProcessedLsn, CancellationToken cancellationToken)
+	public Task<byte[]?> GetNextValidLsn(byte[] lastProcessedLsn, CancellationToken cancellationToken)
 	{
 		const string CommandText = """
 		                                 SELECT TOP 1 tran_begin_lsn
@@ -206,9 +196,7 @@ public class CdcRepository : ICdcRepository
 
 		var command = new CommandDefinition(CommandText, parameters: parameters, cancellationToken: cancellationToken);
 
-		var result = await _connection.Ready().QueryFirstOrDefaultAsync<byte[]>(command).ConfigureAwait(false);
-
-		return result;
+		return _connection.Ready().QueryFirstOrDefaultAsync<byte[]>(command);
 	}
 
 	/// <inheritdoc />
@@ -217,6 +205,7 @@ public class CdcRepository : ICdcRepository
 		int batchSize,
 		byte[] lsn,
 		byte[]? lastSequenceValue,
+		CdcOperationCodes lastOperation,
 		CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(captureInstance);
@@ -234,7 +223,15 @@ public class CdcRepository : ICdcRepository
 		                   WHERE
 		                      __$start_lsn = @lsn
 		                      AND
-		                      (@lastSequenceValue IS NULL OR __$seqval > @lastSequenceValue)
+		                      (
+		                         @lastSequenceValue IS NULL
+		                         OR
+		                         (
+		                            (__$seqval > @lastSequenceValue)
+		                            OR
+		                            (@lastOperation = 3 AND __$seqval = @lastSequenceValue)
+		                         )
+		                      )
 		                   ORDER BY
 		                      __$start_lsn,
 		                      __$seqval,
@@ -245,6 +242,7 @@ public class CdcRepository : ICdcRepository
 		parameters.Add("@batchSize", batchSize, DbType.Int32);
 		parameters.Add("lsn", lsn, DbType.Binary, size: 10);
 		parameters.Add("lastSequenceValue", lastSequenceValue, DbType.Binary);
+		parameters.Add("@lastOperation", (int)lastOperation, DbType.Int32);
 
 		var command = new CommandDefinition(
 			commandText,
@@ -254,7 +252,7 @@ public class CdcRepository : ICdcRepository
 		var reader = (DbDataReader)await _connection.Ready().ExecuteReaderAsync(command).ConfigureAwait(false);
 		var resultList = new List<CdcRow>();
 
-		await using (reader)
+		await using (reader.ConfigureAwait(false))
 		{
 			var dataTypes = new Dictionary<string, Type?>();
 
@@ -296,6 +294,33 @@ public class CdcRepository : ICdcRepository
 		}
 
 		return resultList;
+	}
+
+	public async ValueTask DisposeAsync()
+	{
+		await DisposeAsyncCore().ConfigureAwait(false);
+		GC.SuppressFinalize(this);
+	}
+
+	protected virtual async ValueTask DisposeAsyncCore()
+	{
+		await CastAndDispose(_connection).ConfigureAwait(false);
+
+		return;
+
+		static async ValueTask CastAndDispose(IDisposable resource)
+		{
+			switch (resource)
+			{
+				case IAsyncDisposable resourceAsyncDisposable:
+					await resourceAsyncDisposable.DisposeAsync().ConfigureAwait(false);
+					break;
+
+				default:
+					resource.Dispose();
+					break;
+			}
+		}
 	}
 
 	private static CdcOperationCodes GetOperationCode(int operationCode) =>

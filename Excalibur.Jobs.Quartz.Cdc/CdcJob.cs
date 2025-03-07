@@ -134,10 +134,10 @@ public class CdcJob : IJob, IConfigurableJob<CdcJobConfig>
 
 	private async Task<int> ProcessCdcChangesAsync(DatabaseConfig dbConfig, CancellationToken cancellationToken)
 	{
-		var cdcDb = _configuration.GetSqlDb(dbConfig.DatabaseConnectionIdentifier)();
-		var stateStoreDb = _configuration.GetSqlDb(dbConfig.StateConnectionIdentifier)();
+		var cdcConnection = _configuration.GetSqlConnection(dbConfig.DatabaseConnectionIdentifier);
+		var storeConnection = _configuration.GetSqlConnection(dbConfig.StateConnectionIdentifier);
 
-		var processor = _factory.Create(dbConfig, cdcDb, stateStoreDb);
+		var processor = _factory.Create(dbConfig, cdcConnection, storeConnection);
 
 		try
 		{
@@ -156,7 +156,7 @@ public class CdcJob : IJob, IConfigurableJob<CdcJobConfig>
 		}
 		finally
 		{
-			processor.Dispose();
+			await processor.DisposeAsync().ConfigureAwait(false);
 		}
 	}
 }

@@ -25,8 +25,6 @@ public class OutboxManager : IOutboxManager
 
 	private readonly TelemetryClient? _telemetryClient;
 
-	private volatile bool _isFlushing;
-
 	private int _disposedFlag;
 
 	private int _producerCompleted;
@@ -67,7 +65,7 @@ public class OutboxManager : IOutboxManager
 		_telemetryClient = telemetryClient;
 		_outboxQueue = new InMemoryDataQueue<OutboxRecord>(_configuration.QueueSize);
 
-		_ = appLifetime.ApplicationStopping.Register(OnApplicationStopping);
+		_ = appLifetime.ApplicationStopping.Register(() => Task.Run(OnApplicationStoppingAsync));
 	}
 
 	/// <inheritdoc />
@@ -77,7 +75,6 @@ public class OutboxManager : IOutboxManager
 
 		await _outbox.TryUnReserveOneRecordsAsync(dispatcherId, cancellationToken).ConfigureAwait(false);
 
-		_isFlushing = false;
 		_producerTask = Task.Factory.StartNew(
 			() => ProducerLoop(dispatcherId, cancellationToken),
 			cancellationToken,
@@ -97,14 +94,13 @@ public class OutboxManager : IOutboxManager
 
 	public async Task FlushAsync()
 	{
-		if (_disposedFlag == 1)
+		if (Volatile.Read(ref _disposedFlag) == 1)
 		{
 			return;
 		}
 
 		try
 		{
-			_isFlushing = true;
 			_ = Interlocked.Exchange(ref _producerCompleted, 1);
 
 			if (_producerTask != null)
@@ -132,8 +128,6 @@ public class OutboxManager : IOutboxManager
 					throw;
 				}
 			}
-
-			_isFlushing = false;
 		}
 		catch (TaskCanceledException ex)
 		{
@@ -146,27 +140,59 @@ public class OutboxManager : IOutboxManager
 	}
 
 	/// <inheritdoc />
-	public void Dispose()
+	public async ValueTask DisposeAsync()
 	{
-		Dispose(true);
+		await DisposeAsyncCore().ConfigureAwait(false);
 		GC.SuppressFinalize(this);
 	}
 
 	/// <summary>
 	///     Disposes of resources used by the <see cref="OutboxManager" />.
 	/// </summary>
-	/// <param name="disposing"> Indicates whether the method was called from <see cref="Dispose" /> or a finalizer. </param>
-	protected virtual void Dispose(bool disposing)
+	protected virtual async ValueTask DisposeAsyncCore()
 	{
 		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
 		{
 			return;
 		}
 
-		if (disposing)
+		_logger.LogInformation("Disposing OutboxManager resources asynchronously.");
+
+		try
 		{
-			_logger.LogInformation("Disposing OutboxManager resources.");
-			_outboxQueue.Dispose();
+			await FlushAsync().ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Error during DisposeAsyncCore in OutboxManager.");
+		}
+
+		if (_producerTask != null)
+		{
+			await CastAndDispose(_producerTask).ConfigureAwait(false);
+		}
+
+		if (_consumerTask != null)
+		{
+			await CastAndDispose(_consumerTask).ConfigureAwait(false);
+		}
+
+		await _outboxQueue.DisposeAsync().ConfigureAwait(false);
+
+		return;
+
+		static async ValueTask CastAndDispose(IDisposable resource)
+		{
+			switch (resource)
+			{
+				case IAsyncDisposable resourceAsyncDisposable:
+					await resourceAsyncDisposable.DisposeAsync().ConfigureAwait(false);
+					break;
+
+				default:
+					resource.Dispose();
+					break;
+			}
 		}
 	}
 
@@ -338,24 +364,17 @@ public class OutboxManager : IOutboxManager
 		return records;
 	}
 
-	private async void OnApplicationStopping()
+	private async Task OnApplicationStoppingAsync()
 	{
+		_logger.LogInformation("Application is stopping. Disposing OutboxManager asynchronously.");
+
 		try
 		{
-			if (!_isFlushing)
-			{
-				_logger.LogInformation("Application is stopping. Attempting a graceful flush in Outbox.");
-
-				await FlushAsync().ConfigureAwait(false);
-			}
+			await DisposeAsync().ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
-			_logger.LogError(ex, "Error while gracefully flushing Outbox queue on shutdown.");
-		}
-		finally
-		{
-			Dispose();
+			_logger.LogError(ex, "Error while disposing OutboxManager on application shutdown.");
 		}
 	}
 }

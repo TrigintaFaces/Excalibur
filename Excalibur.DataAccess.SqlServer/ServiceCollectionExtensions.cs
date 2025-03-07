@@ -1,3 +1,5 @@
+using System.Reflection;
+
 using Dapper;
 
 using Excalibur.DataAccess.SqlServer.TypeHandlers;
@@ -23,6 +25,8 @@ public static class ServiceCollectionExtensions
 		params SqlMapper.ITypeHandler[] additionalTypeHandlers)
 	{
 		ArgumentNullException.ThrowIfNull(services, nameof(services));
+
+		_ = services.AddSingleton<IDataAccessPolicyFactory, SqlDataAccessPolicyFactory>();
 
 		ConfigureDapper(additionalTypeHandlers ?? []);
 		return services;
@@ -55,12 +59,11 @@ public static class ServiceCollectionExtensions
 	{
 		var handlerType = handler.GetType();
 		var handledType = (handlerType.BaseType?.GenericTypeArguments.FirstOrDefault()) ?? throw new InvalidOperationException(
-			$"The handler of type '{handlerType.FullName}' does not specify a generic type and cannot be registered.");
+							  $"The handler of type '{handlerType.FullName}' does not specify a generic type and cannot be registered.");
 
-		var addHandlerMethod = typeof(SqlMapper)
-								   .GetMethods()
-								   .FirstOrDefault(m => m is { Name: nameof(SqlMapper.AddTypeHandler), IsGenericMethod: true }) ??
-							   throw new InvalidOperationException("Could not locate the generic AddTypeHandler method on SqlMapper.");
+		var addHandlerMethod =
+			typeof(SqlMapper).GetMethods().FirstOrDefault((MethodInfo m) => m is { Name: nameof(SqlMapper.AddTypeHandler), IsGenericMethod: true })
+			?? throw new InvalidOperationException("Could not locate the generic AddTypeHandler method on SqlMapper.");
 
 		var genericAddHandlerMethod = addHandlerMethod.MakeGenericMethod(handledType);
 		_ = genericAddHandlerMethod.Invoke(null, [handler]);

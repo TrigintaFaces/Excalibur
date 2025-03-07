@@ -11,6 +11,9 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 public class DataChangeEventProcessorFactory : IDataChangeEventProcessorFactory
 {
 	private readonly IServiceProvider _serviceProvider;
+
+	private readonly IDataAccessPolicyFactory _policyFactory;
+
 	private readonly IHostApplicationLifetime _appLifetime;
 
 	/// <summary>
@@ -22,13 +25,18 @@ public class DataChangeEventProcessorFactory : IDataChangeEventProcessorFactory
 	///     lifecycle events, such as startup, shutdown, or when the application is stopping. This parameter is used to gracefully manage
 	///     tasks that need to respond to application lifecycle events.
 	/// </param>
-	public DataChangeEventProcessorFactory(IServiceProvider serviceProvider, IHostApplicationLifetime appLifetime)
+	public DataChangeEventProcessorFactory(
+		IServiceProvider serviceProvider,
+		IHostApplicationLifetime appLifetime,
+		IDataAccessPolicyFactory policyFactory)
 	{
 		ArgumentNullException.ThrowIfNull(serviceProvider);
 		ArgumentNullException.ThrowIfNull(appLifetime);
+		ArgumentNullException.ThrowIfNull(policyFactory);
 
 		_serviceProvider = serviceProvider;
 		_appLifetime = appLifetime;
+		_policyFactory = policyFactory;
 	}
 
 	/// <summary>
@@ -48,33 +56,16 @@ public class DataChangeEventProcessorFactory : IDataChangeEventProcessorFactory
 		ArgumentNullException.ThrowIfNull(cdcConnection);
 		ArgumentNullException.ThrowIfNull(stateStoreConnection);
 
-		var cdcRepository = new CdcRepository(cdcConnection);
-		var stateStore = new CdcStateStore(stateStoreConnection);
+		var dataChangeHandlerFactory = _serviceProvider.GetRequiredService<IDataChangeHandlerFactory>();
 		var logger = _serviceProvider.GetRequiredService<ILogger<DataChangeEventProcessor>>();
 
-		return new DataChangeEventProcessor(_appLifetime, dbConfig, cdcRepository, stateStore, _serviceProvider, logger);
-	}
-
-	/// <summary>
-	///     Creates an instance of <see cref="DataChangeEventProcessor" /> using <see cref="IDb" /> instances.
-	/// </summary>
-	/// <param name="dbConfig"> The database configuration used for CDC processing. </param>
-	/// <param name="cdcDb"> The database instance for interacting with CDC data. </param>
-	/// <param name="stateStoreDb"> The database instance for persisting CDC state. </param>
-	/// <returns> A configured <see cref="IDataChangeEventProcessor" /> instance. </returns>
-	/// <exception cref="ArgumentNullException">
-	///     Thrown if <paramref name="dbConfig" />, <paramref name="cdcDb" />, or <paramref name="stateStoreDb" /> is <c> null </c>.
-	/// </exception>
-	public IDataChangeEventProcessor Create(IDatabaseConfig dbConfig, IDb cdcDb, IDb stateStoreDb)
-	{
-		ArgumentNullException.ThrowIfNull(dbConfig);
-		ArgumentNullException.ThrowIfNull(cdcDb);
-		ArgumentNullException.ThrowIfNull(stateStoreDb);
-
-		var cdcRepository = new CdcRepository(cdcDb);
-		var stateStore = new CdcStateStore(stateStoreDb);
-		var logger = _serviceProvider.GetRequiredService<ILogger<DataChangeEventProcessor>>();
-
-		return new DataChangeEventProcessor(_appLifetime, dbConfig, cdcRepository, stateStore, _serviceProvider, logger);
+		return new DataChangeEventProcessor(
+			_appLifetime,
+			dbConfig,
+			cdcConnection,
+			stateStoreConnection,
+			dataChangeHandlerFactory,
+			_policyFactory,
+			logger);
 	}
 }

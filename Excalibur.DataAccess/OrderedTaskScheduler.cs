@@ -6,13 +6,13 @@ namespace Excalibur.DataAccess;
 ///     A task scheduler that ensures tasks are executed in the exact order they are queued. Tasks are processed sequentially on a dedicated
 ///     background thread.
 /// </summary>
-public sealed class OrderedTaskScheduler : TaskScheduler, IDisposable
+public sealed class OrderedTaskScheduler : TaskScheduler, IAsyncDisposable
 {
 	private readonly BlockingCollection<Task> _tasks = new();
 
 	private readonly Thread _thread;
 
-	private bool _disposed;
+	private int _disposedFlag;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="OrderedTaskScheduler" /> class.
@@ -27,22 +27,13 @@ public sealed class OrderedTaskScheduler : TaskScheduler, IDisposable
 	}
 
 	/// <summary>
-	///     Releases all resources used by the scheduler and stops the execution thread.
-	/// </summary>
-	public void Dispose()
-	{
-		Dispose(true);
-		GC.SuppressFinalize(this);
-	}
-
-	/// <summary>
 	///     Schedules a task for execution asynchronously while maintaining strict order.
 	/// </summary>
 	/// <param name="action"> The action to execute asynchronously. </param>
 	/// <returns> A <see cref="Task" /> representing the scheduled operation. </returns>
 	public Task ScheduleAsync(Func<Task> action)
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
+		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
 		var task = new Task<Task>(action);
 		QueueTask(task);
@@ -52,9 +43,16 @@ public sealed class OrderedTaskScheduler : TaskScheduler, IDisposable
 	}
 
 	/// <inheritdoc />
+	public async ValueTask DisposeAsync()
+	{
+		await DisposeAsyncCore().ConfigureAwait(false);
+		GC.SuppressFinalize(this);
+	}
+
+	/// <inheritdoc />
 	protected override void QueueTask(Task task)
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
+		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
 		_tasks.Add(task);
 	}
@@ -66,7 +64,7 @@ public sealed class OrderedTaskScheduler : TaskScheduler, IDisposable
 		false;
 
 	/// <inheritdoc />
-	protected override IEnumerable<Task>? GetScheduledTasks() => _tasks.ToArray();
+	protected override IEnumerable<Task>? GetScheduledTasks() => _tasks;
 
 	/// <summary>
 	///     Runs the task execution loop to process tasks sequentially.
@@ -82,27 +80,37 @@ public sealed class OrderedTaskScheduler : TaskScheduler, IDisposable
 	/// <summary>
 	///     Releases unmanaged and optionally managed resources.
 	/// </summary>
-	/// <param name="disposing"> True to release both managed and unmanaged resources; false to release only unmanaged resources. </param>
-	private void Dispose(bool disposing)
+	private async ValueTask DisposeAsyncCore()
 	{
-		if (_disposed)
+		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
 		{
 			return;
 		}
 
-		if (disposing)
+		try
 		{
-			try
-			{
-				_tasks.CompleteAdding();
-				_thread.Join();
-			}
-			finally
-			{
-				_tasks.Dispose();
-			}
+			_tasks.CompleteAdding();
+			_thread.Join();
+		}
+		finally
+		{
+			_tasks.Dispose();
 		}
 
-		_disposed = true;
+		await CastAndDispose(_tasks).ConfigureAwait(false);
+
+		return;
+
+		static async ValueTask CastAndDispose(IDisposable resource)
+		{
+			if (resource is IAsyncDisposable resourceAsyncDisposable)
+			{
+				await resourceAsyncDisposable.DisposeAsync().ConfigureAwait(false);
+			}
+			else
+			{
+				resource.Dispose();
+			}
+		}
 	}
 }

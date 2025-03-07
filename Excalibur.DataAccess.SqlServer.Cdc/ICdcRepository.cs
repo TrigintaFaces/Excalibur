@@ -3,7 +3,7 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 /// <summary>
 ///     Defines the contract for a repository that interacts with Change Data Capture (CDC) metadata and data.
 /// </summary>
-public interface ICdcRepository
+public interface ICdcRepository : IAsyncDisposable
 {
 	/// <summary>
 	///     Retrieves the next Log Sequence Number (LSN) after the specified last processed LSN.
@@ -87,5 +87,6 @@ public interface ICdcRepository
 		int batchSize,
 		byte[] lsn,
 		byte[]? lastSequenceValue,
+		CdcOperationCodes lastOperation,
 		CancellationToken cancellationToken);
 }

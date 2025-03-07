@@ -4,7 +4,7 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 ///     Defines the contract for a Change Data Capture (CDC) processor, which processes CDC changes and delegates handling to a specified
 ///     event handler.
 /// </summary>
-public interface ICdcProcessor : IDisposable
+public interface ICdcProcessor : IAsyncDisposable
 {
 	/// <summary>
 	///     Processes CDC changes and invokes the specified event handler for each batch of data change events.

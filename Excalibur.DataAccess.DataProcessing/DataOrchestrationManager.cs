@@ -79,7 +79,7 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 
 	private async Task ProcessRequestsAsync(IList<DataTaskRequest> dataTaskRequests, CancellationToken cancellationToken)
 	{
-		using var orderedEventProcessor = new OrderedEventProcessor();
+		var orderedEventProcessor = new OrderedEventProcessor();
 
 		await orderedEventProcessor.ProcessEventsAsync(
 			dataTaskRequests,
@@ -98,10 +98,11 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 					{
 						_ = await dataProcessor.RunAsync(
 								request.CompletedCount,
-								(long complete, CancellationToken cancellation) => UpdateCompletedCountAsync(request.DataTaskId, complete, cancellation),
+								(long complete, CancellationToken cancellation) =>
+									UpdateCompletedCountAsync(request.DataTaskId, complete, cancellation),
 								cancellationToken).ConfigureAwait(false);
 
-						dataProcessor.Dispose();
+						await dataProcessor.DisposeAsync().ConfigureAwait(false);
 
 						await DeleteRequestAsync(request.DataTaskId, cancellationToken).ConfigureAwait(false);
 					}
@@ -118,6 +119,7 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 					}
 				}
 			}).ConfigureAwait(false);
+		await orderedEventProcessor.DisposeAsync().ConfigureAwait(false);
 	}
 
 	private async Task UpdateAttemptsAsync(Guid dataTaskId, int attempts, CancellationToken cancellationToken = default)
