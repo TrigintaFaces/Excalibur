@@ -48,7 +48,7 @@ public class OutboxMessageJsonConverter : JsonConverter<OutboxMessage>
 					break;
 
 				case nameof(outboxMessage.Destination):
-					outboxMessage.MessageId = reader.GetString();
+					outboxMessage.Destination = reader.GetString();
 					break;
 
 				default:

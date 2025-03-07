@@ -4,22 +4,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-using Polly;
-
 namespace Excalibur.DataAccess.SqlServer.Cdc;
-
-public class CdcPosition
-{
-	public CdcPosition(byte[] lsn, byte[]? seqVal)
-	{
-		Lsn = lsn;
-		SequenceValue = seqVal;
-	}
-
-	public byte[] Lsn { get; init; }
-
-	public byte[]? SequenceValue { get; init; }
-}
 
 /// <summary>
 ///     Processes Change Data Capture (CDC) changes by reading from a database, managing state, and invoking a specified event handler.
@@ -32,6 +17,8 @@ public class CdcProcessor : ICdcProcessor
 
 	private readonly ICdcStateStore _stateStore;
 
+	private readonly IDataAccessPolicyFactory _policyFactory;
+
 	private readonly ILogger<CdcProcessor> _logger;
 
 	private readonly InMemoryDataQueue<CdcRow> _cdcQueue;
@@ -41,8 +28,6 @@ public class CdcProcessor : ICdcProcessor
 	private readonly SortedSet<(byte[] Lsn, string TableName)> _minHeap = new(new MinHeapComparer());
 
 	private readonly object _minHeapLock = new();
-
-	private volatile bool _isFlushing;
 
 	private int _disposedFlag;
 
@@ -57,30 +42,33 @@ public class CdcProcessor : ICdcProcessor
 	/// </summary>
 	/// <param name="appLifetime"> Provides notifications about application lifetime events. </param>
 	/// <param name="dbConfig"> The database configuration for CDC processing. </param>
-	/// <param name="cdcRepository"> The repository for querying CDC data. </param>
-	/// <param name="stateStore"> The state store for persisting CDC processing progress. </param>
+	/// <param name="cdcConnection"> The SQL connection for interacting with CDC data. </param>
+	/// <param name="stateStoreConnection"> The SQL connection for persisting CDC state. </param>
 	/// <param name="logger"> The logger used to log diagnostics and operational information. </param>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="appLifetime" /> is null. </exception>
 	public CdcProcessor(
 		IHostApplicationLifetime appLifetime,
 		IDatabaseConfig dbConfig,
-		ICdcRepository cdcRepository,
-		ICdcStateStore stateStore,
+		SqlConnection cdcConnection,
+		SqlConnection stateStoreConnection,
+		IDataAccessPolicyFactory policyFactory,
 		ILogger<CdcProcessor> logger)
 	{
 		ArgumentNullException.ThrowIfNull(appLifetime);
 		ArgumentNullException.ThrowIfNull(dbConfig);
-		ArgumentNullException.ThrowIfNull(cdcRepository);
-		ArgumentNullException.ThrowIfNull(stateStore);
+		ArgumentNullException.ThrowIfNull(cdcConnection);
+		ArgumentNullException.ThrowIfNull(stateStoreConnection);
+		ArgumentNullException.ThrowIfNull(policyFactory);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_dbConfig = dbConfig;
-		_cdcRepository = cdcRepository;
-		_stateStore = stateStore;
+		_cdcRepository = new CdcRepository(cdcConnection);
+		_stateStore = new CdcStateStore(stateStoreConnection);
+		_policyFactory = policyFactory;
 		_logger = logger;
 		_cdcQueue = new InMemoryDataQueue<CdcRow>(_dbConfig.QueueSize);
 
-		_ = appLifetime.ApplicationStopping.Register(OnApplicationStopping);
+		_ = appLifetime.ApplicationStopping.Register(() => Task.Run(OnApplicationStoppingAsync));
 	}
 
 	/// <summary>
@@ -107,7 +95,6 @@ public class CdcProcessor : ICdcProcessor
 
 		_logger.LogDebug("Starting new run at LSN {lowestStartLsn}", lowestStartLsn);
 
-		_isFlushing = false;
 		_producerTask = Task.Factory.StartNew(
 			() => ProducerLoop(lowestStartLsn, cancellationToken),
 			cancellationToken,
@@ -127,14 +114,14 @@ public class CdcProcessor : ICdcProcessor
 
 	public async Task FlushAsync()
 	{
-		if (_disposedFlag == 1)
+		if (Volatile.Read(ref _disposedFlag) == 1)
 		{
+			_logger.LogWarning("FlushAsync called on a disposed CdcProcessor.");
 			return;
 		}
 
 		try
 		{
-			_isFlushing = true;
 			_ = Interlocked.Exchange(ref _producerCompleted, 1);
 
 			if (_producerTask != null)
@@ -162,8 +149,6 @@ public class CdcProcessor : ICdcProcessor
 					throw;
 				}
 			}
-
-			_isFlushing = false;
 		}
 		catch (TaskCanceledException ex)
 		{
@@ -176,28 +161,62 @@ public class CdcProcessor : ICdcProcessor
 	}
 
 	/// <inheritdoc />
-	public void Dispose()
+	public async ValueTask DisposeAsync()
 	{
-		Dispose(true);
+		await DisposeAsyncCore().ConfigureAwait(false);
 		GC.SuppressFinalize(this);
 	}
 
 	/// <summary>
 	///     Disposes of resources used by the <see cref="CdcProcessor" />.
 	/// </summary>
-	/// <param name="disposing"> Indicates whether the method was called from <see cref="Dispose" /> or a finalizer. </param>
-	protected virtual void Dispose(bool disposing)
+	protected virtual async ValueTask DisposeAsyncCore()
 	{
 		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
 		{
 			return;
 		}
 
-		if (disposing)
+		_logger.LogInformation("Disposing CdcProcessor resources asynchronously.");
+
+		try
 		{
-			_logger.LogInformation("Disposing CdcProcessor resources.");
-			_tracking.Clear();
-			_cdcQueue.Dispose();
+			await FlushAsync().ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Error during FlushAsync in CdcProcessor.");
+		}
+
+		if (_producerTask != null)
+		{
+			await CastAndDispose(_producerTask).ConfigureAwait(false);
+		}
+
+		if (_consumerTask != null)
+		{
+			await CastAndDispose(_consumerTask).ConfigureAwait(false);
+		}
+
+		_tracking.Clear();
+		await _cdcQueue.DisposeAsync().ConfigureAwait(false);
+		await _cdcRepository.DisposeAsync().ConfigureAwait(false);
+		await _stateStore.DisposeAsync().ConfigureAwait(false);
+
+		return;
+
+		static async ValueTask CastAndDispose(IDisposable resource)
+		{
+			switch (resource)
+			{
+				case IAsyncDisposable resourceAsyncDisposable:
+					await resourceAsyncDisposable.DisposeAsync().ConfigureAwait(false);
+					break;
+
+				default:
+					resource.Dispose();
+					break;
+			}
 		}
 	}
 
@@ -327,6 +346,7 @@ public class CdcProcessor : ICdcProcessor
 							var producerBatchSize = Math.Min(_dbConfig.QueueSize - _cdcQueue.Count, _dbConfig.ProducerBatchSize);
 							var lsn = tableTracking.Lsn;
 							var sequenceValue = tableTracking.SequenceValue;
+							var lastOperation = CdcOperationCodes.Unknown;
 
 							while (!cancellationToken.IsCancellationRequested)
 							{
@@ -336,13 +356,14 @@ public class CdcProcessor : ICdcProcessor
 									ByteArrayToHex(lsn),
 									sequenceValue != null ? ByteArrayToHex(sequenceValue) : "null");
 
-								var policy = Policy.Handle<SqlException>().CircuitBreakerAsync(3, TimeSpan.FromMinutes(1));
-								var changes = await policy.ExecuteAsync(
+								var retryPolicy = _policyFactory.GetComprehensivePolicy();
+								var changes = await retryPolicy.ExecuteAsync(
 												  () => _cdcRepository.FetchChangesAsync(
 													  captureInstance,
 													  producerBatchSize,
 													  lsn,
 													  sequenceValue,
+													  lastOperation,
 													  cancellationToken)).ConfigureAwait(false) as IList<CdcRow> ?? [];
 
 								if (changes.Count == 0)
@@ -375,6 +396,7 @@ public class CdcProcessor : ICdcProcessor
 									await _cdcQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
 									lsn = record.Lsn;
 									sequenceValue = record.SeqVal;
+									lastOperation = record.OperationCode;
 								}
 
 								if (changes.Count < _dbConfig.ProducerBatchSize)
@@ -498,19 +520,25 @@ public class CdcProcessor : ICdcProcessor
 				var batchQueue = await _cdcQueue.DequeueBatchAsync(_dbConfig.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
 				_logger.LogDebug("Dequeued {BatchSize} messages in {ElapsedMs}ms", batchQueue.Count, stopwatch.Elapsed.TotalMilliseconds);
 
-				var batchList = new List<CdcRow>(_dbConfig.ConsumerBatchSize + 1);
+				var batchSize = _dbConfig.ConsumerBatchSize;
+				List<CdcRow> batchList;
 
 				if (remainingUpdateBeforeLast != null)
 				{
 					_logger.LogDebug("Carrying over remaining UpdateBefore record for next batch.");
+					batchSize++;
+					batchList = new List<CdcRow>(batchSize) { remainingUpdateBeforeLast };
 
-					batchList.Add(remainingUpdateBeforeLast);
 					remainingUpdateBeforeLast = null;
+				}
+				else
+				{
+					batchList = new List<CdcRow>(batchSize);
 				}
 
 				foreach (var cdcRow in batchQueue)
 				{
-					if (batchList.Count < _dbConfig.ConsumerBatchSize)
+					if (batchList.Count < batchSize)
 					{
 						batchList.Add(cdcRow);
 					}
@@ -553,12 +581,7 @@ public class CdcProcessor : ICdcProcessor
 		{
 			_logger.LogDebug("Processing batch of {BatchSize} CDC records", batch.Count);
 
-			var retryPolicy = Policy.Handle<SqlException>().Or<TimeoutException>().RetryAsync(
-				3,
-				(Exception exception, int retryCount) =>
-				{
-					_logger.LogWarning("Retry {RetryCount} for error: {Message}", retryCount, exception.Message);
-				});
+			var retryPolicy = _policyFactory.GetComprehensivePolicy();
 
 			await retryPolicy.ExecuteAsync(() => ProcessBatch(batch, eventHandler, cancellationToken)).ConfigureAwait(false);
 
@@ -590,9 +613,9 @@ public class CdcProcessor : ICdcProcessor
 				{
 					var lastRow = group.Last();
 
-					var policy = Policy.Handle<SqlException>().CircuitBreakerAsync(3, TimeSpan.FromMinutes(1));
+					var retryPolicy = _policyFactory.GetComprehensivePolicy();
 
-					await policy.ExecuteAsync(
+					await retryPolicy.ExecuteAsync(
 						() => UpdateTableLastProcessed(
 							lastRow.TableName,
 							lastRow.Lsn,
@@ -622,14 +645,14 @@ public class CdcProcessor : ICdcProcessor
 		DateTime? commitTime,
 		CancellationToken cancellationToken)
 	{
-		await _stateStore.UpdateLastProcessedPositionAsync(
-			_dbConfig.DatabaseConnectionIdentifier,
-			_dbConfig.DatabaseName,
-			tableName,
-			lsn,
-			sequenceValue,
-			commitTime,
-			cancellationToken).ConfigureAwait(false);
+		_ = await _stateStore.UpdateLastProcessedPositionAsync(
+				_dbConfig.DatabaseConnectionIdentifier,
+				_dbConfig.DatabaseName,
+				tableName,
+				lsn,
+				sequenceValue,
+				commitTime,
+				cancellationToken).ConfigureAwait(false);
 
 		_logger.LogInformation("Updated state for {TableName}", tableName);
 	}
@@ -713,24 +736,17 @@ public class CdcProcessor : ICdcProcessor
 	/// <summary>
 	///     Handles cleanup when the application is stopping.
 	/// </summary>
-	private async void OnApplicationStopping()
+	private async Task OnApplicationStoppingAsync()
 	{
+		_logger.LogInformation("Application is stopping. Disposing CDCProcessor asynchronously.");
+
 		try
 		{
-			if (!_isFlushing)
-			{
-				_logger.LogInformation("Application is stopping. Attempting a graceful flush in CDC.");
-
-				await FlushAsync().ConfigureAwait(false);
-			}
+			await DisposeAsync().ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
-			_logger.LogError(ex, "Error while gracefully flushing CDC queue on shutdown.");
-		}
-		finally
-		{
-			Dispose();
+			_logger.LogError(ex, "Error while disposing CDCProcessor on application shutdown.");
 		}
 	}
 }

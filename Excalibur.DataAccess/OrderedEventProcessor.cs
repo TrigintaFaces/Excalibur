@@ -3,13 +3,13 @@ namespace Excalibur.DataAccess;
 /// <summary>
 ///     Provides an event processor that ensures events are processed sequentially in the order they are received.
 /// </summary>
-public sealed class OrderedEventProcessor : IDisposable
+public sealed class OrderedEventProcessor : IAsyncDisposable
 {
 	private readonly TaskFactory _taskFactory;
 
 	private readonly OrderedTaskScheduler _scheduler;
 
-	private bool _disposed;
+	private int _disposedFlag;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="OrderedEventProcessor" /> class.
@@ -28,7 +28,7 @@ public sealed class OrderedEventProcessor : IDisposable
 	/// <returns> A task that represents the asynchronous processing operation. </returns>
 	public ValueTask ProcessEventsAsync<TEvent>(IEnumerable<TEvent> events, Func<TEvent, Task> processEvent)
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
+		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
 		var eventList = events as IList<TEvent> ?? events.ToList();
 
@@ -42,17 +42,19 @@ public sealed class OrderedEventProcessor : IDisposable
 	/// <returns> A task that represents the asynchronous processing operation. </returns>
 	public Task ProcessAsync(Func<Task> processEvent)
 	{
-		ObjectDisposedException.ThrowIf(_disposed, this);
+		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
 		return _taskFactory.StartNew(processEvent).Unwrap();
 	}
 
-	/// <summary>
-	///     Releases all resources used by the handler, including the underlying scheduler.
-	/// </summary>
-	public void Dispose()
+	public async ValueTask DisposeAsync()
 	{
-		Dispose(true);
+		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
+		{
+			return;
+		}
+
+		await _scheduler.DisposeAsync().ConfigureAwait(false);
 		GC.SuppressFinalize(this);
 	}
 
@@ -62,24 +64,5 @@ public sealed class OrderedEventProcessor : IDisposable
 		{
 			await _taskFactory.StartNew(() => processEvent(evt)).Unwrap().ConfigureAwait(false);
 		}
-	}
-
-	/// <summary>
-	///     Releases unmanaged and optionally managed resources.
-	/// </summary>
-	/// <param name="disposing"> True to release both managed and unmanaged resources; false to release only unmanaged resources. </param>
-	private void Dispose(bool disposing)
-	{
-		if (_disposed)
-		{
-			return;
-		}
-
-		if (disposing)
-		{
-			_scheduler.Dispose();
-		}
-
-		_disposed = true;
 	}
 }

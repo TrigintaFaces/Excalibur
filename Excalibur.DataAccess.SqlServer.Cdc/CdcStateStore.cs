@@ -36,7 +36,7 @@ public class CdcStateStore : ICdcStateStore
 	}
 
 	/// <inheritdoc />
-	public async Task<IEnumerable<CdcProcessingState>> GetLastProcessedPositionAsync(
+	public Task<IEnumerable<CdcProcessingState>> GetLastProcessedPositionAsync(
 		string databaseConnectionIdentifier,
 		string databaseName,
 		CancellationToken cancellationToken)
@@ -70,11 +70,11 @@ public class CdcStateStore : ICdcStateStore
 			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		return await _connection.Ready().QueryAsync<CdcProcessingState?>(command).ConfigureAwait(false);
+		return _connection.Ready().QueryAsync<CdcProcessingState>(command);
 	}
 
 	/// <inheritdoc />
-	public async Task UpdateLastProcessedPositionAsync(
+	public Task<int> UpdateLastProcessedPositionAsync(
 		string databaseConnectionIdentifier,
 		string databaseName,
 		string tableName,
@@ -120,6 +120,24 @@ public class CdcStateStore : ICdcStateStore
 			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken: cancellationToken);
 
-		_ = await _connection.Ready().ExecuteAsync(command).ConfigureAwait(false);
+		return _connection.Ready().ExecuteAsync(command);
+	}
+
+	public async ValueTask DisposeAsync()
+	{
+		await DisposeAsyncCore().ConfigureAwait(false);
+		GC.SuppressFinalize(this);
+	}
+
+	protected virtual async ValueTask DisposeAsyncCore()
+	{
+		if (_connection is IAsyncDisposable connectionAsyncDisposable)
+		{
+			await connectionAsyncDisposable.DisposeAsync().ConfigureAwait(false);
+		}
+		else
+		{
+			_connection.Dispose();
+		}
 	}
 }

@@ -27,8 +27,6 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 	private readonly ILogger _logger;
 
-	private volatile bool _isFlushing;
-
 	private long _skipCount;
 
 	private int _disposedFlag;
@@ -62,7 +60,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		_logger = logger;
 		_dataQueue = new InMemoryDataQueue<TRecord>(_configuration.QueueSize);
 
-		_ = appLifetime.ApplicationStopping.Register(OnApplicationStopping);
+		_ = appLifetime.ApplicationStopping.Register(() => Task.Run(OnApplicationStoppingAsync));
 	}
 
 	/// <inheritdoc />
@@ -75,7 +73,6 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 		_ = Interlocked.Exchange(ref _skipCount, completedCount);
 
-		_isFlushing = false;
 		_producerTask = Task.Factory.StartNew(
 			() => ProducerLoop(cancellationToken),
 			cancellationToken,
@@ -95,14 +92,13 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 	public async Task FlushAsync()
 	{
-		if (_disposedFlag == 1)
+		if (Volatile.Read(ref _disposedFlag) == 1)
 		{
 			return;
 		}
 
 		try
 		{
-			_isFlushing = true;
 			_ = Interlocked.Exchange(ref _producerCompleted, 1);
 
 			if (_producerTask != null)
@@ -130,8 +126,6 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 					throw;
 				}
 			}
-
-			_isFlushing = false;
 		}
 		catch (TaskCanceledException ex)
 		{
@@ -143,30 +137,60 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		}
 	}
 
-	/// <inheritdoc />
-	public void Dispose()
+	public abstract Task<IEnumerable<TRecord>> FetchBatchAsync(long skip, int batchSize, CancellationToken cancellationToken);
+
+	public async ValueTask DisposeAsync()
 	{
-		Dispose(true);
+		await DisposeAsyncCore().ConfigureAwait(false);
 		GC.SuppressFinalize(this);
 	}
-
-	public abstract Task<IEnumerable<TRecord>> FetchBatchAsync(long skip, int batchSize, CancellationToken cancellationToken);
 
 	/// <summary>
 	///     Disposes of resources used by the DataProcessor.
 	/// </summary>
-	/// <param name="disposing"> Indicates whether the method was called from <see cref="Dispose" /> or a finalizer. </param>
-	protected virtual void Dispose(bool disposing)
+	protected virtual async ValueTask DisposeAsyncCore()
 	{
 		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
 		{
 			return;
 		}
 
-		if (disposing)
+		_logger.LogInformation("Disposing DataProcessor resources asynchronously.");
+
+		try
 		{
-			_logger.LogInformation("Disposing DataProcessor resources.");
-			_dataQueue.Dispose();
+			await FlushAsync().ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Error during DataProcessor in CdcProcessor.");
+		}
+
+		if (_producerTask != null)
+		{
+			await CastAndDispose(_producerTask).ConfigureAwait(false);
+		}
+
+		if (_consumerTask != null)
+		{
+			await CastAndDispose(_consumerTask).ConfigureAwait(false);
+		}
+
+		await _dataQueue.DisposeAsync().ConfigureAwait(false);
+		return;
+
+		static async ValueTask CastAndDispose(IDisposable resource)
+		{
+			switch (resource)
+			{
+				case IAsyncDisposable resourceAsyncDisposable:
+					await resourceAsyncDisposable.DisposeAsync().ConfigureAwait(false);
+					break;
+
+				default:
+					resource.Dispose();
+					break;
+			}
 		}
 	}
 
@@ -326,24 +350,17 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	/// <summary>
 	///     Handles cleanup when the application is stopping.
 	/// </summary>
-	private async void OnApplicationStopping()
+	private async Task OnApplicationStoppingAsync()
 	{
+		_logger.LogInformation("Application is stopping. Disposing DataProcessor asynchronously.");
+
 		try
 		{
-			if (!_isFlushing)
-			{
-				_logger.LogInformation("Application is stopping. Attempting a graceful flush in DataProcessor.");
-
-				await FlushAsync().ConfigureAwait(false);
-			}
+			await DisposeAsync().ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{
-			_logger.LogError(ex, "Error while gracefully flushing DataProcessor queue on shutdown.");
-		}
-		finally
-		{
-			Dispose();
+			_logger.LogError(ex, "Error while disposing DataProcessor on application shutdown.");
 		}
 	}
 }

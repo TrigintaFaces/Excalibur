@@ -61,7 +61,9 @@ public class OutboxJob : IJob, IConfigurableJob<OutboxJobConfig>
 			return;
 		}
 
-		_ = configurator.AddJob<OutboxJob>(jobKey, (IJobConfigurator job) => job.WithIdentity(jobKey).WithDescription("Dispatch outbox messages job"));
+		_ = configurator.AddJob<OutboxJob>(
+			jobKey,
+			(IJobConfigurator job) => job.WithIdentity(jobKey).WithDescription("Dispatch outbox messages job"));
 
 		_ = configurator.AddTrigger(
 			(ITriggerConfigurator trigger) => trigger.ForJob(jobKey).WithIdentity($"{jobConfig.JobName}Trigger")
@@ -99,7 +101,7 @@ public class OutboxJob : IJob, IConfigurableJob<OutboxJobConfig>
 		var jobGroup = context.JobDetail.Key.Group;
 
 		using (_logger.BeginScope(new Dictionary<string, object> { ["JobGroup"] = jobGroup, ["JobName"] = jobName }))
-		using (_outboxManager)
+		await using (_outboxManager.ConfigureAwait(false))
 		{
 			try
 			{

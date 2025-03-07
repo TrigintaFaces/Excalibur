@@ -3,7 +3,7 @@ namespace Excalibur.DataAccess.DataProcessing;
 /// <summary>
 ///     Defines a contract for processing data tasks.
 /// </summary>
-public interface IDataProcessor : IDisposable
+public interface IDataProcessor : IAsyncDisposable
 {
 	/// <summary>
 	///     Executes the data processing pipeline.

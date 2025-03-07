@@ -1,6 +1,6 @@
 using Excalibur.DataAccess.SqlServer.Cdc.Exceptions;
 
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -13,7 +13,7 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 {
 	private readonly IDatabaseConfig _dbConfig;
 
-	private readonly IServiceProvider _serviceProvider;
+	private readonly IDataChangeHandlerFactory _dataChangeHandlerFactory;
 
 	private readonly ILogger<DataChangeEventProcessor> _logger;
 
@@ -26,28 +26,26 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 	///     tasks that need to respond to application lifecycle events.
 	/// </param>
 	/// <param name="dbConfig"> The database configuration for the CDC processor. </param>
-	/// <param name="cdcRepository"> The repository for interacting with CDC data. </param>
-	/// <param name="stateStore"> The state store for persisting CDC processing state. </param>
-	/// <param name="serviceProvider"> The root service provider for creating new scopes. </param>
+	/// <param name="cdcConnection"> The SQL connection for interacting with CDC data. </param>
+	/// <param name="stateStoreConnection"> The SQL connection for persisting CDC state. </param>
+	/// <param name="dataChangeHandlerFactory"> The factory for creating data change handlers. </param>
 	/// <param name="logger"> The logger for capturing diagnostics and operational logs. </param>
 	public DataChangeEventProcessor(
 		IHostApplicationLifetime appLifetime,
 		IDatabaseConfig dbConfig,
-		ICdcRepository cdcRepository,
-		ICdcStateStore stateStore,
-		IServiceProvider serviceProvider,
+		SqlConnection cdcConnection,
+		SqlConnection stateStoreConnection,
+		IDataChangeHandlerFactory dataChangeHandlerFactory,
+		IDataAccessPolicyFactory policyFactory,
 		ILogger<DataChangeEventProcessor> logger)
-		: base(appLifetime, dbConfig, cdcRepository, stateStore, logger)
+		: base(appLifetime, dbConfig, cdcConnection, stateStoreConnection, policyFactory, logger)
 	{
-		ArgumentNullException.ThrowIfNull(appLifetime);
 		ArgumentNullException.ThrowIfNull(dbConfig);
-		ArgumentNullException.ThrowIfNull(cdcRepository);
-		ArgumentNullException.ThrowIfNull(stateStore);
-		ArgumentNullException.ThrowIfNull(serviceProvider);
+		ArgumentNullException.ThrowIfNull(dataChangeHandlerFactory);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_dbConfig = dbConfig;
-		_serviceProvider = serviceProvider;
+		_dataChangeHandlerFactory = dataChangeHandlerFactory;
 		_logger = logger;
 	}
 
@@ -90,7 +88,7 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 
 		_logger.LogInformation("Processing {EventCount} CDC events...", changeEvents.Count);
 
-		using var orderedEventProcessor = new OrderedEventProcessor();
+		var orderedEventProcessor = new OrderedEventProcessor();
 
 		await orderedEventProcessor.ProcessEventsAsync(
 			changeEvents,
@@ -103,9 +101,7 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 
 				try
 				{
-					using var scope = _serviceProvider.CreateScope();
-					var scopedHandlerRegistry = scope.ServiceProvider.GetRequiredService<IDataChangeHandlerRegistry>();
-					var handler = scopedHandlerRegistry.GetHandler(changeEvent.TableName);
+					var handler = _dataChangeHandlerFactory.GetHandler(changeEvent.TableName);
 
 					await handler.Handle(changeEvent, cancellationToken).ConfigureAwait(false);
 
@@ -127,6 +123,7 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 					throw;
 				}
 			}).ConfigureAwait(false);
+		await orderedEventProcessor.DisposeAsync().ConfigureAwait(false);
 
 		return totalEvents;
 	}

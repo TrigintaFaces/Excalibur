@@ -20,7 +20,7 @@ public static class ServiceCollectionExtensions
 	///     This method registers the following components:
 	///     <list type="bullet">
 	///         <item> <see cref="IDataChangeEventProcessorFactory" /> as a transient service. </item>
-	///         <item> <see cref="IDataChangeHandlerRegistry" /> as a scoped service. </item>
+	///         <item> <see cref="IDataChangeHandlerFactory" /> as a scoped service. </item>
 	///         <item> All implementations of <see cref="IDataChangeHandler" /> from the provided assemblies. </item>
 	///     </list>
 	/// </remarks>
@@ -29,7 +29,7 @@ public static class ServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(handlerAssemblies);
 
 		_ = services.AddTransient<IDataChangeEventProcessorFactory, DataChangeEventProcessorFactory>();
-		_ = services.AddScoped<IDataChangeHandlerRegistry, DataChangeHandlerRegistry>();
+		_ = services.AddScoped<IDataChangeHandlerFactory, DataChangeHandlerFactory>();
 
 		foreach (var assembly in handlerAssemblies)
 		{
@@ -54,8 +54,8 @@ public static class ServiceCollectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(assembly);
 
-		var handlerTypes = assembly.GetTypes()
-			.Where(t => t is { IsAbstract: false, IsInterface: false } && typeof(IDataChangeHandler).IsAssignableFrom(t));
+		var handlerTypes = assembly.GetTypes().Where(
+			(Type t) => t is { IsAbstract: false, IsInterface: false } && typeof(IDataChangeHandler).IsAssignableFrom(t));
 
 		foreach (var handlerType in handlerTypes)
 		{

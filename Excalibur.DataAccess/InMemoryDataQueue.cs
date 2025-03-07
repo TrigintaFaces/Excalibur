@@ -138,17 +138,13 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 
 	public bool IsEmpty() => Count == 0;
 
-	/// <summary>
-	///     Releases resources used by the <see cref="InMemoryDataQueue{TRecord}" />.
-	/// </summary>
-	public void Dispose()
+	private void DisposeAsyncCore()
 	{
-		Dispose(true);
-		GC.SuppressFinalize(this);
-	}
+		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
+		{
+			return;
+		}
 
-	private void ReleaseUnmanagedResources()
-	{
 		CompleteWriter();
 
 		while (_channel.Reader.TryRead(out _))
@@ -156,22 +152,10 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 		}
 	}
 
-	/// <summary>
-	///     Releases the unmanaged and optionally managed resources used by the <see cref="InMemoryDataQueue{TRecord}" />.
-	/// </summary>
-	/// <param name="disposing">
-	///     <c> true </c> if the method is called from <see cref="Dispose" />; <c> false </c> if it is called from the finalizer.
-	/// </param>
-	private void Dispose(bool disposing)
+	/// <inheritdoc />
+	public async ValueTask DisposeAsync()
 	{
-		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
-		{
-			return;
-		}
-
-		if (disposing)
-		{
-			ReleaseUnmanagedResources();
-		}
+		DisposeAsyncCore();
+		GC.SuppressFinalize(this);
 	}
 }
