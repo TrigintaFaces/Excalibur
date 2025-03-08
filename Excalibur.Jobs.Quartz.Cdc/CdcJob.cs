@@ -157,6 +157,8 @@ public class CdcJob : IJob, IConfigurableJob<CdcJobConfig>
 		finally
 		{
 			await processor.DisposeAsync().ConfigureAwait(false);
+			await cdcConnection.DisposeAsync().ConfigureAwait(false);
+			await storeConnection.DisposeAsync().ConfigureAwait(false);
 		}
 	}
 }

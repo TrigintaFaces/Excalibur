@@ -32,8 +32,7 @@ public static class DbConnectionExtensions
 			throw new OperationFailedException(
 				TypeNameHelper.GetTypeDisplayName(typeof(TModel), false, true),
 				TypeNameHelper.GetTypeDisplayName(dataRequest.GetType(), false, true),
-				innerException: ex
-			);
+				innerException: ex);
 		}
 	}
 
@@ -47,14 +46,21 @@ public static class DbConnectionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(connection);
 
-		if (connection.State == ConnectionState.Broken)
+		if (connection.State is ConnectionState.Closed or ConnectionState.Broken)
 		{
-			connection.Close();
-		}
+			try
+			{
+				if (connection.State == ConnectionState.Broken)
+				{
+					connection.Close();
+				}
 
-		if (connection.State == ConnectionState.Closed)
-		{
-			connection.Open();
+				connection.Open();
+			}
+			catch (ObjectDisposedException)
+			{
+				throw new InvalidOperationException("The database connection has been disposed. Ensure connections are properly managed.");
+			}
 		}
 
 		return connection;

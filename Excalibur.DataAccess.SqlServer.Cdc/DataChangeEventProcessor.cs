@@ -1,6 +1,7 @@
 using Excalibur.DataAccess.SqlServer.Cdc.Exceptions;
 
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -13,7 +14,7 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 {
 	private readonly IDatabaseConfig _dbConfig;
 
-	private readonly IDataChangeHandlerFactory _dataChangeHandlerFactory;
+	private readonly IServiceProvider _serviceProvider;
 
 	private readonly ILogger<DataChangeEventProcessor> _logger;
 
@@ -28,24 +29,24 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 	/// <param name="dbConfig"> The database configuration for the CDC processor. </param>
 	/// <param name="cdcConnection"> The SQL connection for interacting with CDC data. </param>
 	/// <param name="stateStoreConnection"> The SQL connection for persisting CDC state. </param>
-	/// <param name="dataChangeHandlerFactory"> The factory for creating data change handlers. </param>
+	/// <param name="serviceProvider"> The service provider for dependency resolution. </param>
 	/// <param name="logger"> The logger for capturing diagnostics and operational logs. </param>
 	public DataChangeEventProcessor(
 		IHostApplicationLifetime appLifetime,
 		IDatabaseConfig dbConfig,
 		SqlConnection cdcConnection,
 		SqlConnection stateStoreConnection,
-		IDataChangeHandlerFactory dataChangeHandlerFactory,
+		IServiceProvider serviceProvider,
 		IDataAccessPolicyFactory policyFactory,
 		ILogger<DataChangeEventProcessor> logger)
 		: base(appLifetime, dbConfig, cdcConnection, stateStoreConnection, policyFactory, logger)
 	{
 		ArgumentNullException.ThrowIfNull(dbConfig);
-		ArgumentNullException.ThrowIfNull(dataChangeHandlerFactory);
+		ArgumentNullException.ThrowIfNull(serviceProvider, nameof(serviceProvider));
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_dbConfig = dbConfig;
-		_dataChangeHandlerFactory = dataChangeHandlerFactory;
+		_serviceProvider = serviceProvider;
 		_logger = logger;
 	}
 
@@ -101,7 +102,8 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 
 				try
 				{
-					var handler = _dataChangeHandlerFactory.GetHandler(changeEvent.TableName);
+					using var scope = _serviceProvider.CreateScope();
+					var handler = GetHandler(scope.ServiceProvider, changeEvent.TableName);
 
 					await handler.Handle(changeEvent, cancellationToken).ConfigureAwait(false);
 
@@ -126,5 +128,31 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 		await orderedEventProcessor.DisposeAsync().ConfigureAwait(false);
 
 		return totalEvents;
+	}
+
+	private IDataChangeHandler GetHandler(IServiceProvider serviceProvider, string tableName)
+	{
+		if (string.IsNullOrWhiteSpace(tableName))
+		{
+			throw new ArgumentNullException(nameof(tableName));
+		}
+
+		try
+		{
+			var handlers = serviceProvider.GetServices<IDataChangeHandler>();
+
+			var handler = handlers.SingleOrDefault((IDataChangeHandler h) => h.TableNames.Contains(tableName, StringComparer.OrdinalIgnoreCase));
+
+			if (handler == null)
+			{
+				throw new CdcMissingTableHandlerException(tableName);
+			}
+
+			return handler;
+		}
+		catch (InvalidOperationException e)
+		{
+			throw new CdcMultipleTableHandlerException(tableName);
+		}
 	}
 }

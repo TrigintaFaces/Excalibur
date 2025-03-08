@@ -29,7 +29,6 @@ public static class ServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(handlerAssemblies);
 
 		_ = services.AddTransient<IDataChangeEventProcessorFactory, DataChangeEventProcessorFactory>();
-		_ = services.AddScoped<IDataChangeHandlerFactory, DataChangeHandlerFactory>();
 
 		foreach (var assembly in handlerAssemblies)
 		{
