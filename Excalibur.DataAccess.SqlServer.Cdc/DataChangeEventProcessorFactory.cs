@@ -56,7 +56,6 @@ public class DataChangeEventProcessorFactory : IDataChangeEventProcessorFactory
 		ArgumentNullException.ThrowIfNull(cdcConnection);
 		ArgumentNullException.ThrowIfNull(stateStoreConnection);
 
-		var dataChangeHandlerFactory = _serviceProvider.GetRequiredService<IDataChangeHandlerFactory>();
 		var logger = _serviceProvider.GetRequiredService<ILogger<DataChangeEventProcessor>>();
 
 		return new DataChangeEventProcessor(
@@ -64,7 +63,7 @@ public class DataChangeEventProcessorFactory : IDataChangeEventProcessorFactory
 			dbConfig,
 			cdcConnection,
 			stateStoreConnection,
-			dataChangeHandlerFactory,
+			_serviceProvider,
 			_policyFactory,
 			logger);
 	}
