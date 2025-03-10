@@ -27,15 +27,17 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 	private readonly ILogger _logger;
 
+	private readonly CancellationTokenSource _producerCancellationTokenSource = new();
+
 	private long _skipCount;
 
 	private int _disposedFlag;
 
-	private int _producerCompleted;
-
 	private Task? _producerTask;
 
 	private Task<long>? _consumerTask;
+
+	private volatile bool _producerStopped;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="DataProcessor{TRecord}" /> class.
@@ -63,6 +65,10 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		_ = appLifetime.ApplicationStopping.Register(() => Task.Run(OnApplicationStoppingAsync));
 	}
 
+	private CancellationToken ProducerCancellationToken => _producerCancellationTokenSource.Token;
+
+	private bool ShouldWaitForProducer => !_producerStopped && !(_producerTask?.IsCompleted ?? true) && _dataQueue.IsEmpty();
+
 	/// <inheritdoc />
 	public virtual async Task<long> RunAsync(
 		long completedCount,
@@ -73,68 +79,19 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 		_ = Interlocked.Exchange(ref _skipCount, completedCount);
 
-		_producerTask = Task.Factory.StartNew(
-			() => ProducerLoop(cancellationToken),
-			cancellationToken,
-			TaskCreationOptions.LongRunning,
-			TaskScheduler.Default);
-		_consumerTask = Task.Factory.StartNew(
-			() => ConsumerLoop(cancellationToken),
-			cancellationToken,
-			TaskCreationOptions.LongRunning,
-			TaskScheduler.Default).Unwrap();
+		await (_producerTask = Task.Factory.StartNew(
+				   () => ProducerLoop(cancellationToken),
+				   cancellationToken,
+				   TaskCreationOptions.LongRunning,
+				   TaskScheduler.Default)).ConfigureAwait(false);
 
-		var consumerResult = await _consumerTask.ConfigureAwait(false);
-		await _producerTask.ConfigureAwait(false);
+		var consumerResult = await (_consumerTask = Task.Factory.StartNew(
+										() => ConsumerLoop(cancellationToken),
+										cancellationToken,
+										TaskCreationOptions.LongRunning,
+										TaskScheduler.Default).Unwrap()).ConfigureAwait(false);
 
 		return consumerResult;
-	}
-
-	public async Task FlushAsync()
-	{
-		if (Volatile.Read(ref _disposedFlag) == 1)
-		{
-			return;
-		}
-
-		try
-		{
-			_ = Interlocked.Exchange(ref _producerCompleted, 1);
-
-			if (_producerTask != null)
-			{
-				try
-				{
-					await _producerTask.ConfigureAwait(false);
-				}
-				catch (Exception ex)
-				{
-					_logger.LogError(ex, "Error finishing ProducerLoop in DataProcessor FlushAsync.");
-					throw;
-				}
-			}
-
-			if (_consumerTask != null)
-			{
-				try
-				{
-					_ = await _consumerTask.ConfigureAwait(false);
-				}
-				catch (Exception ex)
-				{
-					_logger.LogError(ex, "Error finishing ConsumerLoop in DataProcessor FlushAsync.");
-					throw;
-				}
-			}
-		}
-		catch (TaskCanceledException ex)
-		{
-			_logger.LogWarning(ex, "Task was canceled during DataProcessor FlushAsync.");
-		}
-		catch (ObjectDisposedException ex)
-		{
-			_logger.LogError(ex, "ObjectDisposedException while finishing DataProcessor FlushAsync.");
-		}
 	}
 
 	public abstract Task<IEnumerable<TRecord>> FetchBatchAsync(long skip, int batchSize, CancellationToken cancellationToken);
@@ -157,26 +114,25 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 		_logger.LogInformation("Disposing DataProcessor resources asynchronously.");
 
-		try
+		if (_consumerTask is { IsCompleted: false })
 		{
-			await FlushAsync().ConfigureAwait(false);
-		}
-		catch (Exception ex)
-		{
-			_logger.LogError(ex, "Error during DataProcessor in CdcProcessor.");
+			_logger.LogWarning("Disposing DataProcessor but Consumer has not completed.");
+			_ = await _consumerTask.WaitAsync(TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false);
 		}
 
-		if (_producerTask != null)
+		if (_producerTask is not null)
 		{
 			await CastAndDispose(_producerTask).ConfigureAwait(false);
 		}
 
-		if (_consumerTask != null)
+		if (_consumerTask is not null)
 		{
 			await CastAndDispose(_consumerTask).ConfigureAwait(false);
 		}
 
 		await _dataQueue.DisposeAsync().ConfigureAwait(false);
+
+		_producerCancellationTokenSource.Dispose();
 		return;
 
 		static async ValueTask CastAndDispose(IDisposable resource)
@@ -198,18 +154,20 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	{
 		try
 		{
-			while (!cancellationToken.IsCancellationRequested)
+			using var combinedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, ProducerCancellationToken);
+			var combinedToken = combinedTokenSource.Token;
+
+			while (!combinedToken.IsCancellationRequested)
 			{
 				var availableSlots = Math.Max(0, _configuration.QueueSize - _dataQueue.Count);
 				if (availableSlots < 1)
 				{
-					await Task.Delay(10, cancellationToken).ConfigureAwait(false);
+					await Task.Delay(10, combinedToken).ConfigureAwait(false);
 					continue;
 				}
 
 				var batchSize = Math.Min(_configuration.ProducerBatchSize, availableSlots);
-				var batch = await FetchBatchAsync(_skipCount, batchSize, cancellationToken).ConfigureAwait(false) as ICollection<TRecord>
-							?? [];
+				var batch = await FetchBatchAsync(_skipCount, batchSize, combinedToken).ConfigureAwait(false) as ICollection<TRecord> ?? [];
 
 				if (batch.Count == 0)
 				{
@@ -221,7 +179,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 				foreach (var record in batch)
 				{
-					await _dataQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
+					await _dataQueue.EnqueueAsync(record, combinedToken).ConfigureAwait(false);
 				}
 
 				_ = Interlocked.Add(ref _skipCount, batch.Count);
@@ -240,8 +198,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		}
 		finally
 		{
-			_ = Interlocked.Exchange(ref _producerCompleted, 1);
-
+			_producerStopped = true;
 			_dataQueue.CompleteWriter();
 
 			_logger.LogInformation("DataProcessor Producer has completed execution. Channel marked as complete.");
@@ -256,32 +213,34 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		{
 			while (!cancellationToken.IsCancellationRequested)
 			{
-				if (_producerCompleted == 1 && _dataQueue.IsEmpty())
+				if (_disposedFlag == 1)
+				{
+					_logger.LogWarning("ConsumerLoop: disposal requested, exit now.");
+					break;
+				}
+
+				if (_producerStopped && _dataQueue.IsEmpty())
 				{
 					_logger.LogInformation("No more DataProcessor records. Consumer is exiting.");
 					break;
 				}
 
-				var batch = await _dataQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
-
-				if (_producerCompleted == 0 && batch.Count == 0)
+				if (ShouldWaitForProducer)
 				{
 					_logger.LogInformation("DataProcessor Queue is empty. Waiting for producer...");
 
 					var waitTime = 10;
 					for (var i = 0; i < 10; i++)
 					{
-						if (!_dataQueue.IsEmpty())
-						{
-							break;
-						}
-
 						await Task.Delay(waitTime, cancellationToken).ConfigureAwait(false);
 						waitTime = Math.Min(waitTime * 2, 100);
 					}
 
 					continue;
 				}
+
+				var batch = await _dataQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
+				_logger.LogInformation("DataProcessor processing batch of {BatchSize} records", batch.Count);
 
 				foreach (var record in batch)
 				{
@@ -352,7 +311,13 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	/// </summary>
 	private async Task OnApplicationStoppingAsync()
 	{
-		_logger.LogInformation("Application is stopping. Disposing DataProcessor asynchronously.");
+		_logger.LogInformation("Application is stopping. Cancelling DataProcessor producer immediately.");
+
+		_producerStopped = true;
+		await _producerCancellationTokenSource.CancelAsync().ConfigureAwait(false);
+
+		_logger.LogInformation("DataProcessor Producer cancellation requested.");
+		_logger.LogInformation("Waiting for DataProcessor consumer to finish remaining work...");
 
 		try
 		{
