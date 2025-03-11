@@ -11,6 +11,16 @@ public class DataChangeEvent
 	public byte[] Lsn { get; init; }
 
 	/// <summary>
+	///     Gets the log sequence value associated with the change event.
+	/// </summary>
+	public byte[] SeqVal { get; init; }
+
+	/// <summary>
+	///     Gets the commit time of the transaction.
+	/// </summary>
+	public DateTime CommitTime { get; init; }
+
+	/// <summary>
 	///     Gets the name of the table where the change occurred.
 	/// </summary>
 	public string TableName { get; init; }
@@ -23,7 +33,7 @@ public class DataChangeEvent
 	/// <summary>
 	///     Gets the collection of individual data changes for the affected table row.
 	/// </summary>
-	public IEnumerable<DataChange> Changes { get; init; }
+	public IList<DataChange> Changes { get; init; }
 
 	/// <summary>
 	///     Creates a <see cref="DataChangeEvent" /> for a delete operation.
@@ -38,15 +48,18 @@ public class DataChangeEvent
 		return new DataChangeEvent
 		{
 			Lsn = change.Lsn,
+			SeqVal = change.SeqVal,
+			CommitTime = change.CommitTime,
 			TableName = change.TableName,
 			ChangeType = DataChangeType.Delete,
-			Changes = change.Changes.Select(data => new DataChange
-			{
-				ColumnName = data.Key,
-				OldValue = data.Value != DBNull.Value ? data.Value : null,
-				NewValue = null,
-				DataType = change.DataTypes[data.Key]
-			}).ToList()
+			Changes = change.Changes.Select(
+					   (KeyValuePair<string, object> data) => new DataChange
+					   {
+						   ColumnName = data.Key,
+						   OldValue = data.Value != DBNull.Value ? data.Value : null,
+						   NewValue = null,
+						   DataType = change.DataTypes[data.Key]
+					   }).ToList()
 		};
 	}
 
@@ -63,15 +76,18 @@ public class DataChangeEvent
 		return new DataChangeEvent
 		{
 			Lsn = change.Lsn,
+			SeqVal = change.SeqVal,
+			CommitTime = change.CommitTime,
 			TableName = change.TableName,
 			ChangeType = DataChangeType.Insert,
-			Changes = change.Changes.Select(data => new DataChange
-			{
-				ColumnName = data.Key,
-				OldValue = null,
-				NewValue = data.Value != DBNull.Value ? data.Value : null,
-				DataType = change.DataTypes[data.Key]
-			}).ToList()
+			Changes = change.Changes.Select(
+					   (KeyValuePair<string, object> data) => new DataChange
+					   {
+						   ColumnName = data.Key,
+						   OldValue = null,
+						   NewValue = data.Value != DBNull.Value ? data.Value : null,
+						   DataType = change.DataTypes[data.Key]
+					   }).ToList()
 		};
 	}
 
@@ -89,18 +105,21 @@ public class DataChangeEvent
 		ArgumentNullException.ThrowIfNull(beforeChange);
 		ArgumentNullException.ThrowIfNull(afterChange);
 
-		var dataChanges = beforeChange.Changes.Select(data =>
-		{
-			var columnName = data.Key;
-			var dataType = beforeChange.DataTypes[columnName];
-			var oldValue = data.Value != DBNull.Value ? data.Value : null;
-			var newValue = afterChange.Changes.TryGetValue(columnName, out var newVal) && newVal != DBNull.Value ? newVal : null;
-			return new DataChange { ColumnName = columnName, OldValue = oldValue, NewValue = newValue, DataType = dataType };
-		});
+		var dataChanges = beforeChange.Changes.Select(
+			(KeyValuePair<string, object> data) =>
+			{
+				var columnName = data.Key;
+				var dataType = beforeChange.DataTypes[columnName];
+				var oldValue = data.Value != DBNull.Value ? data.Value : null;
+				var newValue = afterChange.Changes.TryGetValue(columnName, out var newVal) && newVal != DBNull.Value ? newVal : null;
+				return new DataChange { ColumnName = columnName, OldValue = oldValue, NewValue = newValue, DataType = dataType };
+			});
 
 		return new DataChangeEvent
 		{
 			Lsn = beforeChange.Lsn,
+			SeqVal = beforeChange.SeqVal,
+			CommitTime = beforeChange.CommitTime,
 			TableName = beforeChange.TableName,
 			ChangeType = DataChangeType.Update,
 			Changes = dataChanges.ToList()
