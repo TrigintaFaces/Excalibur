@@ -29,13 +29,15 @@ public class CdcProcessor : ICdcProcessor
 
 	private readonly object _minHeapLock = new();
 
-	private int _disposedFlag;
+	private readonly CancellationTokenSource _producerCancellationTokenSource = new();
 
-	private int _producerCompleted;
+	private int _disposedFlag;
 
 	private Task? _producerTask;
 
 	private Task<int>? _consumerTask;
+
+	private volatile bool _producerStopped;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="CdcProcessor" /> class.
@@ -71,6 +73,10 @@ public class CdcProcessor : ICdcProcessor
 		_ = appLifetime.ApplicationStopping.Register(() => Task.Run(OnApplicationStoppingAsync));
 	}
 
+	private CancellationToken ProducerCancellationToken => _producerCancellationTokenSource.Token;
+
+	private bool ShouldWaitForProducer => !_producerStopped && !(_producerTask?.IsCompleted ?? true) && _cdcQueue.IsEmpty();
+
 	/// <summary>
 	///     Processes CDC changes asynchronously by producing changes from the database and consuming them with the provided handler.
 	/// </summary>
@@ -95,69 +101,19 @@ public class CdcProcessor : ICdcProcessor
 
 		_logger.LogDebug("Starting new run at LSN {lowestStartLsn}", lowestStartLsn);
 
-		_producerTask = Task.Factory.StartNew(
-			() => ProducerLoop(lowestStartLsn, cancellationToken),
-			cancellationToken,
-			TaskCreationOptions.LongRunning,
-			TaskScheduler.Default);
-		_consumerTask = Task.Factory.StartNew(
-			() => ConsumerLoop(eventHandler, cancellationToken),
-			cancellationToken,
-			TaskCreationOptions.LongRunning,
-			TaskScheduler.Default).Unwrap();
+		await (_producerTask = Task.Factory.StartNew(
+				   () => ProducerLoop(lowestStartLsn, cancellationToken),
+				   cancellationToken,
+				   TaskCreationOptions.LongRunning,
+				   TaskScheduler.Default)).ConfigureAwait(false);
 
-		var consumerResult = await _consumerTask.ConfigureAwait(false);
-		await _producerTask.ConfigureAwait(false);
+		var consumerResult = await (_consumerTask = Task.Factory.StartNew(
+										() => ConsumerLoop(eventHandler, cancellationToken),
+										cancellationToken,
+										TaskCreationOptions.LongRunning,
+										TaskScheduler.Default).Unwrap()).ConfigureAwait(false);
 
 		return consumerResult;
-	}
-
-	public async Task FlushAsync()
-	{
-		if (Volatile.Read(ref _disposedFlag) == 1)
-		{
-			_logger.LogWarning("FlushAsync called on a disposed CdcProcessor.");
-			return;
-		}
-
-		try
-		{
-			_ = Interlocked.Exchange(ref _producerCompleted, 1);
-
-			if (_producerTask != null)
-			{
-				try
-				{
-					await _producerTask.ConfigureAwait(false);
-				}
-				catch (Exception ex)
-				{
-					_logger.LogError(ex, "Error finishing ProducerLoop in CdcProcessor FlushAsync.");
-					throw;
-				}
-			}
-
-			if (_consumerTask != null)
-			{
-				try
-				{
-					_ = await _consumerTask.ConfigureAwait(false);
-				}
-				catch (Exception ex)
-				{
-					_logger.LogError(ex, "Error finishing ConsumerLoop in CdcProcessor FlushAsync.");
-					throw;
-				}
-			}
-		}
-		catch (TaskCanceledException ex)
-		{
-			_logger.LogWarning(ex, "Task was canceled during CdcProcessor FlushAsync.");
-		}
-		catch (ObjectDisposedException ex)
-		{
-			_logger.LogError(ex, "ObjectDisposedException while finishing CdcProcessor FlushAsync.");
-		}
 	}
 
 	/// <inheritdoc />
@@ -179,21 +135,18 @@ public class CdcProcessor : ICdcProcessor
 
 		_logger.LogInformation("Disposing CdcProcessor resources asynchronously.");
 
-		try
+		if (_consumerTask is { IsCompleted: false })
 		{
-			await FlushAsync().ConfigureAwait(false);
-		}
-		catch (Exception ex)
-		{
-			_logger.LogError(ex, "Error during FlushAsync in CdcProcessor.");
+			_logger.LogWarning("Disposing CdcProcessor but Consumer has not completed.");
+			_ = await _consumerTask.WaitAsync(TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false);
 		}
 
-		if (_producerTask != null)
+		if (_producerTask is not null)
 		{
 			await CastAndDispose(_producerTask).ConfigureAwait(false);
 		}
 
-		if (_consumerTask != null)
+		if (_consumerTask is not null)
 		{
 			await CastAndDispose(_consumerTask).ConfigureAwait(false);
 		}
@@ -202,6 +155,8 @@ public class CdcProcessor : ICdcProcessor
 		await _cdcQueue.DisposeAsync().ConfigureAwait(false);
 		await _cdcRepository.DisposeAsync().ConfigureAwait(false);
 		await _stateStore.DisposeAsync().ConfigureAwait(false);
+
+		_producerCancellationTokenSource.Dispose();
 
 		return;
 
@@ -232,8 +187,7 @@ public class CdcProcessor : ICdcProcessor
 	/// </summary>
 	/// <param name="bytes"> The byte array to convert. </param>
 	/// <returns> A hexadecimal string representation of the byte array. </returns>
-	private static string ByteArrayToHex(byte[] bytes) =>
-		$"0x{BitConverter.ToString(bytes).Replace("-", string.Empty, StringComparison.OrdinalIgnoreCase)}";
+	private static string ByteArrayToHex(byte[] bytes) => $"0x{Convert.ToHexString(bytes)}";
 
 	/// <summary>
 	///     Processes CDC rows into data change events.
@@ -318,8 +272,10 @@ public class CdcProcessor : ICdcProcessor
 	{
 		try
 		{
+			using var combinedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, ProducerCancellationToken);
+			var combinedToken = combinedTokenSource.Token;
 			var currentGlobalLsn = lowestStartLsn;
-			var maxLsn = await _cdcRepository.GetMaxPositionAsync(cancellationToken).ConfigureAwait(false);
+			var maxLsn = await _cdcRepository.GetMaxPositionAsync(combinedToken).ConfigureAwait(false);
 
 			lock (_minHeapLock)
 			{
@@ -328,13 +284,7 @@ public class CdcProcessor : ICdcProcessor
 
 			while (currentGlobalLsn != null && currentGlobalLsn.CompareLsn(maxLsn) <= 0)
 			{
-				if (_producerCompleted == 1)
-				{
-					_logger.LogInformation("ProducerLoop: _producerCompleted == 1, exiting early.");
-					break;
-				}
-
-				cancellationToken.ThrowIfCancellationRequested();
+				combinedToken.ThrowIfCancellationRequested();
 
 				foreach (var captureInstance in _tracking.Keys)
 				{
@@ -348,7 +298,7 @@ public class CdcProcessor : ICdcProcessor
 							var sequenceValue = tableTracking.SequenceValue;
 							var lastOperation = CdcOperationCodes.Unknown;
 
-							while (!cancellationToken.IsCancellationRequested)
+							while (!combinedToken.IsCancellationRequested)
 							{
 								_logger.LogDebug(
 									"Fetching CDC changes: {TableName} - LSN {Lsn}, SeqVal {SeqVal}",
@@ -364,7 +314,7 @@ public class CdcProcessor : ICdcProcessor
 													  lsn,
 													  sequenceValue,
 													  lastOperation,
-													  cancellationToken)).ConfigureAwait(false) as IList<CdcRow> ?? [];
+													  combinedToken)).ConfigureAwait(false) as IList<CdcRow> ?? [];
 
 								if (changes.Count == 0)
 								{
@@ -379,10 +329,9 @@ public class CdcProcessor : ICdcProcessor
 									{
 										_logger.LogInformation("No changes found for {TableName}, advancing LSN.", captureInstance);
 
-										var commitTime = await _cdcRepository.GetLsnToTimeAsync(lsn, cancellationToken)
-															 .ConfigureAwait(false);
+										var commitTime = await _cdcRepository.GetLsnToTimeAsync(lsn, combinedToken).ConfigureAwait(false);
 
-										await UpdateTableLastProcessed(captureInstance, lsn, sequenceValue, commitTime, cancellationToken)
+										await UpdateTableLastProcessed(captureInstance, lsn, sequenceValue, commitTime, combinedToken)
 											.ConfigureAwait(false);
 									}
 
@@ -393,20 +342,14 @@ public class CdcProcessor : ICdcProcessor
 
 								foreach (var record in changes)
 								{
-									await _cdcQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
+									await _cdcQueue.EnqueueAsync(record, combinedToken).ConfigureAwait(false);
 									lsn = record.Lsn;
 									sequenceValue = record.SeqVal;
 									lastOperation = record.OperationCode;
 								}
-
-								if (changes.Count < _dbConfig.ProducerBatchSize)
-								{
-									break;
-								}
 							}
 
-							var nextLsn = await _cdcRepository.GetNextLsnAsync(captureInstance, lsn, cancellationToken)
-											  .ConfigureAwait(false);
+							var nextLsn = await _cdcRepository.GetNextLsnAsync(captureInstance, lsn, combinedToken).ConfigureAwait(false);
 
 							_logger.LogDebug(
 								"Table {CaptureInstance}: currentLSN={CurrentLsn}, nextLSN={NextLsn}, maxLSN={MaxLsn}",
@@ -425,12 +368,6 @@ public class CdcProcessor : ICdcProcessor
 							}
 						}
 					}
-				}
-
-				if (_producerCompleted == 1)
-				{
-					_logger.LogInformation("ProducerLoop: _producerCompleted == 1, exiting after capturing some tables.");
-					break;
 				}
 
 				currentGlobalLsn = GetNextLsn();
@@ -454,8 +391,7 @@ public class CdcProcessor : ICdcProcessor
 		}
 		finally
 		{
-			_ = Interlocked.Exchange(ref _producerCompleted, 1);
-
+			_producerStopped = true;
 			_cdcQueue.CompleteWriter();
 
 			_logger.LogInformation("CDC Producer has completed execution. Channel marked as complete.");
@@ -487,24 +423,19 @@ public class CdcProcessor : ICdcProcessor
 				break;
 			}
 
-			if (_producerCompleted == 1 && _cdcQueue.IsEmpty())
+			if (_producerStopped && _cdcQueue.IsEmpty())
 			{
 				_logger.LogInformation("No more CDC records. Consumer is exiting gracefully.");
 				break;
 			}
 
-			if (_producerCompleted == 0 && _cdcQueue.IsEmpty())
+			if (ShouldWaitForProducer)
 			{
 				_logger.LogInformation("CDC Queue is empty. Waiting for producer...");
 
 				var waitTime = 10;
 				for (var i = 0; i < 10; i++)
 				{
-					if (!_cdcQueue.IsEmpty())
-					{
-						break;
-					}
-
 					await Task.Delay(waitTime, cancellationToken).ConfigureAwait(false);
 					waitTime = Math.Min(waitTime * 2, 200);
 				}
@@ -738,7 +669,13 @@ public class CdcProcessor : ICdcProcessor
 	/// </summary>
 	private async Task OnApplicationStoppingAsync()
 	{
-		_logger.LogInformation("Application is stopping. Disposing CDCProcessor asynchronously.");
+		_logger.LogInformation("Application is stopping. Cancelling CDCProcessor producer immediately.");
+
+		_producerStopped = true;
+		await _producerCancellationTokenSource.CancelAsync().ConfigureAwait(false);
+
+		_logger.LogInformation("CDCProcessor Producer cancellation requested.");
+		_logger.LogInformation("Waiting for CDCProcessor consumer to finish remaining work...");
 
 		try
 		{

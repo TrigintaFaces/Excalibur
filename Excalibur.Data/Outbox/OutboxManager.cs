@@ -25,13 +25,15 @@ public class OutboxManager : IOutboxManager
 
 	private readonly TelemetryClient? _telemetryClient;
 
-	private int _disposedFlag;
+	private readonly CancellationTokenSource _producerCancellationTokenSource = new();
 
-	private int _producerCompleted;
+	private int _disposedFlag;
 
 	private Task? _producerTask;
 
 	private Task<int>? _consumerTask;
+
+	private volatile bool _producerStopped;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="OutboxManager" /> class.
@@ -68,6 +70,10 @@ public class OutboxManager : IOutboxManager
 		_ = appLifetime.ApplicationStopping.Register(() => Task.Run(OnApplicationStoppingAsync));
 	}
 
+	private CancellationToken ProducerCancellationToken => _producerCancellationTokenSource.Token;
+
+	private bool ShouldWaitForProducer => !_producerStopped && !(_producerTask?.IsCompleted ?? true) && _outboxQueue.IsEmpty();
+
 	/// <inheritdoc />
 	public async Task<int> RunOutboxDispatchAsync(string dispatcherId, CancellationToken cancellationToken = default)
 	{
@@ -75,68 +81,19 @@ public class OutboxManager : IOutboxManager
 
 		await _outbox.TryUnReserveOneRecordsAsync(dispatcherId, cancellationToken).ConfigureAwait(false);
 
-		_producerTask = Task.Factory.StartNew(
-			() => ProducerLoop(dispatcherId, cancellationToken),
-			cancellationToken,
-			TaskCreationOptions.LongRunning,
-			TaskScheduler.Default);
-		_consumerTask = Task.Factory.StartNew(
-			() => ConsumerLoop(dispatcherId, cancellationToken),
-			cancellationToken,
-			TaskCreationOptions.LongRunning,
-			TaskScheduler.Default).Unwrap();
+		await (_producerTask = Task.Factory.StartNew(
+				   () => ProducerLoop(dispatcherId, cancellationToken),
+				   cancellationToken,
+				   TaskCreationOptions.LongRunning,
+				   TaskScheduler.Default)).ConfigureAwait(false);
 
-		var consumerResult = await _consumerTask.ConfigureAwait(false);
-		await _producerTask.ConfigureAwait(false);
+		var consumerResult = await (_consumerTask = Task.Factory.StartNew(
+										() => ConsumerLoop(dispatcherId, cancellationToken),
+										cancellationToken,
+										TaskCreationOptions.LongRunning,
+										TaskScheduler.Default).Unwrap()).ConfigureAwait(false);
 
 		return consumerResult;
-	}
-
-	public async Task FlushAsync()
-	{
-		if (Volatile.Read(ref _disposedFlag) == 1)
-		{
-			return;
-		}
-
-		try
-		{
-			_ = Interlocked.Exchange(ref _producerCompleted, 1);
-
-			if (_producerTask != null)
-			{
-				try
-				{
-					await _producerTask.ConfigureAwait(false);
-				}
-				catch (Exception ex)
-				{
-					_logger.LogError(ex, "Error finishing ProducerLoop in OutboxManager FlushAsync.");
-					throw;
-				}
-			}
-
-			if (_consumerTask != null)
-			{
-				try
-				{
-					_ = await _consumerTask.ConfigureAwait(false);
-				}
-				catch (Exception ex)
-				{
-					_logger.LogError(ex, "Error finishing ConsumerLoop in OutboxManager FlushAsync.");
-					throw;
-				}
-			}
-		}
-		catch (TaskCanceledException ex)
-		{
-			_logger.LogWarning(ex, "Task was canceled during OutboxManager FlushAsync.");
-		}
-		catch (ObjectDisposedException ex)
-		{
-			_logger.LogError(ex, "ObjectDisposedException while finishing OutboxManager FlushAsync.");
-		}
 	}
 
 	/// <inheritdoc />
@@ -158,26 +115,25 @@ public class OutboxManager : IOutboxManager
 
 		_logger.LogInformation("Disposing OutboxManager resources asynchronously.");
 
-		try
+		if (_consumerTask is { IsCompleted: false })
 		{
-			await FlushAsync().ConfigureAwait(false);
-		}
-		catch (Exception ex)
-		{
-			_logger.LogError(ex, "Error during DisposeAsyncCore in OutboxManager.");
+			_logger.LogWarning("Disposing OutboxManager but Consumer has not completed.");
+			_ = await _consumerTask.WaitAsync(TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false);
 		}
 
-		if (_producerTask != null)
+		if (_producerTask is not null)
 		{
 			await CastAndDispose(_producerTask).ConfigureAwait(false);
 		}
 
-		if (_consumerTask != null)
+		if (_consumerTask is not null)
 		{
 			await CastAndDispose(_consumerTask).ConfigureAwait(false);
 		}
 
 		await _outboxQueue.DisposeAsync().ConfigureAwait(false);
+
+		_producerCancellationTokenSource.Dispose();
 
 		return;
 
@@ -205,18 +161,21 @@ public class OutboxManager : IOutboxManager
 	{
 		try
 		{
-			while (!cancellationToken.IsCancellationRequested)
+			using var combinedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, ProducerCancellationToken);
+			var combinedToken = combinedTokenSource.Token;
+
+			while (!combinedToken.IsCancellationRequested)
 			{
 				var availableSlots = Math.Max(0, _configuration.QueueSize - _outboxQueue.Count);
 				if (availableSlots < 1)
 				{
-					await Task.Delay(10, cancellationToken).ConfigureAwait(false);
+					await Task.Delay(10, combinedToken).ConfigureAwait(false);
 					continue;
 				}
 
 				var batchSize = Math.Min(_configuration.ProducerBatchSize, availableSlots);
 				var batch =
-					await ReserveBatchRecords(dispatcherId, batchSize, cancellationToken).ConfigureAwait(false) as ICollection<OutboxRecord>
+					await ReserveBatchRecords(dispatcherId, batchSize, combinedToken).ConfigureAwait(false) as ICollection<OutboxRecord>
 					?? [];
 
 				if (batch.Count == 0)
@@ -230,7 +189,7 @@ public class OutboxManager : IOutboxManager
 
 				foreach (var record in batch)
 				{
-					await _outboxQueue.EnqueueAsync(record, cancellationToken).ConfigureAwait(false);
+					await _outboxQueue.EnqueueAsync(record, combinedToken).ConfigureAwait(false);
 				}
 
 				_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} outbox records", batch.Count);
@@ -247,8 +206,7 @@ public class OutboxManager : IOutboxManager
 		}
 		finally
 		{
-			_ = Interlocked.Exchange(ref _producerCompleted, 1);
-
+			_producerStopped = true;
 			_outboxQueue.CompleteWriter();
 
 			_logger.LogInformation("Outbox Producer has completed execution. Channel marked as complete.");
@@ -271,26 +229,25 @@ public class OutboxManager : IOutboxManager
 		{
 			while (!cancellationToken.IsCancellationRequested)
 			{
-				if (_producerCompleted == 1 && _outboxQueue.IsEmpty())
+				if (_disposedFlag == 1)
+				{
+					_logger.LogWarning("ConsumerLoop: disposal requested, exit now.");
+					break;
+				}
+
+				if (_producerStopped && _outboxQueue.IsEmpty())
 				{
 					_logger.LogInformation("No more Outbox records. Consumer is exiting.");
 					break;
 				}
 
-				var batch = await _outboxQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
-
-				if (_producerCompleted == 0 && batch.Count == 0)
+				if (ShouldWaitForProducer)
 				{
 					_logger.LogInformation("Outbox Queue is empty. Waiting for producer...");
 
 					var waitTime = 10;
 					for (var i = 0; i < 10; i++)
 					{
-						if (!_outboxQueue.IsEmpty())
-						{
-							break;
-						}
-
 						await Task.Delay(waitTime, cancellationToken).ConfigureAwait(false);
 						waitTime = Math.Min(waitTime * 2, 100);
 					}
@@ -298,7 +255,8 @@ public class OutboxManager : IOutboxManager
 					continue;
 				}
 
-				_logger.LogInformation("Processing Outbox batch of {BatchSize} records", batch.Count);
+				var batch = await _outboxQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
+				_logger.LogInformation("Outbox processing batch of {BatchSize} records", batch.Count);
 
 				foreach (var record in batch)
 				{
@@ -366,7 +324,13 @@ public class OutboxManager : IOutboxManager
 
 	private async Task OnApplicationStoppingAsync()
 	{
-		_logger.LogInformation("Application is stopping. Disposing OutboxManager asynchronously.");
+		_logger.LogInformation("Application is stopping. Cancelling OutboxManager producer immediately.");
+
+		_producerStopped = true;
+		await _producerCancellationTokenSource.CancelAsync().ConfigureAwait(false);
+
+		_logger.LogInformation("OutboxManager Producer cancellation requested.");
+		_logger.LogInformation("Waiting for OutboxManager consumer to finish remaining work...");
 
 		try
 		{
