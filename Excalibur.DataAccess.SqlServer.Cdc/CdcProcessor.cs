@@ -1,4 +1,8 @@
+using System.Globalization;
+using System.Text;
+
 using Excalibur.Core.Diagnostics;
+using Excalibur.DataAccess.SqlServer.Cdc.Exceptions;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Hosting;
@@ -21,7 +25,7 @@ public class CdcProcessor : ICdcProcessor
 
 	private readonly ILogger<CdcProcessor> _logger;
 
-	private readonly InMemoryDataQueue<CdcRow> _cdcQueue;
+	private readonly InMemoryDataQueue<DataChangeEvent> _cdcQueue;
 
 	private readonly Dictionary<string, CdcPosition> _tracking = new();
 
@@ -68,7 +72,7 @@ public class CdcProcessor : ICdcProcessor
 		_stateStore = new CdcStateStore(stateStoreConnection);
 		_policyFactory = policyFactory;
 		_logger = logger;
-		_cdcQueue = new InMemoryDataQueue<CdcRow>(_dbConfig.QueueSize);
+		_cdcQueue = new InMemoryDataQueue<DataChangeEvent>(_dbConfig.QueueSize);
 
 		_ = appLifetime.ApplicationStopping.Register(() => Task.Run(OnApplicationStoppingAsync));
 	}
@@ -85,7 +89,7 @@ public class CdcProcessor : ICdcProcessor
 	/// <returns> The total number of events processed. </returns>
 	/// <exception cref="ObjectDisposedException"> Thrown if the instance is already disposed. </exception>
 	public async Task<int> ProcessCdcChangesAsync(
-		Func<DataChangeEvent[], CancellationToken, Task<int>> eventHandler,
+		Func<DataChangeEvent, CancellationToken, Task> eventHandler,
 		CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
@@ -190,80 +194,6 @@ public class CdcProcessor : ICdcProcessor
 	private static string ByteArrayToHex(byte[] bytes) => $"0x{Convert.ToHexString(bytes)}";
 
 	/// <summary>
-	///     Processes CDC rows into data change events.
-	/// </summary>
-	/// <param name="cdcRows"> The rows of CDC data to process. </param>
-	/// <returns> An array of <see cref="DataChangeEvent" /> representing the processed changes. </returns>
-	private DataChangeEvent[] GetDataChangeEvents(IList<CdcRow> cdcRows)
-	{
-		if (cdcRows == null || cdcRows.Count == 0)
-		{
-			_logger.LogWarning("GetDataChangeEvents received a null or empty cdcRows array.");
-			return [];
-		}
-
-		var dataChangeEvents = new DataChangeEvent[cdcRows.Count];
-		var index = 0;
-
-		for (var i = 0; i < cdcRows.Count; i++)
-		{
-			var cdcRow = cdcRows[i];
-
-			if (cdcRow is null)
-			{
-				_logger.LogWarning("Skipping null CdcRow in GetDataChangeEvents.");
-				continue;
-			}
-
-			switch (cdcRow.OperationCode)
-			{
-				case CdcOperationCodes.UpdateBefore:
-					var nextRow = i + 1 < cdcRows.Count ? cdcRows[i + 1] : null;
-					if (nextRow?.OperationCode == CdcOperationCodes.UpdateAfter)
-					{
-						dataChangeEvents[index++] = DataChangeEvent.CreateUpdateEvent(cdcRow, nextRow);
-						i++;
-					}
-					else
-					{
-						_logger.LogWarning(
-							"Missing UpdateAfter for UpdateBefore at Position {Position}, SequenceValue {SequenceValue}",
-							cdcRow.Lsn,
-							cdcRow.SeqVal);
-					}
-
-					break;
-
-				case CdcOperationCodes.Insert:
-					dataChangeEvents[index++] = DataChangeEvent.CreateInsertEvent(cdcRow);
-					break;
-
-				case CdcOperationCodes.Delete:
-					dataChangeEvents[index++] = DataChangeEvent.CreateDeleteEvent(cdcRow);
-					break;
-
-				case CdcOperationCodes.UpdateAfter:
-					_logger.LogWarning(
-						"Unexpected UpdateAfter without corresponding UpdateBefore at Position {Position}, SequenceValue {SequenceValue}",
-						cdcRow.Lsn,
-						cdcRow.SeqVal);
-					break;
-
-				case CdcOperationCodes.Unknown:
-				default:
-					_logger.LogWarning(
-						"Unknown operation {OperationCode} at Position {Position}, SequenceValue {SequenceValue}",
-						cdcRow.OperationCode,
-						cdcRow.Lsn,
-						cdcRow.SeqVal);
-					break;
-			}
-		}
-
-		return dataChangeEvents;
-	}
-
-	/// <summary>
 	///     Executes the producer loop that reads CDC changes from the database and enqueues them for consumption.
 	/// </summary>
 	/// <param name="lowestStartLsn"> The lowest LSN from all the configured capture instances. </param>
@@ -286,86 +216,14 @@ public class CdcProcessor : ICdcProcessor
 			{
 				combinedToken.ThrowIfCancellationRequested();
 
-				foreach (var captureInstance in _tracking.Keys)
+				foreach (var tableName in _tracking.Keys)
 				{
-					if (_tracking.TryGetValue(captureInstance, out var tableTracking))
+					if (_tracking.TryGetValue(tableName, out var tableTracking))
 					{
 						if (tableTracking.Lsn.CompareLsn(currentGlobalLsn) == 0)
 						{
-							var totalRowsReadInThisLsn = 0;
-							var producerBatchSize = Math.Min(_dbConfig.QueueSize - _cdcQueue.Count, _dbConfig.ProducerBatchSize);
-							var lsn = tableTracking.Lsn;
-							var sequenceValue = tableTracking.SequenceValue;
-							var lastOperation = CdcOperationCodes.Unknown;
-
-							while (!combinedToken.IsCancellationRequested)
-							{
-								_logger.LogDebug(
-									"Fetching CDC changes: {TableName} - LSN {Lsn}, SeqVal {SeqVal}",
-									captureInstance,
-									ByteArrayToHex(lsn),
-									sequenceValue != null ? ByteArrayToHex(sequenceValue) : "null");
-
-								var retryPolicy = _policyFactory.GetComprehensivePolicy();
-								var changes = await retryPolicy.ExecuteAsync(
-												  () => _cdcRepository.FetchChangesAsync(
-													  captureInstance,
-													  producerBatchSize,
-													  lsn,
-													  sequenceValue,
-													  lastOperation,
-													  combinedToken)).ConfigureAwait(false) as IList<CdcRow> ?? [];
-
-								if (changes.Count == 0)
-								{
-									if (totalRowsReadInThisLsn > 0)
-									{
-										_logger.LogDebug(
-											"Successfully enqueued {EnqueuedRowCount} CDC rows for {TableName}, advancing LSN.",
-											totalRowsReadInThisLsn,
-											captureInstance);
-									}
-									else
-									{
-										_logger.LogInformation("No changes found for {TableName}, advancing LSN.", captureInstance);
-
-										var commitTime = await _cdcRepository.GetLsnToTimeAsync(lsn, combinedToken).ConfigureAwait(false);
-
-										await UpdateTableLastProcessed(captureInstance, lsn, sequenceValue, commitTime, combinedToken)
-											.ConfigureAwait(false);
-									}
-
-									break;
-								}
-
-								totalRowsReadInThisLsn += changes.Count;
-
-								foreach (var record in changes)
-								{
-									await _cdcQueue.EnqueueAsync(record, combinedToken).ConfigureAwait(false);
-									lsn = record.Lsn;
-									sequenceValue = record.SeqVal;
-									lastOperation = record.OperationCode;
-								}
-							}
-
-							var nextLsn = await _cdcRepository.GetNextLsnAsync(captureInstance, lsn, combinedToken).ConfigureAwait(false);
-
-							_logger.LogDebug(
-								"Table {CaptureInstance}: currentLSN={CurrentLsn}, nextLSN={NextLsn}, maxLSN={MaxLsn}",
-								captureInstance,
-								ByteArrayToHex(lsn),
-								nextLsn != null ? ByteArrayToHex(nextLsn) : "null",
-								ByteArrayToHex(maxLsn));
-
-							if (nextLsn != null && nextLsn.CompareLsn(maxLsn) < 0)
-							{
-								UpdateLsnTracking(captureInstance, new CdcPosition(nextLsn, null));
-							}
-							else
-							{
-								UpdateLsnTracking(captureInstance, null);
-							}
+							await EnqueueTableChangesAsync(tableName, tableTracking.Lsn, tableTracking.SequenceValue, maxLsn, combinedToken)
+								.ConfigureAwait(false);
 						}
 					}
 				}
@@ -398,15 +256,179 @@ public class CdcProcessor : ICdcProcessor
 		}
 	}
 
+	private async Task EnqueueTableChangesAsync(
+		string tableName,
+		byte[] lastLsn,
+		byte[]? lastSequenceValue,
+		byte[] maxLsn,
+		CancellationToken combinedToken)
+	{
+		var totalRowsReadInThisLsn = 0;
+		var producerBatchSize = Math.Min(_dbConfig.QueueSize - _cdcQueue.Count, _dbConfig.ProducerBatchSize);
+		var lsn = lastLsn;
+		var sequenceValue = lastSequenceValue;
+		var lastOperation = CdcOperationCodes.Unknown;
+		var pendingUpdateBefore = new Dictionary<byte[], CdcRow>(new ByteArrayEqualityComparer());
+		var pendingUpdateAfter = new Dictionary<byte[], CdcRow>(new ByteArrayEqualityComparer());
+
+		while (!combinedToken.IsCancellationRequested)
+		{
+			_logger.LogDebug(
+				"Fetching CDC changes: {TableName} - LSN {Lsn}, SeqVal {SeqVal}",
+				tableName,
+				ByteArrayToHex(lsn),
+				sequenceValue != null ? ByteArrayToHex(sequenceValue) : "null");
+
+			var retryPolicy = _policyFactory.GetComprehensivePolicy();
+			var changes = await retryPolicy.ExecuteAsync(
+							  () => _cdcRepository.FetchChangesAsync(
+								  tableName,
+								  producerBatchSize,
+								  lsn,
+								  sequenceValue,
+								  lastOperation,
+								  combinedToken)).ConfigureAwait(false) as IList<CdcRow> ?? [];
+
+			if (changes.Count == 0)
+			{
+				if (totalRowsReadInThisLsn > 0)
+				{
+					_logger.LogDebug(
+						"Successfully enqueued {EnqueuedRowCount} CDC rows for {TableName}, advancing LSN.",
+						totalRowsReadInThisLsn,
+						tableName);
+				}
+				else
+				{
+					_logger.LogInformation("No changes found for {TableName}, advancing LSN.", tableName);
+
+					var commitTime = await _cdcRepository.GetLsnToTimeAsync(lsn, combinedToken).ConfigureAwait(false);
+
+					await UpdateTableLastProcessed(tableName, lsn, sequenceValue, commitTime, combinedToken).ConfigureAwait(false);
+				}
+
+				break;
+			}
+
+			totalRowsReadInThisLsn += changes.Count;
+
+			var events = new List<DataChangeEvent>();
+			foreach (var record in changes)
+			{
+				switch (record.OperationCode)
+				{
+					case CdcOperationCodes.Delete:
+						events.Add(DataChangeEvent.CreateDeleteEvent(record));
+						break;
+
+					case CdcOperationCodes.Insert:
+						events.Add(DataChangeEvent.CreateInsertEvent(record));
+						break;
+
+					case CdcOperationCodes.UpdateBefore when pendingUpdateAfter.TryGetValue(record.SeqVal, out var afterRecord):
+						events.Add(DataChangeEvent.CreateUpdateEvent(record, afterRecord));
+						pendingUpdateAfter.Remove(record.SeqVal);
+						break;
+
+					case CdcOperationCodes.UpdateBefore:
+						pendingUpdateBefore[record.SeqVal] = record;
+						break;
+
+					case CdcOperationCodes.UpdateAfter when pendingUpdateBefore.TryGetValue(record.SeqVal, out var beforeRecord):
+						events.Add(DataChangeEvent.CreateUpdateEvent(beforeRecord, record));
+						pendingUpdateBefore.Remove(record.SeqVal);
+						break;
+
+					case CdcOperationCodes.UpdateAfter:
+						pendingUpdateAfter[record.SeqVal] = record;
+						break;
+
+					case CdcOperationCodes.Unknown:
+					default:
+						_logger.LogWarning(
+							"Unknown operation {OperationCode} at Position {Position}, SequenceValue {SequenceValue}",
+							record.OperationCode,
+							record.Lsn,
+							record.SeqVal);
+						break;
+				}
+
+				lsn = record.Lsn;
+				sequenceValue = record.SeqVal;
+				lastOperation = record.OperationCode;
+			}
+
+			// There shouldn't be any matching pairs here just ones with pairs in the next batch but just in case
+			foreach (var seqVal in pendingUpdateBefore.Keys.ToList())
+			{
+				if (pendingUpdateAfter.TryGetValue(seqVal, out var afterRecord))
+				{
+					events.Add(DataChangeEvent.CreateUpdateEvent(pendingUpdateBefore[seqVal], afterRecord));
+					pendingUpdateBefore.Remove(seqVal);
+					pendingUpdateAfter.Remove(seqVal);
+				}
+			}
+
+			if (events.Count > 0)
+			{
+				await _cdcQueue.EnqueueBatchAsync(events, combinedToken).ConfigureAwait(false);
+			}
+
+			events.Clear();
+			changes.Clear();
+			changes = null;
+			events = null;
+		}
+
+		if (pendingUpdateBefore.Count > 0 || pendingUpdateAfter.Count > 0)
+		{
+			var unmatchedUpdates = new StringBuilder();
+			foreach (var kvp in pendingUpdateBefore)
+			{
+				unmatchedUpdates.Append(
+					CultureInfo.CurrentCulture,
+					$"Unmatched UpdateBefore at LSN {ByteArrayToHex(lsn)}, SeqVal {ByteArrayToHex(kvp.Key)}").Append(Environment.NewLine);
+			}
+
+			foreach (var kvp in pendingUpdateAfter)
+			{
+				unmatchedUpdates.Append(
+					CultureInfo.CurrentCulture,
+					$"Unmatched UpdateAfter at LSN {ByteArrayToHex(lsn)}, SeqVal {ByteArrayToHex(kvp.Key)}").Append(Environment.NewLine);
+			}
+
+			_logger.LogError(
+				"Unmatched UpdateBefore/UpdateAfter pairs detected at the end of LSN processing:" + Environment.NewLine + unmatchedUpdates);
+
+			throw new UnmatchedUpdateRecordsException(lsn);
+		}
+
+		var nextLsn = await _cdcRepository.GetNextLsnAsync(tableName, lsn, combinedToken).ConfigureAwait(false);
+
+		_logger.LogDebug(
+			"Table {CaptureInstance} enqueued: currentLSN={CurrentLsn}, nextLSN={NextLsn}, maxLSN={MaxLsn}",
+			tableName,
+			ByteArrayToHex(lsn),
+			nextLsn != null ? ByteArrayToHex(nextLsn) : "null",
+			ByteArrayToHex(maxLsn));
+
+		if (nextLsn != null && nextLsn.CompareLsn(maxLsn) < 0)
+		{
+			UpdateLsnTracking(tableName, nextLsn, null);
+		}
+		else
+		{
+			UpdateLsnTracking(tableName, null, null);
+		}
+	}
+
 	/// <summary>
 	///     Executes the consumer loop that processes CDC events in batches.
 	/// </summary>
 	/// <param name="eventHandler"> The handler to process data change events. </param>
 	/// <param name="cancellationToken"> A cancellation token to stop processing. </param>
 	/// <returns> The total number of events processed. </returns>
-	private async Task<int> ConsumerLoop(
-		Func<DataChangeEvent[], CancellationToken, Task<int>> eventHandler,
-		CancellationToken cancellationToken)
+	private async Task<int> ConsumerLoop(Func<DataChangeEvent, CancellationToken, Task> eventHandler, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(eventHandler);
 
@@ -445,53 +467,21 @@ public class CdcProcessor : ICdcProcessor
 
 			try
 			{
+				cancellationToken.ThrowIfCancellationRequested();
+
 				_logger.LogDebug("Attempting to dequeue CDC messages...");
 				var stopwatch = ValueStopwatch.StartNew();
 
-				var batchQueue = await _cdcQueue.DequeueBatchAsync(_dbConfig.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
-				_logger.LogDebug("Dequeued {BatchSize} messages in {ElapsedMs}ms", batchQueue.Count, stopwatch.Elapsed.TotalMilliseconds);
+				var batch = await _cdcQueue.DequeueBatchAsync(_dbConfig.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
+				_logger.LogDebug("Dequeued {BatchSize} messages in {ElapsedMs}ms", batch.Count, stopwatch.Elapsed.TotalMilliseconds);
 
-				var batchSize = _dbConfig.ConsumerBatchSize;
-				List<CdcRow> batchList;
+				_logger.LogDebug("Processing batch of {BatchSize} CDC records", batch.Count);
 
-				if (remainingUpdateBeforeLast != null)
-				{
-					_logger.LogDebug("Carrying over remaining UpdateBefore record for next batch.");
-					batchSize++;
-					batchList = new List<CdcRow>(batchSize) { remainingUpdateBeforeLast };
+				await ProcessBatchAsync(batch, eventHandler, cancellationToken).ConfigureAwait(false);
 
-					remainingUpdateBeforeLast = null;
-				}
-				else
-				{
-					batchList = new List<CdcRow>(batchSize);
-				}
+				_logger.LogDebug("Processed {BatchSize} CDC records in {ElapsedMs}ms", batch.Count, stopwatch.Elapsed.TotalMilliseconds);
 
-				foreach (var cdcRow in batchQueue)
-				{
-					if (batchList.Count < batchSize)
-					{
-						batchList.Add(cdcRow);
-					}
-					else if (cdcRow.OperationCode != CdcOperationCodes.UpdateBefore)
-					{
-						batchList.Add(cdcRow);
-					}
-					else
-					{
-						_logger.LogDebug("Storing UpdateBefore record temporarily.");
-						remainingUpdateBeforeLast = cdcRow;
-					}
-				}
-
-				if (batchList.Count > 0)
-				{
-					totalProcessedCount += await CompleteBatch(batchList, stopwatch).ConfigureAwait(false);
-					batchList.Clear();
-				}
-
-				batchList = null;
-				batchQueue = null;
+				totalProcessedCount += batch.Count;
 			}
 			catch (OperationCanceledException)
 			{
@@ -507,65 +497,31 @@ public class CdcProcessor : ICdcProcessor
 		_logger.LogInformation("Completed CDC processing, total events processed: {TotalEvents}", totalProcessedCount);
 
 		return totalProcessedCount;
-
-		async Task<int> CompleteBatch(IList<CdcRow> batch, ValueStopwatch stopwatch)
-		{
-			_logger.LogDebug("Processing batch of {BatchSize} CDC records", batch.Count);
-
-			var retryPolicy = _policyFactory.GetComprehensivePolicy();
-
-			await retryPolicy.ExecuteAsync(() => ProcessBatch(batch, eventHandler, cancellationToken)).ConfigureAwait(false);
-
-			_logger.LogDebug("Processed {BatchSize} CDC records in {ElapsedMs}ms", batch.Count, stopwatch.Elapsed.TotalMilliseconds);
-
-			return batch.Count;
-		}
 	}
 
-	private async Task ProcessBatch(
-		IList<CdcRow> batch,
-		Func<DataChangeEvent[], CancellationToken, Task<int>> eventHandler,
+	private async Task ProcessBatchAsync(
+		IList<DataChangeEvent> batch,
+		Func<DataChangeEvent, CancellationToken, Task> eventHandler,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(batch);
 		ArgumentNullException.ThrowIfNull(eventHandler);
 
-		var events = GetDataChangeEvents(batch);
-		_ = await eventHandler(events, cancellationToken).ConfigureAwait(false);
-		Array.Clear(events);
-
-		using var semaphore = new SemaphoreSlim(5);
-		var updateTasks = batch.GroupBy((CdcRow r) => r.TableName).Select(
-			async (IGrouping<string, CdcRow> group) =>
-			{
-				await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-
-				try
-				{
-					var lastRow = group.Last();
-
-					var retryPolicy = _policyFactory.GetComprehensivePolicy();
-
-					await retryPolicy.ExecuteAsync(
-						() => UpdateTableLastProcessed(
-							lastRow.TableName,
-							lastRow.Lsn,
-							lastRow.SeqVal,
-							lastRow.CommitTime,
-							cancellationToken)).ConfigureAwait(false);
-				}
-				finally
-				{
-					_ = semaphore.Release();
-				}
-			}).ToArray();
-
-		await Task.WhenAll(updateTasks).ConfigureAwait(false);
-		Array.Clear(updateTasks);
-
-		foreach (var cdcRow in batch)
+		foreach (var changeEvent in batch)
 		{
-			cdcRow.Dispose();
+			cancellationToken.ThrowIfCancellationRequested();
+
+			var eventHandlerPolicy = _policyFactory.GetComprehensivePolicy();
+			await eventHandlerPolicy.ExecuteAsync(() => eventHandler(changeEvent, cancellationToken)).ConfigureAwait(false);
+
+			var updateTablePolicy = _policyFactory.GetComprehensivePolicy();
+			await updateTablePolicy.ExecuteAsync(
+				() => UpdateTableLastProcessed(
+					changeEvent.TableName,
+					changeEvent.Lsn,
+					changeEvent.SeqVal,
+					changeEvent.CommitTime,
+					cancellationToken)).ConfigureAwait(false);
 		}
 	}
 
@@ -618,15 +574,15 @@ public class CdcProcessor : ICdcProcessor
 				}
 			}
 
-			UpdateLsnTracking(captureInstance, new CdcPosition(startLsn, seqVal));
+			UpdateLsnTracking(captureInstance, startLsn, seqVal);
 		}
 	}
 
-	private void UpdateLsnTracking(string tableName, CdcPosition? newPosition)
+	private void UpdateLsnTracking(string tableName, byte[]? lsn, byte[]? seqVal)
 	{
 		lock (_minHeapLock)
 		{
-			if (newPosition == null)
+			if (lsn == null)
 			{
 				if (_tracking.ContainsKey(tableName) && _tracking.Remove(tableName, out _))
 				{
@@ -638,19 +594,19 @@ public class CdcProcessor : ICdcProcessor
 			{
 				if (_tracking.TryGetValue(tableName, out var currentPos))
 				{
-					if (newPosition.Lsn.CompareLsn(currentPos.Lsn) > 0)
+					if (lsn.CompareLsn(currentPos.Lsn) > 0)
 					{
-						_tracking[tableName] = newPosition;
+						_tracking[tableName] = new CdcPosition(lsn, seqVal);
 						_ = _minHeap.RemoveWhere(((byte[] Lsn, string TableName) item) => item.TableName == tableName);
-						_ = _minHeap.Add((newPosition.Lsn, tableName));
-						_logger.LogDebug("Updated LSN for table {TableName}: {Lsn}", tableName, ByteArrayToHex(newPosition.Lsn));
+						_ = _minHeap.Add((lsn, tableName));
+						_logger.LogDebug("Updated LSN for table {TableName}: {Lsn}", tableName, ByteArrayToHex(lsn));
 					}
 				}
 				else
 				{
-					_tracking[tableName] = newPosition;
-					_ = _minHeap.Add((newPosition.Lsn, tableName));
-					_logger.LogDebug("Inserted new LSN for table {TableName}: {Lsn}", tableName, ByteArrayToHex(newPosition.Lsn));
+					_tracking[tableName] = new CdcPosition(lsn, seqVal);
+					_ = _minHeap.Add((lsn, tableName));
+					_logger.LogDebug("Inserted new LSN for table {TableName}: {Lsn}", tableName, ByteArrayToHex(lsn));
 				}
 			}
 		}

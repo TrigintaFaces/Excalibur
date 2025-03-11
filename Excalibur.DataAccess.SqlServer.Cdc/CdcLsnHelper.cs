@@ -51,3 +51,26 @@ public class ByteArrayComparer : IComparer<byte[]>
 		return x.Length.CompareTo(y.Length);
 	}
 }
+
+public class ByteArrayEqualityComparer : IEqualityComparer<byte[]>
+{
+	public bool Equals(byte[]? x, byte[]? y)
+	{
+		if (x == null || y == null)
+		{
+			return x == y;
+		}
+
+		return x.SequenceEqual(y);
+	}
+
+	public int GetHashCode(byte[] obj)
+	{
+		ArgumentNullException.ThrowIfNull(obj, nameof(obj));
+
+		unchecked
+		{
+			return obj.Aggregate(17, (int current, byte b) => current * 31 + b.GetHashCode());
+		}
+	}
+}
