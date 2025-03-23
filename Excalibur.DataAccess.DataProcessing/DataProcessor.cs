@@ -29,6 +29,8 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 	private readonly CancellationTokenSource _producerCancellationTokenSource = new();
 
+	private readonly OrderedEventProcessor _orderedEventProcessor = new();
+
 	private long _skipCount;
 
 	private int _disposedFlag;
@@ -80,16 +82,16 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		_ = Interlocked.Exchange(ref _skipCount, completedCount);
 
 		await (_producerTask = Task.Factory.StartNew(
-				   () => ProducerLoop(cancellationToken),
-				   cancellationToken,
-				   TaskCreationOptions.LongRunning,
-				   TaskScheduler.Default)).ConfigureAwait(false);
+			() => ProducerLoop(cancellationToken),
+			cancellationToken,
+			TaskCreationOptions.LongRunning,
+			TaskScheduler.Default)).ConfigureAwait(false);
 
 		var consumerResult = await (_consumerTask = Task.Factory.StartNew(
-										() => ConsumerLoop(cancellationToken),
-										cancellationToken,
-										TaskCreationOptions.LongRunning,
-										TaskScheduler.Default).Unwrap()).ConfigureAwait(false);
+			() => ConsumerLoop(cancellationToken),
+			cancellationToken,
+			TaskCreationOptions.LongRunning,
+			TaskScheduler.Default).Unwrap()).ConfigureAwait(false);
 
 		return consumerResult;
 	}
@@ -131,6 +133,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		}
 
 		await _dataQueue.DisposeAsync().ConfigureAwait(false);
+		await _orderedEventProcessor.DisposeAsync().ConfigureAwait(false);
 
 		_producerCancellationTokenSource.Dispose();
 		return;
@@ -251,7 +254,12 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 					try
 					{
-						await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false);
+						// Ensures events are dispatched in order. Critical when using Mediator to publish domain events that must be
+						// processed sequentially.
+						await _orderedEventProcessor.ProcessAsync(async () =>
+						{
+							await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false);
+						}).ConfigureAwait(false);
 					}
 					catch (Exception ex)
 					{

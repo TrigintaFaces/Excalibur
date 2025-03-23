@@ -27,6 +27,8 @@ public class OutboxManager : IOutboxManager
 
 	private readonly CancellationTokenSource _producerCancellationTokenSource = new();
 
+	private readonly OrderedEventProcessor _orderedEventProcessor = new();
+
 	private int _disposedFlag;
 
 	private Task? _producerTask;
@@ -82,16 +84,16 @@ public class OutboxManager : IOutboxManager
 		await _outbox.TryUnReserveOneRecordsAsync(dispatcherId, cancellationToken).ConfigureAwait(false);
 
 		await (_producerTask = Task.Factory.StartNew(
-				   () => ProducerLoop(dispatcherId, cancellationToken),
-				   cancellationToken,
-				   TaskCreationOptions.LongRunning,
-				   TaskScheduler.Default)).ConfigureAwait(false);
+			() => ProducerLoop(dispatcherId, cancellationToken),
+			cancellationToken,
+			TaskCreationOptions.LongRunning,
+			TaskScheduler.Default)).ConfigureAwait(false);
 
 		var consumerResult = await (_consumerTask = Task.Factory.StartNew(
-										() => ConsumerLoop(dispatcherId, cancellationToken),
-										cancellationToken,
-										TaskCreationOptions.LongRunning,
-										TaskScheduler.Default).Unwrap()).ConfigureAwait(false);
+			() => ConsumerLoop(dispatcherId, cancellationToken),
+			cancellationToken,
+			TaskCreationOptions.LongRunning,
+			TaskScheduler.Default).Unwrap()).ConfigureAwait(false);
 
 		return consumerResult;
 	}
@@ -132,6 +134,7 @@ public class OutboxManager : IOutboxManager
 		}
 
 		await _outboxQueue.DisposeAsync().ConfigureAwait(false);
+		await _orderedEventProcessor.DisposeAsync().ConfigureAwait(false);
 
 		_producerCancellationTokenSource.Dispose();
 
@@ -261,11 +264,20 @@ public class OutboxManager : IOutboxManager
 				foreach (var record in batch)
 				{
 					var stopwatch = ValueStopwatch.StartNew();
+
 					try
 					{
-						_ = await _outbox.DispatchReservedRecordAsync(dispatcherId, record).ConfigureAwait(false);
+						// Ensures events are dispatched in order. Critical when using Mediator to publish domain events that must be
+						// processed sequentially.
+						await _orderedEventProcessor.ProcessAsync(async () =>
+						{
+							_ = await _outbox.DispatchReservedRecordAsync(dispatcherId, record).ConfigureAwait(false);
+						}).ConfigureAwait(false);
 
-						_telemetryClient?.GetMetric("Outbox.ProcessingTime").TrackValue(stopwatch.Elapsed.TotalMilliseconds);
+						_telemetryClient?.TrackTrace(
+							$"Dispatched OutboxRecord {record.OutboxId}",
+							SeverityLevel.Information,
+							new Dictionary<string, string> { ["OutboxId"] = record.OutboxId.ToString(), ["DispatcherId"] = dispatcherId });
 					}
 					catch (Exception ex)
 					{
@@ -278,6 +290,8 @@ public class OutboxManager : IOutboxManager
 							record.OutboxId,
 							record.DispatcherId);
 					}
+
+					_telemetryClient?.GetMetric("Outbox.ProcessingTime").TrackValue(stopwatch.Elapsed.TotalMilliseconds);
 				}
 
 				totalProcessedCount += batch.Count;

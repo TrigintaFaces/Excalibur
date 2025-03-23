@@ -31,6 +31,10 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 	/// <param name="stateStoreConnection"> The SQL connection for persisting CDC state. </param>
 	/// <param name="serviceProvider"> The service provider for dependency resolution. </param>
 	/// <param name="logger"> The logger for capturing diagnostics and operational logs. </param>
+	/// <param name="onFatalError">
+	///     Optional delegate that is invoked if a fatal error occurs during event processing. This allows the host application to react to
+	///     unrecoverable conditions (e.g., log, shut down, alert).
+	/// </param>
 	public DataChangeEventProcessor(
 		IHostApplicationLifetime appLifetime,
 		IDatabaseConfig dbConfig,
@@ -38,8 +42,9 @@ public class DataChangeEventProcessor : CdcProcessor, IDataChangeEventProcessor
 		SqlConnection stateStoreConnection,
 		IServiceProvider serviceProvider,
 		IDataAccessPolicyFactory policyFactory,
-		ILogger<DataChangeEventProcessor> logger)
-		: base(appLifetime, dbConfig, cdcConnection, stateStoreConnection, policyFactory, logger)
+		ILogger<DataChangeEventProcessor> logger,
+		CdcFatalErrorHandler? onFatalError = null)
+		: base(appLifetime, dbConfig, cdcConnection, stateStoreConnection, policyFactory, logger, onFatalError)
 	{
 		ArgumentNullException.ThrowIfNull(dbConfig);
 		ArgumentNullException.ThrowIfNull(serviceProvider, nameof(serviceProvider));
