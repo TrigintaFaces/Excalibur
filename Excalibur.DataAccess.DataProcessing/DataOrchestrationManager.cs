@@ -79,47 +79,42 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 
 	private async Task ProcessRequestsAsync(IList<DataTaskRequest> dataTaskRequests, CancellationToken cancellationToken)
 	{
-		var orderedEventProcessor = new OrderedEventProcessor();
-
-		await orderedEventProcessor.ProcessEventsAsync(
-			dataTaskRequests,
-			async (DataTaskRequest request) =>
+		foreach (var request in dataTaskRequests)
+		{
+			if (!_processorRegistry.TryGetProcessor(request.RecordType, out var dataProcessor))
 			{
-				if (!_processorRegistry.TryGetProcessor(request.RecordType, out var dataProcessor))
+				request.Attempts++;
+				await UpdateAttemptsAsync(request.DataTaskId, request.Attempts, cancellationToken).ConfigureAwait(false);
+
+				_logger.LogWarning("Error processing back fill for table '{RecordType}. No processor found.'", request.RecordType);
+			}
+			else
+			{
+				try
+				{
+					_ = await dataProcessor.RunAsync(
+						request.CompletedCount,
+						(long complete, CancellationToken cancellation) =>
+							UpdateCompletedCountAsync(request.DataTaskId, complete, cancellation),
+						cancellationToken).ConfigureAwait(false);
+
+					await dataProcessor.DisposeAsync().ConfigureAwait(false);
+
+					await DeleteRequestAsync(request.DataTaskId, cancellationToken).ConfigureAwait(false);
+				}
+				catch (Exception ex)
 				{
 					request.Attempts++;
 					await UpdateAttemptsAsync(request.DataTaskId, request.Attempts, cancellationToken).ConfigureAwait(false);
-
-					_logger.LogWarning("Error processing back fill for table '{RecordType}. No processor found.'", request.RecordType);
+					_logger.LogError(
+						ex,
+						"Error processing data task for {RecordType}. Attempts: {Attempts}",
+						request.RecordType,
+						request.Attempts);
+					throw;
 				}
-				else
-				{
-					try
-					{
-						_ = await dataProcessor.RunAsync(
-								request.CompletedCount,
-								(long complete, CancellationToken cancellation) =>
-									UpdateCompletedCountAsync(request.DataTaskId, complete, cancellation),
-								cancellationToken).ConfigureAwait(false);
-
-						await dataProcessor.DisposeAsync().ConfigureAwait(false);
-
-						await DeleteRequestAsync(request.DataTaskId, cancellationToken).ConfigureAwait(false);
-					}
-					catch (Exception ex)
-					{
-						request.Attempts++;
-						await UpdateAttemptsAsync(request.DataTaskId, request.Attempts, cancellationToken).ConfigureAwait(false);
-						_logger.LogError(
-							ex,
-							"Error processing data task for {RecordType}. Attempts: {Attempts}",
-							request.RecordType,
-							request.Attempts);
-						throw;
-					}
-				}
-			}).ConfigureAwait(false);
-		await orderedEventProcessor.DisposeAsync().ConfigureAwait(false);
+			}
+		}
 	}
 
 	private async Task UpdateAttemptsAsync(Guid dataTaskId, int attempts, CancellationToken cancellationToken = default)
