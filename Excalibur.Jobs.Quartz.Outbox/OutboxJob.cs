@@ -21,7 +21,7 @@ namespace Excalibur.Jobs.Quartz.Outbox;
 [DisallowConcurrentExecution]
 public class OutboxJob : IJob, IConfigurableJob<OutboxJobConfig>
 {
-	private const string JobConfigSectionName = $"Jobs:{nameof(OutboxJob)}";
+	public const string JobConfigSectionName = $"Jobs:{nameof(OutboxJob)}";
 
 	private static readonly string DispatcherId = Uuid7Extensions.GenerateString();
 

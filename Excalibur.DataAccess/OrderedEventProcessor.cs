@@ -5,64 +5,38 @@ namespace Excalibur.DataAccess;
 /// </summary>
 public sealed class OrderedEventProcessor : IAsyncDisposable
 {
-	private readonly TaskFactory _taskFactory;
+	private readonly SemaphoreSlim _semaphore = new(1, 1);
 
-	private readonly OrderedTaskScheduler _scheduler;
-
-	private int _disposedFlag;
-
-	/// <summary>
-	///     Initializes a new instance of the <see cref="OrderedEventProcessor" /> class.
-	/// </summary>
-	public OrderedEventProcessor()
-	{
-		_scheduler = new OrderedTaskScheduler();
-		_taskFactory = new TaskFactory(_scheduler);
-	}
-
-	/// <summary>
-	///     Processes a collection of events asynchronously in the order they are provided.
-	/// </summary>
-	/// <param name="events"> The collection of events to process. </param>
-	/// <param name="processEvent"> A delegate to process individual events. </param>
-	/// <returns> A task that represents the asynchronous processing operation. </returns>
-	public ValueTask ProcessEventsAsync<TEvent>(IEnumerable<TEvent> events, Func<TEvent, Task> processEvent)
-	{
-		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
-
-		var eventList = events as IList<TEvent> ?? events.ToList();
-
-		return eventList.Count == 0 ? ValueTask.CompletedTask : new ValueTask(ProcessEventBatchesAsync(eventList, processEvent));
-	}
+	private bool _disposed;
 
 	/// <summary>
 	///     Processes a single event asynchronously while maintaining strict ordering.
 	/// </summary>
 	/// <param name="processEvent"> A delegate to process the event. </param>
 	/// <returns> A task that represents the asynchronous processing operation. </returns>
-	public Task ProcessAsync(Func<Task> processEvent)
+	public async Task ProcessAsync(Func<Task> processEvent)
 	{
-		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
+		ArgumentNullException.ThrowIfNull(processEvent);
+		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		return _taskFactory.StartNew(processEvent).Unwrap();
+		await _semaphore.WaitAsync().ConfigureAwait(false);
+		try
+		{
+			await processEvent().ConfigureAwait(false);
+		}
+		finally
+		{
+			_semaphore.Release();
+		}
 	}
 
-	public async ValueTask DisposeAsync()
+	public ValueTask DisposeAsync()
 	{
-		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
-		{
-			return;
-		}
+		_disposed = true;
 
-		await _scheduler.DisposeAsync().ConfigureAwait(false);
+		_semaphore.Dispose();
 		GC.SuppressFinalize(this);
-	}
 
-	private async Task ProcessEventBatchesAsync<TEvent>(IList<TEvent> events, Func<TEvent, Task> processEvent)
-	{
-		foreach (var evt in events)
-		{
-			await _taskFactory.StartNew(() => processEvent(evt)).Unwrap().ConfigureAwait(false);
-		}
+		return ValueTask.CompletedTask;
 	}
 }

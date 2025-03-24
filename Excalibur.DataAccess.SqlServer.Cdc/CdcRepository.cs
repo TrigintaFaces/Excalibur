@@ -213,11 +213,11 @@ public class CdcRepository : ICdcRepository
 
 		var commandText = $"""
 		                   SELECT TOP (@batchSize)
-		                      '{captureInstance}' AS TableName,
-		                      sys.fn_cdc_map_lsn_to_time(__$start_lsn) AS CommitTime,
-		                      __$start_lsn AS Position,
-		                      __$seqval AS SequenceValue,
-		                      __$operation AS OperationCode,
+		                   	'{captureInstance}' AS TableName,
+		                   	sys.fn_cdc_map_lsn_to_time(__$start_lsn) AS CommitTime,
+		                   	__$start_lsn AS Position,
+		                   	__$seqval AS SequenceValue,
+		                   	__$operation AS OperationCode,
 		                      *
 		                   FROM cdc.fn_cdc_get_all_changes_{captureInstance}(@lsn, @lsn, N'all update old')
 		                   WHERE
@@ -227,9 +227,9 @@ public class CdcRepository : ICdcRepository
 		                         @lastSequenceValue IS NULL
 		                         OR
 		                         (
-		                            (__$seqval > @lastSequenceValue)
-		                            OR
-		                            (@lastOperation = 3 AND __$seqval = @lastSequenceValue)
+		                   		(@lastOperation = 3 AND __$seqval = @lastSequenceValue AND __$operation = 4)
+		                   		OR
+		                   		(__$seqval > @lastSequenceValue)
 		                         )
 		                      )
 		                   ORDER BY
@@ -285,8 +285,8 @@ public class CdcRepository : ICdcRepository
 					CommitTime = (DateTime)reader["CommitTime"],
 					Changes = changes,
 					DataTypes = dataTypes.Where((KeyValuePair<string, Type> ct) => changes.ContainsKey(ct.Key)).ToDictionary(
-									 (KeyValuePair<string, Type> kvp) => kvp.Key,
-									 (KeyValuePair<string, Type> kvp) => kvp.Value)
+						(KeyValuePair<string, Type> kvp) => kvp.Key,
+						(KeyValuePair<string, Type> kvp) => kvp.Value)
 				};
 
 				resultList.Add(cdcRow);

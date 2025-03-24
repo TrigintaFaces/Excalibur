@@ -18,7 +18,7 @@ namespace Excalibur.Jobs.Quartz.Cdc;
 [DisallowConcurrentExecution]
 public class CdcJob : IJob, IConfigurableJob<CdcJobConfig>
 {
-	private const string JobConfigSectionName = "Jobs:CdcJob";
+	public const string JobConfigSectionName = "Jobs:CdcJob";
 
 	private readonly IConfiguration _configuration;
 
@@ -109,8 +109,9 @@ public class CdcJob : IJob, IConfigurableJob<CdcJobConfig>
 			{
 				_logger.LogInformation("Starting execution of {JobGroup}:{JobName}.", jobGroup, jobName);
 
-				var tasks = jobConfig.DatabaseConfigs.Select(
-					(DatabaseConfig dbConfig) => ProcessCdcChangesAsync(dbConfig, context.CancellationToken));
+				var tasks = jobConfig.DatabaseConfigs
+					.Distinct()
+					.Select((DatabaseConfig dbConfig) => ProcessCdcChangesAsync(dbConfig, context.CancellationToken));
 
 				var results = await Task.WhenAll(tasks).ConfigureAwait(false);
 

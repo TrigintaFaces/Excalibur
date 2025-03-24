@@ -83,17 +83,11 @@ public class OutboxManager : IOutboxManager
 
 		await _outbox.TryUnReserveOneRecordsAsync(dispatcherId, cancellationToken).ConfigureAwait(false);
 
-		await (_producerTask = Task.Factory.StartNew(
-			() => ProducerLoop(dispatcherId, cancellationToken),
-			cancellationToken,
-			TaskCreationOptions.LongRunning,
-			TaskScheduler.Default)).ConfigureAwait(false);
+		_producerTask = Task.Run(() => ProducerLoop(dispatcherId, cancellationToken), cancellationToken);
+		_consumerTask = Task.Run(() => ConsumerLoop(dispatcherId, cancellationToken), cancellationToken);
 
-		var consumerResult = await (_consumerTask = Task.Factory.StartNew(
-			() => ConsumerLoop(dispatcherId, cancellationToken),
-			cancellationToken,
-			TaskCreationOptions.LongRunning,
-			TaskScheduler.Default).Unwrap()).ConfigureAwait(false);
+		await _producerTask.ConfigureAwait(false);
+		var consumerResult = await _consumerTask.ConfigureAwait(false);
 
 		return consumerResult;
 	}
