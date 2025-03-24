@@ -14,7 +14,7 @@ namespace Excalibur.Jobs.Quartz.DataProcessing;
 [DisallowConcurrentExecution]
 public class DataProcessingJob : IJob, IConfigurableJob<DataProcessingJobConfig>
 {
-	private const string JobConfigSectionName = $"Jobs:{nameof(DataProcessingJob)}";
+	public const string JobConfigSectionName = $"Jobs:{nameof(DataProcessingJob)}";
 	private readonly IDataOrchestrationManager _dataOrchestrationManager;
 	private readonly ILogger<DataProcessingJob> _logger;
 

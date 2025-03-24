@@ -81,17 +81,11 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 		_ = Interlocked.Exchange(ref _skipCount, completedCount);
 
-		await (_producerTask = Task.Factory.StartNew(
-			() => ProducerLoop(cancellationToken),
-			cancellationToken,
-			TaskCreationOptions.LongRunning,
-			TaskScheduler.Default)).ConfigureAwait(false);
+		_producerTask = Task.Run(() => ProducerLoop(cancellationToken), cancellationToken);
+		_consumerTask = Task.Run(() => ConsumerLoop(cancellationToken), cancellationToken);
 
-		var consumerResult = await (_consumerTask = Task.Factory.StartNew(
-			() => ConsumerLoop(cancellationToken),
-			cancellationToken,
-			TaskCreationOptions.LongRunning,
-			TaskScheduler.Default).Unwrap()).ConfigureAwait(false);
+		await _producerTask.ConfigureAwait(false);
+		var consumerResult = await _consumerTask.ConfigureAwait(false);
 
 		return consumerResult;
 	}

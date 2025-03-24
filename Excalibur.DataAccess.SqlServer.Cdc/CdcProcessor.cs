@@ -41,6 +41,10 @@ public class CdcProcessor : ICdcProcessor
 
 	private readonly CdcFatalErrorHandler? _onFatalError;
 
+	private readonly SemaphoreSlim _executionLock = new(1, 1);
+
+	private bool _isRunning;
+
 	private int _disposedFlag;
 
 	private Task? _producerTask;
@@ -115,30 +119,41 @@ public class CdcProcessor : ICdcProcessor
 	{
 		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
-		await InitializeTrackingAsync(cancellationToken).ConfigureAwait(false);
+		await _executionLock.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-		var lowestStartLsn = GetNextLsn();
-
-		if (lowestStartLsn == null)
+		try
 		{
-			throw new InvalidOperationException("Cannot start processing; no valid minimum LSN found in CDC tables.");
+			if (_isRunning)
+			{
+				throw new InvalidOperationException("CDC Processor is already running.");
+			}
+
+			_isRunning = true;
+
+			await InitializeTrackingAsync(cancellationToken).ConfigureAwait(false);
+
+			var lowestStartLsn = GetNextLsn();
+
+			if (lowestStartLsn == null)
+			{
+				throw new InvalidOperationException("Cannot start processing; no valid minimum LSN found in CDC tables.");
+			}
+
+			_logger.LogDebug("Starting new run at LSN {lowestStartLsn}", ByteArrayToHex(lowestStartLsn));
+
+			_producerTask = Task.Run(() => ProducerLoop(lowestStartLsn, cancellationToken), cancellationToken);
+			_consumerTask = Task.Run(() => ConsumerLoop(eventHandler, cancellationToken), cancellationToken);
+
+			await _producerTask.ConfigureAwait(false);
+			var consumerResult = await _consumerTask.ConfigureAwait(false);
+
+			return consumerResult;
 		}
-
-		_logger.LogDebug("Starting new run at LSN {lowestStartLsn}", lowestStartLsn);
-
-		await (_producerTask = Task.Factory.StartNew(
-			() => ProducerLoop(lowestStartLsn, cancellationToken),
-			cancellationToken,
-			TaskCreationOptions.LongRunning,
-			TaskScheduler.Default)).ConfigureAwait(false);
-
-		var consumerResult = await (_consumerTask = Task.Factory.StartNew(
-			() => ConsumerLoop(eventHandler, cancellationToken),
-			cancellationToken,
-			TaskCreationOptions.LongRunning,
-			TaskScheduler.Default).Unwrap()).ConfigureAwait(false);
-
-		return consumerResult;
+		finally
+		{
+			_isRunning = false;
+			_executionLock.Release();
+		}
 	}
 
 	/// <inheritdoc />
@@ -183,6 +198,7 @@ public class CdcProcessor : ICdcProcessor
 		await _orderedEventProcessor.DisposeAsync().ConfigureAwait(false);
 
 		_producerCancellationTokenSource.Dispose();
+		_executionLock.Dispose();
 
 		return;
 
@@ -535,9 +551,12 @@ public class CdcProcessor : ICdcProcessor
 
 			try
 			{
-				await _orderedEventProcessor.ProcessAsync(() =>
-					_policyFactory.GetComprehensivePolicy().ExecuteAsync(() =>
-						eventHandler(changeEvent, cancellationToken))).ConfigureAwait(false);
+				await _orderedEventProcessor.ProcessAsync(async () =>
+						await _policyFactory.GetComprehensivePolicy().ExecuteAsync(async () =>
+								await eventHandler(changeEvent, cancellationToken)
+									.ConfigureAwait(false))
+							.ConfigureAwait(false))
+					.ConfigureAwait(false);
 			}
 			catch (Exception ex)
 			{
