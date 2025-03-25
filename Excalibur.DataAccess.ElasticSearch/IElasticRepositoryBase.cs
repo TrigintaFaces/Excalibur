@@ -36,12 +36,20 @@ public interface IElasticRepositoryBase<TDocument> where TDocument : class
 	Task<bool> UpdateAsync(string documentId, Dictionary<string, object> updatedFields, CancellationToken cancellationToken = default);
 
 	/// <summary>
-	///     Performs a bulk operation to add or update multiple documents in the Elasticsearch index.
+	///     Performs a bulk operation to add or update multiple documents in the Elasticsearch index. Documents are uniquely identified by
+	///     an ID provided by the <paramref name="idSelector" /> function.
 	/// </summary>
 	/// <param name="documents"> The collection of documents to add or update. </param>
+	/// <param name="idSelector">
+	///     A function used to select the unique identifier (Elasticsearch document _id) for each document. This identifier ensures
+	///     documents are correctly created or updated without duplication.
+	/// </param>
 	/// <param name="cancellationToken"> The cancellation token to cancel the operation if required. </param>
 	/// <returns> A <see cref="Task{TResult}" /> indicating whether the bulk operation succeeded. </returns>
-	Task<bool> BulkAddOrUpdateAsync(IEnumerable<TDocument> documents, CancellationToken cancellationToken = default);
+	Task<bool> BulkAddOrUpdateAsync(
+		IEnumerable<TDocument> documents,
+		Func<TDocument, string> idSelector,
+		CancellationToken cancellationToken = default);
 
 	/// <summary>
 	///     Removes a document from the Elasticsearch index.
