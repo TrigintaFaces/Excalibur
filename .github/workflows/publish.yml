@@ -96,6 +96,7 @@ jobs:
             # Step 11: Run tests
             - name: Run tests
               run: dotnet test --configuration Release
+              working-directory: tests
 
             # Step 12: Replace <ProjectReference> with <PackageReference>
             - name: Replace ProjectReferences
@@ -103,8 +104,9 @@ jobs:
               run: |
                   $env:PACKAGE_VERSION = $env:GitVersion_NuGetVersion
                   Write-Host "Using GitVersion's NuGetVersion: $($env:GitVersion_NuGetVersion)"
-                  powershell -ExecutionPolicy Bypass -File scripts/ReplaceProjectReferences.ps1
+                  powershell -ExecutionPolicy Bypass -File ../scripts/ReplaceProjectReferences.ps1
               shell: powershell
+              working-directory: src
 
             # Step 13: Pack .csproj files using GitVersion's SemVer
             - name: Create NuGet packages
@@ -129,6 +131,7 @@ jobs:
                         --output $artifactPath
                   }
               shell: powershell
+              working-directory: src
 
             # Step 14: Publish NuGet packages
             - name: Publish NuGet packages

@@ -3,43 +3,43 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.12.35527.113
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Core", "Excalibur.Core\Excalibur.Core.csproj", "{B5C48924-EA0A-47CA-84FA-50C3A19DA423}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{CF522237-1843-4E6A-9A0C-69085EB82402}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Application", "Excalibur.Application\Excalibur.Application.csproj", "{5681887D-3C5C-4CD7-871C-D273303287A2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Core", "src\Excalibur.Core\Excalibur.Core.csproj", "{B5C48924-EA0A-47CA-84FA-50C3A19DA423}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.A3", "Excalibur.A3\Excalibur.A3.csproj", "{E0651912-F695-4546-A47A-C3491D73D5C2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Application", "src\Excalibur.Application\Excalibur.Application.csproj", "{5681887D-3C5C-4CD7-871C-D273303287A2}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Data", "Excalibur.Data\Excalibur.Data.csproj", "{15861A03-E5C1-4DD5-A1A4-C32C159830B4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.A3", "src\Excalibur.A3\Excalibur.A3.csproj", "{E0651912-F695-4546-A47A-C3491D73D5C2}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.DataAccess", "Excalibur.DataAccess\Excalibur.DataAccess.csproj", "{D436694B-0027-42B0-9A2B-4A91F17BD2E3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Data", "src\Excalibur.Data\Excalibur.Data.csproj", "{15861A03-E5C1-4DD5-A1A4-C32C159830B4}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.DataAccess.DataProcessing", "Excalibur.DataAccess.DataProcessing\Excalibur.DataAccess.DataProcessing.csproj", "{204BE6C8-6078-4849-A084-6790266FB0B4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.DataAccess", "src\Excalibur.DataAccess\Excalibur.DataAccess.csproj", "{D436694B-0027-42B0-9A2B-4A91F17BD2E3}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.DataAccess.ElasticSearch", "Excalibur.DataAccess.ElasticSearch\Excalibur.DataAccess.ElasticSearch.csproj", "{287B8EED-6FFB-48FA-A285-6586DF9C88FE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.DataAccess.DataProcessing", "src\Excalibur.DataAccess.DataProcessing\Excalibur.DataAccess.DataProcessing.csproj", "{204BE6C8-6078-4849-A084-6790266FB0B4}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.DataAccess.SqlServer", "Excalibur.DataAccess.SqlServer\Excalibur.DataAccess.SqlServer.csproj", "{AB98C26B-1ABE-43C0-9D50-40FAF250DEF6}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.DataAccess.ElasticSearch", "src\Excalibur.DataAccess.ElasticSearch\Excalibur.DataAccess.ElasticSearch.csproj", "{287B8EED-6FFB-48FA-A285-6586DF9C88FE}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.DataAccess.SqlServer.Cdc", "Excalibur.DataAccess.SqlServer.Cdc\Excalibur.DataAccess.SqlServer.Cdc.csproj", "{A9DE9267-F496-4AD2-BE1D-712C813ABFFA}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.DataAccess.SqlServer", "src\Excalibur.DataAccess.SqlServer\Excalibur.DataAccess.SqlServer.csproj", "{AB98C26B-1ABE-43C0-9D50-40FAF250DEF6}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Domain", "Excalibur.Domain\Excalibur.Domain.csproj", "{70E3E079-CA4A-4171-A7F4-16673886B8F6}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Domain", "src\Excalibur.Domain\Excalibur.Domain.csproj", "{70E3E079-CA4A-4171-A7F4-16673886B8F6}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Hosting", "Excalibur.Hosting\Excalibur.Hosting.csproj", "{8839A4FA-A04B-4BD0-B944-5013CCB3EC2C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Hosting", "src\Excalibur.Hosting\Excalibur.Hosting.csproj", "{8839A4FA-A04B-4BD0-B944-5013CCB3EC2C}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Hosting.Jobs", "Excalibur.Hosting.Jobs\Excalibur.Hosting.Jobs.csproj", "{C711B124-2E65-4A05-9E04-9AFCADA8947E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Hosting.Jobs", "src\Excalibur.Hosting.Jobs\Excalibur.Hosting.Jobs.csproj", "{C711B124-2E65-4A05-9E04-9AFCADA8947E}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Hosting.Web", "Excalibur.Hosting.Web\Excalibur.Hosting.Web.csproj", "{3DAD64DA-039A-496E-A274-5B7F905D59AE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Hosting.Web", "src\Excalibur.Hosting.Web\Excalibur.Hosting.Web.csproj", "{3DAD64DA-039A-496E-A274-5B7F905D59AE}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Jobs", "Excalibur.Jobs\Excalibur.Jobs.csproj", "{B819B7C9-815A-4944-AD44-E7785E49702A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Jobs", "src\Excalibur.Jobs\Excalibur.Jobs.csproj", "{B819B7C9-815A-4944-AD44-E7785E49702A}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Jobs.Quartz.Cdc", "Excalibur.Jobs.Quartz.Cdc\Excalibur.Jobs.Quartz.Cdc.csproj", "{34CB8A01-C7AE-4F77-8224-72FD2534D7AE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Jobs.Quartz.Cdc", "src\Excalibur.Jobs.Quartz.Cdc\Excalibur.Jobs.Quartz.Cdc.csproj", "{34CB8A01-C7AE-4F77-8224-72FD2534D7AE}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Jobs.Quartz.DataProcessing", "Excalibur.Jobs.Quartz.DataProcessing\Excalibur.Jobs.Quartz.DataProcessing.csproj", "{0F55A786-89F2-4827-BDFB-E9D0C8A6FBC5}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Jobs.Quartz.DataProcessing", "src\Excalibur.Jobs.Quartz.DataProcessing\Excalibur.Jobs.Quartz.DataProcessing.csproj", "{0F55A786-89F2-4827-BDFB-E9D0C8A6FBC5}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Jobs.Quartz.Outbox", "Excalibur.Jobs.Quartz.Outbox\Excalibur.Jobs.Quartz.Outbox.csproj", "{5177F723-786D-4FE9-A2AF-0F26C16E0FB2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Excalibur.Jobs.Quartz.Outbox", "src\Excalibur.Jobs.Quartz.Outbox\Excalibur.Jobs.Quartz.Outbox.csproj", "{5177F723-786D-4FE9-A2AF-0F26C16E0FB2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.A3.SqlServer", "Excalibur.A3.SqlServer\Excalibur.A3.SqlServer.csproj", "{D4CD8805-1886-4A84-A522-82B4671D48B8}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.A3.SqlServer", "src\Excalibur.A3.SqlServer\Excalibur.A3.SqlServer.csproj", "{D4CD8805-1886-4A84-A522-82B4671D48B8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.A3.Postgres", "Excalibur.A3.Postgres\Excalibur.A3.Postgres.csproj", "{064326B8-A42D-4405-BA54-0BEB18E2293E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.A3.Postgres", "src\Excalibur.A3.Postgres\Excalibur.A3.Postgres.csproj", "{064326B8-A42D-4405-BA54-0BEB18E2293E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -126,6 +126,26 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{B5C48924-EA0A-47CA-84FA-50C3A19DA423} = {CF522237-1843-4E6A-9A0C-69085EB82402}
+		{5681887D-3C5C-4CD7-871C-D273303287A2} = {CF522237-1843-4E6A-9A0C-69085EB82402}
+		{E0651912-F695-4546-A47A-C3491D73D5C2} = {CF522237-1843-4E6A-9A0C-69085EB82402}
+		{15861A03-E5C1-4DD5-A1A4-C32C159830B4} = {CF522237-1843-4E6A-9A0C-69085EB82402}
+		{D436694B-0027-42B0-9A2B-4A91F17BD2E3} = {CF522237-1843-4E6A-9A0C-69085EB82402}
+		{204BE6C8-6078-4849-A084-6790266FB0B4} = {CF522237-1843-4E6A-9A0C-69085EB82402}
+		{287B8EED-6FFB-48FA-A285-6586DF9C88FE} = {CF522237-1843-4E6A-9A0C-69085EB82402}
+		{AB98C26B-1ABE-43C0-9D50-40FAF250DEF6} = {CF522237-1843-4E6A-9A0C-69085EB82402}
+		{70E3E079-CA4A-4171-A7F4-16673886B8F6} = {CF522237-1843-4E6A-9A0C-69085EB82402}
+		{8839A4FA-A04B-4BD0-B944-5013CCB3EC2C} = {CF522237-1843-4E6A-9A0C-69085EB82402}
+		{C711B124-2E65-4A05-9E04-9AFCADA8947E} = {CF522237-1843-4E6A-9A0C-69085EB82402}
+		{3DAD64DA-039A-496E-A274-5B7F905D59AE} = {CF522237-1843-4E6A-9A0C-69085EB82402}
+		{B819B7C9-815A-4944-AD44-E7785E49702A} = {CF522237-1843-4E6A-9A0C-69085EB82402}
+		{34CB8A01-C7AE-4F77-8224-72FD2534D7AE} = {CF522237-1843-4E6A-9A0C-69085EB82402}
+		{0F55A786-89F2-4827-BDFB-E9D0C8A6FBC5} = {CF522237-1843-4E6A-9A0C-69085EB82402}
+		{5177F723-786D-4FE9-A2AF-0F26C16E0FB2} = {CF522237-1843-4E6A-9A0C-69085EB82402}
+		{D4CD8805-1886-4A84-A522-82B4671D48B8} = {CF522237-1843-4E6A-9A0C-69085EB82402}
+		{064326B8-A42D-4405-BA54-0BEB18E2293E} = {CF522237-1843-4E6A-9A0C-69085EB82402}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {DE7E533C-ECA4-4BD5-A89C-5D487FD0082E}

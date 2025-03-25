@@ -23,7 +23,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\Excalibur.DataAccess.SqlServer.Cdc\Excalibur.DataAccess.SqlServer.Cdc.csproj" />
 		<ProjectReference Include="..\Excalibur.DataAccess.SqlServer\Excalibur.DataAccess.SqlServer.csproj" />
 		<ProjectReference Include="..\Excalibur.Jobs\Excalibur.Jobs.csproj" />
 	</ItemGroup>
