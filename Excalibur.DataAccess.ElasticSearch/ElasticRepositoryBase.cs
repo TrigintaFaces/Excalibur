@@ -101,14 +101,21 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 	}
 
 	/// <inheritdoc />
-	public virtual async Task<bool> BulkAddOrUpdateAsync(IEnumerable<TDocument> documents, CancellationToken cancellationToken = default)
+	public virtual async Task<bool> BulkAddOrUpdateAsync(
+		IEnumerable<TDocument> documents,
+		Func<TDocument, string> idSelector,
+		CancellationToken cancellationToken = default)
 	{
 		ArgumentNullException.ThrowIfNull(documents);
+		ArgumentNullException.ThrowIfNull(idSelector);
 
 		var response = await _client
 			.BulkAsync(b => b
 				.IndexMany(documents, (idx, doc) => idx
-					.Index(_indexName)), cancellationToken).ConfigureAwait(false);
+					.Index(_indexName)
+					.Id(idSelector(doc))
+				).Refresh(Refresh.True), cancellationToken)
+			.ConfigureAwait(false);
 
 		if (response.IsValidResponse)
 		{
