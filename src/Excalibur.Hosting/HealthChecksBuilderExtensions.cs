@@ -26,13 +26,13 @@ public static class HealthChecksBuilderExtensions
 		_ = healthChecks
 			.AddProcessAllocatedMemoryHealthCheck(
 				200 * 1024, // 200MB in kilobytes
-				"Process allocated memory should be below 200MB");
+				"process_allocated_memory");
 
 		// Add a health check for working set memory
 		_ = healthChecks
 			.AddWorkingSetHealthCheck(
 				2L * 1024 * 1024 * 1024, // 2GB in bytes
-				"Working Set Memory should be below 2GB");
+				"workingset");
 
 		return healthChecks;
 	}

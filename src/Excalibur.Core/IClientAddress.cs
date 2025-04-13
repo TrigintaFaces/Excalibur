@@ -8,5 +8,5 @@ public interface IClientAddress
 	/// <summary>
 	///     Gets or sets the value of the client address.
 	/// </summary>
-	string? Value { get; set; }
+	public string? Value { get; set; }
 }

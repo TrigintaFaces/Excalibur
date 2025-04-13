@@ -5,7 +5,6 @@ using System.Security.Cryptography.X509Certificates;
 
 using Excalibur.A3.Exceptions;
 using Excalibur.Core;
-using Excalibur.Domain;
 
 using IdentityModel;
 using IdentityModel.Client;

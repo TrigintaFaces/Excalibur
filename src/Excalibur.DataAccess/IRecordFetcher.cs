@@ -14,5 +14,5 @@ public interface IRecordFetcher<TRecord>
 	/// </param>
 	/// <param name="cancellationToken"> A token that can be used to cancel the operation. </param>
 	/// <returns> An asynchronous enumerable of records of type <typeparamref name="TRecord" />. </returns>
-	Task<IEnumerable<TRecord>> FetchBatchAsync(long skip, int batchSize, CancellationToken cancellationToken);
+	public Task<IEnumerable<TRecord>> FetchBatchAsync(long skip, int batchSize, CancellationToken cancellationToken);
 }

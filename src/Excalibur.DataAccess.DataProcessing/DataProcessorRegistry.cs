@@ -1,5 +1,7 @@
 using Excalibur.DataAccess.DataProcessing.Exceptions;
 
+using Microsoft.Extensions.DependencyInjection;
+
 namespace Excalibur.DataAccess.DataProcessing;
 
 /// <summary>
@@ -7,7 +9,7 @@ namespace Excalibur.DataAccess.DataProcessing;
 /// </summary>
 public class DataProcessorRegistry : IDataProcessorRegistry
 {
-	private readonly Dictionary<string, IDataProcessor> _processors;
+	private readonly Dictionary<string, Func<IServiceProvider, IDataProcessor>> _factories;
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="DataProcessorRegistry" /> class with a collection of data processors.
@@ -22,18 +24,18 @@ public class DataProcessorRegistry : IDataProcessorRegistry
 	{
 		ArgumentNullException.ThrowIfNull(processors);
 
-		_processors = new Dictionary<string, IDataProcessor>(StringComparer.OrdinalIgnoreCase);
+		_factories = new Dictionary<string, Func<IServiceProvider, IDataProcessor>>(StringComparer.OrdinalIgnoreCase);
 
 		foreach (var processor in processors)
 		{
-			var type = processor.GetType();
+			var processorType = processor.GetType();
 
-			if (!DataProcessorDiscovery.TryGetRecordType(type, out var recordType))
+			if (!DataProcessorDiscovery.TryGetRecordType(processorType, out var recordType))
 			{
-				throw new InvalidDataProcessorException(type);
+				throw new InvalidDataProcessorException(processorType);
 			}
 
-			if (!_processors.TryAdd(recordType, processor))
+			if (!_factories.TryAdd(recordType, sp => (IDataProcessor)sp.GetRequiredService(processorType)))
 			{
 				throw new MultipleDataProcessorException(recordType);
 			}
@@ -41,19 +43,18 @@ public class DataProcessorRegistry : IDataProcessorRegistry
 	}
 
 	/// <inheritdoc />
-	public bool TryGetProcessor(string recordType, out IDataProcessor processor)
+	public bool TryGetFactory(string recordType, out Func<IServiceProvider, IDataProcessor> factory)
 	{
 		ArgumentException.ThrowIfNullOrEmpty(recordType);
-
-		return _processors.TryGetValue(recordType, out processor);
+		return _factories.TryGetValue(recordType, out factory);
 	}
 
 	/// <inheritdoc />
-	public IDataProcessor GetProcessor(string recordType)
+	public Func<IServiceProvider, IDataProcessor> GetFactory(string recordType)
 	{
-		if (_processors.TryGetValue(recordType, out var processor))
+		if (TryGetFactory(recordType, out var factory))
 		{
-			return processor;
+			return factory;
 		}
 
 		throw new MissingDataProcessorException(recordType);

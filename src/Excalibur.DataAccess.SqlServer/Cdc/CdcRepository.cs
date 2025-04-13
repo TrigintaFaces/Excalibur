@@ -302,24 +302,36 @@ public class CdcRepository : ICdcRepository
 		GC.SuppressFinalize(this);
 	}
 
-	protected virtual async ValueTask DisposeAsyncCore()
+	public void Dispose()
 	{
-		await CastAndDispose(_connection).ConfigureAwait(false);
+		Dispose(true);
+		GC.SuppressFinalize(this);
+	}
 
-		return;
+	protected virtual async ValueTask DisposeAsyncCore() => await SafeDisposeAsync(_connection).ConfigureAwait(false);
 
-		static async ValueTask CastAndDispose(IDisposable resource)
+	protected virtual void Dispose(bool disposing)
+	{
+		if (disposing)
 		{
-			switch (resource)
-			{
-				case IAsyncDisposable resourceAsyncDisposable:
-					await resourceAsyncDisposable.DisposeAsync().ConfigureAwait(false);
-					break;
+			_connection.Dispose();
+		}
+	}
 
-				default:
-					resource.Dispose();
-					break;
-			}
+	private static async ValueTask SafeDisposeAsync(object resource)
+	{
+		switch (resource)
+		{
+			case IAsyncDisposable resourceAsyncDisposable:
+				await resourceAsyncDisposable.DisposeAsync().ConfigureAwait(false);
+				break;
+
+			case IDisposable disposable:
+				disposable.Dispose();
+				break;
+
+			default:
+				break;
 		}
 	}
 

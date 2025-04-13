@@ -17,7 +17,7 @@ public class UnmatchedUpdateRecordsException : ApiException
 	public UnmatchedUpdateRecordsException(byte[] lsn, int? statusCode = null, string? message = null, Exception? innerException = null)
 		: base(
 			statusCode ?? 500,
-			message ?? $"Unmatched UpdateBefore/UpdateAfter pairs detected at the end of LSN processing for LSN {lsn}.",
+			message ?? $"Unmatched UpdateBefore/UpdateAfter pairs detected at the end of LSN processing for LSN {lsn.ByteArrayToHex()}.",
 			innerException)
 	{
 		ArgumentNullException.ThrowIfNull(lsn, nameof(lsn));

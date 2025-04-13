@@ -4,6 +4,7 @@ using Dapper;
 
 using Excalibur.Core.Extensions;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -18,6 +19,8 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 
 	private readonly IDataProcessorRegistry _processorRegistry;
 
+	private readonly IServiceProvider _serviceProvider;
+
 	private readonly IOptions<DataProcessingConfiguration> _configuration;
 
 	private readonly ILogger<DataOrchestrationManager> _logger;
@@ -27,21 +30,25 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 	/// </summary>
 	/// <param name="db"> The database used for managing data tasks. </param>
 	/// <param name="processorRegistry"> A registry for resolving processors for record types. </param>
+	/// <param name="serviceProvider"> The root service provider for creating new scopes. </param>
 	/// <param name="configuration"> Configuration options for data processing. </param>
 	/// <param name="logger"> Logger for logging messages and errors. </param>
 	public DataOrchestrationManager(
 		IDataProcessorDb db,
 		IDataProcessorRegistry processorRegistry,
+		IServiceProvider serviceProvider,
 		IOptions<DataProcessingConfiguration> configuration,
 		ILogger<DataOrchestrationManager> logger)
 	{
 		ArgumentNullException.ThrowIfNull(db);
 		ArgumentNullException.ThrowIfNull(processorRegistry);
+		ArgumentNullException.ThrowIfNull(serviceProvider);
 		ArgumentNullException.ThrowIfNull(configuration);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_db = db;
 		_processorRegistry = processorRegistry;
+		_serviceProvider = serviceProvider;
 		_configuration = configuration;
 		_logger = logger;
 	}
@@ -81,7 +88,9 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 	{
 		foreach (var request in dataTaskRequests)
 		{
-			if (!_processorRegistry.TryGetProcessor(request.RecordType, out var dataProcessor))
+			cancellationToken.ThrowIfCancellationRequested();
+
+			if (!_processorRegistry.TryGetFactory(request.RecordType, out var factory))
 			{
 				request.Attempts++;
 				await UpdateAttemptsAsync(request.DataTaskId, request.Attempts, cancellationToken).ConfigureAwait(false);
@@ -92,6 +101,8 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 			{
 				try
 				{
+					using var scope = _serviceProvider.CreateScope();
+					var dataProcessor = factory(scope.ServiceProvider);
 					_ = await dataProcessor.RunAsync(
 						request.CompletedCount,
 						(long complete, CancellationToken cancellation) =>
@@ -138,7 +149,11 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 			DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
 
-		_ = await _db.Connection.Ready().ExecuteAsync(command).ConfigureAwait(false);
+		var affected = await _db.Connection.Ready().ExecuteAsync(command).ConfigureAwait(false);
+		if (affected == 0)
+		{
+			_logger.LogWarning("UpdateCompletedCount did not match any rows for DataTaskId {DataTaskId}", dataTaskId);
+		}
 	}
 
 	private async Task DeleteRequestAsync(Guid dataTaskId, CancellationToken cancellationToken = default)

@@ -54,7 +54,12 @@ public static class ApplicationBuilderExtensions
 		_ = app.UseHealthChecksUI(delegate (Options options)
 		{
 			options.UIPath = "/healthcheck-ui";
-			_ = options.AddCustomStylesheet("./HealthCheck/Custom.css");
+
+			var customCssPath = Path.Combine(AppContext.BaseDirectory, "HealthCheck", "Custom.css");
+			if (File.Exists(customCssPath))
+			{
+				_ = options.AddCustomStylesheet(customCssPath);
+			}
 		});
 
 		return app;

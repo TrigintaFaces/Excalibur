@@ -8,19 +8,19 @@ public interface IDatabaseConfig
 	/// <summary>
 	///     Gets the name of the database being processed.
 	/// </summary>
-	string DatabaseName { get; }
+	public string DatabaseName { get; }
 
 	/// <summary>
 	///     Gets the unique identifier for the database connection.
 	/// </summary>
 	/// <remarks> This identifier is used to differentiate between multiple database connections. </remarks>
-	string DatabaseConnectionIdentifier { get; }
+	public string DatabaseConnectionIdentifier { get; }
 
 	/// <summary>
 	///     Gets the unique identifier for the connection to the state store database.
 	/// </summary>
 	/// <remarks> The state store database is used to persist CDC processing state. </remarks>
-	string StateConnectionIdentifier { get; }
+	public string StateConnectionIdentifier { get; }
 
 	/// <summary>
 	///     Gets a value indicating whether processing should stop when a table handler is missing.
@@ -29,31 +29,31 @@ public interface IDatabaseConfig
 	///     If <c> true </c>, the processing will stop and throw an exception when a table does not have a registered handler. If <c> false
 	///     </c>, processing will continue despite missing table handlers.
 	/// </remarks>
-	bool StopOnMissingTableHandler { get; }
+	public bool StopOnMissingTableHandler { get; }
 
 	/// <summary>
 	///     Gets the list of CDC capture instances to process.
 	/// </summary>
 	/// <remarks> Each capture instance corresponds to a table or set of tables tracked by CDC in the database. </remarks>
-	string[] CaptureInstances { get; }
+	public string[] CaptureInstances { get; }
 
 	/// <summary>
 	///     Gets the batch time interval (in milliseconds) for processing changes.
 	/// </summary>
-	int BatchTimeInterval { get; }
+	public int BatchTimeInterval { get; }
 
 	/// <summary>
 	///     Gets the size of the in-memory data queue.
 	/// </summary>
-	int QueueSize { get; }
+	public int QueueSize { get; }
 
 	/// <summary>
 	///     Gets the batch size used in the producer loop.
 	/// </summary>
-	int ProducerBatchSize { get; }
+	public int ProducerBatchSize { get; }
 
 	/// <summary>
 	///     Gets the batch size used in the consumer loop.
 	/// </summary>
-	int ConsumerBatchSize { get; }
+	public int ConsumerBatchSize { get; }
 }

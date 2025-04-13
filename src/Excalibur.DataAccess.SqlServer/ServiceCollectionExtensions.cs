@@ -2,6 +2,7 @@ using System.Reflection;
 
 using Dapper;
 
+using Excalibur.DataAccess.SqlServer.Cdc;
 using Excalibur.DataAccess.SqlServer.TypeHandlers;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -33,6 +34,61 @@ public static class ServiceCollectionExtensions
 	}
 
 	/// <summary>
+	///     Registers the CDC processor and associated data change handlers in the service collection.
+	/// </summary>
+	/// <param name="services"> The service collection to register the CDC processor with. </param>
+	/// <param name="handlerAssemblies"> A collection of assemblies to scan for implementations of <see cref="IDataChangeHandler" />. </param>
+	/// <returns> The modified <see cref="IServiceCollection" />. </returns>
+	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="handlerAssemblies" /> is null. </exception>
+	/// <remarks>
+	///     This method registers the following components:
+	///     <list type="bullet">
+	///         <item> <see cref="IDataChangeEventProcessorFactory" /> as a transient service. </item>
+	///         <item> <see cref="IDataChangeHandlerFactory" /> as a scoped service. </item>
+	///         <item> All implementations of <see cref="IDataChangeHandler" /> from the provided assemblies. </item>
+	///     </list>
+	/// </remarks>
+	public static IServiceCollection AddCdcProcessor(this IServiceCollection services, params Assembly[] handlerAssemblies)
+	{
+		ArgumentNullException.ThrowIfNull(handlerAssemblies);
+
+		_ = services.AddTransient<IDataChangeEventProcessorFactory, DataChangeEventProcessorFactory>();
+
+		foreach (var assembly in handlerAssemblies)
+		{
+			_ = services.RegisterChangeEventHandlersFromAssembly(assembly);
+		}
+
+		return services;
+	}
+
+	/// <summary>
+	///     Scans the specified assembly for implementations of <see cref="IDataChangeHandler" /> and registers them in the service collection.
+	/// </summary>
+	/// <param name="services"> The service collection to register the handlers with. </param>
+	/// <param name="assembly"> The assembly to scan for implementations of <see cref="IDataChangeHandler" />. </param>
+	/// <returns> The modified <see cref="IServiceCollection" />. </returns>
+	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="assembly" /> is null. </exception>
+	/// <remarks>
+	///     This method ensures that all non-abstract, non-interface types in the specified assembly that implement
+	///     <see cref="IDataChangeHandler" /> are registered as scoped services in the dependency injection container.
+	/// </remarks>
+	public static IServiceCollection RegisterChangeEventHandlersFromAssembly(this IServiceCollection services, Assembly assembly)
+	{
+		ArgumentNullException.ThrowIfNull(assembly);
+
+		var handlerTypes = assembly.GetTypes().Where(
+			(Type t) => t is { IsAbstract: false, IsInterface: false } && typeof(IDataChangeHandler).IsAssignableFrom(t));
+
+		foreach (var handlerType in handlerTypes)
+		{
+			_ = services.AddScoped(typeof(IDataChangeHandler), handlerType);
+		}
+
+		return services;
+	}
+
+	/// <summary>
 	///     Configures Dapper with predefined and custom type handlers.
 	/// </summary>
 	/// <param name="additionalTypeHandlers"> The additional type handlers to register with Dapper. Handlers must inherit from <see cref="SqlMapper.TypeHandler{T}" />. </param>
@@ -59,10 +115,11 @@ public static class ServiceCollectionExtensions
 	{
 		var handlerType = handler.GetType();
 		var handledType = (handlerType.BaseType?.GenericTypeArguments.FirstOrDefault()) ?? throw new InvalidOperationException(
-							  $"The handler of type '{handlerType.FullName}' does not specify a generic type and cannot be registered.");
+			$"The handler of type '{handlerType.FullName}' does not specify a generic type and cannot be registered.");
 
 		var addHandlerMethod =
-			typeof(SqlMapper).GetMethods().FirstOrDefault((MethodInfo m) => m is { Name: nameof(SqlMapper.AddTypeHandler), IsGenericMethod: true })
+			typeof(SqlMapper).GetMethods()
+				.FirstOrDefault((MethodInfo m) => m is { Name: nameof(SqlMapper.AddTypeHandler), IsGenericMethod: true })
 			?? throw new InvalidOperationException("Could not locate the generic AddTypeHandler method on SqlMapper.");
 
 		var genericAddHandlerMethod = addHandlerMethod.MakeGenericMethod(handledType);

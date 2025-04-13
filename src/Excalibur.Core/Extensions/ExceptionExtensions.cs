@@ -31,6 +31,11 @@ public static class ExceptionExtensions
 			return code;
 		}
 
+		if (exception is AggregateException aggEx)
+		{
+			return aggEx.InnerExceptions.Select((Exception inner) => inner.GetErrorCode()).FirstOrDefault((int? code) => code.HasValue);
+		}
+
 		return exception.InnerException?.GetErrorCode() ?? -1;
 	}
 
@@ -48,18 +53,26 @@ public static class ExceptionExtensions
 	{
 		ArgumentNullException.ThrowIfNull(exception);
 
-		var statusCodeProperty = exception.GetType().GetProperty("StatusCode");
+		if (exception.Data.Contains("StatusCode") && exception.Data["StatusCode"] is int codeFromData)
+		{
+			return codeFromData;
+		}
 
+		if (exception.InnerException != null)
+		{
+			var innerStatusCode = exception.InnerException.GetStatusCode();
+			if (innerStatusCode.HasValue)
+			{
+				return innerStatusCode;
+			}
+		}
+
+		var statusCodeProperty = exception.GetType().GetProperty("StatusCode");
 		if (statusCodeProperty != null && statusCodeProperty.PropertyType == typeof(int))
 		{
 			return (int?)statusCodeProperty.GetValue(exception);
 		}
 
-		if (exception.Data.Contains("StatusCode") && exception.Data["StatusCode"] is int code)
-		{
-			return code;
-		}
-
-		return exception.InnerException?.GetStatusCode() ?? 500;
+		return 500;
 	}
 }

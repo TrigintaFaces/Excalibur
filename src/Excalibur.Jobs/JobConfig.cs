@@ -7,26 +7,20 @@ namespace Excalibur.Jobs;
 public class JobConfig : IJobConfig
 {
 	/// <inheritdoc />
-	/// &gt;
 	public string JobName { get; init; }
 
 	/// <inheritdoc />
-	/// &gt;
 	public string JobGroup { get; init; }
 
 	/// <inheritdoc />
-	/// &gt;
 	public string CronSchedule { get; init; }
 
 	/// <inheritdoc />
-	/// &gt;
 	public TimeSpan DegradedThreshold { get; init; }
 
 	/// <inheritdoc />
-	/// &gt;
 	public bool Disabled { get; init; }
 
 	/// <inheritdoc />
-	/// &gt;
 	public TimeSpan UnhealthyThreshold { get; init; }
 }

@@ -17,5 +17,5 @@ public interface IMessagePublisher
 	/// <exception cref="ArgumentNullException">
 	///     Thrown if <paramref name="message" /> or <paramref name="context" /> is <c> null </c>.
 	/// </exception>
-	Task PublishAsync<TMessage>(TMessage message, IActivityContext context);
+	public Task PublishAsync<TMessage>(TMessage message, IActivityContext context);
 }

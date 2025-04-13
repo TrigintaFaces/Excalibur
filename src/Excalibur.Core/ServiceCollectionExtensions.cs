@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -9,6 +10,8 @@ namespace Excalibur.Core;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
+	private static readonly ConcurrentDictionary<Assembly, IEnumerable<Type>> CachedTypes = new();
+
 	/// <summary>
 	///     Registers all implementations of a specified interface in the given assembly into the service collection.
 	/// </summary>
@@ -45,78 +48,34 @@ public static class ServiceCollectionExtensions
 		ServiceLifetime lifetime,
 		bool registerImplementingType = false)
 	{
+		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(assembly);
 		ArgumentNullException.ThrowIfNull(interfaceType);
 
-		return services.AddImplementations(assembly, Predicate, lifetime, registerImplementingType);
-
-		bool Predicate(Type i) => i.IsGenericType ? i.GetGenericTypeDefinition() == interfaceType : i == interfaceType;
-	}
-
-	/// <summary>
-	///     Registers all types in the specified assembly that match the provided interface predicate into the service collection.
-	/// </summary>
-	/// <param name="services"> The service collection to register the services into. </param>
-	/// <param name="assembly"> The assembly to scan for matching types. </param>
-	/// <param name="interfacePredicate"> A predicate to identify matching interfaces. </param>
-	/// <param name="lifetime"> The service lifetime (Transient, Scoped, or Singleton). </param>
-	/// <param name="registerImplementingType">
-	///     If <c> true </c>, the concrete implementation type will also be registered in addition to the interface.
-	/// </param>
-	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
-	private static IServiceCollection AddImplementations(
-		this IServiceCollection services,
-		Assembly assembly,
-		Func<Type, bool> interfacePredicate,
-		ServiceLifetime lifetime,
-		bool registerImplementingType)
-	{
-		IEnumerable<(Type Interface, Type Implementation)> matches = from type in assembly.ExportedTypes
-																	 where !type.IsAbstract && !type.IsGenericTypeDefinition
-																	 let interfaces = type.GetInterfaces().Where(interfacePredicate)
-																	 let matchingInterface = interfaces.FirstOrDefault()
-																	 where matchingInterface != null
-																	 select (matchingInterface, type);
-
-		foreach (var (@interface, implementation) in matches)
+		if (!CachedTypes.TryGetValue(assembly, out var types))
 		{
-			switch (lifetime)
+			types = assembly.GetExportedTypes();
+			CachedTypes[assembly] = types;
+		}
+
+		foreach (var implementation in types)
+		{
+			if (implementation.IsAbstract || implementation.IsGenericTypeDefinition)
 			{
-				case ServiceLifetime.Transient:
+				continue;
+			}
 
-					_ = services.AddTransient(@interface, implementation);
+			var matchingInterfaces = implementation.GetInterfaces()
+				.Where((Type i) => i == interfaceType || (i.IsGenericType && i.GetGenericTypeDefinition() == interfaceType)).ToList();
 
-					if (registerImplementingType)
-					{
-						_ = services.AddTransient(implementation, implementation);
-					}
+			foreach (var @interface in matchingInterfaces)
+			{
+				services.Add(new ServiceDescriptor(@interface, implementation, lifetime));
+			}
 
-					break;
-
-				case ServiceLifetime.Scoped:
-
-					_ = services.AddScoped(@interface, implementation);
-
-					if (registerImplementingType)
-					{
-						_ = services.AddScoped(implementation, implementation);
-					}
-
-					break;
-
-				case ServiceLifetime.Singleton:
-
-					_ = services.AddSingleton(@interface, implementation);
-
-					if (registerImplementingType)
-					{
-						_ = services.AddSingleton(implementation, implementation);
-					}
-
-					break;
-
-				default:
-					throw new ArgumentException("The ServiceLifetime is invalid.", nameof(lifetime));
+			if (registerImplementingType)
+			{
+				services.Add(new ServiceDescriptor(implementation, implementation, lifetime));
 			}
 		}
 

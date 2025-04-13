@@ -4,9 +4,9 @@ namespace Excalibur.DataAccess.SqlServer;
 
 public interface IDataAccessPolicyFactory
 {
-	IAsyncPolicy GetComprehensivePolicy();
+	public IAsyncPolicy GetComprehensivePolicy();
 
-	IAsyncPolicy GetRetryPolicy();
+	public IAsyncPolicy GetRetryPolicy();
 
-	IAsyncPolicy CreateCircuitBreakerPolicy();
+	public IAsyncPolicy CreateCircuitBreakerPolicy();
 }

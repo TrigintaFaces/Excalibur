@@ -12,7 +12,7 @@ public interface IDataChangeHandler
 	///     Each table name corresponds to a database table that the handler can process. Table names should match the names in the CDC
 	///     configuration exactly.
 	/// </remarks>
-	string[] TableNames { get; }
+	public string[] TableNames { get; }
 
 	/// <summary>
 	///     Processes a data change event for a specific table.
@@ -26,5 +26,5 @@ public interface IDataChangeHandler
 	/// <exception cref="Exception">
 	///     Any unexpected error during the processing of the change event should be logged and, if necessary, handled by higher-level components.
 	/// </exception>
-	Task Handle(DataChangeEvent changeEvent, CancellationToken cancellationToken);
+	public Task Handle(DataChangeEvent changeEvent, CancellationToken cancellationToken);
 }

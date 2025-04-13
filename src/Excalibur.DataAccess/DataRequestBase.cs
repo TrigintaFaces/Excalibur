@@ -35,6 +35,8 @@ public abstract class DataRequestBase<TConnection, TModel> : IDataRequest<TConne
 		int? commandTimeout = null,
 		CommandType? commandType = null, CommandFlags flags = CommandFlags.Buffered, CancellationToken cancellationToken = default)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(commandText);
+
 		Parameters = parameters ?? new DynamicParameters();
 		return new CommandDefinition(commandText, parameters: Parameters, transaction, commandTimeout, commandType, flags,
 			cancellationToken);

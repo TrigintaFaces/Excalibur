@@ -30,7 +30,7 @@ public class ResourceNotFoundException : ResourceException
 	public ResourceNotFoundException(string resourceKey, string resource, int? statusCode = null, string? message = null,
 		Exception? innerException = null) : base(resource, statusCode ?? DefaultStatusCode, message ?? DefaultMessage, innerException)
 	{
-		ArgumentNullException.ThrowIfNull(resourceKey, nameof(resourceKey));
+		ArgumentException.ThrowIfNullOrWhiteSpace(resourceKey, nameof(resourceKey));
 
 		ResourceKey = resourceKey;
 	}

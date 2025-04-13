@@ -34,7 +34,7 @@ public static class ApplicationBuilderExtensions
 	/// </summary>
 	/// <param name="app"> The application builder to configure. </param>
 	/// <returns> The configured <see cref="IApplicationBuilder" />. </returns>
-	private static IApplicationBuilder UseTenantIdMiddleware(this IApplicationBuilder app) => app
+	public static IApplicationBuilder UseTenantIdMiddleware(this IApplicationBuilder app) => app
 		.Use((httpContext, next) =>
 		{
 			httpContext.RequestServices
@@ -49,7 +49,7 @@ public static class ApplicationBuilderExtensions
 	/// </summary>
 	/// <param name="app"> The application builder to configure. </param>
 	/// <returns> The configured <see cref="IApplicationBuilder" />. </returns>
-	private static IApplicationBuilder UseCorrelationIdMiddleware(this IApplicationBuilder app) => app
+	public static IApplicationBuilder UseCorrelationIdMiddleware(this IApplicationBuilder app) => app
 		.Use((httpContext, next) =>
 		{
 			httpContext.RequestServices
@@ -64,7 +64,7 @@ public static class ApplicationBuilderExtensions
 	/// </summary>
 	/// <param name="app"> The application builder to configure. </param>
 	/// <returns> The configured <see cref="IApplicationBuilder" />. </returns>
-	private static IApplicationBuilder UseETagMiddleware(this IApplicationBuilder app) => app
+	public static IApplicationBuilder UseETagMiddleware(this IApplicationBuilder app) => app
 		.Use(async (httpContext, next) =>
 		{
 			httpContext.RequestServices
@@ -93,7 +93,7 @@ public static class ApplicationBuilderExtensions
 	/// </summary>
 	/// <param name="app"> The application builder to configure. </param>
 	/// <returns> The configured <see cref="IApplicationBuilder" />. </returns>
-	private static IApplicationBuilder UseClientAddressMiddleware(this IApplicationBuilder app) => app
+	public static IApplicationBuilder UseClientAddressMiddleware(this IApplicationBuilder app) => app
 		.Use((httpContext, next) =>
 		{
 			httpContext.RequestServices

@@ -21,13 +21,9 @@ public class PageableResult<T>
 	/// </exception>
 	public PageableResult(IEnumerable<T> items, int? pageNumber = null, int? pageSize = null, long? totalItems = null)
 	{
-		IList<T> enumerable;
-		Items = enumerable = items switch
-		{
-			null => throw new ArgumentNullException(nameof(items)),
-			IList<T> list => list,
-			_ => items.ToList()
-		};
+		ArgumentNullException.ThrowIfNull(items, nameof(items));
+
+		var enumerable = items as IList<T> ?? items.ToList();
 
 		if (pageNumber is not null && pageSize is not null)
 		{
@@ -70,6 +66,7 @@ public class PageableResult<T>
 		PageNumber = pageNumber ?? 1;
 		PageSize = pageSize ?? enumerable.Count;
 		TotalItems = totalItems ?? enumerable.Count;
+		Items = enumerable.Skip((PageNumber - 1) * PageSize).Take(PageSize).ToList();
 	}
 
 	/// <summary>

@@ -99,6 +99,12 @@ public class OutboxManager : IOutboxManager
 		GC.SuppressFinalize(this);
 	}
 
+	public void Dispose()
+	{
+		Dispose(true);
+		GC.SuppressFinalize(this);
+	}
+
 	/// <summary>
 	///     Disposes of resources used by the <see cref="OutboxManager" />.
 	/// </summary>
@@ -111,41 +117,92 @@ public class OutboxManager : IOutboxManager
 
 		_logger.LogInformation("Disposing OutboxManager resources asynchronously.");
 
+		try
+		{
+			await _producerCancellationTokenSource.CancelAsync().ConfigureAwait(false);
+
+			if (_consumerTask is { IsCompleted: false })
+			{
+				_logger.LogWarning("Disposing OutboxManager but Consumer has not completed.");
+				try
+				{
+					_ = await _consumerTask.WaitAsync(TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false);
+				}
+				catch (TimeoutException ex)
+				{
+					_logger.LogWarning(ex, "Consumer did not complete in time during async disposal.");
+				}
+			}
+
+			if (_producerTask is not null)
+			{
+				await SafeDisposeAsync(_producerTask).ConfigureAwait(false);
+			}
+
+			if (_consumerTask is not null)
+			{
+				await SafeDisposeAsync(_consumerTask).ConfigureAwait(false);
+			}
+
+			await _outboxQueue.DisposeAsync().ConfigureAwait(false);
+			await _orderedEventProcessor.DisposeAsync().ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Error disposing OutboxManager asynchronously.");
+		}
+		finally
+		{
+			_producerCancellationTokenSource.Dispose();
+		}
+	}
+
+	protected virtual void Dispose(bool disposing)
+	{
+		if (!disposing || Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
+		{
+			return;
+		}
+
+		_logger.LogInformation("Disposing OutboxManager resources synchronously.");
+
+		_producerCancellationTokenSource.Cancel();
+
 		if (_consumerTask is { IsCompleted: false })
 		{
 			_logger.LogWarning("Disposing OutboxManager but Consumer has not completed.");
-			_ = await _consumerTask.WaitAsync(TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false);
+			try
+			{
+				_ = _consumerTask.Wait(TimeSpan.FromMinutes(5));
+			}
+			catch (AggregateException ex)
+			{
+				_logger.LogWarning(ex, "Consumer did not complete in time during synchronous disposal.");
+			}
 		}
-
-		if (_producerTask is not null)
-		{
-			await CastAndDispose(_producerTask).ConfigureAwait(false);
-		}
-
-		if (_consumerTask is not null)
-		{
-			await CastAndDispose(_consumerTask).ConfigureAwait(false);
-		}
-
-		await _outboxQueue.DisposeAsync().ConfigureAwait(false);
-		await _orderedEventProcessor.DisposeAsync().ConfigureAwait(false);
 
 		_producerCancellationTokenSource.Dispose();
 
-		return;
+		_producerTask?.Dispose();
+		_consumerTask?.Dispose();
+		_outboxQueue.Dispose();
+		_orderedEventProcessor.Dispose();
+	}
 
-		static async ValueTask CastAndDispose(IDisposable resource)
+	private static async ValueTask SafeDisposeAsync(object resource)
+	{
+		switch (resource)
 		{
-			switch (resource)
-			{
-				case IAsyncDisposable resourceAsyncDisposable:
-					await resourceAsyncDisposable.DisposeAsync().ConfigureAwait(false);
-					break;
+			case IAsyncDisposable resourceAsyncDisposable:
+				await resourceAsyncDisposable.DisposeAsync().ConfigureAwait(false);
+				break;
 
-				default:
-					resource.Dispose();
-					break;
-			}
+			case IDisposable disposable:
+				disposable.Dispose();
+				break;
+
+			default:
+				break;
 		}
 	}
 
@@ -268,10 +325,7 @@ public class OutboxManager : IOutboxManager
 							_ = await _outbox.DispatchReservedRecordAsync(dispatcherId, record).ConfigureAwait(false);
 						}).ConfigureAwait(false);
 
-						_telemetryClient?.TrackTrace(
-							$"Dispatched OutboxRecord {record.OutboxId}",
-							SeverityLevel.Information,
-							new Dictionary<string, string> { ["OutboxId"] = record.OutboxId.ToString(), ["DispatcherId"] = dispatcherId });
+						_telemetryClient?.GetMetric("Outbox.ProcessingTime").TrackValue(stopwatch.Elapsed.TotalMilliseconds);
 					}
 					catch (Exception ex)
 					{
@@ -284,8 +338,6 @@ public class OutboxManager : IOutboxManager
 							record.OutboxId,
 							record.DispatcherId);
 					}
-
-					_telemetryClient?.GetMetric("Outbox.ProcessingTime").TrackValue(stopwatch.Elapsed.TotalMilliseconds);
 				}
 
 				totalProcessedCount += batch.Count;

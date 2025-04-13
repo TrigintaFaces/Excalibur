@@ -152,7 +152,7 @@ public class CdcProcessor : ICdcProcessor
 		finally
 		{
 			_isRunning = false;
-			_executionLock.Release();
+			_ = _executionLock.Release();
 		}
 	}
 
@@ -160,6 +160,12 @@ public class CdcProcessor : ICdcProcessor
 	public async ValueTask DisposeAsync()
 	{
 		await DisposeAsyncCore().ConfigureAwait(false);
+		GC.SuppressFinalize(this);
+	}
+
+	public void Dispose()
+	{
+		Dispose(true);
 		GC.SuppressFinalize(this);
 	}
 
@@ -175,45 +181,102 @@ public class CdcProcessor : ICdcProcessor
 
 		_logger.LogInformation("Disposing CdcProcessor resources asynchronously.");
 
+		try
+		{
+			await _producerCancellationTokenSource.CancelAsync().ConfigureAwait(false);
+
+			if (_consumerTask is { IsCompleted: false })
+			{
+				_logger.LogWarning("Disposing CdcProcessor but Consumer has not completed.");
+
+				try
+				{
+					_ = await _consumerTask.WaitAsync(TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false);
+				}
+				catch (TimeoutException ex)
+				{
+					_logger.LogWarning(ex, "Consumer did not complete in time during async disposal.");
+				}
+			}
+
+			if (_producerTask is not null)
+			{
+				await SafeDisposeAsync(_producerTask).ConfigureAwait(false);
+			}
+
+			if (_consumerTask is not null)
+			{
+				await SafeDisposeAsync(_consumerTask).ConfigureAwait(false);
+			}
+
+			_tracking.Clear();
+			await _cdcQueue.DisposeAsync().ConfigureAwait(false);
+			await _cdcRepository.DisposeAsync().ConfigureAwait(false);
+			await _stateStore.DisposeAsync().ConfigureAwait(false);
+			await _orderedEventProcessor.DisposeAsync().ConfigureAwait(false);
+
+			_executionLock.Dispose();
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Error disposing CdcProcessor asynchronously.");
+		}
+		finally
+		{
+			_producerCancellationTokenSource.Dispose();
+		}
+	}
+
+	protected virtual void Dispose(bool disposing)
+	{
+		if (!disposing || Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
+		{
+			return;
+		}
+
+		_logger.LogInformation("Disposing CdcProcessor resources synchronously.");
+
+		_producerCancellationTokenSource.Cancel();
+
 		if (_consumerTask is { IsCompleted: false })
 		{
 			_logger.LogWarning("Disposing CdcProcessor but Consumer has not completed.");
-			_ = await _consumerTask.WaitAsync(TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false);
-		}
-
-		if (_producerTask is not null)
-		{
-			await CastAndDispose(_producerTask).ConfigureAwait(false);
-		}
-
-		if (_consumerTask is not null)
-		{
-			await CastAndDispose(_consumerTask).ConfigureAwait(false);
+			try
+			{
+				_ = _consumerTask.Wait(TimeSpan.FromMinutes(5));
+			}
+			catch (AggregateException ex)
+			{
+				_logger.LogWarning(ex, "Consumer did not complete in time during synchronous disposal.");
+			}
 		}
 
 		_tracking.Clear();
-		await _cdcQueue.DisposeAsync().ConfigureAwait(false);
-		await _cdcRepository.DisposeAsync().ConfigureAwait(false);
-		await _stateStore.DisposeAsync().ConfigureAwait(false);
-		await _orderedEventProcessor.DisposeAsync().ConfigureAwait(false);
-
 		_producerCancellationTokenSource.Dispose();
+
+		_producerTask?.Dispose();
+		_consumerTask?.Dispose();
+		_cdcRepository.Dispose();
+		_stateStore.Dispose();
+		_cdcQueue.Dispose();
+		_orderedEventProcessor.Dispose();
 		_executionLock.Dispose();
+	}
 
-		return;
-
-		static async ValueTask CastAndDispose(IDisposable resource)
+	private static async ValueTask SafeDisposeAsync(object resource)
+	{
+		switch (resource)
 		{
-			switch (resource)
-			{
-				case IAsyncDisposable resourceAsyncDisposable:
-					await resourceAsyncDisposable.DisposeAsync().ConfigureAwait(false);
-					break;
+			case IAsyncDisposable resourceAsyncDisposable:
+				await resourceAsyncDisposable.DisposeAsync().ConfigureAwait(false);
+				break;
 
-				default:
-					resource.Dispose();
-					break;
-			}
+			case IDisposable disposable:
+				disposable.Dispose();
+				break;
+
+			default:
+				break;
 		}
 	}
 
@@ -365,7 +428,7 @@ public class CdcProcessor : ICdcProcessor
 
 					case CdcOperationCodes.UpdateBefore when pendingUpdateAfter.TryGetValue(record.SeqVal, out var afterRecord):
 						events.Add(DataChangeEvent.CreateUpdateEvent(record, afterRecord));
-						pendingUpdateAfter.Remove(record.SeqVal);
+						_ = pendingUpdateAfter.Remove(record.SeqVal);
 						break;
 
 					case CdcOperationCodes.UpdateBefore:
@@ -374,7 +437,7 @@ public class CdcProcessor : ICdcProcessor
 
 					case CdcOperationCodes.UpdateAfter when pendingUpdateBefore.TryGetValue(record.SeqVal, out var beforeRecord):
 						events.Add(DataChangeEvent.CreateUpdateEvent(beforeRecord, record));
-						pendingUpdateBefore.Remove(record.SeqVal);
+						_ = pendingUpdateBefore.Remove(record.SeqVal);
 						break;
 
 					case CdcOperationCodes.UpdateAfter:
@@ -402,8 +465,8 @@ public class CdcProcessor : ICdcProcessor
 				if (pendingUpdateAfter.TryGetValue(seqVal, out var afterRecord))
 				{
 					events.Add(DataChangeEvent.CreateUpdateEvent(pendingUpdateBefore[seqVal], afterRecord));
-					pendingUpdateBefore.Remove(seqVal);
-					pendingUpdateAfter.Remove(seqVal);
+					_ = pendingUpdateBefore.Remove(seqVal);
+					_ = pendingUpdateAfter.Remove(seqVal);
 				}
 			}
 
@@ -423,14 +486,14 @@ public class CdcProcessor : ICdcProcessor
 			var unmatchedUpdates = new StringBuilder();
 			foreach (var kvp in pendingUpdateBefore)
 			{
-				unmatchedUpdates.Append(
+				_ = unmatchedUpdates.Append(
 					CultureInfo.CurrentCulture,
 					$"Unmatched UpdateBefore at LSN {ByteArrayToHex(lsn)}, SeqVal {ByteArrayToHex(kvp.Key)}").Append(Environment.NewLine);
 			}
 
 			foreach (var kvp in pendingUpdateAfter)
 			{
-				unmatchedUpdates.Append(
+				_ = unmatchedUpdates.Append(
 					CultureInfo.CurrentCulture,
 					$"Unmatched UpdateAfter at LSN {ByteArrayToHex(lsn)}, SeqVal {ByteArrayToHex(kvp.Key)}").Append(Environment.NewLine);
 			}

@@ -16,7 +16,7 @@ public interface IGrantRepository : IAggregateRepository<Grant, string>
 	/// <returns> An <see cref="IEnumerable{T}" /> of <see cref="Grant" /> matching the criteria. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="scope" /> is null. </exception>
 	/// <exception cref="ArgumentException"> Thrown if <paramref name="userId" /> is null or empty. </exception>
-	Task<IEnumerable<Grant>> Matching(GrantScope scope, string? userId = null);
+	public Task<IEnumerable<Grant>> Matching(GrantScope scope, string? userId = null);
 
 	/// <summary>
 	///     Reads all grants associated with a specific user.
@@ -24,5 +24,5 @@ public interface IGrantRepository : IAggregateRepository<Grant, string>
 	/// <param name="userId"> The user ID for which to retrieve grants. </param>
 	/// <returns> An <see cref="IEnumerable{T}" /> of <see cref="Grant" /> for the user. </returns>
 	/// <exception cref="ArgumentException"> Thrown if <paramref name="userId" /> is null or empty. </exception>
-	Task<IEnumerable<Grant>> ReadAll(string userId);
+	public Task<IEnumerable<Grant>> ReadAll(string userId);
 }

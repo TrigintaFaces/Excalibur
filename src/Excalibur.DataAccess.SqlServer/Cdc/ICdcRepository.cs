@@ -3,7 +3,7 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 /// <summary>
 ///     Defines the contract for a repository that interacts with Change Data Capture (CDC) metadata and data.
 /// </summary>
-public interface ICdcRepository : IAsyncDisposable
+public interface ICdcRepository : IAsyncDisposable, IDisposable
 {
 	/// <summary>
 	///     Retrieves the next Log Sequence Number (LSN) after the specified last processed LSN.
@@ -11,9 +11,9 @@ public interface ICdcRepository : IAsyncDisposable
 	/// <param name="lastProcessedLsn"> The LSN from which to find the next LSN. </param>
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns> A task that represents the asynchronous operation, containing the next LSN as a byte array. </returns>
-	Task<byte[]> GetNextLsnAsync(byte[] lastProcessedLsn, CancellationToken cancellationToken);
+	public Task<byte[]> GetNextLsnAsync(byte[] lastProcessedLsn, CancellationToken cancellationToken);
 
-	Task<byte[]?> GetNextLsnAsync(string captureInstance, byte[] lastProcessedLsn, CancellationToken cancellationToken);
+	public Task<byte[]?> GetNextLsnAsync(string captureInstance, byte[] lastProcessedLsn, CancellationToken cancellationToken);
 
 	/// <summary>
 	///     Maps an LSN to a commit time in the database.
@@ -21,7 +21,7 @@ public interface ICdcRepository : IAsyncDisposable
 	/// <param name="lsn"> The LSN to map to a time. </param>
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns> A task that represents the asynchronous operation, containing the mapped commit time as a nullable <see cref="DateTime" />. </returns>
-	Task<DateTime?> GetLsnToTimeAsync(byte[] lsn, CancellationToken cancellationToken);
+	public Task<DateTime?> GetLsnToTimeAsync(byte[] lsn, CancellationToken cancellationToken);
 
 	/// <summary>
 	///     Maps a time to an LSN using the specified relational operator.
@@ -32,7 +32,7 @@ public interface ICdcRepository : IAsyncDisposable
 	/// </param>
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns> A task that represents the asynchronous operation, containing the mapped LSN as a nullable byte array. </returns>
-	Task<byte[]?> GetTimeToLsnAsync(DateTime lsnDate, string relationalOperator, CancellationToken cancellationToken);
+	public Task<byte[]?> GetTimeToLsnAsync(DateTime lsnDate, string relationalOperator, CancellationToken cancellationToken);
 
 	/// <summary>
 	///     Retrieves the minimum LSN for a specific capture instance.
@@ -40,14 +40,14 @@ public interface ICdcRepository : IAsyncDisposable
 	/// <param name="captureInstance"> The capture instance to query. </param>
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns> A task that represents the asynchronous operation, containing the minimum LSN as a byte array. </returns>
-	Task<byte[]> GetMinPositionAsync(string captureInstance, CancellationToken cancellationToken);
+	public Task<byte[]> GetMinPositionAsync(string captureInstance, CancellationToken cancellationToken);
 
 	/// <summary>
 	///     Retrieves the maximum LSN currently available in the database.
 	/// </summary>
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns> A task that represents the asynchronous operation, containing the maximum LSN as a byte array. </returns>
-	Task<byte[]> GetMaxPositionAsync(CancellationToken cancellationToken);
+	public Task<byte[]> GetMaxPositionAsync(CancellationToken cancellationToken);
 
 	/// <summary>
 	///     Retrieves the next valid LSN after the specified last processed LSN.
@@ -55,7 +55,7 @@ public interface ICdcRepository : IAsyncDisposable
 	/// <param name="lastProcessedLsn"> The LSN from which to find the next valid LSN. </param>
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns> A task that represents the asynchronous operation, containing the next valid LSN as a nullable byte array. </returns>
-	Task<byte[]?> GetNextValidLsn(byte[] lastProcessedLsn, CancellationToken cancellationToken);
+	public Task<byte[]?> GetNextValidLsn(byte[] lastProcessedLsn, CancellationToken cancellationToken);
 
 	/// <summary>
 	///     Checks if changes exist between two LSN positions for the specified capture instances.
@@ -65,7 +65,7 @@ public interface ICdcRepository : IAsyncDisposable
 	/// <param name="captureInstances"> A collection of capture instance names to query for changes. </param>
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns> A task that represents the asynchronous operation, containing a boolean indicating whether changes exist. </returns>
-	Task<bool> ChangesExistAsync(
+	public Task<bool> ChangesExistAsync(
 		byte[] fromPosition,
 		byte[] toPosition,
 		IEnumerable<string> captureInstances,
@@ -82,7 +82,7 @@ public interface ICdcRepository : IAsyncDisposable
 	/// </param>
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns> An asynchronous stream of <see cref="CdcRow" /> instances representing the captured changes. </returns>
-	Task<IEnumerable<CdcRow>> FetchChangesAsync(
+	public Task<IEnumerable<CdcRow>> FetchChangesAsync(
 		string captureInstance,
 		int batchSize,
 		byte[] lsn,

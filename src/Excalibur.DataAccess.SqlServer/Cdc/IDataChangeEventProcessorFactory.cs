@@ -15,5 +15,5 @@ public interface IDataChangeEventProcessorFactory
 	/// <param name="stateStoreConnection"> The raw SQL connection for storing CDC state information. </param>
 	/// <returns> An instance of <see cref="IDataChangeEventProcessor" /> configured with the provided inputs. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if any of the parameters are <c> null </c>. </exception>
-	IDataChangeEventProcessor Create(IDatabaseConfig dbConfig, SqlConnection cdcConnection, SqlConnection stateStoreConnection);
+	public IDataChangeEventProcessor Create(IDatabaseConfig dbConfig, SqlConnection cdcConnection, SqlConnection stateStoreConnection);
 }

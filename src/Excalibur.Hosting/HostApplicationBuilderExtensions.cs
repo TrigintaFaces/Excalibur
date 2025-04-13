@@ -11,6 +11,7 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 using Serilog;
+using Serilog.Core;
 
 namespace Excalibur.Hosting;
 
@@ -46,18 +47,26 @@ public static class HostApplicationBuilderExtensions
 	///     Configures Serilog-based logging with OpenTelemetry support.
 	/// </summary>
 	/// <param name="builder"> The <see cref="IHostApplicationBuilder" /> to configure. </param>
+	/// <param name="additionalLogSinks"> The additional sinks to configure the <see cref="LoggerConfiguration" /> to write to. </param>
 	/// <returns> The updated <see cref="IHostApplicationBuilder" /> instance for further configuration. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="builder" /> is null. </exception>
-	public static IHostApplicationBuilder ConfigureExcaliburLogging(this IHostApplicationBuilder builder)
+	public static IHostApplicationBuilder ConfigureExcaliburLogging(this IHostApplicationBuilder builder,
+		params ILogEventSink[] additionalLogSinks)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		Log.Logger = new LoggerConfiguration()
+		var loggerConfig = new LoggerConfiguration()
 			.ReadFrom.Configuration(builder.Configuration)
 			.Enrich.FromLogContext()
 			.Enrich.WithProperty("ApplicationName", builder.Environment.ApplicationName)
-			.Enrich.WithProperty("Environment", builder.Environment.EnvironmentName)
-			.CreateLogger();
+			.Enrich.WithProperty("Environment", builder.Environment.EnvironmentName);
+
+		foreach (var sink in additionalLogSinks ?? [])
+		{
+			_ = loggerConfig.WriteTo.Sink(sink);
+		}
+
+		Log.Logger = loggerConfig.CreateLogger();
 
 		_ = builder.Logging.ClearProviders();
 		_ = builder.Logging.AddSerilog(Log.Logger, dispose: true);

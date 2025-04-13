@@ -6,6 +6,7 @@ using Excalibur.Application;
 using Excalibur.Core;
 using Excalibur.Core.Concurrency;
 using Excalibur.Data;
+using Excalibur.Hosting.Web.Diagnostics;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +18,16 @@ namespace Excalibur.Hosting.Web;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
+	public static IServiceCollection AddGlobalExceptionHandler(
+		this IServiceCollection services,
+		Action<ProblemDetailsOptions>? configureOptions = null)
+	{
+		_ = services.Configure(configureOptions ?? (_ => { }));
+		_ = services.AddProblemDetails();
+		_ = services.AddExceptionHandler<GlobalExceptionHandler>();
+		return services;
+	}
+
 	/// <summary>
 	///     Adds the necessary services for Excalibur web applications, including problem details, exception handling, API versioning, and
 	///     core services.
@@ -34,12 +45,6 @@ public static class ServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(services, nameof(services));
 		ArgumentNullException.ThrowIfNull(configuration, nameof(configuration));
 
-		// Add problem details middleware for consistent error responses
-		_ = services.AddProblemDetails();
-
-		// Add global exception handling
-		_ = services.AddExceptionHandler<GlobalExceptionHandler>();
-
 		// Add Excalibur-specific data and application services
 		_ = services.AddExcaliburDataServices(configuration, assemblies);
 		_ = services.AddExcaliburApplicationServices(assemblies);
@@ -51,17 +56,22 @@ public static class ServiceCollectionExtensions
 		_ = services.AddClientAddress();
 
 		// Configure API versioning
+		_ = services.AddSingleton(provider =>
+		{
+			var options = new ApiVersioningOptions();
+			options.AssumeDefaultVersionWhenUnspecified = true;
+			options.DefaultApiVersion = new ApiVersion(1, 0);
+			options.ReportApiVersions = true;
+			options.ApiVersionReader = ApiVersionReader.Combine(
+				new UrlSegmentApiVersionReader(),
+				new QueryStringApiVersionReader("api-version"),
+				new HeaderApiVersionReader("X-Api-Version"));
+
+			return options;
+		});
+
 		_ = services
-			.AddApiVersioning(options =>
-			{
-				options.AssumeDefaultVersionWhenUnspecified = true;
-				options.DefaultApiVersion = new ApiVersion(1, 0);
-				options.ReportApiVersions = true;
-				options.ApiVersionReader = ApiVersionReader.Combine(
-					new UrlSegmentApiVersionReader(),
-					new QueryStringApiVersionReader("api-version"),
-					new HeaderApiVersionReader("X-Api-Version"));
-			})
+			.AddApiVersioning()
 			.AddApiExplorer(options =>
 			{
 				// ReSharper disable once StringLiteralTypo

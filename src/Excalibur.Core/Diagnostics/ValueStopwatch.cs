@@ -86,6 +86,11 @@ public readonly struct ValueStopwatch : IEquatable<ValueStopwatch>
 	/// <returns> The number of elapsed ticks. </returns>
 	private long GetElapsedTicks()
 	{
+		if (_startTimestamp == 0)
+		{
+			throw new InvalidOperationException("ValueStopwatch was not started.");
+		}
+
 		var delta = Stopwatch.GetTimestamp() - _startTimestamp;
 		return (long)(delta * TimestampToTicks);
 	}

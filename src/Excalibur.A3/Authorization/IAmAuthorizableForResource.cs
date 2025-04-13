@@ -17,12 +17,12 @@ public interface IAmAuthorizableForResource : IAmAuthorizable
 	///     Gets the identifier of the resource being accessed or manipulated.
 	/// </summary>
 	/// <value> A string representing the unique identifier of the resource. </value>
-	string ResourceId { get; }
+	public string ResourceId { get; }
 
 	/// <summary>
 	///     Gets the types of resources applicable for authorization.
 	/// </summary>
 	/// <value> An array of strings indicating the resource types for this object. </value>
 	[JsonIgnore]
-	string[] ResourceTypes { get; }
+	public string[] ResourceTypes { get; }
 }

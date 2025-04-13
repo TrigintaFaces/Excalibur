@@ -23,8 +23,13 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<Content Include="Diagnostics\OpenApi\problem-details.openapi.yaml" Pack="true" PackagePath="contentFiles\any\any\Diagnostics\OpenApi\" CopyToOutputDirectory="PreserveNewest" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<PackageReference Include="Asp.Versioning.Mvc" Version="8.1.0" />
 		<PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" Version="8.1.0" />
+		<PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="8.1.0" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 
 namespace Excalibur.Core.Extensions;
@@ -31,7 +32,7 @@ public static class StringExtensions
 	/// <returns> The string in snake_case format with lowercase characters. </returns>
 	public static string ToSnakeCaseLower(this string str, bool clean = false)
 	{
-		var processedString = GetProcessedString(str, clean);
+		var processedString = GetProcessedString(str, clean, false);
 		return JsonNamingPolicy.SnakeCaseLower.ConvertName(processedString);
 	}
 
@@ -45,7 +46,7 @@ public static class StringExtensions
 	/// <returns> The string in SNAKE_CASE format with uppercase characters. </returns>
 	public static string ToSnakeCaseUpper(this string str, bool clean = false)
 	{
-		var processedString = GetProcessedString(str, clean);
+		var processedString = GetProcessedString(str, clean, false);
 		return JsonNamingPolicy.SnakeCaseUpper.ConvertName(processedString);
 	}
 
@@ -59,7 +60,7 @@ public static class StringExtensions
 	/// <returns> The string in kebab-case format with lowercase characters. </returns>
 	public static string ToKebabCaseLower(this string str, bool clean = false)
 	{
-		var processedString = GetProcessedString(str, clean);
+		var processedString = GetProcessedString(str, clean, false);
 		return JsonNamingPolicy.KebabCaseLower.ConvertName(processedString);
 	}
 
@@ -73,7 +74,7 @@ public static class StringExtensions
 	/// <returns> The string in KEBAB-CASE format with uppercase characters. </returns>
 	public static string ToKebabCaseUpper(this string str, bool clean = false)
 	{
-		var processedString = GetProcessedString(str, clean);
+		var processedString = GetProcessedString(str, clean, false);
 		return JsonNamingPolicy.KebabCaseUpper.ConvertName(processedString);
 	}
 
@@ -82,16 +83,30 @@ public static class StringExtensions
 	/// </summary>
 	/// <param name="str"> The input string to process. </param>
 	/// <param name="clean"> A boolean value indicating whether to remove non-alphanumeric characters. Defaults to <c> false </c>. </param>
+	/// <param name="removeSpaces"> A boolean value indicating whether to remove spaces. Defaults to <c> false </c>. </param>
 	/// <returns> The processed string with optional character cleanup applied. </returns>
-	private static string GetProcessedString(string str, bool clean)
+	private static string GetProcessedString(string str, bool clean, bool removeSpaces = true)
 	{
-		var processedString = !string.IsNullOrWhiteSpace(str) ? str : string.Empty;
-
-		if (clean)
+		if (string.IsNullOrWhiteSpace(str))
 		{
-			processedString = new string(processedString.Where(char.IsLetterOrDigit).ToArray());
+			return string.Empty;
 		}
 
-		return processedString;
+		var span = str.AsSpan();
+		Span<char> buffer = stackalloc char[span.Length];
+		var bufferIndex = 0;
+		var newWord = false;
+
+		foreach (var c in span)
+		{
+			if ((!removeSpaces || !char.IsWhiteSpace(c)) && (!clean || char.IsLetterOrDigit(c)))
+			{
+				buffer[bufferIndex++] = newWord ? char.ToUpper(c, CultureInfo.CurrentCulture) : c;
+			}
+
+			newWord = char.IsWhiteSpace(c) || (clean && !char.IsLetterOrDigit(c));
+		}
+
+		return new string(buffer[..bufferIndex]);
 	}
 }

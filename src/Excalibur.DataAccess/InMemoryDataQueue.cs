@@ -50,6 +50,11 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 	{
 		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
+		if (record is null)
+		{
+			return;
+		}
+
 		await _channel.Writer.WriteAsync(record, cancellationToken).ConfigureAwait(false);
 		_ = Interlocked.Increment(ref _count);
 	}
@@ -64,6 +69,11 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
+			if (record is null)
+			{
+				continue;
+			}
+
 			await _channel.Writer.WriteAsync(record, cancellationToken).ConfigureAwait(false);
 
 			_ = Interlocked.Increment(ref _count);
@@ -77,7 +87,7 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 		{
 			ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
-			if (_disposedFlag == 1)
+			if (Volatile.Read(ref _disposedFlag) == 1)
 			{
 				yield break;
 			}
@@ -108,26 +118,34 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 	public async Task<IList<TRecord>> DequeueBatchAsync(int batchSize, CancellationToken cancellationToken = default)
 	{
 		var available = Math.Min(batchSize, Count);
-		var buffer = new TRecord[available];
+		var buffer = new List<TRecord>(available);
 		var index = 0;
 
-		while (index < available && await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+		while (buffer.Count < batchSize)
 		{
 			ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
-			while (_channel.Reader.TryRead(out var record))
+			if (!await _channel.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
 			{
-				if (record != null)
-				{
-					buffer[index++] = record;
-				}
+				// Channel completed
+				break;
+			}
 
+			while (index < available && _channel.Reader.TryRead(out var record))
+			{
 				_ = Interlocked.Decrement(ref _count);
 
-				if (index >= available)
+				if (record is not null)
 				{
-					break;
+					buffer.Add(record);
 				}
+
+				index++;
+			}
+
+			if (IsEmpty() && !_channel.Reader.Completion.IsCompleted)
+			{
+				break;
 			}
 		}
 
@@ -137,6 +155,15 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 	public bool HasPendingItems() => Count > 0;
 
 	public bool IsEmpty() => Count == 0;
+
+	/// <inheritdoc />
+	public async ValueTask DisposeAsync()
+	{
+		DisposeAsyncCore();
+		GC.SuppressFinalize(this);
+	}
+
+	public void Dispose() => DisposeAsyncCore();
 
 	private void DisposeAsyncCore()
 	{
@@ -149,13 +176,7 @@ public sealed class InMemoryDataQueue<TRecord> : IDataQueue<TRecord>
 
 		while (_channel.Reader.TryRead(out _))
 		{
+			_ = Interlocked.Decrement(ref _count);
 		}
-	}
-
-	/// <inheritdoc />
-	public async ValueTask DisposeAsync()
-	{
-		DisposeAsyncCore();
-		GC.SuppressFinalize(this);
 	}
 }

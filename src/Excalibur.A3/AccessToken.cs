@@ -68,5 +68,11 @@ public class AccessToken : IAccessToken
 	public bool HasGrant(string resourceType, string resourceId) => _authorizationPolicy.HasGrant(resourceType, resourceId);
 
 	/// <inheritdoc />
-	public bool HasGrant<TResourceType>(string resourceId) => _authorizationPolicy.HasGrant<TResourceType>();
+	public bool HasGrant<TResourceType>(string resourceId) => _authorizationPolicy.HasGrant<TResourceType>(resourceId);
+
+	/// <inheritdoc />
+	public bool IsAnonymous() => !IsAuthenticated();
+
+	/// <inheritdoc />
+	public bool IsAuthenticated() => AuthenticationState == AuthenticationState.Authenticated;
 }

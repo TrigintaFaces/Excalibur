@@ -13,6 +13,30 @@ namespace Excalibur.DataAccess.ElasticSearch;
 public static class ServiceCollectionExtensions
 {
 	/// <summary>
+	///     Registers Elasticsearch services using a preconfigured <see cref="ElasticsearchClientSettings" />.
+	/// </summary>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="client"> The preconfigured <see cref="ElasticsearchClient" />. </param>
+	/// <param name="registry"> A delegate to register additional services related to Elasticsearch. </param>
+	/// <returns> The updated <see cref="IServiceCollection" />. </returns>
+	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="settings" /> is null. </exception>
+	public static IServiceCollection AddElasticsearchServices(
+		this IServiceCollection services,
+		ElasticsearchClient client,
+		Action<IServiceCollection> registry)
+	{
+		ArgumentNullException.ThrowIfNull(client);
+
+		_ = services.AddSingleton(client);
+		_ = services.AddSingleton<IIndexInitializer, IndexInitializer>();
+		_ = services.AddSingleton<IElasticsearchHealthClient, ElasticsearchHealthClient>();
+
+		registry?.Invoke(services);
+
+		return services;
+	}
+
+	/// <summary>
 	///     Registers the Elasticsearch client and related services with the dependency injection container.
 	/// </summary>
 	/// <param name="services"> The <see cref="IServiceCollection" /> to which services will be added. </param>
@@ -32,6 +56,8 @@ public static class ServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(configuration);
 
 		_ = services.Configure<ElasticsearchConfigurationSettings>(configuration.GetSection("ElasticSearch"));
+
+		_ = services.AddSingleton<IElasticsearchHealthClient, ElasticsearchHealthClient>();
 
 		_ = services.AddSingleton(
 			(IServiceProvider sp) =>
@@ -58,7 +84,7 @@ public static class ServiceCollectionExtensions
 				return new ElasticsearchClient(settings);
 			});
 
-		_ = services.AddSingleton<IndexInitializer>();
+		_ = services.AddSingleton<IIndexInitializer, IndexInitializer>();
 
 		registry?.Invoke(services);
 

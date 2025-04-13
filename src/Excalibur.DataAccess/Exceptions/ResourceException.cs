@@ -20,10 +20,14 @@ public class ResourceException : ApiException
 	/// </param>
 	/// <param name="message"> A custom error message describing the error. Defaults to a generic message using the resource name. </param>
 	/// <param name="innerException"> The inner exception that caused this exception, if applicable. </param>
-	protected ResourceException(string resource, int? statusCode, string? message = null, Exception? innerException = null)
+	public ResourceException(
+		string resource,
+		int? statusCode,
+		string? message = null,
+		Exception? innerException = null)
 		: base(statusCode ?? 500, message ?? $"Operation failed for resource {resource}", innerException)
 	{
-		ArgumentNullException.ThrowIfNull(resource, nameof(resource));
+		ArgumentException.ThrowIfNullOrWhiteSpace(resource, nameof(resource));
 
 		Resource = resource;
 	}

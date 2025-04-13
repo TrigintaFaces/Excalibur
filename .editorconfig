@@ -2100,6 +2100,8 @@ dotnet_diagnostic.IDE0077.severity = warning
 # A violation of this rule occurs when a compilation (project) contains one or more files which are parsed with the DocumentationMode set to None. This most frequently occurs when the project is configured to not produce an XML documentation file during the build.
 dotnet_diagnostic.SA0001.severity = warning
 
+dotnet_diagnostic.SA0102.severity = warning
+
 # The spacing around a C# keyword is incorrect.
 dotnet_diagnostic.SA1000.severity = warning
 
@@ -2368,7 +2370,7 @@ dotnet_diagnostic.IDE0059.severity = error
 dotnet_diagnostic.IDE0060.severity = error
 
 # Remove unnecessary suppression
-dotnet_diagnostic.IDE0079.severity = error
+dotnet_diagnostic.IDE0079.severity = suggestion
 
 # Remove unnecessary suppression operator
 dotnet_diagnostic.IDE0080.severity = suggestion

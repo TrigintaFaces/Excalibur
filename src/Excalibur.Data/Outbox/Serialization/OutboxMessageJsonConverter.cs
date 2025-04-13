@@ -1,8 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-using JsonException = Newtonsoft.Json.JsonException;
-
 namespace Excalibur.Data.Outbox.Serialization;
 
 /// <summary>
@@ -68,6 +66,12 @@ public class OutboxMessageJsonConverter : JsonConverter<OutboxMessage>
 		writer.WriteStartObject();
 
 		writer.WritePropertyName("$messageBodyType");
+
+		if (value.MessageBody is null)
+		{
+			throw new JsonException("MessageBody cannot be null during serialization.");
+		}
+
 		var messageBodyType = value.MessageBody.GetType();
 		var fullNameAndAssembly = $"{messageBodyType.FullName}, {messageBodyType.Assembly.GetName().Name}";
 		writer.WriteStringValue(fullNameAndAssembly);
@@ -79,7 +83,7 @@ public class OutboxMessageJsonConverter : JsonConverter<OutboxMessage>
 		JsonSerializer.Serialize(writer, value.MessageHeaders, options);
 
 		writer.WritePropertyName(nameof(value.MessageBody));
-		JsonSerializer.Serialize(writer, value.MessageBody, value.MessageBody.GetType(), options);
+		JsonSerializer.Serialize(writer, value.MessageBody, messageBodyType, options);
 
 		writer.WriteEndObject();
 	}

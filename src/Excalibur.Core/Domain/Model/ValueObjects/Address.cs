@@ -27,27 +27,27 @@ public class Address : ValueObjectBase
 	/// <summary>
 	///     Gets or sets the primary address line.
 	/// </summary>
-	public string Address1 { get; set; }
+	public string Address1 { get; }
 
 	/// <summary>
 	///     Gets or sets the secondary address line (optional).
 	/// </summary>
-	public string? Address2 { get; set; }
+	public string? Address2 { get; }
 
 	/// <summary>
 	///     Gets or sets the city of the address.
 	/// </summary>
-	public string City { get; set; }
+	public string City { get; }
 
 	/// <summary>
 	///     Gets or sets the state or province of the address.
 	/// </summary>
-	public string State { get; set; }
+	public string State { get; }
 
 	/// <summary>
 	///     Gets or sets the postal or ZIP code of the address.
 	/// </summary>
-	public string Zip { get; set; }
+	public string Zip { get; }
 
 	/// <inheritdoc />
 	protected override bool EqualsInternal(IValueObject? other)
@@ -57,11 +57,8 @@ public class Address : ValueObjectBase
 			return false;
 		}
 
-		return Address1 == otherAddress.Address1 &&
-			   Address2 == otherAddress.Address2 &&
-			   City == otherAddress.City &&
-			   State == otherAddress.State &&
-			   Zip == otherAddress.Zip;
+		return Address1 == otherAddress.Address1 && Address2 == otherAddress.Address2 && City == otherAddress.City &&
+			   State == otherAddress.State && Zip == otherAddress.Zip;
 	}
 
 	/// <inheritdoc />

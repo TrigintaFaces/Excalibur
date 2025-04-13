@@ -104,7 +104,7 @@ public class ActivityGroupService(
 			UserId = userId,
 			a.TenantId,
 			GrantType = GrantType.ActivityGroup,
-			Qualifier = a.ActivtyGroupName,
+			Qualifier = a.ActivityGroupName,
 			a.ExpiresOn,
 			GrantedBy = token.FullName
 		}).ToArray() ?? [];
@@ -151,7 +151,7 @@ public class ActivityGroupService(
 			a.UserId,
 			a.TenantId,
 			GrantType = GrantType.ActivityGroup,
-			Qualifier = a.ActivtyGroupName,
+			Qualifier = a.ActivityGroupName,
 			a.ExpiresOn,
 			GrantedBy = token.FullName
 		}).ToArray() ?? [];
@@ -208,7 +208,7 @@ public class ActivityGroupService(
 	{
 		public string? TenantId { get; init; }
 
-		public required string ActivtyGroupName { get; init; }
+		public required string ActivityGroupName { get; init; }
 
 		public DateTimeOffset? ExpiresOn { get; init; }
 

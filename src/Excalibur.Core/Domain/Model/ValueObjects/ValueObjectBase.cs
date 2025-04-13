@@ -23,7 +23,7 @@ public abstract class ValueObjectBase : IValueObject
 	///     Serves as the default hash function.
 	/// </summary>
 	/// <returns> A hash code for the current value object. </returns>
-	public override int GetHashCode() => 761 ^ GetType().GetHashCode() ^ GetHashCodeInternal();
+	public override int GetHashCode() => HashCode.Combine(GetType(), GetHashCodeInternal());
 
 	/// <summary>
 	///     Determines whether the specified value object is equal to the current value object.

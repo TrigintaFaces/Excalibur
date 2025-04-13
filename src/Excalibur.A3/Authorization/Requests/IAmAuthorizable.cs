@@ -13,5 +13,5 @@ public interface IAmAuthorizable
 	///     Gets or sets the access token used to authorize the object.
 	/// </summary>
 	/// <value> The access token containing user identity and claims information for authorization. </value>
-	IAccessToken? AccessToken { get; set; }
+	public IAccessToken? AccessToken { get; set; }
 }

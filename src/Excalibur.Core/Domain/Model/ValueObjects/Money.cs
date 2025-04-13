@@ -8,6 +8,7 @@ namespace Excalibur.Core.Domain.Model.ValueObjects;
 public class Money : ValueObjectBase, IEquatable<decimal?>, IComparable<Money?>, IComparable<decimal?>
 {
 	private static readonly CultureInfo DefaultCulture = Cultures.GetCultureInfo(Cultures.DefaultCultureName);
+
 	private readonly CultureInfo _cultureInfo;
 
 	/// <summary>
@@ -60,20 +61,7 @@ public class Money : ValueObjectBase, IEquatable<decimal?>, IComparable<Money?>,
 	/// <summary>
 	///     Gets the number of units of the denomination represented by the amount, if applicable.
 	/// </summary>
-	public int? UnitCount
-	{
-		get
-		{
-			int? unitCount = null;
-
-			if (Denomination is > 0)
-			{
-				unitCount = (int)(Amount / Denomination.Value);
-			}
-
-			return unitCount;
-		}
-	}
+	public int? UnitCount => Denomination is > 0 ? (int)Math.Round(Amount / Denomination.Value) : null;
 
 	/// <summary>
 	///     Gets a value indicating whether the money represents coins only, based on the denomination.
@@ -99,6 +87,7 @@ public class Money : ValueObjectBase, IEquatable<decimal?>, IComparable<Money?>,
 	///     Gets the ISO 4217 currency code for the culture associated with this <see cref="Money" /> instance.
 	/// </summary>
 	/// <exception cref="InvalidOperationException"> Thrown when the culture does not have an associated region. </exception>
+
 	// ReSharper disable once InconsistentNaming
 	public string ISOCurrencyCode
 	{
@@ -470,8 +459,18 @@ public class Money : ValueObjectBase, IEquatable<decimal?>, IComparable<Money?>,
 	/// <param name="denomination"> The denomination of the money, if applicable. </param>
 	/// <returns> A new <see cref="Money" /> instance. </returns>
 	/// <exception cref="FormatException"> Thrown if the string amount cannot be parsed into a decimal. </exception>
-	public static Money From(string amount, string? cultureName, decimal? denomination = null) =>
-		new(decimal.Parse(amount, CultureInfo.InvariantCulture), cultureName ?? Cultures.DefaultCultureName, denomination);
+	public static Money From(string amount, string? cultureName, decimal? denomination = null)
+	{
+		var culture = !string.IsNullOrWhiteSpace(cultureName)
+			? Cultures.GetCultureInfo(cultureName)
+			: DefaultCulture;
+		if (!decimal.TryParse(amount, NumberStyles.Number, culture, out var parsedAmount))
+		{
+			throw new FormatException($"Invalid decimal: {amount}");
+		}
+
+		return new(parsedAmount, culture, denomination);
+	}
 
 	/// <summary>
 	///     Adds metadata to an existing <see cref="Money" /> instance, such as culture or denomination.
@@ -485,9 +484,7 @@ public class Money : ValueObjectBase, IEquatable<decimal?>, IComparable<Money?>,
 	{
 		ArgumentNullException.ThrowIfNull(money);
 
-		var newCultureInfo = !string.IsNullOrWhiteSpace(cultureName)
-			? Cultures.GetCultureInfo(cultureName)
-			: money._cultureInfo;
+		var newCultureInfo = !string.IsNullOrWhiteSpace(cultureName) ? Cultures.GetCultureInfo(cultureName) : money._cultureInfo;
 
 		var newDenomination = denomination ?? money.Denomination;
 
@@ -533,12 +530,13 @@ public class Money : ValueObjectBase, IEquatable<decimal?>, IComparable<Money?>,
 	/// <returns>
 	///     True if the specified object is a <see cref="Money" /> instance or a decimal value that equals the current instance; otherwise, false.
 	/// </returns>
-	public override bool Equals(object? obj) => obj switch
-	{
-		Money money => base.Equals(money),
-		decimal amount => Equals(amount),
-		_ => false
-	};
+	public override bool Equals(object? obj) =>
+		obj switch
+		{
+			Money money => base.Equals(money),
+			decimal amount => Equals(amount),
+			_ => false
+		};
 
 	/// <summary>
 	///     Checks whether the current <see cref="Money" /> instance is equal to a decimal value.

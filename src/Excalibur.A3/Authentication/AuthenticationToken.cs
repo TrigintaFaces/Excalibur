@@ -17,10 +17,7 @@ public class AuthenticationToken : IAuthenticationToken
 	/// <summary>
 	///     Initializes a new instance of the <see cref="AuthenticationToken" /> class with a default empty JWT.
 	/// </summary>
-	public AuthenticationToken()
-	{
-		Jwt = new JwtSecurityToken();
-	}
+	public AuthenticationToken() => Jwt = new JwtSecurityToken();
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="AuthenticationToken" /> class with the specified JWT.
@@ -99,4 +96,10 @@ public class AuthenticationToken : IAuthenticationToken
 	/// <param name="expiration"> The date and time to check against the token's validity. </param>
 	/// <returns> <c> true </c> if the token will expire by the specified date and time; otherwise, <c> false </c>. </returns>
 	public bool WillExpireBy(DateTime expiration) => Jwt == null || expiration <= Jwt.ValidFrom || expiration >= Jwt.ValidTo;
+
+	/// <inheritdoc />
+	public bool IsAnonymous() => !IsAuthenticated();
+
+	/// <inheritdoc />
+	public bool IsAuthenticated() => AuthenticationState == AuthenticationState.Authenticated;
 }

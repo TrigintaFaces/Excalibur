@@ -18,7 +18,7 @@ public class ResourceAlreadyExistsException : ResourceException
 	/// <summary>
 	///     The default error message for resource already exists exceptions.
 	/// </summary>
-	[NonSerialized] public const string DefaultMessage = "The specified resource was not found.";
+	[NonSerialized] public const string DefaultMessage = "The specified resource already exists.";
 
 	/// <summary>
 	///     Initializes a new instance of the <see cref="ResourceAlreadyExistsException" /> class.
@@ -28,9 +28,15 @@ public class ResourceAlreadyExistsException : ResourceException
 	/// <param name="statusCode"> The HTTP status code associated with the conflict. Defaults to <see cref="DefaultStatusCode" />. </param>
 	/// <param name="message"> A custom error message describing the conflict. Defaults to <see cref="DefaultMessage" />. </param>
 	/// <param name="innerException"> The inner exception that caused this exception, if applicable. </param>
-	public ResourceAlreadyExistsException(string resourceKey, string resource, int? statusCode = null, string? message = null,
+	public ResourceAlreadyExistsException(
+		string resourceKey,
+		string resource,
+		int? statusCode = null,
+		string? message = null,
 		Exception? innerException = null) : base(resource, statusCode ?? DefaultStatusCode, message ?? DefaultMessage, innerException)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(resourceKey, nameof(resourceKey));
+
 		ResourceKey = resourceKey;
 	}
 

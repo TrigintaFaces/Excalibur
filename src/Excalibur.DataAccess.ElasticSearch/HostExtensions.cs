@@ -19,7 +19,7 @@ public static class HostExtensions
 		ArgumentNullException.ThrowIfNull(host, nameof(host));
 
 		using var scope = host.Services.CreateScope();
-		var indexInitializer = scope.ServiceProvider.GetRequiredService<IndexInitializer>();
+		var indexInitializer = scope.ServiceProvider.GetRequiredService<IIndexInitializer>();
 		await indexInitializer.InitializeIndexesAsync().ConfigureAwait(false);
 	}
 }

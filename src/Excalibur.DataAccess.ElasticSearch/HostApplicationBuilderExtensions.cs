@@ -22,7 +22,7 @@ public static class HostApplicationBuilderExtensions
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 
-		var indexInitializer = builder.Services.BuildServiceProvider().GetRequiredService<IndexInitializer>();
+		var indexInitializer = builder.Services.BuildServiceProvider().GetRequiredService<IIndexInitializer>();
 		await indexInitializer.InitializeIndexesAsync().ConfigureAwait(false);
 	}
 }

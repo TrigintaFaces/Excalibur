@@ -437,3 +437,4 @@ FodyWeavers.xsd
 .idea/
 *.sln.iml
 
+.qodo

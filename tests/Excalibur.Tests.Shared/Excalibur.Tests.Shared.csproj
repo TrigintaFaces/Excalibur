@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+
+		<IsPackable>false</IsPackable>
+		<IsTestProject>true</IsTestProject>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="coverlet.collector" Version="6.0.0" />
+		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+		<PackageReference Include="Npgsql" Version="9.0.3" />
+		<PackageReference Include="xunit" Version="2.5.3" />
+		<PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\src\Excalibur.A3.Postgres\Excalibur.A3.Postgres.csproj" />
+		<ProjectReference Include="..\..\src\Excalibur.A3.SqlServer\Excalibur.A3.SqlServer.csproj" />
+		<ProjectReference Include="..\..\src\Excalibur.A3\Excalibur.A3.csproj" />
+		<ProjectReference Include="..\..\src\Excalibur.Application\Excalibur.Application.csproj" />
+		<ProjectReference Include="..\..\src\Excalibur.Core\Excalibur.Core.csproj" />
+		<ProjectReference Include="..\..\src\Excalibur.DataAccess.DataProcessing\Excalibur.DataAccess.DataProcessing.csproj" />
+		<ProjectReference Include="..\..\src\Excalibur.DataAccess.ElasticSearch\Excalibur.DataAccess.ElasticSearch.csproj" />
+		<ProjectReference Include="..\..\src\Excalibur.DataAccess.SqlServer\Excalibur.DataAccess.SqlServer.csproj" />
+		<ProjectReference Include="..\..\src\Excalibur.DataAccess\Excalibur.DataAccess.csproj" />
+		<ProjectReference Include="..\..\src\Excalibur.Data\Excalibur.Data.csproj" />
+		<ProjectReference Include="..\..\src\Excalibur.Domain\Excalibur.Domain.csproj" />
+		<ProjectReference Include="..\..\src\Excalibur.Hosting.Jobs\Excalibur.Hosting.Jobs.csproj" />
+		<ProjectReference Include="..\..\src\Excalibur.Hosting.Web\Excalibur.Hosting.Web.csproj" />
+		<ProjectReference Include="..\..\src\Excalibur.Hosting\Excalibur.Hosting.csproj" />
+		<ProjectReference Include="..\..\src\Excalibur.Jobs.Quartz.Cdc\Excalibur.Jobs.Quartz.Cdc.csproj" />
+		<ProjectReference Include="..\..\src\Excalibur.Jobs.Quartz.DataProcessing\Excalibur.Jobs.Quartz.DataProcessing.csproj" />
+		<ProjectReference Include="..\..\src\Excalibur.Jobs.Quartz.Outbox\Excalibur.Jobs.Quartz.Outbox.csproj" />
+		<ProjectReference Include="..\..\src\Excalibur.Jobs\Excalibur.Jobs.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Using Include="Xunit" />
+	</ItemGroup>
+
+</Project>

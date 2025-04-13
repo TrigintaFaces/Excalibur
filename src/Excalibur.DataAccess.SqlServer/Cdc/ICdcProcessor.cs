@@ -4,7 +4,7 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 ///     Defines the contract for a Change Data Capture (CDC) processor, which processes CDC changes and delegates handling to a specified
 ///     event handler.
 /// </summary>
-public interface ICdcProcessor : IAsyncDisposable
+public interface ICdcProcessor : IAsyncDisposable, IDisposable
 {
 	/// <summary>
 	///     Processes CDC changes and invokes the specified event handler for each batch of data change events.
@@ -18,5 +18,6 @@ public interface ICdcProcessor : IAsyncDisposable
 	/// </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="eventHandler" /> is null. </exception>
 	/// <exception cref="OperationCanceledException"> Thrown if the operation is canceled via the <paramref name="cancellationToken" />. </exception>
-	Task<int> ProcessCdcChangesAsync(Func<DataChangeEvent, CancellationToken, Task> eventHandler, CancellationToken cancellationToken);
+	public Task<int> ProcessCdcChangesAsync(Func<DataChangeEvent, CancellationToken, Task> eventHandler,
+		CancellationToken cancellationToken);
 }

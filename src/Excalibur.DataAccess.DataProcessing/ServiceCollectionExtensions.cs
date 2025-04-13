@@ -38,9 +38,10 @@ public static class ServiceCollectionExtensions
 		_ = services.AddScoped<IDataProcessorDb, DataProcessorDb>(sp => new DataProcessorDb(sp.GetRequiredService<TDataProcessorDb>()));
 		_ = services.AddScoped<IDataToProcessDb, DataToProcessDb>(sp => new DataToProcessDb(sp.GetRequiredService<TDataToProcessDb>()));
 
-		foreach (var processor in DataProcessorDiscovery.DiscoverProcessors(handlerAssemblies))
+		foreach (var processorType in DataProcessorDiscovery.DiscoverProcessors(handlerAssemblies))
 		{
-			_ = services.AddScoped(typeof(IDataProcessor), processor);
+			_ = services.AddScoped(processorType);
+			_ = services.AddScoped(typeof(IDataProcessor), processorType);
 		}
 
 		foreach (var (interfaceType, implementationType) in RecordHandlerDiscovery.DiscoverHandlers(handlerAssemblies))
@@ -49,7 +50,11 @@ public static class ServiceCollectionExtensions
 		}
 
 		_ = services.Configure<DataProcessingConfiguration>(configuration.GetSection(configurationSection));
-		_ = services.AddScoped<IDataProcessorRegistry, DataProcessorRegistry>();
+		_ = services.AddScoped<IDataProcessorRegistry>(sp =>
+		{
+			var processors = sp.GetServices<IDataProcessor>() ?? [];
+			return new DataProcessorRegistry(processors);
+		});
 		_ = services.AddScoped<IDataOrchestrationManager, DataOrchestrationManager>();
 
 		return services;

@@ -33,6 +33,8 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 	private long _skipCount;
 
+	private long _processedTotal;
+
 	private int _disposedFlag;
 
 	private Task? _producerTask;
@@ -80,9 +82,10 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
 		_ = Interlocked.Exchange(ref _skipCount, completedCount);
+		_ = Interlocked.Exchange(ref _processedTotal, completedCount);
 
 		_producerTask = Task.Run(() => ProducerLoop(cancellationToken), cancellationToken);
-		_consumerTask = Task.Run(() => ConsumerLoop(cancellationToken), cancellationToken);
+		_consumerTask = Task.Run(() => ConsumerLoop(completedCount, updateCompletedCount, cancellationToken), cancellationToken);
 
 		await _producerTask.ConfigureAwait(false);
 		var consumerResult = await _consumerTask.ConfigureAwait(false);
@@ -98,6 +101,12 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		GC.SuppressFinalize(this);
 	}
 
+	public void Dispose()
+	{
+		Dispose(true);
+		GC.SuppressFinalize(this);
+	}
+
 	/// <summary>
 	///     Disposes of resources used by the DataProcessor.
 	/// </summary>
@@ -110,40 +119,92 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 		_logger.LogInformation("Disposing DataProcessor resources asynchronously.");
 
+		try
+		{
+			await _producerCancellationTokenSource.CancelAsync().ConfigureAwait(false);
+
+			if (_consumerTask is { IsCompleted: false })
+			{
+				_logger.LogWarning("Disposing DataProcessor but Consumer has not completed.");
+				try
+				{
+					_ = await _consumerTask.WaitAsync(TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false);
+				}
+				catch (TimeoutException ex)
+				{
+					_logger.LogWarning(ex, "Consumer did not complete in time during async disposal.");
+				}
+			}
+
+			if (_producerTask is not null)
+			{
+				await SafeDisposeAsync(_producerTask).ConfigureAwait(false);
+			}
+
+			if (_consumerTask is not null)
+			{
+				await SafeDisposeAsync(_consumerTask).ConfigureAwait(false);
+			}
+
+			await _dataQueue.DisposeAsync().ConfigureAwait(false);
+			await _orderedEventProcessor.DisposeAsync().ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Error disposing DataProcessor asynchronously.");
+		}
+		finally
+		{
+			_producerCancellationTokenSource.Dispose();
+		}
+	}
+
+	protected virtual void Dispose(bool disposing)
+	{
+		if (!disposing || Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
+		{
+			return;
+		}
+
+		_logger.LogInformation("Disposing OutboxManager resources synchronously.");
+
+		_producerCancellationTokenSource.Cancel();
+
 		if (_consumerTask is { IsCompleted: false })
 		{
-			_logger.LogWarning("Disposing DataProcessor but Consumer has not completed.");
-			_ = await _consumerTask.WaitAsync(TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false);
+			_logger.LogWarning("Disposing OutboxManager but Consumer has not completed.");
+			try
+			{
+				_ = _consumerTask.Wait(TimeSpan.FromMinutes(5));
+			}
+			catch (AggregateException ex)
+			{
+				_logger.LogWarning(ex, "Consumer did not complete in time during synchronous disposal.");
+			}
 		}
-
-		if (_producerTask is not null)
-		{
-			await CastAndDispose(_producerTask).ConfigureAwait(false);
-		}
-
-		if (_consumerTask is not null)
-		{
-			await CastAndDispose(_consumerTask).ConfigureAwait(false);
-		}
-
-		await _dataQueue.DisposeAsync().ConfigureAwait(false);
-		await _orderedEventProcessor.DisposeAsync().ConfigureAwait(false);
 
 		_producerCancellationTokenSource.Dispose();
-		return;
 
-		static async ValueTask CastAndDispose(IDisposable resource)
+		_producerTask?.Dispose();
+		_consumerTask?.Dispose();
+		_dataQueue.Dispose();
+		_orderedEventProcessor.Dispose();
+	}
+
+	private static async ValueTask SafeDisposeAsync(object resource)
+	{
+		switch (resource)
 		{
-			switch (resource)
-			{
-				case IAsyncDisposable resourceAsyncDisposable:
-					await resourceAsyncDisposable.DisposeAsync().ConfigureAwait(false);
-					break;
+			case IAsyncDisposable resourceAsyncDisposable:
+				await resourceAsyncDisposable.DisposeAsync().ConfigureAwait(false);
+				break;
 
-				default:
-					resource.Dispose();
-					break;
-			}
+			case IDisposable disposable:
+				disposable.Dispose();
+				break;
+
+			default:
+				break;
 		}
 	}
 
@@ -164,7 +225,9 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 				}
 
 				var batchSize = Math.Min(_configuration.ProducerBatchSize, availableSlots);
-				var batch = await FetchBatchAsync(_skipCount, batchSize, combinedToken).ConfigureAwait(false) as ICollection<TRecord> ?? [];
+				var batch =
+					(await FetchBatchAsync(_skipCount, batchSize, combinedToken).ConfigureAwait(false)).ToList() ??
+					[];
 
 				if (batch.Count == 0)
 				{
@@ -202,9 +265,10 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		}
 	}
 
-	private async Task<long> ConsumerLoop(CancellationToken cancellationToken)
+	private async Task<long> ConsumerLoop(long completedCount, UpdateCompletedCount updateCompletedCount,
+		CancellationToken cancellationToken)
 	{
-		var totalProcessedCount = 0;
+		var totalProcessedCount = completedCount;
 
 		try
 		{
@@ -254,6 +318,9 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 						{
 							await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false);
 						}).ConfigureAwait(false);
+
+						var updatedTotal = Interlocked.Increment(ref _processedTotal);
+						await updateCompletedCount(updatedTotal, cancellationToken).ConfigureAwait(false);
 					}
 					catch (Exception ex)
 					{

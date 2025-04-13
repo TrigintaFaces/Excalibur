@@ -129,15 +129,36 @@ public class CdcStateStore : ICdcStateStore
 		GC.SuppressFinalize(this);
 	}
 
-	protected virtual async ValueTask DisposeAsyncCore()
+	public void Dispose()
 	{
-		if (_connection is IAsyncDisposable connectionAsyncDisposable)
-		{
-			await connectionAsyncDisposable.DisposeAsync().ConfigureAwait(false);
-		}
-		else
+		Dispose(true);
+		GC.SuppressFinalize(this);
+	}
+
+	protected virtual void Dispose(bool disposing)
+	{
+		if (disposing)
 		{
 			_connection.Dispose();
+		}
+	}
+
+	protected virtual async ValueTask DisposeAsyncCore() => await SafeDisposeAsync(_connection).ConfigureAwait(false);
+
+	private static async ValueTask SafeDisposeAsync(object resource)
+	{
+		switch (resource)
+		{
+			case IAsyncDisposable resourceAsyncDisposable:
+				await resourceAsyncDisposable.DisposeAsync().ConfigureAwait(false);
+				break;
+
+			case IDisposable disposable:
+				disposable.Dispose();
+				break;
+
+			default:
+				break;
 		}
 	}
 }

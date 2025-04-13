@@ -17,7 +17,12 @@ public class InvalidConfigurationException : ApiException
 	/// </param>
 	/// <param name="innerException"> The exception that caused the current exception. </param>
 	public InvalidConfigurationException(string setting, int? statusCode = null, string? message = null, Exception? innerException = null)
-		: base(statusCode ?? 500, message ?? $"The '{setting}' setting is missing or invalid.", innerException) => Setting = setting;
+		: base(statusCode ?? 500, message ?? $"The '{setting}' setting is missing or invalid.", innerException)
+	{
+		ArgumentNullException.ThrowIfNull(setting, nameof(setting));
+
+		Setting = setting;
+	}
 
 	/// <summary>
 	///     Gets or sets the name of the configuration setting that caused the exception.

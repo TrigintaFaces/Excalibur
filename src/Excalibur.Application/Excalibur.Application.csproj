@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<TargetFramework>net8.0</TargetFramework>
@@ -25,14 +25,14 @@
 	<ItemGroup>
 		<PackageReference Include="App.Metrics" Version="4.3.0" />
 		<PackageReference Include="App.Metrics.Formatters.Prometheus" Version="4.3.0" />
-		<PackageReference Include="AutoMapper" Version="13.0.1" />
+		<PackageReference Include="AutoMapper" Version="14.0.0" />
 		<PackageReference Include="DOPA" Version="1.1.2" />
 		<PackageReference Include="FluentValidation" Version="11.11.0" />
 		<PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.11.0" />
 		<PackageReference Include="IdentityModel" Version="7.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="9.0.1" />
+		<PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="9.0.2" />
 		<PackageReference Include="Opa.Wasm" Version="0.90.0" />
-		<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.3.1" />
+		<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.6.1" />
 	</ItemGroup>
 
 	<ItemGroup>

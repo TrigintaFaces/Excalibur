@@ -3,7 +3,7 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 /// <summary>
 ///     Defines the contract for managing the state of Change Data Capture (CDC) processing.
 /// </summary>
-public interface ICdcStateStore : IAsyncDisposable
+public interface ICdcStateStore : IAsyncDisposable, IDisposable
 {
 	/// <summary>
 	///     Retrieves the last processed position for a specified database connection and name.
@@ -15,7 +15,7 @@ public interface ICdcStateStore : IAsyncDisposable
 	///     A task that represents the asynchronous operation, containing a collection of the last processed
 	///     <see cref="CdcProcessingState" /> for each capture instance.
 	/// </returns>
-	Task<IEnumerable<CdcProcessingState>> GetLastProcessedPositionAsync(
+	public Task<IEnumerable<CdcProcessingState>> GetLastProcessedPositionAsync(
 		string databaseConnectionIdentifier,
 		string databaseName,
 		CancellationToken cancellationToken);
@@ -31,7 +31,7 @@ public interface ICdcStateStore : IAsyncDisposable
 	/// <param name="commitTime"> The commit time of the last processed LSN. </param>
 	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
 	/// <returns> A task that represents the asynchronous operation. </returns>
-	Task<int> UpdateLastProcessedPositionAsync(
+	public Task<int> UpdateLastProcessedPositionAsync(
 		string databaseConnectionIdentifier,
 		string databaseName,
 		string tableName,

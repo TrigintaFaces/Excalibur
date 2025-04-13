@@ -19,5 +19,5 @@ public interface IAccessToken : IAuthenticationToken, IAuthorizationPolicy
 	///     This property overrides the <see cref="IAuthenticationToken.UserId" /> to provide a unified user identifier in contexts
 	///     requiring both authentication and authorization.
 	/// </remarks>
-	new string? UserId { get; }
+	public new string? UserId { get; }
 }

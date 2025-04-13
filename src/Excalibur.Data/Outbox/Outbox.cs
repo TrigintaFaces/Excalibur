@@ -86,11 +86,11 @@ public class Outbox : IOutbox
 		try
 		{
 			var records = await _connection.QueryAsync<OutboxRecord>(
-							  OutboxCommands.ReserveOutboxRecords(
-								  dispatcherId,
-								  batchSize,
-								  DbTimeouts.LongRunningTimeoutSeconds,
-								  _configuration)).ConfigureAwait(false);
+				OutboxCommands.ReserveOutboxRecords(
+					dispatcherId,
+					batchSize,
+					DbTimeouts.LongRunningTimeoutSeconds,
+					_configuration)).ConfigureAwait(false);
 
 			_telemetryClient?.TrackMetric("Outbox.ReservedOutboxBatchSize", records.Count());
 			return records;
@@ -132,8 +132,8 @@ public class Outbox : IOutbox
 				new Dictionary<string, string> { { "DispatcherId", dispatcherId }, { "OutboxId", record.OutboxId.ToString() } });
 
 			_ = await _connection.ExecuteAsync(
-						OutboxCommands.DeleteOutboxRecord(record.OutboxId, DbTimeouts.RegularTimeoutSeconds, _configuration))
-					.ConfigureAwait(false);
+					OutboxCommands.DeleteOutboxRecord(record.OutboxId, DbTimeouts.RegularTimeoutSeconds, _configuration))
+				.ConfigureAwait(false);
 			_logger.LogInformation("Deleted OutboxRecord with Id {OutboxId} after successful dispatch", record.OutboxId);
 
 			return result;
@@ -153,13 +153,15 @@ public class Outbox : IOutbox
 					{ "DispatcherId", dispatcherId }, { "OutboxId", record.OutboxId.ToString() }, { "ErrorType", ex.GetType().Name }
 				});
 
-			_ = await _connection.ExecuteAsync(
-					OutboxCommands.IncrementAttemptsOrMoveToDeadLetter(
-						record.OutboxId,
-						record.EventData,
-						ex.Message,
-						DbTimeouts.LongRunningTimeoutSeconds,
-						_configuration)).ConfigureAwait(false);
+			var rowsAffected = await _connection.ExecuteAsync(
+				OutboxCommands.IncrementAttemptsOrMoveToDeadLetter(
+					record.OutboxId,
+					record.EventData,
+					ex.Message,
+					DbTimeouts.LongRunningTimeoutSeconds,
+					_configuration)).ConfigureAwait(false);
+
+			_logger.LogDebug("Rows affected by IncrementAttemptsOrMoveToDeadLetter: {Count}", rowsAffected);
 
 			return 0;
 		}

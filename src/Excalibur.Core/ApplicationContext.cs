@@ -9,7 +9,7 @@ public static partial class ApplicationContext
 {
 	private static readonly Regex ExpansionPattern = ExpansionRegex();
 
-	private static Dictionary<string, string?> _context = new(StringComparer.OrdinalIgnoreCase);
+	private static readonly Dictionary<string, string?> ContextValues = new(StringComparer.OrdinalIgnoreCase);
 
 	/// <summary>
 	///     Gets the name of the application.
@@ -76,7 +76,7 @@ public static partial class ApplicationContext
 
 		foreach (var kvp in context)
 		{
-			_context[kvp.Key] = kvp.Value;
+			ContextValues[kvp.Key] = kvp.Value;
 		}
 	}
 
@@ -109,7 +109,24 @@ public static partial class ApplicationContext
 		EnsureNoCircularReferenceExists(key, searchPath);
 
 		searchPath.Add(key);
-		_ = _context.TryGetValue(key, out var value);
+
+		// Check environment first
+		var envValue = Environment.GetEnvironmentVariable(key);
+		if (!string.IsNullOrEmpty(envValue))
+		{
+			searchPath.RemoveAt(searchPath.Count - 1);
+			return envValue;
+		}
+
+		// Fallback to context
+		if (!ContextValues.TryGetValue(key, out var value) && string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
+		{
+			searchPath.RemoveAt(searchPath.Count - 1);
+
+			// allow fallback to InvalidConfigurationException outside
+			return null;
+		}
+
 		var result = ExpandInternal(value, searchPath);
 		searchPath.RemoveAt(searchPath.Count - 1);
 
@@ -135,7 +152,19 @@ public static partial class ApplicationContext
 
 		return ExpansionPattern.Replace(
 			Environment.ExpandEnvironmentVariables(value),
-			match => GetInternal(match.Groups[1].Value, searchPath));
+			match =>
+			{
+				var placeholderKey = match.Groups[1].Value;
+				var expanded = GetInternal(placeholderKey, searchPath);
+				if (expanded == null)
+				{
+					throw new Exceptions.InvalidConfigurationException(
+						placeholderKey,
+						message: $"Unresolved placeholder: {placeholderKey}");
+				}
+
+				return expanded;
+			});
 	}
 
 	/// <summary>
