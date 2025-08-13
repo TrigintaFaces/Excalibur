@@ -73,7 +73,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 			IOptions<DataProcessingConfiguration> configuration,
 			IServiceProvider serviceProvider,
 			ILogger logger)
-			: this(appLifetime, configuration, serviceProvider, new NoOpDataAccessPolicyFactory(), logger)
+			: this(appLifetime, configuration, serviceProvider, serviceProvider.GetRequiredService<IDataAccessPolicyFactory>(), logger)
 	{
 	}
 
