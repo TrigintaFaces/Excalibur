@@ -686,31 +686,48 @@ public class CdcProcessor : ICdcProcessor
 
 	private async Task InitializeTrackingAsync(CancellationToken cancellationToken)
 	{
-		var processingStates = await _stateStore.GetLastProcessedPositionAsync(
-			_dbConfig.DatabaseConnectionIdentifier,
-			_dbConfig.DatabaseName,
-			cancellationToken).ConfigureAwait(false) as ICollection<CdcProcessingState> ?? [];
+		var policy = _policyFactory.GetComprehensivePolicy();
+		var processingStates = await policy.ExecuteAsync(
+							   () => _stateStore.GetLastProcessedPositionAsync(
+									   _dbConfig.DatabaseConnectionIdentifier,
+									   _dbConfig.DatabaseName,
+									   cancellationToken)).ConfigureAwait(false) as ICollection<CdcProcessingState> ?? [];
+
+		var maxLsn = await policy.ExecuteAsync(() => _cdcRepository.GetMaxPositionAsync(cancellationToken)).ConfigureAwait(false);
 
 		foreach (var captureInstance in _dbConfig.CaptureInstances)
 		{
+			var exists = await policy.ExecuteAsync(
+					() => _cdcRepository.CaptureInstanceExistsAsync(captureInstance, cancellationToken)).ConfigureAwait(false);
+
+			if (!exists)
+			{
+				throw new InvalidOperationException($"Capture instance '{captureInstance}' does not exist in the database.");
+			}
+
 			var state = processingStates.FirstOrDefault(
-				(CdcProcessingState x) => x.TableName.Equals(captureInstance, StringComparison.OrdinalIgnoreCase));
+					(CdcProcessingState x) => x.TableName.Equals(captureInstance, StringComparison.OrdinalIgnoreCase));
 
 			byte[] startLsn;
 			byte[]? seqVal = null;
+			var minLsn = await policy.ExecuteAsync(
+					() => _cdcRepository.GetMinPositionAsync(captureInstance, cancellationToken)).ConfigureAwait(false);
 
-			if (state == null)
+			if (state == null || IsEmptyLsn(state.LastProcessedLsn))
 			{
-				startLsn = await _cdcRepository.GetMinPositionAsync(captureInstance, cancellationToken).ConfigureAwait(false);
+				startLsn = minLsn;
 			}
 			else
 			{
 				startLsn = state.LastProcessedLsn;
 				seqVal = state.LastProcessedSequenceValue;
 
-				if (IsEmptyLsn(startLsn))
+				if (startLsn.CompareLsn(minLsn) < 0 || startLsn.CompareLsn(maxLsn) > 0)
 				{
-					startLsn = await _cdcRepository.GetMinPositionAsync(captureInstance, cancellationToken).ConfigureAwait(false);
+					var nextValid = await policy.ExecuteAsync(
+							() => _cdcRepository.GetNextValidLsn(startLsn, cancellationToken)).ConfigureAwait(false);
+					startLsn = nextValid ?? minLsn;
+					seqVal = null;
 				}
 			}
 

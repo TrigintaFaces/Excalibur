@@ -1,3 +1,17 @@
+// Copyright (c) 2025 The Excalibur Project Authors
+//
+// Licensed under multiple licenses:
+// - Excalibur License 1.0 (see LICENSE-EXCALIBUR.txt)
+// - GNU Affero General Public License v3.0 or later (AGPL-3.0) (see LICENSE-AGPL-3.0.txt)
+// - Server Side Public License v1.0 (SSPL-1.0) (see LICENSE-SSPL-1.0.txt)
+// - Apache License 2.0 (see LICENSE-APACHE-2.0.txt)
+//
+// You may not use this file except in compliance with the License terms above. You may obtain copies of the licenses in
+// the project root or online.
+//
+// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+// an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+
 using System.Data;
 using System.Data.Common;
 using System.Globalization;
@@ -7,14 +21,14 @@ using Dapper;
 namespace Excalibur.DataAccess.SqlServer.Cdc;
 
 /// <summary>
-///     Provides methods for interacting with SQL Server Change Data Capture (CDC) tables.
+///   Provides methods for interacting with SQL Server Change Data Capture (CDC) tables.
 /// </summary>
 public class CdcRepository : ICdcRepository
 {
 	private readonly IDbConnection _connection;
 
 	/// <summary>
-	///     Initializes a new instance of the <see cref="CdcRepository" /> class using a provided database connection.
+	///   Initializes a new instance of the <see cref="CdcRepository" /> class using a provided database connection.
 	/// </summary>
 	/// <param name="connection"> The database connection to use for CDC queries. </param>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="connection" /> is null. </exception>
@@ -26,7 +40,7 @@ public class CdcRepository : ICdcRepository
 	}
 
 	/// <summary>
-	///     Initializes a new instance of the <see cref="CdcRepository" /> class using a database wrapper.
+	///   Initializes a new instance of the <see cref="CdcRepository" /> class using a database wrapper.
 	/// </summary>
 	/// <param name="db"> The database wrapper providing the connection. </param>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="db" /> is null. </exception>
@@ -200,6 +214,41 @@ public class CdcRepository : ICdcRepository
 	}
 
 	/// <inheritdoc />
+	public async Task<bool> CaptureInstanceExistsAsync(string captureInstance, CancellationToken cancellationToken)
+	{
+		const string CommandText = "SELECT COUNT(*) FROM cdc.change_tables WHERE capture_instance = @captureInstance";
+
+		var parameters = new DynamicParameters();
+		parameters.Add("captureInstance", captureInstance);
+
+		var command = new CommandDefinition(
+			CommandText,
+			parameters: parameters,
+			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+			cancellationToken: cancellationToken);
+
+		var count = await _connection.Ready().ExecuteScalarAsync<int>(command).ConfigureAwait(false);
+		return count > 0;
+	}
+
+	/// <inheritdoc />
+	public Task<int> GetChangeFunctionParameterCountAsync(string captureInstance, CancellationToken cancellationToken)
+	{
+		const string CommandText = "SELECT COUNT(*) FROM sys.parameters WHERE object_id = OBJECT_ID(@functionName)";
+
+		var parameters = new DynamicParameters();
+		parameters.Add("functionName", $"cdc.fn_cdc_get_all_changes_{captureInstance}");
+
+		var command = new CommandDefinition(
+			CommandText,
+			parameters: parameters,
+			commandTimeout: DbTimeouts.RegularTimeoutSeconds,
+			cancellationToken: cancellationToken);
+
+		return _connection.Ready().ExecuteScalarAsync<int>(command);
+	}
+
+	/// <inheritdoc />
 	public async Task<IEnumerable<CdcRow>> FetchChangesAsync(
 		string captureInstance,
 		int batchSize,
@@ -211,15 +260,18 @@ public class CdcRepository : ICdcRepository
 		ArgumentException.ThrowIfNullOrWhiteSpace(captureInstance);
 		ArgumentNullException.ThrowIfNull(lsn);
 
+		var parameterCount = await GetChangeFunctionParameterCountAsync(captureInstance, cancellationToken).ConfigureAwait(false);
+		var extraParameters = parameterCount > 3 ? string.Concat(Enumerable.Repeat(", DEFAULT", parameterCount - 3)) : string.Empty;
+
 		var commandText = $"""
 		                   SELECT TOP (@batchSize)
-		                   	'{captureInstance}' AS TableName,
-		                   	sys.fn_cdc_map_lsn_to_time(__$start_lsn) AS CommitTime,
-		                   	__$start_lsn AS Position,
-		                   	__$seqval AS SequenceValue,
-		                   	__$operation AS OperationCode,
+		                        '{captureInstance}' AS TableName,
+		                        sys.fn_cdc_map_lsn_to_time(__$start_lsn) AS CommitTime,
+		                        __$start_lsn AS Position,
+		                        __$seqval AS SequenceValue,
+		                        __$operation AS OperationCode,
 		                      *
-		                   FROM cdc.fn_cdc_get_all_changes_{captureInstance}(@lsn, @lsn, N'all update old')
+		                   FROM cdc.fn_cdc_get_all_changes_{captureInstance}(@lsn, @lsn, N'all update old'{extraParameters})
 		                   WHERE
 		                      __$start_lsn = @lsn
 		                      AND
@@ -227,9 +279,9 @@ public class CdcRepository : ICdcRepository
 		                         @lastSequenceValue IS NULL
 		                         OR
 		                         (
-		                   		(@lastOperation = 3 AND __$seqval = @lastSequenceValue AND __$operation = 4)
-		                   		OR
-		                   		(__$seqval > @lastSequenceValue)
+		                                (@lastOperation = 3 AND __$seqval = @lastSequenceValue AND __$operation = 4)
+		                                OR
+		                                (__$seqval > @lastSequenceValue)
 		                         )
 		                      )
 		                   ORDER BY
