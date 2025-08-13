@@ -61,6 +61,10 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 	private volatile bool _producerStopped;
 
+	private UpdateCompletedCount? _updateCompletedCount;
+
+	private long _completedCount;
+
 	/// <summary>
 	///   Initializes a new instance of the <see cref="DataProcessor{TRecord}" /> class.
 	/// </summary>
@@ -119,15 +123,18 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	{
 		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
+		_updateCompletedCount = updateCompletedCount;
+		_completedCount = completedCount;
+
 		_ = Interlocked.Exchange(ref _skipCount, completedCount);
 
 		_producerTask = Task.Run(() => ProducerLoop(cancellationToken), cancellationToken);
 		_consumerTask = Task.Run(() => ConsumerLoop(cancellationToken), cancellationToken);
 
 		await _producerTask.ConfigureAwait(false);
-		var consumerResult = await _consumerTask.ConfigureAwait(false);
+		_ = await _consumerTask.ConfigureAwait(false);
 
-		return consumerResult;
+		return _completedCount;
 	}
 
 	public abstract Task<IEnumerable<TRecord>> FetchBatchAsync(long skip, int batchSize, CancellationToken cancellationToken);
@@ -312,6 +319,19 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 				}
 
 				totalProcessedCount += batch.Count;
+				_completedCount += batch.Count;
+
+				if (_updateCompletedCount is not null)
+				{
+					try
+					{
+						await _updateCompletedCount(_completedCount, cancellationToken).ConfigureAwait(false);
+					}
+					catch (Exception ex)
+					{
+						_logger.LogError(ex, "Error updating completed count");
+					}
+				}
 
 				_logger.LogDebug("Completed DataProcessor batch of {BatchSize} events", batch.Count);
 			}
