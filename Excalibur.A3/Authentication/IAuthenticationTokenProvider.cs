@@ -16,5 +16,5 @@ public interface IAuthenticationTokenProvider
 	///     This method can be used to obtain information about the user's authentication state, identity, claims, and other related details
 	///     through an implementation of <see cref="IAuthenticationToken" />.
 	/// </remarks>
-	Task<IAuthenticationToken> GetAuthenticationTokenAsync();
+	public Task<IAuthenticationToken> GetAuthenticationTokenAsync();
 }

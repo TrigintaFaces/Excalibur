@@ -13,7 +13,7 @@ public interface IActivityContext
 	/// <param name="defaultValue"> The default value to return if the key does not exist or the value is <c> null </c>. </param>
 	/// <returns> The value associated with the specified key, or <paramref name="defaultValue" /> if the key does not exist. </returns>
 	/// <exception cref="ArgumentException"> Thrown if <paramref name="key" /> is <c> null </c>, empty, or whitespace. </exception>
-	T Get<T>(string key, T defaultValue);
+	public T Get<T>(string key, T defaultValue);
 
 	/// <summary>
 	///     Sets a value in the context for the specified key.
@@ -22,19 +22,19 @@ public interface IActivityContext
 	/// <param name="key"> The key to associate with the value. </param>
 	/// <param name="value"> The value to store in the context. </param>
 	/// <exception cref="ArgumentException"> Thrown if <paramref name="key" /> is <c> null </c>, empty, or whitespace. </exception>
-	void Set<T>(string key, T value);
+	public void Set<T>(string key, T value);
 
 	/// <summary>
 	///     Checks if the context contains a value for the specified key.
 	/// </summary>
 	/// <param name="key"> The key to check for existence in the context. </param>
 	/// <returns> <c> true </c> if the key exists in the context; otherwise, <c> false </c>. </returns>
-	bool ContainsKey(string key);
+	public bool ContainsKey(string key);
 
 	/// <summary>
 	///     Removes a value from the context for the specified key.
 	/// </summary>
 	/// <param name="key"> The key associated with the value to remove. </param>
 	/// <exception cref="ArgumentException"> Thrown if <paramref name="key" /> is <c> null </c>, empty, or whitespace. </exception>
-	void Remove(string key);
+	public void Remove(string key);
 }

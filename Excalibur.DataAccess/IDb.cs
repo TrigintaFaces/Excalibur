@@ -10,15 +10,15 @@ public interface IDb
 	/// <summary>
 	///     Gets the underlying database connection.
 	/// </summary>
-	IDbConnection Connection { get; }
+	public IDbConnection Connection { get; }
 
 	/// <summary>
 	///     Opens the database connection.
 	/// </summary>
-	void Open();
+	public void Open();
 
 	/// <summary>
 	///     Closes the database connection.
 	/// </summary>
-	void Close();
+	public void Close();
 }

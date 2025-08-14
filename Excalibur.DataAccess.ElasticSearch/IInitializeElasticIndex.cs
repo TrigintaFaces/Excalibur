@@ -10,5 +10,5 @@ public interface IInitializeElasticIndex
 	/// </summary>
 	/// <param name="cancellationToken"> The cancellation token to cancel the operation if required. </param>
 	/// <returns> A <see cref="Task" /> representing the asynchronous operation. </returns>
-	Task InitializeIndexAsync(CancellationToken cancellationToken = default);
+	public Task InitializeIndexAsync(CancellationToken cancellationToken = default);
 }

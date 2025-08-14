@@ -28,5 +28,5 @@ public interface IEntity<out TKey> : IEntity
 	///     The <see cref="Key" /> property defines the identity of the entity. Two entities are considered equal if they are of the same
 	///     type and have the same key.
 	/// </remarks>
-	TKey Key { get; }
+	public TKey Key { get; }
 }

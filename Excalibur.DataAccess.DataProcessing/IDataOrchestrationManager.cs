@@ -11,12 +11,12 @@ public interface IDataOrchestrationManager
 	/// <param name="recordType"> The type of record for which the data task is created. </param>
 	/// <param name="cancellationToken"> A token to cancel the operation. </param>
 	/// <returns> A <see cref="Guid" /> representing the unique identifier of the created data task. </returns>
-	Task<Guid> AddDataTaskForRecordType(string recordType, CancellationToken cancellationToken = default);
+	public Task<Guid> AddDataTaskForRecordType(string recordType, CancellationToken cancellationToken = default);
 
 	/// <summary>
 	///     Processes all pending data tasks.
 	/// </summary>
 	/// <param name="cancellationToken"> A token to cancel the operation. </param>
 	/// <returns> A task representing the asynchronous operation. </returns>
-	ValueTask ProcessDataTasks(CancellationToken cancellationToken = default);
+	public ValueTask ProcessDataTasks(CancellationToken cancellationToken = default);
 }

@@ -10,65 +10,65 @@ public interface IActivityAudited : IDomainEvent
 	/// <summary>
 	///     Gets the name of the activity being audited.
 	/// </summary>
-	string ActivityName { get; init; }
+	public string ActivityName { get; init; }
 
 	/// <summary>
 	///     Gets the name of the application where the activity occurred.
 	/// </summary>
-	string ApplicationName { get; init; }
+	public string ApplicationName { get; init; }
 
 	/// <summary>
 	///     Gets the client address (e.g., IP address) associated with the activity.
 	/// </summary>
-	string? ClientAddress { get; init; }
+	public string? ClientAddress { get; init; }
 
 	/// <summary>
 	///     Gets the correlation ID used to trace the activity across distributed systems or services.
 	/// </summary>
-	Guid CorrelationId { get; init; }
+	public Guid CorrelationId { get; init; }
 
 	/// <summary>
 	///     Gets exception details, if any, related to the activity.
 	/// </summary>
-	string? Exception { get; init; }
+	public string? Exception { get; init; }
 
 	/// <summary>
 	///     Gets the login identifier (e.g., email) of the user performing the activity.
 	/// </summary>
-	string? Login { get; init; }
+	public string? Login { get; init; }
 
 	/// <summary>
 	///     Gets the request payload or details associated with the activity.
 	/// </summary>
-	string Request { get; init; }
+	public string Request { get; init; }
 
 	/// <summary>
 	///     Gets the response payload or details associated with the activity, if applicable.
 	/// </summary>
-	string? Response { get; init; }
+	public string? Response { get; init; }
 
 	/// <summary>
 	///     Gets the HTTP status code returned as a result of the activity.
 	/// </summary>
-	int StatusCode { get; set; }
+	public int StatusCode { get; set; }
 
 	/// <summary>
 	///     Gets the tenant identifier associated with the activity.
 	/// </summary>
-	string? TenantId { get; init; }
+	public string? TenantId { get; init; }
 
 	/// <summary>
 	///     Gets the timestamp indicating when the activity occurred.
 	/// </summary>
-	DateTimeOffset Timestamp { get; set; }
+	public DateTimeOffset Timestamp { get; set; }
 
 	/// <summary>
 	///     Gets the user identifier of the individual performing the activity.
 	/// </summary>
-	string UserId { get; init; }
+	public string UserId { get; init; }
 
 	/// <summary>
 	///     Gets the name of the user performing the activity.
 	/// </summary>
-	string UserName { get; init; }
+	public string UserName { get; init; }
 }

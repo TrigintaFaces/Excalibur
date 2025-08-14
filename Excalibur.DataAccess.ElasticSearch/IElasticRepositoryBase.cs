@@ -17,7 +17,7 @@ public interface IElasticRepositoryBase<TDocument> where TDocument : class
 	/// <param name="document"> The document to be added or updated. </param>
 	/// <param name="cancellationToken"> The cancellation token to cancel the operation if required. </param>
 	/// <returns> A <see cref="Task{TResult}" /> indicating whether the operation succeeded. </returns>
-	Task<bool> AddOrUpdateAsync(string documentId, TDocument document, CancellationToken cancellationToken = default);
+	public Task<bool> AddOrUpdateAsync(string documentId, TDocument document, CancellationToken cancellationToken = default);
 
 	/// <summary>
 	///     Updates specific fields of a document in the Elasticsearch index.
@@ -33,7 +33,8 @@ public interface IElasticRepositoryBase<TDocument> where TDocument : class
 	/// <exception cref="ElasticsearchUpdateException">
 	///     Thrown if the update operation fails. Includes details of the Elasticsearch API response.
 	/// </exception>
-	Task<bool> UpdateAsync(string documentId, Dictionary<string, object> updatedFields, CancellationToken cancellationToken = default);
+	public Task<bool> UpdateAsync(string documentId, Dictionary<string, object> updatedFields,
+		CancellationToken cancellationToken = default);
 
 	/// <summary>
 	///     Performs a bulk operation to add or update multiple documents in the Elasticsearch index. Documents are uniquely identified by
@@ -46,7 +47,7 @@ public interface IElasticRepositoryBase<TDocument> where TDocument : class
 	/// </param>
 	/// <param name="cancellationToken"> The cancellation token to cancel the operation if required. </param>
 	/// <returns> A <see cref="Task{TResult}" /> indicating whether the bulk operation succeeded. </returns>
-	Task<bool> BulkAddOrUpdateAsync(
+	public Task<bool> BulkAddOrUpdateAsync(
 		IEnumerable<TDocument> documents,
 		Func<TDocument, string> idSelector,
 		CancellationToken cancellationToken = default);
@@ -57,7 +58,7 @@ public interface IElasticRepositoryBase<TDocument> where TDocument : class
 	/// <param name="documentId"> The unique identifier of the document to remove. </param>
 	/// <param name="cancellationToken"> The cancellation token to cancel the operation if required. </param>
 	/// <returns> A <see cref="Task{TResult}" /> indicating whether the operation succeeded. </returns>
-	Task<bool> RemoveAsync(string documentId, CancellationToken cancellationToken = default);
+	public Task<bool> RemoveAsync(string documentId, CancellationToken cancellationToken = default);
 
 	/// <summary>
 	///     Retrieves a document from Elasticsearch by its ID.
@@ -65,7 +66,7 @@ public interface IElasticRepositoryBase<TDocument> where TDocument : class
 	/// <param name="documentId"> The unique identifier of the document. </param>
 	/// <param name="cancellationToken"> The cancellation token to cancel the operation if required. </param>
 	/// <returns> A <see cref="Task{TResult}" /> containing the document if found, or <c> null </c> if not found. </returns>
-	Task<TDocument?> GetByIdAsync(string documentId, CancellationToken cancellationToken = default);
+	public Task<TDocument?> GetByIdAsync(string documentId, CancellationToken cancellationToken = default);
 
 	/// <summary>
 	///     Executes a search query against the Elasticsearch index.
@@ -73,6 +74,6 @@ public interface IElasticRepositoryBase<TDocument> where TDocument : class
 	/// <param name="searchRequest"> The search request containing query details. </param>
 	/// <param name="cancellationToken"> The cancellation token to cancel the operation if required. </param>
 	/// <returns> A <see cref="Task{TResult}" /> containing the search response, including matched documents and metadata. </returns>
-	Task<SearchResponse<TDocument>> SearchAsync(SearchRequest<TDocument> searchRequest,
+	public Task<SearchResponse<TDocument>> SearchAsync(SearchRequest<TDocument> searchRequest,
 		CancellationToken cancellationToken = default);
 }

@@ -6,12 +6,12 @@
 // - Server Side Public License v1.0 (SSPL-1.0) (see LICENSE-SSPL-1.0.txt)
 // - Apache License 2.0 (see LICENSE-APACHE-2.0.txt)
 //
-// You may not use this file except in compliance with the License terms above. You may obtain copies of the licenses in
-// the project root or online.
+// You may not use this file except in compliance with the License terms above. You may obtain copies of the licenses in the project root or online.
 //
-// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-// an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 
+using Excalibur.DataAccess.Exceptions;
 using Excalibur.DataAccess.SqlServer;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -24,7 +24,7 @@ using Polly;
 namespace Excalibur.DataAccess.DataProcessing;
 
 /// <summary>
-///   A delegate for updating the count of completed records during data processing.
+///     A delegate for updating the count of completed records during data processing.
 /// </summary>
 /// <param name="complete"> The current number of completed records. </param>
 /// <param name="cancellationToken"> A token to signal cancellation. </param>
@@ -32,7 +32,7 @@ namespace Excalibur.DataAccess.DataProcessing;
 public delegate Task UpdateCompletedCount(long complete, CancellationToken cancellationToken = default);
 
 /// <summary>
-///   Provides an abstract base implementation for a batched data processing pipeline.
+///     Provides an abstract base implementation for a batched data processing pipeline.
 /// </summary>
 /// <typeparam name="TRecord"> The type of records being processed. </typeparam>
 public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TRecord>
@@ -66,23 +66,23 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	private long _completedCount;
 
 	/// <summary>
-	///   Initializes a new instance of the <see cref="DataProcessor{TRecord}" /> class.
+	///     Initializes a new instance of the <see cref="DataProcessor{TRecord}" /> class.
 	/// </summary>
 	/// <param name="appLifetime"> Provides notifications about application lifetime events. </param>
 	/// <param name="configuration"> The data processing configuration options. </param>
 	/// <param name="serviceProvider"> The root service provider for creating new scopes. </param>
 	/// <param name="logger"> The logger used for diagnostic information. </param>
 	protected DataProcessor(
-			IHostApplicationLifetime appLifetime,
-			IOptions<DataProcessingConfiguration> configuration,
-			IServiceProvider serviceProvider,
-			ILogger logger)
-			: this(appLifetime, configuration, serviceProvider, serviceProvider.GetRequiredService<IDataAccessPolicyFactory>(), logger)
+		IHostApplicationLifetime appLifetime,
+		IOptions<DataProcessingConfiguration> configuration,
+		IServiceProvider serviceProvider,
+		ILogger logger)
+		: this(appLifetime, configuration, serviceProvider, serviceProvider.GetRequiredService<IDataAccessPolicyFactory>(), logger)
 	{
 	}
 
 	/// <summary>
-	///   Initializes a new instance of the <see cref="DataProcessor{TRecord}" /> class with a custom policy factory.
+	///     Initializes a new instance of the <see cref="DataProcessor{TRecord}" /> class with a custom policy factory.
 	/// </summary>
 	/// <param name="appLifetime"> Provides notifications about application lifetime events. </param>
 	/// <param name="configuration"> The data processing configuration options. </param>
@@ -90,11 +90,11 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	/// <param name="policyFactory"> The factory for obtaining resiliency policies. </param>
 	/// <param name="logger"> The logger used for diagnostic information. </param>
 	protected DataProcessor(
-			IHostApplicationLifetime appLifetime,
-			IOptions<DataProcessingConfiguration> configuration,
-			IServiceProvider serviceProvider,
-			IDataAccessPolicyFactory policyFactory,
-			ILogger logger)
+		IHostApplicationLifetime appLifetime,
+		IOptions<DataProcessingConfiguration> configuration,
+		IServiceProvider serviceProvider,
+		IDataAccessPolicyFactory policyFactory,
+		ILogger logger)
 	{
 		ArgumentNullException.ThrowIfNull(appLifetime);
 		ArgumentNullException.ThrowIfNull(configuration);
@@ -108,7 +108,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		_policy = policyFactory.GetComprehensivePolicy();
 		_dataQueue = new InMemoryDataQueue<TRecord>(_configuration.QueueSize);
 
-		_ = appLifetime.ApplicationStopping.Register(() => Task.Run(OnApplicationStoppingAsync));
+		_ = appLifetime.ApplicationStopping.Register(OnApplicationStopping);
 	}
 
 	private CancellationToken ProducerCancellationToken => _producerCancellationTokenSource.Token;
@@ -146,7 +146,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	}
 
 	/// <summary>
-	///   Disposes of resources used by the DataProcessor.
+	///     Disposes of resources used by the DataProcessor.
 	/// </summary>
 	protected virtual async ValueTask DisposeAsyncCore()
 	{
@@ -211,7 +211,9 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 				}
 
 				var batchSize = Math.Min(_configuration.ProducerBatchSize, availableSlots);
-				var batch = await _policy.ExecuteAsync(() => FetchBatchAsync(_skipCount, batchSize, combinedToken)).ConfigureAwait(false) as ICollection<TRecord> ?? [];
+				var batch =
+					await _policy.ExecuteAsync(() => FetchBatchAsync(_skipCount, batchSize, combinedToken)).ConfigureAwait(false) as
+						ICollection<TRecord> ?? [];
 
 				if (batch.Count == 0)
 				{
@@ -232,6 +234,10 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 			}
 		}
 		catch (OperationCanceledException)
+		{
+			_logger.LogDebug("DataProcessor Producer canceled");
+		}
+		catch (OperationFailedException ex) when (ex.InnerException is TaskCanceledException or OperationCanceledException)
 		{
 			_logger.LogDebug("DataProcessor Producer canceled");
 		}
@@ -295,8 +301,8 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 					try
 					{
-						// Ensures events are dispatched in order. Critical when using Mediator to publish domain events
-						// that must be processed sequentially.
+						// Ensures events are dispatched in order. Critical when using Mediator to publish domain events that must be
+						// processed sequentially.
 						await _orderedEventProcessor.ProcessAsync(async () =>
 						{
 							await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false);
@@ -369,25 +375,38 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	}
 
 	/// <summary>
-	///   Handles cleanup when the application is stopping.
+	///     Handles cleanup when the application is stopping.
 	/// </summary>
-	private async Task OnApplicationStoppingAsync()
+	private void OnApplicationStopping()
 	{
 		_logger.LogInformation("Application is stopping. Cancelling DataProcessor producer immediately.");
 
 		_producerStopped = true;
-		await _producerCancellationTokenSource.CancelAsync().ConfigureAwait(false);
+		_producerCancellationTokenSource.Cancel();
 
-		_logger.LogInformation("DataProcessor Producer cancellation requested.");
-		_logger.LogInformation("Waiting for DataProcessor consumer to finish remaining work...");
-
-		try
+		var tasks = new List<Task>();
+		if (_producerTask is { IsCompleted: false })
 		{
-			await DisposeAsync().ConfigureAwait(false);
+			tasks.Add(_producerTask);
 		}
-		catch (Exception ex)
+
+		if (_consumerTask is { IsCompleted: false })
 		{
-			_logger.LogError(ex, "Error while disposing DataProcessor on application shutdown.");
+			tasks.Add(_consumerTask);
+		}
+
+		if (tasks.Count > 0)
+		{
+			_logger.LogInformation("Waiting for DataProcessor tasks to complete...");
+
+			try
+			{
+				_ = Task.WaitAll(tasks.ToArray(), TimeSpan.FromMinutes(5));
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Error while waiting for DataProcessor tasks to stop.");
+			}
 		}
 	}
 }

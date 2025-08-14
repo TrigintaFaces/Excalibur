@@ -8,5 +8,5 @@ public interface IAmCorrelatable
 	/// <summary>
 	///     Gets the correlation ID for the entity.
 	/// </summary>
-	Guid CorrelationId { get; }
+	public Guid CorrelationId { get; }
 }
