@@ -24,14 +24,14 @@ public class ApplicationContextShould : IAsyncDisposable
 	public void InitializeWithProvidedDictionary()
 	{
 		// Arrange
-		var context = new Dictionary<string, string?> { { "ApplicationName", "TestApp" }, { "ApplicationSystemName", "TestAppSystem" } };
+		var context = new Dictionary<string, string?> { { "ApplicationName", "TestApp" }, { "ApplicationSystemName", "testapp" } };
 
 		// Act
 		ApplicationContext.Init(context);
 
 		// Assert
 		ApplicationContext.ApplicationName.ShouldBe("TestApp");
-		ApplicationContext.ApplicationSystemName.ShouldBe("TestAppSystem");
+		ApplicationContext.ApplicationSystemName.ShouldBe("testapp");
 	}
 
 	[Fact]
