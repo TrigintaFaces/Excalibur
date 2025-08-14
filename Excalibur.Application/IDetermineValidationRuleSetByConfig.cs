@@ -11,5 +11,5 @@ public interface IDetermineValidationRuleSetByConfig<in T>
 	/// </summary>
 	/// <param name="config"> The configuration object used to determine the applicable rule sets. </param>
 	/// <returns> An array of strings representing the names of the applicable rule sets. </returns>
-	string[] WhichRuleSets(T config);
+	public string[] WhichRuleSets(T config);
 }

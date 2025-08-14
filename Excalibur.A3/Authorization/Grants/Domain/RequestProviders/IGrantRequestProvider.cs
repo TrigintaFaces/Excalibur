@@ -93,7 +93,7 @@ public interface IGrantRequestProvider
 	/// <param name="grantType"> The type of grant to delete. </param>
 	/// <param name="cancellationToken"> The cancellation token for the request. </param>
 	/// <returns> A request object for deleting activity group grants for the user. </returns>
-	IDataRequest<IDbConnection, int> DeleteActivityGroupGrantsByUserId(string userId, string grantType,
+	public IDataRequest<IDbConnection, int> DeleteActivityGroupGrantsByUserId(string userId, string grantType,
 		CancellationToken cancellationToken = default);
 
 	/// <summary>
@@ -102,7 +102,7 @@ public interface IGrantRequestProvider
 	/// <param name="grantType"> The type of grant to delete. </param>
 	/// <param name="cancellationToken"> The cancellation token for the request. </param>
 	/// <returns> A request object for deleting all activity group grants. </returns>
-	IDataRequest<IDbConnection, int> DeleteAllActivityGroupGrants(string grantType, CancellationToken cancellationToken = default);
+	public IDataRequest<IDbConnection, int> DeleteAllActivityGroupGrants(string grantType, CancellationToken cancellationToken = default);
 
 	/// <summary>
 	///     Creates a request to insert a new activity group grant into the database.
@@ -116,7 +116,7 @@ public interface IGrantRequestProvider
 	/// <param name="grantedBy"> The name of the entity granting the grant. </param>
 	/// <param name="cancellationToken"> The cancellation token for the request. </param>
 	/// <returns> A request object for inserting the activity group grant. </returns>
-	IDataRequest<IDbConnection, int> InsertActivityGroupGrant(string userId, string fullName, string? tenantId, string grantType,
+	public IDataRequest<IDbConnection, int> InsertActivityGroupGrant(string userId, string fullName, string? tenantId, string grantType,
 		string qualifier,
 		DateTimeOffset? expiresOn, string grantedBy, CancellationToken cancellationToken = default);
 
@@ -126,6 +126,6 @@ public interface IGrantRequestProvider
 	/// <param name="grantType"> The type of grant to filter. </param>
 	/// <param name="cancellationToken"> The cancellation token for the request. </param>
 	/// <returns> A request object for retrieving distinct user IDs. </returns>
-	IDataRequest<IDbConnection, IEnumerable<string>> GetDistinctActivityGroupGrantUserIds(string grantType,
+	public IDataRequest<IDbConnection, IEnumerable<string>> GetDistinctActivityGroupGrantUserIds(string grantType,
 		CancellationToken cancellationToken = default);
 }

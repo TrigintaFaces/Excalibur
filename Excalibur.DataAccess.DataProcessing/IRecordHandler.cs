@@ -17,5 +17,5 @@ public interface IRecordHandler<in TRecord>
 	/// <param name="cancellationToken"> A token to monitor for cancellation requests. Defaults to <see cref="CancellationToken.None" />. </param>
 	/// <returns> A <see cref="Task" /> that represents the asynchronous processing operation. </returns>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="record" /> is <c> null </c>. </exception>
-	Task HandleAsync(TRecord record, CancellationToken cancellationToken = default);
+	public Task HandleAsync(TRecord record, CancellationToken cancellationToken = default);
 }

@@ -1,5 +1,19 @@
+// Copyright (c) 2025 The Excalibur Project Authors
+//
+// Licensed under multiple licenses:
+// - Excalibur License 1.0 (see LICENSE-EXCALIBUR.txt)
+// - GNU Affero General Public License v3.0 or later (AGPL-3.0) (see LICENSE-AGPL-3.0.txt)
+// - Server Side Public License v1.0 (SSPL-1.0) (see LICENSE-SSPL-1.0.txt)
+// - Apache License 2.0 (see LICENSE-APACHE-2.0.txt)
+//
+// You may not use this file except in compliance with the License terms above. You may obtain copies of the licenses in the project root or online.
+//
+// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+
 using Excalibur.Core.Diagnostics;
 using Excalibur.DataAccess;
+using Excalibur.DataAccess.Exceptions;
 
 using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.DataContracts;
@@ -69,7 +83,7 @@ public class OutboxManager : IOutboxManager
 		_telemetryClient = telemetryClient;
 		_outboxQueue = new InMemoryDataQueue<OutboxRecord>(_configuration.QueueSize);
 
-		_ = appLifetime.ApplicationStopping.Register(() => Task.Run(OnApplicationStoppingAsync));
+		_ = appLifetime.ApplicationStopping.Register(OnApplicationStopping);
 	}
 
 	private CancellationToken ProducerCancellationToken => _producerCancellationTokenSource.Token;
@@ -193,6 +207,10 @@ public class OutboxManager : IOutboxManager
 			}
 		}
 		catch (OperationCanceledException)
+		{
+			_logger.LogDebug("Outbox Producer canceled");
+		}
+		catch (OperationFailedException ex) when (ex.InnerException is TaskCanceledException or OperationCanceledException)
 		{
 			_logger.LogDebug("Outbox Producer canceled");
 		}
@@ -330,23 +348,38 @@ public class OutboxManager : IOutboxManager
 		return records;
 	}
 
-	private async Task OnApplicationStoppingAsync()
+	private void OnApplicationStopping()
 	{
 		_logger.LogInformation("Application is stopping. Cancelling OutboxManager producer immediately.");
 
 		_producerStopped = true;
-		await _producerCancellationTokenSource.CancelAsync().ConfigureAwait(false);
+		_producerCancellationTokenSource.Cancel();
 
-		_logger.LogInformation("OutboxManager Producer cancellation requested.");
-		_logger.LogInformation("Waiting for OutboxManager consumer to finish remaining work...");
+		var tasks = new List<Task>();
+		if (_producerTask is { IsCompleted: false })
+		{
+			tasks.Add(_producerTask);
+		}
+
+		if (_consumerTask is { IsCompleted: false })
+		{
+			tasks.Add(_consumerTask);
+		}
+
+		if (tasks.Count <= 0)
+		{
+			return;
+		}
+
+		_logger.LogInformation("Waiting for OutboxManager tasks to complete...");
 
 		try
 		{
-			await DisposeAsync().ConfigureAwait(false);
+			_ = Task.WaitAll(tasks.ToArray(), TimeSpan.FromMinutes(5));
 		}
 		catch (Exception ex)
 		{
-			_logger.LogError(ex, "Error while disposing OutboxManager on application shutdown.");
+			_logger.LogError(ex, "Error while waiting for OutboxManager tasks to stop.");
 		}
 	}
 }

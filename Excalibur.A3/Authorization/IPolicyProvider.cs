@@ -18,5 +18,5 @@ public interface IPolicyProvider<TPolicy>
 	///     The method implementation should provide logic to determine the policy configuration based on the current user, context, or
 	///     application state. The policy returned must be specific to the intended use case of the application.
 	/// </remarks>
-	Task<TPolicy> GetPolicyAsync();
+	public Task<TPolicy> GetPolicyAsync();
 }

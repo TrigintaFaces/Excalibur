@@ -10,23 +10,23 @@ public interface IActivity : IAmCorrelatable, IAmMultiTenant, IAmTransactional
 	/// <summary>
 	///     Gets the type of the activity.
 	/// </summary>
-	ActivityType ActivityType { get; }
+	public ActivityType ActivityType { get; }
 
 	/// <summary>
 	///     Gets the name of the activity.
 	/// </summary>
 	[JsonIgnore]
-	string ActivityName { get; }
+	public string ActivityName { get; }
 
 	/// <summary>
 	///     Gets the display name of the activity.
 	/// </summary>
 	[JsonIgnore]
-	string ActivityDisplayName { get; }
+	public string ActivityDisplayName { get; }
 
 	/// <summary>
 	///     Gets the description of the activity.
 	/// </summary>
 	[JsonIgnore]
-	string ActivityDescription { get; }
+	public string ActivityDescription { get; }
 }

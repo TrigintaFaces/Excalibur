@@ -14,5 +14,5 @@ public interface IDataChangeEventProcessor : ICdcProcessor
 	///     This method retrieves CDC changes, converts them into <see cref="DataChangeEvent" /> instances, and invokes the appropriate
 	///     handler for each event based on the table involved.
 	/// </remarks>
-	Task<int> ProcessCdcChangesAsync(CancellationToken cancellationToken);
+	public Task<int> ProcessCdcChangesAsync(CancellationToken cancellationToken);
 }

@@ -13,5 +13,5 @@ public interface IAuditMessagePublisher
 	/// <typeparam name="TMessage"> The type of the message to publish. </typeparam>
 	/// <param name="message"> The audit message to publish. </param>
 	/// <param name="context"> The activity context associated with the message. </param>
-	Task PublishAsync<TMessage>(TMessage message, IActivityContext context);
+	public Task PublishAsync<TMessage>(TMessage message, IActivityContext context);
 }

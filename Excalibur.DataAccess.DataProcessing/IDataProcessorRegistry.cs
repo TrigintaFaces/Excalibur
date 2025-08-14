@@ -20,7 +20,7 @@ public interface IDataProcessorRegistry
 	///     <paramref name="recordType" />, if one is found; otherwise, <c> null </c>.
 	/// </param>
 	/// <returns> <c> true </c> if a processor for the specified <paramref name="recordType" /> is found; otherwise, <c> false </c>. </returns>
-	bool TryGetProcessor(string recordType, out IDataProcessor processor);
+	public bool TryGetProcessor(string recordType, out IDataProcessor processor);
 
 	/// <summary>
 	///     Retrieves a registered <see cref="IDataProcessor" /> by its associated record type.
@@ -30,5 +30,5 @@ public interface IDataProcessorRegistry
 	/// <exception cref="MissingDataProcessorException">
 	///     Thrown if no <see cref="IDataProcessor" /> is registered for the specified <paramref name="recordType" />.
 	/// </exception>
-	IDataProcessor GetProcessor(string recordType);
+	public IDataProcessor GetProcessor(string recordType);
 }

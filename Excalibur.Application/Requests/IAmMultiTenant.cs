@@ -8,5 +8,5 @@ public interface IAmMultiTenant
 	/// <summary>
 	///     Gets the tenant identifier associated with the entity.
 	/// </summary>
-	string? TenantId { get; }
+	public string? TenantId { get; }
 }

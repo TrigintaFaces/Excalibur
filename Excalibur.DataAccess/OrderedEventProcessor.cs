@@ -26,7 +26,7 @@ public sealed class OrderedEventProcessor : IAsyncDisposable
 		}
 		finally
 		{
-			_semaphore.Release();
+			_ = _semaphore.Release();
 		}
 	}
 

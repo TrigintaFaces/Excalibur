@@ -6,11 +6,10 @@
 // - Server Side Public License v1.0 (SSPL-1.0) (see LICENSE-SSPL-1.0.txt)
 // - Apache License 2.0 (see LICENSE-APACHE-2.0.txt)
 //
-// You may not use this file except in compliance with the License terms above. You may obtain copies of the licenses in
-// the project root or online.
+// You may not use this file except in compliance with the License terms above. You may obtain copies of the licenses in the project root or online.
 //
-// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
-// an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 
 using System.Globalization;
 using System.Text;
@@ -27,8 +26,7 @@ namespace Excalibur.DataAccess.SqlServer.Cdc;
 public delegate Task CdcFatalErrorHandler(Exception exception, DataChangeEvent failedEvent);
 
 /// <summary>
-///   Processes Change Data Capture (CDC) changes by reading from a database, managing state, and invoking a specified
-///   event handler.
+///     Processes Change Data Capture (CDC) changes by reading from a database, managing state, and invoking a specified event handler.
 /// </summary>
 public class CdcProcessor : ICdcProcessor
 {
@@ -69,7 +67,7 @@ public class CdcProcessor : ICdcProcessor
 	private volatile bool _producerStopped;
 
 	/// <summary>
-	///   Initializes a new instance of the <see cref="CdcProcessor" /> class.
+	///     Initializes a new instance of the <see cref="CdcProcessor" /> class.
 	/// </summary>
 	/// <param name="appLifetime"> Provides notifications about application lifetime events. </param>
 	/// <param name="dbConfig"> The database configuration for CDC processing. </param>
@@ -77,9 +75,9 @@ public class CdcProcessor : ICdcProcessor
 	/// <param name="stateStoreConnection"> The SQL connection for persisting CDC state. </param>
 	/// <param name="logger"> The logger used to log diagnostics and operational information. </param>
 	/// <param name="onFatalError">
-	///   Optional delegate that is invoked when a non-recoverable exception occurs during CDC processing. If provided,
-	///   this allows consumers to handle fatal failures (e.g., alerting or graceful shutdown). If not provided, the
-	///   processor will rethrow the exception and stop processing.
+	///     Optional delegate that is invoked when a non-recoverable exception occurs during CDC processing. If provided, this allows
+	///     consumers to handle fatal failures (e.g., alerting or graceful shutdown). If not provided, the processor will rethrow the
+	///     exception and stop processing.
 	/// </param>
 	/// <exception cref="ArgumentNullException"> Thrown if any required dependency is <c> null </c>. </exception>
 	public CdcProcessor(
@@ -106,7 +104,7 @@ public class CdcProcessor : ICdcProcessor
 		_cdcQueue = new InMemoryDataQueue<DataChangeEvent>(_dbConfig.QueueSize);
 		_onFatalError = onFatalError;
 
-		_ = appLifetime.ApplicationStopping.Register(() => Task.Run(OnApplicationStoppingAsync));
+		_ = appLifetime.ApplicationStopping.Register(OnApplicationStopping);
 	}
 
 	private CancellationToken ProducerCancellationToken => _producerCancellationTokenSource.Token;
@@ -114,20 +112,19 @@ public class CdcProcessor : ICdcProcessor
 	private bool ShouldWaitForProducer => !_producerStopped && !(_producerTask?.IsCompleted ?? true) && _cdcQueue.IsEmpty();
 
 	/// <summary>
-	///   Processes CDC changes asynchronously by producing changes from the database and consuming them with the
-	///   provided handler. Ensures events are processed in strict order to preserve consistency across related changes.
+	///     Processes CDC changes asynchronously by producing changes from the database and consuming them with the provided handler.
+	///     Ensures events are processed in strict order to preserve consistency across related changes.
 	/// </summary>
 	/// <param name="eventHandler">
-	///   A delegate that handles each <see cref="DataChangeEvent" />. This handler should be idempotent and
-	///   thread-safe, and must handle its own exceptions appropriately.
+	///     A delegate that handles each <see cref="DataChangeEvent" />. This handler should be idempotent and thread-safe, and must handle
+	///     its own exceptions appropriately.
 	/// </param>
 	/// <param name="cancellationToken"> A cancellation token to stop processing. </param>
 	/// <returns> The total number of events processed. </returns>
 	/// <exception cref="ObjectDisposedException"> Thrown if the instance is already disposed. </exception>
 	/// <remarks>
-	///   If an unhandled exception occurs during ordered event processing, the error is logged at <c> Critical </c>
-	///   level and passed to the <paramref name="onFatalError" /> delegate, if supplied. If not supplied, the processor
-	///   will rethrow and stop execution.
+	///     If an unhandled exception occurs during ordered event processing, the error is logged at <c> Critical </c> level and passed to
+	///     the <paramref name="onFatalError" /> delegate, if supplied. If not supplied, the processor will rethrow and stop execution.
 	/// </remarks>
 	public async Task<int> ProcessCdcChangesAsync(
 		Func<DataChangeEvent, CancellationToken, Task> eventHandler,
@@ -168,7 +165,7 @@ public class CdcProcessor : ICdcProcessor
 		finally
 		{
 			_isRunning = false;
-			_executionLock.Release();
+			_ = _executionLock.Release();
 		}
 	}
 
@@ -180,7 +177,7 @@ public class CdcProcessor : ICdcProcessor
 	}
 
 	/// <summary>
-	///   Disposes of resources used by the <see cref="CdcProcessor" />.
+	///     Disposes of resources used by the <see cref="CdcProcessor" />.
 	/// </summary>
 	protected virtual async ValueTask DisposeAsyncCore()
 	{
@@ -214,7 +211,19 @@ public class CdcProcessor : ICdcProcessor
 		await _orderedEventProcessor.DisposeAsync().ConfigureAwait(false);
 
 		_producerCancellationTokenSource.Dispose();
-		_executionLock.Dispose();
+		try
+		{
+			if (_executionLock.CurrentCount == 0)
+			{
+				await _executionLock.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+			}
+
+			_executionLock.Dispose();
+		}
+		catch (ObjectDisposedException)
+		{
+			// Already disposed
+		}
 
 		return;
 
@@ -234,14 +243,14 @@ public class CdcProcessor : ICdcProcessor
 	}
 
 	/// <summary>
-	///   Determines if a given LSN is empty (contains only zero bytes).
+	///     Determines if a given LSN is empty (contains only zero bytes).
 	/// </summary>
 	/// <param name="lsn"> The LSN to check. </param>
 	/// <returns> <c> true </c> if the LSN is empty; otherwise, <c> false </c>. </returns>
 	private static bool IsEmptyLsn(IEnumerable<byte> lsn) => lsn.All((byte b) => b == 0);
 
 	/// <summary>
-	///   Converts a byte array to a hexadecimal string representation.
+	///     Converts a byte array to a hexadecimal string representation.
 	/// </summary>
 	/// <param name="bytes"> The byte array to convert. </param>
 	/// <returns> A hexadecimal string representation of the byte array. </returns>
@@ -253,7 +262,7 @@ public class CdcProcessor : ICdcProcessor
 		|| ex.Message.Contains("invalid lsn", StringComparison.OrdinalIgnoreCase);
 
 	/// <summary>
-	///   Executes the producer loop that reads CDC changes from the database and enqueues them for consumption.
+	///     Executes the producer loop that reads CDC changes from the database and enqueues them for consumption.
 	/// </summary>
 	/// <param name="lowestStartLsn"> The lowest LSN from all the configured capture instances. </param>
 	/// <param name="cancellationToken"> A cancellation token to stop processing. </param>
@@ -346,45 +355,45 @@ public class CdcProcessor : ICdcProcessor
 			{
 				var retryPolicy = _policyFactory.GetComprehensivePolicy();
 				changes = await retryPolicy
-						.ExecuteAsync(() => _cdcRepository.FetchChangesAsync(
-								tableName,
-								producerBatchSize,
-								lsn,
-								sequenceValue,
-								lastOperation,
-								combinedToken))
-						.ConfigureAwait(false) as IList<CdcRow> ?? [];
+					.ExecuteAsync(() => _cdcRepository.FetchChangesAsync(
+						tableName,
+						producerBatchSize,
+						lsn,
+						sequenceValue,
+						lastOperation,
+						combinedToken))
+					.ConfigureAwait(false) as IList<CdcRow> ?? [];
 			}
 			catch (SqlException ex) when (IsInvalidLsnException(ex))
 			{
 				_logger.LogWarning(
-						ex,
-						"Invalid LSN {Lsn} for {TableName}, attempting to recover",
-						ByteArrayToHex(lsn),
-						tableName);
+					ex,
+					"Invalid LSN {Lsn} for {TableName}, attempting to recover",
+					ByteArrayToHex(lsn),
+					tableName);
 
 				var recoveryPolicy = _policyFactory.GetComprehensivePolicy();
 				var nextValidLsn = await recoveryPolicy
-								.ExecuteAsync(() => _cdcRepository.GetNextValidLsn(lsn, combinedToken))
-								.ConfigureAwait(false)
-								?? await recoveryPolicy
-										.ExecuteAsync(() => _cdcRepository.GetMinPositionAsync(tableName, combinedToken))
-										.ConfigureAwait(false);
+									   .ExecuteAsync(() => _cdcRepository.GetNextValidLsn(lsn, combinedToken))
+									   .ConfigureAwait(false)
+								   ?? await recoveryPolicy
+									   .ExecuteAsync(() => _cdcRepository.GetMinPositionAsync(tableName, combinedToken))
+									   .ConfigureAwait(false);
 
 				var commitTimePolicy = _policyFactory.GetComprehensivePolicy();
 				var commitTime = await commitTimePolicy
-								.ExecuteAsync(() => _cdcRepository.GetLsnToTimeAsync(nextValidLsn, combinedToken))
-								.ConfigureAwait(false);
+					.ExecuteAsync(() => _cdcRepository.GetLsnToTimeAsync(nextValidLsn, combinedToken))
+					.ConfigureAwait(false);
 
 				var updatePolicy = _policyFactory.GetComprehensivePolicy();
 				await updatePolicy
-						.ExecuteAsync(() => UpdateTableLastProcessed(
-								tableName,
-								nextValidLsn,
-								null,
-								commitTime,
-								combinedToken))
-						.ConfigureAwait(false);
+					.ExecuteAsync(() => UpdateTableLastProcessed(
+						tableName,
+						nextValidLsn,
+						null,
+						commitTime,
+						combinedToken))
+					.ConfigureAwait(false);
 
 				UpdateLsnTracking(tableName, nextValidLsn, null);
 
@@ -440,7 +449,7 @@ public class CdcProcessor : ICdcProcessor
 
 					case CdcOperationCodes.UpdateBefore when pendingUpdateAfter.TryGetValue(record.SeqVal, out var afterRecord):
 						events.Add(DataChangeEvent.CreateUpdateEvent(record, afterRecord));
-						pendingUpdateAfter.Remove(record.SeqVal);
+						_ = pendingUpdateAfter.Remove(record.SeqVal);
 						break;
 
 					case CdcOperationCodes.UpdateBefore:
@@ -449,7 +458,7 @@ public class CdcProcessor : ICdcProcessor
 
 					case CdcOperationCodes.UpdateAfter when pendingUpdateBefore.TryGetValue(record.SeqVal, out var beforeRecord):
 						events.Add(DataChangeEvent.CreateUpdateEvent(beforeRecord, record));
-						pendingUpdateBefore.Remove(record.SeqVal);
+						_ = pendingUpdateBefore.Remove(record.SeqVal);
 						break;
 
 					case CdcOperationCodes.UpdateAfter:
@@ -477,8 +486,8 @@ public class CdcProcessor : ICdcProcessor
 				if (pendingUpdateAfter.TryGetValue(seqVal, out var afterRecord))
 				{
 					events.Add(DataChangeEvent.CreateUpdateEvent(pendingUpdateBefore[seqVal], afterRecord));
-					pendingUpdateBefore.Remove(seqVal);
-					pendingUpdateAfter.Remove(seqVal);
+					_ = pendingUpdateBefore.Remove(seqVal);
+					_ = pendingUpdateAfter.Remove(seqVal);
 				}
 			}
 
@@ -498,14 +507,14 @@ public class CdcProcessor : ICdcProcessor
 			var unmatchedUpdates = new StringBuilder();
 			foreach (var kvp in pendingUpdateBefore)
 			{
-				unmatchedUpdates.Append(
+				_ = unmatchedUpdates.Append(
 					CultureInfo.CurrentCulture,
 					$"Unmatched UpdateBefore at LSN {ByteArrayToHex(lsn)}, SeqVal {ByteArrayToHex(kvp.Key)}").Append(Environment.NewLine);
 			}
 
 			foreach (var kvp in pendingUpdateAfter)
 			{
-				unmatchedUpdates.Append(
+				_ = unmatchedUpdates.Append(
 					CultureInfo.CurrentCulture,
 					$"Unmatched UpdateAfter at LSN {ByteArrayToHex(lsn)}, SeqVal {ByteArrayToHex(kvp.Key)}").Append(Environment.NewLine);
 			}
@@ -539,7 +548,7 @@ public class CdcProcessor : ICdcProcessor
 	}
 
 	/// <summary>
-	///   Executes the consumer loop that processes CDC events in batches.
+	///     Executes the consumer loop that processes CDC events in batches.
 	/// </summary>
 	/// <param name="eventHandler"> The handler to process data change events. </param>
 	/// <param name="cancellationToken"> A cancellation token to stop processing. </param>
@@ -655,13 +664,12 @@ public class CdcProcessor : ICdcProcessor
 			}
 
 			var updateTablePolicy = _policyFactory.GetComprehensivePolicy();
-			await updateTablePolicy.ExecuteAsync(
-				() => UpdateTableLastProcessed(
-					changeEvent.TableName,
-					changeEvent.Lsn,
-					changeEvent.SeqVal,
-					changeEvent.CommitTime,
-					cancellationToken)).ConfigureAwait(false);
+			await updateTablePolicy.ExecuteAsync(() => UpdateTableLastProcessed(
+				changeEvent.TableName,
+				changeEvent.Lsn,
+				changeEvent.SeqVal,
+				changeEvent.CommitTime,
+				cancellationToken)).ConfigureAwait(false);
 		}
 	}
 
@@ -687,31 +695,30 @@ public class CdcProcessor : ICdcProcessor
 	private async Task InitializeTrackingAsync(CancellationToken cancellationToken)
 	{
 		var policy = _policyFactory.GetComprehensivePolicy();
-		var processingStates = await policy.ExecuteAsync(
-							   () => _stateStore.GetLastProcessedPositionAsync(
-									   _dbConfig.DatabaseConnectionIdentifier,
-									   _dbConfig.DatabaseName,
-									   cancellationToken)).ConfigureAwait(false) as ICollection<CdcProcessingState> ?? [];
+		var processingStates = await policy.ExecuteAsync(() => _stateStore.GetLastProcessedPositionAsync(
+			_dbConfig.DatabaseConnectionIdentifier,
+			_dbConfig.DatabaseName,
+			cancellationToken)).ConfigureAwait(false) as ICollection<CdcProcessingState> ?? [];
 
 		var maxLsn = await policy.ExecuteAsync(() => _cdcRepository.GetMaxPositionAsync(cancellationToken)).ConfigureAwait(false);
 
 		foreach (var captureInstance in _dbConfig.CaptureInstances)
 		{
-			var exists = await policy.ExecuteAsync(
-					() => _cdcRepository.CaptureInstanceExistsAsync(captureInstance, cancellationToken)).ConfigureAwait(false);
+			var exists = await policy.ExecuteAsync(() => _cdcRepository.CaptureInstanceExistsAsync(captureInstance, cancellationToken))
+				.ConfigureAwait(false);
 
 			if (!exists)
 			{
 				throw new InvalidOperationException($"Capture instance '{captureInstance}' does not exist in the database.");
 			}
 
-			var state = processingStates.FirstOrDefault(
-					(CdcProcessingState x) => x.TableName.Equals(captureInstance, StringComparison.OrdinalIgnoreCase));
+			var state = processingStates.FirstOrDefault((CdcProcessingState x) =>
+				x.TableName.Equals(captureInstance, StringComparison.OrdinalIgnoreCase));
 
 			byte[] startLsn;
 			byte[]? seqVal = null;
-			var minLsn = await policy.ExecuteAsync(
-					() => _cdcRepository.GetMinPositionAsync(captureInstance, cancellationToken)).ConfigureAwait(false);
+			var minLsn = await policy.ExecuteAsync(() => _cdcRepository.GetMinPositionAsync(captureInstance, cancellationToken))
+				.ConfigureAwait(false);
 
 			if (state == null || IsEmptyLsn(state.LastProcessedLsn))
 			{
@@ -724,8 +731,8 @@ public class CdcProcessor : ICdcProcessor
 
 				if (startLsn.CompareLsn(minLsn) < 0 || startLsn.CompareLsn(maxLsn) > 0)
 				{
-					var nextValid = await policy.ExecuteAsync(
-							() => _cdcRepository.GetNextValidLsn(startLsn, cancellationToken)).ConfigureAwait(false);
+					var nextValid = await policy.ExecuteAsync(() => _cdcRepository.GetNextValidLsn(startLsn, cancellationToken))
+						.ConfigureAwait(false);
 					startLsn = nextValid ?? minLsn;
 					seqVal = null;
 				}
@@ -778,25 +785,38 @@ public class CdcProcessor : ICdcProcessor
 	}
 
 	/// <summary>
-	///   Handles cleanup when the application is stopping.
+	///     Handles cleanup when the application is stopping.
 	/// </summary>
-	private async Task OnApplicationStoppingAsync()
+	private void OnApplicationStopping()
 	{
 		_logger.LogInformation("Application is stopping. Cancelling CDCProcessor producer immediately.");
 
 		_producerStopped = true;
-		await _producerCancellationTokenSource.CancelAsync().ConfigureAwait(false);
+		_producerCancellationTokenSource.Cancel();
 
-		_logger.LogInformation("CDCProcessor Producer cancellation requested.");
-		_logger.LogInformation("Waiting for CDCProcessor consumer to finish remaining work...");
-
-		try
+		var tasks = new List<Task>();
+		if (_producerTask is { IsCompleted: false })
 		{
-			await DisposeAsync().ConfigureAwait(false);
+			tasks.Add(_producerTask);
 		}
-		catch (Exception ex)
+
+		if (_consumerTask is { IsCompleted: false })
 		{
-			_logger.LogError(ex, "Error while disposing CDCProcessor on application shutdown.");
+			tasks.Add(_consumerTask);
+		}
+
+		if (tasks.Count > 0)
+		{
+			_logger.LogInformation("Waiting for CDCProcessor tasks to complete...");
+
+			try
+			{
+				_ = Task.WaitAll(tasks.ToArray(), TimeSpan.FromMinutes(5));
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex, "Error while waiting for CDCProcessor tasks to stop.");
+			}
 		}
 	}
 }

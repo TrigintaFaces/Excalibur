@@ -1,4 +1,4 @@
-﻿namespace Excalibur.Jobs;
+namespace Excalibur.Jobs;
 
 /// <summary>
 ///     Factory interface for creating instances of <see cref="IJobConfigHostedWatcherService" />.
@@ -18,7 +18,7 @@ public interface IJobConfigHostedWatcherServiceFactory
 	/// <exception cref="ArgumentNullException">
 	///     Thrown if the necessary dependencies or parameters required to create the service are null.
 	/// </exception>
-	Task<IJobConfigHostedWatcherService> CreateAsync<TJob, TConfig>()
+	public Task<IJobConfigHostedWatcherService> CreateAsync<TJob, TConfig>()
 		where TJob : IConfigurableJob<TConfig>
 		where TConfig : class, IJobConfig;
 }

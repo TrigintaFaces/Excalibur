@@ -11,5 +11,5 @@ public interface IOutboxManager : IAsyncDisposable
 	/// <param name="dispatcherId"> The identifier of the dispatcher. </param>
 	/// <param name="cancellationToken"> The cancellation token to observe. </param>
 	/// <returns> A task that returns the number of records successfully dispatched. </returns>
-	Task<int> RunOutboxDispatchAsync(string dispatcherId, CancellationToken cancellationToken = default);
+	public Task<int> RunOutboxDispatchAsync(string dispatcherId, CancellationToken cancellationToken = default);
 }

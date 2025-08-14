@@ -10,5 +10,5 @@ public interface IOutboxMessageDispatcher
 	/// </summary>
 	/// <param name="message"> The outbox message to dispatch. </param>
 	/// <returns> A task representing the asynchronous operation. </returns>
-	Task DispatchAsync(OutboxMessage message);
+	public Task DispatchAsync(OutboxMessage message);
 }
