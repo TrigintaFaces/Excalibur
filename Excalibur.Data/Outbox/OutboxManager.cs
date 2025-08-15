@@ -354,6 +354,8 @@ public class OutboxManager : IOutboxManager
 
 		_producerStopped = true;
 		_producerCancellationTokenSource.Cancel();
+		_outboxQueue.CompleteWriter();
+		_outboxQueue.Clear();
 
 		var tasks = new List<Task>();
 		if (_producerTask is { IsCompleted: false })
