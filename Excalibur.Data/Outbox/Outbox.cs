@@ -1,3 +1,16 @@
+// Copyright (c) 2025 The Excalibur Project Authors
+//
+// Licensed under multiple licenses:
+// - Excalibur License 1.0 (see LICENSE-EXCALIBUR.txt)
+// - GNU Affero General Public License v3.0 or later (AGPL-3.0) (see LICENSE-AGPL-3.0.txt)
+// - Server Side Public License v1.0 (SSPL-1.0) (see LICENSE-SSPL-1.0.txt)
+// - Apache License 2.0 (see LICENSE-APACHE-2.0.txt)
+//
+// You may not use this file except in compliance with the License terms above. You may obtain copies of the licenses in the project root or online.
+//
+// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+
 using System.Data;
 using System.Text.Json;
 
@@ -9,6 +22,7 @@ using Excalibur.Core.Domain.Events;
 using Excalibur.Core.Extensions;
 using Excalibur.Data.Outbox.Serialization;
 using Excalibur.DataAccess;
+using Excalibur.DataAccess.SqlServer;
 using Excalibur.Domain;
 using Excalibur.Domain.Model;
 
@@ -16,6 +30,8 @@ using Microsoft.ApplicationInsights;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+using Polly;
 
 namespace Excalibur.Data.Outbox;
 
@@ -38,6 +54,8 @@ public class Outbox : IOutbox
 
 	private readonly TelemetryClient? _telemetryClient;
 
+	private readonly IAsyncPolicy _policy;
+
 	/// <summary>
 	///     Initializes a new instance of the <see cref="Outbox" /> class.
 	/// </summary>
@@ -55,12 +73,14 @@ public class Outbox : IOutbox
 		IServiceProvider serviceProvider,
 		IOptions<OutboxConfiguration> configuration,
 		ILogger<Outbox> logger,
+		IDataAccessPolicyFactory policyFactory,
 		TelemetryClient? telemetryClient = null)
 	{
 		ArgumentNullException.ThrowIfNull(context);
 		ArgumentNullException.ThrowIfNull(domainDb);
 		ArgumentNullException.ThrowIfNull(serviceProvider);
 		ArgumentNullException.ThrowIfNull(configuration);
+		ArgumentNullException.ThrowIfNull(policyFactory);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_context = context;
@@ -69,11 +89,13 @@ public class Outbox : IOutbox
 		_telemetryClient = telemetryClient;
 		_configuration = configuration.Value;
 		_connection = domainDb.Connection;
+		_policy = policyFactory.GetComprehensivePolicy();
 	}
 
 	/// <inheritdoc />
-	public Task TryUnReserveOneRecordsAsync(string dispatcherId, CancellationToken cancellationToken) =>
-		_connection.ExecuteAsync(OutboxCommands.UnReserveOutboxRecords(dispatcherId, DbTimeouts.RegularTimeoutSeconds, _configuration));
+	public async Task TryUnReserveOneRecordsAsync(string dispatcherId, CancellationToken cancellationToken) =>
+		await ExecuteWithPolicyAsync(OutboxCommands.UnReserveOutboxRecords(dispatcherId, DbTimeouts.RegularTimeoutSeconds, _configuration),
+			cancellationToken).ConfigureAwait(false);
 
 	/// <inheritdoc />
 	public async Task<IEnumerable<OutboxRecord>> TryReserveOneRecordsAsync(
@@ -85,12 +107,11 @@ public class Outbox : IOutbox
 
 		try
 		{
-			var records = await _connection.QueryAsync<OutboxRecord>(
-							  OutboxCommands.ReserveOutboxRecords(
-								  dispatcherId,
-								  batchSize,
-								  DbTimeouts.LongRunningTimeoutSeconds,
-								  _configuration)).ConfigureAwait(false);
+			var records = await QueryWithPolicyAsync<OutboxRecord>(OutboxCommands.ReserveOutboxRecords(
+				dispatcherId,
+				batchSize,
+				DbTimeouts.LongRunningTimeoutSeconds,
+				_configuration), cancellationToken).ConfigureAwait(false);
 
 			_telemetryClient?.TrackMetric("Outbox.ReservedOutboxBatchSize", records.Count());
 			return records;
@@ -102,7 +123,7 @@ public class Outbox : IOutbox
 	}
 
 	/// <inheritdoc />
-	public async Task<int> DispatchReservedRecordAsync(string dispatcherId, OutboxRecord record)
+	public async Task<int> DispatchReservedRecordAsync(string dispatcherId, OutboxRecord record, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrEmpty(dispatcherId);
 		ArgumentNullException.ThrowIfNull(record);
@@ -131,9 +152,10 @@ public class Outbox : IOutbox
 				"Outbox.OutboxRecordDispatchSucceeded",
 				new Dictionary<string, string> { { "DispatcherId", dispatcherId }, { "OutboxId", record.OutboxId.ToString() } });
 
-			_ = await _connection.ExecuteAsync(
-						OutboxCommands.DeleteOutboxRecord(record.OutboxId, DbTimeouts.RegularTimeoutSeconds, _configuration))
-					.ConfigureAwait(false);
+			_ = await ExecuteWithPolicyAsync(
+					OutboxCommands.DeleteOutboxRecord(record.OutboxId, DbTimeouts.RegularTimeoutSeconds, _configuration), cancellationToken)
+				.ConfigureAwait(false);
+
 			_logger.LogInformation("Deleted OutboxRecord with Id {OutboxId} after successful dispatch", record.OutboxId);
 
 			return result;
@@ -153,13 +175,12 @@ public class Outbox : IOutbox
 					{ "DispatcherId", dispatcherId }, { "OutboxId", record.OutboxId.ToString() }, { "ErrorType", ex.GetType().Name }
 				});
 
-			_ = await _connection.ExecuteAsync(
-					OutboxCommands.IncrementAttemptsOrMoveToDeadLetter(
-						record.OutboxId,
-						record.EventData,
-						ex.Message,
-						DbTimeouts.LongRunningTimeoutSeconds,
-						_configuration)).ConfigureAwait(false);
+			_ = await ExecuteWithPolicyAsync(OutboxCommands.IncrementAttemptsOrMoveToDeadLetter(
+				record.OutboxId,
+				record.EventData,
+				ex.Message,
+				DbTimeouts.LongRunningTimeoutSeconds,
+				_configuration), cancellationToken).ConfigureAwait(false);
 
 			return 0;
 		}
@@ -169,7 +190,8 @@ public class Outbox : IOutbox
 	public async Task<int> SaveEventsAsync<TKey>(
 		IAggregateRoot<TKey> aggregate,
 		IReadOnlyDictionary<string, string> messageHeaders,
-		string destination)
+		string destination,
+		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(aggregate);
 
@@ -179,14 +201,13 @@ public class Outbox : IOutbox
 			return 0;
 		}
 
-		var messages = aggregate.DomainEvents.Select(
-			(IDomainEvent evt) => new OutboxMessage
-			{
-				MessageId = Uuid7Extensions.GenerateString(),
-				MessageBody = evt,
-				MessageHeaders = GetDefaultHeaders()
-			}).ToArray();
-		var result = await SaveMessagesAsync(messages).ConfigureAwait(false);
+		var messages = aggregate.DomainEvents.Select((IDomainEvent evt) => new OutboxMessage
+		{
+			MessageId = Uuid7Extensions.GenerateString(),
+			MessageBody = evt,
+			MessageHeaders = GetDefaultHeaders()
+		}).ToArray();
+		var result = await SaveMessagesAsync(messages, cancellationToken).ConfigureAwait(false);
 
 		if (messages.Length > 0)
 		{
@@ -202,13 +223,13 @@ public class Outbox : IOutbox
 	}
 
 	/// <inheritdoc />
-	public Task<int> SaveMessagesAsync(IEnumerable<OutboxMessage> messages)
+	public async Task<int> SaveMessagesAsync(IEnumerable<OutboxMessage> messages, CancellationToken cancellationToken)
 	{
 		var outboxMessages = messages as OutboxMessage[] ?? messages.ToArray();
 		if (outboxMessages.Length == 0)
 		{
 			_logger.LogInformation("No messages to save to the outbox.");
-			return Task.FromResult(0);
+			return 0;
 		}
 
 		var outboxRecordId = Uuid7Extensions.GenerateGuid();
@@ -220,8 +241,12 @@ public class Outbox : IOutbox
 			_configuration.TableName,
 			outboxRecordId);
 
-		return _connection.ExecuteAsync(
-			OutboxCommands.InsertOutboxRecord(outboxRecordId, eventData, DbTimeouts.RegularTimeoutSeconds, _configuration));
+		return await ExecuteWithPolicyAsync(
+			OutboxCommands.InsertOutboxRecord(
+				outboxRecordId,
+				eventData,
+				DbTimeouts.RegularTimeoutSeconds,
+				_configuration), cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -278,6 +303,26 @@ public class Outbox : IOutbox
 		_telemetryClient?.TrackMetric("OutboxMessagesDispatched", successCount);
 		return successCount;
 	}
+
+	private Task<int> ExecuteWithPolicyAsync(CommandDefinition command, CancellationToken cancellationToken = default) =>
+		_policy.ExecuteAsync(
+			async (context, token) =>
+			{
+				_connection.Ready();
+				return await _connection.ExecuteAsync(command).ConfigureAwait(false);
+			},
+			new Context { ["DbConnection"] = _connection },
+			cancellationToken);
+
+	private Task<IEnumerable<T>> QueryWithPolicyAsync<T>(CommandDefinition command, CancellationToken cancellationToken = default) =>
+		_policy.ExecuteAsync(
+			async (context, token) =>
+			{
+				_connection.Ready();
+				return await _connection.QueryAsync<T>(command).ConfigureAwait(false);
+			},
+			new Context { ["DbConnection"] = _connection },
+			cancellationToken);
 
 	internal static class OutboxCommands
 	{

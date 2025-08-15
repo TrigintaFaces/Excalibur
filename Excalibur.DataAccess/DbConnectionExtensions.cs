@@ -1,8 +1,23 @@
+// Copyright (c) 2025 The Excalibur Project Authors
+//
+// Licensed under multiple licenses:
+// - Excalibur License 1.0 (see LICENSE-EXCALIBUR.txt)
+// - GNU Affero General Public License v3.0 or later (AGPL-3.0) (see LICENSE-AGPL-3.0.txt)
+// - Server Side Public License v1.0 (SSPL-1.0) (see LICENSE-SSPL-1.0.txt)
+// - Apache License 2.0 (see LICENSE-APACHE-2.0.txt)
+//
+// You may not use this file except in compliance with the License terms above. You may obtain copies of the licenses in the project root or online.
+//
+// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+
 using System.Data;
 using System.Diagnostics;
 
 using Excalibur.Core.Exceptions;
 using Excalibur.DataAccess.Exceptions;
+
+using Microsoft.Data.SqlClient;
 
 namespace Excalibur.DataAccess;
 
@@ -21,11 +36,22 @@ public static class DbConnectionExtensions
 	/// <exception cref="OperationFailedException"> Thrown if an error occurs while executing the request. </exception>
 	public static async Task<TModel> ResolveAsync<TModel>(this IDbConnection connection, IDataRequest<IDbConnection, TModel> dataRequest)
 	{
+		ArgumentNullException.ThrowIfNull(connection);
 		ArgumentNullException.ThrowIfNull(dataRequest);
 
 		try
 		{
-			return await dataRequest.ResolveAsync(connection).ConfigureAwait(false);
+			return await dataRequest.ResolveAsync(connection.Ready()).ConfigureAwait(false);
+		}
+		catch (SqlException sqlEx) when (sqlEx.Number is 596 or -2)
+		{
+			TryClose(connection);
+			throw;
+		}
+		catch (TimeoutException)
+		{
+			TryClose(connection);
+			throw;
 		}
 		catch (Exception ex) when (ex is not ApiException)
 		{
@@ -64,5 +90,17 @@ public static class DbConnectionExtensions
 		}
 
 		return connection;
+	}
+
+	private static void TryClose(IDbConnection connection)
+	{
+		try
+		{
+			connection.Close();
+		}
+		catch
+		{
+			// ignored
+		}
 	}
 }

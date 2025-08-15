@@ -283,7 +283,7 @@ public class OutboxManager : IOutboxManager
 						// processed sequentially.
 						await _orderedEventProcessor.ProcessAsync(async () =>
 						{
-							_ = await _outbox.DispatchReservedRecordAsync(dispatcherId, record).ConfigureAwait(false);
+							_ = await _outbox.DispatchReservedRecordAsync(dispatcherId, record, cancellationToken).ConfigureAwait(false);
 						}).ConfigureAwait(false);
 
 						_telemetryClient?.TrackTrace(
