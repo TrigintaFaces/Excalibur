@@ -1,3 +1,18 @@
+// Copyright (c) 2025 The Excalibur Project Authors
+//
+// Licensed under multiple licenses:
+// - Excalibur License 1.0 (see LICENSE-EXCALIBUR.txt)
+// - GNU Affero General Public License v3.0 or later (AGPL-3.0) (see LICENSE-AGPL-3.0.txt)
+// - Server Side Public License v1.0 (SSPL-1.0) (see LICENSE-SSPL-1.0.txt)
+// - Apache License 2.0 (see LICENSE-APACHE-2.0.txt)
+//
+// You may not use this file except in compliance with the License terms above. You may obtain copies of the licenses in the project root or online.
+//
+// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+
+using System.Data;
+
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 
@@ -79,11 +94,47 @@ public class SqlDataAccessPolicyFactory : IDataAccessPolicyFactory
 				{
 					context["LastSqlException"] = exception;
 
+					if (sqlException.Number is 596 or -2
+						&& context.TryGetValue("DbConnection", out var conn)
+						&& conn is IDbConnection dbConnection)
+					{
+						try
+						{
+							dbConnection.Close();
+							dbConnection.Open();
+						}
+						catch (Exception resetEx)
+						{
+							_logger.LogError(resetEx, "Failed to reset SQL connection on retry.");
+						}
+					}
+
 					_logger.LogWarning(
 						"Retry {RetryCount} due to SQL error: {ErrorNumber}:{Message}",
 						retryCount,
 						sqlException.Number,
 						exception.Message);
+				}
+				else if (exception is TimeoutException timeoutException)
+				{
+					if (context.TryGetValue("DbConnection", out var connectionObj)
+						&& connectionObj is IDbConnection dbConnection)
+					{
+						try
+						{
+							dbConnection.Close();
+							dbConnection.Open();
+						}
+						catch (Exception resetEx)
+						{
+							_logger.LogError(resetEx, "Failed to reset SQL connection on retry.");
+						}
+					}
+
+					_logger.LogWarning(
+						"Retry {RetryCount} due to Timeout: {Message}",
+						retryCount,
+						timeoutException.Message);
 				}
 
 				_logger.LogWarning("Waiting {TimeSpan} before next retry.", timeSpan);
