@@ -793,6 +793,8 @@ public class CdcProcessor : ICdcProcessor
 
 		_producerStopped = true;
 		_producerCancellationTokenSource.Cancel();
+		_cdcQueue.CompleteWriter();
+		_cdcQueue.Clear();
 
 		var tasks = new List<Task>();
 		if (_producerTask is { IsCompleted: false })

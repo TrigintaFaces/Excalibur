@@ -383,6 +383,8 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 		_producerStopped = true;
 		_producerCancellationTokenSource.Cancel();
+		_dataQueue.CompleteWriter();
+		_dataQueue.Clear();
 
 		var tasks = new List<Task>();
 		if (_producerTask is { IsCompleted: false })
