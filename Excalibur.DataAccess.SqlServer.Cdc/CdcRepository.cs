@@ -6,10 +6,11 @@
 // - Server Side Public License v1.0 (SSPL-1.0) (see LICENSE-SSPL-1.0.txt)
 // - Apache License 2.0 (see LICENSE-APACHE-2.0.txt)
 //
-// You may not use this file except in compliance with the License terms above. You may obtain copies of the licenses in the project root or online.
+// You may not use this file except in compliance with the License terms above. You may obtain copies of the licenses in
+// the project root or online.
 //
-// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+// an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 
 using System.Data;
 using System.Data.Common;
@@ -20,14 +21,14 @@ using Dapper;
 namespace Excalibur.DataAccess.SqlServer.Cdc;
 
 /// <summary>
-///     Provides methods for interacting with SQL Server Change Data Capture (CDC) tables.
+///   Provides methods for interacting with SQL Server Change Data Capture (CDC) tables.
 /// </summary>
 public class CdcRepository : ICdcRepository
 {
 	private readonly IDbConnection _connection;
 
 	/// <summary>
-	///     Initializes a new instance of the <see cref="CdcRepository" /> class using a provided database connection.
+	///   Initializes a new instance of the <see cref="CdcRepository" /> class using a provided database connection.
 	/// </summary>
 	/// <param name="connection"> The database connection to use for CDC queries. </param>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="connection" /> is null. </exception>
@@ -39,7 +40,7 @@ public class CdcRepository : ICdcRepository
 	}
 
 	/// <summary>
-	///     Initializes a new instance of the <see cref="CdcRepository" /> class using a database wrapper.
+	///   Initializes a new instance of the <see cref="CdcRepository" /> class using a database wrapper.
 	/// </summary>
 	/// <param name="db"> The database wrapper providing the connection. </param>
 	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="db" /> is null. </exception>
@@ -206,7 +207,7 @@ public class CdcRepository : ICdcRepository
 		                                 SELECT TOP 1 tran_begin_lsn
 		                                 FROM cdc.lsn_time_mapping
 		                                 WHERE tran_begin_lsn > @lastProcessedLsn
-		                                 AND tran_end_time IS NOT NULL
+		                                 AND tran_begin_time IS NOT NULL
 		                                 ORDER BY tran_begin_lsn ASC;
 		                           """;
 
