@@ -6,10 +6,11 @@
 // - Server Side Public License v1.0 (SSPL-1.0) (see LICENSE-SSPL-1.0.txt)
 // - Apache License 2.0 (see LICENSE-APACHE-2.0.txt)
 //
-// You may not use this file except in compliance with the License terms above. You may obtain copies of the licenses in the project root or online.
+// You may not use this file except in compliance with the License terms above. You may obtain copies of the licenses in
+// the project root or online.
 //
-// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+// an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 
 using System.Data;
 using System.Text.Json;
@@ -36,7 +37,7 @@ using Polly;
 namespace Excalibur.Data.Outbox;
 
 /// <summary>
-///     Provides functionality for managing and dispatching outbox messages to ensure reliable delivery.
+///   Provides functionality for managing and dispatching outbox messages to ensure reliable delivery.
 /// </summary>
 public class Outbox : IOutbox
 {
@@ -48,7 +49,7 @@ public class Outbox : IOutbox
 
 	private readonly IActivityContext _context;
 
-	private readonly IServiceProvider _serviceProvider;
+	private readonly IServiceScopeFactory _scopeFactory;
 
 	private readonly ILogger<Outbox> _logger;
 
@@ -57,20 +58,20 @@ public class Outbox : IOutbox
 	private readonly IAsyncPolicy _policy;
 
 	/// <summary>
-	///     Initializes a new instance of the <see cref="Outbox" /> class.
+	///   Initializes a new instance of the <see cref="Outbox" /> class.
 	/// </summary>
 	/// <param name="context"> The activity context containing tenant and correlation information. </param>
 	/// <param name="domainDb"> The domain database connection. </param>
-	/// <param name="serviceProvider"> The root service provider for creating new scopes. </param>
+	/// <param name="serviceScopeFactory"> The scope factory used to create new scopes for message dispatch. </param>
 	/// <param name="configuration"> The outbox configuration options. </param>
 	/// <param name="logger"> The logger instance for logging events. </param>
 	/// <param name="telemetryClient">
-	///     The Application Insights TelemetryClient used to record metrics, events, and exceptions for monitoring and analysis.
+	///   The Application Insights TelemetryClient used to record metrics, events, and exceptions for monitoring and analysis.
 	/// </param>
 	public Outbox(
 		IActivityContext context,
 		IDomainDb domainDb,
-		IServiceProvider serviceProvider,
+		IServiceScopeFactory serviceScopeFactory,
 		IOptions<OutboxConfiguration> configuration,
 		ILogger<Outbox> logger,
 		IDataAccessPolicyFactory policyFactory,
@@ -78,13 +79,13 @@ public class Outbox : IOutbox
 	{
 		ArgumentNullException.ThrowIfNull(context);
 		ArgumentNullException.ThrowIfNull(domainDb);
-		ArgumentNullException.ThrowIfNull(serviceProvider);
+		ArgumentNullException.ThrowIfNull(serviceScopeFactory);
 		ArgumentNullException.ThrowIfNull(configuration);
 		ArgumentNullException.ThrowIfNull(policyFactory);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_context = context;
-		_serviceProvider = serviceProvider;
+		_scopeFactory = serviceScopeFactory;
 		_logger = logger;
 		_telemetryClient = telemetryClient;
 		_configuration = configuration.Value;
@@ -98,7 +99,7 @@ public class Outbox : IOutbox
 			cancellationToken).ConfigureAwait(false);
 
 	/// <inheritdoc />
-	public async Task<IEnumerable<OutboxRecord>> TryReserveOneRecordsAsync(
+	public async Task<IEnumerable<OutboxRecord>> TryReserveRecordsAsync(
 		string dispatcherId,
 		int batchSize,
 		CancellationToken cancellationToken)
@@ -123,7 +124,7 @@ public class Outbox : IOutbox
 	}
 
 	/// <inheritdoc />
-	public async Task<int> DispatchReservedRecordAsync(string dispatcherId, OutboxRecord record, CancellationToken cancellationToken)
+	public async Task<bool> DispatchReservedRecordAsync(string dispatcherId, OutboxRecord record, CancellationToken cancellationToken)
 	{
 		ArgumentException.ThrowIfNullOrEmpty(dispatcherId);
 		ArgumentNullException.ThrowIfNull(record);
@@ -132,41 +133,42 @@ public class Outbox : IOutbox
 		try
 		{
 			_telemetryClient?.TrackEvent(
-				"Outbox.OutboxRecordDispatchStarted",
-				new Dictionary<string, string> { { "DispatcherId", dispatcherId }, { "OutboxId", record.OutboxId.ToString() } });
+					"Outbox.OutboxRecordDispatchStarted",
+					new Dictionary<string, string> { { "DispatcherId", dispatcherId }, { "OutboxId", record.OutboxId.ToString() } });
 
 			_logger.LogInformation(
-				"Dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId}",
-				record.OutboxId,
-				dispatcherId);
+					"Dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId}",
+					record.OutboxId,
+					dispatcherId);
 
-			var result = await Dispatch(record).ConfigureAwait(false);
+			await Dispatch(record).ConfigureAwait(false);
 
 			_logger.LogInformation(
-				"Successfully dispatched OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId}",
-				record.OutboxId,
-				dispatcherId);
+					"Successfully dispatched OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId}",
+					record.OutboxId,
+					dispatcherId);
 
 			_telemetryClient?.TrackMetric("Outbox.MessageProcessingDuration", stopwatch.Elapsed.TotalMilliseconds);
 			_telemetryClient?.TrackEvent(
-				"Outbox.OutboxRecordDispatchSucceeded",
-				new Dictionary<string, string> { { "DispatcherId", dispatcherId }, { "OutboxId", record.OutboxId.ToString() } });
+					"Outbox.OutboxRecordDispatchSucceeded",
+					new Dictionary<string, string> { { "DispatcherId", dispatcherId }, { "OutboxId", record.OutboxId.ToString() } });
 
-			_ = await ExecuteWithPolicyAsync(
-					OutboxCommands.DeleteOutboxRecord(record.OutboxId, DbTimeouts.RegularTimeoutSeconds, _configuration), cancellationToken)
-				.ConfigureAwait(false);
-
-			_logger.LogInformation("Deleted OutboxRecord with Id {OutboxId} after successful dispatch", record.OutboxId);
-
-			return result;
+			return true;
 		}
 		catch (Exception ex)
 		{
 			_logger.LogError(
+					ex,
+					"Error dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId}",
+					record.OutboxId,
+					dispatcherId);
+
+			_telemetryClient?.TrackException(
 				ex,
-				"Error dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId}",
-				record.OutboxId,
-				dispatcherId);
+				new Dictionary<string, string>
+				{
+					{ "DispatcherId", dispatcherId }, { "OutboxId", record.OutboxId.ToString() }, { "ErrorType", ex.GetType().Name }
+				});
 
 			_telemetryClient?.TrackException(
 				ex,
@@ -182,8 +184,27 @@ public class Outbox : IOutbox
 				DbTimeouts.LongRunningTimeoutSeconds,
 				_configuration), cancellationToken).ConfigureAwait(false);
 
-			return 0;
+			return false;
 		}
+	}
+
+	/// <inheritdoc />
+	public async Task DeleteOutboxRecordsAsync(IEnumerable<Guid> outboxIds, CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(outboxIds);
+
+		var ids = outboxIds as ICollection<Guid> ?? outboxIds.ToArray();
+		if (ids.Count == 0)
+		{
+			return;
+		}
+
+		_ = await ExecuteWithPolicyAsync(
+				OutboxCommands.DeleteOutboxRecords(ids, DbTimeouts.RegularTimeoutSeconds, _configuration),
+				cancellationToken)
+			.ConfigureAwait(false);
+
+		_logger.LogInformation("Deleted {Count} OutboxRecords after successful dispatch", ids.Count);
 	}
 
 	/// <inheritdoc />
@@ -250,7 +271,7 @@ public class Outbox : IOutbox
 	}
 
 	/// <summary>
-	///     Retrieves default message headers for outbox messages.
+	///   Retrieves default message headers for outbox messages.
 	/// </summary>
 	/// <returns> A dictionary containing default headers such as CorrelationId and TenantId. </returns>
 	public IReadOnlyDictionary<string, string> GetDefaultHeaders() =>
@@ -261,7 +282,7 @@ public class Outbox : IOutbox
 		};
 
 	/// <summary>
-	///     Dispatches the outbox messages for a given record.
+	///   Dispatches the outbox messages for a given record.
 	/// </summary>
 	/// <param name="outboxRecord"> The outbox record containing event data. </param>
 	/// <returns> The count of dispatched messages. </returns>
@@ -276,14 +297,15 @@ public class Outbox : IOutbox
 		}
 
 		var successCount = 0;
+
+		using var scope = _scopeFactory.CreateScope();
+		var scopedDispatcher = scope.ServiceProvider.GetRequiredService<IOutboxMessageDispatcher>();
+
 		foreach (var message in messages)
 		{
 			try
 			{
-				using var scope = _serviceProvider.CreateScope();
-				var scopedDispatcher = scope.ServiceProvider.GetRequiredService<IOutboxMessageDispatcher>();
 				await scopedDispatcher.DispatchAsync(message).ConfigureAwait(false);
-
 				successCount++;
 			}
 			catch (Exception ex)
@@ -326,12 +348,12 @@ public class Outbox : IOutbox
 
 	internal static class OutboxCommands
 	{
-		internal static CommandDefinition DeleteOutboxRecord(Guid outboxRecordId, int sqlTimeOutSeconds, OutboxConfiguration configuration)
+		internal static CommandDefinition DeleteOutboxRecords(ICollection<Guid> outboxRecordIds, int sqlTimeOutSeconds, OutboxConfiguration configuration)
 		{
-			var sql = $"DELETE FROM {configuration.TableName} WHERE OutboxId = @OutboxId";
+			var sql = $"DELETE FROM {configuration.TableName} WHERE OutboxId IN @OutboxIds";
 
 			var parameters = new DynamicParameters();
-			parameters.Add("OutboxId", outboxRecordId, direction: ParameterDirection.Input);
+			parameters.Add("OutboxIds", outboxRecordIds, direction: ParameterDirection.Input);
 
 			return new CommandDefinition(sql, parameters, commandTimeout: sqlTimeOutSeconds);
 		}

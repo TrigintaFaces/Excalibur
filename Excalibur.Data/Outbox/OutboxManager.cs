@@ -6,10 +6,11 @@
 // - Server Side Public License v1.0 (SSPL-1.0) (see LICENSE-SSPL-1.0.txt)
 // - Apache License 2.0 (see LICENSE-APACHE-2.0.txt)
 //
-// You may not use this file except in compliance with the License terms above. You may obtain copies of the licenses in the project root or online.
+// You may not use this file except in compliance with the License terms above. You may obtain copies of the licenses in
+// the project root or online.
 //
-// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+// an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 
 using Excalibur.Core.Diagnostics;
 using Excalibur.DataAccess;
@@ -21,11 +22,13 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+#pragma warning disable CA2213 // Disposable fields should be disposed
+
 namespace Excalibur.Data.Outbox;
 
 /// <summary>
-///     Manages the dispatch of outbox messages using a producer-consumer pattern. Handles the reservation, processing, and cleanup of
-///     outbox records.
+///   Manages the dispatch of outbox messages using a producer-consumer pattern. Handles the reservation, processing,
+///   and cleanup of outbox records.
 /// </summary>
 public class OutboxManager : IOutboxManager
 {
@@ -41,8 +44,6 @@ public class OutboxManager : IOutboxManager
 
 	private readonly CancellationTokenSource _producerCancellationTokenSource = new();
 
-	private readonly OrderedEventProcessor _orderedEventProcessor = new();
-
 	private int _disposedFlag;
 
 	private Task? _producerTask;
@@ -52,18 +53,18 @@ public class OutboxManager : IOutboxManager
 	private volatile bool _producerStopped;
 
 	/// <summary>
-	///     Initializes a new instance of the <see cref="OutboxManager" /> class.
+	///   Initializes a new instance of the <see cref="OutboxManager" /> class.
 	/// </summary>
 	/// <param name="outbox"> The outbox instance for managing records. </param>
 	/// <param name="configuration"> The outbox configuration options. </param>
 	/// <param name="appLifetime">
-	///     An instance of <see cref="IHostApplicationLifetime" /> that allows the application to perform actions during the application's
-	///     lifecycle events, such as startup, shutdown, or when the application is stopping. This parameter is used to gracefully manage
-	///     tasks that need to respond to application lifecycle events.
+	///   An instance of <see cref="IHostApplicationLifetime" /> that allows the application to perform actions during
+	///   the application's lifecycle events, such as startup, shutdown, or when the application is stopping. This
+	///   parameter is used to gracefully manage tasks that need to respond to application lifecycle events.
 	/// </param>
 	/// <param name="logger"> The logger instance for logging events. </param>
 	/// <param name="telemetryClient">
-	///     The Application Insights TelemetryClient used to record metrics, events, and exceptions for monitoring and analysis.
+	///   The Application Insights TelemetryClient used to record metrics, events, and exceptions for monitoring and analysis.
 	/// </param>
 	public OutboxManager(
 		IOutbox outbox,
@@ -114,7 +115,7 @@ public class OutboxManager : IOutboxManager
 	}
 
 	/// <summary>
-	///     Disposes of resources used by the <see cref="OutboxManager" />.
+	///   Disposes of resources used by the <see cref="OutboxManager" />.
 	/// </summary>
 	protected virtual async ValueTask DisposeAsyncCore()
 	{
@@ -142,7 +143,6 @@ public class OutboxManager : IOutboxManager
 		}
 
 		await _outboxQueue.DisposeAsync().ConfigureAwait(false);
-		await _orderedEventProcessor.DisposeAsync().ConfigureAwait(false);
 
 		_producerCancellationTokenSource.Dispose();
 
@@ -164,7 +164,7 @@ public class OutboxManager : IOutboxManager
 	}
 
 	/// <summary>
-	///     The producer loop responsible for reserving batches of outbox records and enqueueing them for processing.
+	///   The producer loop responsible for reserving batches of outbox records and enqueueing them for processing.
 	/// </summary>
 	/// <param name="dispatcherId"> The ID of the dispatcher. </param>
 	/// <param name="cancellationToken"> A token to observe for cancellation requests. </param>
@@ -177,16 +177,8 @@ public class OutboxManager : IOutboxManager
 
 			while (!combinedToken.IsCancellationRequested)
 			{
-				var availableSlots = Math.Max(0, _configuration.QueueSize - _outboxQueue.Count);
-				if (availableSlots < 1)
-				{
-					await Task.Delay(10, combinedToken).ConfigureAwait(false);
-					continue;
-				}
-
-				var batchSize = Math.Min(_configuration.ProducerBatchSize, availableSlots);
 				var batch =
-					await ReserveBatchRecords(dispatcherId, batchSize, combinedToken).ConfigureAwait(false) as ICollection<OutboxRecord>
+					await ReserveBatchRecords(dispatcherId, _configuration.ProducerBatchSize, combinedToken).ConfigureAwait(false) as ICollection<OutboxRecord>
 					?? [];
 
 				if (batch.Count == 0)
@@ -198,10 +190,7 @@ public class OutboxManager : IOutboxManager
 				_telemetryClient?.GetMetric("Outbox.BatchSize").TrackValue(batch.Count);
 				_logger.LogInformation("Enqueuing {BatchSize} outbox records", batch.Count);
 
-				foreach (var record in batch)
-				{
-					await _outboxQueue.EnqueueAsync(record, combinedToken).ConfigureAwait(false);
-				}
+				await _outboxQueue.EnqueueBatchAsync(batch, combinedToken).ConfigureAwait(false);
 
 				_logger.LogInformation("Successfully enqueued {EnqueuedRowCount} outbox records", batch.Count);
 			}
@@ -229,7 +218,7 @@ public class OutboxManager : IOutboxManager
 	}
 
 	/// <summary>
-	///     The consumer loop responsible for processing records from the queue and dispatching them.
+	///   The consumer loop responsible for processing records from the queue and dispatching them.
 	/// </summary>
 	/// <param name="dispatcherId"> The ID of the dispatcher. </param>
 	/// <param name="cancellationToken"> A token to observe for cancellation requests. </param>
@@ -273,40 +262,47 @@ public class OutboxManager : IOutboxManager
 				var batch = await _outboxQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
 				_logger.LogInformation("Outbox processing batch of {BatchSize} records", batch.Count);
 
+				var processedIds = new List<Guid>();
+
 				foreach (var record in batch)
 				{
 					var stopwatch = ValueStopwatch.StartNew();
 
 					try
 					{
-						// Ensures events are dispatched in order. Critical when using Mediator to publish domain events that must be
-						// processed sequentially.
-						await _orderedEventProcessor.ProcessAsync(async () =>
-						{
-							_ = await _outbox.DispatchReservedRecordAsync(dispatcherId, record, cancellationToken).ConfigureAwait(false);
-						}).ConfigureAwait(false);
+						var processed = await _outbox.DispatchReservedRecordAsync(dispatcherId, record, cancellationToken).ConfigureAwait(false);
 
-						_telemetryClient?.TrackTrace(
-							$"Dispatched OutboxRecord {record.OutboxId}",
-							SeverityLevel.Information,
-							new Dictionary<string, string> { ["OutboxId"] = record.OutboxId.ToString(), ["DispatcherId"] = dispatcherId });
+						if (processed)
+						{
+							processedIds.Add(record.OutboxId);
+
+							_telemetryClient?.TrackTrace(
+									$"Dispatched OutboxRecord {record.OutboxId}",
+									SeverityLevel.Information,
+									new Dictionary<string, string> { ["OutboxId"] = record.OutboxId.ToString(), ["DispatcherId"] = dispatcherId });
+						}
 					}
 					catch (Exception ex)
 					{
 						_telemetryClient?.TrackException(
-							new ExceptionTelemetry(ex) { Message = "Error in Outbox processing", SeverityLevel = SeverityLevel.Error });
+								new ExceptionTelemetry(ex) { Message = "Error in Outbox processing", SeverityLevel = SeverityLevel.Error });
 
 						_logger.LogError(
-							ex,
-							"Error dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId} in OutboxManager",
-							record.OutboxId,
-							record.DispatcherId);
+								ex,
+								"Error dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId} in OutboxManager",
+								record.OutboxId,
+								record.DispatcherId);
 					}
 
 					_telemetryClient?.GetMetric("Outbox.ProcessingTime").TrackValue(stopwatch.Elapsed.TotalMilliseconds);
 				}
 
-				totalProcessedCount += batch.Count;
+				if (processedIds.Count > 0)
+				{
+					await _outbox.DeleteOutboxRecordsAsync(processedIds, cancellationToken).ConfigureAwait(false);
+				}
+
+				totalProcessedCount += processedIds.Count;
 			}
 		}
 		catch (OperationCanceledException)
@@ -327,20 +323,20 @@ public class OutboxManager : IOutboxManager
 	}
 
 	/// <summary>
-	///     Reserves a batch of outbox records for processing.
+	///   Reserves a batch of outbox records for processing.
 	/// </summary>
 	/// <param name="dispatcherId"> The ID of the dispatcher. </param>
 	/// <param name="batchSize"> The number of records to reserve in the batch. </param>
 	/// <param name="cancellationToken"> A token to observe for cancellation requests. </param>
 	/// <returns> A collection of reserved outbox records. </returns>
-	private async Task<IEnumerable<OutboxRecord>> ReserveBatchRecords(
+	private async Task<IList<OutboxRecord>> ReserveBatchRecords(
 		string dispatcherId,
 		int batchSize,
 		CancellationToken cancellationToken)
 	{
-		var records = await _outbox.TryReserveOneRecordsAsync(dispatcherId, batchSize, cancellationToken).ConfigureAwait(false) ?? [];
+		var records = (await _outbox.TryReserveRecordsAsync(dispatcherId, batchSize, cancellationToken).ConfigureAwait(false)).ToList() ?? [];
 
-		if (!records.Any())
+		if (records.Count == 0)
 		{
 			_logger.LogInformation("Dispatcher {DispatcherId} idle. No outbox record found.", dispatcherId);
 		}
@@ -385,3 +381,5 @@ public class OutboxManager : IOutboxManager
 		}
 	}
 }
+
+#pragma warning restore CA2213 // Disposable fields should be disposed
