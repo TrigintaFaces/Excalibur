@@ -94,7 +94,7 @@ public class Outbox : IOutbox
 	}
 
 	/// <inheritdoc />
-	public async Task TryUnReserveOneRecordsAsync(string dispatcherId, CancellationToken cancellationToken) =>
+	public async Task TryUnReserveRecordsAsync(string dispatcherId, CancellationToken cancellationToken) =>
 		await ExecuteWithPolicyAsync(OutboxCommands.UnReserveOutboxRecords(dispatcherId, DbTimeouts.RegularTimeoutSeconds, _configuration),
 			cancellationToken).ConfigureAwait(false);
 
@@ -162,13 +162,6 @@ public class Outbox : IOutbox
 					"Error dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId}",
 					record.OutboxId,
 					dispatcherId);
-
-			_telemetryClient?.TrackException(
-				ex,
-				new Dictionary<string, string>
-				{
-					{ "DispatcherId", dispatcherId }, { "OutboxId", record.OutboxId.ToString() }, { "ErrorType", ex.GetType().Name }
-				});
 
 			_telemetryClient?.TrackException(
 				ex,
@@ -391,7 +384,7 @@ public class Outbox : IOutbox
 
 			var parameters = new DynamicParameters();
 			parameters.Add("DispatcherId", dispatcherId, direction: ParameterDirection.Input);
-			parameters.Add("TimeoutMilliseconds", configuration.DispatcherTimeoutMilliseconds, direction: ParameterDirection.Input);
+			parameters.Add("TimeoutMilliseconds", sqlTimeOutSeconds, direction: ParameterDirection.Input);
 
 			return new CommandDefinition(sql, parameters, commandTimeout: sqlTimeOutSeconds);
 		}
