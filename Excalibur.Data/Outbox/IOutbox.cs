@@ -27,7 +27,7 @@ public interface IOutbox
 	/// <param name="dispatcherId"> The identifier of the dispatcher attempting to unreserve records. </param>
 	/// <param name="cancellationToken"> The cancellation token to observe. </param>
 	/// <returns> A task representing the asynchronous operation. </returns>
-	public Task TryUnReserveOneRecordsAsync(string dispatcherId, CancellationToken cancellationToken);
+	public Task TryUnReserveRecordsAsync(string dispatcherId, CancellationToken cancellationToken);
 
 	/// <summary>
 	///   Attempts to reserve a batch of outbox records for a specific dispatcher.

@@ -96,7 +96,7 @@ public class OutboxManager : IOutboxManager
 	{
 		ObjectDisposedException.ThrowIf(_disposedFlag == 1, this);
 
-		await _outbox.TryUnReserveOneRecordsAsync(dispatcherId, cancellationToken).ConfigureAwait(false);
+		await _outbox.TryUnReserveRecordsAsync(dispatcherId, cancellationToken).ConfigureAwait(false);
 
 		_producerTask = Task.Run(() => ProducerLoop(dispatcherId, cancellationToken), cancellationToken);
 		_consumerTask = Task.Run(() => ConsumerLoop(dispatcherId, cancellationToken), cancellationToken);
