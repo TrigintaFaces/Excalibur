@@ -262,8 +262,6 @@ public class OutboxManager : IOutboxManager
 				var batch = await _outboxQueue.DequeueBatchAsync(_configuration.ConsumerBatchSize, cancellationToken).ConfigureAwait(false);
 				_logger.LogInformation("Outbox processing batch of {BatchSize} records", batch.Count);
 
-				var processedIds = new List<Guid>();
-
 				foreach (var record in batch)
 				{
 					var stopwatch = ValueStopwatch.StartNew();
@@ -274,35 +272,29 @@ public class OutboxManager : IOutboxManager
 
 						if (processed)
 						{
-							processedIds.Add(record.OutboxId);
+							await _outbox.DeleteOutboxRecordsAsync([record.OutboxId], cancellationToken).ConfigureAwait(false);
+							totalProcessedCount++;
 
 							_telemetryClient?.TrackTrace(
-									$"Dispatched OutboxRecord {record.OutboxId}",
-									SeverityLevel.Information,
-									new Dictionary<string, string> { ["OutboxId"] = record.OutboxId.ToString(), ["DispatcherId"] = dispatcherId });
+											$"Dispatched OutboxRecord {record.OutboxId}",
+											SeverityLevel.Information,
+											new Dictionary<string, string> { ["OutboxId"] = record.OutboxId.ToString(), ["DispatcherId"] = dispatcherId });
 						}
 					}
 					catch (Exception ex)
 					{
 						_telemetryClient?.TrackException(
-								new ExceptionTelemetry(ex) { Message = "Error in Outbox processing", SeverityLevel = SeverityLevel.Error });
+										new ExceptionTelemetry(ex) { Message = "Error in Outbox processing", SeverityLevel = SeverityLevel.Error });
 
 						_logger.LogError(
-								ex,
-								"Error dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId} in OutboxManager",
-								record.OutboxId,
-								record.DispatcherId);
+										ex,
+										"Error dispatching OutboxRecord with Id {OutboxId} from dispatcher {DispatcherId} in OutboxManager",
+										record.OutboxId,
+										record.DispatcherId);
 					}
 
 					_telemetryClient?.GetMetric("Outbox.ProcessingTime").TrackValue(stopwatch.Elapsed.TotalMilliseconds);
 				}
-
-				if (processedIds.Count > 0)
-				{
-					await _outbox.DeleteOutboxRecordsAsync(processedIds, cancellationToken).ConfigureAwait(false);
-				}
-
-				totalProcessedCount += processedIds.Count;
 			}
 		}
 		catch (OperationCanceledException)
