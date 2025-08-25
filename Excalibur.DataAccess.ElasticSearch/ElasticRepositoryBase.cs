@@ -1,3 +1,17 @@
+// Copyright (c) 2025 The Excalibur Project Authors
+//
+// Licensed under multiple licenses:
+// - Excalibur License 1.0 (see LICENSE-EXCALIBUR.txt)
+// - GNU Affero General Public License v3.0 or later (AGPL-3.0) (see LICENSE-AGPL-3.0.txt)
+// - Server Side Public License v1.0 (SSPL-1.0) (see LICENSE-SSPL-1.0.txt)
+// - Apache License 2.0 (see LICENSE-APACHE-2.0.txt)
+//
+// You may not use this file except in compliance with the License terms above. You may obtain copies of the licenses in
+// the project root or online.
+//
+// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+// an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+
 using System.Net;
 
 using Elastic.Clients.Elasticsearch;
@@ -8,12 +22,12 @@ using Excalibur.DataAccess.ElasticSearch.Exceptions;
 namespace Excalibur.DataAccess.ElasticSearch;
 
 /// <summary>
-///     Provides a base implementation for interacting with Elasticsearch for a specific document type.
+///   Provides a base implementation for interacting with Elasticsearch for a specific document type.
 /// </summary>
 /// <typeparam name="TDocument"> The type of the document to manage in Elasticsearch. </typeparam>
 /// <remarks>
-///     This class includes operations for adding, updating, retrieving, deleting, and searching documents, as well as initializing indices
-///     in Elasticsearch.
+///   This class includes operations for adding, updating, retrieving, deleting, and searching documents, as well as
+///   initializing indices in Elasticsearch.
 /// </remarks>
 public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex, IElasticRepositoryBase<TDocument> where TDocument : class
 {
@@ -21,13 +35,13 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 	private readonly string _indexName;
 
 	/// <summary>
-	///     Initializes a new instance of the <see cref="ElasticRepositoryBase{TDocument}" /> class with the specified Elasticsearch client
-	///     and index name.
+	///   Initializes a new instance of the <see cref="ElasticRepositoryBase{TDocument}" /> class with the specified
+	///   Elasticsearch client and index name.
 	/// </summary>
 	/// <param name="client"> The <see cref="ElasticsearchClient" /> instance used to communicate with Elasticsearch. </param>
 	/// <param name="indexName"> The name of the Elasticsearch index that this repository will operate on. </param>
 	/// <exception cref="ArgumentNullException">
-	///     Thrown if <paramref name="client" /> or <paramref name="indexName" /> is <c> null </c> or empty.
+	///   Thrown if <paramref name="client" /> or <paramref name="indexName" /> is <c> null </c> or empty.
 	/// </exception>
 	protected ElasticRepositoryBase(ElasticsearchClient client, string indexName)
 	{
@@ -56,7 +70,8 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 		}
 
 		_ = response.TryGetOriginalException(out var exception);
-		throw new ElasticsearchGetByIdException(documentId, typeof(TDocument), response.ApiCallDetails!.ToString(), exception);
+		var details = response.ApiCallDetails?.ToString() ?? "No API details available";
+		throw new ElasticsearchGetByIdException(documentId, typeof(TDocument), details, exception);
 	}
 
 	/// <inheritdoc />
@@ -69,7 +84,7 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 			.IndexAsync(document, idx => idx
 				.Index(_indexName)
 				.Id(documentId)
-				.Refresh(Refresh.True), cancellationToken).ConfigureAwait(false);
+				.Refresh(Refresh.WaitFor), cancellationToken).ConfigureAwait(false);
 
 		if (response.IsValidResponse)
 		{
@@ -77,7 +92,8 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 		}
 
 		_ = response.TryGetOriginalException(out var exception);
-		throw new ElasticsearchIndexingException(_indexName, typeof(TDocument), response.ApiCallDetails.ToString(), exception);
+		var details = response.ApiCallDetails?.ToString() ?? "No API details available";
+		throw new ElasticsearchIndexingException(_indexName, typeof(TDocument), details, exception);
 	}
 
 	/// <inheritdoc />
@@ -87,7 +103,7 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 		ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
 		ArgumentNullException.ThrowIfNull(updatedFields);
 
-		var updateRequest = new UpdateRequest<TDocument, object>(_indexName, documentId) { Doc = updatedFields, Refresh = Refresh.True };
+		var updateRequest = new UpdateRequest<TDocument, object>(_indexName, documentId) { Doc = updatedFields, Refresh = Refresh.WaitFor };
 
 		var response = await _client.UpdateAsync(updateRequest, cancellationToken).ConfigureAwait(false);
 
@@ -97,7 +113,8 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 		}
 
 		_ = response.TryGetOriginalException(out var exception);
-		throw new ElasticsearchUpdateException(_indexName, typeof(TDocument), response.ApiCallDetails.ToString(), exception);
+		var details = response.ApiCallDetails?.ToString() ?? "No API details available";
+		throw new ElasticsearchUpdateException(_indexName, typeof(TDocument), details, exception);
 	}
 
 	/// <inheritdoc />
@@ -114,7 +131,7 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 				.IndexMany(documents, (idx, doc) => idx
 					.Index(_indexName)
 					.Id(idSelector(doc))
-				).Refresh(Refresh.True), cancellationToken)
+				).Refresh(Refresh.WaitFor), cancellationToken)
 			.ConfigureAwait(false);
 
 		if (response.IsValidResponse)
@@ -124,10 +141,11 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 
 		_ = response.TryGetOriginalException(out var exception);
 		var failedItems = response.ItemsWithErrors.Select(item => item.Id).ToList();
+		var details = response.ApiCallDetails?.ToString() ?? "No API details available";
 		throw new ElasticsearchIndexingException(
 			_indexName,
 			typeof(TDocument),
-			$"Failed items: {string.Join(", ", failedItems)}. API details: {response.ApiCallDetails}",
+			$"Failed items: {string.Join(", ", failedItems)}. API details: {details}",
 			exception
 		);
 	}
@@ -140,7 +158,7 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 		var response = await _client
 			.DeleteAsync<TDocument>(documentId, idx => idx
 				.Index(_indexName)
-				.Refresh(Refresh.True), cancellationToken).ConfigureAwait(false);
+				.Refresh(Refresh.WaitFor), cancellationToken).ConfigureAwait(false);
 
 		if (response.IsValidResponse)
 		{
@@ -148,7 +166,8 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 		}
 
 		_ = response.TryGetOriginalException(out var exception);
-		throw new ElasticsearchDeleteException(documentId, typeof(TDocument), response.ApiCallDetails.ToString(), exception);
+		var details = response.ApiCallDetails?.ToString() ?? "No API details available";
+		throw new ElasticsearchDeleteException(documentId, typeof(TDocument), details, exception);
 	}
 
 	/// <inheritdoc />
@@ -163,14 +182,15 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 		}
 
 		_ = response.TryGetOriginalException(out var exception);
-		throw new ElasticsearchSearchException(_indexName, typeof(TDocument), response.ApiCallDetails.ToString(), exception);
+		var details = response.ApiCallDetails?.ToString() ?? "No API details available";
+		throw new ElasticsearchSearchException(_indexName, typeof(TDocument), details, exception);
 	}
 
 	/// <inheritdoc />
 	public abstract Task InitializeIndexAsync(CancellationToken cancellationToken = default);
 
 	/// <summary>
-	///     Initializes the Elasticsearch index using a specific <see cref="CreateIndexRequest" />.
+	///   Initializes the Elasticsearch index using a specific <see cref="CreateIndexRequest" />.
 	/// </summary>
 	/// <param name="createIndexRequest"> The request configuration for creating the index. </param>
 	/// <param name="cancellationToken"> The cancellation token to cancel the operation if required. </param>
