@@ -6,10 +6,11 @@
 // - Server Side Public License v1.0 (SSPL-1.0) (see LICENSE-SSPL-1.0.txt)
 // - Apache License 2.0 (see LICENSE-APACHE-2.0.txt)
 //
-// You may not use this file except in compliance with the License terms above. You may obtain copies of the licenses in the project root or online.
+// You may not use this file except in compliance with the License terms above. You may obtain copies of the licenses in
+// the project root or online.
 //
-// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+// an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 
 using Excalibur.DataAccess.Exceptions;
 using Excalibur.DataAccess.SqlServer;
@@ -24,7 +25,7 @@ using Polly;
 namespace Excalibur.DataAccess.DataProcessing;
 
 /// <summary>
-///     A delegate for updating the count of completed records during data processing.
+///   A delegate for updating the count of completed records during data processing.
 /// </summary>
 /// <param name="complete"> The current number of completed records. </param>
 /// <param name="cancellationToken"> A token to signal cancellation. </param>
@@ -32,7 +33,7 @@ namespace Excalibur.DataAccess.DataProcessing;
 public delegate Task UpdateCompletedCount(long complete, CancellationToken cancellationToken = default);
 
 /// <summary>
-///     Provides an abstract base implementation for a batched data processing pipeline.
+///   Provides an abstract base implementation for a batched data processing pipeline.
 /// </summary>
 /// <typeparam name="TRecord"> The type of records being processed. </typeparam>
 public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TRecord>
@@ -66,7 +67,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	private long _completedCount;
 
 	/// <summary>
-	///     Initializes a new instance of the <see cref="DataProcessor{TRecord}" /> class.
+	///   Initializes a new instance of the <see cref="DataProcessor{TRecord}" /> class.
 	/// </summary>
 	/// <param name="appLifetime"> Provides notifications about application lifetime events. </param>
 	/// <param name="configuration"> The data processing configuration options. </param>
@@ -82,7 +83,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	}
 
 	/// <summary>
-	///     Initializes a new instance of the <see cref="DataProcessor{TRecord}" /> class with a custom policy factory.
+	///   Initializes a new instance of the <see cref="DataProcessor{TRecord}" /> class with a custom policy factory.
 	/// </summary>
 	/// <param name="appLifetime"> Provides notifications about application lifetime events. </param>
 	/// <param name="configuration"> The data processing configuration options. </param>
@@ -146,7 +147,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	}
 
 	/// <summary>
-	///     Disposes of resources used by the DataProcessor.
+	///   Disposes of resources used by the DataProcessor.
 	/// </summary>
 	protected virtual async ValueTask DisposeAsyncCore()
 	{
@@ -211,9 +212,16 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 				}
 
 				var batchSize = Math.Min(_configuration.ProducerBatchSize, availableSlots);
+				var connection = _serviceProvider.GetRequiredService<IDataToProcessDb>().Connection;
 				var batch =
-					await _policy.ExecuteAsync(() => FetchBatchAsync(_skipCount, batchSize, combinedToken)).ConfigureAwait(false) as
-						ICollection<TRecord> ?? [];
+					await _policy.ExecuteAsync(
+						async (context, token) =>
+						{
+							connection.Ready();
+							return await FetchBatchAsync(_skipCount, batchSize, token).ConfigureAwait(false);
+						},
+						new Context { ["DbConnection"] = connection },
+						combinedToken).ConfigureAwait(false) as ICollection<TRecord> ?? [];
 
 				if (batch.Count == 0)
 				{
@@ -301,8 +309,8 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 					try
 					{
-						// Ensures events are dispatched in order. Critical when using Mediator to publish domain events that must be
-						// processed sequentially.
+						// Ensures events are dispatched in order. Critical when using Mediator to publish domain events
+						// that must be processed sequentially.
 						await _orderedEventProcessor.ProcessAsync(async () =>
 						{
 							await ProcessRecordAsync(record, cancellationToken).ConfigureAwait(false);
@@ -364,6 +372,7 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 
 		using var scope = _serviceProvider.CreateScope();
 		var handler = scope.ServiceProvider.GetRequiredService<IRecordHandler<TRecord>>();
+		var connection = scope.ServiceProvider.GetRequiredService<IDataToProcessDb>().Connection;
 
 		if (handler is null)
 		{
@@ -371,11 +380,18 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 			return;
 		}
 
-		await _policy.ExecuteAsync(() => handler.HandleAsync(record, cancellationToken)).ConfigureAwait(false);
+		await _policy.ExecuteAsync(
+			async (context, token) =>
+			{
+				connection.Ready();
+				await handler.HandleAsync(record, token).ConfigureAwait(false);
+			},
+			new Context { ["DbConnection"] = connection },
+			cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>
-	///     Handles cleanup when the application is stopping.
+	///   Handles cleanup when the application is stopping.
 	/// </summary>
 	private void OnApplicationStopping()
 	{
