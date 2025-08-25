@@ -23,6 +23,8 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+using Polly;
+
 namespace Excalibur.DataAccess.SqlServer.Cdc;
 
 public delegate Task CdcFatalErrorHandler(Exception exception, DataChangeEvent failedEvent);
@@ -74,6 +76,10 @@ public class CdcProcessor : ICdcProcessor
 	private Task<int>? _consumerTask;
 
 	private volatile bool _producerStopped;
+
+	private IAsyncPolicy _repoPolicy = null!;
+
+	private IAsyncPolicy _fetchPolicy = null!;
 
 	/// <summary>
 	///   Initializes a new instance of the <see cref="CdcProcessor" /> class.
@@ -152,6 +158,8 @@ public class CdcProcessor : ICdcProcessor
 			}
 
 			_isRunning = true;
+			_repoPolicy = _policyFactory.GetComprehensivePolicy();
+			_fetchPolicy = _policyFactory.GetComprehensivePolicy();
 
 			await InitializeTrackingAsync(cancellationToken).ConfigureAwait(false);
 
@@ -283,8 +291,7 @@ public class CdcProcessor : ICdcProcessor
 			using var combinedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, ProducerCancellationToken);
 			var combinedToken = combinedTokenSource.Token;
 			var currentGlobalLsn = lowestStartLsn;
-			var repoPolicy = _policyFactory.GetComprehensivePolicy();
-			var maxLsn = await repoPolicy
+			var maxLsn = await _repoPolicy
 				.ExecuteAsync(() => _cdcRepository.GetMaxPositionAsync(combinedToken))
 				.ConfigureAwait(false);
 
@@ -364,57 +371,53 @@ public class CdcProcessor : ICdcProcessor
 			IList<CdcRow> changes;
 			try
 			{
-				var fetchPolicy = _policyFactory.GetComprehensivePolicy();
-				changes = await fetchPolicy
-						.ExecuteAsync(async () =>
-						{
-							try
-							{
-								return await _cdcRepository.FetchChangesAsync(
-														tableName,
-														producerBatchSize,
-														lsn,
-														sequenceValue,
-														lastOperation,
-														combinedToken).ConfigureAwait(false);
-							}
-							catch (SqlException ex) when (IsInvalidLsnException(ex))
-							{
-								throw new InvalidCdcLsnException(lsn, ex);
-							}
-						})
-						.ConfigureAwait(false) as IList<CdcRow> ?? [];
+				changes = await _fetchPolicy
+								.ExecuteAsync(async () =>
+								{
+									try
+									{
+										return await _cdcRepository.FetchChangesAsync(
+																										tableName,
+																										producerBatchSize,
+																										lsn,
+																										sequenceValue,
+																										lastOperation,
+																										combinedToken).ConfigureAwait(false);
+									}
+									catch (SqlException ex) when (IsInvalidLsnException(ex))
+									{
+										throw new InvalidCdcLsnException(lsn, ex);
+									}
+								})
+								.ConfigureAwait(false) as IList<CdcRow> ?? [];
 			}
 			catch (InvalidCdcLsnException ex)
 			{
 				_logger.LogWarning(
-						ex,
-						"Invalid LSN {Lsn} for {TableName}, attempting to recover",
-						ByteArrayToHex(lsn),
-						tableName);
+								ex,
+								"Invalid LSN {Lsn} for {TableName}, attempting to recover",
+								ByteArrayToHex(lsn),
+								tableName);
 
-				var recoveryPolicy = _policyFactory.GetComprehensivePolicy();
-				var nextValidLsn = await recoveryPolicy
-														   .ExecuteAsync(() => _cdcRepository.GetNextValidLsn(lsn, combinedToken))
-														   .ConfigureAwait(false)
-												   ?? await recoveryPolicy
-														   .ExecuteAsync(() => _cdcRepository.GetMinPositionAsync(tableName, combinedToken))
-														   .ConfigureAwait(false);
+				var nextValidLsn = await _repoPolicy
+																								   .ExecuteAsync(() => _cdcRepository.GetNextValidLsn(lsn, combinedToken))
+																								   .ConfigureAwait(false)
+																				   ?? await _repoPolicy
+																								   .ExecuteAsync(() => _cdcRepository.GetMinPositionAsync(tableName, combinedToken))
+																								   .ConfigureAwait(false);
 
-				var commitTimePolicy = _policyFactory.GetComprehensivePolicy();
-				var commitTime = await commitTimePolicy
-						.ExecuteAsync(() => _cdcRepository.GetLsnToTimeAsync(nextValidLsn, combinedToken))
-						.ConfigureAwait(false);
+				var commitTime = await _repoPolicy
+								.ExecuteAsync(() => _cdcRepository.GetLsnToTimeAsync(nextValidLsn, combinedToken))
+								.ConfigureAwait(false);
 
-				var updatePolicy = _policyFactory.GetComprehensivePolicy();
-				await updatePolicy
-						.ExecuteAsync(() => UpdateTableLastProcessed(
-								tableName,
-								nextValidLsn,
-								null,
-								commitTime,
-								combinedToken))
-						.ConfigureAwait(false);
+				await _repoPolicy
+								.ExecuteAsync(() => UpdateTableLastProcessed(
+												tableName,
+												nextValidLsn,
+												null,
+												commitTime,
+												combinedToken))
+								.ConfigureAwait(false);
 
 				UpdateLsnTracking(tableName, nextValidLsn, null);
 
@@ -426,28 +429,26 @@ public class CdcProcessor : ICdcProcessor
 				if (totalRowsReadInThisLsn > 0)
 				{
 					_logger.LogDebug(
-						"Successfully enqueued {EnqueuedRowCount} CDC rows for {TableName}, advancing LSN.",
-						totalRowsReadInThisLsn,
-						tableName);
+							"Successfully enqueued {EnqueuedRowCount} CDC rows for {TableName}, advancing LSN.",
+							totalRowsReadInThisLsn,
+							tableName);
 				}
 				else
 				{
 					_logger.LogInformation("No changes found for {TableName}, advancing LSN.", tableName);
 
-					var commitTimePolicy = _policyFactory.GetComprehensivePolicy();
-					var commitTime = await commitTimePolicy
-						.ExecuteAsync(() => _cdcRepository.GetLsnToTimeAsync(lsn, combinedToken))
-						.ConfigureAwait(false);
+					var commitTime = await _repoPolicy
+							.ExecuteAsync(() => _cdcRepository.GetLsnToTimeAsync(lsn, combinedToken))
+							.ConfigureAwait(false);
 
-					var updatePolicy = _policyFactory.GetComprehensivePolicy();
-					await updatePolicy
-						.ExecuteAsync(() => UpdateTableLastProcessed(
-							tableName,
-							lsn,
-							sequenceValue,
-							commitTime,
-							combinedToken))
-						.ConfigureAwait(false);
+					await _repoPolicy
+							.ExecuteAsync(() => UpdateTableLastProcessed(
+									tableName,
+									lsn,
+									sequenceValue,
+									commitTime,
+									combinedToken))
+							.ConfigureAwait(false);
 				}
 
 				break;
@@ -546,8 +547,7 @@ public class CdcProcessor : ICdcProcessor
 			throw new UnmatchedUpdateRecordsException(lsn);
 		}
 
-		var nextLsnPolicy = _policyFactory.GetComprehensivePolicy();
-		var nextLsn = await nextLsnPolicy
+		var nextLsn = await _repoPolicy
 			.ExecuteAsync(() => _cdcRepository.GetNextLsnAsync(tableName, lsn, combinedToken))
 			.ConfigureAwait(false);
 
@@ -660,7 +660,7 @@ public class CdcProcessor : ICdcProcessor
 			try
 			{
 				await _orderedEventProcessor.ProcessAsync(async () =>
-						await _policyFactory.GetComprehensivePolicy().ExecuteAsync(async () =>
+						await _repoPolicy.ExecuteAsync(async () =>
 								await eventHandler(changeEvent, cancellationToken)
 									.ConfigureAwait(false))
 							.ConfigureAwait(false))
@@ -684,8 +684,7 @@ public class CdcProcessor : ICdcProcessor
 				}
 			}
 
-			var updateTablePolicy = _policyFactory.GetComprehensivePolicy();
-			await updateTablePolicy.ExecuteAsync(() => UpdateTableLastProcessed(
+			await _repoPolicy.ExecuteAsync(() => UpdateTableLastProcessed(
 				changeEvent.TableName,
 				changeEvent.Lsn,
 				changeEvent.SeqVal,
@@ -715,18 +714,17 @@ public class CdcProcessor : ICdcProcessor
 
 	private async Task InitializeTrackingAsync(CancellationToken cancellationToken)
 	{
-		var policy = _policyFactory.GetComprehensivePolicy();
-		var processingStates = await policy.ExecuteAsync(() => _stateStore.GetLastProcessedPositionAsync(
+		var processingStates = await _repoPolicy.ExecuteAsync(() => _stateStore.GetLastProcessedPositionAsync(
 			_dbConfig.DatabaseConnectionIdentifier,
 			_dbConfig.DatabaseName,
 			cancellationToken)).ConfigureAwait(false) as ICollection<CdcProcessingState> ?? [];
 
-		var maxLsn = await policy.ExecuteAsync(() => _cdcRepository.GetMaxPositionAsync(cancellationToken)).ConfigureAwait(false);
+		var maxLsn = await _repoPolicy.ExecuteAsync(() => _cdcRepository.GetMaxPositionAsync(cancellationToken)).ConfigureAwait(false);
 
 		foreach (var captureInstance in _dbConfig.CaptureInstances)
 		{
-			var exists = await policy.ExecuteAsync(() => _cdcRepository.CaptureInstanceExistsAsync(captureInstance, cancellationToken))
-					.ConfigureAwait(false);
+			var exists = await _repoPolicy.ExecuteAsync(() => _cdcRepository.CaptureInstanceExistsAsync(captureInstance, cancellationToken))
+				.ConfigureAwait(false);
 
 			if (!exists)
 			{
@@ -738,8 +736,8 @@ public class CdcProcessor : ICdcProcessor
 
 			byte[] startLsn;
 			byte[]? seqVal = null;
-			var minLsn = await policy.ExecuteAsync(() => _cdcRepository.GetMinPositionAsync(captureInstance, cancellationToken))
-					.ConfigureAwait(false);
+			var minLsn = await _repoPolicy.ExecuteAsync(() => _cdcRepository.GetMinPositionAsync(captureInstance, cancellationToken))
+				.ConfigureAwait(false);
 			var lsnChanged = false;
 
 			if (state == null || IsEmptyLsn(state.LastProcessedLsn))
@@ -757,16 +755,16 @@ public class CdcProcessor : ICdcProcessor
 
 				if (startLsn.CompareLsn(minLsn) < 0 || startLsn.CompareLsn(maxLsn) > 0)
 				{
-					var nextValid = await policy.ExecuteAsync(() => _cdcRepository.GetNextValidLsn(startLsn, cancellationToken))
-							.ConfigureAwait(false);
+					var nextValid = await _repoPolicy.ExecuteAsync(() => _cdcRepository.GetNextValidLsn(startLsn, cancellationToken))
+						.ConfigureAwait(false);
 					startLsn = nextValid ?? minLsn;
 					seqVal = null;
 					lsnChanged = true;
 				}
 			}
 
-			var commitTime = await policy.ExecuteAsync(() => _cdcRepository.GetLsnToTimeAsync(startLsn, cancellationToken))
-					.ConfigureAwait(false);
+			var commitTime = await _repoPolicy.ExecuteAsync(() => _cdcRepository.GetLsnToTimeAsync(startLsn, cancellationToken))
+				.ConfigureAwait(false);
 			if (commitTime is null)
 			{
 				_logger.LogWarning(
@@ -776,19 +774,19 @@ public class CdcProcessor : ICdcProcessor
 						ByteArrayToHex(minLsn));
 				startLsn = minLsn;
 				seqVal = null;
-				commitTime = await policy.ExecuteAsync(() => _cdcRepository.GetLsnToTimeAsync(startLsn, cancellationToken))
-						.ConfigureAwait(false);
+				commitTime = await _repoPolicy.ExecuteAsync(() => _cdcRepository.GetLsnToTimeAsync(startLsn, cancellationToken))
+					.ConfigureAwait(false);
 				lsnChanged = true;
 			}
 
 			if (lsnChanged)
 			{
-				await policy.ExecuteAsync(() => UpdateTableLastProcessed(
-						captureInstance,
-						startLsn,
-						seqVal,
-						commitTime,
-						cancellationToken)).ConfigureAwait(false);
+				await _repoPolicy.ExecuteAsync(() => UpdateTableLastProcessed(
+					captureInstance,
+					startLsn,
+					seqVal,
+					commitTime,
+					cancellationToken)).ConfigureAwait(false);
 			}
 
 			UpdateLsnTracking(captureInstance, startLsn, seqVal);

@@ -6,10 +6,11 @@
 // - Server Side Public License v1.0 (SSPL-1.0) (see LICENSE-SSPL-1.0.txt)
 // - Apache License 2.0 (see LICENSE-APACHE-2.0.txt)
 //
-// You may not use this file except in compliance with the License terms above. You may obtain copies of the licenses in the project root or online.
+// You may not use this file except in compliance with the License terms above. You may obtain copies of the licenses in
+// the project root or online.
 //
-// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+// an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 
 using System.Data;
 
@@ -75,68 +76,68 @@ public class SqlDataAccessPolicyFactory : IDataAccessPolicyFactory
 			onHalfOpen: () => _logger.LogInformation("Advanced circuit breaker is half-open; testing next action."));
 
 	private IAsyncPolicy CreateWaitAndRetryPolicy() =>
-		Policy.Handle<SqlException>().Or<TimeoutException>().WaitAndRetryAsync(
-			retryCount: 5,
-			sleepDurationProvider: (int retryAttempt, Context context) =>
-			{
-				if (context.TryGetValue("LastSqlException", out var lastSqlException) && lastSqlException is SqlException { Number: 927 })
-				{
-					// Special case: Wait 20 minutes for restore error (927)
-					return TimeSpan.FromMinutes(20);
-				}
-
-				// Exponential backoff for other transient errors
-				return TimeSpan.FromSeconds(Math.Pow(2, retryAttempt));
-			},
-			onRetry: (Exception exception, TimeSpan timeSpan, int retryCount, Context context) =>
-			{
-				if (exception is SqlException sqlException)
-				{
-					context["LastSqlException"] = exception;
-
-					if (sqlException.Number is 596 or -2
-						&& context.TryGetValue("DbConnection", out var conn)
-						&& conn is IDbConnection dbConnection)
-					{
-						try
+				Policy.Handle<SqlException>().Or<TimeoutException>().WaitAndRetryAsync(
+						retryCount: 5,
+						sleepDurationProvider: (int retryAttempt, Exception exception, Context context) =>
 						{
-							dbConnection.Close();
-							dbConnection.Open();
-						}
-						catch (Exception resetEx)
-						{
-							_logger.LogError(resetEx, "Failed to reset SQL connection on retry.");
-						}
-					}
+							if (exception is SqlException { Number: 927 })
+							{
+								// Special case: Wait 20 minutes for restore error (927)
+								return TimeSpan.FromMinutes(20);
+							}
 
-					_logger.LogWarning(
-						"Retry {RetryCount} due to SQL error: {ErrorNumber}:{Message}",
-						retryCount,
-						sqlException.Number,
-						exception.Message);
-				}
-				else if (exception is TimeoutException timeoutException)
-				{
-					if (context.TryGetValue("DbConnection", out var connectionObj)
-						&& connectionObj is IDbConnection dbConnection)
-					{
-						try
+							// Exponential backoff for other transient errors
+							return TimeSpan.FromSeconds(Math.Pow(2, retryAttempt));
+						},
+						onRetryAsync: (Exception exception, TimeSpan timeSpan, int retryAttempt, Context context) =>
 						{
-							dbConnection.Close();
-							dbConnection.Open();
-						}
-						catch (Exception resetEx)
-						{
-							_logger.LogError(resetEx, "Failed to reset SQL connection on retry.");
-						}
-					}
+							if (exception is SqlException sqlException)
+							{
+								if (sqlException.Number is 596 or -2
+										&& context.TryGetValue("DbConnection", out var conn)
+										&& conn is IDbConnection dbConnection)
+								{
+									try
+									{
+										dbConnection.Close();
+										dbConnection.Open();
+									}
+									catch (Exception resetEx)
+									{
+										_logger.LogError(resetEx, "Failed to reset SQL connection on retry.");
+									}
+								}
 
-					_logger.LogWarning(
-						"Retry {RetryCount} due to Timeout: {Message}",
-						retryCount,
-						timeoutException.Message);
-				}
+								_logger.LogWarning(
+										"Retry {RetryCount} due to SQL error: {ErrorNumber}:{Message}",
+										retryAttempt,
+										sqlException.Number,
+										exception.Message);
+							}
+							else if (exception is TimeoutException timeoutException)
+							{
+								if (context.TryGetValue("DbConnection", out var connectionObj)
+										&& connectionObj is IDbConnection dbConnection)
+								{
+									try
+									{
+										dbConnection.Close();
+										dbConnection.Open();
+									}
+									catch (Exception resetEx)
+									{
+										_logger.LogError(resetEx, "Failed to reset SQL connection on retry.");
+									}
+								}
 
-				_logger.LogWarning("Waiting {TimeSpan} before next retry.", timeSpan);
-			});
+								_logger.LogWarning(
+										"Retry {RetryCount} due to Timeout: {Message}",
+										retryAttempt,
+										timeoutException.Message);
+							}
+
+							_logger.LogWarning("Waiting {TimeSpan} before next retry.", timeSpan);
+
+							return Task.CompletedTask;
+						});
 }

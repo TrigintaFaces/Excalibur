@@ -82,11 +82,15 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 			DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
 
-		_ = await _policy.ExecuteAsync(() =>
-			_db.Connection
-				.Ready()
-				.ExecuteAsync(command))
-			.ConfigureAwait(false);
+		var connection = _db.Connection;
+		_ = await _policy.ExecuteAsync(
+			async (context, token) =>
+			{
+				connection.Ready();
+				return await connection.ExecuteAsync(command).ConfigureAwait(false);
+			},
+			new Context { ["DbConnection"] = connection },
+			cancellationToken).ConfigureAwait(false);
 
 		return dataTaskId;
 	}
@@ -95,12 +99,16 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 	public async ValueTask ProcessDataTasks(CancellationToken cancellationToken = default)
 	{
 		var command = DataTaskCommands.GetDataTaskRequests(_configuration.Value, DbTimeouts.RegularTimeoutSeconds, cancellationToken);
+		var connection = _db.Connection;
 		var requests = (
-			await _policy.ExecuteAsync(() =>
-				_db.Connection
-					.Ready()
-					.QueryAsync<DataTaskRequest>(command))
-				.ConfigureAwait(false)).ToList();
+			await _policy.ExecuteAsync(
+				async (context, token) =>
+				{
+					connection.Ready();
+					return await connection.QueryAsync<DataTaskRequest>(command).ConfigureAwait(false);
+				},
+				new Context { ["DbConnection"] = connection },
+				cancellationToken).ConfigureAwait(false)).ToList();
 
 		if (requests.Count == 0)
 		{
@@ -160,7 +168,15 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 			DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
 
-		_ = await _policy.ExecuteAsync(() => _db.Connection.Ready().ExecuteAsync(command)).ConfigureAwait(false);
+		var connection = _db.Connection;
+		_ = await _policy.ExecuteAsync(
+			async (context, token) =>
+			{
+				connection.Ready();
+				return await connection.ExecuteAsync(command).ConfigureAwait(false);
+			},
+			new Context { ["DbConnection"] = connection },
+			cancellationToken).ConfigureAwait(false);
 	}
 
 	private async Task UpdateCompletedCountAsync(Guid dataTaskId, long complete, CancellationToken cancellationToken = default)
@@ -172,7 +188,15 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 			DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
 
-		_ = await _policy.ExecuteAsync(() => _db.Connection.Ready().ExecuteAsync(command)).ConfigureAwait(false);
+		var connection = _db.Connection;
+		_ = await _policy.ExecuteAsync(
+			async (context, token) =>
+			{
+				connection.Ready();
+				return await connection.ExecuteAsync(command).ConfigureAwait(false);
+			},
+			new Context { ["DbConnection"] = connection },
+			cancellationToken).ConfigureAwait(false);
 	}
 
 	private async Task DeleteRequestAsync(Guid dataTaskId, CancellationToken cancellationToken = default)
@@ -183,7 +207,15 @@ public class DataOrchestrationManager : IDataOrchestrationManager
 			DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
 
-		_ = await _policy.ExecuteAsync(() => _db.Connection.Ready().ExecuteAsync(command)).ConfigureAwait(false);
+		var connection = _db.Connection;
+		_ = await _policy.ExecuteAsync(
+			async (context, token) =>
+			{
+				connection.Ready();
+				return await connection.ExecuteAsync(command).ConfigureAwait(false);
+			},
+			new Context { ["DbConnection"] = connection },
+			cancellationToken).ConfigureAwait(false);
 	}
 
 	internal static class DataTaskCommands
