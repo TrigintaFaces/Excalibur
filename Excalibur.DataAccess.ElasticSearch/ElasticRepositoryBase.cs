@@ -83,8 +83,7 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 		var response = await _client
 			.IndexAsync(document, idx => idx
 				.Index(_indexName)
-				.Id(documentId)
-				.Refresh(Refresh.WaitFor), cancellationToken).ConfigureAwait(false);
+				.Id(documentId), cancellationToken).ConfigureAwait(false);
 
 		if (response.IsValidResponse)
 		{
@@ -103,7 +102,7 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 		ArgumentException.ThrowIfNullOrWhiteSpace(documentId);
 		ArgumentNullException.ThrowIfNull(updatedFields);
 
-		var updateRequest = new UpdateRequest<TDocument, object>(_indexName, documentId) { Doc = updatedFields, Refresh = Refresh.WaitFor };
+		var updateRequest = new UpdateRequest<TDocument, object>(_indexName, documentId) { Doc = updatedFields };
 
 		var response = await _client.UpdateAsync(updateRequest, cancellationToken).ConfigureAwait(false);
 
@@ -131,7 +130,7 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 				.IndexMany(documents, (idx, doc) => idx
 					.Index(_indexName)
 					.Id(idSelector(doc))
-				).Refresh(Refresh.WaitFor), cancellationToken)
+				), cancellationToken)
 			.ConfigureAwait(false);
 
 		if (response.IsValidResponse)
@@ -157,8 +156,7 @@ public abstract class ElasticRepositoryBase<TDocument> : IInitializeElasticIndex
 
 		var response = await _client
 			.DeleteAsync<TDocument>(documentId, idx => idx
-				.Index(_indexName)
-				.Refresh(Refresh.WaitFor), cancellationToken).ConfigureAwait(false);
+				.Index(_indexName), cancellationToken).ConfigureAwait(false);
 
 		if (response.IsValidResponse)
 		{
