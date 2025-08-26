@@ -393,12 +393,12 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 	/// <summary>
 	///   Handles cleanup when the application is stopping.
 	/// </summary>
-	private void OnApplicationStopping()
+	private async void OnApplicationStopping()
 	{
 		_logger.LogInformation("Application is stopping. Cancelling DataProcessor producer immediately.");
 
 		_producerStopped = true;
-		_producerCancellationTokenSource.Cancel();
+		await _producerCancellationTokenSource.CancelAsync().ConfigureAwait(false);
 		_dataQueue.CompleteWriter();
 		_dataQueue.Clear();
 
@@ -417,9 +417,15 @@ public abstract class DataProcessor<TRecord> : IDataProcessor, IRecordFetcher<TR
 		{
 			_logger.LogInformation("Waiting for DataProcessor tasks to complete...");
 
+			using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
 			try
 			{
-				_ = Task.WaitAll(tasks.ToArray(), TimeSpan.FromMinutes(5));
+				await Task.WhenAll(tasks).WaitAsync(timeoutCts.Token).ConfigureAwait(false);
+			}
+			catch (OperationCanceledException)
+			{
+				_logger.LogWarning("Timed out while waiting for DataProcessor tasks to stop.");
 			}
 			catch (Exception ex)
 			{

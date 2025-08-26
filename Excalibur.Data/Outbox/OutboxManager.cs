@@ -336,12 +336,12 @@ public class OutboxManager : IOutboxManager
 		return records;
 	}
 
-	private void OnApplicationStopping()
+	private async void OnApplicationStopping()
 	{
 		_logger.LogInformation("Application is stopping. Cancelling OutboxManager producer immediately.");
 
 		_producerStopped = true;
-		_producerCancellationTokenSource.Cancel();
+		await _producerCancellationTokenSource.CancelAsync().ConfigureAwait(false);
 		_outboxQueue.CompleteWriter();
 		_outboxQueue.Clear();
 
@@ -356,16 +356,22 @@ public class OutboxManager : IOutboxManager
 			tasks.Add(_consumerTask);
 		}
 
-		if (tasks.Count <= 0)
+		if (tasks.Count == 0)
 		{
 			return;
 		}
 
 		_logger.LogInformation("Waiting for OutboxManager tasks to complete...");
 
+		using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
 		try
 		{
-			_ = Task.WaitAll(tasks.ToArray(), TimeSpan.FromMinutes(5));
+			await Task.WhenAll(tasks).WaitAsync(timeoutCts.Token).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException)
+		{
+			_logger.LogWarning("Timed out waiting for OutboxManager tasks to complete.");
 		}
 		catch (Exception ex)
 		{
