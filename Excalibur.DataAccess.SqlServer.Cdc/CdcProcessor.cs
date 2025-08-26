@@ -838,12 +838,12 @@ public class CdcProcessor : ICdcProcessor
 	/// <summary>
 	///   Handles cleanup when the application is stopping.
 	/// </summary>
-	private void OnApplicationStopping()
+	private async void OnApplicationStopping()
 	{
 		_logger.LogInformation("Application is stopping. Cancelling CDCProcessor producer immediately.");
 
 		_producerStopped = true;
-		_producerCancellationTokenSource.Cancel();
+		await _producerCancellationTokenSource.CancelAsync().ConfigureAwait(false);
 		_cdcQueue.CompleteWriter();
 		_cdcQueue.Clear();
 
@@ -864,7 +864,12 @@ public class CdcProcessor : ICdcProcessor
 
 			try
 			{
-				_ = Task.WaitAll(tasks.ToArray(), TimeSpan.FromMinutes(5));
+				using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+				await Task.WhenAll(tasks).WaitAsync(timeoutCts.Token).ConfigureAwait(false);
+			}
+			catch (OperationCanceledException)
+			{
+				_logger.LogWarning("Timed out waiting for CDCProcessor tasks to stop.");
 			}
 			catch (Exception ex)
 			{
