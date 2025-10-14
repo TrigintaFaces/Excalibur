@@ -76,7 +76,7 @@ public class CdcRepository : ICdcRepository
 
 		var CommandText = $"""
 		                   SELECT Top 1 __$start_lsn AS Next_LSN
-		                   FROM cdc.{captureInstance}_CT
+		                   FROM cdc.[{captureInstance}_CT]
 		                   WHERE __$start_lsn > @LastProcessedLsn
 		                   ORDER BY __$start_lsn;
 		                   """;
@@ -277,7 +277,7 @@ public class CdcRepository : ICdcRepository
 		                        __$seqval AS SequenceValue,
 		                        __$operation AS OperationCode,
 		                      *
-		                   FROM cdc.fn_cdc_get_all_changes_{captureInstance}(@lsn, @lsn, N'all update old'{extraParameters})
+		                   FROM cdc.[fn_cdc_get_all_changes_{captureInstance}](@lsn, @lsn, N'all update old'{extraParameters})
 		                   WHERE
 		                      __$start_lsn = @lsn
 		                      AND
