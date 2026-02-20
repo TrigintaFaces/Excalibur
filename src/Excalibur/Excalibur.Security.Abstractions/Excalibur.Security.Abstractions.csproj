@@ -1,19 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<RootNamespace>Excalibur.Security.Abstractions</RootNamespace>
-		<AssemblyName>Excalibur.Security.Abstractions</AssemblyName>
-		<!-- NuGet Package Metadata -->
-		<PackageId>Excalibur.Security.Abstractions</PackageId>
-		<Description>Security abstractions for Excalibur framework including password hashing, key management, and cryptographic operations</Description>
-		<PackageTags>excalibur;security;abstractions;password;hashing;cryptography</PackageTags>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<IsAotCompatible>true</IsAotCompatible>
-	</PropertyGroup>
-	<ItemGroup>
-		<PackageReference Include="Microsoft.Extensions.Options" />
-	</ItemGroup>
-	<ItemGroup>
-		<None Include="README.md" Pack="true" PackagePath="/" />
-	</ItemGroup>
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RootNamespace>Excalibur.Security.Abstractions</RootNamespace>
+    <AssemblyName>Excalibur.Security.Abstractions</AssemblyName>
+    <!-- NuGet Package Metadata -->
+    <PackageId>Excalibur.Security.Abstractions</PackageId>
+    <Description>Security abstractions for the Excalibur framework, including password hashing, key management, and cryptographic operations.</Description>
+    <PackageTags>excalibur;security;abstractions;password;hashing;cryptography</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Options" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
 </Project>

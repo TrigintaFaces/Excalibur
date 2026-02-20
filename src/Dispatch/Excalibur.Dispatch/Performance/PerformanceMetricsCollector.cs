@@ -8,7 +8,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace Excalibur.Dispatch.Performance;
 
 /// <summary>
-/// Aggregates and exposes performance metrics collected across the Dispatch framework.
+/// Aggregates and exposes performance metrics collected across the Excalibur framework.
 /// </summary>
 public sealed class PerformanceMetricsCollector : IPerformanceMetricsCollector, IDisposable
 {

@@ -1,1 +1,40 @@
 #nullable enable
+Excalibur.Testing.AggregateTestFixture`1
+Excalibur.Testing.AggregateTestFixture`1.AggregateTestFixture`1() -> void
+Excalibur.Testing.AggregateTestFixture`1.Given(Excalibur.Dispatch.Abstractions.IDomainEvent[] events) -> Excalibur.Testing.AggregateTestFixture<>
+Excalibur.Testing.AggregateTestFixture`1.Given(System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent> events) -> Excalibur.Testing.AggregateTestFixture<>
+Excalibur.Testing.AggregateTestFixture`1.ShouldThrow() -> System.Void
+Excalibur.Testing.AggregateTestFixture`1.ShouldThrow(System.String messageContains) -> System.Void
+Excalibur.Testing.AggregateTestFixture`1.Then() -> Excalibur.Testing.AggregateTestFixtureResult<>
+Excalibur.Testing.AggregateTestFixture`1.When(System.Action<> action) -> Excalibur.Testing.AggregateTestFixture<>
+Excalibur.Testing.AggregateTestFixture`1.WhenAsync(System.Func<, System.Threading.Tasks.Task> action) -> System.Threading.Tasks.Task<Excalibur.Testing.AggregateTestFixture<>>
+Excalibur.Testing.AggregateTestFixtureResult`1
+Excalibur.Testing.AggregateTestFixtureResult`1.AssertAggregate(System.Action<> assertion) -> Excalibur.Testing.AggregateTestFixtureResult<>
+Excalibur.Testing.AggregateTestFixtureResult`1.ShouldNotThrow() -> Excalibur.Testing.AggregateTestFixtureResult<>
+Excalibur.Testing.AggregateTestFixtureResult`1.ShouldRaise() -> Excalibur.Testing.AggregateTestFixtureResult<>
+Excalibur.Testing.AggregateTestFixtureResult`1.ShouldRaise(System.Func<, System.Boolean> predicate) -> Excalibur.Testing.AggregateTestFixtureResult<>
+Excalibur.Testing.AggregateTestFixtureResult`1.ShouldRaiseNoEvents() -> Excalibur.Testing.AggregateTestFixtureResult<>
+Excalibur.Testing.AggregateTestFixtureResult`1.ShouldThrow() -> System.Void
+Excalibur.Testing.AggregateTestFixtureResult`1.ShouldThrow(System.String messageContains) -> System.Void
+Excalibur.Testing.AggregateTestFixtureResult`1.StateShould(System.Func<, System.Boolean> predicate, System.String message) -> Excalibur.Testing.AggregateTestFixtureResult<>
+Excalibur.Testing.SagaTestFixture`2
+Excalibur.Testing.SagaTestFixture`2.Given(System.Action<> setupState) -> Excalibur.Testing.SagaTestFixture<, >
+Excalibur.Testing.SagaTestFixture`2.Given(System.Object[] events) -> Excalibur.Testing.SagaTestFixture<, >
+Excalibur.Testing.SagaTestFixture`2.SagaTestFixture`2() -> void
+Excalibur.Testing.SagaTestFixture`2.ShouldThrowAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Testing.SagaTestFixture`2.ThenAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Testing.SagaTestFixtureResult<, >>
+Excalibur.Testing.SagaTestFixture`2.When(System.Object event) -> Excalibur.Testing.SagaTestFixture<, >
+Excalibur.Testing.SagaTestFixtureResult`2
+Excalibur.Testing.SagaTestFixtureResult`2.AssertState(System.Action<> assertion) -> Excalibur.Testing.SagaTestFixtureResult<, >
+Excalibur.Testing.SagaTestFixtureResult`2.ShouldBeCompleted() -> Excalibur.Testing.SagaTestFixtureResult<, >
+Excalibur.Testing.SagaTestFixtureResult`2.ShouldHandleEvent(System.Object eventMessage) -> Excalibur.Testing.SagaTestFixtureResult<, >
+Excalibur.Testing.SagaTestFixtureResult`2.ShouldNotBeCompleted() -> Excalibur.Testing.SagaTestFixtureResult<, >
+Excalibur.Testing.SagaTestFixtureResult`2.ShouldNotThrow() -> Excalibur.Testing.SagaTestFixtureResult<, >
+Excalibur.Testing.SagaTestFixtureResult`2.ShouldThrow() -> System.Void
+Excalibur.Testing.SagaTestFixtureResult`2.ShouldThrow(System.String messageContains) -> System.Void
+Excalibur.Testing.SagaTestFixtureResult`2.ThenState(System.Func<, System.Boolean> predicate, System.String message) -> Excalibur.Testing.SagaTestFixtureResult<, >
+Excalibur.Testing.TestFixtureAssertionException
+Excalibur.Testing.TestFixtureAssertionException.TestFixtureAssertionException(System.String message, System.Exception innerException) -> void
+Excalibur.Testing.TestFixtureAssertionException.TestFixtureAssertionException(System.String message) -> void
+Microsoft.Extensions.DependencyInjection.ExcaliburTestingServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.ExcaliburTestingServiceCollectionExtensions.AddExcaliburTestingStores(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

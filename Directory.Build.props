@@ -39,15 +39,14 @@
 		<!-- IDE0055 (formatting) REMOVED Sprint 506 — all violations fixed via dotnet format -->
 		<!-- CA1873 (logging arg evaluation) — Sprint 564: new rule in SDK 10.0.103, defer fix to next sprint -->
 		<NoWarn>$(NoWarn);IDE0010;CS1591;CA1873</NoWarn>
-    <!-- Gate to allow AWS SDK v4 transitives via Lambda event packages (off by default to avoid downgrades). -->
-    <AllowAwsSdkV4>false</AllowAwsSdkV4>
-    <RepositoryRoot Condition="'$(RepositoryRoot)' == ''">$(MSBuildThisFileDirectory)</RepositoryRoot>
-        </PropertyGroup>
+		<!-- Gate to allow AWS SDK v4 transitives via Lambda event packages (off by default to avoid downgrades). -->
+		<AllowAwsSdkV4>false</AllowAwsSdkV4>
+		<RepositoryRoot Condition="'$(RepositoryRoot)' == ''">$(MSBuildThisFileDirectory)</RepositoryRoot>
+	</PropertyGroup>
 
 	<!-- Common NuGet Package Metadata -->
 	<PropertyGroup>
-		<Authors>TrigintaFaces</Authors>
-		<Company>TrigintaFaces</Company>
+		<Authors>The Excalibur Project Contributors</Authors>
 		<Copyright>Copyright © The Excalibur Project $([System.DateTime]::Now.Year)</Copyright>
 		<PackageProjectUrl>https://github.com/TrigintaFaces/Excalibur</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
@@ -83,7 +82,9 @@
 		<PackageTags>messaging;mediator;cqrs;pipeline;handlers;dotnet</PackageTags>
 	</PropertyGroup>
 
-	<PropertyGroup Condition="'$(PackageTags)' == '' And $(MSBuildProjectName.StartsWith('Excalibur'))">
+	<PropertyGroup Condition="'$(PackageTags)' == ''
+    And $(MSBuildProjectName.StartsWith('Excalibur'))
+    And !$(MSBuildProjectName.StartsWith('Excalibur.Dispatch'))">
 		<PackageTags>event-sourcing;ddd;cqrs;aggregates;domain-driven-design;dotnet</PackageTags>
 	</PropertyGroup>
 

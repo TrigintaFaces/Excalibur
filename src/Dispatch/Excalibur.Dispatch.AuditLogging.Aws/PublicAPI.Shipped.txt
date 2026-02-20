@@ -1,1 +1,36 @@
 #nullable enable
+Excalibur.Dispatch.AuditLogging.Aws.AwsAuditLoggingEventId
+Excalibur.Dispatch.AuditLogging.Aws.AwsAuditOptions
+Excalibur.Dispatch.AuditLogging.Aws.AwsAuditOptions.AwsAuditOptions() -> void
+Excalibur.Dispatch.AuditLogging.Aws.AwsAuditOptions.BatchSize.get -> System.Int32
+Excalibur.Dispatch.AuditLogging.Aws.AwsAuditOptions.BatchSize.set -> void
+Excalibur.Dispatch.AuditLogging.Aws.AwsAuditOptions.LogGroupName.get -> System.String
+Excalibur.Dispatch.AuditLogging.Aws.AwsAuditOptions.LogGroupName.set -> void
+Excalibur.Dispatch.AuditLogging.Aws.AwsAuditOptions.MaxRetryAttempts.get -> System.Int32
+Excalibur.Dispatch.AuditLogging.Aws.AwsAuditOptions.MaxRetryAttempts.set -> void
+Excalibur.Dispatch.AuditLogging.Aws.AwsAuditOptions.Region.get -> System.String
+Excalibur.Dispatch.AuditLogging.Aws.AwsAuditOptions.Region.set -> void
+Excalibur.Dispatch.AuditLogging.Aws.AwsAuditOptions.RetryBaseDelay.get -> System.TimeSpan
+Excalibur.Dispatch.AuditLogging.Aws.AwsAuditOptions.RetryBaseDelay.set -> void
+Excalibur.Dispatch.AuditLogging.Aws.AwsAuditOptions.ServiceUrl.get -> System.String
+Excalibur.Dispatch.AuditLogging.Aws.AwsAuditOptions.ServiceUrl.set -> void
+Excalibur.Dispatch.AuditLogging.Aws.AwsAuditOptions.StreamName.get -> System.String
+Excalibur.Dispatch.AuditLogging.Aws.AwsAuditOptions.StreamName.set -> void
+Excalibur.Dispatch.AuditLogging.Aws.AwsAuditOptions.Timeout.get -> System.TimeSpan
+Excalibur.Dispatch.AuditLogging.Aws.AwsAuditOptions.Timeout.set -> void
+Excalibur.Dispatch.AuditLogging.Aws.AwsCloudWatchAuditExporter
+Excalibur.Dispatch.AuditLogging.Aws.AwsCloudWatchAuditExporter.AwsCloudWatchAuditExporter(System.Net.Http.HttpClient httpClient, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.AuditLogging.Aws.AwsAuditOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.AuditLogging.Aws.AwsCloudWatchAuditExporter> logger) -> void
+Excalibur.Dispatch.AuditLogging.Aws.AwsCloudWatchAuditExporter.CheckHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditExporterHealthResult>
+Excalibur.Dispatch.AuditLogging.Aws.AwsCloudWatchAuditExporter.ExportAsync(Excalibur.Dispatch.Compliance.AuditEvent auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditExportResult>
+Excalibur.Dispatch.AuditLogging.Aws.AwsCloudWatchAuditExporter.ExportBatchAsync(System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.AuditEvent> auditEvents, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditExportBatchResult>
+Excalibur.Dispatch.AuditLogging.Aws.AwsCloudWatchAuditExporter.Name.get -> System.String
+Microsoft.Extensions.DependencyInjection.AwsAuditServiceCollectionExtensions
+static const Excalibur.Dispatch.AuditLogging.Aws.AwsAuditLoggingEventId.BatchForwarded -> System.Int32
+static const Excalibur.Dispatch.AuditLogging.Aws.AwsAuditLoggingEventId.EventForwarded -> System.Int32
+static const Excalibur.Dispatch.AuditLogging.Aws.AwsAuditLoggingEventId.ForwardFailedBatchChunk -> System.Int32
+static const Excalibur.Dispatch.AuditLogging.Aws.AwsAuditLoggingEventId.ForwardFailedHttpError -> System.Int32
+static const Excalibur.Dispatch.AuditLogging.Aws.AwsAuditLoggingEventId.ForwardFailedStatus -> System.Int32
+static const Excalibur.Dispatch.AuditLogging.Aws.AwsAuditLoggingEventId.ForwardFailedTimeout -> System.Int32
+static const Excalibur.Dispatch.AuditLogging.Aws.AwsAuditLoggingEventId.ForwardRetried -> System.Int32
+static const Excalibur.Dispatch.AuditLogging.Aws.AwsAuditLoggingEventId.HealthCheckFailed -> System.Int32
+static Microsoft.Extensions.DependencyInjection.AwsAuditServiceCollectionExtensions.AddAwsAuditExporter(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Dispatch.AuditLogging.Aws.AwsAuditOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

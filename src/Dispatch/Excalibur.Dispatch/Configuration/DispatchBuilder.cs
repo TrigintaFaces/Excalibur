@@ -23,7 +23,7 @@ using CoreDispatcher = Excalibur.Dispatch.Delivery.Dispatcher;
 namespace Excalibur.Dispatch.Configuration;
 
 /// <summary>
-/// Fluent builder for configuring the Dispatch messaging framework.
+/// Fluent builder for configuring the Excalibur framework.
 /// </summary>
 public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 {

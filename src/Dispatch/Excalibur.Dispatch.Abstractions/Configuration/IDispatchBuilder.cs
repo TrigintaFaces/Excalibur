@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Excalibur.Dispatch.Abstractions.Configuration;
 
 /// <summary>
-/// Fluent builder interface for configuring the Dispatch messaging framework.
+/// Fluent builder interface for configuring the Excalibur framework.
 /// </summary>
 public interface IDispatchBuilder
 {
@@ -74,7 +74,7 @@ public interface IDispatchBuilder
 		where TMiddleware : IDispatchMiddleware;
 
 	/// <summary>
-	/// Configures options for the Dispatch framework.
+	/// Configures options for the Excalibur framework.
 	/// </summary>
 	/// <typeparam name="TOptions"> The options type. </typeparam>
 	/// <param name="configure"> Configuration action for options. </param>

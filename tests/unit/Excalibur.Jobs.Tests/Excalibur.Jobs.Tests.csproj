@@ -1,22 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <RootNamespace>Excalibur.Jobs.Tests</RootNamespace>
     <AssemblyName>Excalibur.Jobs.Tests</AssemblyName>
   </PropertyGroup>
-
   <ItemGroup>
     <!-- Test framework (Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio) provided by Directory.Build.props -->
     <PackageReference Include="Shouldly" />
     <PackageReference Include="FakeItEasy" />
     <PackageReference Include="coverlet.collector" />
   </ItemGroup>
-
   <ItemGroup>
     <!-- ProjectReferences from all merged jobs test projects -->
     <!-- From Excalibur.Jobs.Tests -->
@@ -28,9 +25,7 @@
     <!-- From Excalibur.Jobs.SqlServer.Tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs.SqlServer\Excalibur.Jobs.SqlServer.csproj" />
   </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
   </ItemGroup>
-
 </Project>

@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Serialization.MemoryPack;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This is the default high-performance internal serializer for Dispatch framework wire formats.
+/// This is the default high-performance internal serializer for Excalibur framework wire formats.
 /// It provides:
 /// </para>
 /// <list type="bullet">

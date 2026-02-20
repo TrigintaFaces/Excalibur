@@ -12,7 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Excalibur.Dispatch.Routing;
 
 /// <summary>
-/// Provides extension methods for configuring message routing capabilities in the Dispatch framework.
+/// Provides extension methods for configuring message routing capabilities in the Excalibur framework.
 /// </summary>
 /// <remarks>
 /// <para>

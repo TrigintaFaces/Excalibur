@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.CodeQuality;
 /// <remarks>
 /// <para>
 /// Microsoft guidance: OTel instrumentation names should use the assembly/namespace prefix
-/// for discoverability. All Dispatch framework meters and activity sources must use
+/// for discoverability. All Excalibur framework meters and activity sources must use
 /// <c>Excalibur.Dispatch.{Component}</c> so consumers can subscribe with a single
 /// <c>.AddMeter("Excalibur.Dispatch.*")</c> wildcard.
 /// </para>

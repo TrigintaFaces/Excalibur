@@ -8,7 +8,7 @@ using System.Diagnostics.Metrics;
 namespace Excalibur.Dispatch.Diagnostics;
 
 /// <summary>
-/// Interface for providing telemetry components across the Dispatch framework.
+/// Interface for providing telemetry components across the Excalibur framework.
 /// </summary>
 /// <remarks>
 /// Centralizes access to ActivitySource and Meter instances for consistent telemetry collection across all enhanced stores and pipeline components.

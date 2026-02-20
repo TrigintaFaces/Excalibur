@@ -199,7 +199,7 @@ public static class OpenTelemetryExtensions
 	}
 
 	/// <summary>
-	/// Adds all Dispatch framework metrics to OpenTelemetry configuration.
+	/// Adds all Excalibur framework metrics to OpenTelemetry configuration.
 	/// </summary>
 	/// <param name="builder">The OpenTelemetry builder.</param>
 	/// <returns>The OpenTelemetry builder for method chaining.</returns>
@@ -227,7 +227,7 @@ public static class OpenTelemetryExtensions
 	}
 
 	/// <summary>
-	/// Adds all Dispatch framework metrics to MeterProviderBuilder configuration.
+	/// Adds all Excalibur framework metrics to MeterProviderBuilder configuration.
 	/// </summary>
 	/// <param name="builder">The MeterProviderBuilder.</param>
 	/// <returns>The MeterProviderBuilder for method chaining.</returns>
@@ -248,7 +248,7 @@ public static class OpenTelemetryExtensions
 	}
 
 	/// <summary>
-	/// Adds all Dispatch framework tracing ActivitySources to OpenTelemetry configuration.
+	/// Adds all Excalibur framework tracing ActivitySources to OpenTelemetry configuration.
 	/// </summary>
 	/// <param name="builder">The OpenTelemetry builder.</param>
 	/// <returns>The OpenTelemetry builder for method chaining.</returns>
@@ -274,7 +274,7 @@ public static class OpenTelemetryExtensions
 	}
 
 	/// <summary>
-	/// Adds all Dispatch framework tracing ActivitySources to TracerProviderBuilder configuration.
+	/// Adds all Excalibur framework tracing ActivitySources to TracerProviderBuilder configuration.
 	/// </summary>
 	/// <param name="builder">The TracerProviderBuilder.</param>
 	/// <returns>The TracerProviderBuilder for method chaining.</returns>

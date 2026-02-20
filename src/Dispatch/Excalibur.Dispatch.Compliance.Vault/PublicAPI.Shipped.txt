@@ -1,1 +1,83 @@
 #nullable enable
+Excalibur.Dispatch.Compliance.Vault.VaultAuthMethod
+Excalibur.Dispatch.Compliance.Vault.VaultAuthMethod.AppRole -> Excalibur.Dispatch.Compliance.Vault.VaultAuthMethod
+Excalibur.Dispatch.Compliance.Vault.VaultAuthMethod.Kubernetes -> Excalibur.Dispatch.Compliance.Vault.VaultAuthMethod
+Excalibur.Dispatch.Compliance.Vault.VaultAuthMethod.Token -> Excalibur.Dispatch.Compliance.Vault.VaultAuthMethod
+Excalibur.Dispatch.Compliance.Vault.VaultAuthOptions
+Excalibur.Dispatch.Compliance.Vault.VaultAuthOptions.AppRoleId.get -> System.String
+Excalibur.Dispatch.Compliance.Vault.VaultAuthOptions.AppRoleId.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultAuthOptions.AppRoleMountPath.get -> System.String
+Excalibur.Dispatch.Compliance.Vault.VaultAuthOptions.AppRoleMountPath.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultAuthOptions.AppRoleSecretId.get -> System.String
+Excalibur.Dispatch.Compliance.Vault.VaultAuthOptions.AppRoleSecretId.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultAuthOptions.AuthMethod.get -> Excalibur.Dispatch.Compliance.Vault.VaultAuthMethod
+Excalibur.Dispatch.Compliance.Vault.VaultAuthOptions.AuthMethod.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultAuthOptions.KubernetesJwtPath.get -> System.String
+Excalibur.Dispatch.Compliance.Vault.VaultAuthOptions.KubernetesJwtPath.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultAuthOptions.KubernetesMountPath.get -> System.String
+Excalibur.Dispatch.Compliance.Vault.VaultAuthOptions.KubernetesMountPath.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultAuthOptions.KubernetesRole.get -> System.String
+Excalibur.Dispatch.Compliance.Vault.VaultAuthOptions.KubernetesRole.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultAuthOptions.Token.get -> System.String
+Excalibur.Dispatch.Compliance.Vault.VaultAuthOptions.Token.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultAuthOptions.VaultAuthOptions() -> void
+Excalibur.Dispatch.Compliance.Vault.VaultKeyOptions
+Excalibur.Dispatch.Compliance.Vault.VaultKeyOptions.AllowKeyExport.get -> System.Boolean
+Excalibur.Dispatch.Compliance.Vault.VaultKeyOptions.AllowKeyExport.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultKeyOptions.AllowPlaintextBackup.get -> System.Boolean
+Excalibur.Dispatch.Compliance.Vault.VaultKeyOptions.AllowPlaintextBackup.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultKeyOptions.DefaultKeyType.get -> System.String
+Excalibur.Dispatch.Compliance.Vault.VaultKeyOptions.DefaultKeyType.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultKeyOptions.EnableConvergentEncryption.get -> System.Boolean
+Excalibur.Dispatch.Compliance.Vault.VaultKeyOptions.EnableConvergentEncryption.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultKeyOptions.EnableKeyDerivation.get -> System.Boolean
+Excalibur.Dispatch.Compliance.Vault.VaultKeyOptions.EnableKeyDerivation.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultKeyOptions.MinDecryptionVersion.get -> System.Int32
+Excalibur.Dispatch.Compliance.Vault.VaultKeyOptions.MinDecryptionVersion.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultKeyOptions.MinEncryptionVersion.get -> System.Int32
+Excalibur.Dispatch.Compliance.Vault.VaultKeyOptions.MinEncryptionVersion.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultKeyOptions.VaultKeyOptions() -> void
+Excalibur.Dispatch.Compliance.Vault.VaultKeyProvider
+Excalibur.Dispatch.Compliance.Vault.VaultKeyProvider.DeleteKeyAsync(System.String keyId, System.Int32 retentionDays, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Boolean>
+Excalibur.Dispatch.Compliance.Vault.VaultKeyProvider.Dispose() -> System.Void
+Excalibur.Dispatch.Compliance.Vault.VaultKeyProvider.GetActiveKeyAsync(System.String purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.KeyMetadata>
+Excalibur.Dispatch.Compliance.Vault.VaultKeyProvider.GetKeyAsync(System.String keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.KeyMetadata>
+Excalibur.Dispatch.Compliance.Vault.VaultKeyProvider.GetKeyVersionAsync(System.String keyId, System.Int32 version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.KeyMetadata>
+Excalibur.Dispatch.Compliance.Vault.VaultKeyProvider.ListKeysAsync(System.Nullable<Excalibur.Dispatch.Compliance.KeyStatus> status, System.String purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.KeyMetadata>>
+Excalibur.Dispatch.Compliance.Vault.VaultKeyProvider.RotateKeyAsync(System.String keyId, Excalibur.Dispatch.Compliance.EncryptionAlgorithm algorithm, System.String purpose, System.Nullable<System.DateTimeOffset> expiresAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.KeyRotationResult>
+Excalibur.Dispatch.Compliance.Vault.VaultKeyProvider.SuspendKeyAsync(System.String keyId, System.String reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Boolean>
+Excalibur.Dispatch.Compliance.Vault.VaultKeyProvider.VaultKeyProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Compliance.Vault.VaultOptions> options, Microsoft.Extensions.Caching.Memory.IMemoryCache cache, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Compliance.Vault.VaultKeyProvider> logger) -> void
+Excalibur.Dispatch.Compliance.Vault.VaultOptions
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.Auth.get -> Excalibur.Dispatch.Compliance.Vault.VaultAuthOptions
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.Auth.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.EnableDetailedTelemetry.get -> System.Boolean
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.EnableDetailedTelemetry.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.HttpTimeout.get -> System.TimeSpan
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.HttpTimeout.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.KeyNamePrefix.get -> System.String
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.KeyNamePrefix.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.Keys.get -> Excalibur.Dispatch.Compliance.Vault.VaultKeyOptions
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.Keys.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.MetadataCacheDuration.get -> System.TimeSpan
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.MetadataCacheDuration.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.Namespace.get -> System.String
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.Namespace.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.Retry.get -> Excalibur.Dispatch.Compliance.Vault.VaultRetryOptions
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.Retry.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.TransitMountPath.get -> System.String
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.TransitMountPath.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.VaultOptions() -> void
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.VaultUri.get -> System.Uri
+Excalibur.Dispatch.Compliance.Vault.VaultOptions.VaultUri.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultRetryOptions
+Excalibur.Dispatch.Compliance.Vault.VaultRetryOptions.EnableRetry.get -> System.Boolean
+Excalibur.Dispatch.Compliance.Vault.VaultRetryOptions.EnableRetry.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultRetryOptions.MaxRetryAttempts.get -> System.Int32
+Excalibur.Dispatch.Compliance.Vault.VaultRetryOptions.MaxRetryAttempts.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultRetryOptions.RetryDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Compliance.Vault.VaultRetryOptions.RetryDelay.set -> void
+Excalibur.Dispatch.Compliance.Vault.VaultRetryOptions.VaultRetryOptions() -> void
+Microsoft.Extensions.DependencyInjection.VaultServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.VaultServiceCollectionExtensions.AddVaultKeyManagement(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Excalibur.Dispatch.Compliance.Vault.VaultOptions options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.VaultServiceCollectionExtensions.AddVaultKeyManagement(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Configuration.IConfigurationSection configurationSection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.VaultServiceCollectionExtensions.AddVaultKeyManagement(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Dispatch.Compliance.Vault.VaultOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

@@ -259,7 +259,7 @@ builder.Services.AddGeneratedServices();
 builder.Services.AddSingleton<ISpecialService>(sp =>
     new SpecialService(configuration["SpecialKey"]));
 
-// Dispatch framework
+// Excalibur framework
 builder.Services.AddDispatch();
 
 var app = builder.Build();

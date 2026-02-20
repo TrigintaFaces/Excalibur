@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Performance;
 /// <remarks>
 /// <para>
 /// PERF-22: This interface coordinates the freezing of all internal caches
-/// used by the Dispatch framework. Freezing caches converts them from
+/// used by the Excalibur framework. Freezing caches converts them from
 /// thread-safe concurrent dictionaries to <see cref="System.Collections.Frozen.FrozenDictionary{TKey, TValue}"/>
 /// which provides O(1) lookups with zero synchronization overhead.
 /// </para>

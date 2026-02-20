@@ -1,1 +1,16 @@
 #nullable enable
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufMessageSerializer
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufMessageSerializer.Deserialize(System.Byte[] data) ->
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufMessageSerializer.ProtobufMessageSerializer(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializationOptions> options) -> void
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufMessageSerializer.Serialize( message) -> System.Byte[]
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufMessageSerializer.SerializerName.get -> System.String
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufMessageSerializer.SerializerVersion.get -> System.String
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializationExtensions
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializationOptions
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializationOptions.ProtobufSerializationOptions() -> void
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializationOptions.WireFormat.get -> Excalibur.Dispatch.Serialization.Protobuf.ProtobufWireFormat
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializationOptions.WireFormat.set -> void
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufWireFormat
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufWireFormat.Binary -> Excalibur.Dispatch.Serialization.Protobuf.ProtobufWireFormat
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufWireFormat.Json -> Excalibur.Dispatch.Serialization.Protobuf.ProtobufWireFormat
+static Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializationExtensions.AddProtobufSerialization(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializationOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

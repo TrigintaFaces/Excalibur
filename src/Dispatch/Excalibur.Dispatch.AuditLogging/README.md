@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.AuditLogging
 
-Audit logging implementation for the Dispatch messaging framework. Provides SHA-256 hash-chained, tamper-evident audit logging for SOC2 compliance requirements.
+Audit logging implementation for the Excalibur framework. Provides SHA-256 hash-chained, tamper-evident audit logging for SOC2 compliance requirements.
 
 ## Installation
 

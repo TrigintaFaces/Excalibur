@@ -1,1 +1,350 @@
 #nullable enable
+Excalibur.Jobs.Cdc.CdcJob
+Excalibur.Jobs.Cdc.CdcJob.CdcJob(Excalibur.Data.SqlServer.Cdc.IDataChangeEventProcessorFactory factory, Microsoft.Extensions.Configuration.IConfiguration configuration, Microsoft.Extensions.Options.IOptions<Excalibur.Jobs.Cdc.CdcJobConfig> cdcConfigOptions, Excalibur.Jobs.Core.JobHeartbeatTracker heartbeatTracker, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Cdc.CdcJob> logger) -> void
+Excalibur.Jobs.Cdc.CdcJob.CdcJob(Excalibur.Data.SqlServer.Cdc.IDataChangeEventProcessorFactory factory, System.Func<System.String, Microsoft.Data.SqlClient.SqlConnection> connectionFactory, Microsoft.Extensions.Options.IOptions<Excalibur.Jobs.Cdc.CdcJobConfig> cdcConfigOptions, Excalibur.Jobs.Core.JobHeartbeatTracker heartbeatTracker, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Cdc.CdcJob> logger) -> void
+Excalibur.Jobs.Cdc.CdcJob.Execute(Quartz.IJobExecutionContext context) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Cdc.CdcJobConfig
+Excalibur.Jobs.Cdc.CdcJobConfig.CdcJobConfig() -> void
+Excalibur.Jobs.Cdc.CdcJobConfig.DatabaseConfigs.get -> System.Collections.ObjectModel.Collection<Excalibur.Data.SqlServer.Cdc.DatabaseConfig>
+Excalibur.Jobs.Cdc.CdcJobConfig.DatabaseConfigs.set -> void
+Excalibur.Jobs.Coordination.IDistributedJobLock
+Excalibur.Jobs.Coordination.IDistributedJobLock.AcquiredAt.get -> System.DateTimeOffset
+Excalibur.Jobs.Coordination.IDistributedJobLock.ExpiresAt.get -> System.DateTimeOffset
+Excalibur.Jobs.Coordination.IDistributedJobLock.ExtendAsync(System.TimeSpan additionalDuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Boolean>
+Excalibur.Jobs.Coordination.IDistributedJobLock.InstanceId.get -> System.String
+Excalibur.Jobs.Coordination.IDistributedJobLock.IsValid.get -> System.Boolean
+Excalibur.Jobs.Coordination.IDistributedJobLock.JobKey.get -> System.String
+Excalibur.Jobs.Coordination.IDistributedJobLock.ReleaseAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Coordination.IJobCoordinator
+Excalibur.Jobs.Coordination.IJobDistributor
+Excalibur.Jobs.Coordination.IJobDistributor.DistributeJobAsync(System.String jobKey, System.Object jobData, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.String>
+Excalibur.Jobs.Coordination.IJobDistributor.ReportJobCompletionAsync(System.String jobKey, System.String instanceId, System.Boolean success, System.Object result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Coordination.IJobLockProvider
+Excalibur.Jobs.Coordination.IJobLockProvider.TryAcquireLockAsync(System.String jobKey, System.TimeSpan lockDuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Jobs.Coordination.IDistributedJobLock>
+Excalibur.Jobs.Coordination.IJobRegistry
+Excalibur.Jobs.Coordination.IJobRegistry.GetActiveInstancesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Jobs.Coordination.JobInstanceInfo>>
+Excalibur.Jobs.Coordination.IJobRegistry.RegisterInstanceAsync(System.String instanceId, Excalibur.Jobs.Coordination.JobInstanceInfo instanceInfo, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Coordination.IJobRegistry.UnregisterInstanceAsync(System.String instanceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Coordination.ILeadershipToken
+Excalibur.Jobs.Coordination.ILeadershipToken.AcquiredAt.get -> System.DateTimeOffset
+Excalibur.Jobs.Coordination.ILeadershipToken.ExpiresAt.get -> System.DateTimeOffset
+Excalibur.Jobs.Coordination.ILeadershipToken.ExtendAsync(System.TimeSpan additionalDuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Boolean>
+Excalibur.Jobs.Coordination.ILeadershipToken.IsValid.get -> System.Boolean
+Excalibur.Jobs.Coordination.ILeadershipToken.LeaderInstanceId.get -> System.String
+Excalibur.Jobs.Coordination.ILeadershipToken.ReleaseAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Coordination.JobInstanceCapabilities
+Excalibur.Jobs.Coordination.JobInstanceCapabilities.CanProcess(System.String jobType) -> System.Boolean
+Excalibur.Jobs.Coordination.JobInstanceCapabilities.JobInstanceCapabilities(System.Int32 maxConcurrentJobs, System.Collections.Generic.IEnumerable<System.String> supportedJobTypes) -> void
+Excalibur.Jobs.Coordination.JobInstanceCapabilities.MaxConcurrentJobs.get -> System.Int32
+Excalibur.Jobs.Coordination.JobInstanceCapabilities.Priority.get -> System.Int32
+Excalibur.Jobs.Coordination.JobInstanceCapabilities.Priority.set -> void
+Excalibur.Jobs.Coordination.JobInstanceCapabilities.SupportedJobTypes.get -> System.Collections.Generic.IReadOnlySet<System.String>
+Excalibur.Jobs.Coordination.JobInstanceCapabilities.Tags.get -> System.Collections.Generic.ISet<System.String>
+Excalibur.Jobs.Coordination.JobInstanceInfo
+Excalibur.Jobs.Coordination.JobInstanceInfo.ActiveJobCount.get -> System.Int32
+Excalibur.Jobs.Coordination.JobInstanceInfo.ActiveJobCount.set -> void
+Excalibur.Jobs.Coordination.JobInstanceInfo.Capabilities.get -> Excalibur.Jobs.Coordination.JobInstanceCapabilities
+Excalibur.Jobs.Coordination.JobInstanceInfo.HostName.get -> System.String
+Excalibur.Jobs.Coordination.JobInstanceInfo.InstanceId.get -> System.String
+Excalibur.Jobs.Coordination.JobInstanceInfo.IsHealthy(System.TimeSpan heartbeatTimeout) -> System.Boolean
+Excalibur.Jobs.Coordination.JobInstanceInfo.JobInstanceInfo(System.String instanceId, System.String hostName, Excalibur.Jobs.Coordination.JobInstanceCapabilities capabilities) -> void
+Excalibur.Jobs.Coordination.JobInstanceInfo.LastHeartbeat.get -> System.DateTimeOffset
+Excalibur.Jobs.Coordination.JobInstanceInfo.LastHeartbeat.set -> void
+Excalibur.Jobs.Coordination.JobInstanceInfo.Metadata.get -> System.String
+Excalibur.Jobs.Coordination.JobInstanceInfo.Metadata.set -> void
+Excalibur.Jobs.Coordination.JobInstanceInfo.RegisteredAt.get -> System.DateTimeOffset
+Excalibur.Jobs.Coordination.JobInstanceInfo.Status.get -> Excalibur.Jobs.Coordination.JobInstanceStatus
+Excalibur.Jobs.Coordination.JobInstanceInfo.Status.set -> void
+Excalibur.Jobs.Coordination.JobInstanceInfo.UpdateHeartbeat() -> System.Void
+Excalibur.Jobs.Coordination.JobInstanceStatus
+Excalibur.Jobs.Coordination.JobInstanceStatus.Active -> Excalibur.Jobs.Coordination.JobInstanceStatus
+Excalibur.Jobs.Coordination.JobInstanceStatus.Draining -> Excalibur.Jobs.Coordination.JobInstanceStatus
+Excalibur.Jobs.Coordination.JobInstanceStatus.Failed -> Excalibur.Jobs.Coordination.JobInstanceStatus
+Excalibur.Jobs.Coordination.JobInstanceStatus.Inactive -> Excalibur.Jobs.Coordination.JobInstanceStatus
+Excalibur.Jobs.Coordination.RedisJobCoordinator
+Excalibur.Jobs.Coordination.RedisJobCoordinator.DistributeJobAsync(System.String jobKey, System.Object jobData, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.String>
+Excalibur.Jobs.Coordination.RedisJobCoordinator.GetActiveInstancesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Jobs.Coordination.JobInstanceInfo>>
+Excalibur.Jobs.Coordination.RedisJobCoordinator.RedisJobCoordinator(StackExchange.Redis.IDatabase database, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Coordination.RedisJobCoordinator> logger, System.String keyPrefix) -> void
+Excalibur.Jobs.Coordination.RedisJobCoordinator.RegisterInstanceAsync(System.String instanceId, Excalibur.Jobs.Coordination.JobInstanceInfo instanceInfo, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Coordination.RedisJobCoordinator.ReportJobCompletionAsync(System.String jobKey, System.String instanceId, System.Boolean success, System.Object result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Coordination.RedisJobCoordinator.TryAcquireLockAsync(System.String jobKey, System.TimeSpan lockDuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Jobs.Coordination.IDistributedJobLock>
+Excalibur.Jobs.Coordination.RedisJobCoordinator.UnregisterInstanceAsync(System.String instanceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Core.ConfigurationExtensions
+Excalibur.Jobs.Core.IJobConfigHostedWatcherService
+Excalibur.Jobs.Core.IJobConfigHostedWatcherServiceFactory
+Excalibur.Jobs.Core.IJobConfigHostedWatcherServiceFactory.CreateAsync() -> System.Threading.Tasks.Task<Excalibur.Jobs.Core.IJobConfigHostedWatcherService>
+Excalibur.Jobs.Core.JobConfig
+Excalibur.Jobs.Core.JobConfig.CronSchedule.get -> System.String
+Excalibur.Jobs.Core.JobConfig.CronSchedule.set -> void
+Excalibur.Jobs.Core.JobConfig.DegradedThreshold.get -> System.TimeSpan
+Excalibur.Jobs.Core.JobConfig.DegradedThreshold.set -> void
+Excalibur.Jobs.Core.JobConfig.Disabled.get -> System.Boolean
+Excalibur.Jobs.Core.JobConfig.Disabled.set -> void
+Excalibur.Jobs.Core.JobConfig.JobGroup.get -> System.String
+Excalibur.Jobs.Core.JobConfig.JobGroup.set -> void
+Excalibur.Jobs.Core.JobConfig.JobName.get -> System.String
+Excalibur.Jobs.Core.JobConfig.JobName.set -> void
+Excalibur.Jobs.Core.JobConfig.UnhealthyThreshold.get -> System.TimeSpan
+Excalibur.Jobs.Core.JobConfig.UnhealthyThreshold.set -> void
+Excalibur.Jobs.Core.JobConfigHostedWatcherService`2
+Excalibur.Jobs.Core.JobConfigHostedWatcherService`2.Dispose() -> System.Void
+Excalibur.Jobs.Core.JobConfigHostedWatcherService`2.JobConfigHostedWatcherService`2(Quartz.IScheduler scheduler, Microsoft.Extensions.Options.IOptionsMonitor<> configMonitor, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Core.JobConfigHostedWatcherService<, >> logger) -> void
+Excalibur.Jobs.Core.JobConfigHostedWatcherService`2.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Core.JobConfigHostedWatcherService`2.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Core.JobConfigHostedWatcherServiceFactory
+Excalibur.Jobs.Core.JobConfigHostedWatcherServiceFactory.CreateAsync() -> System.Threading.Tasks.Task<Excalibur.Jobs.Core.IJobConfigHostedWatcherService>
+Excalibur.Jobs.Core.JobConfigHostedWatcherServiceFactory.JobConfigHostedWatcherServiceFactory(System.IServiceProvider serviceProvider) -> void
+Excalibur.Jobs.Core.JobHealthCheck
+Excalibur.Jobs.Core.JobHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>
+Excalibur.Jobs.Core.JobHealthCheck.JobHealthCheck(System.String jobName, Excalibur.Jobs.Core.JobConfig config, Excalibur.Jobs.Core.JobHeartbeatTracker heartbeatTracker) -> void
+Excalibur.Jobs.Core.JobHeartbeatTracker
+Excalibur.Jobs.Core.JobHeartbeatTracker.GetLastHeartbeat(System.String jobName) -> System.Nullable<System.DateTimeOffset>
+Excalibur.Jobs.Core.JobHeartbeatTracker.JobHeartbeatTracker() -> void
+Excalibur.Jobs.Core.JobHeartbeatTracker.RecordHeartbeat(System.String jobName) -> System.Void
+Excalibur.Jobs.DataProcessing.DataProcessingJob
+Excalibur.Jobs.DataProcessing.DataProcessingJob.DataProcessingJob(Excalibur.Data.DataProcessing.IDataOrchestrationManager dataOrchestrationManager, Excalibur.Jobs.Core.JobHeartbeatTracker heartbeatTracker, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.DataProcessing.DataProcessingJob> logger) -> void
+Excalibur.Jobs.DataProcessing.DataProcessingJob.Execute(Quartz.IJobExecutionContext context) -> System.Threading.Tasks.Task
+Excalibur.Jobs.DataProcessing.DataProcessingJobConfig
+Excalibur.Jobs.DataProcessing.DataProcessingJobConfig.DataProcessingJobConfig() -> void
+Excalibur.Jobs.Diagnostics.JobsEventId
+Excalibur.Jobs.Jobs.HealthCheckJob
+Excalibur.Jobs.Jobs.HealthCheckJob.ExecuteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Jobs.HealthCheckJob.HealthCheckJob(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckService healthCheckService, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Jobs.HealthCheckJob> logger) -> void
+Excalibur.Jobs.Jobs.OutboxProcessorJob
+Excalibur.Jobs.Jobs.OutboxProcessorJob.ExecuteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Jobs.OutboxProcessorJob.OutboxProcessorJob(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory scopeFactory, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Jobs.OutboxProcessorJob> logger) -> void
+Excalibur.Jobs.JobsJsonSerializerContext
+Excalibur.Jobs.JobsJsonSerializerContext.Boolean.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<System.Boolean>
+Excalibur.Jobs.JobsJsonSerializerContext.DateTimeOffset.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<System.DateTimeOffset>
+Excalibur.Jobs.JobsJsonSerializerContext.GetTypeInfo(System.Type type) -> System.Text.Json.Serialization.Metadata.JsonTypeInfo
+Excalibur.Jobs.JobsJsonSerializerContext.HashSetString.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<System.Collections.Generic.HashSet<System.String>>
+Excalibur.Jobs.JobsJsonSerializerContext.IEnumerableString.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<System.Collections.Generic.IEnumerable<System.String>>
+Excalibur.Jobs.JobsJsonSerializerContext.Int32.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<System.Int32>
+Excalibur.Jobs.JobsJsonSerializerContext.IReadOnlySetString.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<System.Collections.Generic.IReadOnlySet<System.String>>
+Excalibur.Jobs.JobsJsonSerializerContext.ISetString.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<System.Collections.Generic.ISet<System.String>>
+Excalibur.Jobs.JobsJsonSerializerContext.JobConfig.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<Excalibur.Jobs.Core.JobConfig>
+Excalibur.Jobs.JobsJsonSerializerContext.JobInstanceCapabilities.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<Excalibur.Jobs.Coordination.JobInstanceCapabilities>
+Excalibur.Jobs.JobsJsonSerializerContext.JobInstanceInfo.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<Excalibur.Jobs.Coordination.JobInstanceInfo>
+Excalibur.Jobs.JobsJsonSerializerContext.JobInstanceStatus.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<Excalibur.Jobs.Coordination.JobInstanceStatus>
+Excalibur.Jobs.JobsJsonSerializerContext.JobsJsonSerializerContext() -> void
+Excalibur.Jobs.JobsJsonSerializerContext.JobsJsonSerializerContext(System.Text.Json.JsonSerializerOptions options) -> void
+Excalibur.Jobs.JobsJsonSerializerContext.String.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<System.String>
+Excalibur.Jobs.JobsJsonSerializerContext.TimeSpan.get -> System.Text.Json.Serialization.Metadata.JsonTypeInfo<System.TimeSpan>
+Excalibur.Jobs.Outbox.OutboxJob
+Excalibur.Jobs.Outbox.OutboxJob.Execute(Quartz.IJobExecutionContext context) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Outbox.OutboxJob.OutboxJob(Excalibur.Dispatch.Abstractions.IOutboxDispatcher outbox, Excalibur.Jobs.Core.JobHeartbeatTracker heartbeatTracker, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Outbox.OutboxJob> logger) -> void
+Excalibur.Jobs.Outbox.OutboxJobConfig
+Excalibur.Jobs.Outbox.OutboxJobConfig.OutboxJobConfig() -> void
+Excalibur.Jobs.Quartz.ApplicationBuilderExtensions
+Excalibur.Jobs.Quartz.IJobConfigurator
+Excalibur.Jobs.Quartz.IJobConfigurator.AddDelayedJob(System.TimeSpan delay, System.String jobKey) -> Excalibur.Jobs.Quartz.IJobConfigurator
+Excalibur.Jobs.Quartz.IJobConfigurator.AddJob(System.String cronExpression,  context, System.String jobKey) -> Excalibur.Jobs.Quartz.IJobConfigurator
+Excalibur.Jobs.Quartz.IJobConfigurator.AddJob(System.String cronExpression, System.String jobKey) -> Excalibur.Jobs.Quartz.IJobConfigurator
+Excalibur.Jobs.Quartz.IJobConfigurator.AddJobIf(System.Boolean condition, System.Action<Excalibur.Jobs.Quartz.IJobConfigurator> configureJob) -> Excalibur.Jobs.Quartz.IJobConfigurator
+Excalibur.Jobs.Quartz.IJobConfigurator.AddJobInstances(Excalibur.Jobs.Quartz.JobConfiguration[] configurations) -> Excalibur.Jobs.Quartz.IJobConfigurator
+Excalibur.Jobs.Quartz.IJobConfigurator.AddOneTimeJob(System.String jobKey) -> Excalibur.Jobs.Quartz.IJobConfigurator
+Excalibur.Jobs.Quartz.IJobConfigurator.AddRecurringJob(System.TimeSpan interval, System.String jobKey) -> Excalibur.Jobs.Quartz.IJobConfigurator
+Excalibur.Jobs.Quartz.JobConfiguration
+Excalibur.Jobs.Quartz.JobConfiguration.CronExpression.get -> System.String
+Excalibur.Jobs.Quartz.JobConfiguration.Description.get -> System.String
+Excalibur.Jobs.Quartz.JobConfiguration.Description.set -> void
+Excalibur.Jobs.Quartz.JobConfiguration.Enabled.get -> System.Boolean
+Excalibur.Jobs.Quartz.JobConfiguration.Enabled.set -> void
+Excalibur.Jobs.Quartz.JobConfiguration.JobConfiguration(System.String jobKey, System.String cronExpression) -> void
+Excalibur.Jobs.Quartz.JobConfiguration.JobData.get -> System.Object
+Excalibur.Jobs.Quartz.JobConfiguration.JobData.set -> void
+Excalibur.Jobs.Quartz.JobConfiguration.JobKey.get -> System.String
+Excalibur.Jobs.Quartz.JobConfigurator
+Excalibur.Jobs.Quartz.JobConfigurator.AddDelayedJob(System.TimeSpan delay, System.String jobKey) -> Excalibur.Jobs.Quartz.IJobConfigurator
+Excalibur.Jobs.Quartz.JobConfigurator.AddJob(System.String cronExpression,  context, System.String jobKey) -> Excalibur.Jobs.Quartz.IJobConfigurator
+Excalibur.Jobs.Quartz.JobConfigurator.AddJob(System.String cronExpression, System.String jobKey) -> Excalibur.Jobs.Quartz.IJobConfigurator
+Excalibur.Jobs.Quartz.JobConfigurator.AddJobIf(System.Boolean condition, System.Action<Excalibur.Jobs.Quartz.IJobConfigurator> configureJob) -> Excalibur.Jobs.Quartz.IJobConfigurator
+Excalibur.Jobs.Quartz.JobConfigurator.AddJobInstances(Excalibur.Jobs.Quartz.JobConfiguration[] configurations) -> Excalibur.Jobs.Quartz.IJobConfigurator
+Excalibur.Jobs.Quartz.JobConfigurator.AddOneTimeJob(System.String jobKey) -> Excalibur.Jobs.Quartz.IJobConfigurator
+Excalibur.Jobs.Quartz.JobConfigurator.AddRecurringJob(System.TimeSpan interval, System.String jobKey) -> Excalibur.Jobs.Quartz.IJobConfigurator
+Excalibur.Jobs.Quartz.JobConfigurator.JobConfigurator(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> void
+Excalibur.Jobs.Quartz.QuartzGenericJobAdapter`2
+Excalibur.Jobs.Quartz.QuartzGenericJobAdapter`2.Execute(Quartz.IJobExecutionContext context) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Quartz.QuartzGenericJobAdapter`2.QuartzGenericJobAdapter`2( job, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Quartz.QuartzGenericJobAdapter<, >> logger) -> void
+Excalibur.Jobs.Quartz.QuartzJobAdapter
+Excalibur.Jobs.Quartz.QuartzJobAdapter.Execute(Quartz.IJobExecutionContext context) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Quartz.QuartzJobAdapter.QuartzJobAdapter(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory scopeFactory, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Quartz.QuartzJobAdapter> logger) -> void
+Excalibur.Jobs.Workflows.IWorkflow`1
+Excalibur.Jobs.Workflows.IWorkflow`2
+Excalibur.Jobs.Workflows.IWorkflow`2.ExecuteAsync( input, Excalibur.Jobs.Workflows.IWorkflowContext context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Jobs.Workflows.WorkflowResult<>>
+Excalibur.Jobs.Workflows.IWorkflowContext
+Excalibur.Jobs.Workflows.IWorkflowContext.CorrelationId.get -> System.String
+Excalibur.Jobs.Workflows.IWorkflowContext.CreateCheckpointAsync(System.Object checkpointData, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Workflows.IWorkflowContext.CurrentStepId.get -> System.String
+Excalibur.Jobs.Workflows.IWorkflowContext.CurrentStepId.set -> void
+Excalibur.Jobs.Workflows.IWorkflowContext.InstanceId.get -> System.String
+Excalibur.Jobs.Workflows.IWorkflowContext.Properties.get -> System.Collections.Generic.IDictionary<System.String, System.Object>
+Excalibur.Jobs.Workflows.IWorkflowContext.RaiseEventAsync(System.String eventName, System.Object eventData, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Workflows.IWorkflowContext.ScheduleStepAsync(System.String stepId, System.DateTimeOffset scheduledTime, System.Object stepData, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Workflows.IWorkflowContext.ScheduleStepAsync(System.String stepId, System.TimeSpan delay, System.Object stepData, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Workflows.IWorkflowContext.StartedAt.get -> System.DateTimeOffset
+Excalibur.Jobs.Workflows.IWorkflowContext.WaitForEventAsync(System.String eventName, System.Nullable<System.TimeSpan> timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Object>
+Excalibur.Jobs.Workflows.IWorkflowOrchestration
+Excalibur.Jobs.Workflows.IWorkflowOrchestration.CreateCheckpointAsync(System.Object checkpointData, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Workflows.IWorkflowOrchestration.RaiseEventAsync(System.String eventName, System.Object eventData, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Workflows.IWorkflowOrchestration.ScheduleStepAsync(System.String stepId, System.DateTimeOffset scheduledTime, System.Object stepData, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Workflows.IWorkflowOrchestration.ScheduleStepAsync(System.String stepId, System.TimeSpan delay, System.Object stepData, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Workflows.IWorkflowOrchestration.WaitForEventAsync(System.String eventName, System.Nullable<System.TimeSpan> timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Object>
+Excalibur.Jobs.Workflows.WorkflowContext
+Excalibur.Jobs.Workflows.WorkflowContext.CorrelationId.get -> System.String
+Excalibur.Jobs.Workflows.WorkflowContext.CreateCheckpointAsync(System.Object checkpointData, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Workflows.WorkflowContext.CurrentStepId.get -> System.String
+Excalibur.Jobs.Workflows.WorkflowContext.CurrentStepId.set -> void
+Excalibur.Jobs.Workflows.WorkflowContext.InstanceId.get -> System.String
+Excalibur.Jobs.Workflows.WorkflowContext.Properties.get -> System.Collections.Generic.IDictionary<System.String, System.Object>
+Excalibur.Jobs.Workflows.WorkflowContext.RaiseEventAsync(System.String eventName, System.Object eventData, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Workflows.WorkflowContext.ScheduleStepAsync(System.String stepId, System.DateTimeOffset scheduledTime, System.Object stepData, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Workflows.WorkflowContext.ScheduleStepAsync(System.String stepId, System.TimeSpan delay, System.Object stepData, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Workflows.WorkflowContext.StartedAt.get -> System.DateTimeOffset
+Excalibur.Jobs.Workflows.WorkflowContext.WaitForEventAsync(System.String eventName, System.Nullable<System.TimeSpan> timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Object>
+Excalibur.Jobs.Workflows.WorkflowContext.WaitForScheduledStepsAsync() -> System.Threading.Tasks.Task
+Excalibur.Jobs.Workflows.WorkflowContext.WorkflowContext(System.String instanceId, System.String correlationId) -> void
+Excalibur.Jobs.Workflows.WorkflowJob`3
+Excalibur.Jobs.Workflows.WorkflowJob`3.ExecuteAsync(Excalibur.Jobs.Workflows.WorkflowJobContext<> context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.Workflows.WorkflowJob`3.WorkflowJob`3( workflow, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Workflows.WorkflowJob<, , >> logger) -> void
+Excalibur.Jobs.Workflows.WorkflowJobContext`1
+Excalibur.Jobs.Workflows.WorkflowJobContext`1.CorrelationId.get -> System.String
+Excalibur.Jobs.Workflows.WorkflowJobContext`1.Input.get ->
+Excalibur.Jobs.Workflows.WorkflowJobContext`1.InstanceId.get -> System.String
+Excalibur.Jobs.Workflows.WorkflowJobContext`1.WorkflowJobContext`1(System.String instanceId,  input, System.String correlationId) -> void
+Excalibur.Jobs.Workflows.WorkflowResult`1
+Excalibur.Jobs.Workflows.WorkflowResult`1.<Clone>$() -> Excalibur.Jobs.Workflows.WorkflowResult<>
+Excalibur.Jobs.Workflows.WorkflowResult`1.CompletedAt.get -> System.DateTimeOffset
+Excalibur.Jobs.Workflows.WorkflowResult`1.Deconstruct(ref System.Boolean IsSuccess, ref  Output, ref System.Exception Error, ref Excalibur.Jobs.Workflows.WorkflowStatus Status) -> System.Void
+Excalibur.Jobs.Workflows.WorkflowResult`1.Equals(Excalibur.Jobs.Workflows.WorkflowResult<> other) -> System.Boolean
+Excalibur.Jobs.Workflows.WorkflowResult`1.Equals(System.Object obj) -> System.Boolean
+Excalibur.Jobs.Workflows.WorkflowResult`1.Error.get -> System.Exception
+Excalibur.Jobs.Workflows.WorkflowResult`1.Error.set -> void
+Excalibur.Jobs.Workflows.WorkflowResult`1.GetHashCode() -> System.Int32
+Excalibur.Jobs.Workflows.WorkflowResult`1.IsSuccess.get -> System.Boolean
+Excalibur.Jobs.Workflows.WorkflowResult`1.IsSuccess.set -> void
+Excalibur.Jobs.Workflows.WorkflowResult`1.Output.get ->
+Excalibur.Jobs.Workflows.WorkflowResult`1.Output.set -> void
+Excalibur.Jobs.Workflows.WorkflowResult`1.Status.get -> Excalibur.Jobs.Workflows.WorkflowStatus
+Excalibur.Jobs.Workflows.WorkflowResult`1.Status.set -> void
+Excalibur.Jobs.Workflows.WorkflowResult`1.ToString() -> System.String
+Excalibur.Jobs.Workflows.WorkflowResult`1.WorkflowResult`1(System.Boolean IsSuccess,  Output, System.Exception Error, Excalibur.Jobs.Workflows.WorkflowStatus Status) -> void
+Excalibur.Jobs.Workflows.WorkflowResultFactory
+Excalibur.Jobs.Workflows.WorkflowStatus
+Excalibur.Jobs.Workflows.WorkflowStatus.Cancelled -> Excalibur.Jobs.Workflows.WorkflowStatus
+Excalibur.Jobs.Workflows.WorkflowStatus.Completed -> Excalibur.Jobs.Workflows.WorkflowStatus
+Excalibur.Jobs.Workflows.WorkflowStatus.Failed -> Excalibur.Jobs.Workflows.WorkflowStatus
+Excalibur.Jobs.Workflows.WorkflowStatus.Running -> Excalibur.Jobs.Workflows.WorkflowStatus
+Excalibur.Jobs.Workflows.WorkflowStatus.Suspended -> Excalibur.Jobs.Workflows.WorkflowStatus
+Excalibur.Jobs.Workflows.WorkflowValidationResult
+Excalibur.Jobs.Workflows.WorkflowValidationResult.ErrorMessage.get -> System.String
+Excalibur.Jobs.Workflows.WorkflowValidationResult.ErrorMessage.set -> void
+Excalibur.Jobs.Workflows.WorkflowValidationResult.IsValid.get -> System.Boolean
+Excalibur.Jobs.Workflows.WorkflowValidationResult.IsValid.set -> void
+Excalibur.Jobs.Workflows.WorkflowValidationResult.ValidationErrors.get -> System.Collections.Generic.IReadOnlyCollection<System.String>
+Excalibur.Jobs.Workflows.WorkflowValidationResult.ValidationErrors.set -> void
+Excalibur.Jobs.Workflows.WorkflowValidationResult.WorkflowValidationResult() -> void
+Microsoft.Extensions.DependencyInjection.CoordinationServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.JobHostServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.QuartzServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.WorkflowServiceCollectionExtensions
+static const Excalibur.Jobs.Cdc.CdcJob.JobConfigSectionName -> System.String
+static const Excalibur.Jobs.DataProcessing.DataProcessingJob.JobConfigSectionName -> System.String
+static const Excalibur.Jobs.Diagnostics.JobsEventId.AwsSchedulerScheduleCreated -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.AwsSchedulerScheduleCreationFailed -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.AwsSchedulerScheduleDeleted -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.AwsSchedulerScheduleDeletionFailed -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.AwsSchedulerScheduleNotFound -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.AzureLogicAppsWorkflowCreated -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.AzureLogicAppsWorkflowCreationFailed -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.AzureLogicAppsWorkflowDeleted -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.AzureLogicAppsWorkflowDeletionFailed -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.AzureLogicAppsWorkflowNotFound -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.CdcJobCompleted -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.CdcJobError -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.CdcJobStarting -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.CdcProcessingError -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.ConfigurationChangeDetected -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.CouldNotResolveJobType -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.DataProcessingJobCompleted -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.DataProcessingJobError -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.DataProcessingJobStarting -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.ErrorCreatingJobConfigWatcherService -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.ErrorExecutingJob -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.ErrorHandlingConfigurationChange -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.ErrorStartingJobWatcherService -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.ErrorStoppingJobWatcherService -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.ExecutingGenericJob -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.ExecutingJob -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.GenericContextDeserializationFailed -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.GenericContextNotFoundOrInvalid -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.GenericJobCompletedSuccessfully -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.GenericJobExecutionFailed -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.HealthCheckData -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.HealthCheckError -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.HealthCheckJobCompleted -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.HealthCheckJobFailed -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.HealthCheckJobStarting -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.HealthCheckWarning -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.InitialConfigurationLoaded -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.JobCompletedSuccessfully -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.JobDoesNotImplementInterface -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.JobTypeNotFoundOrInvalid -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.JobWatcherServiceStartedSuccessfully -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.JobWatcherServiceStoppedSuccessfully -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxJobExecutionCompleted -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxJobExecutionFailed -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxJobExecutionStarting -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxProcessorJobCompleted -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxProcessorJobFailed -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxProcessorJobStarting -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxProcessorNoMessages -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.OutboxProcessorOutboxMissing -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.PausingJob -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.RedisInstanceDeserializationFailed -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.RedisInstanceRegistered -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.RedisInstanceUnregistered -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.RedisJobCompletionReported -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.RedisJobDistributed -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.RedisLeaderDeserializationFailed -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.RedisLeaderElected -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.RedisLockAcquired -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.RedisLockAcquisitionFailed -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.RedisNoInstanceAvailable -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.ResumingJob -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.StartingJobWatcherService -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.StoppingJobWatcherService -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.WorkflowJobCompleted -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.WorkflowJobFailed -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.WorkflowJobStarting -> System.Int32
+static const Excalibur.Jobs.Diagnostics.JobsEventId.WorkflowJobUnhandledException -> System.Int32
+static const Excalibur.Jobs.Outbox.OutboxJob.JobConfigSectionName -> System.String
+static Excalibur.Jobs.Cdc.CdcJob.ConfigureHealthChecks(Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder healthChecks, Microsoft.Extensions.Configuration.IConfiguration configuration) -> System.Void
+static Excalibur.Jobs.Cdc.CdcJob.ConfigureJob(Quartz.IServiceCollectionQuartzConfigurator configurator, Microsoft.Extensions.Configuration.IConfiguration configuration) -> System.Void
+static Excalibur.Jobs.Core.ConfigurationExtensions.GetJobConfiguration(Microsoft.Extensions.Configuration.IConfiguration configuration, System.String jobConfigSectionName) ->
+static Excalibur.Jobs.DataProcessing.DataProcessingJob.ConfigureHealthChecks(Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder healthChecks, Microsoft.Extensions.Configuration.IConfiguration configuration) -> System.Void
+static Excalibur.Jobs.DataProcessing.DataProcessingJob.ConfigureJob(Quartz.IServiceCollectionQuartzConfigurator configurator, Microsoft.Extensions.Configuration.IConfiguration configuration) -> System.Void
+static Excalibur.Jobs.JobsJsonSerializerContext.Default.get -> Excalibur.Jobs.JobsJsonSerializerContext
+static Excalibur.Jobs.Outbox.OutboxJob.ConfigureHealthChecks(Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder healthChecks, Microsoft.Extensions.Configuration.IConfiguration configuration) -> System.Void
+static Excalibur.Jobs.Outbox.OutboxJob.ConfigureJob(Quartz.IServiceCollectionQuartzConfigurator configurator, Microsoft.Extensions.Configuration.IConfiguration configuration) -> System.Void
+static Excalibur.Jobs.Quartz.ApplicationBuilderExtensions.UseExcaliburJobHost(Microsoft.AspNetCore.Builder.IApplicationBuilder app) -> Microsoft.AspNetCore.Builder.IApplicationBuilder
+static Excalibur.Jobs.Workflows.WorkflowResult`1.Failure(System.Exception error) -> Excalibur.Jobs.Workflows.WorkflowResult<>
+static Excalibur.Jobs.Workflows.WorkflowResult`1.Success( output) -> Excalibur.Jobs.Workflows.WorkflowResult<>
+static Excalibur.Jobs.Workflows.WorkflowResult`1.Suspended(System.String reason) -> Excalibur.Jobs.Workflows.WorkflowResult<>
+static Excalibur.Jobs.Workflows.WorkflowResultFactory.Failure(System.Exception error) -> Excalibur.Jobs.Workflows.WorkflowResult<>
+static Excalibur.Jobs.Workflows.WorkflowResultFactory.Success( output) -> Excalibur.Jobs.Workflows.WorkflowResult<>
+static Excalibur.Jobs.Workflows.WorkflowResultFactory.Suspended(System.String reason) -> Excalibur.Jobs.Workflows.WorkflowResult<>
+static Excalibur.Jobs.Workflows.WorkflowValidationResult.Failure(System.String errorMessage) -> Excalibur.Jobs.Workflows.WorkflowValidationResult
+static Excalibur.Jobs.Workflows.WorkflowValidationResult.Failure(System.String[] errors) -> Excalibur.Jobs.Workflows.WorkflowValidationResult
+static Excalibur.Jobs.Workflows.WorkflowValidationResult.Success() -> Excalibur.Jobs.Workflows.WorkflowValidationResult
+static Microsoft.Extensions.DependencyInjection.CoordinationServiceCollectionExtensions.AddJobCoordination(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.CoordinationServiceCollectionExtensions.AddJobCoordinationRedis(Microsoft.Extensions.DependencyInjection.IServiceCollection services, StackExchange.Redis.IConnectionMultiplexer connectionMultiplexer, System.String keyPrefix) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.CoordinationServiceCollectionExtensions.AddJobCoordinationRedis(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String connectionString, System.String keyPrefix) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.JobHostServiceCollectionExtensions.AddExcaliburJobHost(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Jobs.Quartz.IJobConfigurator> configureJobs, System.Reflection.Assembly[] assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.JobHostServiceCollectionExtensions.AddExcaliburJobHost(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Quartz.IServiceCollectionQuartzConfigurator> configureQuartz, System.Action<Excalibur.Jobs.Quartz.IJobConfigurator> configureJobs, System.Reflection.Assembly[] assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.JobHostServiceCollectionExtensions.AddExcaliburJobHost(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Quartz.IServiceCollectionQuartzConfigurator> configureQuartz, System.Reflection.Assembly[] assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.JobHostServiceCollectionExtensions.AddExcaliburJobHost(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Reflection.Assembly[] assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.QuartzServiceCollectionExtensions.AddJobWatcher(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Configuration.IConfigurationSection configurationSection) -> System.Void
+static Microsoft.Extensions.DependencyInjection.QuartzServiceCollectionExtensions.AddQuartzWithJobs(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Quartz.IServiceCollectionQuartzConfigurator> withJobs) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.WorkflowServiceCollectionExtensions.AddWorkflow(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.WorkflowServiceCollectionExtensions.AddWorkflows(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

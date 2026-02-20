@@ -1,22 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <RootNamespace>Excalibur.Dispatch.Tests</RootNamespace>
     <AssemblyName>Excalibur.Dispatch.Messaging.Tests</AssemblyName>
   </PropertyGroup>
-
   <ItemGroup>
     <Compile Remove="Messaging\ErrorHandling\InMemoryDeadLetterQueueShould.cs" />
     <Compile Remove="Messaging\Resilience\ProcessorResilienceIntegrationShould.cs" />
     <Compile Remove="Messaging\Resilience\ResilienceIntegrationShould.cs" />
   </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Shouldly" />
@@ -24,17 +21,14 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="coverlet.collector" />
   </ItemGroup>
-
   <ItemGroup>
     <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
-
   <ItemGroup>
     <None Include="Messaging\ErrorHandling\InMemoryDeadLetterQueueShould.cs" />
     <None Include="Messaging\Resilience\ProcessorResilienceIntegrationShould.cs" />
     <None Include="Messaging\Resilience\ResilienceIntegrationShould.cs" />
   </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Observability\Excalibur.Dispatch.Observability.csproj" />
@@ -62,5 +56,4 @@
     <!-- Reference residual project for Shared/Fakes (TestFakes) and PerformanceTestCollection -->
     <ProjectReference Include="..\Excalibur.Dispatch.Tests\Excalibur.Dispatch.Tests.csproj" />
   </ItemGroup>
-
 </Project>

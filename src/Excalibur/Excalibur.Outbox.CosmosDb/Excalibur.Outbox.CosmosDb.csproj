@@ -1,28 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <IsPackable>true</IsPackable>
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>Excalibur.Outbox.CosmosDb</PackageId>
-    <Description>Azure Cosmos DB implementation of the cloud-native outbox pattern for Excalibur event sourcing</Description>
-    <Authors>The Excalibur Project</Authors>
-    <Company>Excalibur</Company>
-    <Product>Excalibur.Dispatch</Product>
+    <Description>Azure Cosmos DB implementation of the cloud-native outbox pattern for Excalibur event sourcing.</Description>
     <PackageTags>excalibur;outbox;cosmosdb;azure;cloud-native;event-sourcing;messaging</PackageTags>
-    <Copyright>$(Copyright)</Copyright>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <PackageProjectUrl>https://github.com/TrigintaFaces/Excalibur</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <PackageReleaseNotes>See CHANGELOG.md for release notes</PackageReleaseNotes>
     <IsAotCompatible>false</IsAotCompatible>
-    <DeterministicSourcePaths>true</DeterministicSourcePaths>
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    
     <AzureCosmosDisableNewtonsoftJsonCheck>true</AzureCosmosDisableNewtonsoftJsonCheck>
-  <PackageReadmeFile>README.md</PackageReadmeFile>
-    </PropertyGroup>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
     <ProjectReference Include="..\Excalibur.Data.CosmosDb\Excalibur.Data.CosmosDb.csproj" />
@@ -34,7 +19,11 @@
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
-<ItemGroup>
+  <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
-  </Project>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

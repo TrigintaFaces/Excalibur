@@ -7,7 +7,7 @@ using System.Security.Claims;
 namespace Excalibur.Dispatch.Abstractions;
 
 /// <summary>
-/// Unified interface for all message metadata across the Dispatch framework. This interface consolidates all metadata requirements from
+/// Unified interface for all message metadata across the Excalibur framework. This interface consolidates all metadata requirements from
 /// various contexts including messaging, event sourcing, cloud providers, and multi-tenant scenarios.
 /// </summary>
 /// <remarks>

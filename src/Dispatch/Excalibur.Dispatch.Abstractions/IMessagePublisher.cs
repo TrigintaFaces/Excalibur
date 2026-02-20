@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Abstractions;
 /// Defines a contract for publishing messages within a system.
 /// </summary>
 /// <remarks>
-/// This interface provides the core abstraction for message publishing in the Dispatch framework. It should be implemented by
+/// This interface provides the core abstraction for message publishing in the Excalibur framework. It should be implemented by
 /// transport-specific publishers and used by application code that needs to send messages through the messaging infrastructure.
 /// </remarks>
 public interface IMessagePublisher

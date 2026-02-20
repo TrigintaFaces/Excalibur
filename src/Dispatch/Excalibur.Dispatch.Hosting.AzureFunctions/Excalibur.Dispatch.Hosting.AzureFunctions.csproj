@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsAotCompatible>true</IsAotCompatible>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <!-- IDE0060: Unused parameters in hosting provider stubs (future implementation hooks) -->
@@ -10,10 +11,8 @@
     <RootNamespace>Excalibur.Dispatch.Hosting.AzureFunctions</RootNamespace>
     <AssemblyName>Excalibur.Dispatch.Hosting.AzureFunctions</AssemblyName>
     <PackageId>$(AssemblyName)</PackageId>
-    <Description>Azure Functions hosting integration for the Dispatch messaging framework</Description>
+    <Description>Azure Functions hosting integration for the Excalibur framework.</Description>
     <PackageTags>dispatch;serverless;hosting;azure;functions;messaging</PackageTags>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <IsPackable>true</IsPackable>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
@@ -30,5 +29,9 @@
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Storage.Queues" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.CosmosDB" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.EventGrid" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

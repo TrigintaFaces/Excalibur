@@ -4,7 +4,7 @@
 namespace Excalibur.Dispatch.Exceptions;
 
 /// <summary>
-/// Base exception class for resource-related errors in the Dispatch framework.
+/// Base exception class for resource-related errors in the Excalibur framework.
 /// </summary>
 /// <remarks>
 /// <para>

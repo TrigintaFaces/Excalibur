@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Metadata;
 /// </summary>
 /// <remarks>
 /// This class provides an immutable, thread-safe implementation of message metadata that consolidates all metadata requirements across the
-/// Dispatch framework. Use the builder pattern via <see cref="ToBuilder" /> or <see cref="MessageMetadataBuilder" /> to create or modify instances.
+/// Excalibur framework. Use the builder pattern via <see cref="ToBuilder" /> or <see cref="MessageMetadataBuilder" /> to create or modify instances.
 /// </remarks>
 [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)]
 public sealed record MessageMetadata : IMessageMetadata

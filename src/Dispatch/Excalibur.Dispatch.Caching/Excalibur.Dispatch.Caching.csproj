@@ -1,10 +1,10 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <PackageId>Excalibur.Dispatch.Caching</PackageId>
-    <Description>Caching middleware and services for the Dispatch messaging framework using Microsoft.Extensions.Caching</Description>
-    <PackageTags>dispatch;caching;memory;distributed;hybrid;redis</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Dispatch.Caching</PackageId>
+    <Description>Caching middleware and services for the Excalibur framework built on Microsoft.Extensions.Caching.</Description>
+    <PackageTags>dispatch;caching;memory;distributed;hybrid;redis</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
@@ -32,5 +32,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

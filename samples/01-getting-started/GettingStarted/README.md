@@ -1,6 +1,6 @@
 # Getting Started with Dispatch
 
-This sample demonstrates the fundamentals of the Dispatch messaging framework with a minimal ASP.NET Core API.
+This sample demonstrates the fundamentals of the Excalibur framework with a minimal ASP.NET Core API.
 
 ## What This Sample Demonstrates
 

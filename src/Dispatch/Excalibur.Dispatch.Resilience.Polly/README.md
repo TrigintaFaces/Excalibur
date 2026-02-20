@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Resilience.Polly
 
-Polly-based resilience patterns for the Dispatch messaging framework.
+Polly-based resilience patterns for the Excalibur framework.
 
 ## Installation
 

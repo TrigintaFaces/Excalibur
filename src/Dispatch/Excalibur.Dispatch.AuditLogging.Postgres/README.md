@@ -1,3 +1,3 @@
 # Excalibur.Dispatch.AuditLogging.Postgres
 
-Postgres audit store for the Excalibur compliance framework.
+Postgres audit store for the Excalibur framework.

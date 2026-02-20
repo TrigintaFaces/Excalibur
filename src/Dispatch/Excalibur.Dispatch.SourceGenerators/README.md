@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.SourceGenerators
 
-Source generators for the Dispatch messaging framework, enabling AOT-compatible code generation at compile time.
+Source generators for the Excalibur framework, enabling AOT-compatible code generation at compile time.
 
 ## Quick Start
 
@@ -47,7 +47,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Register all [AutoRegister] services
 builder.Services.AddGeneratedServices();
 
-// Add Dispatch framework
+// Add Excalibur framework
 builder.Services.AddDispatch();
 
 var app = builder.Build();

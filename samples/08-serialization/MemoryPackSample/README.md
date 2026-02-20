@@ -1,6 +1,6 @@
 # MemoryPack Serialization Sample
 
-This sample demonstrates **MemoryPack serialization** with the Dispatch framework using `Excalibur.Dispatch.Serialization.MemoryPack`.
+This sample demonstrates **MemoryPack serialization** with the Excalibur framework using `Excalibur.Dispatch.Serialization.MemoryPack`.
 
 ## What This Sample Shows
 

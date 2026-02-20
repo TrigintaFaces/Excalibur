@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Transport.AzureServiceBus
 
-Azure messaging transport implementation for the Dispatch messaging framework, providing integration with Azure Service Bus, Event Hubs, and Storage Queues.
+Azure messaging transport implementation for the Excalibur framework, providing integration with Azure Service Bus, Event Hubs, and Storage Queues.
 
 ## Overview
 

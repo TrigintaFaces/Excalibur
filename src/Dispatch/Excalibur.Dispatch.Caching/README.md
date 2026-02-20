@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Caching
 
-Caching middleware and extensions for the Dispatch messaging framework.
+Caching middleware and extensions for the Excalibur framework.
 
 ## Installation
 

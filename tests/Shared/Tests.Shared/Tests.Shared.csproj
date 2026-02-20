@@ -1,16 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <IsPackable>false</IsPackable>
     <IsTestProject>false</IsTestProject>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <RootNamespace>Tests.Shared</RootNamespace>
     <AssemblyName>Tests.Shared</AssemblyName>
   </PropertyGroup>
-
   <ItemGroup>
     <!-- Test Frameworks -->
     <PackageReference Include="xunit" />
@@ -20,7 +18,6 @@
     <PackageReference Include="AutoFixture" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" PrivateAssets="all" />
     <PackageReference Include="coverlet.collector" PrivateAssets="all" />
-
     <!-- TestContainers -->
     <PackageReference Include="Testcontainers" />
     <PackageReference Include="Testcontainers.PostgreSql" />
@@ -30,44 +27,34 @@
     <PackageReference Include="Testcontainers.Kafka" />
     <PackageReference Include="Testcontainers.MsSql" />
     <PackageReference Include="Testcontainers.MongoDb" />
-
     <!-- Database Drivers for Test Fixtures (Required by SqlServerContainerFixture, PostgresContainerFixture) -->
     <!-- NOTE: These are NOT in core Dispatch anymore (Sprint 306 T3.X-2). Tests need them directly. -->
     <PackageReference Include="Microsoft.Data.SqlClient" />
     <PackageReference Include="Npgsql" />
-
     <!-- ASP.NET Testing -->
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
-
     <!-- Generic Host for test hosts -->
     <PackageReference Include="Microsoft.Extensions.Hosting" />
-
     <!-- Testing Utilities -->
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
-
     <!-- Snapshot Testing -->
     <PackageReference Include="Verify.Xunit" />
   </ItemGroup>
-
   <ItemGroup>
     <!-- Core Dispatch Dependencies -->
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
-
     <!-- Core Excalibur Dependencies -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Domain\Excalibur.Domain.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Application\Excalibur.Application.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
-
     <!-- Leader Election (for conformance tests) -->
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.LeaderElection.Abstractions\Excalibur.Dispatch.LeaderElection.Abstractions.csproj" />
-
     <!-- Transport Abstractions (for streaming conformance tests) -->
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.Abstractions\Excalibur.Dispatch.Transport.Abstractions.csproj" />
   </ItemGroup>
-
   <ItemGroup>
     <Using Include="Xunit" />
     <Using Include="Shouldly" />
@@ -76,5 +63,4 @@
     <Using Include="Microsoft.Extensions.DependencyInjection" />
     <Using Include="System.Diagnostics" />
   </ItemGroup>
-
 </Project>

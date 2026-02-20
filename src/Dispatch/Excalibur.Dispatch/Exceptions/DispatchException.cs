@@ -8,11 +8,11 @@ using Excalibur.Dispatch.Abstractions;
 namespace Excalibur.Dispatch.Exceptions;
 
 /// <summary>
-/// Base exception class for all Dispatch framework exceptions. Provides consistent error handling, categorization, and structured error data.
+/// Base exception class for all Excalibur framework exceptions. Provides consistent error handling, categorization, and structured error data.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This exception extends <see cref="ApiException" /> to provide a unified exception hierarchy for the Dispatch framework. It adds rich
+/// This exception extends <see cref="ApiException" /> to provide a unified exception hierarchy for the Excalibur framework. It adds rich
 /// error categorization, distributed tracing support, and fluent configuration capabilities.
 /// </para>
 /// <para> The inheritance chain is: <c> Exception → ApiException → DispatchException → [Specialized Exceptions] </c> </para>

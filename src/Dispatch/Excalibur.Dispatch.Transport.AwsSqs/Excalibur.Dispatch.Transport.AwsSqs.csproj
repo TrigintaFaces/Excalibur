@@ -1,13 +1,12 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <AssemblyName>Excalibur.Dispatch.Transport.AwsSqs</AssemblyName>
     <RootNamespace>Excalibur.Dispatch.Transport.AwsSqs</RootNamespace>
-    <IsPackable>true</IsPackable>
     <PackageId>Excalibur.Dispatch.Transport.AwsSqs</PackageId>
-    <Description>AWS integration for Dispatch messaging framework. Provides SQS, SNS, and EventBridge implementations with CloudEvents support.</Description>
+    <Description>AWS integration for the Excalibur framework. Provides SQS, SNS, and EventBridge implementations with CloudEvents support.</Description>
     <PackageTags>messaging;dispatch;aws;sqs;sns;eventbridge;cloud;aot</PackageTags>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
   <!-- AOT Configuration -->
   <PropertyGroup>
@@ -21,7 +20,7 @@
     <IlcGenerateStackTraceData>false</IlcGenerateStackTraceData>
     <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(PublishAot)' == 'true' OR '$(PublishTrimmed)' == 'true'">
+  <PropertyGroup>
     <DefineConstants>$(DefineConstants);USE_SOURCE_GENERATION;AOT_ENABLED</DefineConstants>
     <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
     <TrimmerDefaultAction>link</TrimmerDefaultAction>
@@ -76,5 +75,9 @@
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.AwsSqs.Tests.Functional" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.AwsSqs.Tests" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

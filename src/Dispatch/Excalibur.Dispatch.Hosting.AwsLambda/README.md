@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Hosting.AwsLambda
 
-AWS Lambda hosting integration for the Dispatch messaging framework.
+AWS Lambda hosting integration for the Excalibur framework.
 
 ## Installation
 

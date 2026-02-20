@@ -7,7 +7,7 @@ using Excalibur.Dispatch.Resilience;
 namespace Excalibur.Dispatch.Options.Resilience;
 
 /// <summary>
-/// Configuration options for retry behavior across the Dispatch framework.
+/// Configuration options for retry behavior across the Excalibur framework.
 /// </summary>
 /// <remarks>
 /// <para>

@@ -5,7 +5,7 @@
 namespace Excalibur.Dispatch.Exceptions;
 
 /// <summary>
-/// Centralized catalog of error codes used throughout the Dispatch framework. Error codes follow a pattern: [CATEGORY][NUMBER] where
+/// Centralized catalog of error codes used throughout the Excalibur framework. Error codes follow a pattern: [CATEGORY][NUMBER] where
 /// CATEGORY is a 3-letter prefix.
 /// </summary>
 public static class ErrorCodes

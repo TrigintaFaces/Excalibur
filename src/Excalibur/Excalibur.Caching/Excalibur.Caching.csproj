@@ -1,33 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<!-- NuGet Package Metadata -->
-		<PackageId>Excalibur.Caching</PackageId>
-		<Description>Advanced caching patterns and adaptive TTL strategies for the Excalibur framework</Description>
-		<PackageTags>excalibur;caching;adaptive-ttl;performance</PackageTags>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<IsAotCompatible>false</IsAotCompatible>
-		<DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
-	</PropertyGroup>
-	<!-- Added Excalibur.Dispatch.Caching reference for ICacheInvalidationService -->
-	<ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
-		<ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
-		<ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Caching\Excalibur.Dispatch.Caching.csproj" />
-	</ItemGroup>
-	<ItemGroup>
-		<PackageReference Include="Microsoft.Extensions.Caching.Abstractions" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
-		<PackageReference Include="System.Diagnostics.PerformanceCounter" />
-	</ItemGroup>
-	<ItemGroup>
-		<InternalsVisibleTo Include="Excalibur.Caching.Tests" />
-		<InternalsVisibleTo Include="Excalibur.Tests" />
-	</ItemGroup>
-
-	<!-- CI mode: PackageReference for Dispatch packages -->
-	<ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
-		<PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
-		<PackageReference Include="Excalibur.Dispatch.Caching" VersionOverride="$(DispatchPackageVersion)" />
-	</ItemGroup>
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- NuGet Package Metadata -->
+    <PackageId>Excalibur.Caching</PackageId>
+    <Description>Advanced caching patterns and adaptive TTL strategies for the Excalibur framework.</Description>
+    <PackageTags>excalibur;caching;adaptive-ttl;performance</PackageTags>
+    <IsAotCompatible>false</IsAotCompatible>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+  </PropertyGroup>
+  <!-- Added Excalibur.Dispatch.Caching reference for ICacheInvalidationService -->
+  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Caching\Excalibur.Dispatch.Caching.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Caching.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Tests" />
+  </ItemGroup>
+  <!-- CI mode: PackageReference for Dispatch packages -->
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Dispatch.Caching" VersionOverride="$(DispatchPackageVersion)" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
 </Project>

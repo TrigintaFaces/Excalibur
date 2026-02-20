@@ -13,7 +13,7 @@ using ValidationResult = FluentValidation.Results.ValidationResult;
 namespace Excalibur.Dispatch.Validation.FluentValidation;
 
 /// <summary>
-/// Extension methods for working with FluentValidation in the Dispatch framework.
+/// Extension methods for working with FluentValidation in the Excalibur framework.
 /// </summary>
 public static class ValidationResultExtensions
 {

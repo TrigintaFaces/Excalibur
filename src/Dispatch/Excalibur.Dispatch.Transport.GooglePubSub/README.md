@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Transport.GooglePubSub
 
-Google Cloud Pub/Sub transport implementation for the Dispatch messaging framework, providing scalable, serverless messaging with exactly-once delivery, message ordering, and dead letter topic support.
+Google Cloud Pub/Sub transport implementation for the Excalibur framework, providing scalable, serverless messaging with exactly-once delivery, message ordering, and dead letter topic support.
 
 ## Overview
 

@@ -1,6 +1,6 @@
 # Azure Functions Serverless Sample
 
-This sample demonstrates how to use `Excalibur.Dispatch.Hosting.AzureFunctions` for building serverless applications with Azure Functions using the Dispatch messaging framework.
+This sample demonstrates how to use `Excalibur.Dispatch.Hosting.AzureFunctions` for building serverless applications with Azure Functions using the Excalibur framework.
 
 ## Prerequisites
 

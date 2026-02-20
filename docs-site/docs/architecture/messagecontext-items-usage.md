@@ -6,7 +6,7 @@ description: Guidelines for when to use the Items dictionary vs direct propertie
 
 # MessageContext Items Dictionary Usage
 
-This document explains when to use the `IMessageContext.Items` dictionary versus direct properties, and catalogs legitimate Items dictionary usage across the Dispatch framework.
+This document explains when to use the `IMessageContext.Items` dictionary versus direct properties, and catalogs legitimate Items dictionary usage across the Excalibur framework.
 
 ## Overview
 

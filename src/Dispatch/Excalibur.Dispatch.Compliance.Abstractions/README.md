@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Compliance.Abstractions
 
-Compliance abstractions for the Dispatch messaging framework. Contains interfaces and contracts for encryption, key management, data classification, and audit logging per SOC2/GDPR requirements.
+Compliance abstractions for the Excalibur framework. Contains interfaces and contracts for encryption, key management, data classification, and audit logging per SOC2/GDPR requirements.
 
 ## Installation
 

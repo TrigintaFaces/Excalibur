@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Hosting.AzureFunctions
 
-Azure Functions hosting integration for the Dispatch messaging framework.
+Azure Functions hosting integration for the Excalibur framework.
 
 ## Installation
 

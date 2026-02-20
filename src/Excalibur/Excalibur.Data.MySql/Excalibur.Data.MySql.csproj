@@ -1,25 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <IsPackable>true</IsPackable>
-    <PackageId>Excalibur.Data.MySql</PackageId>
-    <Description>MySQL/MariaDB database provider implementation for Excalibur data access layer</Description>
-    <Authors>The Excalibur Project</Authors>
-    <Company>Excalibur</Company>
-    <Product>Excalibur.Dispatch</Product>
-    <PackageTags>excalibur;data;mysql;mariadb;database;provider</PackageTags>
-    <Copyright>$(Copyright)</Copyright>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <PackageProjectUrl>https://github.com/TrigintaFaces/Excalibur</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <PackageReleaseNotes>See CHANGELOG.md for release notes</PackageReleaseNotes>
-    <IsAotCompatible>true</IsAotCompatible>
-    <DeterministicSourcePaths>true</DeterministicSourcePaths>
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Data.MySql</PackageId>
+    <Description>MySQL/MariaDB database provider implementation for Excalibur data access layer.</Description>
+    <PackageTags>excalibur;data;mysql;mariadb;database;provider</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <ItemGroup>
@@ -35,7 +21,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
   </ItemGroup>
-
   <!-- Development mode: Dispatch ProjectReferences -->
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
@@ -43,9 +28,12 @@
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
-
   <!-- CI mode: PackageReference for Dispatch packages -->
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
     <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

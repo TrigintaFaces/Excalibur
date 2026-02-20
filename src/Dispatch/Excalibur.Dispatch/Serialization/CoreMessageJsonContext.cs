@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Serialization;
 /// Source generation context for core Dispatch message types. Provides AOT-compatible JSON serialization for the messaging framework.
 /// </summary>
 /// <remarks>
-/// This context includes all core message types used throughout the Dispatch framework. For cloud provider-specific types, use the
+/// This context includes all core message types used throughout the Excalibur framework. For cloud provider-specific types, use the
 /// respective provider contexts.
 /// </remarks>
 [JsonSourceGenerationOptions(

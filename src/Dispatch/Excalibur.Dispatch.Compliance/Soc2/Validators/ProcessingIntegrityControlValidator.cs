@@ -80,7 +80,7 @@ public sealed class ProcessingIntegrityControlValidator : BaseControlValidator
 	{
 		var evidence = new List<EvidenceItem>();
 
-		// The Dispatch framework provides input validation through the pipeline
+		// The Excalibur framework provides input validation through the pipeline
 		// This is a built-in feature when using the framework correctly
 
 		evidence.Add(CreateEvidence(

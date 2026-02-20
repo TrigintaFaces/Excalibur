@@ -1,6 +1,6 @@
 # FluentValidation Sample
 
-This sample demonstrates how to integrate [FluentValidation](https://docs.fluentvalidation.net/) with the Dispatch framework for comprehensive message validation.
+This sample demonstrates how to integrate [FluentValidation](https://docs.fluentvalidation.net/) with the Excalibur framework for comprehensive message validation.
 
 ## Overview
 

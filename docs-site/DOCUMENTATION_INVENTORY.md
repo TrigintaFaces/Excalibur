@@ -19,7 +19,7 @@ This inventory catalogs the **complete public API surface** of both Dispatch and
 
 ---
 
-## Part 1: Dispatch Framework
+## Part 1: Excalibur framework
 
 ### 1.1 Core Packages
 

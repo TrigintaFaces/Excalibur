@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Hosting.GoogleCloudFunctions
 
-Google Cloud Functions hosting integration for the Dispatch messaging framework.
+Google Cloud Functions hosting integration for the Excalibur framework.
 
 ## Installation
 

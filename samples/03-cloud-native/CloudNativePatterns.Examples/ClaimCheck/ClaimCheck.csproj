@@ -1,57 +1,44 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<OutputType>Exe</OutputType>
-		<TargetFramework>net9.0</TargetFramework>
-		<ImplicitUsings>enable</ImplicitUsings>
-		<Nullable>enable</Nullable>
-		<RootNamespace>Excalibur.Dispatch.CloudNativePatterns.Examples.ClaimCheck</RootNamespace>
-		<Copyright>$(Copyright)</Copyright>
-		<Company>$(Company)</Company>
-		<PackageLicenseExpression>MIT</PackageLicenseExpression>
-		<IsPackable>true</IsPackable>
-		<Version>$(VersionPrefix)</Version>
-		<PackageId>$(AssemblyName)</PackageId>
-		<GenerateDocumentationFile>true</GenerateDocumentationFile>
-		<Authors>$(Authors)</Authors>
-		<Product>$(Product)</Product>
-		<Description>ClaimCheck - Part of the Excalibur messaging framework</Description>
-		<PackageTags>excalibur;dispatch;messaging;aot</PackageTags>
-		<PackageProjectUrl>https://github.com/TrigintaFaces/Excalibur</PackageProjectUrl>
-		<RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
-		<RepositoryType>git</RepositoryType>
-		<PackageReleaseNotes>See CHANGELOG.md for release notes</PackageReleaseNotes>
-		<!-- Suppress warnings irrelevant for sample code -->
-		<NoWarn>$(NoWarn);CA5394;CS8601</NoWarn>
-	</PropertyGroup>
-	<ItemGroup>
-		<!-- Core Dependencies -->
-		<PackageReference Include="Microsoft.Extensions.Hosting" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Json" />
-		<!-- Azure Dependencies -->
-		<PackageReference Include="Azure.Storage.Blobs" />
-		<PackageReference Include="Azure.Messaging.ServiceBus" />
-		<!-- Health Checks -->
-		<PackageReference Include="AspNetCore.HealthChecks.AzureStorage" />
-		<!-- OpenTelemetry -->
-		<PackageReference Include="OpenTelemetry.Extensions.Hosting" />
-		<PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" />
-		<!-- Sprint 428 S428.3: Updated paths for reorganized sample structure -->
-		<ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
-		<ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
-		<ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Patterns\Excalibur.Dispatch.Patterns.csproj" />
-		<ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Patterns.Azure\Excalibur.Dispatch.Patterns.Azure.csproj" />
-	</ItemGroup>
-	<ItemGroup>
-		<!-- Configuration Files -->
-		<None Update="appsettings.json">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</None>
-		<None Update="appsettings.Development.json">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</None>
-		<None Update="appsettings.Production.json">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</None>
-	</ItemGroup>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Excalibur.Dispatch.CloudNativePatterns.Examples.ClaimCheck</RootNamespace>
+    <Version>$(VersionPrefix)</Version>
+    <PackageId>$(AssemblyName)</PackageId>
+    <!-- Suppress warnings irrelevant for sample code -->
+    <NoWarn>$(NoWarn);CA5394;CS8601</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Core Dependencies -->
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+    <!-- Azure Dependencies -->
+    <PackageReference Include="Azure.Storage.Blobs" />
+    <PackageReference Include="Azure.Messaging.ServiceBus" />
+    <!-- Health Checks -->
+    <PackageReference Include="AspNetCore.HealthChecks.AzureStorage" />
+    <!-- OpenTelemetry -->
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" />
+    <!-- Sprint 428 S428.3: Updated paths for reorganized sample structure -->
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Patterns\Excalibur.Dispatch.Patterns.csproj" />
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Patterns.Azure\Excalibur.Dispatch.Patterns.Azure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Configuration Files -->
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="appsettings.Development.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="appsettings.Production.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

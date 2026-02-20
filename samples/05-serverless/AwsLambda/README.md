@@ -1,6 +1,6 @@
 # AWS Lambda Serverless Sample
 
-This sample demonstrates how to use `Excalibur.Dispatch.Hosting.AwsLambda` for building serverless applications with AWS Lambda using the Dispatch messaging framework.
+This sample demonstrates how to use `Excalibur.Dispatch.Hosting.AwsLambda` for building serverless applications with AWS Lambda using the Excalibur framework.
 
 ## Prerequisites
 

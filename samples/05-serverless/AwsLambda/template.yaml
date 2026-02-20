@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  AWS Lambda Serverless Sample for Dispatch Framework
+  AWS Lambda Serverless Sample for Excalibur framework
   Sprint 430 S430.2 - Demonstrates Dispatch messaging in AWS Lambda
 
 Globals:

@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Performance.Benchmarks;
 
 /// <summary>
 /// End-to-end benchmarks measuring actual messages-per-second throughput
-/// through the complete Dispatch framework pipeline.
+/// through the complete Excalibur framework pipeline.
 /// </summary>
 /// <remarks>
 /// These benchmarks use the real IDispatcher with actual handler resolution
@@ -49,7 +49,7 @@ public class DispatcherThroughputBenchmarks
 		_ = services.AddTransient<NoOpCommandHandler>();
 		_ = services.AddTransient<IActionHandler<NoOpCommand>, NoOpCommandHandler>();
 
-		// Wire up the full Dispatch framework (without assembly scanning to avoid issues)
+		// Wire up the full Excalibur framework (without assembly scanning to avoid issues)
 		_ = services.AddDispatch();
 
 		_serviceProvider = services.BuildServiceProvider();

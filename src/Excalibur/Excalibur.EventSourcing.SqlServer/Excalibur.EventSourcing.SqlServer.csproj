@@ -1,50 +1,49 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<IsPackable>true</IsPackable>
-		<PackageId>Excalibur.EventSourcing.SqlServer</PackageId>
-		<Description>SQL Server implementations for Excalibur event sourcing, including event store, snapshot store, and outbox store.</Description>
-		<PackageTags>excalibur;event-sourcing;sqlserver;eventstore;snapshots;outbox;ddd;cqrs</PackageTags>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
-	</PropertyGroup>
-
-	<!-- AOT Configuration -->
-	<PropertyGroup>
-		<IsAotCompatible>true</IsAotCompatible>
-		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
-		<PublishAot Condition="'$(PublishAot)' == ''">false</PublishAot>
-	</PropertyGroup>
-
-	<PropertyGroup Condition="'$(PublishAot)' == 'true' OR '$(PublishTrimmed)' == 'true'">
-		<SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
-		<TrimmerDefaultAction>link</TrimmerDefaultAction>
-	</PropertyGroup>
-
-	<ItemGroup>
-		<!-- SQL Server specific packages -->
-		<PackageReference Include="Microsoft.Data.SqlClient" />
-		<PackageReference Include="Dapper" />
-		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
-		<PackageReference Include="System.Diagnostics.DiagnosticSource" />
-		<PackageReference Include="AspNetCore.HealthChecks.SqlServer" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
-	</ItemGroup>
-
-	<ItemGroup><ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" /><ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" /></ItemGroup><ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
-		
-		
-		<ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
-		<ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Serialization.MemoryPack\Excalibur.Dispatch.Serialization.MemoryPack.csproj" />
-	</ItemGroup>
-
-	<!-- CI mode: PackageReference for Dispatch packages -->
-	<ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
-		<PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
-		<PackageReference Include="Excalibur.Dispatch.Serialization.MemoryPack" VersionOverride="$(DispatchPackageVersion)" />
-	</ItemGroup>
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.EventSourcing.SqlServer</PackageId>
+    <Description>SQL Server implementations for Excalibur event sourcing, including event store, snapshot store, and outbox store.</Description>
+    <PackageTags>excalibur;event-sourcing;sqlserver;eventstore;snapshots;outbox;ddd;cqrs</PackageTags>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+  </PropertyGroup>
+  <!-- AOT Configuration -->
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <PublishAot Condition="'$(PublishAot)' == ''">false</PublishAot>
+  </PropertyGroup>
+  <PropertyGroup>
+    <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
+    <TrimmerDefaultAction>link</TrimmerDefaultAction>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- SQL Server specific packages -->
+    <PackageReference Include="Microsoft.Data.SqlClient" />
+    <PackageReference Include="Dapper" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="System.Diagnostics.DiagnosticSource" />
+    <PackageReference Include="AspNetCore.HealthChecks.SqlServer" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+    <ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Serialization.MemoryPack\Excalibur.Dispatch.Serialization.MemoryPack.csproj" />
+  </ItemGroup>
+  <!-- CI mode: PackageReference for Dispatch packages -->
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Dispatch.Serialization.MemoryPack" VersionOverride="$(DispatchPackageVersion)" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
 </Project>

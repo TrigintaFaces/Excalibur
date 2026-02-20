@@ -1,1 +1,15 @@
 #nullable enable
+Excalibur.EventSourcing.InMemory.InMemoryEventStore
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.AppendAsync(System.String aggregateId, System.String aggregateType, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent> events, System.Int64 expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.Abstractions.AppendResult>
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.Clear() -> System.Void
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.EraseEventsAsync(System.String aggregateId, System.String aggregateType, System.Guid erasureRequestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Int32>
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.GetEventCount() -> System.Int32
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.GetUndispatchedEventCount() -> System.Int32
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.GetUndispatchedEventsAsync(System.Int32 batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent>>
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.InMemoryEventStore() -> void
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.IsErasedAsync(System.String aggregateId, System.String aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Boolean>
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.LoadAsync(System.String aggregateId, System.String aggregateType, System.Int64 fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent>>
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.LoadAsync(System.String aggregateId, System.String aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent>>
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.MarkEventAsDispatchedAsync(System.String eventId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Microsoft.Extensions.DependencyInjection.InMemoryEventSourcingServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.InMemoryEventSourcingServiceCollectionExtensions.AddInMemoryEventStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

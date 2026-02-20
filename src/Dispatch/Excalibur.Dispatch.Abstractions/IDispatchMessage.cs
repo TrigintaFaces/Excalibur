@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Abstractions;
 /// Marker interface for all messages that can be dispatched through the messaging pipeline.
 /// </summary>
 /// <remarks>
-/// This is a marker interface used for type identification in the Dispatch framework.
+/// This is a marker interface used for type identification in the Excalibur framework.
 /// Message properties such as MessageId, MessageType, Headers, and Kind are managed through the framework infrastructure:
 /// <list type="bullet">
 /// <item> <see cref="IMessageContext" /> - Contains message properties during pipeline processing </item>

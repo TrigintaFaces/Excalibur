@@ -1,29 +1,28 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <RootNamespace>Excalibur.Dispatch.AuditLogging.Aws</RootNamespace>
     <AssemblyName>Excalibur.Dispatch.AuditLogging.Aws</AssemblyName>
     <PackageId>Excalibur.Dispatch.AuditLogging.Aws</PackageId>
-    <Description>AWS CloudWatch audit log exporter for Excalibur compliance framework. Supports CloudWatch Logs PutLogEvents for audit log ingestion.</Description>
+    <Description>AWS CloudWatch audit log exporter for the Excalibur framework. Supports CloudWatch Logs PutLogEvents for audit log ingestion.</Description>
     <PackageTags>dispatch;audit;logging;siem;aws;cloudwatch;compliance</PackageTags>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
   </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Dispatch.Compliance.Abstractions\Excalibur.Dispatch.Compliance.Abstractions.csproj" />
   </ItemGroup>
-
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

@@ -46,7 +46,7 @@ public sealed class HandlerRegistryBootstrapperShould
 
 	/// <summary>
 	/// Verifies that the precompiled registry count matches expectations.
-	/// The Dispatch framework project itself has no handler implementations.
+	/// The Excalibur framework project itself has no handler implementations.
 	/// </summary>
 	[Fact]
 	public void PrecompiledRegistryHasExpectedHandlerCount()

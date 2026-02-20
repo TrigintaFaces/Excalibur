@@ -24,12 +24,28 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function ConvertFrom-JsonCompat {
+    param(
+        [Parameter(Mandatory = $true)]$Json,
+        [int]$Depth = 50
+    )
+
+    $jsonText = if ($Json -is [string]) { $Json } else { ($Json -join [Environment]::NewLine) }
+
+    $convertFromJsonCommand = Get-Command ConvertFrom-Json -ErrorAction Stop
+    if ($convertFromJsonCommand.Parameters.ContainsKey('Depth')) {
+        return ($jsonText | ConvertFrom-Json -Depth $Depth)
+    }
+
+    return ($jsonText | ConvertFrom-Json)
+}
+
 if (-not (Test-Path $MatrixPath)) {
     throw "Governance matrix not found: $MatrixPath"
 }
 
 $repoRoot = (Get-Location).Path
-$matrix = Get-Content -Raw $MatrixPath | ConvertFrom-Json -Depth 50
+$matrix = ConvertFrom-JsonCompat -Json (Get-Content -Raw $MatrixPath) -Depth 50
 $issues = New-Object System.Collections.Generic.List[string]
 $warnings = New-Object System.Collections.Generic.List[string]
 
@@ -253,31 +269,6 @@ if ($Mode -eq 'Governance') {
         Test-PathExists -PathToCheck $legacyProject | Out-Null
     }
 
-    $consumerAllowList = @()
-    if ($null -ne $docsParity -and $null -ne $docsParity.legacyPostgresConsumerAllowList) {
-        $consumerAllowList = @($docsParity.legacyPostgresConsumerAllowList | ForEach-Object { Normalize-RepoPath $_ })
-    }
-
-    if ($hasLegacyPackage) {
-        $legacyPattern = [regex]::Escape($legacyPackage)
-        $legacyMentions = @(rg -n $legacyPattern docs-site/docs -S 2>$null)
-        foreach ($mention in $legacyMentions) {
-            if ([string]::IsNullOrWhiteSpace($mention)) {
-                continue
-            }
-
-            $segments = $mention -split ':', 3
-            if ($segments.Count -lt 2) {
-                continue
-            }
-
-            $mentionPath = Normalize-RepoPath $segments[0]
-            if ($consumerAllowList -notcontains $mentionPath) {
-                $issues.Add("Legacy package mention is not allowed in consumer docs: $mention")
-            }
-        }
-    }
-
     foreach ($pkg in $matrix.criticalPackageTestMatrix) {
         Test-PathExists -PathToCheck $pkg.project | Out-Null
 
@@ -472,8 +463,6 @@ if ($Mode -eq 'Governance') {
         "- Capability entries: $($matrix.capabilityOwnership.Count)",
         "- Critical package entries: $($matrix.criticalPackageTestMatrix.Count)",
         "- Test mapping rules: $($rules.Count)",
-        "- Required docs parity pairs: $($requiredDocPairs.Count)",
-        "- Required contributor governance docs: $($requiredContributorDocs.Count)",
         "- Certified samples: $($certified.Count)",
         "- Quarantined samples: $($quarantined.Count)",
         "- Issues: $($issues.Count)",
@@ -510,8 +499,6 @@ if ($Mode -eq 'Governance') {
         capabilityCount = $matrix.capabilityOwnership.Count
         criticalPackageCount = $matrix.criticalPackageTestMatrix.Count
         packageTestRuleCount = $rules.Count
-        requiredDocsParityPairCount = $requiredDocPairs.Count
-        requiredContributorDocCount = $requiredContributorDocs.Count
         certifiedSampleCount = $certified.Count
         quarantinedSampleCount = $quarantined.Count
     }

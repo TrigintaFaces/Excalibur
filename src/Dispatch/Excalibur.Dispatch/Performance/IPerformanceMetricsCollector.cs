@@ -5,7 +5,7 @@
 namespace Excalibur.Dispatch.Performance;
 
 /// <summary>
-/// Collects and tracks performance metrics for the Dispatch framework.
+/// Collects and tracks performance metrics for the Excalibur framework.
 /// </summary>
 public interface IPerformanceMetricsCollector
 {

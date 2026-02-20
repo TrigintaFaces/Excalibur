@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Exceptions;
 
 /// <summary>
 /// Implements RFC 7807 Problem Details for HTTP APIs with additional fields for distributed tracing. Provides a standardized format for
-/// error responses across the Dispatch framework.
+/// error responses across the Excalibur framework.
 /// </summary>
 public sealed class DispatchProblemDetails
 {
@@ -61,7 +61,7 @@ public sealed class DispatchProblemDetails
 	[JsonPropertyName("instance")]
 	public string? Instance { get; set; }
 
-	// Extended properties for Dispatch framework
+	// Extended properties for Excalibur framework
 
 	/// <summary>
 	/// Gets or sets the error code for programmatic error handling.

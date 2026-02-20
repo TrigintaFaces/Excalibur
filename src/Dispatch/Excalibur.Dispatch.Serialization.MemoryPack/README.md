@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Serialization.MemoryPack
 
-High-performance MemoryPack binary serialization for Dispatch framework.
+High-performance MemoryPack binary serialization for Excalibur framework.
 
 ## Purpose
 

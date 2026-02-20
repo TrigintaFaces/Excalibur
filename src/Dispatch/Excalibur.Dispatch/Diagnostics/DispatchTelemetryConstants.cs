@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Diagnostics;
 /// Constants for OpenTelemetry telemetry names and semantic conventions. Implements R8.21 comprehensive telemetry standards and naming consistency.
 /// </summary>
 /// <remarks>
-/// Centralizes all telemetry naming to ensure consistency across the Dispatch framework. Follows OpenTelemetry semantic conventions where
+/// Centralizes all telemetry naming to ensure consistency across the Excalibur framework. Follows OpenTelemetry semantic conventions where
 /// applicable and provides custom conventions for Dispatch-specific operations.
 /// </remarks>
 public static class DispatchTelemetryConstants

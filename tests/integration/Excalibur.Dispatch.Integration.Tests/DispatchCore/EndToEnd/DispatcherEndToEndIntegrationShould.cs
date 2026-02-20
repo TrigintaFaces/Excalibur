@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Integration.Tests.DispatchCore.EndToEnd;
 
 /// <summary>
 /// End-to-end integration tests that dispatch messages through the complete
-/// Dispatch framework pipeline using the real IDispatcher.
+/// Excalibur framework pipeline using the real IDispatcher.
 /// </summary>
 [Trait("Category", "Integration")]
 [Trait("Category", "EndToEnd")]
@@ -50,7 +50,7 @@ public sealed class DispatcherEndToEndIntegrationShould : IDisposable
 		_ = services.AddTransient<CountingCommandHandler>();
 		_ = services.AddTransient<IActionHandler<CountingCommand>, CountingCommandHandler>();
 
-		// Wire up the full Dispatch framework (without assembly scanning to avoid open generic handlers)
+		// Wire up the full Excalibur framework (without assembly scanning to avoid open generic handlers)
 		_ = services.AddDispatch();
 
 		_serviceProvider = services.BuildServiceProvider();

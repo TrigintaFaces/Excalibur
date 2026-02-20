@@ -1,1 +1,10 @@
 #nullable enable
+Excalibur.Dispatch.Patterns.ClaimCheck.AzureBlobClaimCheckProvider
+Excalibur.Dispatch.Patterns.ClaimCheck.AzureBlobClaimCheckProvider.AzureBlobClaimCheckProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Patterns.ClaimCheck.AzureBlobClaimCheckProvider> logger) -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.AzureBlobClaimCheckProvider.DeleteAsync(Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference reference, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Boolean>
+Excalibur.Dispatch.Patterns.ClaimCheck.AzureBlobClaimCheckProvider.RetrieveAsync(Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference reference, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Byte[]>
+Excalibur.Dispatch.Patterns.ClaimCheck.AzureBlobClaimCheckProvider.ShouldUseClaimCheck(System.Byte[] payload) -> System.Boolean
+Excalibur.Dispatch.Patterns.ClaimCheck.AzureBlobClaimCheckProvider.StoreAsync(System.Byte[] payload, System.Threading.CancellationToken cancellationToken, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata metadata) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference>
+Microsoft.Extensions.DependencyInjection.AzurePatternsServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.AzurePatternsServiceCollectionExtensions.AddAzureBlobClaimCheck(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions> configureOptions, System.Boolean enableCleanup) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.AzurePatternsServiceCollectionExtensions.AddAzureBlobClaimCheck(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions> configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

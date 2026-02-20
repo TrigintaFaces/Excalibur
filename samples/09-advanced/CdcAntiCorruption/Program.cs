@@ -54,7 +54,7 @@ Console.WriteLine();
 // Build the host with all services
 var builder = Host.CreateApplicationBuilder(args);
 
-// Add Dispatch framework
+// Add Excalibur framework
 builder.Services.AddDispatch(dispatch =>
 {
 	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);

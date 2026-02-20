@@ -33,4 +33,4 @@ Dispatch provides migration paths from popular .NET messaging libraries. Each gu
 ## See Also
 
 - [Getting Started](../getting-started/index.md) — New project setup from scratch
-- [Core Concepts](../core-concepts/index.md) — Dispatch framework fundamentals
+- [Core Concepts](../core-concepts/index.md) — Excalibur framework fundamentals

@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Hosting.Serverless.Abstractions
 
-Base abstractions for serverless hosting implementations in the Dispatch framework.
+Base abstractions for serverless hosting implementations in the Excalibur framework.
 
 ## Installation
 

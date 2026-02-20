@@ -9,7 +9,7 @@ using Excalibur.Dispatch.Validation.FluentValidation;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Extension methods for configuring FluentValidation with the Dispatch framework.
+/// Extension methods for configuring FluentValidation with the Excalibur framework.
 /// </summary>
 public static class FluentValidationServiceCollectionExtensions
 {

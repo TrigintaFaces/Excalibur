@@ -1,1 +1,357 @@
 #nullable enable
+Excalibur.Domain.ApplicationContext
+Excalibur.Domain.ApplicationContextOptions
+Excalibur.Domain.ApplicationContextOptions.ApplicationContextOptions() -> void
+Excalibur.Domain.ApplicationContextOptions.ApplicationDisplayName.get -> System.String
+Excalibur.Domain.ApplicationContextOptions.ApplicationDisplayName.set -> void
+Excalibur.Domain.ApplicationContextOptions.ApplicationName.get -> System.String
+Excalibur.Domain.ApplicationContextOptions.ApplicationName.set -> void
+Excalibur.Domain.ApplicationContextOptions.ApplicationSystemName.get -> System.String
+Excalibur.Domain.ApplicationContextOptions.ApplicationSystemName.set -> void
+Excalibur.Domain.ApplicationContextOptions.AuthenticationServiceAudience.get -> System.String
+Excalibur.Domain.ApplicationContextOptions.AuthenticationServiceAudience.set -> void
+Excalibur.Domain.ApplicationContextOptions.AuthenticationServiceEndpoint.get -> System.String
+Excalibur.Domain.ApplicationContextOptions.AuthenticationServiceEndpoint.set -> void
+Excalibur.Domain.ApplicationContextOptions.AuthenticationServicePublicKeyPath.get -> System.String
+Excalibur.Domain.ApplicationContextOptions.AuthenticationServicePublicKeyPath.set -> void
+Excalibur.Domain.ApplicationContextOptions.AuthorizationServiceEndpoint.get -> System.String
+Excalibur.Domain.ApplicationContextOptions.AuthorizationServiceEndpoint.set -> void
+Excalibur.Domain.ApplicationContextOptions.ServiceAccountName.get -> System.String
+Excalibur.Domain.ApplicationContextOptions.ServiceAccountName.set -> void
+Excalibur.Domain.ApplicationContextOptions.ServiceAccountPrivateKeyPasswordSecure.get -> System.String
+Excalibur.Domain.ApplicationContextOptions.ServiceAccountPrivateKeyPasswordSecure.set -> void
+Excalibur.Domain.ApplicationContextOptions.ServiceAccountPrivateKeyPath.get -> System.String
+Excalibur.Domain.ApplicationContextOptions.ServiceAccountPrivateKeyPath.set -> void
+Excalibur.Domain.BoundedContext.BoundedContextAttribute
+Excalibur.Domain.BoundedContext.BoundedContextAttribute.BoundedContextAttribute(System.String name) -> void
+Excalibur.Domain.BoundedContext.BoundedContextAttribute.Name.get -> System.String
+Excalibur.Domain.BoundedContext.BoundedContextEnforcementMode
+Excalibur.Domain.BoundedContext.BoundedContextEnforcementMode.Error -> Excalibur.Domain.BoundedContext.BoundedContextEnforcementMode
+Excalibur.Domain.BoundedContext.BoundedContextEnforcementMode.Warn -> Excalibur.Domain.BoundedContext.BoundedContextEnforcementMode
+Excalibur.Domain.BoundedContext.BoundedContextOptions
+Excalibur.Domain.BoundedContext.BoundedContextOptions.AllowedCrossBoundaryPatterns.get -> System.Collections.Generic.IList<System.String>
+Excalibur.Domain.BoundedContext.BoundedContextOptions.BoundedContextOptions() -> void
+Excalibur.Domain.BoundedContext.BoundedContextOptions.EnforcementMode.get -> Excalibur.Domain.BoundedContext.BoundedContextEnforcementMode
+Excalibur.Domain.BoundedContext.BoundedContextOptions.EnforcementMode.set -> void
+Excalibur.Domain.BoundedContext.BoundedContextOptions.ValidateOnStartup.get -> System.Boolean
+Excalibur.Domain.BoundedContext.BoundedContextOptions.ValidateOnStartup.set -> void
+Excalibur.Domain.BoundedContext.BoundedContextViolation
+Excalibur.Domain.BoundedContext.BoundedContextViolation.<Clone>$() -> Excalibur.Domain.BoundedContext.BoundedContextViolation
+Excalibur.Domain.BoundedContext.BoundedContextViolation.BoundedContextViolation(System.Type SourceType, System.Type TargetType, System.String SourceContext, System.String TargetContext, System.String Description) -> void
+Excalibur.Domain.BoundedContext.BoundedContextViolation.Deconstruct(ref System.Type SourceType, ref System.Type TargetType, ref System.String SourceContext, ref System.String TargetContext, ref System.String Description) -> System.Void
+Excalibur.Domain.BoundedContext.BoundedContextViolation.Description.get -> System.String
+Excalibur.Domain.BoundedContext.BoundedContextViolation.Description.set -> void
+Excalibur.Domain.BoundedContext.BoundedContextViolation.Equals(Excalibur.Domain.BoundedContext.BoundedContextViolation other) -> System.Boolean
+Excalibur.Domain.BoundedContext.BoundedContextViolation.Equals(System.Object obj) -> System.Boolean
+Excalibur.Domain.BoundedContext.BoundedContextViolation.GetHashCode() -> System.Int32
+Excalibur.Domain.BoundedContext.BoundedContextViolation.SourceContext.get -> System.String
+Excalibur.Domain.BoundedContext.BoundedContextViolation.SourceContext.set -> void
+Excalibur.Domain.BoundedContext.BoundedContextViolation.SourceType.get -> System.Type
+Excalibur.Domain.BoundedContext.BoundedContextViolation.SourceType.set -> void
+Excalibur.Domain.BoundedContext.BoundedContextViolation.TargetContext.get -> System.String
+Excalibur.Domain.BoundedContext.BoundedContextViolation.TargetContext.set -> void
+Excalibur.Domain.BoundedContext.BoundedContextViolation.TargetType.get -> System.Type
+Excalibur.Domain.BoundedContext.BoundedContextViolation.TargetType.set -> void
+Excalibur.Domain.BoundedContext.BoundedContextViolation.ToString() -> System.String
+Excalibur.Domain.BoundedContext.DefaultBoundedContextValidator
+Excalibur.Domain.BoundedContext.DefaultBoundedContextValidator.DefaultBoundedContextValidator(Microsoft.Extensions.Options.IOptions<Excalibur.Domain.BoundedContext.BoundedContextOptions> options, System.Collections.Generic.IReadOnlyList<System.Reflection.Assembly> assemblies) -> void
+Excalibur.Domain.BoundedContext.DefaultBoundedContextValidator.DefaultBoundedContextValidator(Microsoft.Extensions.Options.IOptions<Excalibur.Domain.BoundedContext.BoundedContextOptions> options) -> void
+Excalibur.Domain.BoundedContext.DefaultBoundedContextValidator.ValidateAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Domain.BoundedContext.BoundedContextViolation>>
+Excalibur.Domain.BoundedContext.IBoundedContextValidator
+Excalibur.Domain.BoundedContext.IBoundedContextValidator.ValidateAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Domain.BoundedContext.BoundedContextViolation>>
+Excalibur.Domain.ClientAddress
+Excalibur.Domain.ClientAddress.ClientAddress() -> void
+Excalibur.Domain.ClientAddress.ClientAddress(System.String value) -> void
+Excalibur.Domain.ClientAddress.IpAddress.get -> System.Net.IPAddress
+Excalibur.Domain.ClientAddress.IsIPv4.get -> System.Boolean
+Excalibur.Domain.ClientAddress.IsIPv6.get -> System.Boolean
+Excalibur.Domain.ClientAddress.Value.get -> System.String
+Excalibur.Domain.ClientAddress.Value.set -> void
+Excalibur.Domain.Concurrency.ETag
+Excalibur.Domain.Concurrency.ETag.ETag() -> void
+Excalibur.Domain.Concurrency.ETag.IncomingValue.get -> System.String
+Excalibur.Domain.Concurrency.ETag.IncomingValue.set -> void
+Excalibur.Domain.Concurrency.ETag.OutgoingValue.get -> System.String
+Excalibur.Domain.Concurrency.ETag.OutgoingValue.set -> void
+Excalibur.Domain.Concurrency.IETag
+Excalibur.Domain.Concurrency.IETag.IncomingValue.get -> System.String
+Excalibur.Domain.Concurrency.IETag.IncomingValue.set -> void
+Excalibur.Domain.Concurrency.IETag.OutgoingValue.get -> System.String
+Excalibur.Domain.Concurrency.IETag.OutgoingValue.set -> void
+Excalibur.Domain.Cultures
+Excalibur.Domain.CursorPageRequest`1
+Excalibur.Domain.CursorPageRequest`1.Deconstruct(ref System.Int32 pageSize, ref Excalibur.Domain.PageNavigation navigation, ref  cursor) -> System.Void
+Excalibur.Domain.CursorPageRequest`1.Navigation.get -> Excalibur.Domain.PageNavigation
+Excalibur.Domain.CursorPageRequest`1.PageSize.get -> System.Int32
+Excalibur.Domain.CursorPageResult`1
+Excalibur.Domain.CursorPageResult`1.CursorPageResult`1(System.Collections.Generic.IEnumerable<> items, System.Int32 pageSize, System.Int64 totalRecords) -> void
+Excalibur.Domain.CursorPageResult`1.Deconstruct(ref System.Collections.Generic.IEnumerable<> items, ref System.Int32 pageSize, ref System.Int64 totalRecords) -> System.Void
+Excalibur.Domain.CursorPageResult`1.Items.get -> System.Collections.Generic.IEnumerable<>
+Excalibur.Domain.CursorPageResult`1.Items.set -> void
+Excalibur.Domain.CursorPageResult`1.PageSize.get -> System.Int32
+Excalibur.Domain.CursorPageResult`1.PageSize.set -> void
+Excalibur.Domain.CursorPageResult`1.TotalPages.get -> System.Int32
+Excalibur.Domain.CursorPageResult`1.TotalRecords.get -> System.Int64
+Excalibur.Domain.CursorPageResult`1.TotalRecords.set -> void
+Excalibur.Domain.ExcaliburHeaderNames
+Excalibur.Domain.Exceptions.DomainException
+Excalibur.Domain.Exceptions.DomainException.DomainException() -> void
+Excalibur.Domain.Exceptions.DomainException.DomainException(System.String message, System.Exception innerException) -> void
+Excalibur.Domain.Exceptions.DomainException.DomainException(System.String message) -> void
+Excalibur.Domain.Exceptions.InvalidConfigurationException
+Excalibur.Domain.Exceptions.InvalidConfigurationException.InvalidConfigurationException() -> void
+Excalibur.Domain.Exceptions.InvalidConfigurationException.InvalidConfigurationException(System.Int32 statusCode, System.String message, System.Exception innerException) -> void
+Excalibur.Domain.Exceptions.InvalidConfigurationException.InvalidConfigurationException(System.String message, System.Exception innerException) -> void
+Excalibur.Domain.Exceptions.InvalidConfigurationException.InvalidConfigurationException(System.String message) -> void
+Excalibur.Domain.Exceptions.InvalidConfigurationException.InvalidConfigurationException(System.String setting, System.Nullable<System.Int32> statusCode, System.String message, System.Exception innerException) -> void
+Excalibur.Domain.Exceptions.InvalidConfigurationException.Setting.get -> System.String
+Excalibur.Domain.Extensions.ConfigurationExtensions
+Excalibur.Domain.Extensions.StringExtensions
+Excalibur.Domain.Extensions.TaskExtensions
+Excalibur.Domain.IActivityContext
+Excalibur.Domain.IActivityContext.ContainsKey(System.String key) -> System.Boolean
+Excalibur.Domain.IActivityContext.GetValue(System.String key,  defaultValue) ->
+Excalibur.Domain.IActivityContext.Remove(System.String key) -> System.Void
+Excalibur.Domain.IActivityContext.SetValue(System.String key,  value) -> System.Void
+Excalibur.Domain.IClientAddress
+Excalibur.Domain.IClientAddress.Value.get -> System.String
+Excalibur.Domain.IClientAddress.Value.set -> void
+Excalibur.Domain.Metrics.IMetrics
+Excalibur.Domain.Metrics.IMetrics.RecordCounter(System.String name, System.Int64 value, System.Collections.Generic.KeyValuePair<System.String, System.Object>[] tags) -> System.Void
+Excalibur.Domain.Metrics.IMetrics.RecordGauge(System.String name, System.Double value, System.Collections.Generic.KeyValuePair<System.String, System.Object>[] tags) -> System.Void
+Excalibur.Domain.Metrics.IMetrics.RecordHistogram(System.String name, System.Double value, System.Collections.Generic.KeyValuePair<System.String, System.Object>[] tags) -> System.Void
+Excalibur.Domain.Metrics.MetricsExtensions
+Excalibur.Domain.Metrics.OpenTelemetryMetrics
+Excalibur.Domain.Metrics.OpenTelemetryMetrics.OpenTelemetryMetrics(System.Diagnostics.Metrics.IMeterFactory meterFactory) -> void
+Excalibur.Domain.Metrics.OpenTelemetryMetrics.RecordCounter(System.String name, System.Int64 value, System.Collections.Generic.KeyValuePair<System.String, System.Object>[] tags) -> System.Void
+Excalibur.Domain.Metrics.OpenTelemetryMetrics.RecordGauge(System.String name, System.Double value, System.Collections.Generic.KeyValuePair<System.String, System.Object>[] tags) -> System.Void
+Excalibur.Domain.Metrics.OpenTelemetryMetrics.RecordHistogram(System.String name, System.Double value, System.Collections.Generic.KeyValuePair<System.String, System.Object>[] tags) -> System.Void
+Excalibur.Domain.Model.AggregateRoot
+Excalibur.Domain.Model.AggregateRoot`1
+Excalibur.Domain.Model.AggregateRoot`1.AggregateType.get -> System.String
+Excalibur.Domain.Model.AggregateRoot`1.ApplyEvent(Excalibur.Dispatch.Abstractions.IDomainEvent eventData) -> System.Void
+Excalibur.Domain.Model.AggregateRoot`1.CreateSnapshot() -> Excalibur.Domain.Model.ISnapshot
+Excalibur.Domain.Model.AggregateRoot`1.ETag.get -> System.String
+Excalibur.Domain.Model.AggregateRoot`1.ETag.set -> void
+Excalibur.Domain.Model.AggregateRoot`1.GetService(System.Type serviceType) -> System.Object
+Excalibur.Domain.Model.AggregateRoot`1.GetUncommittedEvents() -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Abstractions.IDomainEvent>
+Excalibur.Domain.Model.AggregateRoot`1.HasUncommittedEvents.get -> System.Boolean
+Excalibur.Domain.Model.AggregateRoot`1.Id.get ->
+Excalibur.Domain.Model.AggregateRoot`1.LoadFromHistory(System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent> history) -> System.Void
+Excalibur.Domain.Model.AggregateRoot`1.LoadFromSnapshot(Excalibur.Domain.Model.ISnapshot snapshot) -> System.Void
+Excalibur.Domain.Model.AggregateRoot`1.MarkEventsAsCommitted() -> System.Void
+Excalibur.Domain.Model.AggregateRoot`1.Version.get -> System.Int64
+Excalibur.Domain.Model.DomainEventBase
+Excalibur.Domain.Model.DomainEventBase.<Clone>$() -> Excalibur.Domain.Model.DomainEventBase
+Excalibur.Domain.Model.DomainEventBase.AggregateId.get -> System.String
+Excalibur.Domain.Model.DomainEventBase.AggregateId.set -> void
+Excalibur.Domain.Model.DomainEventBase.Equals(Excalibur.Domain.Model.DomainEventBase other) -> System.Boolean
+Excalibur.Domain.Model.DomainEventBase.Equals(System.Object obj) -> System.Boolean
+Excalibur.Domain.Model.DomainEventBase.EventId.get -> System.String
+Excalibur.Domain.Model.DomainEventBase.EventId.set -> void
+Excalibur.Domain.Model.DomainEventBase.EventType.get -> System.String
+Excalibur.Domain.Model.DomainEventBase.GetHashCode() -> System.Int32
+Excalibur.Domain.Model.DomainEventBase.Metadata.get -> System.Collections.Generic.IDictionary<System.String, System.Object>
+Excalibur.Domain.Model.DomainEventBase.Metadata.set -> void
+Excalibur.Domain.Model.DomainEventBase.OccurredAt.get -> System.DateTimeOffset
+Excalibur.Domain.Model.DomainEventBase.OccurredAt.set -> void
+Excalibur.Domain.Model.DomainEventBase.ToString() -> System.String
+Excalibur.Domain.Model.DomainEventBase.Version.get -> System.Int64
+Excalibur.Domain.Model.DomainEventBase.Version.set -> void
+Excalibur.Domain.Model.EntityBase
+Excalibur.Domain.Model.EntityBase`1
+Excalibur.Domain.Model.EntityBase`1.Equals(Excalibur.Domain.Model.IEntity<> other) -> System.Boolean
+Excalibur.Domain.Model.EntityBase`1.Equals(System.Object obj) -> System.Boolean
+Excalibur.Domain.Model.EntityBase`1.GetHashCode() -> System.Int32
+Excalibur.Domain.Model.EntityBase`1.Key.get ->
+Excalibur.Domain.Model.IAggregateRoot
+Excalibur.Domain.Model.IAggregateRoot.ApplyEvent(Excalibur.Dispatch.Abstractions.IDomainEvent eventData) -> System.Void
+Excalibur.Domain.Model.IAggregateRoot.GetService(System.Type serviceType) -> System.Object
+Excalibur.Domain.Model.IAggregateRoot.GetUncommittedEvents() -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Abstractions.IDomainEvent>
+Excalibur.Domain.Model.IAggregateRoot.Id.get -> System.String
+Excalibur.Domain.Model.IAggregateRoot.MarkEventsAsCommitted() -> System.Void
+Excalibur.Domain.Model.IAggregateRoot.Version.get -> System.Int64
+Excalibur.Domain.Model.IAggregateRoot`1
+Excalibur.Domain.Model.IAggregateRoot`1.Id.get ->
+Excalibur.Domain.Model.IAggregateRoot`2
+Excalibur.Domain.Model.IAggregateSnapshotSupport
+Excalibur.Domain.Model.IAggregateSnapshotSupport.AggregateType.get -> System.String
+Excalibur.Domain.Model.IAggregateSnapshotSupport.CreateSnapshot() -> Excalibur.Domain.Model.ISnapshot
+Excalibur.Domain.Model.IAggregateSnapshotSupport.ETag.get -> System.String
+Excalibur.Domain.Model.IAggregateSnapshotSupport.ETag.set -> void
+Excalibur.Domain.Model.IAggregateSnapshotSupport.LoadFromHistory(System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent> history) -> System.Void
+Excalibur.Domain.Model.IAggregateSnapshotSupport.LoadFromSnapshot(Excalibur.Domain.Model.ISnapshot snapshot) -> System.Void
+Excalibur.Domain.Model.IDomainEventEnricher
+Excalibur.Domain.Model.IDomainEventEnricher.EnrichAsync(Excalibur.Dispatch.Abstractions.IDomainEvent event, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.IDomainEvent>
+Excalibur.Domain.Model.IEntity
+Excalibur.Domain.Model.IEntity`1
+Excalibur.Domain.Model.IEntity`1.Key.get ->
+Excalibur.Domain.Model.ISnapshot
+Excalibur.Domain.Model.ISnapshot.AggregateId.get -> System.String
+Excalibur.Domain.Model.ISnapshot.AggregateType.get -> System.String
+Excalibur.Domain.Model.ISnapshot.CreatedAt.get -> System.DateTimeOffset
+Excalibur.Domain.Model.ISnapshot.Data.get -> System.Byte[]
+Excalibur.Domain.Model.ISnapshot.Metadata.get -> System.Collections.Generic.IDictionary<System.String, System.Object>
+Excalibur.Domain.Model.ISnapshot.SnapshotId.get -> System.String
+Excalibur.Domain.Model.ISnapshot.Version.get -> System.Int64
+Excalibur.Domain.Model.KeyedAggregateRoot`2
+Excalibur.Domain.Model.KeyedAggregateRoot`2.BusinessKey.get ->
+Excalibur.Domain.Model.Snapshot
+Excalibur.Domain.Model.Snapshot.<Clone>$() -> Excalibur.Domain.Model.Snapshot
+Excalibur.Domain.Model.Snapshot.AggregateId.get -> System.String
+Excalibur.Domain.Model.Snapshot.AggregateId.set -> void
+Excalibur.Domain.Model.Snapshot.AggregateType.get -> System.String
+Excalibur.Domain.Model.Snapshot.AggregateType.set -> void
+Excalibur.Domain.Model.Snapshot.CreatedAt.get -> System.DateTimeOffset
+Excalibur.Domain.Model.Snapshot.CreatedAt.set -> void
+Excalibur.Domain.Model.Snapshot.Data.get -> System.Byte[]
+Excalibur.Domain.Model.Snapshot.Data.set -> void
+Excalibur.Domain.Model.Snapshot.Equals(Excalibur.Domain.Model.Snapshot other) -> System.Boolean
+Excalibur.Domain.Model.Snapshot.Equals(System.Object obj) -> System.Boolean
+Excalibur.Domain.Model.Snapshot.GetHashCode() -> System.Int32
+Excalibur.Domain.Model.Snapshot.Metadata.get -> System.Collections.Generic.IDictionary<System.String, System.Object>
+Excalibur.Domain.Model.Snapshot.Metadata.set -> void
+Excalibur.Domain.Model.Snapshot.Snapshot() -> void
+Excalibur.Domain.Model.Snapshot.SnapshotId.get -> System.String
+Excalibur.Domain.Model.Snapshot.SnapshotId.set -> void
+Excalibur.Domain.Model.Snapshot.ToString() -> System.String
+Excalibur.Domain.Model.Snapshot.Version.get -> System.Int64
+Excalibur.Domain.Model.Snapshot.Version.set -> void
+Excalibur.Domain.Model.ValueObjects.Address
+Excalibur.Domain.Model.ValueObjects.Address.Address(System.String street, System.String city, System.String state, System.String country, System.String postalCode) -> void
+Excalibur.Domain.Model.ValueObjects.Address.City.get -> System.String
+Excalibur.Domain.Model.ValueObjects.Address.Country.get -> System.String
+Excalibur.Domain.Model.ValueObjects.Address.GetEqualityComponents() -> System.Collections.Generic.IEnumerable<System.Object>
+Excalibur.Domain.Model.ValueObjects.Address.PostalCode.get -> System.String
+Excalibur.Domain.Model.ValueObjects.Address.State.get -> System.String
+Excalibur.Domain.Model.ValueObjects.Address.Street.get -> System.String
+Excalibur.Domain.Model.ValueObjects.Address.ToString() -> System.String
+Excalibur.Domain.Model.ValueObjects.IValueObject
+Excalibur.Domain.Model.ValueObjects.IValueObject.GetEqualityComponents() -> System.Collections.Generic.IEnumerable<System.Object>
+Excalibur.Domain.Model.ValueObjects.Money
+Excalibur.Domain.Model.ValueObjects.Money.Amount.get -> System.Decimal
+Excalibur.Domain.Model.ValueObjects.Money.CompareTo(Excalibur.Domain.Model.ValueObjects.Money other) -> System.Int32
+Excalibur.Domain.Model.ValueObjects.Money.CultureName.get -> System.String
+Excalibur.Domain.Model.ValueObjects.Money.CurrencySymbol.get -> System.String
+Excalibur.Domain.Model.ValueObjects.Money.Denomination.get -> System.Nullable<System.Decimal>
+Excalibur.Domain.Model.ValueObjects.Money.GetEqualityComponents() -> System.Collections.Generic.IEnumerable<System.Object>
+Excalibur.Domain.Model.ValueObjects.Money.IsBillsOnly.get -> System.Boolean
+Excalibur.Domain.Model.ValueObjects.Money.IsCoinsOnly.get -> System.Boolean
+Excalibur.Domain.Model.ValueObjects.Money.ISOCurrencyCode.get -> System.String
+Excalibur.Domain.Model.ValueObjects.Money.Money(System.Decimal amount, System.String cultureName, System.Decimal denomination) -> void
+Excalibur.Domain.Model.ValueObjects.Money.Money(System.Decimal amount, System.String cultureName) -> void
+Excalibur.Domain.Model.ValueObjects.Money.ToString() -> System.String
+Excalibur.Domain.Model.ValueObjects.Money.ToString(System.String format) -> System.String
+Excalibur.Domain.Model.ValueObjects.Money.UnitCount.get -> System.Int32
+Excalibur.Domain.Model.ValueObjects.ValueObjectBase
+Excalibur.Domain.Model.ValueObjects.ValueObjectBase.Equals(Excalibur.Domain.Model.ValueObjects.ValueObjectBase other) -> System.Boolean
+Excalibur.Domain.Model.ValueObjects.ValueObjectBase.Equals(System.Object obj) -> System.Boolean
+Excalibur.Domain.Model.ValueObjects.ValueObjectBase.GetEqualityComponents() -> System.Collections.Generic.IEnumerable<System.Object>
+Excalibur.Domain.Model.ValueObjects.ValueObjectBase.GetHashCode() -> System.Int32
+Excalibur.Domain.OrderedEventProcessor
+Excalibur.Domain.OrderedEventProcessor.Dispose() -> System.Void
+Excalibur.Domain.OrderedEventProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Domain.OrderedEventProcessor.OrderedEventProcessor() -> void
+Excalibur.Domain.OrderedEventProcessor.ProcessAsync(System.Func<System.Threading.Tasks.Task> processEvent) -> System.Threading.Tasks.Task
+Excalibur.Domain.PageableResult`1
+Excalibur.Domain.PageableResult`1.GetEnumerator() -> System.Collections.Generic.IEnumerator<>
+Excalibur.Domain.PageableResult`1.HasNextPage.get -> System.Boolean
+Excalibur.Domain.PageableResult`1.HasPreviousPage.get -> System.Boolean
+Excalibur.Domain.PageableResult`1.IsFirstPage.get -> System.Boolean
+Excalibur.Domain.PageableResult`1.IsLastPage.get -> System.Boolean
+Excalibur.Domain.PageableResult`1.Item.get ->
+Excalibur.Domain.PageableResult`1.Items.get -> System.Collections.Generic.IList<>
+Excalibur.Domain.PageableResult`1.PageableResult`1(System.Collections.Generic.IEnumerable<> items, System.Nullable<System.Int32> pageNumber, System.Nullable<System.Int32> pageSize, System.Nullable<System.Int64> totalItems) -> void
+Excalibur.Domain.PageableResult`1.PageNumber.get -> System.Int32
+Excalibur.Domain.PageableResult`1.PageSize.get -> System.Int32
+Excalibur.Domain.PageableResult`1.TotalItems.get -> System.Int64
+Excalibur.Domain.PageableResult`1.TotalPages.get -> System.Int32
+Excalibur.Domain.PageNavigation
+Excalibur.Domain.PageNavigation.First -> Excalibur.Domain.PageNavigation
+Excalibur.Domain.PageNavigation.Last -> Excalibur.Domain.PageNavigation
+Excalibur.Domain.PageNavigation.Next -> Excalibur.Domain.PageNavigation
+Excalibur.Domain.PageNavigation.Previous -> Excalibur.Domain.PageNavigation
+Excalibur.Domain.Repositories.IRepository`1
+Excalibur.Domain.Repositories.IRepository`1.DeleteAsync(System.String id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Boolean>
+Excalibur.Domain.Repositories.IRepository`1.ExistsAsync(System.String id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Boolean>
+Excalibur.Domain.Repositories.IRepository`1.GetByIdAsync(System.String id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Domain.Repositories.IRepository`1.SaveAsync( entity, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Domain.Specifications.ISpecification`1
+Excalibur.Domain.Specifications.ISpecification`1.IsSatisfiedBy( candidate) -> System.Boolean
+Excalibur.Domain.Specifications.Specification`1
+Excalibur.Domain.Specifications.Specification`1.And(Excalibur.Domain.Specifications.ISpecification<> other) -> Excalibur.Domain.Specifications.Specification<>
+Excalibur.Domain.Specifications.Specification`1.IsSatisfiedBy( candidate) -> System.Boolean
+Excalibur.Domain.Specifications.Specification`1.Not() -> Excalibur.Domain.Specifications.Specification<>
+Excalibur.Domain.Specifications.Specification`1.Or(Excalibur.Domain.Specifications.ISpecification<> other) -> Excalibur.Domain.Specifications.Specification<>
+Microsoft.Extensions.DependencyInjection.BoundedContextServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.MetricsServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions
+Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions
+static const Excalibur.Domain.Cultures.DefaultCultureName -> System.String
+static const Excalibur.Domain.ExcaliburHeaderNames.CorrelationId -> System.String
+static const Excalibur.Domain.ExcaliburHeaderNames.ETag -> System.String
+static const Excalibur.Domain.ExcaliburHeaderNames.RaisedBy -> System.String
+static const Excalibur.Domain.ExcaliburHeaderNames.TenantId -> System.String
+static Excalibur.Domain.ApplicationContext.ApplicationDisplayName.get -> System.String
+static Excalibur.Domain.ApplicationContext.ApplicationName.get -> System.String
+static Excalibur.Domain.ApplicationContext.ApplicationSystemName.get -> System.String
+static Excalibur.Domain.ApplicationContext.AuthenticationServiceAudience.get -> System.String
+static Excalibur.Domain.ApplicationContext.AuthenticationServiceEndpoint.get -> System.String
+static Excalibur.Domain.ApplicationContext.AuthenticationServicePublicKeyPath.get -> System.String
+static Excalibur.Domain.ApplicationContext.AuthorizationServiceEndpoint.get -> System.String
+static Excalibur.Domain.ApplicationContext.Context.get -> System.String
+static Excalibur.Domain.ApplicationContext.ConvertToUnsecureString(System.String secureString) -> System.String
+static Excalibur.Domain.ApplicationContext.Expand(System.String value) -> System.String
+static Excalibur.Domain.ApplicationContext.Get(System.String key, System.String defaultValue) -> System.String
+static Excalibur.Domain.ApplicationContext.Get(System.String key) -> System.String
+static Excalibur.Domain.ApplicationContext.Init(System.Collections.Generic.IDictionary<System.String, System.String> context) -> System.Void
+static Excalibur.Domain.ApplicationContext.Reset() -> System.Void
+static Excalibur.Domain.ApplicationContext.ServiceAccountName.get -> System.String
+static Excalibur.Domain.ApplicationContext.ServiceAccountPrivateKeyPasswordSecure.get -> System.String
+static Excalibur.Domain.ApplicationContext.ServiceAccountPrivateKeyPath.get -> System.String
+static Excalibur.Domain.Cultures.GetCultureInfo(System.String cultureName) -> System.Globalization.CultureInfo
+static Excalibur.Domain.Cultures.IsValidCultureName(System.String cultureName) -> System.Boolean
+static Excalibur.Domain.Cultures.Names.get -> System.Collections.Generic.IEnumerable<System.String>
+static Excalibur.Domain.Exceptions.DomainException.ThrowIf(System.Boolean condition, System.String message, System.Exception innerException) -> System.Void
+static Excalibur.Domain.Exceptions.DomainException.ThrowIf(System.Boolean condition, System.String message) -> System.Void
+static Excalibur.Domain.Extensions.ConfigurationExtensions.GetApplicationContextConfiguration(Microsoft.Extensions.Configuration.IConfiguration configuration) -> System.Collections.Generic.Dictionary<System.String, System.String>
+static Excalibur.Domain.Extensions.StringExtensions.ToCamelCase(System.String str, System.Boolean clean) -> System.String
+static Excalibur.Domain.Extensions.StringExtensions.ToKebabCaseLower(System.String str, System.Boolean clean) -> System.String
+static Excalibur.Domain.Extensions.StringExtensions.ToKebabCaseUpper(System.String str, System.Boolean clean) -> System.String
+static Excalibur.Domain.Extensions.StringExtensions.ToSnakeCaseLower(System.String str, System.Boolean clean) -> System.String
+static Excalibur.Domain.Extensions.StringExtensions.ToSnakeCaseUpper(System.String str, System.Boolean clean) -> System.String
+static Excalibur.Domain.Extensions.TaskExtensions.TimeoutAfterAsync(System.Threading.Tasks.Task task, System.TimeSpan timeout) -> System.Threading.Tasks.Task
+static Excalibur.Domain.Extensions.TaskExtensions.TimeoutAfterAsync(System.Threading.Tasks.Task<> task, System.TimeSpan timeout) -> System.Threading.Tasks.Task<>
+static Excalibur.Domain.Metrics.MetricsExtensions.IncrementCounter(Excalibur.Domain.Metrics.IMetrics metrics, System.String name, System.Int64 value, System.Collections.Generic.KeyValuePair<System.String, System.Object>[] tags) -> System.Void
+static Excalibur.Domain.Model.IAggregateRoot`2.Create( id) ->
+static Excalibur.Domain.Model.IAggregateRoot`2.FromEvents( id, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent> events) ->
+static Excalibur.Domain.Model.Snapshot.Create(System.String aggregateId, System.Int64 version, System.Byte[] data, System.String aggregateType, System.Collections.Generic.IDictionary<System.String, System.Object> metadata) -> Excalibur.Domain.Model.Snapshot
+static Excalibur.Domain.Model.ValueObjects.Money.Add(Excalibur.Domain.Model.ValueObjects.Money left, Excalibur.Domain.Model.ValueObjects.Money right) -> Excalibur.Domain.Model.ValueObjects.Money
+static Excalibur.Domain.Model.ValueObjects.Money.AUD(System.Decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money
+static Excalibur.Domain.Model.ValueObjects.Money.CAD(System.Decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money
+static Excalibur.Domain.Model.ValueObjects.Money.CHF(System.Decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money
+static Excalibur.Domain.Model.ValueObjects.Money.Divide(Excalibur.Domain.Model.ValueObjects.Money money, System.Decimal divisor) -> Excalibur.Domain.Model.ValueObjects.Money
+static Excalibur.Domain.Model.ValueObjects.Money.EUR(System.Decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money
+static Excalibur.Domain.Model.ValueObjects.Money.From(System.Decimal amount, System.String cultureName) -> Excalibur.Domain.Model.ValueObjects.Money
+static Excalibur.Domain.Model.ValueObjects.Money.From(System.Double amount, System.String cultureName) -> Excalibur.Domain.Model.ValueObjects.Money
+static Excalibur.Domain.Model.ValueObjects.Money.From(System.Int32 amount, System.String cultureName) -> Excalibur.Domain.Model.ValueObjects.Money
+static Excalibur.Domain.Model.ValueObjects.Money.From(System.Int64 amount, System.String cultureName) -> Excalibur.Domain.Model.ValueObjects.Money
+static Excalibur.Domain.Model.ValueObjects.Money.From(System.Single amount, System.String cultureName) -> Excalibur.Domain.Model.ValueObjects.Money
+static Excalibur.Domain.Model.ValueObjects.Money.From(System.String amount, System.String cultureName) -> Excalibur.Domain.Model.ValueObjects.Money
+static Excalibur.Domain.Model.ValueObjects.Money.GBP(System.Decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money
+static Excalibur.Domain.Model.ValueObjects.Money.JPY(System.Decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money
+static Excalibur.Domain.Model.ValueObjects.Money.Multiply(Excalibur.Domain.Model.ValueObjects.Money money, System.Decimal multiplier) -> Excalibur.Domain.Model.ValueObjects.Money
+static Excalibur.Domain.Model.ValueObjects.Money.Subtract(Excalibur.Domain.Model.ValueObjects.Money left, Excalibur.Domain.Model.ValueObjects.Money right) -> Excalibur.Domain.Model.ValueObjects.Money
+static Excalibur.Domain.Model.ValueObjects.Money.USD(System.Decimal amount) -> Excalibur.Domain.Model.ValueObjects.Money
+static Microsoft.Extensions.DependencyInjection.BoundedContextServiceCollectionExtensions.AddBoundedContextEnforcement(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Domain.BoundedContext.BoundedContextOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.BoundedContextServiceCollectionExtensions.AddBoundedContextEnforcement(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.MetricsServiceCollectionExtensions.AddExcaliburMetrics(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.AddExcaliburContextServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String tenant, System.Boolean localAddress) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddClientAddress(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddCorrelationId(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddETag(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddLocalClientAddress(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddTenantId(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Func<System.IServiceProvider, System.String> tenantResolver) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.ServiceCollectionContextExtensions.TryAddTenantId(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String tenant) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions.AddImplementations(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Reflection.Assembly assembly, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime, System.Boolean registerImplementingType) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions.AddImplementations(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Reflection.Assembly assembly, System.Type interfaceType, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime, System.Boolean registerImplementingType) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

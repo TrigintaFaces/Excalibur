@@ -1,11 +1,1 @@
 #nullable enable
-Excalibur.Dispatch.Patterns.ClaimCheck.InMemoryClaimCheckProvider
-Excalibur.Dispatch.Patterns.ClaimCheck.InMemoryClaimCheckProvider.CleanupExpiredAsync(System.Int32 batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Int32>
-Excalibur.Dispatch.Patterns.ClaimCheck.InMemoryClaimCheckProvider.DeleteAsync(Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference reference, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Boolean>
-Excalibur.Dispatch.Patterns.ClaimCheck.InMemoryClaimCheckProvider.InMemoryClaimCheckProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions> options) -> void
-Excalibur.Dispatch.Patterns.ClaimCheck.InMemoryClaimCheckProvider.RetrieveAsync(Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference reference, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Byte[]>
-Excalibur.Dispatch.Patterns.ClaimCheck.InMemoryClaimCheckProvider.ShouldUseClaimCheck(System.Byte[] payload) -> System.Boolean
-Excalibur.Dispatch.Patterns.ClaimCheck.InMemoryClaimCheckProvider.StoreAsync(System.Byte[] payload, System.Threading.CancellationToken cancellationToken, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata metadata) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference>
-Microsoft.Extensions.DependencyInjection.InMemoryClaimCheckServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.InMemoryClaimCheckServiceCollectionExtensions.AddInMemoryClaimCheck(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration, System.Boolean enableCleanup) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
-static Microsoft.Extensions.DependencyInjection.InMemoryClaimCheckServiceCollectionExtensions.AddInMemoryClaimCheck(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions> configureOptions, System.Boolean enableCleanup) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

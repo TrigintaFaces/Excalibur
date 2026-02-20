@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Transport.Grpc
 
-gRPC transport implementation for the Excalibur Dispatch messaging framework.
+gRPC transport implementation for the Excalibur Excalibur framework.
 
 ## Features
 

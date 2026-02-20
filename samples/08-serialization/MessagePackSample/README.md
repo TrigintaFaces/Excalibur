@@ -1,6 +1,6 @@
 # MessagePack Serialization Sample
 
-This sample demonstrates **MessagePack serialization** with the Dispatch framework using `Excalibur.Dispatch.Serialization.MessagePack`.
+This sample demonstrates **MessagePack serialization** with the Excalibur framework using `Excalibur.Dispatch.Serialization.MessagePack`.
 
 ## What This Sample Shows
 

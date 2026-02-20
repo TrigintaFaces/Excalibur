@@ -5,7 +5,7 @@
 namespace Excalibur.Dispatch.Abstractions;
 
 /// <summary>
-/// Provides centralized error message constants used throughout the Dispatch framework.
+/// Provides centralized error message constants used throughout the Excalibur framework.
 /// </summary>
 public static class ErrorConstants
 {
@@ -1326,9 +1326,9 @@ public static class ErrorConstants
 	public const string DispatchErrorUri = "Dispatch error URI.";
 
 	/// <summary>
-	/// Error message: Dispatch framework error.
+	/// Error message: Excalibur framework error.
 	/// </summary>
-	public const string DispatchFrameworkError = "Dispatch framework error.";
+	public const string DispatchFrameworkError = "Excalibur framework error.";
 
 	/// <summary>
 	/// Error message: Messaging error occurred.

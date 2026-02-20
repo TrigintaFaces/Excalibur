@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Compliance
 
-Compliance implementations for the Dispatch messaging framework. Provides AES-256-GCM encryption, key management, key rotation, and FIPS 140-2 validation for SOC2/GDPR requirements.
+Compliance implementations for the Excalibur framework. Provides AES-256-GCM encryption, key management, key rotation, and FIPS 140-2 validation for SOC2/GDPR requirements.
 
 ## Installation
 

@@ -10,7 +10,7 @@ namespace AzureServiceBusSample.Messages;
 /// </summary>
 /// <remarks>
 /// This event demonstrates the basic structure of an integration event
-/// that can be published to Azure Service Bus via the Dispatch framework.
+/// that can be published to Azure Service Bus via the Excalibur framework.
 /// Uses <see cref="IIntegrationEvent"/> for cross-service routing to transports.
 /// </remarks>
 /// <param name="OrderId">The unique identifier for the order.</param>

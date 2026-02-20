@@ -1,58 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<RootNamespace>Excalibur.Dispatch.Security</RootNamespace>
-		<AssemblyName>Excalibur.Dispatch.Security</AssemblyName>
-		<IsPackable>true</IsPackable>
-		<IsAotCompatible>true</IsAotCompatible>
-		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-		<!-- NuGet Package Metadata -->
-		<PackageId>Excalibur.Dispatch.Security</PackageId>
-		<Description>Security features for Dispatch messaging including credential management, input validation, and audit logging</Description>
-		<PackageTags>Dispatch;Security;Validation;Auditing;Credentials</PackageTags>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-	</PropertyGroup>
-	<ItemGroup>
-		<InternalsVisibleTo Include="Excalibur.Dispatch.Security.Tests" />
-	</ItemGroup>
-	<ItemGroup>
-		<EmbeddedResource Update="Resources.resx">
-			<Generator>ResXFileCodeGenerator</Generator>
-			<LastGenOutput>Resources.Designer.cs</LastGenOutput>
-		</EmbeddedResource>
-		<Compile Update="Resources.Designer.cs">
-			<DesignTime>True</DesignTime>
-			<AutoGen>True</AutoGen>
-			<DependentUpon>Resources.resx</DependentUpon>
-		</Compile>
-	</ItemGroup>
-	<ItemGroup>
-		<ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
-		<ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
-		<ProjectReference Include="..\Excalibur.Dispatch.Compliance.Abstractions\Excalibur.Dispatch.Compliance.Abstractions.csproj" />
-	</ItemGroup>
-	<ItemGroup>
-		<!-- Validation -->
-		<PackageReference Include="FluentValidation" />
-		<!-- Security and Cryptography -->
-		<PackageReference Include="Microsoft.AspNetCore.DataProtection" />
-		<PackageReference Include="System.IdentityModel.Tokens.Jwt" />
-		<PackageReference Include="Microsoft.IdentityModel.Tokens" />
-		<!-- Azure.Security.KeyVault.Secrets removed - moved to Excalibur.Dispatch.Security.Azure per R0.3/R0.5 -->
-		<!-- Logging -->
-		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
-		<PackageReference Include="Microsoft.Extensions.Options" />
-		<PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
-		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
-		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
-	</ItemGroup>
-	<ItemGroup>
-		<!-- TODO: Move to Excalibur.Dispatch.Security.Azure and Excalibur.Dispatch.Security.Aws projects (R0.5 architectural fix) -->
-		<Compile Remove="Configuration\Stores\AzureKeyVaultCredentialStore.cs" />
-		<Compile Remove="AzureServiceBusOptions.cs" />
-		<Compile Remove="AzureServiceBusOptionsValidator.cs" />
-		<Compile Remove="AwsSecretsManagerCredentialStore.cs" />
-		<!-- R0.3/R0.5: SecureKeyProvider uses Azure.Security.KeyVault.Secrets - move to Excalibur.Dispatch.Security.Azure -->
-		<Compile Remove="Signing\SecureKeyProvider.cs" />
-	</ItemGroup>
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RootNamespace>Excalibur.Dispatch.Security</RootNamespace>
+    <AssemblyName>Excalibur.Dispatch.Security</AssemblyName>
+    <IsAotCompatible>true</IsAotCompatible>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- NuGet Package Metadata -->
+    <PackageId>Excalibur.Dispatch.Security</PackageId>
+    <Description>Security features for the Excalibur framework, including credential management, input validation, and audit logging.</Description>
+    <PackageTags>dispatch;security;validation;auditing;credentials</PackageTags>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Security.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Update="Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <Compile Update="Resources.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch.Compliance.Abstractions\Excalibur.Dispatch.Compliance.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Validation -->
+    <PackageReference Include="FluentValidation" />
+    <!-- Security and Cryptography -->
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" />
+    <!-- Azure.Security.KeyVault.Secrets removed - moved to Excalibur.Dispatch.Security.Azure per R0.3/R0.5 -->
+    <!-- Logging -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- TODO: Move to Excalibur.Dispatch.Security.Azure and Excalibur.Dispatch.Security.Aws projects (R0.5 architectural fix) -->
+    <Compile Remove="Configuration\Stores\AzureKeyVaultCredentialStore.cs" />
+    <Compile Remove="AzureServiceBusOptions.cs" />
+    <Compile Remove="AzureServiceBusOptionsValidator.cs" />
+    <Compile Remove="AwsSecretsManagerCredentialStore.cs" />
+    <!-- R0.3/R0.5: SecureKeyProvider uses Azure.Security.KeyVault.Secrets - move to Excalibur.Dispatch.Security.Azure -->
+    <Compile Remove="Signing\SecureKeyProvider.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
 </Project>

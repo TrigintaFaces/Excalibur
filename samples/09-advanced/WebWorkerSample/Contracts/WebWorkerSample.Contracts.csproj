@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
@@ -6,21 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)\GeneratedFiles</CompilerGeneratedFilesOutputPath>
-    <Copyright>$(Copyright)</Copyright>
-    <Company>$(Company)</Company>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <IsPackable>true</IsPackable>
     <Version>$(VersionPrefix)</Version>
     <PackageId>$(AssemblyName)</PackageId>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <Authors>$(Authors)</Authors>
-    <Product>$(Product)</Product>
-    <Description>WebWorkerSample.Contracts - Part of the Excalibur messaging framework</Description>
-    <PackageTags>excalibur;dispatch;messaging;aot</PackageTags>
-    <PackageProjectUrl>https://github.com/TrigintaFaces/Excalibur</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <PackageReleaseNotes>See CHANGELOG.md for release notes</PackageReleaseNotes>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
   <!-- Sprint 428 S428.3: Updated paths for reorganized sample structure -->

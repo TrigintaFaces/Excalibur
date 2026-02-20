@@ -1,137 +1,136 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-		<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
-		<CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)\GeneratedFiles</CompilerGeneratedFilesOutputPath>
-		<RootNamespace>Excalibur.Dispatch</RootNamespace>
-		<AssemblyName>Excalibur.Dispatch</AssemblyName>
-		<!-- PERF-9: Enable C# 12 interceptors for compile-time dispatch optimization -->
-		<InterceptorsNamespaces>$(InterceptorsNamespaces);Excalibur.Dispatch.Generated</InterceptorsNamespaces>
-		<!-- NuGet Package Metadata -->
-		<PackageId>Excalibur.Dispatch</PackageId>
-		<Description>Core messaging abstractions and middleware pipeline for the Dispatch framework. Provides foundational types for message handling, routing, and extensible middleware architecture.</Description>
-		<PackageTags>messaging;dispatch;middleware;pipeline;cqrs;framework</PackageTags>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<IsPackable>true</IsPackable>
-		<IsAotCompatible>true</IsAotCompatible>
-	</PropertyGroup>
-	<!-- Include README.md in NuGet package -->
-	<ItemGroup>
-		<None Include="README.md" Pack="true" PackagePath="/" />
-	</ItemGroup>
-	<ItemGroup>
-		<EmbeddedResource Update="Resources.resx">
-			<Generator>ResXFileCodeGenerator</Generator>
-			<LastGenOutput>Resources.Designer.cs</LastGenOutput>
-		</EmbeddedResource>
-		<Compile Update="Resources.Designer.cs">
-			<DesignTime>true</DesignTime>
-			<AutoGen>true</AutoGen>
-			<DependentUpon>Resources.resx</DependentUpon>
-		</Compile>
-	</ItemGroup>
-	<!-- Enhanced AOT Configuration -->
-	<PropertyGroup>
-		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
-		<EnableAotAnalyzer>true</EnableAotAnalyzer>
-		<EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
-		<PublishAot Condition="'$(PublishAot)' == ''">false</PublishAot>
-		<TrimMode>full</TrimMode>
-		<IlcOptimizationPreference>Speed</IlcOptimizationPreference>
-		<IlcGenerateStackTraceData>false</IlcGenerateStackTraceData>
-		<InvariantGlobalization>false</InvariantGlobalization>
-	</PropertyGroup>
-	<PropertyGroup Condition="'$(PublishAot)' == 'true' OR '$(PublishTrimmed)' == 'true'">
-		<DefineConstants>$(DefineConstants);USE_SOURCE_GENERATION;AOT_ENABLED</DefineConstants>
-		<SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
-		<TrimmerDefaultAction>link</TrimmerDefaultAction>
-		<TrimMode>full</TrimMode>
-	</PropertyGroup>
-	<!-- Preserve types for reflection -->
-	<ItemGroup Condition="'$(PublishAot)' == 'true'">
-		<TrimmerRootAssembly Include="Excalibur.Dispatch" />
-		<TrimmerRootDescriptor Include="TrimmerRoots.xml" />
-	</ItemGroup>
-	<!-- Removed ASP.NET Core FrameworkReference to keep Core decoupled from hosting frameworks -->
-	<ItemGroup>
-		<!-- From Excalibur.Dispatch.Common -->
-		<PackageReference Include="Medo.Uuid7" />
-		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
-		<PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
-		<PackageReference Include="Microsoft.Extensions.ObjectPool" />
-		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
-		<PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
-		<PackageReference Include="Microsoft.Extensions.Http" />
-		<!-- Removed DB client dependencies to avoid provider coupling in Core -->
-		<!-- From Excalibur.Dispatch.Messaging.Abstractions -->
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" />
-		<!-- From Excalibur.Dispatch.Messaging -->
-		<PackageReference Include="CloudNative.CloudEvents" />
-		<PackageReference Include="CloudNative.CloudEvents.SystemTextJson" />
-		<PackageReference Include="Cronos" />
-		<PackageReference Include="MemoryPack" />
-		<PackageReference Include="Microsoft.ApplicationInsights" />
-		<PackageReference Include="Microsoft.AspNetCore.Authorization" />
-		<!-- Polly removed - Use IRetryPolicy from Excalibur.Dispatch.Resilience or Excalibur.Dispatch.Resilience.Polly -->
-		<PackageReference Include="System.Threading.Channels" />
-		<PackageReference Include="System.Threading.RateLimiting" />
-		<!-- System.IO.Pipelines is in-box for net9.0, but needed as package for net8.0 -->
-		<PackageReference Include="System.IO.Pipelines" Condition="'$(TargetFramework)' == 'net8.0'" />
-		<!-- Wasmtime REMOVED - No code in Dispatch uses it -->
-		<!-- Database drivers REMOVED - Moved to Excalibur.Data.* provider packages -->
-		<!-- FluentValidation moved to optional Excalibur.Dispatch.Validation.FluentValidation package -->
-	</ItemGroup>
-	<ItemGroup>
-		<ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
-		<ProjectReference Include="..\Excalibur.Dispatch.Serialization.MemoryPack\Excalibur.Dispatch.Serialization.MemoryPack.csproj" />
-		<!-- PERF-7/PERF-8 (Sprint 452): Source generators always enabled for AOT-compatible handler resolution -->
-		<ProjectReference Include="..\Excalibur.Dispatch.SourceGenerators\Excalibur.Dispatch.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
-		<!-- NOTE: Excalibur.Requirements.Generator reference removed to maintain architectural boundaries.
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)\GeneratedFiles</CompilerGeneratedFilesOutputPath>
+    <RootNamespace>Excalibur.Dispatch</RootNamespace>
+    <AssemblyName>Excalibur.Dispatch</AssemblyName>
+    <!-- PERF-9: Enable C# 12 interceptors for compile-time dispatch optimization -->
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Excalibur.Dispatch.Generated</InterceptorsNamespaces>
+    <!-- NuGet Package Metadata -->
+    <PackageId>Excalibur.Dispatch</PackageId>
+    <Description>Core messaging abstractions and middleware pipeline for the Excalibur framework. Provides foundational types for message handling, routing, and extensible middleware architecture.</Description>
+    <PackageTags>messaging;dispatch;middleware;pipeline;cqrs;framework</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <!-- Include README.md in NuGet package -->
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Update="Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <Compile Update="Resources.Designer.cs">
+      <DesignTime>true</DesignTime>
+      <AutoGen>true</AutoGen>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+  <!-- Enhanced AOT Configuration -->
+  <PropertyGroup>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+    <PublishAot Condition="'$(PublishAot)' == ''">false</PublishAot>
+    <TrimMode>full</TrimMode>
+    <IlcOptimizationPreference>Speed</IlcOptimizationPreference>
+    <IlcGenerateStackTraceData>false</IlcGenerateStackTraceData>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+  <PropertyGroup>
+    <DefineConstants>$(DefineConstants);USE_SOURCE_GENERATION;AOT_ENABLED</DefineConstants>
+    <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
+    <TrimmerDefaultAction>link</TrimmerDefaultAction>
+    <TrimMode>full</TrimMode>
+  </PropertyGroup>
+  <!-- Preserve types for reflection -->
+  <ItemGroup Condition="'$(PublishAot)' == 'true'">
+    <TrimmerRootAssembly Include="Excalibur.Dispatch" />
+    <TrimmerRootDescriptor Include="TrimmerRoots.xml" />
+  </ItemGroup>
+  <!-- Removed ASP.NET Core FrameworkReference to keep Core decoupled from hosting frameworks -->
+  <ItemGroup>
+    <!-- From Excalibur.Dispatch.Common -->
+    <PackageReference Include="Medo.Uuid7" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.ObjectPool" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <!-- Removed DB client dependencies to avoid provider coupling in Core -->
+    <!-- From Excalibur.Dispatch.Messaging.Abstractions -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <!-- From Excalibur.Dispatch.Messaging -->
+    <PackageReference Include="CloudNative.CloudEvents" />
+    <PackageReference Include="CloudNative.CloudEvents.SystemTextJson" />
+    <PackageReference Include="Cronos" />
+    <PackageReference Include="MemoryPack" />
+    <PackageReference Include="Microsoft.ApplicationInsights" />
+    <PackageReference Include="Microsoft.AspNetCore.Authorization" />
+    <!-- Polly removed - Use IRetryPolicy from Excalibur.Dispatch.Resilience or Excalibur.Dispatch.Resilience.Polly -->
+    <PackageReference Include="System.Threading.Channels" />
+    <PackageReference Include="System.Threading.RateLimiting" />
+    <!-- System.IO.Pipelines is in-box for net9.0, but needed as package for net8.0 -->
+    <PackageReference Include="System.IO.Pipelines" Condition="'$(TargetFramework)' == 'net8.0'" />
+    <!-- Wasmtime REMOVED - No code in Dispatch uses it -->
+    <!-- Database drivers REMOVED - Moved to Excalibur.Data.* provider packages -->
+    <!-- FluentValidation moved to optional Excalibur.Dispatch.Validation.FluentValidation package -->
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch.Serialization.MemoryPack\Excalibur.Dispatch.Serialization.MemoryPack.csproj" />
+    <!-- PERF-7/PERF-8 (Sprint 452): Source generators always enabled for AOT-compatible handler resolution -->
+    <ProjectReference Include="..\Excalibur.Dispatch.SourceGenerators\Excalibur.Dispatch.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <!-- NOTE: Excalibur.Requirements.Generator reference removed to maintain architectural boundaries.
 		     Requirements generation should be handled at solution level, not within individual components. -->
-	</ItemGroup>
-	<ItemGroup>
-		<Compile Update="Messaging\Resources\ErrorMessages.Designer.cs">
-			<DesignTime>True</DesignTime>
-			<AutoGen>True</AutoGen>
-			<DependentUpon>ErrorMessages.resx</DependentUpon>
-		</Compile>
-	</ItemGroup>
-	<ItemGroup>
-		<EmbeddedResource Update="Messaging\Resources\ErrorMessages.resx">
-			<Generator>ResXFileCodeGenerator</Generator>
-			<LastGenOutput>ErrorMessages.Designer.cs</LastGenOutput>
-		</EmbeddedResource>
-	</ItemGroup>
-	<!-- InternalsVisibleTo for unit tests -->
-	<ItemGroup>
-		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-			<_Parameter1>Excalibur.Dispatch.Tests</_Parameter1>
-		</AssemblyAttribute>
-		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-			<_Parameter1>Excalibur.Dispatch.Patterns.Tests</_Parameter1>
-		</AssemblyAttribute>
-		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-			<_Parameter1>Excalibur.Dispatch.Messaging.Tests</_Parameter1>
-		</AssemblyAttribute>
-		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-			<_Parameter1>Excalibur.Dispatch.Options.Tests</_Parameter1>
-		</AssemblyAttribute>
-		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-			<_Parameter1>Excalibur.Dispatch.Configuration.Tests</_Parameter1>
-		</AssemblyAttribute>
-		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-			<_Parameter1>Excalibur.Dispatch.Diagnostics.Tests</_Parameter1>
-		</AssemblyAttribute>
-		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-			<_Parameter1>Excalibur.Dispatch.DependencyInjection.Tests</_Parameter1>
-		</AssemblyAttribute>
-	</ItemGroup>
-	<!-- PublicAPI baseline files for breaking change detection -->
-	<ItemGroup>
-		<AdditionalFiles Include="PublicAPI.Shipped.txt" />
-		<AdditionalFiles Include="PublicAPI.Unshipped.txt" />
-	</ItemGroup>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Update="Messaging\Resources\ErrorMessages.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>ErrorMessages.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Update="Messaging\Resources\ErrorMessages.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>ErrorMessages.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
+  <!-- InternalsVisibleTo for unit tests -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Dispatch.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Dispatch.Patterns.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Dispatch.Messaging.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Dispatch.Options.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Dispatch.Configuration.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Dispatch.Diagnostics.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Dispatch.DependencyInjection.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <!-- PublicAPI baseline files for breaking change detection -->
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
 </Project>

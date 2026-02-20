@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This is the canonical encryption interface for the Dispatch framework. Implementations should use AES-256-GCM for
+/// This is the canonical encryption interface for the Excalibur framework. Implementations should use AES-256-GCM for
 /// authenticated encryption.
 /// </para>
 /// <para>

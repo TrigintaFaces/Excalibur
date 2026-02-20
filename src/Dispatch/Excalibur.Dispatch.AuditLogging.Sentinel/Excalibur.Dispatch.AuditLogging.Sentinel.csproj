@@ -1,15 +1,14 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <RootNamespace>Excalibur.Dispatch.AuditLogging.Sentinel</RootNamespace>
     <AssemblyName>Excalibur.Dispatch.AuditLogging.Sentinel</AssemblyName>
     <PackageId>Excalibur.Dispatch.AuditLogging.Sentinel</PackageId>
-    <Description>Azure Sentinel audit log exporter for Excalibur compliance framework. Supports Azure Monitor Data Collector API for custom log ingestion.</Description>
+    <Description>Azure Sentinel audit log exporter for the Excalibur framework. Supports Azure Monitor Data Collector API for custom log ingestion.</Description>
     <PackageTags>dispatch;audit;logging;siem;sentinel;azure;compliance</PackageTags>
-  <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsAotCompatible>true</IsAotCompatible>
-    </PropertyGroup>
+  </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Update="Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -21,19 +20,20 @@
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
   </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
     <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
   </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Dispatch.Compliance.Abstractions\Excalibur.Dispatch.Compliance.Abstractions.csproj" />
   </ItemGroup>
-
-<ItemGroup>
+  <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
-  </Project>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

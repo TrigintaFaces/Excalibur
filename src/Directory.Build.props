@@ -77,8 +77,7 @@
 		<!-- Version set via -p:Version=X.Y.Z at build time; fallback for local development -->
 		<Version Condition="'$(Version)' == ''">0.1.0-local</Version>
 		<Authors>The Excalibur Project Contributors</Authors>
-		<Company>Excalibur.Dispatch</Company>
-		<Product>Excalibur.Dispatch</Product>
+		<Product>Excalibur</Product>
 		<Copyright>Copyright (c) 2026 The Excalibur Project</Copyright>
 		<!-- Banned API analyzer policy -->
 		<EnableBannedApiAnalyzers Condition="'$(EnableBannedApiAnalyzers)' == ''">true</EnableBannedApiAnalyzers>

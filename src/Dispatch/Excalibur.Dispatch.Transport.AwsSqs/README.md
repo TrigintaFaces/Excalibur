@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Transport.AwsSqs
 
-AWS messaging transport implementation for the Dispatch messaging framework, providing integration with Amazon SQS, SNS, and EventBridge services.
+AWS messaging transport implementation for the Excalibur framework, providing integration with Amazon SQS, SNS, and EventBridge services.
 
 ## Overview
 

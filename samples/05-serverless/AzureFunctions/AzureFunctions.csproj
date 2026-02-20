@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!-- Sprint 430 S430.1: Azure Functions Serverless Sample -->
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -10,7 +10,6 @@
     <RootNamespace>AzureFunctionsSample</RootNamespace>
     <AssemblyName>AzureFunctionsSample</AssemblyName>
   </PropertyGroup>
-
   <!-- Dispatch Hosting References -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
@@ -19,7 +18,6 @@
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Application\Excalibur.Application.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Hosting.AzureFunctions\Excalibur.Hosting.AzureFunctions.csproj" />
   </ItemGroup>
-
   <!-- Azure Functions SDK References -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Azure.Functions.Worker" />
@@ -31,7 +29,6 @@
     <PackageReference Include="Microsoft.ApplicationInsights.WorkerService" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.ApplicationInsights" />
   </ItemGroup>
-
   <!-- Configuration Files -->
   <ItemGroup>
     <None Update="host.json">

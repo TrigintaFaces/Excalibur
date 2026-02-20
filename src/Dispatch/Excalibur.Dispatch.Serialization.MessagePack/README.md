@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Serialization.MessagePack
 
-Opt-in MessagePack serialization support for Dispatch framework.
+Opt-in MessagePack serialization support for Excalibur framework.
 
 ## Purpose
 

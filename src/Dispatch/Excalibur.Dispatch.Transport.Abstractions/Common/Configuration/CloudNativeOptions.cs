@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Transport;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This configuration class serves as the foundation for cloud-native capabilities in the Dispatch messaging framework. It enables
+/// This configuration class serves as the foundation for cloud-native capabilities in the Excalibur framework. It enables
 /// consistent configuration across different cloud providers (AWS, Azure, Google Cloud) while maintaining provider-specific optimizations.
 /// </para>
 /// <para>

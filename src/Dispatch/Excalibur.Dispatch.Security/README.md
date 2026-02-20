@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Security
 
-Security middleware and extensions for the Dispatch messaging framework.
+Security middleware and extensions for the Excalibur framework.
 
 ## Installation
 

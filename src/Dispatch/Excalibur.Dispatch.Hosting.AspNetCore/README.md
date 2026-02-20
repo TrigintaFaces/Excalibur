@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Hosting.AspNetCore
 
-ASP.NET Core hosting integration for the Dispatch messaging framework.
+ASP.NET Core hosting integration for the Excalibur framework.
 
 ## Installation
 

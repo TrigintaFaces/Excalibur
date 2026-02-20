@@ -104,7 +104,7 @@ public sealed class StaticPipelineGenerator : IIncrementalGenerator
 		var invocation = (InvocationExpressionSyntax)context.Node;
 		var semanticModel = context.SemanticModel;
 
-		// Get the containing namespace to skip Dispatch framework internals
+		// Get the containing namespace to skip Excalibur framework internals
 		// This avoids interceptor conflicts with DispatchInterceptorGenerator
 		var containingClass = invocation.Ancestors().OfType<TypeDeclarationSyntax>().FirstOrDefault();
 		if (containingClass != null)

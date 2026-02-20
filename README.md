@@ -3,15 +3,18 @@
 </p>
 
 # Excalibur
-
-**Dispatch messaging core + Excalibur CQRS/hosting wrapper for .NET**
-
+<!-- badges -->
 [![Build Status](https://img.shields.io/github/actions/workflow/status/TrigintaFaces/Excalibur/ci.yml?branch=main)](https://github.com/TrigintaFaces/Excalibur/actions)
 [![Tests](https://img.shields.io/github/actions/workflow/status/TrigintaFaces/Excalibur/ci.yml?label=tests)](https://github.com/TrigintaFaces/Excalibur/actions/workflows/ci.yml)
-[![Latest Release](https://img.shields.io/github/v/release/TrigintaFaces/Excalibur?sort=semver)](https://github.com/TrigintaFaces/Excalibur/releases/latest)
-[![NuGet Excalibur.Dispatch](https://img.shields.io/nuget/v/Excalibur.Dispatch.svg)](https://www.nuget.org/packages/Excalibur.Dispatch/)
-[![NuGet Excalibur.Dispatch Downloads](https://img.shields.io/nuget/dt/Excalibur.Dispatch.svg)](https://www.nuget.org/packages/Excalibur.Dispatch/)
 [![Documentation](https://img.shields.io/badge/docs-excalibur--dispatch.dev-blue.svg)](https://docs.excalibur-dispatch.dev)
+
+[![Release Date](https://img.shields.io/github/release-date/TrigintaFaces/Excalibur?style=flat-square)](https://github.com/TrigintaFaces/Excalibur/releases/latest)
+[![Latest Release](https://img.shields.io/github/v/release/TrigintaFaces/Excalibur?sort=semver)](https://github.com/TrigintaFaces/Excalibur/releases/latest)
+![Total Downloads](https://img.shields.io/github/downloads/TrigintaFaces/Excalibur/total?logo=github&style=flat-square)
+[![Latest Release](https://img.shields.io/github/downloads/TrigintaFaces/Excalibur/latest/total?logo=github&style=flat-square)](https://github.com/TrigintaFaces/Excalibur/releases/latest)
+<!-- badges -->
+
+**Dispatch messaging core + Excalibur CQRS/hosting wrapper for .NET**
 
 ---
 

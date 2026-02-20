@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!-- Sprint 431 S431.2: Azure Key Vault Security Sample -->
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -9,7 +9,6 @@
     <RootNamespace>AzureKeyVaultSample</RootNamespace>
     <AssemblyName>AzureKeyVaultSample</AssemblyName>
   </PropertyGroup>
-
   <!-- Dispatch Security References -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
@@ -17,7 +16,6 @@
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Security\Excalibur.Dispatch.Security.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Security.Azure\Excalibur.Dispatch.Security.Azure.csproj" />
   </ItemGroup>
-
   <!-- Azure SDK References -->
   <ItemGroup>
     <PackageReference Include="Azure.Identity" />

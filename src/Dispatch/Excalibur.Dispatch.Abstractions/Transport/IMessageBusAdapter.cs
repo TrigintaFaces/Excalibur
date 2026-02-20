@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Abstractions.Transport;
 /// Interface for message bus adapters that provide transport-specific message delivery capabilities.
 /// </summary>
 /// <remarks>
-/// Message bus adapters serve as the bridge between the Dispatch messaging framework and specific transport technologies (RabbitMQ, Azure
+/// Message bus adapters serve as the bridge between the Excalibur framework and specific transport technologies (RabbitMQ, Azure
 /// Service Bus, Apache Kafka, etc.). They handle the low-level details of message serialization, routing, and delivery while providing a
 /// consistent abstraction for the messaging pipeline.
 /// </remarks>

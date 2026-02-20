@@ -10,7 +10,7 @@ namespace AwsSqsSample.Messages;
 /// </summary>
 /// <remarks>
 /// This event demonstrates the basic structure of an integration event
-/// that can be published to AWS SQS via the Dispatch framework.
+/// that can be published to AWS SQS via the Excalibur framework.
 /// Uses <see cref="IIntegrationEvent"/> for cross-service routing to transports.
 /// </remarks>
 /// <param name="OrderId">The unique identifier for the order.</param>

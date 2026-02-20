@@ -8,14 +8,12 @@
     <RootNamespace>OpenTelemetrySample</RootNamespace>
     <AssemblyName>OpenTelemetrySample</AssemblyName>
   </PropertyGroup>
-
   <!-- Dispatch Observability References -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Observability\Excalibur.Dispatch.Observability.csproj" />
   </ItemGroup>
-
   <!-- OpenTelemetry References -->
   <ItemGroup>
     <PackageReference Include="OpenTelemetry" />

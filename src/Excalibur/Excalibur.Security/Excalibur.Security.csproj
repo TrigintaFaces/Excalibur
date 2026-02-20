@@ -1,38 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<RootNamespace>Excalibur.Security</RootNamespace>
-		<AssemblyName>Excalibur.Security</AssemblyName>
-		<!-- NuGet Package Metadata -->
-		<PackageId>Excalibur.Security</PackageId>
-		<Description>Security implementations for Excalibur framework including Argon2id password hashing</Description>
-		<PackageTags>excalibur;security;password;hashing;argon2;cryptography</PackageTags>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<!-- Project-specific override: not AOT compatible due to Argon2 library -->
-		<IsAotCompatible>false</IsAotCompatible>
-	</PropertyGroup>
-	<ItemGroup>
-		<EmbeddedResource Update="Resources.resx">
-			<Generator>ResXFileCodeGenerator</Generator>
-			<LastGenOutput>Resources.Designer.cs</LastGenOutput>
-		</EmbeddedResource>
-		<Compile Update="Resources.Designer.cs">
-			<DesignTime>true</DesignTime>
-			<AutoGen>true</AutoGen>
-			<DependentUpon>Resources.resx</DependentUpon>
-		</Compile>
-	</ItemGroup>
-	<ItemGroup>
-		<PackageReference Include="Konscious.Security.Cryptography.Argon2" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
-		<PackageReference Include="Microsoft.Extensions.Options" />
-		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
-	</ItemGroup>
-	<ItemGroup>
-		<ProjectReference Include="..\Excalibur.Security.Abstractions\Excalibur.Security.Abstractions.csproj" />
-	</ItemGroup>
-	<ItemGroup>
-		<None Include="README.md" Pack="true" PackagePath="/" />
-	</ItemGroup>
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RootNamespace>Excalibur.Security</RootNamespace>
+    <AssemblyName>Excalibur.Security</AssemblyName>
+    <!-- NuGet Package Metadata -->
+    <PackageId>Excalibur.Security</PackageId>
+    <Description>Security implementations for the Excalibur framework, including Argon2id password hashing.</Description>
+    <PackageTags>excalibur;security;password;hashing;argon2;cryptography</PackageTags>
+    <!-- Project-specific override: not AOT compatible due to Argon2 library -->
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Update="Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <Compile Update="Resources.Designer.cs">
+      <DesignTime>true</DesignTime>
+      <AutoGen>true</AutoGen>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Konscious.Security.Cryptography.Argon2" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Security.Abstractions\Excalibur.Security.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
 </Project>

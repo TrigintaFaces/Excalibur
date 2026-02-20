@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Extension methods for configuring unified routing in the Dispatch framework.
+/// Extension methods for configuring unified routing in the Excalibur framework.
 /// </summary>
 public static class RoutingBuilderExtensions
 {

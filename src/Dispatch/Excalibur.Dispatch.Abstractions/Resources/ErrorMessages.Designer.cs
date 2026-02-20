@@ -1492,7 +1492,7 @@ namespace Excalibur.Dispatch.Abstractions {
 		}
 
 /// <summary>
-/// Looks up a localized string similar to An error occurred in the Dispatch framework.
+/// Looks up a localized string similar to An error occurred in the Excalibur framework.
 /// </summary>
 		/// <value>The current <see cref="DispatchFrameworkError"/> value.</value>
 		public static string DispatchFrameworkError {

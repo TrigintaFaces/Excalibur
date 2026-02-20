@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Validation.FluentValidation
 
-FluentValidation integration for the Dispatch messaging framework. Provides IValidatorResolver implementation using FluentValidation validators.
+FluentValidation integration for the Excalibur framework. Provides IValidatorResolver implementation using FluentValidation validators.
 
 ## Installation
 

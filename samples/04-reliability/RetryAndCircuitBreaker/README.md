@@ -1,6 +1,6 @@
 # Retry and Circuit Breaker Sample
 
-This sample demonstrates **resilience patterns** using Polly with the Dispatch framework.
+This sample demonstrates **resilience patterns** using Polly with the Excalibur framework.
 
 ## What This Sample Shows
 

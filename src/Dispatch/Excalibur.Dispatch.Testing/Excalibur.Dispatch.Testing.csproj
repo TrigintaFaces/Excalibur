@@ -1,28 +1,28 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<IsPackable>true</IsPackable>
-		<PackageId>Excalibur.Dispatch.Testing</PackageId>
-		<Description>Testing utilities for the Excalibur Dispatch framework. Provides DispatchTestHarness, message tracking, and test doubles for pipeline and handler testing. Framework-agnostic — works with xUnit, NUnit, MSTest, or any test runner.</Description>
-		<PackageTags>excalibur;dispatch;testing;test-harness;test-doubles;messaging</PackageTags>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<IsAotCompatible>true</IsAotCompatible>
-		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
-	</PropertyGroup>
-
-	<ItemGroup>
-		<InternalsVisibleTo Include="Excalibur.Dispatch.Testing.Tests" />
-		<InternalsVisibleTo Include="Excalibur.Dispatch.Testing.Shouldly.Tests" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
-		<ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
-		<ProjectReference Include="..\Excalibur.Dispatch.Transport.Abstractions\Excalibur.Dispatch.Transport.Abstractions.csproj" />
-	</ItemGroup>
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Dispatch.Testing</PackageId>
+    <Description>Testing utilities for the Excalibur framework. Provides DispatchTestHarness, message tracking, and test doubles for pipeline and handler testing. Framework-agnostic — works with xUnit, NUnit, MSTest, or any test runner.</Description>
+    <PackageTags>excalibur;dispatch;testing;test-harness;test-doubles;messaging</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Testing.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Testing.Shouldly.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch.Transport.Abstractions\Excalibur.Dispatch.Transport.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
 </Project>

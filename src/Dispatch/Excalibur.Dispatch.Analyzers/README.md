@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Analyzers
 
-Roslyn analyzers for the Dispatch messaging framework.
+Roslyn analyzers for the Excalibur framework.
 
 ## Installation
 

@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Abstractions
 
-Core interfaces and types for the Dispatch messaging framework.
+Core interfaces and types for the Excalibur framework.
 
 ## Installation
 

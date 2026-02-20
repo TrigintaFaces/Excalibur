@@ -1,21 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <IsPackable>true</IsPackable>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <Description>Hosting/public-edge JSON integration for Excalibur.Dispatch.Patterns. Provides IJsonSerializer implementation using System.Text.Json and DI registration.</Description>
     <PackageId>Excalibur.Dispatch.Patterns.Hosting.Json</PackageId>
-    <Authors>The Excalibur Project</Authors>
-    <PackageProjectUrl>https://github.com/TrigintaFaces/Excalibur</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
     <PackageTags>dispatch;patterns;hosting;json;serialization;stj</PackageTags>
-    <PackageReleaseNotes>See CHANGELOG.md for release notes</PackageReleaseNotes>
-    <DeterministicSourcePaths>true</DeterministicSourcePaths>
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
@@ -23,5 +12,9 @@
     <ProjectReference Include="..\Excalibur.Dispatch.Patterns\Excalibur.Dispatch.Patterns.csproj" />
     <PackageReference Include="System.Text.Json" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

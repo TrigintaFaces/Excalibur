@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Patterns.Azure
 
-Azure-specific pattern implementations for the Dispatch framework.
+Azure-specific pattern implementations for the Excalibur framework.
 
 ## Installation
 

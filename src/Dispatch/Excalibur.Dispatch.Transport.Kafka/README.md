@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Transport.Kafka
 
-Apache Kafka transport implementation for the Dispatch messaging framework, providing high-throughput, distributed event streaming with exactly-once semantics and CloudEvents support.
+Apache Kafka transport implementation for the Excalibur framework, providing high-throughput, distributed event streaming with exactly-once semantics and CloudEvents support.
 
 ## Overview
 

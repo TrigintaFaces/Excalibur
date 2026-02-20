@@ -1,35 +1,19 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <IsPackable>true</IsPackable>
-
-    <PackageId>Excalibur.Hosting</PackageId>
-    <Authors>TrigintaFaces</Authors>
-    <Description>A project within Excalibur to define the classes and methods related to hosting services.</Description>
-    <RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
-    <Copyright>$(Copyright)</Copyright>
-    <Company>$(Company)</Company>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <Product>$(Product)</Product>
-    <PackageTags>excalibur;hosting;services;configuration;aot</PackageTags>
-    <PackageProjectUrl>https://github.com/TrigintaFaces/Excalibur</PackageProjectUrl>
-    <RepositoryType>git</RepositoryType>
-    <PackageReleaseNotes>See CHANGELOG.md for release notes</PackageReleaseNotes>
-    <IsAotCompatible>true</IsAotCompatible>
-    <DeterministicSourcePaths>true</DeterministicSourcePaths>
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Hosting</PackageId>
+    <Description>Core hosting infrastructure for Excalibur applications, including bootstrap and lifecycle integration for web and worker hosts.</Description>
+    <PackageTags>excalibur;hosting;services;configuration;aot</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
   </PropertyGroup>
-
   <PropertyGroup>
     <IsAotCompatible>true</IsAotCompatible>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
     <PublishAot Condition="'$(PublishAot)' == ''">false</PublishAot>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(PublishAot)' == 'true' OR '$(PublishTrimmed)' == 'true'">
+  <PropertyGroup>
     <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
     <TrimmerDefaultAction>link</TrimmerDefaultAction>
   </PropertyGroup>
@@ -41,7 +25,6 @@
     <PackageReference Include="AspNetCore.HealthChecks.Uris" />
     <PackageReference Include="Microsoft.CodeAnalysis.Common" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
-
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
     <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" />
     <PackageReference Include="Microsoft.Extensions.Configuration" />
@@ -77,10 +60,13 @@
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
-
   <!-- CI mode: PackageReference for Dispatch packages -->
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
     <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
     <PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

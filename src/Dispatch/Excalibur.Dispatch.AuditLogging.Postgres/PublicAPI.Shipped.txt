@@ -1,1 +1,31 @@
 #nullable enable
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions.BatchSize.get -> System.Int32
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions.BatchSize.set -> void
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions.CommandTimeoutSeconds.get -> System.Int32
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions.CommandTimeoutSeconds.set -> void
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions.ConnectionString.get -> System.String
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions.ConnectionString.set -> void
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions.EnableHashChain.get -> System.Boolean
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions.EnableHashChain.set -> void
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions.FullyQualifiedTableName.get -> System.String
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions.PostgresAuditOptions() -> void
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions.RetentionCleanupBatchSize.get -> System.Int32
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions.RetentionCleanupBatchSize.set -> void
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions.RetentionPeriod.get -> System.TimeSpan
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions.RetentionPeriod.set -> void
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions.SchemaName.get -> System.String
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions.SchemaName.set -> void
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions.TableName.get -> System.String
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions.TableName.set -> void
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditStore
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditStore.CountAsync(Excalibur.Dispatch.Compliance.AuditQuery query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Int64>
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditStore.Dispose() -> System.Void
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditStore.GetByIdAsync(System.String eventId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditEvent>
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditStore.GetLastEventAsync(System.String tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditEvent>
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditStore.PostgresAuditStore(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditStore> logger) -> void
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditStore.QueryAsync(Excalibur.Dispatch.Compliance.AuditQuery query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.AuditEvent>>
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditStore.StoreAsync(Excalibur.Dispatch.Compliance.AuditEvent auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditEventId>
+Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditStore.VerifyChainIntegrityAsync(System.DateTimeOffset startDate, System.DateTimeOffset endDate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditIntegrityResult>
+Microsoft.Extensions.DependencyInjection.PostgresAuditServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.PostgresAuditServiceCollectionExtensions.AddPostgresAuditStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Dispatch.AuditLogging.Postgres.PostgresAuditOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

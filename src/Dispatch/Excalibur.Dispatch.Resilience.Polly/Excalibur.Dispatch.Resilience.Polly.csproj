@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <PackageId>Excalibur.Dispatch.Resilience.Polly</PackageId>
-    <Description>Polly-based resilience patterns for Dispatch messaging framework (circuit breaker, retry, timeout)</Description>
-    <PackageTags>dispatch;resilience;polly;circuit-breaker;retry;timeout</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Dispatch.Resilience.Polly</PackageId>
+    <Description>Polly-based resilience patterns for the Excalibur framework (circuit breaker, retry, timeout).</Description>
+    <PackageTags>dispatch;resilience;polly;circuit-breaker;retry;timeout</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
   <ItemGroup>
@@ -37,5 +37,9 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Dispatch.Resilience.Tests.Unit" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Middleware.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

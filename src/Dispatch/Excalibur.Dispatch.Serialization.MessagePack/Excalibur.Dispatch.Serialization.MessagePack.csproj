@@ -1,13 +1,12 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <AssemblyName>Excalibur.Dispatch.Serialization.MessagePack</AssemblyName>
     <RootNamespace>Excalibur.Dispatch.Serialization.MessagePack</RootNamespace>
-    <IsPackable>true</IsPackable>
     <PackageId>Excalibur.Dispatch.Serialization.MessagePack</PackageId>
-    <Description>MessagePack serialization plugin for Dispatch framework. Compact binary serialization with cross-language compatibility (Python, Go, Java). Ideal for polyglot environments and interoperability scenarios.</Description>
+    <Description>MessagePack serialization plugin for the Excalibur framework. Compact binary serialization with cross-language compatibility (Python, Go, Java). Ideal for polyglot environments and interoperability scenarios.</Description>
     <PackageTags>dispatch;messagepack;serialization;binary;performance;pluggable;cross-language;polyglot</PackageTags>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
   <!-- AOT: NOT compatible — MessagePack uses reflection-based serialization -->
   <PropertyGroup>
@@ -24,5 +23,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

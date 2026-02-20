@@ -24,7 +24,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class DispatchConfigurationServiceCollectionExtensions
 {
 	/// <summary>
-	/// Adds Dispatch messaging framework to the service collection with advanced configuration.
+	/// Adds Excalibur framework to the service collection with advanced configuration.
 	/// This method is intended for internal use. Prefer <see cref="DispatchServiceCollectionExtensions.AddDispatch(IServiceCollection, Action{IDispatchBuilder}?)"/>.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>

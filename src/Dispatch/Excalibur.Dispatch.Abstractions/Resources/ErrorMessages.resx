@@ -236,7 +236,7 @@
 	<value>Messaging error occurred</value>
   </data>
   <data name="DispatchFrameworkError" xml:space="preserve">
-	<value>An error occurred in the Dispatch framework</value>
+	<value>An error occurred in the Excalibur framework</value>
   </data>
   <data name="ConnectionFailed" xml:space="preserve">
 	<value>Connection failed</value>

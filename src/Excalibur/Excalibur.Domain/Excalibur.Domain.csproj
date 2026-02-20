@@ -1,58 +1,57 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<!-- NuGet package metadata -->
-		<PackageId>Excalibur.Domain</PackageId>
-		<Description>A project within Excalibur to define domain primitives, value objects, entities, aggregates and core domain concepts.</Description>
-		<PackageTags>excalibur;domain;ddd;entities;value-objects;aggregates;primitives</PackageTags>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<IsAotCompatible>true</IsAotCompatible>
-		<DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
-	</PropertyGroup>
-	<!-- AOT Configuration -->
-	<PropertyGroup>
-		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
-		<PublishAot Condition="'$(PublishAot)' == ''">false</PublishAot>
-	</PropertyGroup>
-	<PropertyGroup Condition="'$(PublishAot)' == 'true' OR '$(PublishTrimmed)' == 'true'">
-		<SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
-		<TrimmerDefaultAction>link</TrimmerDefaultAction>
-	</PropertyGroup>
-	<!-- Include README.md and LICENSE in NuGet package -->
-	<ItemGroup>
-		<None Include="README.md" Pack="true" PackagePath="/" />
-	</ItemGroup>
-	<ItemGroup>
-		<PackageReference Include="Ben.Demystifier" />
-	</ItemGroup>
-	<ItemGroup>
-		<PackageReference Include="Medo.Uuid7" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
-	</ItemGroup>
-	<ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
-		<ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
-	</ItemGroup>
-	<ItemGroup>
-		<EmbeddedResource Update="Resources.resx">
-			<Generator>ResXFileCodeGenerator</Generator>
-			<LastGenOutput>Resources.Designer.cs</LastGenOutput>
-		</EmbeddedResource>
-		<Compile Update="Resources.Designer.cs">
-			<DesignTime>True</DesignTime>
-			<AutoGen>True</AutoGen>
-			<DependentUpon>Resources.resx</DependentUpon>
-		</Compile>
-	</ItemGroup>
-	<!-- PublicAPI baseline files for breaking change detection -->
-	<ItemGroup>
-		<AdditionalFiles Include="PublicAPI.Shipped.txt" />
-		<AdditionalFiles Include="PublicAPI.Unshipped.txt" />
-	</ItemGroup>
-
-	<!-- CI mode: PackageReference for Dispatch packages -->
-	<ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
-		<PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
-	</ItemGroup>
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- NuGet package metadata -->
+    <PackageId>Excalibur.Domain</PackageId>
+    <Description>Domain-driven design primitives for Excalibur, including entities, aggregates, value objects, domain events, and domain rules.</Description>
+    <PackageTags>excalibur;domain;ddd;entities;value-objects;aggregates;primitives</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+  </PropertyGroup>
+  <!-- AOT Configuration -->
+  <PropertyGroup>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <PublishAot Condition="'$(PublishAot)' == ''">false</PublishAot>
+  </PropertyGroup>
+  <PropertyGroup>
+    <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
+    <TrimmerDefaultAction>link</TrimmerDefaultAction>
+  </PropertyGroup>
+  <!-- Include README.md and LICENSE in NuGet package -->
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Ben.Demystifier" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Medo.Uuid7" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Update="Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <Compile Update="Resources.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+  <!-- PublicAPI baseline files for breaking change detection -->
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+  <!-- CI mode: PackageReference for Dispatch packages -->
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+  </ItemGroup>
 </Project>

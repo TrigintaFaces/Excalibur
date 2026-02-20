@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Patterns.ClaimCheck.InMemory
 
-**In-memory Claim Check pattern provider for Dispatch messaging framework.**
+**In-memory Claim Check pattern provider for Excalibur framework.**
 
 Thread-safe, zero-dependency implementation with TTL expiration, compression, and checksum validation. Ideal for testing and local development scenarios.
 

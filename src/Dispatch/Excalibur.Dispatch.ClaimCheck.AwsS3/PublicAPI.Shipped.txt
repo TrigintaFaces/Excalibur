@@ -1,1 +1,27 @@
 #nullable enable
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckOptions
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckOptions.AccessKey.get -> System.String
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckOptions.AccessKey.set -> void
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckOptions.AwsS3ClaimCheckOptions() -> void
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckOptions.BucketName.get -> System.String
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckOptions.BucketName.set -> void
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckOptions.MaxObjectSize.get -> System.Int64
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckOptions.MaxObjectSize.set -> void
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckOptions.Prefix.get -> System.String
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckOptions.Prefix.set -> void
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckOptions.Region.get -> System.String
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckOptions.Region.set -> void
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckOptions.SecretKey.get -> System.String
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckOptions.SecretKey.set -> void
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckOptions.ServiceUrl.get -> System.String
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckOptions.ServiceUrl.set -> void
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckStore
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckStore.AwsS3ClaimCheckStore(Amazon.S3.IAmazonS3 s3Client, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckOptions> options, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions> claimCheckOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckStore> logger) -> void
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckStore.AwsS3ClaimCheckStore(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckOptions> options, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions> claimCheckOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckStore> logger) -> void
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckStore.DeleteAsync(Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference reference, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Boolean>
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckStore.Dispose() -> System.Void
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckStore.RetrieveAsync(Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference reference, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Byte[]>
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckStore.ShouldUseClaimCheck(System.Byte[] payload) -> System.Boolean
+Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckStore.StoreAsync(System.Byte[] payload, System.Threading.CancellationToken cancellationToken, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata metadata) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference>
+Microsoft.Extensions.DependencyInjection.AwsS3ClaimCheckServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.AwsS3ClaimCheckServiceCollectionExtensions.AddAwsS3ClaimCheck(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Dispatch.ClaimCheck.AwsS3.AwsS3ClaimCheckOptions> configure, System.Action<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions> configureClaimCheck) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

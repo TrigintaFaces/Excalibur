@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging;
 namespace Excalibur.Dispatch.Performance;
 
 /// <summary>
-/// Utility for benchmarking Dispatch framework performance and validating optimizations.
+/// Utility for benchmarking Excalibur framework performance and validating optimizations.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="PerformanceBenchmark" /> class. </remarks>
 /// <param name="metricsCollector"> The metrics collector to use for benchmarking. </param>

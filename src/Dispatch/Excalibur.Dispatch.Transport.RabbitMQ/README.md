@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Transport.RabbitMQ
 
-RabbitMQ transport implementation for the Dispatch messaging framework, providing reliable message queuing with advanced features including dead letter handling, CloudEvents support, and automatic recovery.
+RabbitMQ transport implementation for the Excalibur framework, providing reliable message queuing with advanced features including dead letter handling, CloudEvents support, and automatic recovery.
 
 ## Overview
 

@@ -38,6 +38,22 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function ConvertFrom-JsonCompat {
+    param(
+        [Parameter(Mandatory = $true)]$Json,
+        [int]$Depth = 50
+    )
+
+    $jsonText = if ($Json -is [string]) { $Json } else { ($Json -join [Environment]::NewLine) }
+
+    $convertFromJsonCommand = Get-Command ConvertFrom-Json -ErrorAction Stop
+    if ($convertFromJsonCommand.Parameters.ContainsKey('Depth')) {
+        return ($jsonText | ConvertFrom-Json -Depth $Depth)
+    }
+
+    return ($jsonText | ConvertFrom-Json)
+}
+
 function Normalize-RepoPath {
     param([string]$PathValue)
     if ([string]::IsNullOrWhiteSpace($PathValue)) {
@@ -58,7 +74,7 @@ if (-not (Test-Path $matrixFullPath)) {
     throw "Governance matrix not found: $matrixFullPath"
 }
 
-$matrix = Get-Content -Raw $matrixFullPath | ConvertFrom-Json -Depth 50
+$matrix = ConvertFrom-JsonCompat -Json (Get-Content -Raw $matrixFullPath) -Depth 50
 $CertifiedSamples = @($matrix.sampleFitness.certified | ForEach-Object { Normalize-RepoPath $_ } | Sort-Object -Unique)
 $QuarantinedSamples = @($matrix.sampleFitness.quarantined | ForEach-Object { Normalize-RepoPath $_ } | Sort-Object -Unique)
 $SmokeProfiles = @($matrix.sampleFitness.smokeProfiles)

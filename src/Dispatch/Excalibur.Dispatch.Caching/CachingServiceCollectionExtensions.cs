@@ -18,7 +18,7 @@ using Microsoft.Extensions.Options;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Provides extension methods for configuring caching services in the Dispatch messaging framework. Supports Microsoft.Extensions.Caching
+/// Provides extension methods for configuring caching services in the Excalibur framework. Supports Microsoft.Extensions.Caching
 /// for memory, distributed, and hybrid caching scenarios.
 /// </summary>
 public static class CachingServiceCollectionExtensions

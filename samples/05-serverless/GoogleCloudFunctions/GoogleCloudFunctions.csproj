@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!-- Sprint 430 S430.3: Google Cloud Functions Serverless Sample -->
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -11,7 +11,6 @@
     <AssemblyName>GoogleCloudFunctionsSample</AssemblyName>
     <!-- Let the Functions Framework generate the entry point -->
   </PropertyGroup>
-
   <!-- Dispatch Hosting References -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
@@ -20,7 +19,6 @@
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Application\Excalibur.Application.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Hosting.GoogleCloudFunctions\Excalibur.Hosting.GoogleCloudFunctions.csproj" />
   </ItemGroup>
-
   <!-- Google Cloud Functions SDK References -->
   <ItemGroup>
     <PackageReference Include="Google.Cloud.Functions.Framework" />

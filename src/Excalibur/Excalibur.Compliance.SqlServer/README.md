@@ -1,6 +1,6 @@
 # Excalibur.Compliance.SqlServer
 
-SQL Server implementation of IKeyEscrowService for the Excalibur compliance framework. Provides key escrow storage with Shamir's Secret Sharing for split-knowledge key recovery using Dapper.
+SQL Server implementation of IKeyEscrowService for the Excalibur framework. Provides key escrow storage with Shamir's Secret Sharing for split-knowledge key recovery using Dapper.
 
 ## Installation
 

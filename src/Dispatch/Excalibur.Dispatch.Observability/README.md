@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Observability
 
-Observability and telemetry for the Dispatch messaging framework.
+Observability and telemetry for the Excalibur framework.
 
 ## Installation
 

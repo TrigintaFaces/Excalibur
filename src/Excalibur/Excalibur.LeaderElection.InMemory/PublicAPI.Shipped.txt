@@ -1,1 +1,28 @@
 #nullable enable
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElection
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.BecameLeader.add -> void
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.BecameLeader.remove -> void
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.CandidateId.get -> System.String
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.CurrentLeaderId.get -> System.String
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.Dispose() -> System.Void
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.GetCandidateHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.LeaderElection.CandidateHealth>>
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.InMemoryLeaderElection(System.String resourceName, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.InMemory.InMemoryLeaderElection> logger, Excalibur.LeaderElection.InMemory.InMemoryLeaderElectionSharedState sharedState) -> void
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.IsLeader.get -> System.Boolean
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.LeaderChanged.add -> void
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.LeaderChanged.remove -> void
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.LostLeadership.add -> void
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.LostLeadership.remove -> void
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElection.UpdateHealthAsync(System.Boolean isHealthy, System.Collections.Generic.IDictionary<System.String, System.String> metadata) -> System.Threading.Tasks.Task
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElectionFactory
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElectionFactory.CreateElection(System.String resourceName, System.String candidateId) -> Excalibur.Dispatch.LeaderElection.ILeaderElection
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElectionFactory.CreateHealthBasedElection(System.String resourceName, System.String candidateId) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElectionFactory.InMemoryLeaderElectionFactory(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions> options, Microsoft.Extensions.Logging.ILoggerFactory loggerFactory, Excalibur.LeaderElection.InMemory.InMemoryLeaderElectionSharedState sharedState) -> void
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElectionSharedState
+Excalibur.LeaderElection.InMemory.InMemoryLeaderElectionSharedState.InMemoryLeaderElectionSharedState() -> void
+Microsoft.Extensions.DependencyInjection.InMemoryLeaderElectionServiceCollectionExtensions
+static Excalibur.LeaderElection.InMemory.InMemoryLeaderElectionSharedState.Default.get -> Excalibur.LeaderElection.InMemory.InMemoryLeaderElectionSharedState
+static Microsoft.Extensions.DependencyInjection.InMemoryLeaderElectionServiceCollectionExtensions.AddInMemoryLeaderElection(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.InMemoryLeaderElectionServiceCollectionExtensions.AddInMemoryLeaderElection(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

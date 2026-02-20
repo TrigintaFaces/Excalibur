@@ -1,22 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <RootNamespace>Excalibur.Dispatch.Patterns.Tests</RootNamespace>
     <AssemblyName>Excalibur.Dispatch.Patterns.Tests</AssemblyName>
   </PropertyGroup>
-
   <ItemGroup>
     <!-- Test framework (Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio) provided by Directory.Build.props -->
     <PackageReference Include="Shouldly" />
     <PackageReference Include="FakeItEasy" />
     <PackageReference Include="coverlet.collector" />
   </ItemGroup>
-
   <ItemGroup>
     <!-- ProjectReferences from all merged patterns test projects -->
     <!-- From Excalibur.Dispatch.Patterns.Tests -->
@@ -31,9 +28,7 @@
     <!-- From Excalibur.Dispatch.Patterns.Azure.Tests -->
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Patterns.Azure\Excalibur.Dispatch.Patterns.Azure.csproj" />
   </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
   </ItemGroup>
-
 </Project>

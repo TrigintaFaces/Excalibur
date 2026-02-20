@@ -1,35 +1,39 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<PackageId>Excalibur.Dispatch.Transport.RabbitMQ</PackageId>
-		<Description>RabbitMQ integration for Dispatch messaging framework. Provides AMQP messaging with CloudEvents support.</Description>
-		<PackageTags>messaging;dispatch;rabbitmq;amqp;cloud;aot</PackageTags>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<IsAotCompatible>true</IsAotCompatible>
-	</PropertyGroup>
-	<ItemGroup>
-		<ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
-		<ProjectReference Include="..\Excalibur.Dispatch.Transport.Abstractions\Excalibur.Dispatch.Transport.Abstractions.csproj" />
-		<ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
-	</ItemGroup>
-	<ItemGroup>
-		<!-- RabbitMQ packages -->
-		<PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
-		<PackageReference Include="RabbitMQ.Client" />
-		<!-- CloudEvents support -->
-		<PackageReference Include="CloudNative.CloudEvents" />
-		<PackageReference Include="System.Text.Json" />
-		<!-- Common dependencies -->
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
-		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
-		<PackageReference Include="Polly" />
-	</ItemGroup>
-	<ItemGroup>
-		<InternalsVisibleTo Include="Excalibur.Dispatch.Transport.RabbitMQ.Tests" />
-		<InternalsVisibleTo Include="Excalibur.Dispatch.Transport.RabbitMQ.Tests.Unit" />
-		<InternalsVisibleTo Include="Excalibur.Dispatch.Transport.RabbitMQ.Tests.Integration" />
-		<InternalsVisibleTo Include="Excalibur.Dispatch.Transport.RabbitMQ.Tests.Functional" />
-		<InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests" />
-	</ItemGroup>
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Dispatch.Transport.RabbitMQ</PackageId>
+    <Description>RabbitMQ integration for the Excalibur framework. Provides AMQP messaging with CloudEvents support.</Description>
+    <PackageTags>messaging;dispatch;rabbitmq;amqp;cloud;aot</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch.Transport.Abstractions\Excalibur.Dispatch.Transport.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- RabbitMQ packages -->
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <PackageReference Include="RabbitMQ.Client" />
+    <!-- CloudEvents support -->
+    <PackageReference Include="CloudNative.CloudEvents" />
+    <PackageReference Include="System.Text.Json" />
+    <!-- Common dependencies -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Polly" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.RabbitMQ.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.RabbitMQ.Tests.Unit" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.RabbitMQ.Tests.Integration" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.RabbitMQ.Tests.Functional" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
 </Project>

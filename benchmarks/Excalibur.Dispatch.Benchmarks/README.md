@@ -378,7 +378,7 @@ Latest refreshed values (February 19, 2026):
 | In-Process Dispatch | ✅ Ultra-lightweight | MediatR: Mature ecosystem |
 | Event Sourcing | ✅ Native support | Both: No native support |
 | Outbox Pattern | ✅ Native support | Both: Third-party libraries |
-| Async Messaging | Dispatch framework | Wolverine: Advanced features |
+| Async Messaging | Excalibur framework | Wolverine: Advanced features |
 | Memory Efficiency | ✅ Minimal allocations | Varies |
 
 ---

@@ -1,52 +1,51 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<OutputType>Exe</OutputType>
-		<TargetFrameworks>net9.0;net10.0</TargetFrameworks>
-		<IsPackable>true</IsPackable>
-		<PackAsTool>true</PackAsTool>
-		<ToolCommandName>excalibur-migrate</ToolCommandName>
-		<PackageId>Excalibur.Migrate.Tool</PackageId>
-		<Description>CLI tool for managing Excalibur event sourcing database migrations. Supports SQL Server and Postgres.</Description>
-		<PackageTags>excalibur;migration;database;cli;tool;eventsourcing</PackageTags>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<ExcaliburPackageVersion Condition="'$(ExcaliburPackageVersion)' == ''">0.1.0-local</ExcaliburPackageVersion>
-		<!-- CLI tools use synchronous console output intentionally -->
-		<NoWarn>$(NoWarn);CA1849</NoWarn>
-	</PropertyGroup>
-
-	<!-- AOT Configuration -->
-	<PropertyGroup>
-		<IsAotCompatible>true</IsAotCompatible>
-		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
-		<PublishAot Condition="'$(PublishAot)' == ''">false</PublishAot>
-	</PropertyGroup>
-
-	<PropertyGroup Condition="'$(PublishAot)' == 'true' OR '$(PublishTrimmed)' == 'true'">
-		<SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
-		<TrimmerDefaultAction>link</TrimmerDefaultAction>
-	</PropertyGroup>
-
-	<ItemGroup>
-		<PackageReference Include="System.CommandLine" />
-		<PackageReference Include="Microsoft.Extensions.Hosting" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Console" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Json" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" />
-	</ItemGroup>
-
-	<ItemGroup><ProjectReference Include="..\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" /><ProjectReference Include="..\Excalibur.EventSourcing.SqlServer\Excalibur.EventSourcing.SqlServer.csproj" /><ProjectReference Include="..\Excalibur.EventSourcing.Postgres\Excalibur.EventSourcing.Postgres.csproj" /></ItemGroup><ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
-		
-		
-		
-	</ItemGroup>
-
-	<!-- CI mode: PackageReference for Excalibur packages -->
-	<ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
-		<PackageReference Include="Excalibur.EventSourcing.Abstractions" VersionOverride="$(ExcaliburPackageVersion)" />
-		<PackageReference Include="Excalibur.EventSourcing.SqlServer" VersionOverride="$(ExcaliburPackageVersion)" />
-		<PackageReference Include="Excalibur.EventSourcing.Postgres" VersionOverride="$(ExcaliburPackageVersion)" />
-	</ItemGroup>
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>excalibur-migrate</ToolCommandName>
+    <PackageId>Excalibur.Migrate.Tool</PackageId>
+    <Description>CLI tool for managing Excalibur event sourcing database migrations. Supports SQL Server and Postgres.</Description>
+    <PackageTags>excalibur;migration;database;cli;tool;eventsourcing</PackageTags>
+    <ExcaliburPackageVersion Condition="'$(ExcaliburPackageVersion)' == ''">0.1.0-local</ExcaliburPackageVersion>
+    <!-- CLI tools use synchronous console output intentionally -->
+    <NoWarn>$(NoWarn);CA1849</NoWarn>
+  </PropertyGroup>
+  <!-- AOT Configuration -->
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <PublishAot Condition="'$(PublishAot)' == ''">false</PublishAot>
+  </PropertyGroup>
+  <PropertyGroup>
+    <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
+    <TrimmerDefaultAction>link</TrimmerDefaultAction>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.EventSourcing.SqlServer\Excalibur.EventSourcing.SqlServer.csproj" />
+    <ProjectReference Include="..\Excalibur.EventSourcing.Postgres\Excalibur.EventSourcing.Postgres.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'"></ItemGroup>
+  <!-- CI mode: PackageReference for Excalibur packages -->
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.EventSourcing.Abstractions" VersionOverride="$(ExcaliburPackageVersion)" />
+    <PackageReference Include="Excalibur.EventSourcing.SqlServer" VersionOverride="$(ExcaliburPackageVersion)" />
+    <PackageReference Include="Excalibur.EventSourcing.Postgres" VersionOverride="$(ExcaliburPackageVersion)" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
 </Project>

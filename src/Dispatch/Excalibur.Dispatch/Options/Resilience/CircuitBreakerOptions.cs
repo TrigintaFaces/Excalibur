@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Options.Resilience;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This is the canonical <c>CircuitBreakerOptions</c> for the Dispatch framework,
+/// This is the canonical <c>CircuitBreakerOptions</c> for the Excalibur framework,
 /// consolidating Options.Middleware.CircuitBreakerOptions.
 /// </para>
 /// <para>

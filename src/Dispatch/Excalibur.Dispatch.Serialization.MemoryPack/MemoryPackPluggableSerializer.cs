@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Serialization.MemoryPack;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This is the default high-performance serializer for internal persistence in the Dispatch framework. It wraps MemoryPack's serialization
+/// This is the default high-performance serializer for internal persistence in the Excalibur framework. It wraps MemoryPack's serialization
 /// capabilities and implements the pluggable serializer interface for use with <see cref="IPayloadSerializer" />.
 /// </para>
 /// <para> <b> Key Features: </b> </para>

@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.AuditLogging.Splunk
 
-Splunk HTTP Event Collector (HEC) exporter for audit logging in the Dispatch messaging framework. Supports real-time and batch export modes with retry and backoff.
+Splunk HTTP Event Collector (HEC) exporter for audit logging in the Excalibur framework. Supports real-time and batch export modes with retry and backoff.
 
 ## Installation
 

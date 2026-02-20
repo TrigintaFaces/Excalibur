@@ -20,6 +20,22 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function ConvertFrom-JsonCompat {
+    param(
+        [Parameter(Mandatory = $true)]$Json,
+        [int]$Depth = 20
+    )
+
+    $jsonText = if ($Json -is [string]) { $Json } else { ($Json -join [Environment]::NewLine) }
+
+    $convertFromJsonCommand = Get-Command ConvertFrom-Json -ErrorAction Stop
+    if ($convertFromJsonCommand.Parameters.ContainsKey('Depth')) {
+        return ($jsonText | ConvertFrom-Json -Depth $Depth)
+    }
+
+    return ($jsonText | ConvertFrom-Json)
+}
+
 $solutionReportDir = Join-Path $ReportsRoot 'SolutionGovernanceReport'
 $frameworkReportDir = Join-Path $ReportsRoot 'FrameworkGovernanceReport'
 New-Item -ItemType Directory -Force -Path $solutionReportDir | Out-Null
@@ -65,7 +81,7 @@ $metadataJson = & pwsh -NoProfile -File eng/audit-package-metadata.ps1 -OutputFo
 $metadataExitCode = $LASTEXITCODE
 $metadataJson | Out-File -FilePath $metadataJsonPath -Encoding UTF8
 
-$metadata = $metadataJson | ConvertFrom-Json -Depth 20
+$metadata = ConvertFrom-JsonCompat -Json $metadataJson -Depth 20
 $summary = @(
     '# Package Metadata Audit',
     '',

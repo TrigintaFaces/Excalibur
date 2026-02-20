@@ -1,16 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsAotCompatible>true</IsAotCompatible>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <DefineConstants>$(DefineConstants);AWS_LAMBDA_SUPPORT</DefineConstants>
     <RootNamespace>Excalibur.Dispatch.Hosting.AwsLambda</RootNamespace>
     <AssemblyName>Excalibur.Dispatch.Hosting.AwsLambda</AssemblyName>
     <PackageId>$(AssemblyName)</PackageId>
-    <Description>AWS Lambda hosting integration for the Dispatch messaging framework</Description>
+    <Description>AWS Lambda hosting integration for the Excalibur framework.</Description>
     <PackageTags>dispatch;serverless;hosting;aws;lambda;messaging</PackageTags>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
-    <IsPackable>true</IsPackable>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
@@ -28,5 +27,9 @@
     <PackageReference Include="Amazon.Lambda.DynamoDBEvents" />
     <PackageReference Include="Amazon.Lambda.KinesisEvents" Condition="'$(AllowAwsSdkV4)' == 'true'" />
     <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

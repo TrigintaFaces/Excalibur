@@ -11,7 +11,7 @@ using Excalibur.Dispatch.Threading;
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Extension methods for configuring threading services in the Dispatch framework. Provides keyed locking and background execution capabilities.
+/// Extension methods for configuring threading services in the Excalibur framework. Provides keyed locking and background execution capabilities.
 /// </summary>
 public static class ThreadingServiceCollectionExtensions
 {

@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Serialization.Protobuf
 
-Opt-in Protocol Buffers serialization support for the Dispatch framework.
+Opt-in Protocol Buffers serialization support for the Excalibur framework.
 
 ## Purpose
 
@@ -142,7 +142,7 @@ options.WireFormat = ProtobufWireFormat.Json;
 
 ## Architecture Notes
 
-Per Dispatch framework requirements:
+Per Excalibur framework requirements:
 
 1. **Excalibur.Dispatch MUST NOT reference this package** (R0.14 compliance)
 2. **This package is pay-for-play** (R0.5: no transitive bloat)

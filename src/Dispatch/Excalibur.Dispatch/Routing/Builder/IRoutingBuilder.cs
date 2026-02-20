@@ -4,7 +4,7 @@
 namespace Excalibur.Dispatch.Routing.Builder;
 
 /// <summary>
-/// Fluent builder interface for configuring message routing in the Dispatch framework.
+/// Fluent builder interface for configuring message routing in the Excalibur framework.
 /// </summary>
 /// <remarks>
 /// <para>

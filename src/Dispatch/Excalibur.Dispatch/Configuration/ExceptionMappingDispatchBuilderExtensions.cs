@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Configuration;
 public static class ExceptionMappingDispatchBuilderExtensions
 {
 	/// <summary>
-	/// Configures exception mapping for the Dispatch framework.
+	/// Configures exception mapping for the Excalibur framework.
 	/// </summary>
 	/// <param name="builder"> The dispatch builder. </param>
 	/// <param name="configure"> Configuration action for exception mappings. </param>

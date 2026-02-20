@@ -1,1 +1,3 @@
 #nullable enable
+Excalibur.Migrate.Tool.Program
+static Excalibur.Migrate.Tool.Program.Main(System.String[] args) -> System.Threading.Tasks.Task<System.Int32>

@@ -63,4 +63,4 @@ When future versions are released, follow these guidelines:
 
 - [Migration Overview](index.md) - All migration guides
 - [Getting Started](../getting-started/index.md) - New project setup from scratch
-- [Introduction](../intro.md) - Dispatch framework overview
+- [Introduction](../intro.md) - Excalibur framework overview

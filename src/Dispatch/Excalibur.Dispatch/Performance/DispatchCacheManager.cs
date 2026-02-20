@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Performance;
 /// </summary>
 /// <remarks>
 /// <para>
-/// PERF-22: This implementation centralizes cache management for the Dispatch framework.
+/// PERF-22: This implementation centralizes cache management for the Excalibur framework.
 /// It tracks the freeze timestamp and provides status visibility for diagnostics.
 /// </para>
 /// </remarks>

@@ -1,8 +1,7 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
@@ -10,30 +9,25 @@
     <Nullable>enable</Nullable>
     <RootNamespace>LeaderElection</RootNamespace>
   </PropertyGroup>
-
   <!-- Dispatch Leader Election Abstractions -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.LeaderElection.Abstractions\Excalibur.Dispatch.LeaderElection.Abstractions.csproj" />
   </ItemGroup>
-
   <!-- Excalibur Leader Election with Redis provider -->
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.LeaderElection\Excalibur.LeaderElection.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.LeaderElection.Redis\Excalibur.LeaderElection.Redis.csproj" />
   </ItemGroup>
-
   <!-- Redis client -->
   <ItemGroup>
     <PackageReference Include="StackExchange.Redis" />
   </ItemGroup>
-
   <!-- Logging and configuration -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />
   </ItemGroup>
-
   <!-- Content files -->
   <ItemGroup>
     <None Update="appsettings.json">
@@ -43,5 +37,4 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
-
 </Project>

@@ -1,13 +1,9 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <IsPackable>true</IsPackable>
-
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>Excalibur.Jobs</PackageId>
-    <Authors>TrigintaFaces</Authors>
     <Description>Consolidated Excalibur job scheduling and orchestration framework. Includes abstractions, core implementations, coordination, workflows, and Quartz integration.</Description>
-    <RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!-- Warning gate inherited from Directory.Build.props -->
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AnalysisLevel>latest-all</AnalysisLevel>
@@ -20,23 +16,11 @@
     <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
     <!-- SYSLIB1104: Generic configuration binding (.Get<T>(), .Configure<T>()) cannot be source-generated; uses reflection fallback -->
     <NoWarn>$(NoWarn);SYSLIB1104</NoWarn>
-
     <!-- Re-enable assembly info generation for CA1016 compliance -->
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>true</GenerateTargetFrameworkAttribute>
-    <Copyright>$(Copyright)</Copyright>
-    <Company>$(Company)</Company>
-    <Product>$(Product)</Product>
     <PackageTags>excalibur;jobs;scheduling;background;processing;aot</PackageTags>
-    <PackageProjectUrl>https://github.com/TrigintaFaces/Excalibur</PackageProjectUrl>
-    <RepositoryType>git</RepositoryType>
-    <PackageReleaseNotes>See CHANGELOG.md for release notes</PackageReleaseNotes>
     <IsAotCompatible>true</IsAotCompatible>
-    <DeterministicSourcePaths>true</DeterministicSourcePaths>
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <ItemGroup>
@@ -45,7 +29,6 @@
     <InternalsVisibleTo Include="Excalibur.Tests.Functional" />
     <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="MediatR" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
@@ -67,7 +50,6 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
-
   <!-- Excalibur internal references (always ProjectReference) -->
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Jobs.Abstractions\Excalibur.Jobs.Abstractions.csproj" />
@@ -76,7 +58,6 @@
     <ProjectReference Include="..\Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />
     <ProjectReference Include="..\Excalibur.Hosting\Excalibur.Hosting.csproj" />
   </ItemGroup>
-
   <!-- Development mode: Dispatch ProjectReferences -->
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
@@ -85,10 +66,13 @@
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
-
   <!-- CI mode: PackageReference for Dispatch packages -->
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
     <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
     <PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>

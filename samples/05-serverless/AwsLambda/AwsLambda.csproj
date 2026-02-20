@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!-- Sprint 430 S430.2: AWS Lambda Serverless Sample -->
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -13,7 +13,6 @@
     <!-- AOT compilation support (optional - uncomment for production) -->
     <!-- <PublishAot>true</PublishAot> -->
   </PropertyGroup>
-
   <!-- Dispatch Hosting References -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
@@ -22,7 +21,6 @@
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Application\Excalibur.Application.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Hosting.AwsLambda\Excalibur.Hosting.AwsLambda.csproj" />
   </ItemGroup>
-
   <!-- AWS Lambda SDK References -->
   <ItemGroup>
     <PackageReference Include="Amazon.Lambda.Core" />

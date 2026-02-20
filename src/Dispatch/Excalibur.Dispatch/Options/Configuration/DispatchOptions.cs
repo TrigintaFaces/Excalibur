@@ -9,7 +9,7 @@ using Excalibur.Dispatch.Configuration;
 namespace Excalibur.Dispatch.Options.Configuration;
 
 /// <summary>
-/// Configuration options for the Dispatch messaging framework.
+/// Configuration options for the Excalibur framework.
 /// </summary>
 public sealed class DispatchOptions
 {
@@ -138,7 +138,7 @@ public sealed class DispatchFeatureOptions
 }
 
 /// <summary>
-/// Cross-cutting concern configuration for the Dispatch framework.
+/// Cross-cutting concern configuration for the Excalibur framework.
 /// </summary>
 /// <remarks>
 /// Groups security, observability, resilience, caching, performance, and retry policy

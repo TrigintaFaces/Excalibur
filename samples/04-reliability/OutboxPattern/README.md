@@ -1,6 +1,6 @@
 # Outbox Pattern Sample
 
-This sample demonstrates the **transactional outbox pattern** for reliable message delivery with the Dispatch framework.
+This sample demonstrates the **transactional outbox pattern** for reliable message delivery with the Excalibur framework.
 
 ## What This Sample Shows
 

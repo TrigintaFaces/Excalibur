@@ -1,27 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>    <IsPackable>true</IsPackable>
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>Excalibur.Data.DynamoDb</PackageId>
-    <Description>AWS DynamoDB data provider implementation for Excalibur cloud-native data access</Description>
-    <Authors>The Excalibur Project</Authors>
-    <Company>Excalibur</Company>
-    <Product>Excalibur.Dispatch</Product>
+    <Description>AWS DynamoDB data provider implementation for Excalibur cloud-native data access.</Description>
     <PackageTags>excalibur;data;dynamodb;aws;cloud-native;document-database</PackageTags>
-    <Copyright>$(Copyright)</Copyright>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <PackageProjectUrl>https://github.com/TrigintaFaces/Excalibur</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <PackageReleaseNotes>See CHANGELOG.md for release notes</PackageReleaseNotes>
     <IsAotCompatible>false</IsAotCompatible>
-    <DeterministicSourcePaths>true</DeterministicSourcePaths>
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-  <PackageReadmeFile>README.md</PackageReadmeFile>
-    </PropertyGroup>
+  </PropertyGroup>
   <ItemGroup>
-    
     <PackageReference Include="AWSSDK.DynamoDBv2" />
     <PackageReference Include="AWSSDK.DynamoDBStreams" />
     <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" />
@@ -37,7 +23,11 @@
     <ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
     <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
   </ItemGroup>
-<ItemGroup>
+  <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
-  </Project>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

@@ -1,45 +1,48 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<RootNamespace>Excalibur.Dispatch.Patterns</RootNamespace>
-		<AssemblyName>Excalibur.Dispatch.Patterns</AssemblyName>
-		<IsPackable>true</IsPackable>
-		<IsAotCompatible>true</IsAotCompatible>
-		<!-- NuGet Package Metadata -->
-		<PackageId>$(AssemblyName)</PackageId>
-		<Description>Advanced patterns for Dispatch framework including CQRS, Event Sourcing, Sagas, Materialized Views, Rate Limiting, Circuit Breaker, Backpressure, and more.</Description>
-		<PackageTags>dispatch;patterns;saga;cqrs;eventsourcing;materializedviews;ratelimiting;circuitbreaker;backpressure</PackageTags>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-	</PropertyGroup>
-	<ItemGroup>
-		<InternalsVisibleTo Include="Excalibur.Dispatch.Patterns.Tests" />
-	</ItemGroup>
-	<ItemGroup>
-		<!-- Core Dispatch references -->
-		<ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
-		<ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
-		<ProjectReference Include="..\Excalibur.Dispatch.Transport.Abstractions\Excalibur.Dispatch.Transport.Abstractions.csproj" />
-	</ItemGroup>
-	<ItemGroup>
-		<!-- Microsoft Extensions -->
-		<PackageReference Include="Microsoft.Extensions.Caching.Abstractions" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
-		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
-		<PackageReference Include="Microsoft.Extensions.Options" />
-		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
-		<PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
-		<PackageReference Include="Microsoft.Extensions.Http" />
-		<PackageReference Include="System.Text.Json" />
-		<!-- Serialization -->
-		<PackageReference Include="MemoryPack" />
-		<!-- Cloud Native & Orchestration -->
-		<!-- Resilience -->
-		<PackageReference Include="Polly" />
-		<!-- Benchmarking (for adaptive concurrency tuning) -->
-		<PackageReference Include="BenchmarkDotNet" />
-		<!-- Note: Azure.Storage.Blobs removed - now in Excalibur.Dispatch.Patterns.Azure provider package (R0.3, R23.1) -->
-		<!-- Note: Caching packages removed - Excalibur.Dispatch.Caching provides these (Week 5 Task 006) -->
-		<!-- Note: DistributedLocks packages removed - feature deleted as AOT-incompatible (Week 5 Task 008) -->
-	</ItemGroup>
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RootNamespace>Excalibur.Dispatch.Patterns</RootNamespace>
+    <AssemblyName>Excalibur.Dispatch.Patterns</AssemblyName>
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- NuGet Package Metadata -->
+    <PackageId>$(AssemblyName)</PackageId>
+    <Description>Advanced patterns for the Excalibur framework, including CQRS, Event Sourcing, Sagas, Materialized Views, Rate Limiting, Circuit Breaker, Backpressure, and more.</Description>
+    <PackageTags>dispatch;patterns;saga;cqrs;eventsourcing;materializedviews;ratelimiting;circuitbreaker;backpressure</PackageTags>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Patterns.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Core Dispatch references -->
+    <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch.Transport.Abstractions\Excalibur.Dispatch.Transport.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Microsoft Extensions -->
+    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="System.Text.Json" />
+    <!-- Serialization -->
+    <PackageReference Include="MemoryPack" />
+    <!-- Cloud Native & Orchestration -->
+    <!-- Resilience -->
+    <PackageReference Include="Polly" />
+    <!-- Benchmarking (for adaptive concurrency tuning) -->
+    <PackageReference Include="BenchmarkDotNet" />
+    <!-- Note: Azure.Storage.Blobs removed - now in Excalibur.Dispatch.Patterns.Azure provider package (R0.3, R23.1) -->
+    <!-- Note: Caching packages removed - Excalibur.Dispatch.Caching provides these (Week 5 Task 006) -->
+    <!-- Note: DistributedLocks packages removed - feature deleted as AOT-incompatible (Week 5 Task 008) -->
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
 </Project>

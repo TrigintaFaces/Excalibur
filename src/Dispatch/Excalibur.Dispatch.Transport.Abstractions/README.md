@@ -1,6 +1,6 @@
 # Excalibur.Dispatch.Transport.Abstractions
 
-Abstractions for message transport implementations in the Dispatch framework.
+Abstractions for message transport implementations in the Excalibur framework.
 
 ## Installation
 

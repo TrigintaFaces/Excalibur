@@ -1,1 +1,59 @@
 #nullable enable
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStore
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStore.AppendAsync(System.String aggregateId, System.String aggregateType, Excalibur.Data.Abstractions.CloudNative.IPartitionKey partitionKey, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent> events, System.Int64 expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudAppendResult>
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStore.DynamoDbEventStore(Amazon.DynamoDBv2.IAmazonDynamoDB client, Amazon.DynamoDBStreams.IAmazonDynamoDBStreams streamsClient, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.DynamoDb.DynamoDbEventStore> logger) -> void
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStore.GetCurrentVersionAsync(System.String aggregateId, System.String aggregateType, Excalibur.Data.Abstractions.CloudNative.IPartitionKey partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Int64>
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStore.GetUndispatchedEventsAsync(System.Int32 batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent>>
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStore.LoadAsync(System.String aggregateId, System.String aggregateType, Excalibur.Data.Abstractions.CloudNative.IPartitionKey partitionKey, Excalibur.Data.Abstractions.CloudNative.IConsistencyOptions consistencyOptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudEventLoadResult>
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStore.LoadFromVersionAsync(System.String aggregateId, System.String aggregateType, Excalibur.Data.Abstractions.CloudNative.IPartitionKey partitionKey, System.Int64 fromVersion, Excalibur.Data.Abstractions.CloudNative.IConsistencyOptions consistencyOptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudEventLoadResult>
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStore.MarkEventAsDispatchedAsync(System.String eventId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStore.ProviderType.get -> Excalibur.Data.Abstractions.CloudNative.CloudProviderType
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStore.SubscribeToChangesAsync(Excalibur.Data.Abstractions.CloudNative.IChangeFeedOptions options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.IChangeFeedSubscription<Excalibur.Data.Abstractions.CloudNative.CloudStoredEvent>>
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.CreateTableIfNotExists.get -> System.Boolean
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.CreateTableIfNotExists.set -> void
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.DynamoDbEventStoreOptions() -> void
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.EnableStreams.get -> System.Boolean
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.EnableStreams.set -> void
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.EventsTableName.get -> System.String
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.EventsTableName.set -> void
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.MaxBatchSize.get -> System.Int32
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.MaxBatchSize.set -> void
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.PartitionKeyAttribute.get -> System.String
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.PartitionKeyAttribute.set -> void
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.ReadCapacityUnits.get -> System.Int32
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.ReadCapacityUnits.set -> void
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.SortKeyAttribute.get -> System.String
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.SortKeyAttribute.set -> void
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.StreamsPollIntervalMs.get -> System.Int32
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.StreamsPollIntervalMs.set -> void
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.Throughput.get -> Excalibur.EventSourcing.DynamoDb.DynamoDbThroughputOptions
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.Throughput.set -> void
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.UseOnDemandCapacity.get -> System.Boolean
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.UseOnDemandCapacity.set -> void
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.UseTransactionalWrite.get -> System.Boolean
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.UseTransactionalWrite.set -> void
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.WriteCapacityUnits.get -> System.Int32
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions.WriteCapacityUnits.set -> void
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreStreamsSubscription
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreStreamsSubscription.CurrentContinuationToken.get -> System.String
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreStreamsSubscription.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreStreamsSubscription.DynamoDbEventStoreStreamsSubscription(Amazon.DynamoDBv2.IAmazonDynamoDB client, Amazon.DynamoDBStreams.IAmazonDynamoDBStreams streamsClient, Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions options, Microsoft.Extensions.Logging.ILogger logger) -> void
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreStreamsSubscription.IsActive.get -> System.Boolean
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreStreamsSubscription.ReadChangesAsync(System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.Data.Abstractions.CloudNative.IChangeFeedEvent<Excalibur.Data.Abstractions.CloudNative.CloudStoredEvent>>
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreStreamsSubscription.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreStreamsSubscription.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreStreamsSubscription.SubscriptionId.get -> System.String
+Excalibur.EventSourcing.DynamoDb.DynamoDbThroughputOptions
+Excalibur.EventSourcing.DynamoDb.DynamoDbThroughputOptions.DynamoDbThroughputOptions() -> void
+Excalibur.EventSourcing.DynamoDb.DynamoDbThroughputOptions.ReadCapacityUnits.get -> System.Int32
+Excalibur.EventSourcing.DynamoDb.DynamoDbThroughputOptions.ReadCapacityUnits.set -> void
+Excalibur.EventSourcing.DynamoDb.DynamoDbThroughputOptions.UseOnDemandCapacity.get -> System.Boolean
+Excalibur.EventSourcing.DynamoDb.DynamoDbThroughputOptions.UseOnDemandCapacity.set -> void
+Excalibur.EventSourcing.DynamoDb.DynamoDbThroughputOptions.WriteCapacityUnits.get -> System.Int32
+Excalibur.EventSourcing.DynamoDb.DynamoDbThroughputOptions.WriteCapacityUnits.set -> void
+Microsoft.Extensions.DependencyInjection.DynamoDbEventStoreServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.DynamoDbEventStoreServiceCollectionExtensions.AddDynamoDbEventStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration, System.String sectionName) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.DynamoDbEventStoreServiceCollectionExtensions.AddDynamoDbEventStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.DynamoDbEventStoreServiceCollectionExtensions.AddDynamoDbEventStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.EventSourcing.DynamoDb.DynamoDbEventStoreOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

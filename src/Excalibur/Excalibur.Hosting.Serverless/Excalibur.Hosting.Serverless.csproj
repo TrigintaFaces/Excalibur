@@ -1,36 +1,21 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>    <IsPackable>true</IsPackable>
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <RootNamespace>Excalibur.Hosting.Serverless</RootNamespace>
     <AssemblyName>Excalibur.Hosting.Serverless</AssemblyName>
-
     <PackageId>Excalibur.Hosting.Serverless</PackageId>
-    <Authors>TrigintaFaces</Authors>
-    <Description>Core abstractions and interfaces for serverless hosting integration in the Excalibur framework</Description>
-    <RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
-    <Copyright>$(Copyright)</Copyright>
-    <Company>$(Company)</Company>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <Product>$(Product)</Product>
+    <Description>Core abstractions and interfaces for serverless hosting integration in the Excalibur framework.</Description>
     <PackageTags>excalibur;serverless;hosting;abstractions;interfaces;lambda;functions;aot</PackageTags>
-    <PackageProjectUrl>https://github.com/TrigintaFaces/Excalibur</PackageProjectUrl>
-    <RepositoryType>git</RepositoryType>
-    <PackageReleaseNotes>See CHANGELOG.md for release notes</PackageReleaseNotes>
     <IsAotCompatible>true</IsAotCompatible>
-    <DeterministicSourcePaths>true</DeterministicSourcePaths>
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-  <PackageReadmeFile>README.md</PackageReadmeFile>
-        <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
   </PropertyGroup>
-
   <PropertyGroup>
     <IsAotCompatible>true</IsAotCompatible>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
     <PublishAot Condition="'$(PublishAot)' == ''">false</PublishAot>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(PublishAot)' == 'true' OR '$(PublishTrimmed)' == 'true'">
+  <PropertyGroup>
     <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
     <TrimmerDefaultAction>link</TrimmerDefaultAction>
   </PropertyGroup>
@@ -50,14 +35,17 @@
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Hosting.Serverless.Abstractions\Excalibur.Dispatch.Hosting.Serverless.Abstractions.csproj" />
   </ItemGroup>
-<ItemGroup>
+  <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
-
   <!-- CI mode: PackageReference for Dispatch packages -->
   <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
     <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
     <PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
     <PackageReference Include="Excalibur.Dispatch.Hosting.Serverless.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>
 </Project>
