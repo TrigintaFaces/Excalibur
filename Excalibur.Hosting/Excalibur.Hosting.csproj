@@ -46,6 +46,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+  	<PackageReference Include="OpenTelemetry.Api" Version="1.11.2" />
 		<ProjectReference Include="..\Excalibur.Application\Excalibur.Application.csproj" />
 	</ItemGroup>
 
