@@ -2,7 +2,7 @@
 sidebar_position: 5
 title: Native AOT
 description: Native AOT compilation guide for Excalibur
---
+---
 
 # Native AOT Support
 

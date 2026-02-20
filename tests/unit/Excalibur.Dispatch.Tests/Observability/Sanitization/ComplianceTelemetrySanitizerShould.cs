@@ -303,15 +303,15 @@ public sealed class ComplianceTelemetrySanitizerShould
 		var sanitizer = CreateSanitizer(o =>
 		{
 			o.HashDetectedPii = true;
-			o.CustomPatterns = [@"SECRET-\w+"];
+			o.CustomPatterns = [@"CUSTOMMARK-\w+"];
 		});
 
 		// Act
-		var result = sanitizer.SanitizeTag("notes", "Token: SECRET-abc123");
+		var result = sanitizer.SanitizeTag("notes", "Marker: CUSTOMMARK-abc123");
 
 		// Assert
 		result.ShouldNotBeNull();
-		result.ShouldNotContain("SECRET-abc123");
+		result.ShouldNotContain("CUSTOMMARK-abc123");
 		result.ShouldContain("sha256:");
 	}
 
@@ -336,14 +336,14 @@ public sealed class ComplianceTelemetrySanitizerShould
 	{
 		// Arrange — IncludeRawPii on base so payload reaches compliance layer
 		var sanitizer = CreateSanitizer(
-			configureCompliance: o => o.CustomPatterns = [@"SECRET-\w+"],
+			configureCompliance: o => o.CustomPatterns = [@"CUSTOMMARK-\w+"],
 			configureBase: o => o.IncludeRawPii = true);
 
 		// Act
-		var result = sanitizer.SanitizePayload("Token: SECRET-abc123 found");
+		var result = sanitizer.SanitizePayload("Marker: CUSTOMMARK-abc123 found");
 
 		// Assert
-		result.ShouldNotContain("SECRET-abc123");
+		result.ShouldNotContain("CUSTOMMARK-abc123");
 		result.ShouldContain("[REDACTED]");
 	}
 

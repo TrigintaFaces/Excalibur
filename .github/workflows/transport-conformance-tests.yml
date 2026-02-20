@@ -4,13 +4,13 @@ on:
   push:
     branches: [ main, develop ]
     paths:
-      - 'src/Dispatch/Dispatch.Transport.*/**'
+      - 'src/Dispatch/Excalibur.Dispatch.Transport.*/**'
       - 'tests/conformance/**'
       - '.github/workflows/transport-conformance-tests.yml'
   pull_request:
     branches: [ main, develop ]
     paths:
-      - 'src/Dispatch/Dispatch.Transport.*/**'
+      - 'src/Dispatch/Excalibur.Dispatch.Transport.*/**'
       - 'tests/conformance/**'
       - '.github/workflows/transport-conformance-tests.yml'
   workflow_dispatch:
@@ -55,18 +55,18 @@ jobs:
             10.0.x
 
       - name: Restore dependencies
-        run: dotnet restore tests/conformance/Dispatch.Tests.Conformance/Dispatch.Tests.Conformance.csproj
+        run: dotnet restore tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj
 
       - name: Build conformance tests
         run: |
-          dotnet build tests/conformance/Dispatch.Tests.Conformance/Dispatch.Tests.Conformance.csproj \
+          dotnet build tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj \
             --configuration Release \
             --no-restore \
             --verbosity normal
 
       - name: Run ${{ matrix.transport }} conformance tests
         run: |
-          dotnet test tests/conformance/Dispatch.Tests.Conformance/Dispatch.Tests.Conformance.csproj \
+          dotnet test tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj \
             --configuration Release \
             --no-build \
             --no-restore \
@@ -105,7 +105,7 @@ jobs:
           echo "**Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> conformance-report.md
           echo "" >> conformance-report.md
           echo "### Test Execution Summary" >> conformance-report.md
-          dotnet test tests/conformance/Dispatch.Tests.Conformance/Dispatch.Tests.Conformance.csproj \
+          dotnet test tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj \
             --filter "FullyQualifiedName~${{ matrix.transport }}TransportConformanceTests" \
             --list-tests --verbosity quiet || true
 

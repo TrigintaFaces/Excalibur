@@ -553,7 +553,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Dispatch.ClaimChe
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Tests", "tests\unit\Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Tests\Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Tests.csproj", "{7634EEF8-26A6-413C-A2AB-A27E8344C932}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "12-vertical-slice-api", "12-vertical-slice-api", "{3ED6C1F0-1D92-C92A-5753-28D2C3054658}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "12-vertical-slice", "12-vertical-slice", "{3ED6C1F0-1D92-C92A-5753-28D2C3054658}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HealthcareApi", "samples\12-vertical-slice-api\HealthcareApi\HealthcareApi.csproj", "{ECBE086E-0AD3-49A7-84BD-40264C8A1621}"
 EndProject

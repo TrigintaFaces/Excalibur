@@ -239,7 +239,7 @@ graph TD
 ### For Developers
 1. **Local Development**: Ensure .NET 9.0 SDK is installed
 2. **Testing**: Run `dotnet test` to execute the full test suite
-3. **Performance**: Use `dotnet run --project benchmarks/Dispatch.Benchmarks` for local benchmarking
+3. **Performance**: Use `dotnet run --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj` for local benchmarking
 4. **AOT Testing**: Build with `dotnet publish -c Release --self-contained -r <runtime>`
 
 ### For DevOps Engineers

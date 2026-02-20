@@ -80,7 +80,7 @@ jobs:
         run: dotnet restore
 
       - name: Build benchmarks
-        run: dotnet build --configuration Release --no-restore benchmarks/
+        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
 
       - name: Run hot path benchmarks
         shell: pwsh
@@ -88,7 +88,7 @@ jobs:
           $filter = "${{ github.event.inputs.benchmark_filter || '*HotPath*' }}"
           Write-Host "Running hot path benchmarks with filter: $filter" -ForegroundColor Green
 
-          dotnet run --project benchmarks/Dispatch.Benchmarks `
+          dotnet run --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj `
             --configuration Release `
             --no-build `
             -- --filter $filter `
@@ -231,12 +231,12 @@ jobs:
         run: dotnet restore
 
       - name: Build benchmarks
-        run: dotnet build --configuration Release --no-restore benchmarks/
+        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
 
       - name: Run memory allocation benchmarks
         run: |
           echo "🧠 Running memory allocation benchmarks..."
-          dotnet run --project benchmarks/Dispatch.Benchmarks \
+          dotnet run --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj \
             --configuration Release \
             --no-build \
             -- --filter "*Memory*" \
@@ -282,7 +282,7 @@ jobs:
         run: dotnet restore
 
       - name: Build benchmarks
-        run: dotnet build --configuration Release --no-restore benchmarks/
+        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
 
       # TODO: Enable when benchmarks/CloudNativePatterns.Benchmarks project exists
       # - name: Run cloud native patterns benchmarks
@@ -308,10 +308,10 @@ jobs:
       #          --exporters json html \
       #          --artifacts ./SerializationBenchmarks
 
-      - name: Run throughput benchmarks (Dispatch.Benchmarks)
+      - name: Run throughput benchmarks (Excalibur.Dispatch.Benchmarks)
         run: |
           echo "📊 Running throughput benchmarks..."
-          dotnet run --project benchmarks/Dispatch.Benchmarks \
+          dotnet run --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj \
             --configuration Release \
             --no-build \
             -- --filter "*Throughput*" \

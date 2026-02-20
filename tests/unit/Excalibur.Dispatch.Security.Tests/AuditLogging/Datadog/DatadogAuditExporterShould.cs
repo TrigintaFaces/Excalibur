@@ -25,7 +25,7 @@ public sealed class DatadogAuditExporterShould : IDisposable
 	{
 		_options = new DatadogExporterOptions
 		{
-			ApiKey = "test-api-key-12345",
+			ApiKey = "x",
 			Site = "datadoghq.com",
 			Service = "dispatch-audit",
 			Source = "dispatch",
@@ -162,7 +162,7 @@ public sealed class DatadogAuditExporterShould : IDisposable
 		// Assert
 		_ = _mockHandler.LastRequest.ShouldNotBeNull();
 		_mockHandler.LastRequest.Headers.Contains("DD-API-KEY").ShouldBeTrue();
-		_mockHandler.LastRequest.Headers.GetValues("DD-API-KEY").First().ShouldBe("test-api-key-12345");
+		_mockHandler.LastRequest.Headers.GetValues("DD-API-KEY").First().ShouldBe("x");
 	}
 
 	[Fact]

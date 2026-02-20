@@ -191,7 +191,7 @@ public sealed class AuthenticationMiddlewareShould
         });
         var message = A.Fake<IDispatchMessage>();
         var context = new MessageContext();
-        context.SetItem("ApiKey", "ak_myapikey123456789012345");
+        context.SetItem("ApiKey", "ak_x");
 
         var result = await sut.InvokeAsync(
             message, context,
