@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excalibur Brand Assets - Preview</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #1e3a5f 100%);
+            color: #ffffff;
+            padding: 40px 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            color: #3b82f6;
+            text-align: center;
+        }
+        .subtitle {
+            text-align: center;
+            color: #aaa;
+            margin-bottom: 50px;
+            font-size: 1.2em;
+        }
+        .section {
+            margin-bottom: 60px;
+        }
+        h2 {
+            font-size: 2em;
+            margin-bottom: 30px;
+            color: #60a5fa;
+            border-bottom: 2px solid #3b82f6;
+            padding-bottom: 10px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        .asset-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .asset-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3);
+            border-color: #3b82f6;
+        }
+        .asset-card h3 {
+            color: #3b82f6;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+        .asset-card .meta {
+            color: #aaa;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+        }
+        .asset-preview {
+            background: #1a1a2e;
+            border-radius: 8px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 200px;
+            margin-bottom: 15px;
+        }
+        .asset-preview.light {
+            background: #ffffff;
+        }
+        .asset-preview img {
+            max-width: 100%;
+            height: auto;
+        }
+        .asset-preview.small img {
+            max-width: 128px;
+        }
+        .asset-preview.icon img {
+            max-width: 64px;
+        }
+        .color-palette {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .color-swatch {
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+        .color-swatch .color-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .color-swatch .color-hex {
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        .usage-notes {
+            background: rgba(59, 130, 246, 0.1);
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 15px;
+        }
+        code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            color: #60a5fa;
+        }
+        .brand-synergy {
+            background: rgba(59, 130, 246, 0.1);
+            border-radius: 12px;
+            padding: 30px;
+            margin-top: 30px;
+        }
+        .brand-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 20px;
+        }
+        .brand-item {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+        .brand-item h4 {
+            color: #60a5fa;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚔️ EXCALIBUR</h1>
+        <p class="subtitle">Brand Assets Preview - Legendary .NET Framework</p>
+
+        <!-- Color Palette -->
+        <div class="section">
+            <h2>Color Palette</h2>
+            <div class="color-palette">
+                <div class="color-swatch" style="background: #3b82f6; color: #1a1a2e;">
+                    <div class="color-name">Primary Blue</div>
+                    <div class="color-hex">#3b82f6</div>
+                </div>
+                <div class="color-swatch" style="background: #60a5fa; color: #1a1a2e;">
+                    <div class="color-name">Light Blue</div>
+                    <div class="color-hex">#60a5fa</div>
+                </div>
+                <div class="color-swatch" style="background: #93c5fd; color: #1a1a2e;">
+                    <div class="color-name">Sky Blue</div>
+                    <div class="color-hex">#93c5fd</div>
+                </div>
+                <div class="color-swatch" style="background: #0ea5e9; color: #ffffff;">
+                    <div class="color-name">Cyan Primary</div>
+                    <div class="color-hex">#0ea5e9</div>
+                </div>
+                <div class="color-swatch" style="background: #06b6d4; color: #ffffff;">
+                    <div class="color-name">Cyan Light</div>
+                    <div class="color-hex">#06b6d4</div>
+                </div>
+                <div class="color-swatch" style="background: #1a1a2e; color: #ffffff; border: 1px solid #444;">
+                    <div class="color-name">Dark Background</div>
+                    <div class="color-hex">#1a1a2e</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Logos -->
+        <div class="section">
+            <h2>Main Logos</h2>
+            <div class="grid">
+                <div class="asset-card">
+                    <h3>logo.svg</h3>
+                    <p class="meta">512×512 • Dark Background</p>
+                    <div class="asset-preview">
+                        <img src="logo.svg" alt="Excalibur Logo Dark">
+                    </div>
+                    <div class="usage-notes">
+                        <strong>Use for:</strong> Primary branding, dark themes, documentation headers
+                    </div>
+                </div>
+
+                <div class="asset-card">
+                    <h3>logo-light.svg</h3>
+                    <p class="meta">512×512 • Light Background</p>
+                    <div class="asset-preview light">
+                        <img src="logo-light.svg" alt="Excalibur Logo Light">
+                    </div>
+                    <div class="usage-notes">
+                        <strong>Use for:</strong> Light themes, print materials, presentations
+                    </div>
+                </div>
+
+                <div class="asset-card">
+                    <h3>logo-horizontal.svg</h3>
+                    <p class="meta">800×200 • Horizontal Layout</p>
+                    <div class="asset-preview">
+                        <img src="logo-horizontal.svg" alt="Excalibur Logo Horizontal">
+                    </div>
+                    <div class="usage-notes">
+                        <strong>Use for:</strong> Website headers, email signatures, wide banners
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Icons -->
+        <div class="section">
+            <h2>Icons</h2>
+            <div class="grid">
+                <div class="asset-card">
+                    <h3>icon.svg</h3>
+                    <p class="meta">512×512 • Icon Only</p>
+                    <div class="asset-preview small">
+                        <img src="icon.svg" alt="Excalibur Icon">
+                    </div>
+                    <div class="usage-notes">
+                        <strong>Use for:</strong> App icons, favicons, social media profiles
+                    </div>
+                </div>
+
+                <div class="asset-card">
+                    <h3>icon-transparent.svg</h3>
+                    <p class="meta">512×512 • Transparent Background</p>
+                    <div class="asset-preview small" style="background: repeating-conic-gradient(#ddd 0% 25%, transparent 0% 50%) 50% / 20px 20px;">
+                        <img src="icon-transparent.svg" alt="Excalibur Icon Transparent">
+                    </div>
+                    <div class="usage-notes">
+                        <strong>Use for:</strong> Overlays, watermarks, flexible backgrounds
+                    </div>
+                </div>
+
+                <div class="asset-card">
+                    <h3>favicon.svg</h3>
+                    <p class="meta">32×32 • Optimized</p>
+                    <div class="asset-preview icon">
+                        <img src="favicon.svg" alt="Excalibur Favicon" style="image-rendering: pixelated;">
+                    </div>
+                    <div class="usage-notes">
+                        <strong>Use for:</strong> Website favicon, browser tabs (V2 design without outer edges)
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- NuGet Package Icons -->
+        <div class="section">
+            <h2>NuGet Package Icons</h2>
+            <div class="grid">
+                <div class="asset-card">
+                    <h3>nuget-icon-128.svg</h3>
+                    <p class="meta">128×128 • Recommended</p>
+                    <div class="asset-preview small">
+                        <img src="nuget-icon-128.svg" alt="NuGet Icon 128">
+                    </div>
+                    <div class="usage-notes">
+                        <strong>Use for:</strong> NuGet package icon (recommended size)<br>
+                        <code>&lt;PackageIcon&gt;icon.png&lt;/PackageIcon&gt;</code>
+                    </div>
+                </div>
+
+                <div class="asset-card">
+                    <h3>nuget-icon-64.svg</h3>
+                    <p class="meta">64×64 • Legacy</p>
+                    <div class="asset-preview icon">
+                        <img src="nuget-icon-64.svg" alt="NuGet Icon 64">
+                    </div>
+                    <div class="usage-notes">
+                        <strong>Use for:</strong> Legacy NuGet package icon
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Social Media & Marketing -->
+        <div class="section">
+            <h2>Social Media & Marketing</h2>
+            <div class="grid">
+                <div class="asset-card">
+                    <h3>social-card.svg</h3>
+                    <p class="meta">1200×630 • Twitter/Facebook/LinkedIn</p>
+                    <div class="asset-preview">
+                        <img src="social-card.svg" alt="Social Card" style="max-width: 100%;">
+                    </div>
+                    <div class="usage-notes">
+                        <strong>Use for:</strong> Social media cards<br>
+                        <code>&lt;meta property="og:image" content="..."&gt;</code><br>
+                        <code>&lt;meta name="twitter:card" content="..."&gt;</code>
+                    </div>
+                </div>
+
+                <div class="asset-card">
+                    <h3>github-banner.svg</h3>
+                    <p class="meta">1280×640 • Repository Header</p>
+                    <div class="asset-preview">
+                        <img src="github-banner.svg" alt="GitHub Banner" style="max-width: 100%;">
+                    </div>
+                    <div class="usage-notes">
+                        <strong>Use for:</strong> GitHub repository social preview image
+                    </div>
+                </div>
+
+                <div class="asset-card">
+                    <h3>readme-banner.svg</h3>
+                    <p class="meta">1600×400 • README Header</p>
+                    <div class="asset-preview">
+                        <img src="readme-banner.svg" alt="README Banner" style="max-width: 100%;">
+                    </div>
+                    <div class="usage-notes">
+                        <strong>Use for:</strong> README.md header, documentation pages
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Brand Synergy -->
+        <div class="section">
+            <h2>Brand Family Synergy</h2>
+            <div class="brand-synergy">
+                <h3 style="color: #60a5fa; margin-bottom: 20px; text-align: center;">Excalibur + Dispatch</h3>
+                <p style="text-align: center; color: #ccc; margin-bottom: 30px;">
+                    Two frameworks, one cohesive brand family with complementary identities
+                </p>
+
+                <div class="brand-comparison">
+                    <div class="brand-item">
+                        <h4>⚔️ Excalibur</h4>
+                        <div style="background: #1a1a2e; padding: 20px; border-radius: 8px; margin-bottom: 15px;">
+                            <img src="icon.svg" alt="Excalibur" style="max-width: 120px;">
+                        </div>
+                        <p style="color: #ccc; font-size: 0.9em; line-height: 1.6;">
+                            <strong style="color: #3b82f6;">Blue Palette (#3b82f6)</strong><br>
+                            Crystalline geometric sword<br>
+                            Legendary power & precision<br>
+                            Domain framework
+                        </p>
+                    </div>
+
+                    <div class="brand-item">
+                        <h4>🚀 Dispatch</h4>
+                        <div style="background: #1a1a2e; padding: 20px; border-radius: 8px; margin-bottom: 15px;">
+                            <img src="../icon.svg" alt="Dispatch" style="max-width: 120px;">
+                        </div>
+                        <p style="color: #ccc; font-size: 0.9em; line-height: 1.6;">
+                            <strong style="color: #00d4ff;">Cyan Palette (#00d4ff)</strong><br>
+                            Three paper airplanes<br>
+                            Speed & message flow<br>
+                            Messaging framework
+                        </p>
+                    </div>
+                </div>
+
+                <div style="margin-top: 30px; padding: 20px; background: rgba(0, 0, 0, 0.2); border-radius: 8px;">
+                    <h4 style="color: #60a5fa; margin-bottom: 10px;">✓ Design Harmony</h4>
+                    <ul style="color: #ccc; line-height: 1.8; margin-left: 20px;">
+                        <li>Complementary color palettes (blue vs cyan)</li>
+                        <li>Shared modern geometric aesthetic</li>
+                        <li>Both use tech-forward design language</li>
+                        <li>Distinct but clearly related identities</li>
+                        <li>Unified .NET framework positioning</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Conversion Instructions -->
+        <div class="section">
+            <h2>Converting to PNG</h2>
+            <div style="background: rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 30px;">
+                <p style="margin-bottom: 20px;">All assets are provided as SVG for maximum quality. To convert to PNG:</p>
+
+                <h3 style="color: #60a5fa; margin: 20px 0 10px 0;">Windows (PowerShell)</h3>
+                <pre style="background: rgba(0, 0, 0, 0.3); padding: 15px; border-radius: 8px; overflow-x: auto;"><code>.\convert-to-png.ps1</code></pre>
+
+                <h3 style="color: #60a5fa; margin: 20px 0 10px 0;">Linux/Mac (Bash)</h3>
+                <pre style="background: rgba(0, 0, 0, 0.3); padding: 15px; border-radius: 8px; overflow-x: auto;"><code>./convert-to-png.sh</code></pre>
+
+                <p style="margin-top: 20px;">Requires <a href="https://inkscape.org/" style="color: #3b82f6;">Inkscape</a> for SVG to PNG conversion.</p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="text-align: center; margin-top: 60px; padding-top: 30px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+            <p style="color: #aaa;">Excalibur - Legendary .NET Framework</p>
+            <p style="color: #666; font-size: 0.9em; margin-top: 10px;">© 2026 Excalibur</p>
+        </div>
+    </div>
+</body>
+</html>

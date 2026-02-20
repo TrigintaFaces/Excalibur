@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="SentinelAuditExporter_ExportBatchChunkError" xml:space="preserve">
+    <value>Error exporting batch chunk to Azure Sentinel</value>
+  </data>
+  <data name="SentinelAuditExporter_ExportBatchSummary" xml:space="preserve">
+    <value>Exported batch of {TotalCount} audit events to Azure Sentinel. Success: {SuccessCount}, Failed: {FailedCount}</value>
+  </data>
+  <data name="SentinelAuditExporter_ExportedAuditEvent" xml:space="preserve">
+    <value>Exported audit event {EventId} to Azure Sentinel</value>
+  </data>
+  <data name="SentinelAuditExporter_ExportFailedStatus" xml:space="preserve">
+    <value>Failed to export audit event {EventId} to Azure Sentinel. Status: {StatusCode}, Response: {Response}</value>
+  </data>
+  <data name="SentinelAuditExporter_FailedAfterRetries" xml:space="preserve">
+    <value>Failed after all retry attempts</value>
+  </data>
+  <data name="SentinelAuditExporter_HealthCheckFailed" xml:space="preserve">
+    <value>Azure Sentinel health check failed</value>
+  </data>
+  <data name="SentinelAuditExporter_HttpErrorExportingEvent" xml:space="preserve">
+    <value>HTTP error exporting audit event {EventId} to Azure Sentinel</value>
+  </data>
+  <data name="SentinelAuditExporter_RequestTimedOut" xml:space="preserve">
+    <value>Request timed out</value>
+  </data>
+  <data name="SentinelAuditExporter_RetryingExport" xml:space="preserve">
+    <value>Retrying Azure Sentinel export (attempt {Attempt}) after {Delay}ms due to {StatusCode}</value>
+  </data>
+  <data name="SentinelAuditExporter_TimeoutExportingEvent" xml:space="preserve">
+    <value>Timeout exporting audit event {EventId} to Azure Sentinel</value>
+  </data>
+  <data name="SentinelAuditExporter_UnknownError" xml:space="preserve">
+    <value>Unknown error</value>
+  </data>
+</root>

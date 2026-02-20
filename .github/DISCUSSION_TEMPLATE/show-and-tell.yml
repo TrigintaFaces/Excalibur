@@ -1,0 +1,56 @@
+title: "[Show & Tell] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Show and Tell
+
+        Share what you've built with Excalibur! We love seeing how the community
+        uses this framework in real projects.
+
+  - type: input
+    id: project
+    attributes:
+      label: Project Name
+      description: What's the name of your project?
+      placeholder: My Awesome Project
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Tell us about your project and how you use Excalibur.
+      placeholder: |
+        I built...
+        It uses Excalibur for...
+    validations:
+      required: true
+
+  - type: textarea
+    id: packages
+    attributes:
+      label: Packages Used
+      description: Which Excalibur packages does your project use?
+      placeholder: |
+        - Dispatch
+        - Excalibur.EventSourcing
+        - ...
+
+  - type: textarea
+    id: highlights
+    attributes:
+      label: Highlights
+      description: What are you most proud of? Any interesting patterns or solutions?
+      placeholder: |
+        The most interesting part is...
+        I solved X by...
+
+  - type: input
+    id: link
+    attributes:
+      label: Link (Optional)
+      description: Link to your project, blog post, or demo (if public).
+      placeholder: https://github.com/...

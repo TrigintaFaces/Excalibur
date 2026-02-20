@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<IsPackable>true</IsPackable>
+		<PackageId>Excalibur.LeaderElection.Redis</PackageId>
+		<Description>Redis implementation of leader election for Excalibur framework. Uses SET NX with TTL for distributed coordination with automatic lease renewal.</Description>
+		<PackageTags>excalibur;leaderelection;distributed;coordination;redis</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<IsAotCompatible>true</IsAotCompatible>
+		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(PublishAot)' == 'true' OR '$(PublishTrimmed)' == 'true'">
+		<SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
+		<TrimmerDefaultAction>link</TrimmerDefaultAction>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Update="Resources.resx">
+			<Generator>PublicResXFileCodeGenerator</Generator>
+			<LastGenOutput>Resources.Designer.cs</LastGenOutput>
+		</EmbeddedResource>
+		<Compile Update="Resources.Designer.cs">
+			<DesignTime>True</DesignTime>
+			<AutoGen>True</AutoGen>
+			<DependentUpon>Resources.resx</DependentUpon>
+		</Compile>
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="StackExchange.Redis" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Options" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Excalibur.LeaderElection\Excalibur.LeaderElection.csproj" />
+	</ItemGroup>
+</Project>

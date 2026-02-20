@@ -1,0 +1,61 @@
+# Kafka Docker Compose for Local Development
+# ==========================================
+# Usage:
+#   docker-compose up -d     # Start Kafka in background
+#   docker-compose down      # Stop and remove containers
+#   docker-compose logs -f   # Follow logs
+#
+# Bootstrap servers: localhost:9092
+#
+# This uses KRaft mode (no Zookeeper) for simpler setup.
+# Kafka will be ready when you see "Kafka Server started" in logs.
+
+services:
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka-sample
+    hostname: kafka
+    ports:
+      - "9092:9092"
+      - "9101:9101"  # JMX (optional)
+    environment:
+      # KRaft mode (no Zookeeper required)
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+
+      # Listeners configuration
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      # Cluster settings
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+
+      # Topic defaults
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+      # Auto-create topics (development only)
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+      # JMX for monitoring (optional)
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+volumes:
+  kafka_data:
+    driver: local

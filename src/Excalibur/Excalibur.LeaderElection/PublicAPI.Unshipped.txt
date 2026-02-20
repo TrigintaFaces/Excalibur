@@ -1,0 +1,159 @@
+#nullable enable
+Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId
+Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants
+Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants+MetricNames
+Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants+Tags
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.BecameLeader.add -> void
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.BecameLeader.remove -> void
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.CandidateId.get -> System.String
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.CurrentLeaderId.get -> System.String
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.IsLeader.get -> System.Boolean
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.LeaderChanged.add -> void
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.LeaderChanged.remove -> void
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.LostLeadership.add -> void
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.LostLeadership.remove -> void
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElection.TelemetryLeaderElection(Excalibur.Dispatch.LeaderElection.ILeaderElection inner, System.Diagnostics.Metrics.Meter meter, System.Diagnostics.ActivitySource activitySource, System.String providerName) -> void
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElectionFactory
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElectionFactory.CreateElection(System.String resourceName, System.String candidateId) -> Excalibur.Dispatch.LeaderElection.ILeaderElection
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElectionFactory.CreateHealthBasedElection(System.String resourceName, System.String candidateId) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElectionFactory.Dispose() -> System.Void
+Excalibur.LeaderElection.Diagnostics.TelemetryLeaderElectionFactory.TelemetryLeaderElectionFactory(Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory inner, System.Diagnostics.Metrics.Meter meter, System.Diagnostics.ActivitySource activitySource, System.String providerName) -> void
+Excalibur.LeaderElection.Health.LeaderElectionHealthCheck
+Excalibur.LeaderElection.Health.LeaderElectionHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>
+Excalibur.LeaderElection.Health.LeaderElectionHealthCheck.LeaderElectionHealthCheck(Excalibur.Dispatch.LeaderElection.ILeaderElection leaderElection) -> void
+Excalibur.LeaderElection.Watch.DefaultLeaderElectionWatcher
+Excalibur.LeaderElection.Watch.DefaultLeaderElectionWatcher.DefaultLeaderElectionWatcher(Excalibur.Dispatch.LeaderElection.ILeaderElection leaderElection, Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Watch.LeaderWatchOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.Watch.DefaultLeaderElectionWatcher> logger) -> void
+Excalibur.LeaderElection.Watch.DefaultLeaderElectionWatcher.WatchAsync(System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.LeaderElection.Watch.LeaderChangeEvent>
+Excalibur.LeaderElection.Watch.ILeaderElectionWatcher
+Excalibur.LeaderElection.Watch.ILeaderElectionWatcher.WatchAsync(System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.LeaderElection.Watch.LeaderChangeEvent>
+Excalibur.LeaderElection.Watch.LeaderChangeEvent
+Excalibur.LeaderElection.Watch.LeaderChangeEvent.<Clone>$() -> Excalibur.LeaderElection.Watch.LeaderChangeEvent
+Excalibur.LeaderElection.Watch.LeaderChangeEvent.ChangedAt.get -> System.DateTimeOffset
+Excalibur.LeaderElection.Watch.LeaderChangeEvent.ChangedAt.set -> void
+Excalibur.LeaderElection.Watch.LeaderChangeEvent.Deconstruct(ref System.String PreviousLeader, ref System.String NewLeader, ref System.DateTimeOffset ChangedAt, ref Excalibur.LeaderElection.Watch.LeaderChangeReason Reason) -> System.Void
+Excalibur.LeaderElection.Watch.LeaderChangeEvent.Equals(Excalibur.LeaderElection.Watch.LeaderChangeEvent other) -> System.Boolean
+Excalibur.LeaderElection.Watch.LeaderChangeEvent.Equals(System.Object obj) -> System.Boolean
+Excalibur.LeaderElection.Watch.LeaderChangeEvent.GetHashCode() -> System.Int32
+Excalibur.LeaderElection.Watch.LeaderChangeEvent.LeaderChangeEvent(System.String PreviousLeader, System.String NewLeader, System.DateTimeOffset ChangedAt, Excalibur.LeaderElection.Watch.LeaderChangeReason Reason) -> void
+Excalibur.LeaderElection.Watch.LeaderChangeEvent.NewLeader.get -> System.String
+Excalibur.LeaderElection.Watch.LeaderChangeEvent.NewLeader.set -> void
+Excalibur.LeaderElection.Watch.LeaderChangeEvent.PreviousLeader.get -> System.String
+Excalibur.LeaderElection.Watch.LeaderChangeEvent.PreviousLeader.set -> void
+Excalibur.LeaderElection.Watch.LeaderChangeEvent.Reason.get -> Excalibur.LeaderElection.Watch.LeaderChangeReason
+Excalibur.LeaderElection.Watch.LeaderChangeEvent.Reason.set -> void
+Excalibur.LeaderElection.Watch.LeaderChangeEvent.ToString() -> System.String
+Excalibur.LeaderElection.Watch.LeaderChangeReason
+Excalibur.LeaderElection.Watch.LeaderChangeReason.Elected -> Excalibur.LeaderElection.Watch.LeaderChangeReason
+Excalibur.LeaderElection.Watch.LeaderChangeReason.Expired -> Excalibur.LeaderElection.Watch.LeaderChangeReason
+Excalibur.LeaderElection.Watch.LeaderChangeReason.HealthCheckFailed -> Excalibur.LeaderElection.Watch.LeaderChangeReason
+Excalibur.LeaderElection.Watch.LeaderChangeReason.Resigned -> Excalibur.LeaderElection.Watch.LeaderChangeReason
+Excalibur.LeaderElection.Watch.LeaderWatchOptions
+Excalibur.LeaderElection.Watch.LeaderWatchOptions.IncludeHeartbeats.get -> System.Boolean
+Excalibur.LeaderElection.Watch.LeaderWatchOptions.IncludeHeartbeats.set -> void
+Excalibur.LeaderElection.Watch.LeaderWatchOptions.LeaderWatchOptions() -> void
+Excalibur.LeaderElection.Watch.LeaderWatchOptions.PollInterval.get -> System.TimeSpan
+Excalibur.LeaderElection.Watch.LeaderWatchOptions.PollInterval.set -> void
+Microsoft.Extensions.DependencyInjection.LeaderElectionAotHelpers
+Microsoft.Extensions.DependencyInjection.LeaderElectionHealthCheckExtensions
+Microsoft.Extensions.DependencyInjection.LeaderElectionServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.LeaderElectionWatchServiceCollectionExtensions
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulAcquiredLeadership -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulAlreadyRunning -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulCannotAcquireWithoutSession -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulCreatedSession -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulDestroyedSession -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulErrorAcquiringLeadership -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulErrorDuringMonitoring -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulErrorDuringRenewal -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulErrorGettingCandidateHealth -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulErrorGettingCurrentLeader -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulErrorReleasingLeadership -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFailedToAcquireLeadership -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFailedToCreateSession -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFailedToDeserializeHealth -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFailedToDestroySession -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulFailedToUpdateHealth -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulReleasedLeadership -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulRenewedSession -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulRetryAttempt -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulSessionRenewalFailed -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulStartingElection -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulSteppingDownUnhealthy -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.ConsulStoppingElection -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemoryAcquiredLeadership -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemoryHealthUpdated -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemoryRenewalError -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemoryRenewedLease -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemoryStarted -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemorySteppedDownUnhealthy -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.InMemoryStopped -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesAcquiredLeadership -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesAlreadyRunning -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesAttemptingAcquire -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesCreatingLease -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesElectionLoopError -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesGetHealthFailed -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesHealthAnnotationParseFailed -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesInitialized -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesLeaderChanged -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesLeaseExists -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesLeaseExpired -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesLostLeadership -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesLostRace -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesNamespaceReadFailed -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesReleaseError -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesReleasingLeadership -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesRenewalError -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesRenewalFailed -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesRenewedLease -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesRenewingLease -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesRetryWarning -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesServiceBecameLeader -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesServiceLeaderChanged -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesServiceLostLeadership -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesServiceStarting -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesServiceStopping -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesStarting -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesSteppingDownUnhealthy -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesStoppedNotLeader -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.KubernetesStopping -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisBecameLeader -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisLockAcquisitionError -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisLockAcquisitionFailed -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisLockReleased -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisLockReleaseError -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisLostLeadership -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisRenewalError -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisRenewalWarning -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisStarting -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.RedisStopping -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerBecameLeader -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerLockAcquisitionError -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerLockAcquisitionFailed -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerLockReleased -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerLockReleaseError -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerLostLeadership -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerRenewalError -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerStarting -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionEventId.SqlServerStopping -> System.Int32
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants.ActivitySourceName -> System.String
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants.MeterName -> System.String
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants+MetricNames.Acquisitions -> System.String
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants+MetricNames.IsLeader -> System.String
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants+MetricNames.LeaseDuration -> System.String
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants+Tags.Instance -> System.String
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants+Tags.Provider -> System.String
+static const Excalibur.LeaderElection.Diagnostics.LeaderElectionTelemetryConstants+Tags.Result -> System.String
+static Microsoft.Extensions.DependencyInjection.LeaderElectionAotHelpers.AddLeaderElection(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.LeaderElectionAotHelpers.AddLeaderElectionFactory(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.LeaderElectionAotHelpers.AddLeaderElectionHealthCheck(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.LeaderElectionAotHelpers.AddLeaderElectionTelemetry(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.LeaderElectionHealthCheckExtensions.AddLeaderElectionHealthCheck(Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder builder, System.String name, System.Nullable<Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus> failureStatus, System.Collections.Generic.IEnumerable<System.String> tags) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder
+static Microsoft.Extensions.DependencyInjection.LeaderElectionServiceCollectionExtensions.AddExcaliburLeaderElection(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.LeaderElectionServiceCollectionExtensions.AddExcaliburLeaderElection(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.LeaderElectionWatchServiceCollectionExtensions.AddLeaderElectionWatcher(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.LeaderElection.Watch.LeaderWatchOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.LeaderElectionWatchServiceCollectionExtensions.AddLeaderElectionWatcher(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

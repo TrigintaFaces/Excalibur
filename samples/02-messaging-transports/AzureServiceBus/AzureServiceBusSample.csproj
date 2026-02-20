@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net9.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<Copyright>$(Copyright)</Copyright>
+		<Company>$(Company)</Company>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<IsPackable>false</IsPackable>
+		<Version>$(VersionPrefix)</Version>
+		<PackageId>$(AssemblyName)</PackageId>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<Authors>$(Authors)</Authors>
+		<Product>$(Product)</Product>
+		<Description>Azure Service Bus Transport Sample - Demonstrates Excalibur.Dispatch.Transport.AzureServiceBus usage</Description>
+		<PackageTags>excalibur;dispatch;messaging;azure;servicebus;sample</PackageTags>
+		<PackageProjectUrl>https://github.com/TrigintaFaces/Excalibur</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageReleaseNotes>See CHANGELOG.md for release notes</PackageReleaseNotes>
+	</PropertyGroup>
+
+	<!-- Sprint 429 S429.3: Azure Service Bus dedicated sample -->
+	<ItemGroup>
+		<ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+		<ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Transport.AzureServiceBus\Excalibur.Dispatch.Transport.AzureServiceBus.csproj" />
+		<ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Application\Excalibur.Application.csproj" />
+		<ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
+		<ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Outbox\Excalibur.Outbox.csproj" />
+		<PackageReference Include="Microsoft.Extensions.Hosting" />
+	</ItemGroup>
+</Project>

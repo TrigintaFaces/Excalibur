@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsPackable>true</IsPackable>
+    <PackageId>Excalibur.Outbox.Firestore</PackageId>
+    <Description>Google Cloud Firestore implementation of the cloud-native outbox pattern for Excalibur event sourcing</Description>
+    <Authors>The Excalibur Project</Authors>
+    <Company>Excalibur</Company>
+    <Product>Excalibur.Dispatch</Product>
+    <PackageTags>excalibur;outbox;firestore;google-cloud;cloud-native;event-sourcing;messaging</PackageTags>
+    <Copyright>$(Copyright)</Copyright>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageProjectUrl>https://github.com/TrigintaFaces/Excalibur</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReleaseNotes>See CHANGELOG.md for release notes</PackageReleaseNotes>
+    <IsAotCompatible>false</IsAotCompatible>
+    <DeterministicSourcePaths>true</DeterministicSourcePaths>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  <PackageReadmeFile>README.md</PackageReadmeFile>
+    </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Data.Firestore\Excalibur.Data.Firestore.csproj" />
+    <ProjectReference Include="..\Excalibur.Outbox\Excalibur.Outbox.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Google.Cloud.Firestore" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+<ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  </Project>

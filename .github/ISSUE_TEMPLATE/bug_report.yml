@@ -1,64 +1,111 @@
-name: 🐛 Bug Report
-description: Report a problem or issue with the project.
-title: "[BUG]: "
-labels:
-    - bug
+name: Bug Report
+description: Report a bug in Excalibur
+title: "[Bug]: "
+labels: ["bug", "triage"]
 body:
-    - type: markdown
-      attributes:
-          value: |
-              Thank you for reporting a bug! Please provide detailed information to help us resolve the issue.
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the form below to help us investigate.
 
-    - type: input
-      id: title
-      attributes:
-          label: Bug Title
-          description: Provide a brief title for the bug.
-          placeholder: Enter the bug title
-      validations:
-          required: true
+  - type: dropdown
+    id: package
+    attributes:
+      label: Affected Package
+      description: Which NuGet package are you experiencing the issue with?
+      options:
+        - Excalibur.Dispatch
+        - Excalibur.Dispatch.Abstractions
+        - Excalibur.Domain
+        - Excalibur.Data.Abstractions
+        - Excalibur.EventSourcing
+        - Excalibur.EventSourcing.SqlServer
+        - Excalibur.Saga
+        - Excalibur.Saga.SqlServer
+        - Excalibur.LeaderElection
+        - Excalibur.LeaderElection.Redis
+        - Excalibur.LeaderElection.SqlServer
+        - Other / Multiple
+    validations:
+      required: true
 
-    - type: textarea
-      id: description
-      attributes:
-          label: Bug Description
-          description: Describe the bug, including steps to reproduce and expected vs. actual behavior.
-          placeholder: Enter detailed bug description
-      validations:
-          required: true
+  - type: input
+    id: version
+    attributes:
+      label: Package Version
+      description: What version of the package are you using?
+      placeholder: e.g., 1.0.0
+    validations:
+      required: true
 
-    - type: textarea
-      id: steps_to_reproduce
-      attributes:
-          label: Steps to Reproduce
-          description: Provide step-by-step instructions to reproduce the issue.
-          placeholder: Enter reproduction steps
-      validations:
-          required: true
+  - type: dropdown
+    id: dotnet-version
+    attributes:
+      label: .NET Version
+      description: What .NET version are you targeting?
+      options:
+        - .NET 9
+        - .NET 8
+        - .NET 7
+        - .NET 6
+        - Other
+    validations:
+      required: true
 
-    - type: textarea
-      id: expected_behavior
-      attributes:
-          label: Expected Behavior
-          description: Describe what you expected to happen.
-          placeholder: Enter the expected behavior
-      validations:
-          required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of the bug.
+      placeholder: Describe what happened...
+    validations:
+      required: true
 
-    - type: input
-      id: environment
-      attributes:
-          label: Environment
-          description: Specify the environment (OS, browser, .NET version, etc.).
-          placeholder: Enter environment details
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: Describe what you expected...
+    validations:
+      required: true
 
-    - type: textarea
-      id: additional_context
-      attributes:
-          label: Additional Context
-          description: Provide any other information or context about the problem.
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Minimal steps to reproduce the behavior.
+      placeholder: |
+        1. Create a handler that...
+        2. Dispatch a command...
+        3. Observe error...
+    validations:
+      required: true
 
-    - type: markdown
-      attributes:
-          value: >
-              Thanks for contributing 🎉!
+  - type: textarea
+    id: code
+    attributes:
+      label: Code Sample
+      description: If applicable, provide a minimal code sample that reproduces the issue.
+      render: csharp
+      placeholder: |
+        public class MyHandler : IRequestHandler<MyCommand, MyResult>
+        {
+            public Task<MyResult> HandleAsync(MyCommand request, CancellationToken ct)
+            {
+                // Code that demonstrates the issue
+            }
+        }
+
+  - type: textarea
+    id: stacktrace
+    attributes:
+      label: Exception / Stack Trace
+      description: If an exception occurred, paste the full stack trace.
+      render: text
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem (environment, hosting, configuration, etc.).

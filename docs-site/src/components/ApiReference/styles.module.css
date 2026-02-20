@@ -1,0 +1,271 @@
+/**
+ * ApiReference component styles
+ * API documentation display for .NET types
+ */
+
+.container {
+  margin: 2rem 0;
+  background: var(--ifm-card-background-color);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  overflow: hidden;
+}
+
+/* Header */
+.header {
+  padding: 1.5rem;
+  background: var(--ifm-background-surface-color);
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.typeInfo {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.typeIcon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.typeMeta {
+  flex: 1;
+}
+
+.namespace {
+  font-size: 0.75rem;
+  color: var(--ifm-font-color-secondary);
+  font-family: var(--ifm-font-family-monospace);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.typeName {
+  margin: 0.25rem 0 0 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--ifm-font-color-base);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.typeKind {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--ifm-color-primary);
+  background: rgba(0, 212, 255, 0.1);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.inherits {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.inheritsLabel {
+  font-size: 0.75rem;
+  color: var(--ifm-font-color-secondary);
+}
+
+.inheritsType {
+  font-size: 0.75rem;
+  padding: 0.125rem 0.5rem;
+  background: var(--ifm-color-emphasis-100);
+  border-radius: 4px;
+}
+
+/* Description */
+.description {
+  padding: 1rem 1.5rem;
+  margin: 0;
+  color: var(--ifm-font-color-secondary);
+  line-height: 1.6;
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+/* Members Section */
+.members {
+  padding: 1.5rem;
+}
+
+.membersTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 1rem 0;
+  color: var(--ifm-font-color-base);
+}
+
+.membersList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Individual Member */
+.member {
+  padding: 1rem;
+  background: var(--ifm-background-surface-color);
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 8px;
+}
+
+.memberHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.memberKind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 4px;
+  color: white;
+}
+
+.memberKindmethod {
+  background: #3b82f6;
+}
+
+.memberKindproperty {
+  background: #8b5cf6;
+}
+
+.memberKindevent {
+  background: #f59e0b;
+}
+
+.memberKindfield {
+  background: #6b7280;
+}
+
+.memberKindconstructor {
+  background: #10b981;
+}
+
+.memberName {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--ifm-font-color-base);
+  font-family: var(--ifm-font-family-monospace);
+}
+
+.memberStatic {
+  font-size: 0.6875rem;
+  color: var(--ifm-font-color-secondary);
+  background: var(--ifm-color-emphasis-100);
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  font-style: italic;
+}
+
+.memberSignature {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--ifm-font-color-secondary);
+  background: var(--ifm-color-emphasis-100);
+  padding: 0.5rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin-bottom: 0.5rem;
+}
+
+.memberDescription {
+  font-size: 0.875rem;
+  color: var(--ifm-font-color-secondary);
+  line-height: 1.5;
+  margin: 0.5rem 0 0 0;
+}
+
+/* Parameters */
+.parameters {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--ifm-color-emphasis-200);
+}
+
+.parametersTitle {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ifm-font-color-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.5rem;
+}
+
+.parametersTable {
+  width: 100%;
+  font-size: 0.8125rem;
+}
+
+.parametersTable th {
+  text-align: left;
+  font-weight: 600;
+  padding: 0.375rem 0.5rem;
+  background: transparent;
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.parametersTable td {
+  padding: 0.375rem 0.5rem;
+  vertical-align: top;
+}
+
+.parametersTable code {
+  font-size: 0.75rem;
+}
+
+.optional {
+  color: var(--ifm-color-primary);
+  margin-left: 0.125rem;
+}
+
+/* Example */
+.example {
+  margin-top: 0.75rem;
+}
+
+/* Empty State */
+.emptyState {
+  padding: 2rem;
+  text-align: center;
+  color: var(--ifm-font-color-secondary);
+}
+
+.emptyState p {
+  margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .header {
+    padding: 1rem;
+  }
+
+  .typeName {
+    font-size: 1.25rem;
+    flex-wrap: wrap;
+  }
+
+  .members {
+    padding: 1rem;
+  }
+
+  .parametersTable {
+    display: block;
+    overflow-x: auto;
+  }
+}

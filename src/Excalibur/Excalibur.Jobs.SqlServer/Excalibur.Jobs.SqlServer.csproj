@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<IsPackable>true</IsPackable>
+		<PackageId>Excalibur.Jobs.SqlServer</PackageId>
+		<Description>SQL Server implementation of distributed job coordination for Excalibur framework. Uses Dapper for data access with distributed locking, instance registry, and job distribution.</Description>
+		<PackageTags>excalibur;jobs;scheduling;sqlserver;distributed;coordination</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<IsAotCompatible>true</IsAotCompatible>
+		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="Excalibur.Tests.Unit" />
+		<InternalsVisibleTo Include="Excalibur.Tests.Integration" />
+		<InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Dapper" />
+		<PackageReference Include="Microsoft.Data.SqlClient" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Options" />
+		<PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+		<PackageReference Include="System.Text.Json" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Excalibur.Jobs\Excalibur.Jobs.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Include="Sql\*.sql" />
+	</ItemGroup>
+</Project>

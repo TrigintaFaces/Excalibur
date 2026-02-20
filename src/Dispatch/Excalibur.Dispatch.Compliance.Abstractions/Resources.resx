@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="BackupShare_AtLeastOneShareRequired" xml:space="preserve">
+    <value>At least one share is required.</value>
+  </data>
+  <data name="BackupShare_SameKeyRequired" xml:space="preserve">
+    <value>All shares must be from the same key.</value>
+  </data>
+  <data name="BackupShare_SameKeyVersionRequired" xml:space="preserve">
+    <value>All shares must be from the same key version.</value>
+  </data>
+  <data name="BackupShare_SameThresholdRequired" xml:space="preserve">
+    <value>All shares must have the same threshold.</value>
+  </data>
+  <data name="DecryptionException_DefaultMessage" xml:space="preserve">
+    <value>A decryption operation failed.</value>
+  </data>
+  <data name="EncryptionException_DefaultMessage" xml:space="preserve">
+    <value>An encryption operation failed.</value>
+  </data>
+  <data name="ErasureOptions_BatchSizeTooSmall" xml:space="preserve">
+    <value>BatchSize must be at least 1.</value>
+  </data>
+  <data name="ErasureOptions_DefaultGracePeriodExceedsMaximum" xml:space="preserve">
+    <value>DefaultGracePeriod ({0}) cannot exceed MaximumGracePeriod ({1}).</value>
+  </data>
+  <data name="ErasureOptions_DefaultGracePeriodLessThanMinimum" xml:space="preserve">
+    <value>DefaultGracePeriod ({0}) cannot be less than MinimumGracePeriod ({1}).</value>
+  </data>
+  <data name="ErasureOptions_MaxRetryAttemptsNegative" xml:space="preserve">
+    <value>MaxRetryAttempts cannot be negative.</value>
+  </data>
+  <data name="ErasureOptions_MaximumGracePeriodExceedsDeadline" xml:space="preserve">
+    <value>MaximumGracePeriod cannot exceed 30 days (GDPR deadline).</value>
+  </data>
+  <data name="ErasureOptions_MinimumGracePeriodNegative" xml:space="preserve">
+    <value>MinimumGracePeriod cannot be negative.</value>
+  </data>
+  <data name="KeyRotationException_DefaultMessage" xml:space="preserve">
+    <value>A key rotation operation failed.</value>
+  </data>
+  <data name="RecoveryToken_AtLeastOneTokenRequired" xml:space="preserve">
+    <value>At least one token is required.</value>
+  </data>
+  <data name="RecoveryToken_DuplicateShareIndices" xml:space="preserve">
+    <value>Duplicate share indices detected.</value>
+  </data>
+  <data name="RecoveryToken_ExpiredTokens" xml:space="preserve">
+    <value>Cannot use expired tokens. Expired: {0}.</value>
+  </data>
+  <data name="RecoveryToken_SameEscrowRequired" xml:space="preserve">
+    <value>All tokens must be from the same escrow.</value>
+  </data>
+  <data name="RecoveryToken_ThresholdNotMet" xml:space="preserve">
+    <value>At least {0} tokens are required for recovery, but only {1} provided.</value>
+  </data>
+</root>

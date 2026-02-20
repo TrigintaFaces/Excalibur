@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<RootNamespace>Excalibur.Dispatch.AuditLogging</RootNamespace>
+		<PackageId>Excalibur.Dispatch.AuditLogging</PackageId>
+		<Description>Audit logging implementation for the Dispatch messaging framework. Provides SHA-256 hash-chained, tamper-evident audit logging per ADR-052 and SOC2 compliance requirements.</Description>
+		<PackageTags>audit;logging;compliance;hash-chain;tamper-evident;soc2;security</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<IsAotCompatible>true</IsAotCompatible>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Update="Resources.resx">
+			<Generator>ResXFileCodeGenerator</Generator>
+			<LastGenOutput>Resources.Designer.cs</LastGenOutput>
+		</EmbeddedResource>
+		<Compile Update="Resources.Designer.cs">
+			<DesignTime>true</DesignTime>
+			<AutoGen>true</AutoGen>
+			<DependentUpon>Resources.resx</DependentUpon>
+		</Compile>
+	</ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\Excalibur.Dispatch.Compliance.Abstractions\Excalibur.Dispatch.Compliance.Abstractions.csproj" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Options" />
+		<PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+	</ItemGroup>
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="/" />
+	</ItemGroup>
+</Project>

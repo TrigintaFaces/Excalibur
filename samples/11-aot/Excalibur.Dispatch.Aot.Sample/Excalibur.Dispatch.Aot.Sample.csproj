@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net10.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<!-- Samples intentionally demonstrate full feature integration, which requires coupling -->
+		<NoWarn>$(NoWarn);CA1506</NoWarn>
+
+		<!-- AOT Configuration -->
+		<PublishAot>true</PublishAot>
+		<TrimMode>full</TrimMode>
+		<JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+		<SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
+		<TrimmerSingleWarn>false</TrimmerSingleWarn>
+
+		<!-- Source Generator Visibility -->
+		<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+		<CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)GeneratedFiles</CompilerGeneratedFilesOutputPath>
+
+		<!-- C# 12 Interceptors (required for DispatchInterceptorGenerator) -->
+		<InterceptorsNamespaces>$(InterceptorsNamespaces);Excalibur.Dispatch.Generated</InterceptorsNamespaces>
+
+		<!-- Package Metadata -->
+		<Copyright>$(Copyright)</Copyright>
+		<Company>$(Company)</Company>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<IsPackable>false</IsPackable>
+		<Version>$(VersionPrefix)</Version>
+		<PackageId>$(AssemblyName)</PackageId>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<Authors>$(Authors)</Authors>
+		<Product>$(Product)</Product>
+		<Description>Dispatch AOT Sample - Demonstrates Native AOT compilation with source generators</Description>
+		<PackageTags>excalibur;dispatch;messaging;aot;native-aot;source-generators</PackageTags>
+		<PackageProjectUrl>https://github.com/TrigintaFaces/Excalibur</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageReleaseNotes>See CHANGELOG.md for release notes</PackageReleaseNotes>
+	</PropertyGroup>
+
+	<!-- Dispatch dependencies with source generators -->
+	<ItemGroup>
+		<ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+		<ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+		<ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.SourceGenerators\Excalibur.Dispatch.SourceGenerators.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+	</ItemGroup>
+</Project>

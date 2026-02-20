@@ -1,0 +1,155 @@
+#!/bin/bash
+# Pre-commit hook for ADR-050 namespace depth validation
+#
+# NS-001 Rules (Production Code - src/):
+#   - Depth ≤4: Preferred (no warnings)
+#   - Depth 5: Acceptable with justification (warning only)
+#   - Depth ≥6: Prohibited (fail commit)
+#
+# NS-001a Rules (Test Code - tests/):
+#   - Depth ≤5: Preferred (no warnings)
+#   - Depth 6-7: Acceptable (warning only)
+#   - Depth ≥8: Prohibited (fail commit)
+#
+# This hook analyzes only staged C# files to avoid blocking unrelated commits.
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${CYAN}ADR-050 Namespace Depth Validation (Pre-Commit)${NC}"
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+# Get list of staged C# files
+STAGED_CS_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.cs$' || true)
+
+if [ -z "$STAGED_CS_FILES" ]; then
+    echo -e "${GREEN}✓ No C# files staged - namespace validation skipped${NC}"
+    exit 0
+fi
+
+echo -e "${CYAN}Analyzing staged C# files...${NC}"
+
+# Initialize counters
+DEPTH6_COUNT=0
+DEPTH5_COUNT=0
+VIOLATIONS_DEPTH6=()
+VIOLATIONS_DEPTH5=()
+
+# Analyze each staged file
+while IFS= read -r file; do
+    # Skip if file doesn't exist (deleted)
+    if [ ! -f "$file" ]; then
+        continue
+    fi
+
+    # Determine max depth based on path (NS-001 vs NS-001a)
+    # Test projects (tests/) allow depth 7, production code (src/) allows depth 5
+    if [[ "$file" == tests/* ]]; then
+        MAX_DEPTH_ERROR=8    # Depth ≥8 is error for tests
+        MAX_DEPTH_WARN=6     # Depth 6-7 is warning for tests
+        IS_TEST_FILE=true
+    else
+        MAX_DEPTH_ERROR=6    # Depth ≥6 is error for production
+        MAX_DEPTH_WARN=5     # Depth 5 is warning for production
+        IS_TEST_FILE=false
+    fi
+
+    # Extract namespace declarations from the file
+    namespaces=$(grep -E "^namespace " "$file" | sed 's/namespace //g' | sed 's/;//g' || true)
+
+    if [ -z "$namespaces" ]; then
+        continue
+    fi
+
+    # Check each namespace for depth violations
+    while IFS= read -r ns; do
+        # Count depth (number of dots + 1)
+        depth=$(echo "$ns" | awk -F'.' '{print NF}')
+
+        if [ "$depth" -ge "$MAX_DEPTH_ERROR" ]; then
+            DEPTH6_COUNT=$((DEPTH6_COUNT + 1))
+            if [ "$IS_TEST_FILE" = true ]; then
+                VIOLATIONS_DEPTH6+=("  • $file [TEST]")
+                VIOLATIONS_DEPTH6+=("    Namespace: $ns (depth $depth, max 7 for tests)")
+            else
+                VIOLATIONS_DEPTH6+=("  • $file")
+                VIOLATIONS_DEPTH6+=("    Namespace: $ns (depth $depth, max 5 for src/)")
+            fi
+        elif [ "$depth" -ge "$MAX_DEPTH_WARN" ]; then
+            DEPTH5_COUNT=$((DEPTH5_COUNT + 1))
+            if [ "$IS_TEST_FILE" = true ]; then
+                VIOLATIONS_DEPTH5+=("  • $file [TEST]")
+                VIOLATIONS_DEPTH5+=("    Namespace: $ns (depth $depth, acceptable for tests)")
+            else
+                VIOLATIONS_DEPTH5+=("  • $file")
+                VIOLATIONS_DEPTH5+=("    Namespace: $ns (depth $depth)")
+            fi
+        fi
+    done <<< "$namespaces"
+done <<< "$STAGED_CS_FILES"
+
+# Report results
+echo ""
+
+# Check for depth violations (CRITICAL - fail commit)
+if [ "$DEPTH6_COUNT" -gt 0 ]; then
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${RED}✗ COMMIT REJECTED: Namespace depth violations detected${NC}"
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -e "${RED}Found $DEPTH6_COUNT namespace(s) exceeding maximum depth (ADR-050):${NC}"
+    echo -e "${RED}  • Production code (src/): max depth 5 (NS-001)${NC}"
+    echo -e "${RED}  • Test code (tests/): max depth 7 (NS-001a)${NC}"
+    echo ""
+    for violation in "${VIOLATIONS_DEPTH6[@]}"; do
+        echo -e "${RED}$violation${NC}"
+    done
+    echo ""
+    echo -e "${YELLOW}Required Action:${NC}"
+    echo -e "  1. Reduce namespace depth within allowed limits"
+    echo -e "  2. Consider using folders (not namespaces) for architectural layering"
+    echo ""
+    echo -e "${RED}Commit blocked. Please fix violations and try again.${NC}"
+    echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    exit 1
+fi
+
+# Check for warning-level depth (allow commit with warning)
+if [ "$DEPTH5_COUNT" -gt 0 ]; then
+    echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${YELLOW}⚠ WARNING: Namespace depth at acceptable maximum${NC}"
+    echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo -e "${YELLOW}Found $DEPTH5_COUNT namespace(s) at warning level (acceptable):${NC}"
+    echo -e "${YELLOW}  • Production code (src/): depth 5 triggers warning${NC}"
+    echo -e "${YELLOW}  • Test code (tests/): depth 6-7 triggers warning${NC}"
+    echo ""
+    for violation in "${VIOLATIONS_DEPTH5[@]}"; do
+        echo -e "${YELLOW}$violation${NC}"
+    done
+    echo ""
+    echo -e "${CYAN}Recommendation:${NC}"
+    echo -e "  • These depths are acceptable but consider reducing if possible"
+    echo -e "  • See ADR-050 NS-001/NS-001a for guidance"
+    echo ""
+    echo -e "${GREEN}✓ Commit allowed (within acceptable limits)${NC}"
+    echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+fi
+
+# Success case
+if [ "$DEPTH6_COUNT" -eq 0 ] && [ "$DEPTH5_COUNT" -eq 0 ]; then
+    echo -e "${GREEN}✓ All staged namespaces comply with ADR-050 depth requirements${NC}"
+    echo -e "${GREEN}✓ No violations detected (all namespaces ≤4 segments)${NC}"
+fi
+
+echo -e "${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+
+exit 0

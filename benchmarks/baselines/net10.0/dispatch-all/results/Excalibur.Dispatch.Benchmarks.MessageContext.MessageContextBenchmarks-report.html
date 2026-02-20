@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.MessageContext.MessageContextBenchmarks-20260202-195318</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.102
+  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                                 </th><th>Mean </th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Code Size</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>DirectProperty_CorrelationId</td><td>0.0035 ns</td><td>0.0087 ns</td><td>0.0081 ns</td><td>0.0000 ns</td><td>?</td><td>?</td><td>-</td><td>9 B</td><td>-</td><td>?</td>
+</tr><tr><td>DirectProperty_UserId</td><td>0.0000 ns</td><td>0.0000 ns</td><td>0.0000 ns</td><td>0.0000 ns</td><td>?</td><td>?</td><td>-</td><td>9 B</td><td>-</td><td>?</td>
+</tr><tr><td>DirectProperty_TenantId</td><td>0.0000 ns</td><td>0.0000 ns</td><td>0.0000 ns</td><td>0.0000 ns</td><td>?</td><td>?</td><td>-</td><td>12 B</td><td>-</td><td>?</td>
+</tr><tr><td>DirectProperty_MessageId</td><td>0.1421 ns</td><td>0.0098 ns</td><td>0.0087 ns</td><td>0.1410 ns</td><td>?</td><td>?</td><td>-</td><td>85 B</td><td>-</td><td>?</td>
+</tr><tr><td>DirectProperty_Source</td><td>0.0000 ns</td><td>0.0000 ns</td><td>0.0000 ns</td><td>0.0000 ns</td><td>?</td><td>?</td><td>-</td><td>12 B</td><td>-</td><td>?</td>
+</tr><tr><td>DirectProperty_MessageType</td><td>0.0000 ns</td><td>0.0000 ns</td><td>0.0000 ns</td><td>0.0000 ns</td><td>?</td><td>?</td><td>-</td><td>12 B</td><td>-</td><td>?</td>
+</tr><tr><td>ItemsDictionary_CorrelationId</td><td>5.1444 ns</td><td>0.1219 ns</td><td>0.1081 ns</td><td>5.0942 ns</td><td>?</td><td>?</td><td>-</td><td>2,219 B</td><td>-</td><td>?</td>
+</tr><tr><td>ItemsDictionary_UserId</td><td>3.6322 ns</td><td>0.1055 ns</td><td>0.1215 ns</td><td>3.5904 ns</td><td>?</td><td>?</td><td>-</td><td>2,225 B</td><td>-</td><td>?</td>
+</tr><tr><td>ItemsDictionary_TenantId</td><td>4.4761 ns</td><td>0.0253 ns</td><td>0.0224 ns</td><td>4.4713 ns</td><td>?</td><td>?</td><td>-</td><td>2,225 B</td><td>-</td><td>?</td>
+</tr><tr><td>ItemsDictionary_CustomItem</td><td>4.0566 ns</td><td>0.0562 ns</td><td>0.0526 ns</td><td>4.0532 ns</td><td>?</td><td>?</td><td>-</td><td>2,225 B</td><td>-</td><td>?</td>
+</tr><tr><td>ItemsDictionary_TransportSpecific_SQS</td><td>5.1453 ns</td><td>0.0927 ns</td><td>0.0774 ns</td><td>5.1353 ns</td><td>?</td><td>?</td><td>-</td><td>2,225 B</td><td>-</td><td>?</td>
+</tr><tr><td>ItemsDictionary_TransportSpecific_RabbitMQ</td><td>5.3341 ns</td><td>0.1434 ns</td><td>0.3975 ns</td><td>5.1789 ns</td><td>?</td><td>?</td><td>-</td><td>2,225 B</td><td>-</td><td>?</td>
+</tr><tr><td>ItemsDictionary_TryGetValue_Exists</td><td>5.5720 ns</td><td>0.1051 ns</td><td>0.0932 ns</td><td>5.5576 ns</td><td>?</td><td>?</td><td>-</td><td>1,075 B</td><td>-</td><td>?</td>
+</tr><tr><td>ItemsDictionary_TryGetValue_NotExists</td><td>3.6273 ns</td><td>0.0399 ns</td><td>0.0333 ns</td><td>3.6305 ns</td><td>?</td><td>?</td><td>-</td><td>1,075 B</td><td>-</td><td>?</td>
+</tr><tr><td>ItemsDictionary_ContainsKey_Exists</td><td>4.6369 ns</td><td>0.0648 ns</td><td>0.0541 ns</td><td>4.6419 ns</td><td>?</td><td>?</td><td>-</td><td>1,978 B</td><td>-</td><td>?</td>
+</tr><tr><td>ItemsDictionary_ContainsKey_NotExists</td><td>3.5970 ns</td><td>0.0456 ns</td><td>0.0381 ns</td><td>3.5890 ns</td><td>?</td><td>?</td><td>-</td><td>1,615 B</td><td>-</td><td>?</td>
+</tr><tr><td>DirectProperty_Write_CorrelationId</td><td>0.0024 ns</td><td>0.0025 ns</td><td>0.0022 ns</td><td>0.0018 ns</td><td>?</td><td>?</td><td>-</td><td>19 B</td><td>-</td><td>?</td>
+</tr><tr><td>ItemsDictionary_Write_NewKey</td><td>13.5440 ns</td><td>0.0829 ns</td><td>0.0776 ns</td><td>13.5628 ns</td><td>?</td><td>?</td><td>-</td><td>3,748 B</td><td>-</td><td>?</td>
+</tr><tr><td>ItemsDictionary_Write_ExistingKey</td><td>14.2428 ns</td><td>0.2374 ns</td><td>0.2221 ns</td><td>14.1888 ns</td><td>?</td><td>?</td><td>-</td><td>3,852 B</td><td>-</td><td>?</td>
+</tr><tr><td>GetItem_Typed_String</td><td>2.6047 ns</td><td>0.0249 ns</td><td>0.0208 ns</td><td>2.6065 ns</td><td>?</td><td>?</td><td>-</td><td>1,235 B</td><td>-</td><td>?</td>
+</tr><tr><td>GetItem_Typed_Bool</td><td>4.2106 ns</td><td>0.0332 ns</td><td>0.0294 ns</td><td>4.2150 ns</td><td>?</td><td>?</td><td>-</td><td>1,267 B</td><td>-</td><td>?</td>
+</tr><tr><td>SetItem_Typed</td><td>14.3020 ns</td><td>0.1646 ns</td><td>0.1539 ns</td><td>14.2263 ns</td><td>?</td><td>?</td><td>-</td><td>7,757 B</td><td>-</td><td>?</td>
+</tr><tr><td>ContainsItem_Exists</td><td>3.8646 ns</td><td>0.0284 ns</td><td>0.0265 ns</td><td>3.8535 ns</td><td>?</td><td>?</td><td>-</td><td>484 B</td><td>-</td><td>?</td>
+</tr><tr><td>ContainsItem_NotExists</td><td>3.2735 ns</td><td>0.0524 ns</td><td>0.0465 ns</td><td>3.2783 ns</td><td>?</td><td>?</td><td>-</td><td>484 B</td><td>-</td><td>?</td>
+</tr><tr><td>CompoundOperation_CachingMiddlewarePattern</td><td>32.9557 ns</td><td>0.4311 ns</td><td>0.3821 ns</td><td>32.8524 ns</td><td>?</td><td>?</td><td>-</td><td>4,280 B</td><td>-</td><td>?</td>
+</tr><tr><td>CompoundOperation_ValidationMiddlewarePattern</td><td>55.7786 ns</td><td>0.6566 ns</td><td>0.5821 ns</td><td>55.5324 ns</td><td>?</td><td>?</td><td>0.0029</td><td>4,626 B</td><td>56 B</td><td>?</td>
+</tr><tr><td>CompoundOperation_TransportReceiverPattern</td><td>72.9099 ns</td><td>0.3029 ns</td><td>0.2365 ns</td><td>72.8131 ns</td><td>?</td><td>?</td><td>-</td><td>5,075 B</td><td>-</td><td>?</td>
+</tr><tr><td>CompoundOperation_FullHotPathAccess</td><td>0.4250 ns</td><td>0.0097 ns</td><td>0.0086 ns</td><td>0.4252 ns</td><td>?</td><td>?</td><td>-</td><td>114 B</td><td>-</td><td>?</td>
+</tr><tr><td>CreateChildContext_Basic</td><td>321.9526 ns</td><td>3.4956 ns</td><td>3.0988 ns</td><td>320.7600 ns</td><td>?</td><td>?</td><td>0.0916</td><td>11,778 B</td><td>1728 B</td><td>?</td>
+</tr></tbody></table>
+</body>
+</html>

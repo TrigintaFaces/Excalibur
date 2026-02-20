@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<IsPackable>true</IsPackable>
+		<Description>In-memory Claim Check pattern provider for Dispatch messaging framework. Thread-safe, zero-dependency implementation with TTL expiration, compression, and checksum validation. Ideal for testing and local development scenarios.</Description>
+		<PackageTags>dispatch;messaging;claim-check;inmemory;testing;development;patterns;cqrs</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<IsAotCompatible>true</IsAotCompatible>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Excalibur.Dispatch.Patterns\Excalibur.Dispatch.Patterns.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Options" />
+		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+		<PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+</Project>

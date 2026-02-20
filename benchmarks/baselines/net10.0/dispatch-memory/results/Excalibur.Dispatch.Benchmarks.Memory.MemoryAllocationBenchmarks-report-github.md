@@ -1,0 +1,72 @@
+```
+
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.102
+  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  Job-CNUJVU : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+
+InvocationCount=1  UnrollFactor=1  
+
+```
+| Method                            | BatchSize | PayloadSize | Mean       | Error     | StdDev    | Median     | Ratio | RatioSD | Allocated | Alloc Ratio |
+|---------------------------------- |---------- |------------ |-----------:|----------:|----------:|-----------:|------:|--------:|----------:|------------:|
+| **ProcessBatchWithArrayPool**         | **10**        | **256**         |   **1.466 μs** | **0.1024 μs** | **0.2920 μs** |   **1.400 μs** |  **1.03** |    **0.27** |         **-** |          **NA** |
+| ProcessBatchWithoutArrayPool      | 10        | 256         |   1.157 μs | 0.0510 μs | 0.1431 μs |   1.100 μs |  0.82 |    0.17 |     104 B |          NA |
+| ProcessBatchWithList              | 10        | 256         |   1.362 μs | 0.0592 μs | 0.1641 μs |   1.300 μs |  0.96 |    0.20 |     136 B |          NA |
+| ProcessBatchChannelBatchUtilities | 10        | 256         |   2.562 μs | 0.1548 μs | 0.4391 μs |   2.400 μs |  1.81 |    0.44 |     176 B |          NA |
+| ProcessPayloadsWithSpan           | 10        | 256         |   4.807 μs | 0.3027 μs | 0.8782 μs |   4.600 μs |  3.39 |    0.85 |         - |          NA |
+| ProcessPayloadsWithMemory         | 10        | 256         |   4.670 μs | 0.3096 μs | 0.8833 μs |   4.500 μs |  3.30 |    0.84 |         - |          NA |
+| BuildMetadataStringBuilder        | 10        | 256         |   1.057 μs | 0.0521 μs | 0.1477 μs |   1.000 μs |  0.75 |    0.17 |     848 B |          NA |
+| BuildMetadataInterpolation        | 10        | 256         |   1.518 μs | 0.0727 μs | 0.2026 μs |   1.500 μs |  1.07 |    0.23 |    1992 B |          NA |
+| BuildMetadataArrayJoin            | 10        | 256         |   1.605 μs | 0.0858 μs | 0.2405 μs |   1.600 μs |  1.13 |    0.26 |     848 B |          NA |
+|                                   |           |             |            |           |           |            |       |         |           |             |
+| **ProcessBatchWithArrayPool**         | **10**        | **1024**        |   **1.469 μs** | **0.0740 μs** | **0.2134 μs** |   **1.400 μs** |  **1.02** |    **0.20** |         **-** |          **NA** |
+| ProcessBatchWithoutArrayPool      | 10        | 1024        |   1.102 μs | 0.0515 μs | 0.1452 μs |   1.100 μs |  0.77 |    0.14 |     104 B |          NA |
+| ProcessBatchWithList              | 10        | 1024        |   1.425 μs | 0.0648 μs | 0.1840 μs |   1.400 μs |  0.99 |    0.18 |     136 B |          NA |
+| ProcessBatchChannelBatchUtilities | 10        | 1024        |   2.845 μs | 0.1841 μs | 0.5192 μs |   2.700 μs |  1.97 |    0.45 |     176 B |          NA |
+| ProcessPayloadsWithSpan           | 10        | 1024        |   6.517 μs | 0.2245 μs | 0.6477 μs |   6.400 μs |  4.52 |    0.76 |         - |          NA |
+| ProcessPayloadsWithMemory         | 10        | 1024        |   6.693 μs | 0.2930 μs | 0.8502 μs |   6.400 μs |  4.65 |    0.86 |         - |          NA |
+| BuildMetadataStringBuilder        | 10        | 1024        |   1.259 μs | 0.1053 μs | 0.2986 μs |   1.200 μs |  0.87 |    0.24 |     848 B |          NA |
+| BuildMetadataInterpolation        | 10        | 1024        |   2.003 μs | 0.1345 μs | 0.3901 μs |   1.900 μs |  1.39 |    0.33 |    1992 B |          NA |
+| BuildMetadataArrayJoin            | 10        | 1024        |   1.531 μs | 0.0647 μs | 0.1803 μs |   1.500 μs |  1.06 |    0.19 |     848 B |          NA |
+|                                   |           |             |            |           |           |            |       |         |           |             |
+| **ProcessBatchWithArrayPool**         | **100**       | **256**         |   **4.598 μs** | **0.1278 μs** | **0.3688 μs** |   **4.500 μs** |  **1.01** |    **0.11** |         **-** |          **NA** |
+| ProcessBatchWithoutArrayPool      | 100       | 256         |   4.387 μs | 0.1574 μs | 0.4592 μs |   4.200 μs |  0.96 |    0.12 |     824 B |          NA |
+| ProcessBatchWithList              | 100       | 256         |   4.905 μs | 0.2094 μs | 0.6108 μs |   4.700 μs |  1.07 |    0.16 |     856 B |          NA |
+| ProcessBatchChannelBatchUtilities | 100       | 256         |   9.280 μs | 1.1621 μs | 3.4082 μs |   8.700 μs |  2.03 |    0.76 |     896 B |          NA |
+| ProcessPayloadsWithSpan           | 100       | 256         |  10.825 μs | 0.2916 μs | 0.8413 μs |  10.600 μs |  2.37 |    0.26 |         - |          NA |
+| ProcessPayloadsWithMemory         | 100       | 256         |  10.735 μs | 0.2862 μs | 0.8211 μs |  10.500 μs |  2.35 |    0.25 |         - |          NA |
+| BuildMetadataStringBuilder        | 100       | 256         |   1.058 μs | 0.0582 μs | 0.1603 μs |   1.000 μs |  0.23 |    0.04 |     848 B |          NA |
+| BuildMetadataInterpolation        | 100       | 256         |   1.743 μs | 0.1127 μs | 0.3269 μs |   1.700 μs |  0.38 |    0.08 |    1992 B |          NA |
+| BuildMetadataArrayJoin            | 100       | 256         |   1.487 μs | 0.0637 μs | 0.1775 μs |   1.450 μs |  0.33 |    0.05 |     848 B |          NA |
+|                                   |           |             |            |           |           |            |       |         |           |             |
+| **ProcessBatchWithArrayPool**         | **100**       | **1024**        |   **4.218 μs** | **0.0857 μs** | **0.1053 μs** |   **4.200 μs** |  **1.00** |    **0.03** |         **-** |          **NA** |
+| ProcessBatchWithoutArrayPool      | 100       | 1024        |   4.035 μs | 0.0822 μs | 0.1788 μs |   4.000 μs |  0.96 |    0.05 |     824 B |          NA |
+| ProcessBatchWithList              | 100       | 1024        |   4.753 μs | 0.1534 μs | 0.4498 μs |   4.600 μs |  1.13 |    0.11 |     856 B |          NA |
+| ProcessBatchChannelBatchUtilities | 100       | 1024        |   7.965 μs | 0.5681 μs | 1.6392 μs |   8.200 μs |  1.89 |    0.39 |     896 B |          NA |
+| ProcessPayloadsWithSpan           | 100       | 1024        |  30.687 μs | 0.6032 μs | 0.5643 μs |  30.800 μs |  7.28 |    0.22 |         - |          NA |
+| ProcessPayloadsWithMemory         | 100       | 1024        |  29.673 μs | 0.5794 μs | 0.9190 μs |  29.500 μs |  7.04 |    0.27 |         - |          NA |
+| BuildMetadataStringBuilder        | 100       | 1024        |   1.206 μs | 0.0891 μs | 0.2585 μs |   1.100 μs |  0.29 |    0.06 |     848 B |          NA |
+| BuildMetadataInterpolation        | 100       | 1024        |   1.751 μs | 0.1143 μs | 0.3281 μs |   1.700 μs |  0.42 |    0.08 |    1992 B |          NA |
+| BuildMetadataArrayJoin            | 100       | 1024        |   1.656 μs | 0.0896 μs | 0.2543 μs |   1.600 μs |  0.39 |    0.06 |     848 B |          NA |
+|                                   |           |             |            |           |           |            |       |         |           |             |
+| **ProcessBatchWithArrayPool**         | **500**       | **256**         |  **18.598 μs** | **0.5213 μs** | **1.5207 μs** |  **18.850 μs** |  **1.01** |    **0.12** |         **-** |          **NA** |
+| ProcessBatchWithoutArrayPool      | 500       | 256         |  21.911 μs | 0.7181 μs | 2.0603 μs |  21.900 μs |  1.19 |    0.15 |    4024 B |          NA |
+| ProcessBatchWithList              | 500       | 256         |  22.373 μs | 0.5806 μs | 1.6090 μs |  22.500 μs |  1.21 |    0.13 |    4056 B |          NA |
+| ProcessBatchChannelBatchUtilities | 500       | 256         |  20.751 μs | 0.4847 μs | 1.3592 μs |  20.600 μs |  1.12 |    0.12 |    4096 B |          NA |
+| ProcessPayloadsWithSpan           | 500       | 256         |  37.925 μs | 0.7314 μs | 0.9511 μs |  37.900 μs |  2.05 |    0.17 |         - |          NA |
+| ProcessPayloadsWithMemory         | 500       | 256         |  38.657 μs | 0.6078 μs | 0.5388 μs |  38.700 μs |  2.09 |    0.17 |         - |          NA |
+| BuildMetadataStringBuilder        | 500       | 256         |   1.064 μs | 0.0508 μs | 0.1466 μs |   1.000 μs |  0.06 |    0.01 |     848 B |          NA |
+| BuildMetadataInterpolation        | 500       | 256         |   1.608 μs | 0.1024 μs | 0.2887 μs |   1.500 μs |  0.09 |    0.02 |    1992 B |          NA |
+| BuildMetadataArrayJoin            | 500       | 256         |   1.618 μs | 0.0909 μs | 0.2579 μs |   1.600 μs |  0.09 |    0.02 |     848 B |          NA |
+|                                   |           |             |            |           |           |            |       |         |           |             |
+| **ProcessBatchWithArrayPool**         | **500**       | **1024**        |  **18.337 μs** | **0.5228 μs** | **1.5251 μs** |  **18.000 μs** |  **1.01** |    **0.11** |         **-** |          **NA** |
+| ProcessBatchWithoutArrayPool      | 500       | 1024        |  22.406 μs | 0.8623 μs | 2.4602 μs |  22.100 μs |  1.23 |    0.17 |    4024 B |          NA |
+| ProcessBatchWithList              | 500       | 1024        |  21.942 μs | 0.4922 μs | 1.3962 μs |  22.000 μs |  1.20 |    0.12 |    4056 B |          NA |
+| ProcessBatchChannelBatchUtilities | 500       | 1024        |  20.838 μs | 0.5833 μs | 1.6356 μs |  20.900 μs |  1.14 |    0.13 |    4096 B |          NA |
+| ProcessPayloadsWithSpan           | 500       | 1024        | 126.303 μs | 2.2891 μs | 3.8246 μs | 125.300 μs |  6.93 |    0.58 |         - |          NA |
+| ProcessPayloadsWithMemory         | 500       | 1024        | 126.186 μs | 2.4537 μs | 2.9210 μs | 126.400 μs |  6.93 |    0.56 |         - |          NA |
+| BuildMetadataStringBuilder        | 500       | 1024        |   1.189 μs | 0.0732 μs | 0.2052 μs |   1.100 μs |  0.07 |    0.01 |     848 B |          NA |
+| BuildMetadataInterpolation        | 500       | 1024        |   1.701 μs | 0.1221 μs | 0.3543 μs |   1.600 μs |  0.09 |    0.02 |    1992 B |          NA |
+| BuildMetadataArrayJoin            | 500       | 1024        |   1.577 μs | 0.0752 μs | 0.2132 μs |   1.500 μs |  0.09 |    0.01 |     848 B |          NA |

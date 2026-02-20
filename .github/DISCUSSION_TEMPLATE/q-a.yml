@@ -1,0 +1,58 @@
+title: "[Q&A] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Question & Answer
+
+        Ask a question about using Excalibur. Before asking:
+        - Check the [documentation](https://docs.excalibur-dispatch.dev)
+        - Search existing discussions for similar questions
+
+        Please provide as much context as possible to help the community assist you.
+
+  - type: dropdown
+    id: topic
+    attributes:
+      label: Topic Area
+      description: What area does your question relate to?
+      options:
+        - Getting Started / Setup
+        - Message Dispatching (Dispatch)
+        - Event Sourcing
+        - Aggregates / Domain Modeling
+        - Saga / Process Managers
+        - Leader Election
+        - Testing
+        - Performance
+        - Migration from MediatR
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What would you like to know?
+      placeholder: I'm trying to understand how to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What are you trying to accomplish? What have you already tried?
+      placeholder: |
+        I'm building a...
+        I've tried...
+        The documentation says X, but I'm confused about Y...
+
+  - type: textarea
+    id: code
+    attributes:
+      label: Relevant Code (Optional)
+      description: Share any relevant code snippets.
+      render: csharp

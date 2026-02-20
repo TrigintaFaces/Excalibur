@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Comparative.PipelineComparisonBenchmarks-20260202-191425</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.102
+  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                           </th><th>Mean </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Dispatch: 3 middleware behaviors&#39;</td><td>2,125.4 ns</td><td>36.83 ns</td><td>34.45 ns</td><td>1.00</td><td>0.02</td><td>0.1030</td><td>1952 B</td><td>1.00</td>
+</tr><tr><td>&#39;MediatR: 3 pipeline behaviors&#39;</td><td>126.6 ns</td><td>2.45 ns</td><td>3.01 ns</td><td>0.06</td><td>0.00</td><td>0.0360</td><td>680 B</td><td>0.35</td>
+</tr><tr><td>&#39;Dispatch: 10 concurrent + 3 behaviors&#39;</td><td>21,582.3 ns</td><td>347.76 ns</td><td>325.29 ns</td><td>10.16</td><td>0.22</td><td>1.0071</td><td>19233 B</td><td>9.85</td>
+</tr><tr><td>&#39;MediatR: 10 concurrent + 3 behaviors&#39;</td><td>1,290.3 ns</td><td>20.34 ns</td><td>15.88 ns</td><td>0.61</td><td>0.01</td><td>0.3796</td><td>7168 B</td><td>3.67</td>
+</tr></tbody></table>
+</body>
+</html>

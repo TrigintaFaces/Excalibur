@@ -1,0 +1,182 @@
+<Project>
+  <!-- ============================================================================================
+       Visual Studio Multi-Targeting Sequential Build Fix (Sprint 376)
+       ============================================================================================
+       Forces sequential TFM builds in VS to prevent race conditions.
+       The inner builds for each TFM must complete before the next starts.
+       ============================================================================================ -->
+  <PropertyGroup Condition="'$(BuildingInsideVisualStudio)' == 'true'">
+    <!-- Force sequential inner builds for multi-TFM projects -->
+    <InnerBuildInParallel>false</InnerBuildInParallel>
+    <!-- Ensure reference assemblies are always produced for proper resolution -->
+    <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
+    <!-- CRITICAL: Don't use reference assemblies for compilation - fixes CS0006 -->
+    <CompileUsingReferenceAssemblies>false</CompileUsingReferenceAssemblies>
+    <!-- Disable design-time builds that can conflict -->
+    <SkipDesignTimeFacadeResolution>true</SkipDesignTimeFacadeResolution>
+    <!-- Wait for dependencies before building -->
+    <BuildProjectReferences>true</BuildProjectReferences>
+  </PropertyGroup>
+
+  <!-- Force standard output paths for multi-TFM to prevent VS confusion -->
+  <PropertyGroup Condition="'$(BuildingInsideVisualStudio)' == 'true' And '$(TargetFrameworks)' != ''">
+    <!-- Use explicit intermediate/output paths per TFM -->
+    <BaseIntermediateOutputPath>obj\</BaseIntermediateOutputPath>
+    <IntermediateOutputPath>$(BaseIntermediateOutputPath)$(Configuration)\$(TargetFramework)\</IntermediateOutputPath>
+    <OutputPath>bin\$(Configuration)\$(TargetFramework)\</OutputPath>
+  </PropertyGroup>
+
+  <!-- ============================================================================================
+       Disable VS Aspire Tooling (Sprint 376)
+       ============================================================================================
+       VS 2022 auto-applies Aspire targets to projects with ASP.NET Core packages.
+       This causes file lock conflicts on appsettingsschema.json during parallel builds.
+       Completely disable all Aspire-related generation.
+       ============================================================================================ -->
+  <PropertyGroup>
+    <!-- Disable Aspire schema/metadata generation globally -->
+    <GenerateAspireMetadata>false</GenerateAspireMetadata>
+    <AspireDisableSchemaGeneration>true</AspireDisableSchemaGeneration>
+    <EnableConfigurationSchemaGeneration>false</EnableConfigurationSchemaGeneration>
+    <!-- Prevent JsonSchema generation that conflicts -->
+    <JsonSchemaGeneratorDisabled>true</JsonSchemaGeneratorDisabled>
+    <GenerateJsonSchema>false</GenerateJsonSchema>
+    <!-- Not an Aspire project -->
+    <IsAspireHost>false</IsAspireHost>
+    <IsAspireComponent>false</IsAspireComponent>
+  </PropertyGroup>
+
+  <!-- Remove Aspire targets if they were imported -->
+  <Target Name="DisableAspireTargets" BeforeTargets="GenerateJsonSchema;GenerateAspireMetadata" Condition="'$(BuildingInsideVisualStudio)' == 'true'">
+    <Message Text="Aspire targets disabled for $(MSBuildProjectName)" Importance="Low" />
+  </Target>
+
+  <!-- Toggle examples/tests/benchmarks build with -p:BuildExamplesAndTests=true -->
+  <PropertyGroup>
+    <BuildExamplesAndTests Condition="'$(BuildExamplesAndTests)' == ''">false</BuildExamplesAndTests>
+  </PropertyGroup>
+
+  <!-- Detect sample/test/benchmark projects by path -->
+  <PropertyGroup>
+    <_ProjectPathLower>$([System.String]::Copy('$(MSBuildProjectFullPath)').ToLower())</_ProjectPathLower>
+    <!-- Use MSBuild property functions to evaluate Contains() safely for VS/MSBuild -->
+    <SkipProjectBuild Condition="$([System.String]::Copy('$(_ProjectPathLower)').Contains('\examples\')) And '$(BuildExamplesAndTests)' != 'true'">true</SkipProjectBuild>
+    <SkipProjectBuild Condition="$([System.String]::Copy('$(_ProjectPathLower)').Contains('\tests\')) And '$(BuildExamplesAndTests)' != 'true'">true</SkipProjectBuild>
+    <SkipProjectBuild Condition="$([System.String]::Copy('$(_ProjectPathLower)').Contains('\benchmarks\')) And '$(BuildExamplesAndTests)' != 'true'">true</SkipProjectBuild>
+  </PropertyGroup>
+
+  <!-- Remove compile items to avoid producing errors for skipped projects -->
+  <Target Name="SkipCompileForExamplesAndTests" BeforeTargets="Compile" Condition="'$(SkipProjectBuild)' == 'true'">
+    <Message Text="Skipping compile for $(MSBuildProjectName) (examples/tests/benchmarks disabled)" Importance="High" />
+    <ItemGroup>
+      <Compile Remove="**\*.cs" />
+    </ItemGroup>
+  </Target>
+
+  <!-- ============================================================================================
+       Sprint 320 T3.5: Centralized License Packaging (AD-320-1)
+       ============================================================================================
+       Automatically includes LICENSE and licenses/* in all NuGet packages.
+       Eliminates per-project license file duplication.
+       ============================================================================================ -->
+  <ItemGroup Condition="'$(IsPackable)' != 'false'">
+    <!-- Root LICENSE (multi-license stack reference) -->
+    <None Include="$(MSBuildThisFileDirectory)LICENSE"
+          Pack="true"
+          PackagePath="/"
+          Visible="false" />
+
+    <!-- All license files from licenses/ directory -->
+    <None Include="$(MSBuildThisFileDirectory)licenses/LICENSE-*.txt"
+          Pack="true"
+          PackagePath="licenses/"
+          Visible="false" />
+  </ItemGroup>
+
+  <!-- ============================================================================================
+       Sprint 410 T410.4: Package Icon Inclusion
+       ============================================================================================
+       Automatically includes the appropriate brand icon in NuGet packages.
+       - Dispatch packages use images/Dispatch/png/icon.png
+       - Excalibur packages use images/Excalibur/png/icon.png
+       ============================================================================================ -->
+  <PropertyGroup>
+    <!-- Detect brand by package/project naming: Excalibur.Dispatch* first, then Excalibur* -->
+    <_BrandCandidate>$(PackageId)</_BrandCandidate>
+    <_BrandCandidate Condition="'$(_BrandCandidate)' == ''">$(AssemblyName)</_BrandCandidate>
+    <_BrandCandidate Condition="'$(_BrandCandidate)' == ''">$(MSBuildProjectName)</_BrandCandidate>
+    <_BrandCandidateLower>$([System.String]::Copy('$(_BrandCandidate)').ToLowerInvariant())</_BrandCandidateLower>
+    <_IsDispatchProject Condition="$([System.String]::Copy('$(_BrandCandidateLower)').StartsWith('excalibur.dispatch'))">true</_IsDispatchProject>
+    <_IsExcaliburProject Condition="'$(_IsDispatchProject)' != 'true' And $([System.String]::Copy('$(_BrandCandidateLower)').StartsWith('excalibur'))">true</_IsExcaliburProject>
+  </PropertyGroup>
+
+  <!-- Include Dispatch icon for Dispatch packages -->
+  <ItemGroup Condition="'$(IsPackable)' != 'false' And '$(_IsDispatchProject)' == 'true'">
+    <None Include="$(MSBuildThisFileDirectory)images/Dispatch/png/icon.png"
+          Pack="true"
+          PackagePath="/"
+          Visible="false" />
+  </ItemGroup>
+
+  <!-- Include Excalibur icon for Excalibur packages -->
+  <ItemGroup Condition="'$(IsPackable)' != 'false' And '$(_IsExcaliburProject)' == 'true'">
+    <None Include="$(MSBuildThisFileDirectory)images/Excalibur/png/icon.png"
+          Pack="true"
+          PackagePath="/"
+          Visible="false" />
+  </ItemGroup>
+
+  <!-- ============================================================================================
+       Sprint 325 T0.2 + Sprint 326 T2.1: Shipping Project Metadata Validation (AD-325-2, AD-326-1)
+       ============================================================================================
+       Validates that shipping projects have required NuGet package metadata:
+       - Description: Required for NuGet package (AD-325-2)
+       - PackageTags: Required for discoverability (AD-326-1)
+       - PackageReadmeFile: Required, must exist (AD-326-1)
+
+       Toggle: -p:ValidateShippingMetadata=false to skip validation
+       ============================================================================================ -->
+  <PropertyGroup>
+    <ValidateShippingMetadata Condition="'$(ValidateShippingMetadata)' == ''">true</ValidateShippingMetadata>
+  </PropertyGroup>
+
+  <Target Name="ValidateShippingProjectMetadata"
+          BeforeTargets="Pack"
+          Condition="'$(IsShippingProject)' == 'true' And '$(ValidateShippingMetadata)' == 'true'">
+
+    <!-- AD-325-2: Validate Description is set for shipping projects -->
+    <Error Condition="'$(Description)' == ''"
+           Text="GOVERNANCE ERROR: Shipping project '$(MSBuildProjectName)' must have a &lt;Description&gt; element. See AD-325-2." />
+
+    <!-- AD-326-1: Validate PackageTags is set for shipping projects -->
+    <Error Condition="'$(PackageTags)' == ''"
+           Text="GOVERNANCE ERROR: Shipping project '$(MSBuildProjectName)' must have &lt;PackageTags&gt;. See AD-326-1." />
+
+    <!-- AD-326-1: Validate PackageReadmeFile is set -->
+    <Error Condition="'$(PackageReadmeFile)' == ''"
+           Text="GOVERNANCE ERROR: Shipping project '$(MSBuildProjectName)' must have &lt;PackageReadmeFile&gt;. See AD-326-1." />
+
+    <!-- AD-326-1: Validate PackageReadmeFile exists on disk -->
+    <Error Condition="'$(PackageReadmeFile)' != '' And !Exists('$(MSBuildProjectDirectory)/$(PackageReadmeFile)')"
+           Text="GOVERNANCE ERROR: Shipping project '$(MSBuildProjectName)' PackageReadmeFile '$(PackageReadmeFile)' does not exist. See AD-326-1." />
+
+    <!-- Warn if PackageId differs from AssemblyName (unusual, may indicate misconfiguration) -->
+    <Warning Condition="'$(PackageId)' != '' And '$(PackageId)' != '$(AssemblyName)'"
+             Text="GOVERNANCE WARNING: PackageId '$(PackageId)' differs from AssemblyName '$(AssemblyName)' in '$(MSBuildProjectName)'. Verify this is intentional." />
+
+    <!-- Log classification for audit trail -->
+    <Message Text="GOVERNANCE: $(MSBuildProjectName) - Classification=$(ProjectClassification), IsPackable=$(IsPackable)"
+             Importance="Normal" />
+  </Target>
+
+  <!-- ============================================================================================
+       Sprint 325 T0.2: Project Classification Audit Target (AD-325-2)
+       ============================================================================================
+       Reports project classification for CI audit purposes.
+       Run: dotnet build -t:ReportProjectClassification
+       ============================================================================================ -->
+  <Target Name="ReportProjectClassification">
+    <Message Text="PROJECT_CLASSIFICATION|$(MSBuildProjectName)|$(ProjectClassification)|IsPackable=$(IsPackable)|IsTestProject=$(IsTestProject)|IsSampleProject=$(IsSampleProject)|IsBenchmarkProject=$(IsBenchmarkProject)"
+             Importance="High" />
+  </Target>
+</Project>

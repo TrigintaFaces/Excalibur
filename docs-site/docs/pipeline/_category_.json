@@ -1,0 +1,10 @@
+{
+  "label": "Pipeline",
+  "position": 2,
+  "link": {
+    "type": "doc",
+    "id": "pipeline/index"
+  },
+  "collapsible": true,
+  "collapsed": true
+}

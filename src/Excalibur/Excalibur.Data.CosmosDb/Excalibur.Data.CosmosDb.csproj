@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>    <IsPackable>true</IsPackable>
+    <PackageId>Excalibur.Data.CosmosDb</PackageId>
+    <Description>Azure Cosmos DB data provider implementation for Excalibur cloud-native data access</Description>
+    <Authors>The Excalibur Project</Authors>
+    <Company>Excalibur</Company>
+    <Product>Excalibur.Dispatch</Product>
+    <PackageTags>excalibur;data;cosmosdb;azure;cloud-native;document-database</PackageTags>
+    <Copyright>$(Copyright)</Copyright>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageProjectUrl>https://github.com/TrigintaFaces/Excalibur</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReleaseNotes>See CHANGELOG.md for release notes</PackageReleaseNotes>
+    <IsAotCompatible>false</IsAotCompatible>
+    <DeterministicSourcePaths>true</DeterministicSourcePaths>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    
+    <AzureCosmosDisableNewtonsoftJsonCheck>true</AzureCosmosDisableNewtonsoftJsonCheck>
+  <PackageReadmeFile>README.md</PackageReadmeFile>
+    </PropertyGroup>
+  <ItemGroup>
+    
+    <PackageReference Include="Microsoft.Azure.Cosmos" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="System.Text.Json" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.A3.Abstractions\Excalibur.A3.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Cdc\Excalibur.Cdc.csproj" />
+    <ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+  </ItemGroup>
+<ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  </Project>

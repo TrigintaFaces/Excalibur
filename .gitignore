@@ -5,6 +5,11 @@
 
 # **** custom ****
 .DS_Store
+*.swp
+
+# temporary JSON files
+tmp_*.json
+tmp_workermail_*.json
 
 # Code comment files
 *.*.xml
@@ -14,6 +19,35 @@
 
 # Compiled web assemblies
 *.wasm
+
+# ── Generated test & coverage outputs ──
+# All generated output should go to artifacts/ (already gitignored below).
+# These catch common locations where tools write by default.
+**/TestResults/
+test-results/
+test-results-*.txt
+coverage-*/
+.coverage-temp/
+coverage/
+merged-coverage/
+ApiCompatReport/
+PublicApiBaselineReport/
+TransitiveBloatReport/
+UnitShardReport/
+management/reports/
+BannedApisReport/
+
+# Beads CLI scratch files (base/left merge artifacts are ephemeral)
+.beads/beads.base.*
+.beads/beads.left.*
+
+# Development scratch files
+bd_*.json
+analyze_*.ps1
+dotnet-install.ps1
+
+# Copy-paste detection reports (jscpd)
+.jscpd-report/
 
 # **** end custom
 
@@ -79,12 +113,16 @@ nunit-*.xml
 dlldata.c
 
 # Benchmark Results
-BenchmarkDotNet.Artifacts/
+BenchmarkDotNet.Artifacts*/
 
 # .NET Core
 project.lock.json
 project.fragment.lock.json
+
+# Build artifacts (but keep structure for package validation - see AD-327-2)
 artifacts/
+# Note: artifacts/_packages/ is the local NuGet feed for CI validation
+#       It is intentionally gitignored via the artifacts/ rule above
 
 # ASP.NET Scaffolding
 ScaffoldingReadMe.txt
@@ -216,19 +254,24 @@ publish/
 # in these scripts will be unencrypted
 PublishScripts/
 
-# NuGet Packages
+# NuGet Package Files (exclude local cache only)
 *.nupkg
-# NuGet Symbol Packages
 *.snupkg
-# The packages folder can be ignored because of Package Restore
-**/[Pp]ackages/*
-# except build/, which is used as an MSBuild target.
-!**/[Pp]ackages/build/
-# Uncomment if necessary however generally it will be regenerated when needed
-#!**/[Pp]ackages/repositories.config
-# NuGet v3's project.json files produces more ignorable files
 *.nuget.props
 *.nuget.targets
+
+# Ignore typical per-project packages folders (legacy/old style)
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+
+# ✅ Include custom NuGet cache
+!/.nuget/
+!/.nuget/packages/
+!.nuget/packages/**
+
+# Optional: avoid diff noise on DLLs/nupkg in cache (not needed if using .gitattributes)
+# .nuget/packages/**/*.dll -text
+# .nuget/packages/**/*.nupkg -text
 
 # Microsoft Azure Build Output
 csx/
@@ -437,3 +480,33 @@ FodyWeavers.xsd
 .idea/
 *.sln.iml
 
+.qodo
+docs/diagrams/*.mmd
+# Build artifacts
+**/obj/
+**/bin/
+
+.serena
+.specify
+.codex/
+.claude/
+
+# Load test reports (generated during Phase 4)
+load-tests/reports/*
+!load-tests/reports/.gitkeep
+
+# Reserved device names (Windows)
+**/NUL
+**/nul
+
+# Docusaurus documentation site
+docs-site/node_modules/
+docs-site/build/
+docs-site/.docusaurus/
+docs-site/.cache-loader/
+
+# Verify snapshot testing (*.received.* = test failures, *.verified.* is committed)
+*.received.*
+
+# Stryker.NET mutation testing output
+StrykerOutput/

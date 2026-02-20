@@ -1,0 +1,538 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+
+
+using System.Diagnostics;
+
+using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch.Transport.GooglePubSub;
+
+using Microsoft.Extensions.Logging;
+
+using MessageContext = Excalibur.Dispatch.Messaging.MessageContext;
+
+namespace Excalibur.Dispatch.Transport.Google;
+
+/// <summary>
+/// Google Cloud Pub/Sub transport adapter that wraps the existing GooglePubSubMessageBus infrastructure.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This adapter provides integration with the unified transport configuration system
+/// while delegating actual Pub/Sub operations to the existing <see cref="GooglePubSubMessageBus"/>.
+/// </para>
+/// <para>
+/// For publishing messages, the adapter uses GooglePubSubMessageBus.
+/// For receiving messages, use the existing Pub/Sub channel receiver infrastructure.
+/// </para>
+/// <para>
+/// Implements <see cref="ITransportHealthChecker"/> for integration with
+/// ASP.NET Core health checks and the <c>MultiTransportHealthCheck</c>.
+/// </para>
+/// </remarks>
+public sealed partial class GooglePubSubTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
+{
+	/// <summary>
+	/// The default transport name for Google Pub/Sub adapters.
+	/// </summary>
+	public const string DefaultName = "GooglePubSub";
+
+	/// <summary>
+	/// The transport type identifier.
+	/// </summary>
+	public const string TransportTypeName = "google-pubsub";
+
+	private readonly ILogger<GooglePubSubTransportAdapter> _logger;
+	private readonly GooglePubSubMessageBus _messageBus;
+	private readonly GooglePubSubTransportAdapterOptions _options;
+	private readonly IServiceProvider _serviceProvider;
+	private volatile bool _disposed;
+
+	// Health check and metrics tracking
+	private long _totalMessages;
+	private long _successfulMessages;
+	private long _failedMessages;
+	private DateTimeOffset _lastHealthCheck = DateTimeOffset.UtcNow;
+	private TransportHealthStatus _lastStatus = TransportHealthStatus.Healthy;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="GooglePubSubTransportAdapter"/> class.
+	/// </summary>
+	/// <param name="logger">The logger instance.</param>
+	/// <param name="messageBus">The Google Pub/Sub message bus to wrap.</param>
+	/// <param name="serviceProvider">The service provider for resolving dependencies.</param>
+	/// <param name="options">The adapter options.</param>
+	public GooglePubSubTransportAdapter(
+		ILogger<GooglePubSubTransportAdapter> logger,
+		GooglePubSubMessageBus messageBus,
+		IServiceProvider serviceProvider,
+		GooglePubSubTransportAdapterOptions? options = null)
+	{
+		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_messageBus = messageBus ?? throw new ArgumentNullException(nameof(messageBus));
+		_serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+		_options = options ?? new GooglePubSubTransportAdapterOptions();
+	}
+
+	/// <inheritdoc/>
+	public string Name => _options.Name ?? DefaultName;
+
+	/// <inheritdoc/>
+	public string TransportType => TransportTypeName;
+
+	/// <inheritdoc/>
+	public bool IsRunning { get; private set; }
+
+	/// <inheritdoc/>
+	public async Task<IMessageResult> ReceiveAsync(
+		object transportMessage,
+		IDispatcher dispatcher,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(transportMessage);
+		ArgumentNullException.ThrowIfNull(dispatcher);
+
+		var stopwatch = Stopwatch.StartNew();
+
+		if (!IsRunning)
+		{
+			_ = Interlocked.Increment(ref _failedMessages);
+			return MessageResult.Failed(new MessageProblemDetails
+			{
+				Type = "urn:dispatch:transport:not-running",
+				Title = "Transport Not Running",
+				ErrorCode = 23050,
+				Detail = "The Google Pub/Sub transport adapter is not running",
+				Instance = $"google-pubsub-adapter-{Guid.NewGuid()}",
+			});
+		}
+
+		if (transportMessage is not IDispatchMessage message)
+		{
+			_ = Interlocked.Increment(ref _failedMessages);
+			return MessageResult.Failed(new MessageProblemDetails
+			{
+				Type = "urn:dispatch:transport:invalid-message-type",
+				Title = "Invalid Message Type",
+				ErrorCode = 23051,
+				Detail = $"Expected IDispatchMessage but received {transportMessage.GetType().Name}",
+				Instance = $"google-pubsub-adapter-{Guid.NewGuid()}",
+			});
+		}
+
+		var messageId = Guid.NewGuid().ToString();
+		var messageType = message.GetType().Name;
+		LogReceivingMessage(messageId, messageType);
+
+		_ = Interlocked.Increment(ref _totalMessages);
+
+		try
+		{
+			var context = new MessageContext(message, _serviceProvider)
+			{
+				MessageId = messageId,
+				MessageType = message.GetType().FullName,
+				ReceivedTimestampUtc = DateTimeOffset.UtcNow,
+			};
+
+			var result = await dispatcher.DispatchAsync(message, context, cancellationToken).ConfigureAwait(false);
+
+			stopwatch.Stop();
+			_ = Interlocked.Increment(ref _successfulMessages);
+
+			return result;
+		}
+		catch (Exception ex)
+		{
+			stopwatch.Stop();
+			LogMessageProcessingFailed(messageId, ex);
+			_ = Interlocked.Increment(ref _failedMessages);
+
+			return MessageResult.Failed(new MessageProblemDetails
+			{
+				Type = "urn:dispatch:transport:processing-failed",
+				Title = "Message Processing Failed",
+				ErrorCode = 23052,
+				Detail = ex.Message,
+				Instance = $"message-{messageId}",
+			});
+		}
+	}
+
+	/// <inheritdoc/>
+	public async Task SendAsync(
+		IDispatchMessage message,
+		string destination,
+		CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(message);
+		ArgumentException.ThrowIfNullOrWhiteSpace(destination);
+
+		var stopwatch = Stopwatch.StartNew();
+
+		if (!IsRunning)
+		{
+			throw new InvalidOperationException("The Google Pub/Sub transport adapter is not running");
+		}
+
+		var messageId = Guid.NewGuid().ToString();
+		LogSendingMessage(messageId, destination);
+
+		try
+		{
+			// Create a basic message context for the underlying message bus
+			var context = new MessageContext(message, _serviceProvider)
+			{
+				MessageId = messageId,
+				CorrelationId = messageId,
+			};
+
+			// Route to appropriate GooglePubSubMessageBus.PublishAsync overload based on message type
+			switch (message)
+			{
+				case IDispatchAction action:
+					await _messageBus.PublishAsync(action, context, cancellationToken).ConfigureAwait(false);
+					break;
+
+				case IDispatchEvent evt:
+					await _messageBus.PublishAsync(evt, context, cancellationToken).ConfigureAwait(false);
+					break;
+
+				case IDispatchDocument doc:
+					await _messageBus.PublishAsync(doc, context, cancellationToken).ConfigureAwait(false);
+					break;
+
+				default:
+					throw new ArgumentException(
+						$"Unsupported message type: {message.GetType().Name}. " +
+						"Message must implement IDispatchAction, IDispatchEvent, or IDispatchDocument.",
+						nameof(message));
+			}
+
+			stopwatch.Stop();
+		}
+		catch (Exception ex) when (ex is not ArgumentException and not InvalidOperationException)
+		{
+			stopwatch.Stop();
+			LogSendFailed(messageId, ex);
+			throw new InvalidOperationException($"Failed to send message to Google Pub/Sub: {ex.Message}", ex);
+		}
+	}
+
+	/// <inheritdoc/>
+	public Task StartAsync(CancellationToken cancellationToken)
+	{
+		if (IsRunning)
+		{
+			return Task.CompletedTask;
+		}
+
+		LogStarting();
+		IsRunning = true;
+
+		_lastStatus = TransportHealthStatus.Healthy;
+
+		return Task.CompletedTask;
+	}
+
+	/// <inheritdoc/>
+	public async Task StopAsync(CancellationToken cancellationToken)
+	{
+		if (!IsRunning)
+		{
+			return;
+		}
+
+		LogStopping();
+		IsRunning = false;
+
+		_lastStatus = TransportHealthStatus.Unhealthy;
+
+		await Task.CompletedTask.ConfigureAwait(false);
+	}
+
+	#region ITransportHealthChecker Implementation
+
+	/// <inheritdoc/>
+	TransportHealthCheckCategory ITransportHealthChecker.Categories =>
+		TransportHealthCheckCategory.Connectivity | TransportHealthCheckCategory.Resources;
+
+	/// <inheritdoc/>
+	public Task<TransportHealthCheckResult> CheckHealthAsync(
+		TransportHealthCheckContext context,
+		CancellationToken cancellationToken)
+	{
+		var stopwatch = Stopwatch.StartNew();
+
+		var total = Interlocked.Read(ref _totalMessages);
+		var successful = Interlocked.Read(ref _successfulMessages);
+		var failed = Interlocked.Read(ref _failedMessages);
+
+		var data = new Dictionary<string, object>(StringComparer.Ordinal)
+		{
+			["TotalMessages"] = total,
+			["SuccessfulMessages"] = successful,
+			["FailedMessages"] = failed,
+		};
+
+		TransportHealthCheckResult result;
+
+		if (!IsRunning)
+		{
+			result = TransportHealthCheckResult.Unhealthy(
+				"Google Pub/Sub transport adapter is not running",
+				context.RequestedCategories,
+				stopwatch.Elapsed,
+				data);
+		}
+		else if (failed > 0 && failed > successful / 10)
+		{
+			// More than 10% failures - degraded
+			result = TransportHealthCheckResult.Degraded(
+				$"Google Pub/Sub transport has elevated failure rate: {failed}/{total}",
+				context.RequestedCategories,
+				stopwatch.Elapsed,
+				data);
+		}
+		else
+		{
+			result = TransportHealthCheckResult.Healthy(
+				"Google Pub/Sub transport adapter is healthy and running",
+				context.RequestedCategories,
+				stopwatch.Elapsed,
+				data);
+		}
+
+		stopwatch.Stop();
+		_lastHealthCheck = DateTimeOffset.UtcNow;
+		_lastStatus = result.Status;
+
+		return Task.FromResult(result);
+	}
+
+	/// <inheritdoc/>
+	public Task<TransportHealthCheckResult> CheckQuickHealthAsync(CancellationToken cancellationToken)
+	{
+		var stopwatch = Stopwatch.StartNew();
+
+		var status = IsRunning
+			? TransportHealthStatus.Healthy
+			: TransportHealthStatus.Unhealthy;
+
+		var description = IsRunning
+			? "Google Pub/Sub transport adapter is running"
+			: "Google Pub/Sub transport adapter is not running";
+
+		var result = new TransportHealthCheckResult(
+			status,
+			description,
+			TransportHealthCheckCategory.Connectivity,
+			stopwatch.Elapsed);
+
+		_lastHealthCheck = DateTimeOffset.UtcNow;
+		_lastStatus = status;
+
+		return Task.FromResult(result);
+	}
+
+	/// <inheritdoc/>
+	public Task<TransportHealthMetrics> GetHealthMetricsAsync(CancellationToken cancellationToken)
+	{
+		var total = Interlocked.Read(ref _totalMessages);
+		var successful = Interlocked.Read(ref _successfulMessages);
+		var failed = Interlocked.Read(ref _failedMessages);
+
+		var successRate = total > 0
+			? (double)successful / total
+			: 1.0;
+
+		var metrics = new TransportHealthMetrics(
+			lastCheckTimestamp: _lastHealthCheck,
+			lastStatus: _lastStatus,
+			consecutiveFailures: IsRunning ? 0 : 1,
+			totalChecks: 1,
+			successRate: successRate,
+			averageCheckDuration: TimeSpan.FromMilliseconds(1),
+			customMetrics: new Dictionary<string, object>(StringComparer.Ordinal)
+			{
+				["TotalMessages"] = total,
+				["SuccessfulMessages"] = successful,
+				["FailedMessages"] = failed,
+			});
+
+		return Task.FromResult(metrics);
+	}
+
+	#endregion
+
+	/// <inheritdoc/>
+	public async ValueTask DisposeAsync()
+	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		_disposed = true;
+
+		try
+		{
+			using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+			await StopAsync(cts.Token).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException)
+		{
+			// Expected during cancellation
+		}
+		catch (ObjectDisposedException)
+		{
+			// Expected if resources already disposed
+		}
+
+		// Note: We don't dispose _messageBus here as it's injected and managed by DI
+		GC.SuppressFinalize(this);
+	}
+
+	// Source-generated logging methods
+	[LoggerMessage(GooglePubSubEventId.TransportAdapterStarting, LogLevel.Information,
+		"Starting Google Pub/Sub transport adapter")]
+	private partial void LogStarting();
+
+	[LoggerMessage(GooglePubSubEventId.TransportAdapterStopping, LogLevel.Information,
+		"Stopping Google Pub/Sub transport adapter")]
+	private partial void LogStopping();
+
+	[LoggerMessage(GooglePubSubEventId.TransportAdapterReceivingMessage, LogLevel.Debug,
+		"Receiving message {MessageId} of type {MessageType}")]
+	private partial void LogReceivingMessage(string messageId, string messageType);
+
+	[LoggerMessage(GooglePubSubEventId.TransportAdapterSendingMessage, LogLevel.Debug,
+		"Sending message {MessageId} to destination {Destination}")]
+	private partial void LogSendingMessage(string messageId, string destination);
+
+	[LoggerMessage(GooglePubSubEventId.TransportAdapterMessageProcessingFailed, LogLevel.Error,
+		"Failed to process message {MessageId}")]
+	private partial void LogMessageProcessingFailed(string messageId, Exception ex);
+
+	[LoggerMessage(GooglePubSubEventId.TransportAdapterSendFailed, LogLevel.Error,
+		"Failed to send message {MessageId}")]
+	private partial void LogSendFailed(string messageId, Exception ex);
+}
+
+/// <summary>
+/// Configuration options for the Google Pub/Sub transport adapter.
+/// </summary>
+public sealed class GooglePubSubTransportAdapterOptions
+{
+	/// <summary>
+	/// Gets or sets the name of this transport adapter instance.
+	/// </summary>
+	/// <value>The transport name. Default is "GooglePubSub".</value>
+	public string? Name { get; set; }
+
+	/// <summary>
+	/// Gets or sets the Google Cloud project ID.
+	/// </summary>
+	/// <value>The Google Cloud project ID.</value>
+	public string? ProjectId { get; set; }
+
+	/// <summary>
+	/// Gets or sets the topic ID for publishing messages.
+	/// </summary>
+	/// <value>The topic ID.</value>
+	public string? TopicId { get; set; }
+
+	/// <summary>
+	/// Gets or sets the subscription ID for receiving messages.
+	/// </summary>
+	/// <value>The subscription ID.</value>
+	public string? SubscriptionId { get; set; }
+
+	/// <summary>
+	/// Gets the message type to topic mappings.
+	/// </summary>
+	/// <value>A dictionary mapping message types to their topic names.</value>
+	public Dictionary<Type, string> TopicMappings { get; } = new();
+
+	/// <summary>
+	/// Gets a value indicating whether any topic mappings are configured.
+	/// </summary>
+	/// <value><see langword="true"/> if topic mappings exist; otherwise, <see langword="false"/>.</value>
+	public bool HasTopicMappings => TopicMappings.Count > 0;
+}
+
+/// <summary>
+/// Extension methods for configuring <see cref="GooglePubSubTransportAdapterOptions"/>.
+/// </summary>
+public static class GooglePubSubTransportAdapterOptionsExtensions
+{
+	/// <summary>
+	/// Maps a message type to a specific topic name.
+	/// </summary>
+	/// <typeparam name="T">The message type to map.</typeparam>
+	/// <param name="options">The transport adapter options.</param>
+	/// <param name="topicName">The Pub/Sub topic name for this message type.</param>
+	/// <returns>The options for fluent chaining.</returns>
+	public static GooglePubSubTransportAdapterOptions MapTopic<T>(
+		this GooglePubSubTransportAdapterOptions options,
+		string topicName)
+	{
+		ArgumentNullException.ThrowIfNull(options);
+		ArgumentException.ThrowIfNullOrWhiteSpace(topicName);
+
+		options.TopicMappings[typeof(T)] = topicName;
+		return options;
+	}
+
+	/// <summary>
+	/// Sets the Google Cloud project ID.
+	/// </summary>
+	/// <param name="options">The transport adapter options.</param>
+	/// <param name="projectId">The Google Cloud project ID.</param>
+	/// <returns>The options for fluent chaining.</returns>
+	public static GooglePubSubTransportAdapterOptions WithProjectId(
+		this GooglePubSubTransportAdapterOptions options,
+		string projectId)
+	{
+		ArgumentNullException.ThrowIfNull(options);
+		ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
+
+		options.ProjectId = projectId;
+		return options;
+	}
+
+	/// <summary>
+	/// Sets the default topic ID for publishing messages.
+	/// </summary>
+	/// <param name="options">The transport adapter options.</param>
+	/// <param name="topicId">The topic ID.</param>
+	/// <returns>The options for fluent chaining.</returns>
+	public static GooglePubSubTransportAdapterOptions WithTopicId(
+		this GooglePubSubTransportAdapterOptions options,
+		string topicId)
+	{
+		ArgumentNullException.ThrowIfNull(options);
+		ArgumentException.ThrowIfNullOrWhiteSpace(topicId);
+
+		options.TopicId = topicId;
+		return options;
+	}
+
+	/// <summary>
+	/// Sets the subscription ID for receiving messages.
+	/// </summary>
+	/// <param name="options">The transport adapter options.</param>
+	/// <param name="subscriptionId">The subscription ID.</param>
+	/// <returns>The options for fluent chaining.</returns>
+	public static GooglePubSubTransportAdapterOptions WithSubscriptionId(
+		this GooglePubSubTransportAdapterOptions options,
+		string subscriptionId)
+	{
+		ArgumentNullException.ThrowIfNull(options);
+		ArgumentException.ThrowIfNullOrWhiteSpace(subscriptionId);
+
+		options.SubscriptionId = subscriptionId;
+		return options;
+	}
+}

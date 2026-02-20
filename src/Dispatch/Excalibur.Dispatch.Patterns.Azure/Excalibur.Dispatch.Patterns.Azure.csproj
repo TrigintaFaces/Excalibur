@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<IsPackable>true</IsPackable>
+		<Description>Azure provider implementations for Excalibur.Dispatch.Patterns including Azure Blob Storage Claim Check pattern.</Description>
+		<PackageTags>dispatch;patterns;azure;claimcheck;blob-storage</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<IsAotCompatible>true</IsAotCompatible>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Azure SDK Dependencies -->
+		<PackageReference Include="Azure.Storage.Blobs" />
+		<!-- Microsoft Extensions -->
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Options" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Dispatch Dependencies -->
+		<ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+		<ProjectReference Include="..\Excalibur.Dispatch.Patterns\Excalibur.Dispatch.Patterns.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+</Project>

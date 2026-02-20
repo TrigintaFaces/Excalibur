@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "HealthcareApi": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:63944;http://localhost:63945"
+    }
+  }
+}

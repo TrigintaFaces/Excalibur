@@ -1,0 +1,38 @@
+# RabbitMQ Docker Compose for Local Development
+# =============================================
+# Usage:
+#   docker-compose up -d     # Start RabbitMQ in background
+#   docker-compose down      # Stop and remove container
+#   docker-compose logs -f   # Follow logs
+#
+# Management UI: http://localhost:15672
+# Default credentials: guest / guest
+#
+# AMQP port: 5672 (for application connections)
+# Management port: 15672 (for HTTP API and web UI)
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: rabbitmq-sample
+    hostname: rabbitmq
+    ports:
+      - "5672:5672"     # AMQP protocol
+      - "15672:15672"   # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_VHOST: /
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  rabbitmq_data:
+    driver: local

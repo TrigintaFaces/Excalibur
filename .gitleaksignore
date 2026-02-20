@@ -1,0 +1,13 @@
+# Gitleaks Ignore File
+# Add legitimate false positives here with justification
+
+# Example connection strings in test files (not real secrets)
+# tests/**/appsettings.Test.json:connection-string-pattern
+
+# Example API keys in documentation (placeholder values only)
+# docs/examples/**/*.md:api-key-pattern
+
+# Package references that trigger false positives
+# src/**/*.csproj:Azure.Identity
+
+# End of file

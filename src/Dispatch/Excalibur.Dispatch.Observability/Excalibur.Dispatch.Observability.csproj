@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<RootNamespace>Excalibur.Dispatch.Observability</RootNamespace>
+		<AssemblyName>Excalibur.Dispatch.Observability</AssemblyName>
+		<IsPackable>true</IsPackable>
+		<IsAotCompatible>true</IsAotCompatible>
+		<!-- NuGet Package Metadata -->
+		<PackageId>Excalibur.Dispatch.Observability</PackageId>
+		<Title>Dispatch Observability</Title>
+		<Description>Comprehensive observability for Dispatch messaging framework including context flow tracking, distributed tracing, and metrics collection</Description>
+		<PackageTags>dispatch;observability;tracing;metrics;telemetry;opentelemetry;context-tracking</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<EnableNETAnalyzers>true</EnableNETAnalyzers>
+		<AnalysisLevel>latest-all</AnalysisLevel>
+	</PropertyGroup>
+	<ItemGroup>
+		<EmbeddedResource Update="Resources.resx">
+			<Generator>ResXFileCodeGenerator</Generator>
+			<LastGenOutput>Resources.Designer.cs</LastGenOutput>
+		</EmbeddedResource>
+		<Compile Update="Resources.Designer.cs">
+			<DesignTime>True</DesignTime>
+			<AutoGen>True</AutoGen>
+			<DependentUpon>Resources.resx</DependentUpon>
+		</Compile>
+	</ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="OpenTelemetry" />
+	</ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+		<ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+		<PackageReference Include="OpenTelemetry.Api" />
+		<PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+		<PackageReference Include="OpenTelemetry.Exporter.Console" />
+		<PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" />
+		<PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+		<PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+		<PackageReference Include="OpenTelemetry.Instrumentation.Process" />
+		<PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+		<PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+		<PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" />
+		<PackageReference Include="System.Diagnostics.DiagnosticSource" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Options" />
+		<PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+		<PackageReference Include="System.Text.Json" />
+	</ItemGroup>
+	<ItemGroup>
+		<InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Unit" />
+		<InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Integration" />
+		<InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Functional" />
+		<InternalsVisibleTo Include="Excalibur.Dispatch.Middleware.Tests" />
+		<InternalsVisibleTo Include="Excalibur.Dispatch.Observability.Tests" />
+	</ItemGroup>
+</Project>

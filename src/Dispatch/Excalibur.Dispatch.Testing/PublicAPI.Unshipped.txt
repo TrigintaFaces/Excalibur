@@ -1,0 +1,232 @@
+#nullable enable
+Excalibur.Dispatch.Testing.Builders.CommandBuilder`1
+Excalibur.Dispatch.Testing.Builders.CommandBuilder`1.Build() -> System.ValueTuple<, Excalibur.Dispatch.Abstractions.IMessageContext>
+Excalibur.Dispatch.Testing.Builders.CommandBuilder`1.BuildCommand() -> 
+Excalibur.Dispatch.Testing.Builders.CommandBuilder`1.CommandBuilder`1() -> void
+Excalibur.Dispatch.Testing.Builders.CommandBuilder`1.WithCausationId(System.String causationId) -> Excalibur.Dispatch.Testing.Builders.CommandBuilder<>
+Excalibur.Dispatch.Testing.Builders.CommandBuilder`1.WithCommand( command) -> Excalibur.Dispatch.Testing.Builders.CommandBuilder<>
+Excalibur.Dispatch.Testing.Builders.CommandBuilder`1.WithContextItem(System.String key, System.Object value) -> Excalibur.Dispatch.Testing.Builders.CommandBuilder<>
+Excalibur.Dispatch.Testing.Builders.CommandBuilder`1.WithCorrelationId(System.String correlationId) -> Excalibur.Dispatch.Testing.Builders.CommandBuilder<>
+Excalibur.Dispatch.Testing.Builders.CommandBuilder`1.WithRequestServices(System.IServiceProvider services) -> Excalibur.Dispatch.Testing.Builders.CommandBuilder<>
+Excalibur.Dispatch.Testing.Builders.CommandBuilder`1.WithTenantId(System.String tenantId) -> Excalibur.Dispatch.Testing.Builders.CommandBuilder<>
+Excalibur.Dispatch.Testing.Builders.CommandBuilder`1.WithUserId(System.String userId) -> Excalibur.Dispatch.Testing.Builders.CommandBuilder<>
+Excalibur.Dispatch.Testing.Builders.EventBuilder
+Excalibur.Dispatch.Testing.Builders.EventBuilder.Build() -> Excalibur.Dispatch.Testing.Builders.TestDomainEvent
+Excalibur.Dispatch.Testing.Builders.EventBuilder.BuildMany(System.Int32 count) -> System.Collections.Generic.List<Excalibur.Dispatch.Testing.Builders.TestDomainEvent>
+Excalibur.Dispatch.Testing.Builders.EventBuilder.EventBuilder() -> void
+Excalibur.Dispatch.Testing.Builders.EventBuilder.WithAggregateId(System.String aggregateId) -> Excalibur.Dispatch.Testing.Builders.EventBuilder
+Excalibur.Dispatch.Testing.Builders.EventBuilder.WithData(System.String data) -> Excalibur.Dispatch.Testing.Builders.EventBuilder
+Excalibur.Dispatch.Testing.Builders.EventBuilder.WithEventId(System.String eventId) -> Excalibur.Dispatch.Testing.Builders.EventBuilder
+Excalibur.Dispatch.Testing.Builders.EventBuilder.WithEventType(System.String eventType) -> Excalibur.Dispatch.Testing.Builders.EventBuilder
+Excalibur.Dispatch.Testing.Builders.EventBuilder.WithMetadata(System.Collections.Generic.IDictionary<System.String, System.Object> metadata) -> Excalibur.Dispatch.Testing.Builders.EventBuilder
+Excalibur.Dispatch.Testing.Builders.EventBuilder.WithMetadata(System.String key, System.Object value) -> Excalibur.Dispatch.Testing.Builders.EventBuilder
+Excalibur.Dispatch.Testing.Builders.EventBuilder.WithOccurredAt(System.DateTimeOffset occurredAt) -> Excalibur.Dispatch.Testing.Builders.EventBuilder
+Excalibur.Dispatch.Testing.Builders.EventBuilder.WithVersion(System.Int64 version) -> Excalibur.Dispatch.Testing.Builders.EventBuilder
+Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder
+Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder.Build() -> Excalibur.Dispatch.Transport.TransportReceivedMessage
+Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder.BuildMany(System.Int32 count) -> System.Collections.Generic.List<Excalibur.Dispatch.Transport.TransportReceivedMessage>
+Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder.ReceivedMessageBuilder() -> void
+Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder.WithBody(System.Byte[] body) -> Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder
+Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder.WithBody(System.String body) -> Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder
+Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder.WithContentType(System.String contentType) -> Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder
+Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder.WithCorrelationId(System.String correlationId) -> Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder
+Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder.WithDeliveryCount(System.Int32 deliveryCount) -> Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder
+Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder.WithEnqueuedAt(System.DateTimeOffset enqueuedAt) -> Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder
+Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder.WithId(System.String id) -> Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder
+Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder.WithLockExpiresAt(System.DateTimeOffset lockExpiresAt) -> Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder
+Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder.WithMessageGroupId(System.String messageGroupId) -> Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder
+Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder.WithMessageType(System.String messageType) -> Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder
+Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder.WithPartitionKey(System.String partitionKey) -> Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder
+Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder.WithProperty(System.String key, System.Object value) -> Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder
+Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder.WithProviderData(System.String key, System.Object value) -> Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder
+Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder.WithSource(System.String source) -> Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder
+Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder.WithSubject(System.String subject) -> Excalibur.Dispatch.Testing.Builders.ReceivedMessageBuilder
+Excalibur.Dispatch.Testing.Builders.SagaStateBuilder`1
+Excalibur.Dispatch.Testing.Builders.SagaStateBuilder`1.Build() -> 
+Excalibur.Dispatch.Testing.Builders.SagaStateBuilder`1.BuildMany(System.Int32 count) -> System.Collections.Generic.List<>
+Excalibur.Dispatch.Testing.Builders.SagaStateBuilder`1.Configure(System.Action<> configure) -> Excalibur.Dispatch.Testing.Builders.SagaStateBuilder<>
+Excalibur.Dispatch.Testing.Builders.SagaStateBuilder`1.SagaStateBuilder`1() -> void
+Excalibur.Dispatch.Testing.Builders.SagaStateBuilder`1.WithCompleted(System.Boolean completed) -> Excalibur.Dispatch.Testing.Builders.SagaStateBuilder<>
+Excalibur.Dispatch.Testing.Builders.SagaStateBuilder`1.WithSagaId(System.Guid sagaId) -> Excalibur.Dispatch.Testing.Builders.SagaStateBuilder<>
+Excalibur.Dispatch.Testing.Builders.TestDomainEvent
+Excalibur.Dispatch.Testing.Builders.TestDomainEvent.AggregateId.get -> System.String
+Excalibur.Dispatch.Testing.Builders.TestDomainEvent.AggregateId.set -> void
+Excalibur.Dispatch.Testing.Builders.TestDomainEvent.Data.get -> System.String
+Excalibur.Dispatch.Testing.Builders.TestDomainEvent.Data.set -> void
+Excalibur.Dispatch.Testing.Builders.TestDomainEvent.EventId.get -> System.String
+Excalibur.Dispatch.Testing.Builders.TestDomainEvent.EventId.set -> void
+Excalibur.Dispatch.Testing.Builders.TestDomainEvent.EventType.get -> System.String
+Excalibur.Dispatch.Testing.Builders.TestDomainEvent.EventType.set -> void
+Excalibur.Dispatch.Testing.Builders.TestDomainEvent.Metadata.get -> System.Collections.Generic.IDictionary<System.String, System.Object>
+Excalibur.Dispatch.Testing.Builders.TestDomainEvent.Metadata.set -> void
+Excalibur.Dispatch.Testing.Builders.TestDomainEvent.OccurredAt.get -> System.DateTimeOffset
+Excalibur.Dispatch.Testing.Builders.TestDomainEvent.OccurredAt.set -> void
+Excalibur.Dispatch.Testing.Builders.TestDomainEvent.TestDomainEvent() -> void
+Excalibur.Dispatch.Testing.Builders.TestDomainEvent.Version.get -> System.Int64
+Excalibur.Dispatch.Testing.Builders.TestDomainEvent.Version.set -> void
+Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder
+Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder.Build() -> Excalibur.Dispatch.Transport.TransportMessage
+Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder.BuildMany(System.Int32 count) -> System.Collections.Generic.List<Excalibur.Dispatch.Transport.TransportMessage>
+Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder.TransportMessageBuilder() -> void
+Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder.WithBody(System.Byte[] body) -> Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder
+Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder.WithBody(System.String body) -> Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder
+Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder.WithContentType(System.String contentType) -> Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder
+Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder.WithCorrelationId(System.String correlationId) -> Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder
+Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder.WithCreatedAt(System.DateTimeOffset createdAt) -> Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder
+Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder.WithId(System.String id) -> Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder
+Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder.WithMessageType(System.String messageType) -> Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder
+Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder.WithProperty(System.String key, System.Object value) -> Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder
+Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder.WithSubject(System.String subject) -> Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder
+Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder.WithTimeToLive(System.TimeSpan timeToLive) -> Excalibur.Dispatch.Testing.Builders.TransportMessageBuilder
+Excalibur.Dispatch.Testing.Diagnostics.TestMeterFactory
+Excalibur.Dispatch.Testing.Diagnostics.TestMeterFactory.Create(System.Diagnostics.Metrics.MeterOptions options) -> System.Diagnostics.Metrics.Meter
+Excalibur.Dispatch.Testing.Diagnostics.TestMeterFactory.Dispose() -> System.Void
+Excalibur.Dispatch.Testing.Diagnostics.TestMeterFactory.TestMeterFactory() -> void
+Excalibur.Dispatch.Testing.DispatchTestHarness
+Excalibur.Dispatch.Testing.DispatchTestHarness.ConfigureDispatch(System.Action<Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder> configure) -> Excalibur.Dispatch.Testing.DispatchTestHarness
+Excalibur.Dispatch.Testing.DispatchTestHarness.ConfigureServices(System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection> configure) -> Excalibur.Dispatch.Testing.DispatchTestHarness
+Excalibur.Dispatch.Testing.DispatchTestHarness.CreateScope() -> Microsoft.Extensions.DependencyInjection.IServiceScope
+Excalibur.Dispatch.Testing.DispatchTestHarness.Dispatched.get -> Excalibur.Dispatch.Testing.Tracking.IDispatchedMessageLog
+Excalibur.Dispatch.Testing.DispatchTestHarness.Dispatcher.get -> Excalibur.Dispatch.Abstractions.IDispatcher
+Excalibur.Dispatch.Testing.DispatchTestHarness.DispatchTestHarness() -> void
+Excalibur.Dispatch.Testing.DispatchTestHarness.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Testing.DispatchTestHarness.Services.get -> System.IServiceProvider
+Excalibur.Dispatch.Testing.HandlerTestHarness`1
+Excalibur.Dispatch.Testing.HandlerTestHarness`1.ConfigureServices(System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection> configure) -> Excalibur.Dispatch.Testing.HandlerTestHarness<>
+Excalibur.Dispatch.Testing.HandlerTestHarness`1.CreateContextBuilder() -> Excalibur.Dispatch.Testing.MessageContextBuilder
+Excalibur.Dispatch.Testing.HandlerTestHarness`1.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Testing.HandlerTestHarness`1.HandleAsync( action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Testing.HandlerTestHarness`1.HandleAsync( action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Dispatch.Testing.HandlerTestHarness`1.Handler.get -> 
+Excalibur.Dispatch.Testing.HandlerTestHarness`1.HandlerTestHarness`1() -> void
+Excalibur.Dispatch.Testing.HandlerTestHarness`1.Services.get -> System.IServiceProvider
+Excalibur.Dispatch.Testing.MessageContextBuilder
+Excalibur.Dispatch.Testing.MessageContextBuilder.Build() -> Excalibur.Dispatch.Abstractions.IMessageContext
+Excalibur.Dispatch.Testing.MessageContextBuilder.MessageContextBuilder() -> void
+Excalibur.Dispatch.Testing.MessageContextBuilder.WithCancellationToken(System.Threading.CancellationToken cancellationToken) -> Excalibur.Dispatch.Testing.MessageContextBuilder
+Excalibur.Dispatch.Testing.MessageContextBuilder.WithCausationId(System.String causationId) -> Excalibur.Dispatch.Testing.MessageContextBuilder
+Excalibur.Dispatch.Testing.MessageContextBuilder.WithContentType(System.String contentType) -> Excalibur.Dispatch.Testing.MessageContextBuilder
+Excalibur.Dispatch.Testing.MessageContextBuilder.WithCorrelationId(System.String correlationId) -> Excalibur.Dispatch.Testing.MessageContextBuilder
+Excalibur.Dispatch.Testing.MessageContextBuilder.WithDeliveryCount(System.Int32 deliveryCount) -> Excalibur.Dispatch.Testing.MessageContextBuilder
+Excalibur.Dispatch.Testing.MessageContextBuilder.WithExternalId(System.String externalId) -> Excalibur.Dispatch.Testing.MessageContextBuilder
+Excalibur.Dispatch.Testing.MessageContextBuilder.WithItem(System.String key, System.Object value) -> Excalibur.Dispatch.Testing.MessageContextBuilder
+Excalibur.Dispatch.Testing.MessageContextBuilder.WithMessage(Excalibur.Dispatch.Abstractions.IDispatchMessage message) -> Excalibur.Dispatch.Testing.MessageContextBuilder
+Excalibur.Dispatch.Testing.MessageContextBuilder.WithMessageId(System.String messageId) -> Excalibur.Dispatch.Testing.MessageContextBuilder
+Excalibur.Dispatch.Testing.MessageContextBuilder.WithMessageType(System.String messageType) -> Excalibur.Dispatch.Testing.MessageContextBuilder
+Excalibur.Dispatch.Testing.MessageContextBuilder.WithPartitionKey(System.String partitionKey) -> Excalibur.Dispatch.Testing.MessageContextBuilder
+Excalibur.Dispatch.Testing.MessageContextBuilder.WithRequestServices(System.IServiceProvider requestServices) -> Excalibur.Dispatch.Testing.MessageContextBuilder
+Excalibur.Dispatch.Testing.MessageContextBuilder.WithSessionId(System.String sessionId) -> Excalibur.Dispatch.Testing.MessageContextBuilder
+Excalibur.Dispatch.Testing.MessageContextBuilder.WithSource(System.String source) -> Excalibur.Dispatch.Testing.MessageContextBuilder
+Excalibur.Dispatch.Testing.MessageContextBuilder.WithTenantId(System.String tenantId) -> Excalibur.Dispatch.Testing.MessageContextBuilder
+Excalibur.Dispatch.Testing.MessageContextBuilder.WithTraceParent(System.String traceParent) -> Excalibur.Dispatch.Testing.MessageContextBuilder
+Excalibur.Dispatch.Testing.MessageContextBuilder.WithUserId(System.String userId) -> Excalibur.Dispatch.Testing.MessageContextBuilder
+Excalibur.Dispatch.Testing.MessageContextBuilder.WithWorkflowId(System.String workflowId) -> Excalibur.Dispatch.Testing.MessageContextBuilder
+Excalibur.Dispatch.Testing.Polling.WaitHelpers
+Excalibur.Dispatch.Testing.SagaTestHarness`1
+Excalibur.Dispatch.Testing.SagaTestHarness`1.ConfigureServices(System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection> configure) -> Excalibur.Dispatch.Testing.SagaTestHarness<>
+Excalibur.Dispatch.Testing.SagaTestHarness`1.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Testing.SagaTestHarness`1.ForceSendAsync(System.Object eventMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Testing.SagaTestHarness`1.HandlesEvent(System.Object eventMessage) -> System.Boolean
+Excalibur.Dispatch.Testing.SagaTestHarness`1.ProcessedEvents.get -> System.Collections.Generic.IReadOnlyList<System.Object>
+Excalibur.Dispatch.Testing.SagaTestHarness`1.Saga.get -> 
+Excalibur.Dispatch.Testing.SagaTestHarness`1.SagaTestHarness`1() -> void
+Excalibur.Dispatch.Testing.SagaTestHarness`1.SendAsync(System.Object eventMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Testing.SagaTestHarness`1.Services.get -> System.IServiceProvider
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessage
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.<Clone>$() -> Excalibur.Dispatch.Testing.Tracking.DispatchedMessage
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Context.get -> Excalibur.Dispatch.Abstractions.IMessageContext
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Context.set -> void
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Deconstruct(ref Excalibur.Dispatch.Abstractions.IDispatchMessage Message, ref Excalibur.Dispatch.Abstractions.IMessageContext Context, ref System.DateTimeOffset Timestamp, ref Excalibur.Dispatch.Abstractions.IMessageResult Result) -> System.Void
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.DispatchedMessage(Excalibur.Dispatch.Abstractions.IDispatchMessage Message, Excalibur.Dispatch.Abstractions.IMessageContext Context, System.DateTimeOffset Timestamp, Excalibur.Dispatch.Abstractions.IMessageResult Result) -> void
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Equals(Excalibur.Dispatch.Testing.Tracking.DispatchedMessage other) -> System.Boolean
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Equals(System.Object obj) -> System.Boolean
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.GetHashCode() -> System.Int32
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Message.get -> Excalibur.Dispatch.Abstractions.IDispatchMessage
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Message.set -> void
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Result.get -> Excalibur.Dispatch.Abstractions.IMessageResult
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Result.set -> void
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Timestamp.get -> System.DateTimeOffset
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.Timestamp.set -> void
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessage.ToString() -> System.String
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessageLog
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessageLog.All.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Testing.Tracking.DispatchedMessage>
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessageLog.Any() -> System.Boolean
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessageLog.Clear() -> System.Void
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessageLog.Count.get -> System.Int32
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessageLog.DispatchedMessageLog() -> void
+Excalibur.Dispatch.Testing.Tracking.DispatchedMessageLog.Select() -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Testing.Tracking.DispatchedMessage>
+Excalibur.Dispatch.Testing.Tracking.IDispatchedMessageLog
+Excalibur.Dispatch.Testing.Tracking.IDispatchedMessageLog.All.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Testing.Tracking.DispatchedMessage>
+Excalibur.Dispatch.Testing.Tracking.IDispatchedMessageLog.Any() -> System.Boolean
+Excalibur.Dispatch.Testing.Tracking.IDispatchedMessageLog.Clear() -> System.Void
+Excalibur.Dispatch.Testing.Tracking.IDispatchedMessageLog.Count.get -> System.Int32
+Excalibur.Dispatch.Testing.Tracking.IDispatchedMessageLog.Select() -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Testing.Tracking.DispatchedMessage>
+Excalibur.Dispatch.Testing.Transport.TransportReceiverConformanceTests
+Excalibur.Dispatch.Testing.Transport.TransportSenderConformanceTests
+Excalibur.Dispatch.Testing.Transport.TransportSubscriberConformanceTests
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportReceiver
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportReceiver.AcknowledgeAsync(Excalibur.Dispatch.Transport.TransportReceivedMessage message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportReceiver.AcknowledgedMessages.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Transport.TransportReceivedMessage>
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportReceiver.Clear() -> System.Void
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportReceiver.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportReceiver.Enqueue(Excalibur.Dispatch.Transport.TransportReceivedMessage message) -> System.Void
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportReceiver.Enqueue(Excalibur.Dispatch.Transport.TransportReceivedMessage[] messages) -> System.Void
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportReceiver.InMemoryTransportReceiver(System.String source) -> void
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportReceiver.ReceiveAsync(System.Int32 maxMessages, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Transport.TransportReceivedMessage>>
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportReceiver.RejectAsync(Excalibur.Dispatch.Transport.TransportReceivedMessage message, System.String reason, System.Boolean requeue, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportReceiver.RejectedMessages.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Testing.Transport.RejectedMessage>
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportReceiver.Source.get -> System.String
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportSender
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportSender.Clear() -> System.Void
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportSender.Destination.get -> System.String
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportSender.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportSender.FlushAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportSender.InMemoryTransportSender(System.String destination) -> void
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportSender.OnSend(System.Func<Excalibur.Dispatch.Transport.TransportMessage, Excalibur.Dispatch.Transport.SendResult> handler) -> Excalibur.Dispatch.Testing.Transport.InMemoryTransportSender
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportSender.SendAsync(Excalibur.Dispatch.Transport.TransportMessage message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.SendResult>
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportSender.SendBatchAsync(System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Transport.TransportMessage> messages, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.BatchSendResult>
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportSender.SentMessages.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Transport.TransportMessage>
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportSubscriber
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportSubscriber.Clear() -> System.Void
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportSubscriber.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportSubscriber.InMemoryTransportSubscriber(System.String source) -> void
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportSubscriber.IsSubscribed.get -> System.Boolean
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportSubscriber.ProcessedMessages.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Testing.Transport.ProcessedMessage>
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportSubscriber.PushAsync(Excalibur.Dispatch.Transport.TransportReceivedMessage message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.MessageAction>
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportSubscriber.Source.get -> System.String
+Excalibur.Dispatch.Testing.Transport.InMemoryTransportSubscriber.SubscribeAsync(System.Func<Excalibur.Dispatch.Transport.TransportReceivedMessage, System.Threading.CancellationToken, System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.MessageAction>> handler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Testing.Transport.ProcessedMessage
+Excalibur.Dispatch.Testing.Transport.ProcessedMessage.<Clone>$() -> Excalibur.Dispatch.Testing.Transport.ProcessedMessage
+Excalibur.Dispatch.Testing.Transport.ProcessedMessage.Action.get -> Excalibur.Dispatch.Transport.MessageAction
+Excalibur.Dispatch.Testing.Transport.ProcessedMessage.Action.set -> void
+Excalibur.Dispatch.Testing.Transport.ProcessedMessage.Deconstruct(ref Excalibur.Dispatch.Transport.TransportReceivedMessage Message, ref Excalibur.Dispatch.Transport.MessageAction Action) -> System.Void
+Excalibur.Dispatch.Testing.Transport.ProcessedMessage.Equals(Excalibur.Dispatch.Testing.Transport.ProcessedMessage other) -> System.Boolean
+Excalibur.Dispatch.Testing.Transport.ProcessedMessage.Equals(System.Object obj) -> System.Boolean
+Excalibur.Dispatch.Testing.Transport.ProcessedMessage.GetHashCode() -> System.Int32
+Excalibur.Dispatch.Testing.Transport.ProcessedMessage.Message.get -> Excalibur.Dispatch.Transport.TransportReceivedMessage
+Excalibur.Dispatch.Testing.Transport.ProcessedMessage.Message.set -> void
+Excalibur.Dispatch.Testing.Transport.ProcessedMessage.ProcessedMessage(Excalibur.Dispatch.Transport.TransportReceivedMessage Message, Excalibur.Dispatch.Transport.MessageAction Action) -> void
+Excalibur.Dispatch.Testing.Transport.ProcessedMessage.ToString() -> System.String
+Excalibur.Dispatch.Testing.Transport.RejectedMessage
+Excalibur.Dispatch.Testing.Transport.RejectedMessage.<Clone>$() -> Excalibur.Dispatch.Testing.Transport.RejectedMessage
+Excalibur.Dispatch.Testing.Transport.RejectedMessage.Deconstruct(ref Excalibur.Dispatch.Transport.TransportReceivedMessage Message, ref System.String Reason, ref System.Boolean Requeue) -> System.Void
+Excalibur.Dispatch.Testing.Transport.RejectedMessage.Equals(Excalibur.Dispatch.Testing.Transport.RejectedMessage other) -> System.Boolean
+Excalibur.Dispatch.Testing.Transport.RejectedMessage.Equals(System.Object obj) -> System.Boolean
+Excalibur.Dispatch.Testing.Transport.RejectedMessage.GetHashCode() -> System.Int32
+Excalibur.Dispatch.Testing.Transport.RejectedMessage.Message.get -> Excalibur.Dispatch.Transport.TransportReceivedMessage
+Excalibur.Dispatch.Testing.Transport.RejectedMessage.Message.set -> void
+Excalibur.Dispatch.Testing.Transport.RejectedMessage.Reason.get -> System.String
+Excalibur.Dispatch.Testing.Transport.RejectedMessage.Reason.set -> void
+Excalibur.Dispatch.Testing.Transport.RejectedMessage.RejectedMessage(Excalibur.Dispatch.Transport.TransportReceivedMessage Message, System.String Reason, System.Boolean Requeue) -> void
+Excalibur.Dispatch.Testing.Transport.RejectedMessage.Requeue.get -> System.Boolean
+Excalibur.Dispatch.Testing.Transport.RejectedMessage.Requeue.set -> void
+Excalibur.Dispatch.Testing.Transport.RejectedMessage.ToString() -> System.String
+Microsoft.Extensions.DependencyInjection.DispatchTestingServiceCollectionExtensions
+static Excalibur.Dispatch.Testing.Polling.WaitHelpers.RetryUntilSuccessAsync(System.Func<System.Threading.Tasks.Task> action, System.TimeSpan timeout, System.Nullable<System.TimeSpan> retryDelay, System.Int32 maxRetries, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Boolean>
+static Excalibur.Dispatch.Testing.Polling.WaitHelpers.WaitForValueAsync(System.Func<> producer, System.TimeSpan timeout, System.Nullable<System.TimeSpan> pollInterval, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+static Excalibur.Dispatch.Testing.Polling.WaitHelpers.WaitForValueAsync(System.Func<System.Threading.Tasks.Task<>> producer, System.TimeSpan timeout, System.Nullable<System.TimeSpan> pollInterval, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+static Excalibur.Dispatch.Testing.Polling.WaitHelpers.WaitUntilAsync(System.Func<System.Boolean> condition, System.TimeSpan timeout, System.Nullable<System.TimeSpan> pollInterval, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Boolean>
+static Excalibur.Dispatch.Testing.Polling.WaitHelpers.WaitUntilAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<System.Boolean>> condition, System.TimeSpan timeout, System.Nullable<System.TimeSpan> pollInterval, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Boolean>
+static Excalibur.Dispatch.Testing.Polling.WaitHelpers.WaitUntilAsync(System.Func<System.Threading.Tasks.Task<System.Boolean>> condition, System.TimeSpan timeout, System.Nullable<System.TimeSpan> pollInterval, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Boolean>
+static Microsoft.Extensions.DependencyInjection.DispatchTestingServiceCollectionExtensions.AddDispatchTesting(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String destination, System.String source) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static readonly Excalibur.Dispatch.Testing.Polling.WaitHelpers.DefaultPollInterval -> System.TimeSpan

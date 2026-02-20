@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <RunConfiguration>
+    <!-- Enable parallel test execution across assemblies -->
+    <MaxCpuCount>0</MaxCpuCount>
+    <!-- 0 = use all available processors -->
+
+    <!-- Timeout for individual tests (in milliseconds) -->
+    <TestSessionTimeout>300000</TestSessionTimeout>
+
+    <!-- Result output -->
+    <ResultsDirectory>./TestResults</ResultsDirectory>
+  </RunConfiguration>
+
+  <xUnit>
+    <!-- Parallel execution within assemblies -->
+    <ParallelizeAssembly>true</ParallelizeAssembly>
+    <ParallelizeTestCollections>true</ParallelizeTestCollections>
+    <MaxParallelThreads>0</MaxParallelThreads>
+    <PreEnumerateTheories>true</PreEnumerateTheories>
+    <ShadowCopy>false</ShadowCopy>
+    <LongRunningTestSeconds>30</LongRunningTestSeconds>
+  </xUnit>
+</RunSettings>

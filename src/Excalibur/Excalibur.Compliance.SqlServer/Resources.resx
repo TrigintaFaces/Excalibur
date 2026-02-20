@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="SqlServerErasureStoreOptions_ConnectionStringRequired" xml:space="preserve">
+    <value>ConnectionString is required for SQL Server erasure store</value>
+  </data>
+  <data name="SqlServerErasureStoreOptions_SchemaNameEmpty" xml:space="preserve">
+    <value>SchemaName cannot be empty</value>
+  </data>
+  <data name="SqlServerErasureStoreOptions_RequestsTableNameEmpty" xml:space="preserve">
+    <value>RequestsTableName cannot be empty</value>
+  </data>
+  <data name="SqlServerErasureStoreOptions_CertificatesTableNameEmpty" xml:space="preserve">
+    <value>CertificatesTableName cannot be empty</value>
+  </data>
+  <data name="SqlServerErasureStoreOptions_CommandTimeoutPositive" xml:space="preserve">
+    <value>CommandTimeoutSeconds must be positive</value>
+  </data>
+  <data name="SqlServerKeyEscrowService_ConnectionStringRequired" xml:space="preserve">
+    <value>Connection string is required</value>
+  </data>
+  <data name="SqlServerKeyEscrowService_KeyMaterialEmpty" xml:space="preserve">
+    <value>Key material cannot be empty</value>
+  </data>
+  <data name="SqlServerKeyEscrowService_RecoveryTokenExpired" xml:space="preserve">
+    <value>Recovery token has expired</value>
+  </data>
+  <data name="SqlServerKeyEscrowService_TokenEscrowIdMismatch" xml:space="preserve">
+    <value>Token escrow ID does not match</value>
+  </data>
+  <data name="SqlServerKeyEscrowService_CustodianCountTooLow" xml:space="preserve">
+    <value>Custodian count must be at least 2</value>
+  </data>
+  <data name="SqlServerKeyEscrowService_ThresholdTooLow" xml:space="preserve">
+    <value>Threshold must be at least 2</value>
+  </data>
+  <data name="SqlServerKeyEscrowService_ThresholdTooHigh" xml:space="preserve">
+    <value>Threshold cannot exceed custodian count</value>
+  </data>
+  <data name="SqlServerKeyEscrowService_NoEscrowFound" xml:space="preserve">
+    <value>No escrow found for key {0}</value>
+  </data>
+  <data name="SqlServerKeyEscrowService_EscrowNotRecoverable" xml:space="preserve">
+    <value>Escrow for key {0} is not recoverable (state: {1})</value>
+  </data>
+  <data name="SqlServerKeyEscrowService_ActiveEscrowNotFound" xml:space="preserve">
+    <value>Active escrow not found for key {0}</value>
+  </data>
+  <data name="SqlServerKeyEscrowService_InsufficientShares" xml:space="preserve">
+    <value>At least {0} shares required for recovery, but only {1} provided</value>
+  </data>
+  <data name="SqlServerKeyEscrowService_CannotGenerateTokensForState" xml:space="preserve">
+    <value>Cannot generate tokens for non-recoverable escrow (state: {0})</value>
+  </data>
+</root>

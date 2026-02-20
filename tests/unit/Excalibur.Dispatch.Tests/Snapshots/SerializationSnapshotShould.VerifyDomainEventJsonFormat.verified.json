@@ -1,0 +1,12 @@
+﻿{
+  "eventId": "evt-00000000-0000-0000-0000-000000000001",
+  "aggregateId": "order-42",
+  "version": 3,
+  "occurredAt": "2026-01-01T12:00:00+00:00",
+  "eventType": "OrderPlaced",
+  "metadata": {
+    "UserId": "user-001",
+    "TenantId": "tenant-001",
+    "CorrelationId": "corr-00000000-0000-0000-0000-000000000001"
+  }
+}

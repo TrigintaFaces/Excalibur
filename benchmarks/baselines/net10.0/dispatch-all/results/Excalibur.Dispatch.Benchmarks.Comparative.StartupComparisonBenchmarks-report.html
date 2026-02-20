@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Comparative.StartupComparisonBenchmarks-20260202-191540</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.102
+  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                     </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Dispatch: Container startup&#39;</td><td>5.855 &mu;s</td><td>0.1060 &mu;s</td><td>0.0940 &mu;s</td><td>1.00</td><td>0.02</td><td>1.4877</td><td>0.1297</td><td>27.45 KB</td><td>1.00</td>
+</tr><tr><td>&#39;MediatR: Container startup&#39;</td><td>308.318 &mu;s</td><td>4.4839 &mu;s</td><td>3.9748 &mu;s</td><td>52.67</td><td>1.04</td><td>78.1250</td><td>1.4648</td><td>1435.86 KB</td><td>52.32</td>
+</tr><tr><td>&#39;Dispatch: Startup + 10 handlers&#39;</td><td>5.881 &mu;s</td><td>0.0437 &mu;s</td><td>0.0341 &mu;s</td><td>1.00</td><td>0.02</td><td>1.5259</td><td>0.1297</td><td>28.16 KB</td><td>1.03</td>
+</tr><tr><td>&#39;MediatR: Startup + 10 handlers&#39;</td><td>325.203 &mu;s</td><td>6.1222 &mu;s</td><td>6.5507 &mu;s</td><td>55.56</td><td>1.38</td><td>78.1250</td><td>-</td><td>1435.87 KB</td><td>52.32</td>
+</tr></tbody></table>
+</body>
+</html>

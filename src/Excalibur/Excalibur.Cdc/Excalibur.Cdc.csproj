@@ -1,0 +1,45 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<IsPackable>true</IsPackable>
+		<PackageId>Excalibur.Cdc</PackageId>
+		<Description>Change Data Capture (CDC) abstractions for Excalibur, providing fluent builder configuration for table change tracking.</Description>
+		<PackageTags>excalibur;cdc;change-data-capture;event-sourcing;data-capture</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+	</PropertyGroup>
+
+	<!-- AOT Configuration -->
+	<PropertyGroup>
+		<IsAotCompatible>true</IsAotCompatible>
+		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+		<PublishAot Condition="'$(PublishAot)' == ''">false</PublishAot>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(PublishAot)' == 'true' OR '$(PublishTrimmed)' == 'true'">
+		<SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
+		<TrimmerDefaultAction>link</TrimmerDefaultAction>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="/" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Options" />
+		<PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+	</ItemGroup>
+
+	<ItemGroup><ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" /></ItemGroup><ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+		
+		<ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+	</ItemGroup>
+
+	<!-- CI mode: PackageReference for Dispatch packages -->
+	<ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+		<PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+	</ItemGroup>
+</Project>

@@ -1,0 +1,139 @@
+{
+  "version": "1.0",
+  "created": "2026-01-25",
+  "source": "Sprint 458 Performance Optimization Epic",
+  "regressionThreshold": 0.10,
+  "baselines": {
+    "dispatch": {
+      "DirectHandlerInvocation_Command": {
+        "meanNs": 0.13,
+        "allocatedBytes": 0,
+        "description": "Direct handler invocation - near-zero overhead baseline"
+      },
+      "FrozenDictionary_ResolveAndInvoke_Command": {
+        "meanNs": 6.77,
+        "allocatedBytes": 0,
+        "description": "FrozenDictionary lookup + handler invocation"
+      },
+      "ConcurrentDictionary_ResolveAndInvoke_Command": {
+        "meanNs": 7.21,
+        "allocatedBytes": 0,
+        "description": "ConcurrentDictionary lookup + handler invocation"
+      },
+      "FullPipeline_DispatchCommand": {
+        "meanNs": 4940,
+        "allocatedBytes": 5775,
+        "description": "Full pipeline dispatch including all middleware"
+      }
+    },
+    "middleware": {
+      "DirectTypedInvocation_SingleMiddleware": {
+        "meanNs": 6.94,
+        "allocatedBytes": 128,
+        "description": "Single middleware with direct typed invocation"
+      },
+      "InterfaceDispatch_SingleMiddleware": {
+        "meanNs": 10.36,
+        "allocatedBytes": 128,
+        "description": "Single middleware with interface dispatch"
+      },
+      "FrozenRegistry_LookupAndInvoke": {
+        "meanNs": 16.46,
+        "allocatedBytes": 128,
+        "description": "FrozenDictionary middleware registry lookup and invocation"
+      },
+      "Pipeline3Stages_DirectTyped": {
+        "meanNs": 16.22,
+        "allocatedBytes": 128,
+        "description": "3-stage pipeline with direct typed invocation"
+      },
+      "Pipeline5Stages_DirectTyped": {
+        "meanNs": 21.08,
+        "allocatedBytes": 128,
+        "description": "5-stage pipeline with direct typed invocation"
+      }
+    },
+    "pipeline": {
+      "NoMiddleware_Pipeline": {
+        "meanNs": 10.94,
+        "allocatedBytes": 128,
+        "description": "Pipeline execution without middleware"
+      },
+      "BeforeAfter_Middleware": {
+        "meanNs": 11.09,
+        "allocatedBytes": 128,
+        "description": "Pipeline with before/after middleware"
+      },
+      "TryCatch_Middleware": {
+        "meanNs": 16.13,
+        "allocatedBytes": 128,
+        "description": "Pipeline with try-catch middleware"
+      },
+      "FullPipeline_DeterministicCommand": {
+        "meanNs": 5044,
+        "allocatedBytes": 5776,
+        "description": "Full pipeline for deterministic command type"
+      },
+      "FullPipeline_NonDeterministicCommand": {
+        "meanNs": 8332,
+        "allocatedBytes": 6520,
+        "description": "Full pipeline for non-deterministic command type"
+      },
+      "StaticPipeline_Batch100": {
+        "meanNs": 80.32,
+        "allocatedBytes": 0,
+        "description": "Static pipeline batch of 100 calls - zero allocation"
+      },
+      "FullPipeline_Batch100": {
+        "meanNs": 612025,
+        "allocatedBytes": 577704,
+        "description": "Dynamic pipeline batch of 100 calls"
+      }
+    },
+    "cache": {
+      "Dictionary_TryGetValue": {
+        "meanNs": 6.21,
+        "allocatedBytes": 0,
+        "description": "Standard Dictionary lookup"
+      },
+      "ConcurrentDictionary_TryGetValue": {
+        "meanNs": 7.07,
+        "allocatedBytes": 0,
+        "description": "ConcurrentDictionary lookup"
+      },
+      "CreateCacheEntry_Class": {
+        "meanNs": 43.17,
+        "allocatedBytes": 56,
+        "description": "Cache entry creation with class"
+      },
+      "CreateCacheEntry_Struct": {
+        "meanNs": 36.77,
+        "allocatedBytes": 0,
+        "description": "Cache entry creation with struct"
+      }
+    }
+  },
+  "thresholds": {
+    "hotPath": {
+      "maxMeanNs": 100,
+      "maxAllocatedBytes": 256,
+      "description": "Hot path operations must complete in <100ns with minimal allocations"
+    },
+    "fullPipeline": {
+      "maxMeanNs": 10000,
+      "maxAllocatedBytes": 10000,
+      "description": "Full pipeline dispatch should complete in <10ms"
+    },
+    "staticPipeline": {
+      "maxMeanNs": 200,
+      "maxAllocatedBytes": 0,
+      "description": "Static pipeline must be zero-allocation"
+    }
+  },
+  "notes": [
+    "Baselines established from Sprint 458 Performance Optimization Epic",
+    "All measurements taken on Intel Core i9-14900K, .NET 9.0.12",
+    "Regression threshold: 10% - builds fail if performance degrades by more than 10%",
+    "Memory regression threshold: 20% - allocations should not increase significantly"
+  ]
+}

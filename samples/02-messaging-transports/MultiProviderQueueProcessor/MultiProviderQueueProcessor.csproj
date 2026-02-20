@@ -1,0 +1,63 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+	<PropertyGroup>
+		<TargetFramework>net9.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<RootNamespace>MultiProviderQueueProcessor</RootNamespace>
+		<!-- Suppress warnings irrelevant for sample code -->
+		<NoWarn>$(NoWarn);CS8603;CA1724</NoWarn>
+	</PropertyGroup>
+
+	<!-- Sprint 428 S428.3: Updated paths for reorganized sample structure -->
+	<!-- Dispatch Core -->
+	<ItemGroup>
+		<ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+		<ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+	</ItemGroup>
+
+	<!-- Transport Providers -->
+	<ItemGroup>
+		<ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Transport.Abstractions\Excalibur.Dispatch.Transport.Abstractions.csproj" />
+		<ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Transport.AwsSqs\Excalibur.Dispatch.Transport.AwsSqs.csproj" />
+		<ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Transport.AzureServiceBus\Excalibur.Dispatch.Transport.AzureServiceBus.csproj" />
+		<ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Transport.GooglePubSub\Excalibur.Dispatch.Transport.GooglePubSub.csproj" />
+		<ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Transport.Kafka\Excalibur.Dispatch.Transport.Kafka.csproj" />
+		<ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Transport.RabbitMQ\Excalibur.Dispatch.Transport.RabbitMQ.csproj" />
+	</ItemGroup>
+
+	<!-- Event Sourcing -->
+	<ItemGroup>
+		<ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+		<ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
+		<ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.SqlServer\Excalibur.EventSourcing.SqlServer.csproj" />
+	</ItemGroup>
+
+	<!-- ElasticSearch Projections -->
+	<ItemGroup>
+		<ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.ElasticSearch\Excalibur.Data.ElasticSearch.csproj" />
+	</ItemGroup>
+
+	<!-- Domain -->
+	<ItemGroup>
+		<ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Domain\Excalibur.Domain.csproj" />
+	</ItemGroup>
+
+	<!-- Configuration (versions managed by Directory.Packages.props) -->
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Extensions.Hosting" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+	</ItemGroup>
+
+	<!-- appsettings.json is automatically included by SDK -->
+	<ItemGroup>
+		<None Update="appsettings.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<None Update="appsettings.*.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+			<DependentUpon>appsettings.json</DependentUpon>
+		</None>
+	</ItemGroup>
+
+</Project>

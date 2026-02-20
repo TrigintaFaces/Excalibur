@@ -1,0 +1,68 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>CdcJobQuartz</RootNamespace>
+    <Description>Sample demonstrating Quartz.NET scheduled CDC processing with CdcJob from Excalibur.Jobs</Description>
+    <IsPackable>false</IsPackable>
+    <!-- Suppress warnings for samples (demo code intentionally couples many types and uses inline arrays) -->
+    <NoWarn>$(NoWarn);CA1506;CA1303;CA1505;CA1861</NoWarn>
+  </PropertyGroup>
+
+  <!-- Dispatch core (messaging, dispatching) -->
+  <ItemGroup>
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+  </ItemGroup>
+
+  <!-- Excalibur Domain (aggregates, entities) -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Domain\Excalibur.Domain.csproj" />
+  </ItemGroup>
+
+  <!-- CDC from SQL Server (Anti-Corruption Layer) -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />
+  </ItemGroup>
+
+  <!-- Excalibur Jobs with Quartz.NET (CdcJob) -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Jobs\Excalibur.Jobs.csproj" />
+  </ItemGroup>
+
+  <!-- Event Sourcing with SQL Server provider -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.SqlServer\Excalibur.EventSourcing.SqlServer.csproj" />
+  </ItemGroup>
+
+  <!-- Elasticsearch projections -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.ElasticSearch\Excalibur.Data.ElasticSearch.csproj" />
+  </ItemGroup>
+
+  <!-- Logging and hosting -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+  </ItemGroup>
+
+  <!-- Content files -->
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="docker-compose.yml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

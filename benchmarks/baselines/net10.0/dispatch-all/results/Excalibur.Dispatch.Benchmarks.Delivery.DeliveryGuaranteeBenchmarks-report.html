@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Delivery.DeliveryGuaranteeBenchmarks-20260202-192608</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.102
+  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  Job-CNUJVU : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>InvocationCount=1  UnrollFactor=1  
+</code></pre>
+
+<table>
+<thead><tr><th>Method           </th><th>GuaranteeLevel</th><th>BatchSize</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>ProcessBatch</td><td>AtLeastOnce</td><td>10</td><td>3.520 &mu;s</td><td>0.1370 &mu;s</td><td>0.3842 &mu;s</td><td>3.500 &mu;s</td><td>1.01</td><td>0.15</td><td>328 B</td><td>1.00</td>
+</tr><tr><td>ThroughputMeasurement</td><td>AtLeastOnce</td><td>10</td><td>6.871 &mu;s</td><td>0.3392 &mu;s</td><td>0.9840 &mu;s</td><td>6.600 &mu;s</td><td>1.97</td><td>0.35</td><td>840 B</td><td>2.56</td>
+</tr><tr><td>FailureRecoveryOverhead</td><td>AtLeastOnce</td><td>10</td><td>7.025 &mu;s</td><td>0.3485 &mu;s</td><td>1.0221 &mu;s</td><td>7.100 &mu;s</td><td>2.02</td><td>0.36</td><td>472 B</td><td>1.44</td>
+</tr><tr><td>ProcessBatch</td><td>AtLeastOnce</td><td>100</td><td>12.528 &mu;s</td><td>0.2486 &mu;s</td><td>0.3644 &mu;s</td><td>12.500 &mu;s</td><td>1.00</td><td>0.04</td><td>1048 B</td><td>1.00</td>
+</tr><tr><td>ThroughputMeasurement</td><td>AtLeastOnce</td><td>100</td><td>55.449 &mu;s</td><td>1.6214 &mu;s</td><td>4.7553 &mu;s</td><td>56.200 &mu;s</td><td>4.43</td><td>0.40</td><td>3000 B</td><td>2.86</td>
+</tr><tr><td>FailureRecoveryOverhead</td><td>AtLeastOnce</td><td>100</td><td>6.296 &mu;s</td><td>0.2719 &mu;s</td><td>0.7714 &mu;s</td><td>6.000 &mu;s</td><td>0.50</td><td>0.06</td><td>1984 B</td><td>1.89</td>
+</tr><tr><td>ProcessBatch</td><td>MinimizedWindow</td><td>10</td><td>3.396 &mu;s</td><td>0.1310 &mu;s</td><td>0.3739 &mu;s</td><td>3.300 &mu;s</td><td>1.01</td><td>0.15</td><td>328 B</td><td>1.00</td>
+</tr><tr><td>ThroughputMeasurement</td><td>MinimizedWindow</td><td>10</td><td>6.182 &mu;s</td><td>0.1280 &mu;s</td><td>0.3714 &mu;s</td><td>6.100 &mu;s</td><td>1.84</td><td>0.22</td><td>840 B</td><td>2.56</td>
+</tr><tr><td>FailureRecoveryOverhead</td><td>MinimizedWindow</td><td>10</td><td>4.009 &mu;s</td><td>0.2967 &mu;s</td><td>0.8369 &mu;s</td><td>3.800 &mu;s</td><td>1.19</td><td>0.28</td><td>472 B</td><td>1.44</td>
+</tr><tr><td>ProcessBatch</td><td>MinimizedWindow</td><td>100</td><td>12.643 &mu;s</td><td>0.4360 &mu;s</td><td>1.2717 &mu;s</td><td>12.750 &mu;s</td><td>1.01</td><td>0.17</td><td>1048 B</td><td>1.00</td>
+</tr><tr><td>ThroughputMeasurement</td><td>MinimizedWindow</td><td>100</td><td>37.976 &mu;s</td><td>0.7599 &mu;s</td><td>2.1183 &mu;s</td><td>37.500 &mu;s</td><td>3.04</td><td>0.43</td><td>3000 B</td><td>2.86</td>
+</tr><tr><td>FailureRecoveryOverhead</td><td>MinimizedWindow</td><td>100</td><td>6.253 &mu;s</td><td>0.2976 &mu;s</td><td>0.8393 &mu;s</td><td>5.950 &mu;s</td><td>0.50</td><td>0.09</td><td>1984 B</td><td>1.89</td>
+</tr><tr><td>ProcessBatch</td><td>Trans(...)cable [27]</td><td>10</td><td>3.288 &mu;s</td><td>0.1376 &mu;s</td><td>0.4014 &mu;s</td><td>3.200 &mu;s</td><td>1.01</td><td>0.17</td><td>368 B</td><td>1.00</td>
+</tr><tr><td>ThroughputMeasurement</td><td>Trans(...)cable [27]</td><td>10</td><td>4.885 &mu;s</td><td>0.1937 &mu;s</td><td>0.5432 &mu;s</td><td>4.700 &mu;s</td><td>1.51</td><td>0.24</td><td>960 B</td><td>2.61</td>
+</tr><tr><td>FailureRecoveryOverhead</td><td>Trans(...)cable [27]</td><td>10</td><td>3.787 &mu;s</td><td>0.2309 &mu;s</td><td>0.6624 &mu;s</td><td>3.700 &mu;s</td><td>1.17</td><td>0.25</td><td>472 B</td><td>1.28</td>
+</tr><tr><td>ProcessBatch</td><td>Trans(...)cable [27]</td><td>100</td><td>6.590 &mu;s</td><td>0.1864 &mu;s</td><td>0.5226 &mu;s</td><td>6.500 &mu;s</td><td>1.01</td><td>0.11</td><td>1088 B</td><td>1.00</td>
+</tr><tr><td>ThroughputMeasurement</td><td>Trans(...)cable [27]</td><td>100</td><td>18.861 &mu;s</td><td>0.5335 &mu;s</td><td>1.5478 &mu;s</td><td>18.500 &mu;s</td><td>2.88</td><td>0.32</td><td>3120 B</td><td>2.87</td>
+</tr><tr><td>FailureRecoveryOverhead</td><td>Trans(...)cable [27]</td><td>100</td><td>6.494 &mu;s</td><td>0.2700 &mu;s</td><td>0.7747 &mu;s</td><td>6.400 &mu;s</td><td>0.99</td><td>0.14</td><td>1984 B</td><td>1.82</td>
+</tr></tbody></table>
+</body>
+</html>

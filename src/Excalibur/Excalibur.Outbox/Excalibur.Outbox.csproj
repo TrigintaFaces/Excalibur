@@ -1,0 +1,60 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<IsPackable>true</IsPackable>
+		<PackageId>Excalibur.Outbox</PackageId>
+		<Description>Transactional outbox pattern implementation for Excalibur, providing reliable message delivery with at-least-once semantics.</Description>
+		<PackageTags>excalibur;outbox;transactional-outbox;messaging;reliable-delivery</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+	</PropertyGroup>
+
+	<!-- AOT Configuration -->
+	<PropertyGroup>
+		<IsAotCompatible>true</IsAotCompatible>
+		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+		<PublishAot Condition="'$(PublishAot)' == ''">false</PublishAot>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(PublishAot)' == 'true' OR '$(PublishTrimmed)' == 'true'">
+		<SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
+		<TrimmerDefaultAction>link</TrimmerDefaultAction>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Update="Resources.resx">
+			<Generator>ResXFileCodeGenerator</Generator>
+			<LastGenOutput>Resources.Designer.cs</LastGenOutput>
+		</EmbeddedResource>
+		<Compile Update="Resources.Designer.cs">
+			<DesignTime>True</DesignTime>
+			<AutoGen>True</AutoGen>
+			<DependentUpon>Resources.resx</DependentUpon>
+		</Compile>
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+		<PackageReference Include="Microsoft.Extensions.Options" />
+	</ItemGroup>
+
+	<ItemGroup><ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" /></ItemGroup><ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+		
+		<ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+		<ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+	</ItemGroup>
+
+	<!-- CI mode: PackageReference for Dispatch packages -->
+	<ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+		<PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+		<PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
+	</ItemGroup>
+
+	<!-- Enable testing of internal types -->
+	<ItemGroup>
+		<InternalsVisibleTo Include="Excalibur.Outbox.Tests" />
+	</ItemGroup>
+</Project>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<IsPackable>true</IsPackable>
+		<RootNamespace>Excalibur.LeaderElection.Kubernetes</RootNamespace>
+		<!-- Not AOT compatible due to KubernetesClient reflection usage -->
+		<IsAotCompatible>false</IsAotCompatible>
+		<EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<PackageId>Excalibur.LeaderElection.Kubernetes</PackageId>
+		<Description>Kubernetes-based leader election implementation for Excalibur framework. Provides distributed coordination using Kubernetes Lease resources for cloud-native applications.</Description>
+		<PackageTags>excalibur;leader-election;kubernetes;k8s;distributed;coordination;cloudnative</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Excalibur.LeaderElection\Excalibur.LeaderElection.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="KubernetesClient" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Options" />
+		<PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+		<PackageReference Include="Polly" />
+		<PackageReference Include="System.Text.Json" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="/" />
+	</ItemGroup>
+</Project>

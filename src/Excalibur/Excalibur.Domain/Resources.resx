@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="ApiException_DefaultMessage" xml:space="preserve">
+    <value>An unexpected error occurred</value>
+  </data>
+  <data name="ApiException_StatusCodeRangeMessage" xml:space="preserve">
+    <value>The status code must be between 100 and 599</value>
+  </data>
+  <data name="ClientAddress_InvalidFormat" xml:space="preserve">
+    <value>Invalid IP address format.</value>
+  </data>
+  <data name="Money_DivideByZero" xml:space="preserve">
+    <value>Cannot divide by zero.</value>
+  </data>
+  <data name="Money_CultureMismatch" xml:space="preserve">
+    <value>In order to perform operations on Money object, they must use the same culture.</value>
+  </data>
+  <data name="Money_InvalidDenomination" xml:space="preserve">
+    <value>Denomination must be greater than zero if specified.</value>
+  </data>
+  <data name="Money_AmountNotMultipleOfDenomination" xml:space="preserve">
+    <value>Amount must be a multiple of the denomination.</value>
+  </data>
+  <data name="Money_AmountMustBeWholeForBill" xml:space="preserve">
+    <value>Amount must be a whole number if the denomination is a bill.</value>
+  </data>
+  <data name="DomainException_DefaultMessage" xml:space="preserve">
+    <value>Exception within application logic.</value>
+  </data>
+  <data name="InvalidConfigurationException_DefaultMessage" xml:space="preserve">
+    <value>A configuration setting is missing or invalid.</value>
+  </data>
+  <data name="InvalidConfigurationException_SettingMissing" xml:space="preserve">
+    <value>The '{0}' setting is missing or invalid.</value>
+  </data>
+  <data name="ApplicationContext_CircularReferenceDetected" xml:space="preserve">
+    <value>Circular reference detected in configuration path {0} &gt; {1}</value>
+  </data>
+  <data name="ApplicationContext_UnresolvedPlaceholder" xml:space="preserve">
+    <value>Unresolved placeholder: {0}</value>
+  </data>
+  <data name="ApplicationContext_ExpandValueFailed" xml:space="preserve">
+    <value>Error expanding value '{0}'</value>
+  </data>
+  <data name="TaskExtensions_TimeoutExceeded" xml:space="preserve">
+    <value>The operation did not complete within the timeout of {0} seconds.</value>
+  </data>
+  <data name="Money_InvalidFormat" xml:space="preserve">
+    <value>Cannot parse '{0}' as a monetary value for culture '{1}'.</value>
+  </data>
+</root>

@@ -1,0 +1,142 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+# SPDX-License-Identifier: Apache-2.0
+
+# ============================================================================
+# CDC + Event Store + Elasticsearch Infrastructure
+# ============================================================================
+#
+# This docker-compose file sets up the complete infrastructure for the sample:
+#
+#   - SQL Server #1 (port 1433): CDC source database (legacy system simulation)
+#   - SQL Server #2 (port 1434): Event Store database
+#   - Elasticsearch (port 9200): Projections and materialized views
+#   - Kibana (port 5601): Optional - Elasticsearch visualization
+#
+# Usage:
+#   docker-compose up -d
+#
+# Wait for services to be healthy before running the sample.
+# ============================================================================
+
+services:
+  # SQL Server #1 - CDC Source (Legacy Database)
+  sqlserver-cdc:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: excalibur-sqlserver-cdc
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourStrong@Passw0rd
+      - MSSQL_PID=Developer
+      - MSSQL_AGENT_ENABLED=true
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-cdc-data:/var/opt/mssql
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "YourStrong@Passw0rd" -Q "SELECT 1" -C || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # SQL Server #2 - Event Store
+  sqlserver-eventstore:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: excalibur-sqlserver-eventstore
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourStrong@Passw0rd
+      - MSSQL_PID=Developer
+    ports:
+      - "1434:1433"
+    volumes:
+      - sqlserver-eventstore-data:/var/opt/mssql
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "YourStrong@Passw0rd" -Q "SELECT 1" -C || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # Elasticsearch - Projections
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    container_name: excalibur-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: curl -s http://localhost:9200/_cluster/health | grep -q '"status":"green"\|"status":"yellow"'
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  # Kibana - Optional visualization
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.0
+    container_name: excalibur-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    profiles:
+      - visualization
+
+volumes:
+  sqlserver-cdc-data:
+  sqlserver-eventstore-data:
+  elasticsearch-data:
+
+# ============================================================================
+# Quick Start Commands
+# ============================================================================
+#
+# Start core infrastructure:
+#   docker-compose up -d
+#
+# Start with Kibana visualization:
+#   docker-compose --profile visualization up -d
+#
+# View logs:
+#   docker-compose logs -f
+#
+# Stop all services:
+#   docker-compose down
+#
+# Stop and remove volumes:
+#   docker-compose down -v
+#
+# ============================================================================
+# Database Setup (run after containers are healthy)
+# ============================================================================
+#
+# SQL Server #1 (CDC Source) - Create database and enable CDC:
+#
+#   docker exec -it excalibur-sqlserver-cdc /opt/mssql-tools18/bin/sqlcmd \
+#     -S localhost -U sa -P "YourStrong@Passw0rd" -C \
+#     -Q "CREATE DATABASE LegacyDb"
+#
+#   docker exec -it excalibur-sqlserver-cdc /opt/mssql-tools18/bin/sqlcmd \
+#     -S localhost -U sa -P "YourStrong@Passw0rd" -C -d LegacyDb \
+#     -Q "EXEC sys.sp_cdc_enable_db"
+#
+# SQL Server #2 (Event Store) - Create database:
+#
+#   docker exec -it excalibur-sqlserver-eventstore /opt/mssql-tools18/bin/sqlcmd \
+#     -S localhost -U sa -P "YourStrong@Passw0rd" -C \
+#     -Q "CREATE DATABASE EventStore"
+#
+# Note: The Excalibur.EventSourcing.SqlServer package will create the schema
+# automatically on first use.
+#
+# ============================================================================

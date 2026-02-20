@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Sprint463.MiddlewareChainBuilderBenchmarks-20260202-203737</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.102
+  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method           </th><th>MiddlewareCount</th><th>Mean  </th><th>Error</th><th>StdDev </th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>DirectHandlerInvocation</td><td>0</td><td>5.087 ns</td><td>0.1042 ns</td><td>0.0923 ns</td><td>5.084 ns</td><td>1.00</td><td>0.02</td><td>0.0030</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>ChainExecution_Unfrozen</td><td>0</td><td>6.677 ns</td><td>0.1304 ns</td><td>0.1219 ns</td><td>6.693 ns</td><td>1.31</td><td>0.03</td><td>0.0030</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>ChainExecution_Frozen</td><td>0</td><td>7.553 ns</td><td>0.1322 ns</td><td>0.1172 ns</td><td>7.575 ns</td><td>1.49</td><td>0.03</td><td>0.0030</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>ChainLookupAndExecution</td><td>0</td><td>11.454 ns</td><td>0.6491 ns</td><td>1.9138 ns</td><td>11.218 ns</td><td>2.25</td><td>0.38</td><td>0.0030</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>EmptyChain</td><td>0</td><td>6.823 ns</td><td>0.1701 ns</td><td>0.4298 ns</td><td>6.741 ns</td><td>1.34</td><td>0.09</td><td>0.0030</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>ChainExecution_Batch100</td><td>0</td><td>1,067.163 ns</td><td>13.8520 ns</td><td>12.9572 ns</td><td>1,065.586 ns</td><td>209.85</td><td>4.45</td><td>0.3014</td><td>5672 B</td><td>101.29</td>
+</tr><tr><td>DirectHandlerInvocation</td><td>1</td><td>4.958 ns</td><td>0.1341 ns</td><td>0.1836 ns</td><td>5.012 ns</td><td>1.00</td><td>0.05</td><td>0.0030</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>ChainExecution_Unfrozen</td><td>1</td><td>70.118 ns</td><td>0.3532 ns</td><td>0.2758 ns</td><td>70.098 ns</td><td>14.16</td><td>0.53</td><td>0.0093</td><td>176 B</td><td>3.14</td>
+</tr><tr><td>ChainExecution_Frozen</td><td>1</td><td>91.818 ns</td><td>6.7275 ns</td><td>19.8363 ns</td><td>86.963 ns</td><td>18.54</td><td>4.05</td><td>0.0093</td><td>176 B</td><td>3.14</td>
+</tr><tr><td>ChainLookupAndExecution</td><td>1</td><td>83.755 ns</td><td>2.2590 ns</td><td>6.4451 ns</td><td>82.692 ns</td><td>16.92</td><td>1.44</td><td>0.0093</td><td>176 B</td><td>3.14</td>
+</tr><tr><td>EmptyChain</td><td>1</td><td>7.476 ns</td><td>0.1971 ns</td><td>0.5686 ns</td><td>7.370 ns</td><td>1.51</td><td>0.13</td><td>0.0030</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>ChainExecution_Batch100</td><td>1</td><td>7,363.761 ns</td><td>146.8484 ns</td><td>399.5120 ns</td><td>7,259.929 ns</td><td>1,487.23</td><td>97.69</td><td>0.9384</td><td>17672 B</td><td>315.57</td>
+</tr><tr><td>DirectHandlerInvocation</td><td>3</td><td>5.813 ns</td><td>0.1602 ns</td><td>0.4723 ns</td><td>5.765 ns</td><td>1.01</td><td>0.12</td><td>0.0030</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>ChainExecution_Unfrozen</td><td>3</td><td>83.476 ns</td><td>3.1479 ns</td><td>9.2817 ns</td><td>81.840 ns</td><td>14.46</td><td>1.99</td><td>0.0093</td><td>176 B</td><td>3.14</td>
+</tr><tr><td>ChainExecution_Frozen</td><td>3</td><td>97.640 ns</td><td>4.2446 ns</td><td>12.5152 ns</td><td>97.847 ns</td><td>16.91</td><td>2.57</td><td>0.0093</td><td>176 B</td><td>3.14</td>
+</tr><tr><td>ChainLookupAndExecution</td><td>3</td><td>107.430 ns</td><td>3.1887 ns</td><td>9.4020 ns</td><td>109.674 ns</td><td>18.60</td><td>2.23</td><td>0.0093</td><td>176 B</td><td>3.14</td>
+</tr><tr><td>EmptyChain</td><td>3</td><td>8.325 ns</td><td>0.2400 ns</td><td>0.7077 ns</td><td>8.400 ns</td><td>1.44</td><td>0.17</td><td>0.0030</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>ChainExecution_Batch100</td><td>3</td><td>8,974.756 ns</td><td>507.2599 ns</td><td>1,495.6673 ns</td><td>8,451.483 ns</td><td>1,554.13</td><td>288.11</td><td>0.9384</td><td>17672 B</td><td>315.57</td>
+</tr><tr><td>DirectHandlerInvocation</td><td>5</td><td>5.000 ns</td><td>0.1656 ns</td><td>0.4831 ns</td><td>4.947 ns</td><td>1.01</td><td>0.14</td><td>0.0030</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>ChainExecution_Unfrozen</td><td>5</td><td>79.214 ns</td><td>1.6148 ns</td><td>4.6331 ns</td><td>78.973 ns</td><td>15.99</td><td>1.81</td><td>0.0093</td><td>176 B</td><td>3.14</td>
+</tr><tr><td>ChainExecution_Frozen</td><td>5</td><td>82.044 ns</td><td>2.3011 ns</td><td>6.6760 ns</td><td>80.600 ns</td><td>16.56</td><td>2.09</td><td>0.0093</td><td>176 B</td><td>3.14</td>
+</tr><tr><td>ChainLookupAndExecution</td><td>5</td><td>85.158 ns</td><td>2.2754 ns</td><td>6.6376 ns</td><td>84.181 ns</td><td>17.19</td><td>2.14</td><td>0.0093</td><td>176 B</td><td>3.14</td>
+</tr><tr><td>EmptyChain</td><td>5</td><td>7.667 ns</td><td>0.1956 ns</td><td>0.5769 ns</td><td>7.601 ns</td><td>1.55</td><td>0.19</td><td>0.0030</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>ChainExecution_Batch100</td><td>5</td><td>8,439.536 ns</td><td>209.1905 ns</td><td>613.5196 ns</td><td>8,324.068 ns</td><td>1,703.71</td><td>206.19</td><td>0.9308</td><td>17672 B</td><td>315.57</td>
+</tr><tr><td>DirectHandlerInvocation</td><td>10</td><td>5.874 ns</td><td>0.1642 ns</td><td>0.4763 ns</td><td>5.890 ns</td><td>1.01</td><td>0.11</td><td>0.0030</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>ChainExecution_Unfrozen</td><td>10</td><td>90.407 ns</td><td>2.3310 ns</td><td>6.7627 ns</td><td>90.258 ns</td><td>15.49</td><td>1.69</td><td>0.0093</td><td>176 B</td><td>3.14</td>
+</tr><tr><td>ChainExecution_Frozen</td><td>10</td><td>90.196 ns</td><td>2.0755 ns</td><td>6.0872 ns</td><td>88.352 ns</td><td>15.46</td><td>1.61</td><td>0.0093</td><td>176 B</td><td>3.14</td>
+</tr><tr><td>ChainLookupAndExecution</td><td>10</td><td>89.796 ns</td><td>1.8347 ns</td><td>5.1447 ns</td><td>88.853 ns</td><td>15.39</td><td>1.51</td><td>0.0093</td><td>176 B</td><td>3.14</td>
+</tr><tr><td>EmptyChain</td><td>10</td><td>8.036 ns</td><td>0.2599 ns</td><td>0.7662 ns</td><td>7.907 ns</td><td>1.38</td><td>0.17</td><td>0.0030</td><td>56 B</td><td>1.00</td>
+</tr><tr><td>ChainExecution_Batch100</td><td>10</td><td>9,025.100 ns</td><td>194.7806 ns</td><td>571.2578 ns</td><td>8,998.112 ns</td><td>1,546.45</td><td>157.39</td><td>0.9308</td><td>17672 B</td><td>315.57</td>
+</tr></tbody></table>
+</body>
+</html>

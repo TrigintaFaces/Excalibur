@@ -1,0 +1,182 @@
+﻿<Project>
+	<!-- ============================================================================================
+	     Visual Studio Multi-Targeting Fix (Sprint 376)
+	     ============================================================================================
+	     VS has race conditions when building multi-TFM projects in parallel. These settings
+	     disable parallel builds within VS to prevent CS0006 "metadata file not found" errors.
+	     CLI builds are unaffected and remain parallel for CI/CD performance.
+	     ============================================================================================ -->
+	<PropertyGroup Condition="'$(BuildingInsideVisualStudio)' == 'true'">
+		<!-- Disable parallel project builds in VS to prevent race conditions -->
+		<BuildInParallel>false</BuildInParallel>
+		<!-- Disable fast up-to-date check which can use stale references -->
+		<DisableFastUpToDateCheck>true</DisableFastUpToDateCheck>
+		<!-- Force single-threaded builds in VS -->
+		<MaxCpuCount>1</MaxCpuCount>
+		<!-- Ensure restore runs before build -->
+		<RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+		<!-- Disable VS Aspire schema generation that causes file lock conflicts -->
+		<GenerateAspireMetadata>false</GenerateAspireMetadata>
+		<JsonSchemaGeneratorDisabled>true</JsonSchemaGeneratorDisabled>
+		<!-- CRITICAL: Fix for CS0006 errors - don't compile against reference assemblies -->
+		<CompileUsingReferenceAssemblies>false</CompileUsingReferenceAssemblies>
+		<!-- Ensure reference assembly copying doesn't cause race conditions -->
+		<CopyRefAssembliesToPublishDirectory>false</CopyRefAssembliesToPublishDirectory>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<LangVersion>latest</LangVersion>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<AnalysisLevel>latest</AnalysisLevel>
+		<EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+		<!-- Sprint 329 T2.5: Re-enable analyzer warning gates (AD-329) -->
+		<!-- WARNING: All shipping projects must have zero warnings -->
+		<!-- Use documented #pragma suppressions for unavoidable warnings -->
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+		<WarningsAsErrors>true</WarningsAsErrors>
+		<!-- Suppress switch completeness (IDE0010) and XML docs (CS1591) — Sprint 506 policy: defer -->
+		<!-- IDE0055 (formatting) REMOVED Sprint 506 — all violations fixed via dotnet format -->
+		<!-- CA1873 (logging arg evaluation) — Sprint 564: new rule in SDK 10.0.103, defer fix to next sprint -->
+		<NoWarn>$(NoWarn);IDE0010;CS1591;CA1873</NoWarn>
+    <!-- Gate to allow AWS SDK v4 transitives via Lambda event packages (off by default to avoid downgrades). -->
+    <AllowAwsSdkV4>false</AllowAwsSdkV4>
+    <RepositoryRoot Condition="'$(RepositoryRoot)' == ''">$(MSBuildThisFileDirectory)</RepositoryRoot>
+        </PropertyGroup>
+
+	<!-- Common NuGet Package Metadata -->
+	<PropertyGroup>
+		<Authors>TrigintaFaces</Authors>
+		<Company>TrigintaFaces</Company>
+		<Copyright>Copyright © The Excalibur Project $([System.DateTime]::Now.Year)</Copyright>
+		<PackageProjectUrl>https://github.com/TrigintaFaces/Excalibur</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<!-- ============================================================================================
+		     Sprint 318 T3.1: Multi-License Stack (AD-318-1)
+		     ============================================================================================
+		     License stack: Excalibur 1.0, AGPL-3.0-or-later, SSPL-1.0, Apache-2.0
+		     Using PackageLicenseFile instead of PackageLicenseExpression because:
+		     - Excalibur License 1.0 is not a standard SPDX identifier
+		     - NuGet PackageLicenseExpression requires valid SPDX expression
+		     - PackageLicenseFile includes full LICENSE in package
+		     ============================================================================================ -->
+		<PackageLicenseFile>LICENSE</PackageLicenseFile>
+		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+		<PackageReleaseNotes>See CHANGELOG.md for release notes</PackageReleaseNotes>
+		<!-- Sprint 410: Package icon enabled (T410.2) -->
+		<PackageIcon>icon.png</PackageIcon>
+		<!-- Sprint 425 T425.1: Package README for NuGet.org display (AD-425-1) -->
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
+
+	<!-- ============================================================================================
+	     Sprint 425 T425.2: Package Tags for NuGet Discoverability (AD-425-2)
+	     ============================================================================================
+	     Default PackageTags for projects that don't define their own.
+	     Dispatch packages: messaging, mediator, cqrs, pipeline, handlers, dotnet
+	     Excalibur packages: event-sourcing, ddd, cqrs, aggregates, domain-driven-design, dotnet
+	     Projects with custom PackageTags in their .csproj will override these defaults.
+	     ============================================================================================ -->
+	<PropertyGroup Condition="'$(PackageTags)' == '' And $(MSBuildProjectName.StartsWith('Excalibur.Dispatch'))">
+		<PackageTags>messaging;mediator;cqrs;pipeline;handlers;dotnet</PackageTags>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(PackageTags)' == '' And $(MSBuildProjectName.StartsWith('Excalibur'))">
+		<PackageTags>event-sourcing;ddd;cqrs;aggregates;domain-driven-design;dotnet</PackageTags>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<!-- ============================================================================================
+		     Sprint 318 T3.4: Deterministic Builds & SourceLink (AD-318-3)
+		     ============================================================================================
+		     Deterministic builds ensure bit-for-bit reproducible builds across machines.
+		     SourceLink embeds GitHub source URLs in PDBs for better debugging experience.
+		     ============================================================================================ -->
+		<Deterministic>true</Deterministic>
+		<DeterministicSourcePaths>true</DeterministicSourcePaths>
+		<ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+	</PropertyGroup>
+
+	<!-- Sprint 320 T3.5: LICENSE inclusion moved to Directory.Build.targets (AD-320-1)
+	     See Directory.Build.targets for centralized license packaging ItemGroup -->
+
+	<!-- Ensure local PackageReference Version metadata does not conflict with CPM -->
+	<ItemGroup>
+		<!-- Strip ALL local versions to avoid NU1008 when CPM is enabled -->
+		<PackageReference Update="*">
+			<Version></Version>
+		</PackageReference>
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Style rules incl. one-type-per-file & filename matches type -->
+		<PackageReference Include="StyleCop.Analyzers" PrivateAssets="all" />
+		<!-- Extra useful correctness/perf rules -->
+		<PackageReference Include="Meziantou.Analyzer" PrivateAssets="all" />
+		<PackageReference Include="Roslynator.Analyzers" PrivateAssets="all" />
+		<!-- Public API surface tracking for breaking change detection -->
+		<PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+		<!-- SourceLink for GitHub - embeds source URLs in PDBs (Sprint 318 T3.4 AD-318-3) -->
+		<PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
+		<!-- (Already have Microsoft.CodeAnalysis.NetAnalyzers via SDK; AnalysisLevel=latest turns them on) -->
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Update="AspNetCore.HealthChecks.AzureStorage">
+			<Version></Version>
+		</PackageReference>
+		<PackageReference Update="System.Diagnostics.DiagnosticSource">
+			<Version></Version>
+		</PackageReference>
+		<PackageReference Update="Microsoft.Extensions.Logging.Console">
+			<Version></Version>
+		</PackageReference>
+		<PackageReference Update="Medo.Uuid7">
+			<Version></Version>
+		</PackageReference>
+		<PackageReference Update="Microsoft.Azure.Functions.Worker.Extensions.Storage.Queues">
+			<Version></Version>
+		</PackageReference>
+		<PackageReference Update="Microsoft.Azure.Functions.Worker.Extensions.CosmosDB">
+			<Version></Version>
+		</PackageReference>
+	</ItemGroup>
+	<!-- Coverlet code coverage configuration for test projects -->
+	<PropertyGroup Condition="'$(IsTestProject)' == 'true'">
+		<!-- Coverage output formats -->
+		<CollectCoverage>true</CollectCoverage>
+		<CoverletOutputFormat>cobertura,opencover,lcov</CoverletOutputFormat>
+		<CoverletOutput>$(OutputPath)coverage/</CoverletOutput>
+
+		<!-- Coverage thresholds (line coverage percentage) -->
+		<!-- Targets: 95% overall, 98% core, 90% transport -->
+		<!-- See tests/coverage.runsettings for detailed configuration -->
+		<!-- See tests/validate-coverage.ps1 for threshold validation -->
+		<ThresholdType>line</ThresholdType>
+		<ThresholdStat>total</ThresholdStat>
+		<!-- Baseline threshold - detailed validation in CI/CD pipeline -->
+		<Threshold>0</Threshold>
+
+		<!-- Use coverage.runsettings for test runs -->
+		<RunSettingsFilePath>$(MSBuildThisFileDirectory)tests/coverage.runsettings</RunSettingsFilePath>
+
+		<!-- Exclude from coverage -->
+		<ExcludeByFile>**/obj/**/*,**/bin/**/*,**/*.g.cs,**/*.generated.cs</ExcludeByFile>
+		<ExcludeByAttribute>ObsoleteAttribute,GeneratedCodeAttribute,CompilerGeneratedAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
+
+		<!-- Include source link for better reporting -->
+		<IncludeTestAssembly>false</IncludeTestAssembly>
+		<DeterministicSourcePaths>false</DeterministicSourcePaths>
+	</PropertyGroup>
+
+	<!-- Add coverlet.msbuild for MSBuild integration in test projects -->
+	<ItemGroup Condition="'$(IsTestProject)' == 'true'">
+		<PackageReference Include="coverlet.msbuild" PrivateAssets="all" />
+	</ItemGroup>
+</Project>

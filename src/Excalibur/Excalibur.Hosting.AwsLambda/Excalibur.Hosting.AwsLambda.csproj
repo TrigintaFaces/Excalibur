@@ -1,0 +1,71 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>    <IsPackable>true</IsPackable>
+    <RootNamespace>Excalibur.Hosting.AwsLambda</RootNamespace>
+    <AssemblyName>Excalibur.Hosting.AwsLambda</AssemblyName>
+
+    <PackageId>Excalibur.Hosting.AwsLambda</PackageId>
+    <Authors>TrigintaFaces</Authors>
+    <Description>AWS Lambda hosting integration for the Excalibur framework</Description>
+    <RepositoryUrl>https://github.com/TrigintaFaces/Excalibur</RepositoryUrl>
+    <Copyright>$(Copyright)</Copyright>
+    <Company>$(Company)</Company>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Product>$(Product)</Product>
+    <PackageTags>excalibur;serverless;hosting;aws;lambda;aot</PackageTags>
+    <PackageProjectUrl>https://github.com/TrigintaFaces/Excalibur</PackageProjectUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReleaseNotes>See CHANGELOG.md for release notes</PackageReleaseNotes>
+    <IsAotCompatible>true</IsAotCompatible>
+    <DeterministicSourcePaths>true</DeterministicSourcePaths>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  <PackageReadmeFile>README.md</PackageReadmeFile>
+        <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <PublishAot Condition="'$(PublishAot)' == ''">false</PublishAot>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(PublishAot)' == 'true' OR '$(PublishTrimmed)' == 'true'">
+    <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
+    <TrimmerDefaultAction>link</TrimmerDefaultAction>
+  </PropertyGroup>
+  <!-- Excalibur internal references (always ProjectReference) -->
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Hosting.Serverless\Excalibur.Hosting.Serverless.csproj" />
+  </ItemGroup>
+
+  <!-- Development mode: Dispatch ProjectReferences -->
+  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Hosting.AwsLambda\Excalibur.Dispatch.Hosting.AwsLambda.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Amazon.Lambda.Core" />
+    <PackageReference Include="Amazon.Lambda.RuntimeSupport" />
+    <PackageReference Include="Amazon.Lambda.Serialization.SystemTextJson" />
+    <PackageReference Include="Amazon.Lambda.APIGatewayEvents" />
+    <PackageReference Include="Amazon.Lambda.SQSEvents" />
+    <PackageReference Include="Amazon.Lambda.SNSEvents" />
+    <PackageReference Include="Amazon.Lambda.DynamoDBEvents" />
+    <PackageReference Include="Amazon.Lambda.KinesisEvents" Condition="'$(AllowAwsSdkV4)' == 'true'" />
+    <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" />
+  </ItemGroup>
+<ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+  <!-- CI mode: PackageReference for Dispatch packages -->
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Dispatch.Hosting.AwsLambda" VersionOverride="$(DispatchPackageVersion)" />
+  </ItemGroup>
+</Project>
+

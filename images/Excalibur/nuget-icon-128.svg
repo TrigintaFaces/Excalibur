@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Background -->
+  <rect width="128" height="128" fill="#1a1a2e"/>
+
+  <!-- Crystalline/tech geometric sword - optimized for small size -->
+  <g transform="translate(64, 64)">
+    <!-- Crystalline blade with tech aesthetic -->
+
+    <!-- Middle facets (outer edge) -->
+    <path d="M 0 -40 L -6.2 -21 L -4.4 37 L 0 45" fill="#3b82f6" opacity="0.7"/>
+    <path d="M 0 -40 L 6.2 -21 L 4.4 37 L 0 45" fill="#3b82f6" opacity="0.7"/>
+
+    <!-- Inner facets -->
+    <path d="M 0 -40 L -3.1 -21 L -2.2 37 L 0 45" fill="#60a5fa" opacity="0.9"/>
+    <path d="M 0 -40 L 3.1 -21 L 2.2 37 L 0 45" fill="#60a5fa" opacity="0.9"/>
+
+    <!-- Center highlight -->
+    <path d="M 0 -40 L -1.2 -21 L -0.9 37 L 0 45" fill="#93c5fd"/>
+    <path d="M 0 -40 L 1.2 -21 L 0.9 37 L 0 45" fill="#93c5fd"/>
+
+    <!-- Core light -->
+    <line x1="0" y1="-40" x2="0" y2="45" stroke="#e0f2fe" stroke-width="0.8" opacity="0.6"/>
+
+    <!-- Tech-style guard -->
+    <g>
+      <polygon points="-15.5,37 -7.8,38.8 7.8,38.8 15.5,37 15,42.5 -15,42.5" fill="#0ea5e9"/>
+      <polygon points="-15,42.5 -7.5,43.5 7.5,43.5 15,42.5" fill="#06b6d4" opacity="0.8"/>
+    </g>
+
+    <!-- Tech grip -->
+    <rect x="-3" y="43.5" width="6" height="8.7" fill="#0f172a" rx="0.3"/>
+    <rect x="-2.5" y="44" width="5" height="7.5" fill="#1e293b" rx="0.3"/>
+
+    <!-- Tech pommel with energy core -->
+    <polygon points="-5.5,52.2 0,55 5.5,52.2 4.7,57.5 -4.7,57.5" fill="#0ea5e9"/>
+    <circle cx="0" cy="54.7" r="1.9" fill="#67e8f9"/>
+    <circle cx="0" cy="54.7" r="1" fill="#e0f2fe" opacity="0.8"/>
+  </g>
+</svg>

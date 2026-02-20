@@ -1,0 +1,66 @@
+# Excalibur + Dispatch
+
+> A .NET 8+ messaging framework (MediatR alternative) and application framework distributed as NuGet packages. Dispatch handles messaging pipelines. Excalibur handles domain modeling, event sourcing, and persistence. 75+ packages.
+
+## Quick Start
+
+- [LLM Quick Reference](https://docs.excalibur-dispatch.dev/docs/reference/llm-reference): Compact reference for AI coding agents (start here)
+- [Introduction](https://docs.excalibur-dispatch.dev/docs/intro): Framework overview and package catalog
+- [Getting Started](https://docs.excalibur-dispatch.dev/docs/getting-started/): Install and create your first handler in 5 minutes
+
+## Core Concepts
+
+- [Actions & Handlers](https://docs.excalibur-dispatch.dev/docs/core-concepts/actions-and-handlers): Message types (IDispatchAction, IDispatchEvent) and handler patterns
+- [Message Context](https://docs.excalibur-dispatch.dev/docs/core-concepts/message-context): Correlation, tenant, and metadata propagation
+- [Results & Errors](https://docs.excalibur-dispatch.dev/docs/core-concepts/results-and-errors): IMessageResult, error handling, problem details
+- [Dependency Injection](https://docs.excalibur-dispatch.dev/docs/core-concepts/dependency-injection): DI registration with AddDispatch()
+- [Configuration](https://docs.excalibur-dispatch.dev/docs/core-concepts/configuration): Options pattern and IOptions<T>
+
+## Pipeline & Middleware
+
+- [Pipeline](https://docs.excalibur-dispatch.dev/docs/pipeline/): Request pipeline stages and ordering
+- [Middleware](https://docs.excalibur-dispatch.dev/docs/middleware/): Built-in and custom middleware (DispatchMiddlewareBase)
+
+## Transports
+
+- [Choosing a Transport](https://docs.excalibur-dispatch.dev/docs/transports/choosing-a-transport): Comparison guide
+- [RabbitMQ](https://docs.excalibur-dispatch.dev/docs/transports/rabbitmq)
+- [Kafka](https://docs.excalibur-dispatch.dev/docs/transports/kafka)
+- [Azure Service Bus](https://docs.excalibur-dispatch.dev/docs/transports/azure-service-bus)
+- [AWS SQS](https://docs.excalibur-dispatch.dev/docs/transports/aws-sqs)
+- [Google Pub/Sub](https://docs.excalibur-dispatch.dev/docs/transports/google-pubsub)
+
+## Domain & Event Sourcing
+
+- [Domain Modeling](https://docs.excalibur-dispatch.dev/docs/domain-modeling/): Aggregates, entities, value objects
+- [Event Sourcing](https://docs.excalibur-dispatch.dev/docs/event-sourcing/): Event stores, repositories, snapshots, projections
+
+## Patterns
+
+- [Outbox](https://docs.excalibur-dispatch.dev/docs/patterns/outbox): Reliable messaging with transactional outbox
+- [Inbox](https://docs.excalibur-dispatch.dev/docs/patterns/inbox): Idempotent message processing
+- [Dead Letter](https://docs.excalibur-dispatch.dev/docs/patterns/dead-letter): Failed message handling
+- [Claim Check](https://docs.excalibur-dispatch.dev/docs/patterns/claim-check): Large payload offloading
+
+## Data Providers
+
+- [SQL Server](https://docs.excalibur-dispatch.dev/docs/data-providers/sql-server)
+- [Postgres](https://docs.excalibur-dispatch.dev/docs/data-providers/Postgres)
+- [CosmosDB](https://docs.excalibur-dispatch.dev/docs/data-providers/cosmosdb)
+- [MongoDB](https://docs.excalibur-dispatch.dev/docs/data-providers/mongodb)
+
+## Operations
+
+- [Observability](https://docs.excalibur-dispatch.dev/docs/observability/): OpenTelemetry metrics, tracing, health checks
+- [Deployment](https://docs.excalibur-dispatch.dev/docs/deployment/): ASP.NET Core, Docker, Kubernetes, serverless
+- [Testing](https://docs.excalibur-dispatch.dev/docs/testing/): Test utilities and strategies
+- [Security](https://docs.excalibur-dispatch.dev/docs/security/): Authentication, encryption, audit logging
+
+## Migration
+
+- [From MediatR](https://docs.excalibur-dispatch.dev/docs/migration/from-mediatr): Step-by-step migration guide
+
+## Architecture
+
+- [Dispatch vs Excalibur](https://docs.excalibur-dispatch.dev/docs/dispatch-vs-excalibur): Framework boundary and dependency direction
+- [Architecture Overview](https://docs.excalibur-dispatch.dev/docs/architecture/): Design decisions and patterns

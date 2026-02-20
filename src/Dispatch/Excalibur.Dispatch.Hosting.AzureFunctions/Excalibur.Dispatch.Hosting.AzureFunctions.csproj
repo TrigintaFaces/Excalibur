@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <!-- IDE0060: Unused parameters in hosting provider stubs (future implementation hooks) -->
+    <!-- CS8764: Nullability return type mismatch on override methods -->
+    <NoWarn>$(NoWarn);IDE0060;CS8764</NoWarn>
+    <DefineConstants>$(DefineConstants);AZURE_FUNCTIONS_SUPPORT</DefineConstants>
+    <RootNamespace>Excalibur.Dispatch.Hosting.AzureFunctions</RootNamespace>
+    <AssemblyName>Excalibur.Dispatch.Hosting.AzureFunctions</AssemblyName>
+    <PackageId>$(AssemblyName)</PackageId>
+    <Description>Azure Functions hosting integration for the Dispatch messaging framework</Description>
+    <PackageTags>dispatch;serverless;hosting;azure;functions;messaging</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch.Hosting.Serverless.Abstractions\Excalibur.Dispatch.Hosting.Serverless.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+  </ItemGroup>
+  <!-- Azure Functions Dependencies -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Azure.Functions.Worker" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.ServiceBus" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.EventHubs" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Storage.Blobs" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Storage.Queues" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.CosmosDB" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.EventGrid" />
+  </ItemGroup>
+</Project>

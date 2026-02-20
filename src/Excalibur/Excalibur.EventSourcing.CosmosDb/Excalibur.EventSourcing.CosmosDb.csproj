@@ -1,0 +1,34 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<IsPackable>true</IsPackable>
+		<PackageId>Excalibur.EventSourcing.CosmosDb</PackageId>
+		<Description>Azure Cosmos DB event store implementation for Excalibur event sourcing.</Description>
+		<PackageTags>excalibur;eventsourcing;cosmosdb;azure;cqrs;ddd</PackageTags>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+		<AzureCosmosDisableNewtonsoftJsonCheck>true</AzureCosmosDisableNewtonsoftJsonCheck>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<IsAotCompatible>false</IsAotCompatible>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+		<ProjectReference Include="..\Excalibur.Data.CosmosDb\Excalibur.Data.CosmosDb.csproj" />
+		<ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Azure.Cosmos" />
+		<PackageReference Include="Microsoft.Extensions.Options" />
+		<PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="/" />
+	</ItemGroup>
+</Project>

@@ -1,0 +1,50 @@
+# SAM CLI Configuration file
+# Sprint 430 S430.2: AWS Lambda Serverless Sample
+
+version = 0.1
+
+[default]
+[default.global.parameters]
+stack_name = "dispatch-lambda-sample"
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.validate.parameters]
+lint = true
+
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+resolve_s3 = true
+s3_prefix = "dispatch-lambda-sample"
+region = "us-east-1"
+parameter_overrides = "Environment=dev"
+
+[default.local_start_api.parameters]
+warm_containers = "EAGER"
+
+[default.local_invoke.parameters]
+env_vars = "env.json"
+
+# Development environment
+[dev]
+[dev.deploy.parameters]
+stack_name = "dispatch-lambda-sample-dev"
+parameter_overrides = "Environment=dev"
+confirm_changeset = false
+
+# Staging environment
+[staging]
+[staging.deploy.parameters]
+stack_name = "dispatch-lambda-sample-staging"
+parameter_overrides = "Environment=staging"
+confirm_changeset = true
+
+# Production environment
+[prod]
+[prod.deploy.parameters]
+stack_name = "dispatch-lambda-sample-prod"
+parameter_overrides = "Environment=prod"
+confirm_changeset = true

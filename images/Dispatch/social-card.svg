@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#1a1a2e"/>
+
+  <!-- Three paper airplanes - centered -->
+  <g transform="translate(656, 230)">
+
+    <!-- First plane -->
+    <g opacity="0.35" transform="translate(-120, 0) scale(0.8)">
+      <path d="M 0 0 L -140 -53 L -70 0 Z" fill="#00d4ff"/>
+      <path d="M 0 0 L -140 53 L -70 0 Z" fill="#5de4ff"/>
+      <line x1="0" y1="0" x2="-140" y2="0" stroke="#1a1a2e" stroke-width="6"/>
+    </g>
+
+    <!-- Second plane -->
+    <g opacity="0.65" transform="translate(0, 0) scale(0.8)">
+      <path d="M 0 0 L -140 -53 L -70 0 Z" fill="#00d4ff"/>
+      <path d="M 0 0 L -140 53 L -70 0 Z" fill="#5de4ff"/>
+      <line x1="0" y1="0" x2="-140" y2="0" stroke="#1a1a2e" stroke-width="6"/>
+    </g>
+
+    <!-- Third plane -->
+    <g transform="translate(120, 0) scale(0.8)">
+      <path d="M 0 0 L -140 -53 L -70 0 Z" fill="#00d4ff"/>
+      <path d="M 0 0 L -140 53 L -70 0 Z" fill="#5de4ff"/>
+      <line x1="0" y1="0" x2="-140" y2="0" stroke="#1a1a2e" stroke-width="6"/>
+    </g>
+
+  </g>
+
+  <!-- Text: DISPATCH -->
+  <text x="600" y="420"
+        font-size="80"
+        font-family="Arial, sans-serif"
+        font-weight="bold"
+        fill="#ffffff"
+        text-anchor="middle"
+        letter-spacing="3"
+        dominant-baseline="middle">DISPATCH</text>
+
+  <!-- Tagline -->
+  <text x="600" y="500"
+        font-size="28"
+        font-family="Arial, sans-serif"
+        fill="#00d4ff"
+        text-anchor="middle"
+        letter-spacing="4"
+        dominant-baseline="middle">FAST .NET MESSAGING</text>
+</svg>

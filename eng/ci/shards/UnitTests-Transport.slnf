@@ -1,0 +1,11 @@
+{
+  "solution": {
+    "path": "..\\..\\..\\Excalibur.sln",
+    "projects": [
+      "tests\\shared\\Tests.Shared\\Tests.Shared.csproj",
+      "tests\\shared\\Excalibur.Dispatch.Testing\\Excalibur.Dispatch.Testing.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Transport.Tests\\Excalibur.Dispatch.Transport.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Transport.Abstractions.Tests\\Excalibur.Dispatch.Transport.Abstractions.Tests.csproj"
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Coverage settings for Excalibur test projects -->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura,opencover,lcov</Format>
+          <ExcludeByFile>**/obj/**/*,**/bin/**/*,**/*.g.cs,**/*.generated.cs</ExcludeByFile>
+          <ExcludeByAttribute>ObsoleteAttribute,GeneratedCodeAttribute,CompilerGeneratedAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
+          <IncludeTestAssembly>false</IncludeTestAssembly>
+          <SingleHit>false</SingleHit>
+          <UseSourceLink>true</UseSourceLink>
+          <IncludeDirectory>../src/</IncludeDirectory>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+
+  <!-- Test run parameters -->
+  <TestRunParameters>
+    <!-- Coverage threshold targets (enforced by CI/CD) -->
+    <Parameter name="CoverageThreshold.Overall" value="95" />
+    <Parameter name="CoverageThreshold.Core" value="98" />
+    <Parameter name="CoverageThreshold.Transport" value="90" />
+  </TestRunParameters>
+</RunSettings>

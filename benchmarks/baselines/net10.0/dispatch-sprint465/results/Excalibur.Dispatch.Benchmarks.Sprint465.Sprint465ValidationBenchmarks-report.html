@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Sprint465.Sprint465ValidationBenchmarks-20260202-222010</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.102
+  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method               </th><th>Mean  </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>FullDispatch_WithMiddleware</td><td>2,706.2 ns</td><td>47.97 ns</td><td>44.87 ns</td><td>1.00</td><td>0.02</td><td>0.2823</td><td>-</td><td>5.27 KB</td><td>1.00</td>
+</tr><tr><td>Dispatch_NoAwait</td><td>2,707.6 ns</td><td>52.78 ns</td><td>77.36 ns</td><td>1.00</td><td>0.03</td><td>0.2823</td><td>-</td><td>5.2 KB</td><td>0.99</td>
+</tr><tr><td>CreateContext</td><td>264.5 ns</td><td>4.53 ns</td><td>4.23 ns</td><td>0.10</td><td>0.00</td><td>0.0858</td><td>-</td><td>1.58 KB</td><td>0.30</td>
+</tr><tr><td>Throughput_100Sequential</td><td>278,818.4 ns</td><td>3,663.87 ns</td><td>3,247.92 ns</td><td>103.06</td><td>2.01</td><td>27.8320</td><td>-</td><td>520.42 KB</td><td>98.69</td>
+</tr><tr><td>Throughput_10Parallel</td><td>27,984.5 ns</td><td>163.58 ns</td><td>153.01 ns</td><td>10.34</td><td>0.17</td><td>2.8381</td><td>0.0305</td><td>52.5 KB</td><td>9.95</td>
+</tr><tr><td>Throughput_100Parallel</td><td>284,279.8 ns</td><td>2,298.53 ns</td><td>1,919.37 ns</td><td>105.07</td><td>1.81</td><td>28.3203</td><td>1.4648</td><td>522.92 KB</td><td>99.16</td>
+</tr><tr><td>MixedWorkload</td><td>274,891.6 ns</td><td>4,175.76 ns</td><td>3,701.71 ns</td><td>101.60</td><td>2.09</td><td>27.8320</td><td>-</td><td>520.42 KB</td><td>98.69</td>
+</tr></tbody></table>
+</body>
+</html>

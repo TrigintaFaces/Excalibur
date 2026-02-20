@@ -1,0 +1,24 @@
+#nullable enable
+Excalibur.Security.Argon2idPasswordHasher
+Excalibur.Security.Argon2idPasswordHasher.Argon2idPasswordHasher(Microsoft.Extensions.Options.IOptions<Excalibur.Security.Argon2Options> options) -> void
+Excalibur.Security.Argon2idPasswordHasher.HashPasswordAsync(System.String password, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Security.Abstractions.PasswordHashResult>
+Excalibur.Security.Argon2idPasswordHasher.VerifyPasswordAsync(System.String password, Excalibur.Security.Abstractions.PasswordHashResult storedHash, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Security.Abstractions.PasswordVerificationResult>
+Excalibur.Security.Argon2Options
+Excalibur.Security.Argon2Options.Argon2Options() -> void
+Excalibur.Security.Argon2Options.HashLength.get -> System.Int32
+Excalibur.Security.Argon2Options.HashLength.set -> void
+Excalibur.Security.Argon2Options.Iterations.get -> System.Int32
+Excalibur.Security.Argon2Options.Iterations.set -> void
+Excalibur.Security.Argon2Options.MemorySize.get -> System.Int32
+Excalibur.Security.Argon2Options.MemorySize.set -> void
+Excalibur.Security.Argon2Options.Parallelism.get -> System.Int32
+Excalibur.Security.Argon2Options.Parallelism.set -> void
+Excalibur.Security.Argon2Options.SaltLength.get -> System.Int32
+Excalibur.Security.Argon2Options.SaltLength.set -> void
+Excalibur.Security.Argon2Options.Version.get -> System.Int32
+Excalibur.Security.Argon2Options.Version.set -> void
+Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions
+static const Excalibur.Security.Argon2Options.SectionName -> System.String
+static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddPasswordHasher(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddPasswordHasher(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Security.Argon2Options> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.SecurityServiceCollectionExtensions.AddPasswordHasher(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

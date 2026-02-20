@@ -1,0 +1,123 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+# SPDX-License-Identifier: Apache-2.0
+
+# ============================================================================
+# CDC Job with Quartz.NET Sample - Docker Infrastructure
+# ============================================================================
+#
+# This docker-compose file sets up the required infrastructure:
+#   - SQL Server #1 (Port 1433): CDC Source - Legacy database with CDC enabled
+#   - SQL Server #2 (Port 1434): Event Store - Domain events and snapshots
+#   - Elasticsearch (Port 9200): Projections and materialized views
+#
+# Usage:
+#   docker-compose up -d        # Start all services
+#   docker-compose ps           # Check status (wait for healthy)
+#   docker-compose logs -f      # View logs
+#   docker-compose down -v      # Stop and remove volumes
+#
+# ============================================================================
+
+services:
+  # ==========================================================================
+  # SQL Server #1 - CDC Source (Legacy Database)
+  # ==========================================================================
+  sqlserver-cdc:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: excalibur-sqlserver-cdc-job
+    hostname: sqlserver-cdc
+    ports:
+      - "1433:1433"
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=YourStrong@Passw0rd
+      - MSSQL_AGENT_ENABLED=true  # Required for CDC
+      - MSSQL_PID=Developer
+    volumes:
+      - sqlserver_cdc_data:/var/opt/mssql
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'YourStrong@Passw0rd' -C -Q "SELECT 1" || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - excalibur-net
+
+  # ==========================================================================
+  # SQL Server #2 - Event Store
+  # ==========================================================================
+  sqlserver-eventstore:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: excalibur-sqlserver-eventstore-job
+    hostname: sqlserver-eventstore
+    ports:
+      - "1434:1433"
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=YourStrong@Passw0rd
+      - MSSQL_PID=Developer
+    volumes:
+      - sqlserver_eventstore_data:/var/opt/mssql
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'YourStrong@Passw0rd' -C -Q "SELECT 1" || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - excalibur-net
+
+  # ==========================================================================
+  # Elasticsearch - Projections and Materialized Views
+  # ==========================================================================
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.3
+    container_name: excalibur-elasticsearch-job
+    hostname: elasticsearch
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: curl -s http://localhost:9200/_cluster/health | grep -q '"status":"green\|yellow"' || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks:
+      - excalibur-net
+
+  # ==========================================================================
+  # Optional: Kibana for Elasticsearch Visualization
+  # ==========================================================================
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.3
+    container_name: excalibur-kibana-job
+    profiles:
+      - visualization
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - excalibur-net
+
+volumes:
+  sqlserver_cdc_data:
+    name: excalibur_cdc_job_data
+  sqlserver_eventstore_data:
+    name: excalibur_eventstore_job_data
+  elasticsearch_data:
+    name: excalibur_elasticsearch_job_data
+
+networks:
+  excalibur-net:
+    name: excalibur-job-network

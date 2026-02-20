@@ -1,0 +1,61 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Excalibur.Benchmarks</RootNamespace>
+    <StartupObject>Excalibur.Benchmarks.Program</StartupObject>
+    <AssemblyName>Excalibur.Benchmarks</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Disable code style/analyzer rules for benchmark code -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CA1707;CA1001;CA1849;SA1402;IDE0005;IDE0011;MA0048;MA0036;SA1623;CA1052</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+    <PackageReference Include="BenchmarkDotNet.Diagnostics.Windows" Condition="'$(OS)' == 'Windows_NT'" />
+    <PackageReference Include="Testcontainers.MsSql" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Core Excalibur packages -->
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.EventSourcing.SqlServer\Excalibur.EventSourcing.SqlServer.csproj" />
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.EventSourcing.InMemory\Excalibur.EventSourcing.InMemory.csproj" />
+
+    <!-- Outbox -->
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.Outbox\Excalibur.Outbox.csproj" />
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.Outbox.SqlServer\Excalibur.Outbox.SqlServer.csproj" />
+
+    <!-- Data/Persistence -->
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
+
+    <!-- Leader Election -->
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.LeaderElection\Excalibur.LeaderElection.csproj" />
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.LeaderElection.InMemory\Excalibur.LeaderElection.InMemory.csproj" />
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.LeaderElection.SqlServer\Excalibur.LeaderElection.SqlServer.csproj" />
+
+    <!-- Saga -->
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.Saga\Excalibur.Saga.csproj" />
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.Saga.SqlServer\Excalibur.Saga.SqlServer.csproj" />
+
+    <!-- Domain -->
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.Domain\Excalibur.Domain.csproj" />
+
+    <!-- Caching -->
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.Caching\Excalibur.Caching.csproj" />
+
+    <!-- Dispatch for messaging -->
+    <ProjectReference Include="..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="..\..\src\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+  </ItemGroup>
+</Project>

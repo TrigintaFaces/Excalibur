@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<PackageId>Excalibur.Dispatch.Transport.Grpc</PackageId>
+		<Description>gRPC transport for Dispatch messaging framework. Provides sender, receiver, and subscriber implementations using gRPC channels and streaming.</Description>
+		<PackageTags>messaging;dispatch;grpc;transport;rpc;protobuf;aot</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<IsAotCompatible>false</IsAotCompatible>
+	</PropertyGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\Excalibur.Dispatch.Transport.Abstractions\Excalibur.Dispatch.Transport.Abstractions.csproj" />
+	</ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="Grpc.Net.Client" />
+		<PackageReference Include="Google.Protobuf" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Options" />
+		<PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+	</ItemGroup>
+	<ItemGroup>
+		<InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Grpc.Tests" />
+		<InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests" />
+	</ItemGroup>
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="/" />
+	</ItemGroup>
+</Project>

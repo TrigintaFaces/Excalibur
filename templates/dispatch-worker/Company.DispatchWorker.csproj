@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ExcaliburDispatchVersion Condition="'$(ExcaliburDispatchVersion)' == ''">0.1.0-*</ExcaliburDispatchVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Excalibur.Dispatch" Version="$(ExcaliburDispatchVersion)" />
+    <!--#if (UseKafka) -->
+    <PackageReference Include="Excalibur.Dispatch.Transport.Kafka" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+    <!--#if (UseRabbitMQ) -->
+    <PackageReference Include="Excalibur.Dispatch.Transport.RabbitMQ" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+    <!--#if (UseAzureServiceBus) -->
+    <PackageReference Include="Excalibur.Dispatch.Transport.AzureServiceBus" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+    <!--#if (UseAwsSqs) -->
+    <PackageReference Include="Excalibur.Dispatch.Transport.AwsSqs" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+  </ItemGroup>
+
+</Project>

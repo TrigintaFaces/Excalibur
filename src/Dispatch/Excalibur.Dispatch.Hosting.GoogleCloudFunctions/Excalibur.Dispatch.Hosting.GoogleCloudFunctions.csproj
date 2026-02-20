@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <RootNamespace>Excalibur.Dispatch.Hosting.GoogleCloudFunctions</RootNamespace>
+    <AssemblyName>Excalibur.Dispatch.Hosting.GoogleCloudFunctions</AssemblyName>
+    <PackageId>$(AssemblyName)</PackageId>
+    <Description>Google Cloud Functions hosting integration for the Dispatch messaging framework</Description>
+    <PackageTags>dispatch;serverless;hosting;google;gcp;cloudfunctions;messaging</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch.Hosting.Serverless.Abstractions\Excalibur.Dispatch.Hosting.Serverless.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+  </ItemGroup>
+  <!-- Google Cloud Functions Dependencies -->
+  <ItemGroup>
+    <PackageReference Include="Google.Cloud.Functions.Framework" />
+    <PackageReference Include="Google.Cloud.Functions.Hosting" />
+    <PackageReference Include="Google.Cloud.PubSub.V1" />
+    <PackageReference Include="Google.Cloud.Storage.V1" />
+    <PackageReference Include="Google.Cloud.Firestore" />
+    <PackageReference Include="Google.Events.Protobuf" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,34 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<PackageId>Excalibur.Dispatch.Compliance.Aws</PackageId>
+		<Description>AWS KMS integration for the Dispatch compliance framework. Provides IKeyManagementProvider implementation backed by AWS Key Management Service with support for multi-region keys, automatic key rotation, and FIPS 140-2 compliance.</Description>
+		<PackageTags>aws;kms;compliance;encryption;key-management;fips;security</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<!-- AWS SDK not AOT compatible -->
+		<IsAotCompatible>false</IsAotCompatible>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Excalibur.Dispatch.Compliance.Abstractions\Excalibur.Dispatch.Compliance.Abstractions.csproj" />
+		<PackageReference Include="AWSSDK.KeyManagementService" />
+		<PackageReference Include="Microsoft.Extensions.Caching.Memory" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Options" />
+	</ItemGroup>
+	<ItemGroup>
+		<EmbeddedResource Update="Resources.resx">
+			<Generator>ResXFileCodeGenerator</Generator>
+			<LastGenOutput>Resources.Designer.cs</LastGenOutput>
+		</EmbeddedResource>
+		<Compile Update="Resources.Designer.cs">
+			<DesignTime>true</DesignTime>
+			<AutoGen>true</AutoGen>
+			<DependentUpon>Resources.resx</DependentUpon>
+		</Compile>
+	</ItemGroup>
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="/" />
+	</ItemGroup>
+</Project>

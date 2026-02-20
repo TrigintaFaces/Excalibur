@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Excalibur.Outbox.Tests</RootNamespace>
+    <AssemblyName>Excalibur.Outbox.Tests</AssemblyName>
+    <!-- Carried from Excalibur.Outbox.Tests and Outbox.SqlServer.Tests -->
+    <NoWarn>MA0038;CA1707;CA2000;CA2201</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Test framework (Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio) provided by Directory.Build.props -->
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="FakeItEasy" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ProjectReferences from all merged outbox test projects -->
+    <!-- From Excalibur.Outbox.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox\Excalibur.Outbox.csproj" />
+    <!-- From Excalibur.Outbox.SqlServer.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.SqlServer\Excalibur.Outbox.SqlServer.csproj" />
+    <!-- From Excalibur.Outbox.CosmosDb.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.CosmosDb\Excalibur.Outbox.CosmosDb.csproj" />
+    <!-- From Excalibur.Outbox.DynamoDb.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.DynamoDb\Excalibur.Outbox.DynamoDb.csproj" />
+    <!-- From Excalibur.Outbox.Firestore.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.Firestore\Excalibur.Outbox.Firestore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="VaultKeyProvider_AuthMethodNotSupported" xml:space="preserve">
+    <value>Authentication method {0} is not supported</value>
+  </data>
+  <data name="VaultKeyProvider_CreatedKey" xml:space="preserve">
+    <value>Created new Vault Transit key {KeyId}</value>
+  </data>
+  <data name="VaultKeyProvider_DeletedKey" xml:space="preserve">
+    <value>Deleted Vault Transit key {KeyId} (crypto-shredding). This operation is irreversible.</value>
+  </data>
+  <data name="VaultKeyProvider_Disposed" xml:space="preserve">
+    <value>VaultKeyProvider disposed</value>
+  </data>
+  <data name="VaultKeyProvider_Initialized" xml:space="preserve">
+    <value>VaultKeyProvider initialized for vault {VaultUri} using {AuthMethod} authentication</value>
+  </data>
+  <data name="VaultKeyProvider_KeyNotFound" xml:space="preserve">
+    <value>Key {KeyId} not found in Vault</value>
+  </data>
+  <data name="VaultKeyProvider_KeyNotFoundForDeletion" xml:space="preserve">
+    <value>Key {KeyId} not found for deletion</value>
+  </data>
+  <data name="VaultKeyProvider_KeyNotFoundForSuspension" xml:space="preserve">
+    <value>Key {KeyId} not found for suspension</value>
+  </data>
+  <data name="VaultKeyProvider_KeyNotFoundTransit" xml:space="preserve">
+    <value>Key {KeyId} not found in Vault Transit engine</value>
+  </data>
+  <data name="VaultKeyProvider_KeySuspended" xml:space="preserve">
+    <value>Suspended Vault Transit key {KeyId}: {Reason}</value>
+  </data>
+  <data name="VaultKeyProvider_KeyVersionNotFound" xml:space="preserve">
+    <value>Key {KeyId} version {Version} not found</value>
+  </data>
+  <data name="VaultKeyProvider_KubernetesJwtNotFound" xml:space="preserve">
+    <value>Kubernetes JWT not found at {0}</value>
+  </data>
+  <data name="VaultKeyProvider_RotateFailed" xml:space="preserve">
+    <value>Failed to rotate key {KeyId} in Vault</value>
+  </data>
+  <data name="VaultKeyProvider_RotatedKey" xml:space="preserve">
+    <value>Rotated Vault Transit key {KeyId} to version {Version}</value>
+  </data>
+  <data name="VaultKeyProvider_RotateUnexpected" xml:space="preserve">
+    <value>Unexpected error rotating key {KeyId}</value>
+  </data>
+  <data name="VaultKeyProvider_VaultUriMustBeConfigured" xml:space="preserve">
+    <value>VaultUri must be configured.</value>
+  </data>
+</root>

@@ -1,0 +1,20 @@
+<Project>
+	<Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+	<!-- ============================================================================================
+	     Sprint 376: Load Test Analyzer Configuration
+	     ============================================================================================
+	     Load tests are non-shipping code with different quality requirements than production code.
+	     Disable TreatWarningsAsErrors while maintaining analyzer visibility.
+	     ============================================================================================ -->
+	<PropertyGroup>
+		<IsLoadTestProject>true</IsLoadTestProject>
+		<IsPackable>false</IsPackable>
+		<ProjectClassification>LoadTest</ProjectClassification>
+		<!-- Disable TreatWarningsAsErrors for load test projects -->
+		<TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+		<!-- Keep analyzers enabled so warnings are visible, just not blocking -->
+		<RunAnalyzers>true</RunAnalyzers>
+		<RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+	</PropertyGroup>
+</Project>

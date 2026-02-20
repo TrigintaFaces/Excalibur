@@ -1,0 +1,399 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="CronScheduler_InvalidCronExpression" xml:space="preserve">
+    <value>Invalid cron expression: {0}</value>
+  </data>
+  <data name="CronScheduler_InvalidExpressionType" xml:space="preserve">
+    <value>Cron expression must be a TimeZoneAwareCronExpression.</value>
+  </data>
+  <data name="CronScheduler_UnsupportedTimeZone" xml:space="preserve">
+    <value>Timezone '{0}' is not supported. Supported timezones: {1}</value>
+  </data>
+  <data name="ContractVersionCheckMiddleware_EventVersionIncompatible" xml:space="preserve">
+    <value>Event version for {0} ({1}) is incompatible: {2}</value>
+  </data>
+  <data name="ContractVersionCheckMiddleware_LoggerNotInitialized" xml:space="preserve">
+    <value>Logger is not initialized.</value>
+  </data>
+  <data name="ContractVersionCheckMiddleware_UnknownVersionStatusForEvent" xml:space="preserve">
+    <value>Unknown version status for event {0} ({1}).</value>
+  </data>
+  <data name="MessageBusOutboxPublisher_AtLeastOneTransportRequired" xml:space="preserve">
+    <value>At least one transport must be specified.</value>
+  </data>
+  <data name="MessageBusOutboxPublisher_FailedToPublishToDestination" xml:space="preserve">
+    <value>Failed to publish message {MessageId} to {Destination}</value>
+  </data>
+  <data name="MessageBusOutboxPublisher_FailedToPublishToTransport" xml:space="preserve">
+    <value>Failed to publish message {MessageId} to transport {TransportName}</value>
+  </data>
+  <data name="MessageBusOutboxPublisher_MaxRetriesNonNegative" xml:space="preserve">
+    <value>maxRetries must be non-negative.</value>
+  </data>
+  <data name="MessageBusOutboxPublisher_MessagePartiallyDelivered" xml:space="preserve">
+    <value>Message {MessageId} partially delivered: {SuccessCount} succeeded, {FailureCount} failed</value>
+  </data>
+  <data name="MessageBusOutboxPublisher_MultiTransportRequiresRegistry" xml:space="preserve">
+    <value>Multi-transport publishing requires IMultiTransportOutboxStore and TransportRegistry.</value>
+  </data>
+  <data name="MessageBusOutboxPublisher_MultiTransportRequiresStore" xml:space="preserve">
+    <value>Multi-transport publishing requires an IMultiTransportOutboxStore implementation.</value>
+  </data>
+  <data name="MessageBusOutboxPublisher_NoTransportAdapter" xml:space="preserve">
+    <value>No transport adapter found with name '{0}'.</value>
+  </data>
+  <data name="MessageBusOutboxPublisher_NoTransportDeliveries" xml:space="preserve">
+    <value>No transport deliveries found for multi-transport message {MessageId}</value>
+  </data>
+  <data name="MessageBusOutboxPublisher_PublishedMessageToDestination" xml:space="preserve">
+    <value>Published message {MessageId} to {Destination}</value>
+  </data>
+  <data name="MessageBusOutboxPublisher_PublishedMessageToTransport" xml:space="preserve">
+    <value>Published message {MessageId} to transport {TransportName} at {Destination}</value>
+  </data>
+  <data name="MessageBusOutboxPublisher_StagedMessage" xml:space="preserve">
+    <value>Staged message {MessageId} of type {MessageType} to destination {Destination}</value>
+  </data>
+  <data name="MessageBusOutboxPublisher_StagedMultiTransportMessage" xml:space="preserve">
+    <value>Staged multi-transport message {MessageId} of type {MessageType} to {TransportCount} transports: {Transports}</value>
+  </data>
+  <data name="MessageBusOutboxPublisher_SingleTransportRequiresAdapter" xml:space="preserve">
+    <value>Single-transport publishing requires an IMessageBusAdapter to be configured.</value>
+  </data>
+  <data name="MessageBusOutboxPublisher_TransportAdapterNotFound" xml:space="preserve">
+    <value>Transport adapter not found</value>
+  </data>
+  <data name="MessageBusOutboxPublisher_TransportPublishSummary" xml:space="preserve">
+    <value>Published {SuccessCount} messages to transport {TransportName}, {FailureCount} failed in {Duration}ms</value>
+  </data>
+  <data name="MessageBusOutboxPublisher_UnknownError" xml:space="preserve">
+    <value>Unknown error</value>
+  </data>
+  <data name="OutboxStagingMiddleware_FailedToSerializeMessage" xml:space="preserve">
+    <value>Failed to serialize message of type {0}</value>
+  </data>
+  <data name="OutboxStagingMiddleware_NoOutboxServices" xml:space="preserve">
+    <value>Outbox staging middleware is enabled but neither IOutboxStore nor IOutboxService is registered. Register one of these services or disable outbox staging.</value>
+  </data>
+  <data name="Serialization_DataCannotBeEmpty" xml:space="preserve">
+    <value>Data cannot be empty</value>
+  </data>
+  <data name="Serialization_DeserializationResultedInNull" xml:space="preserve">
+    <value>Deserialization resulted in null</value>
+  </data>
+  <data name="Serialization_FailedToDeserializeToType" xml:space="preserve">
+    <value>Failed to deserialize data to type {0}</value>
+  </data>
+  <data name="TransportAdapterRouter_HealthCheckFailed" xml:space="preserve">
+    <value>Health check failed: {0}</value>
+  </data>
+  <data name="TransportAdapterRouter_RoutingFailureDetail" xml:space="preserve">
+    <value>Transport routing failed for adapter {0}: {1}</value>
+  </data>
+  <data name="TransportAdapterRouter_RoutingFailureTitle" xml:space="preserve">
+    <value>Transport Routing Failure</value>
+  </data>
+  <data name="TransportAdapterRouter_RoutingFailureType" xml:space="preserve">
+    <value>urn:dispatch:error:transport</value>
+  </data>
+  <data name="DispatcherContextExtensions_ChildMessageRequiresContext" xml:space="preserve">
+    <value>Cannot dispatch child message without an active context. Use DispatchAsync with explicit context instead.</value>
+  </data>
+  <data name="DispatcherContextExtensions_ChildActionRequiresContext" xml:space="preserve">
+    <value>Cannot dispatch child action without an active context. Use DispatchAsync with explicit context instead.</value>
+  </data>
+  <data name="MessageBufferPool_MinimumLengthNonNegative" xml:space="preserve">
+    <value>Minimum length must be non-negative.</value>
+  </data>
+  <data name="MessageBufferPool_RequestExceedsMaxArrayLength" xml:space="preserve">
+    <value>Requested size {0} exceeds maximum allowed size {1}.</value>
+  </data>
+  <data name="PooledBufferWriter_CannotAdvancePastEnd" xml:space="preserve">
+    <value>Cannot advance past the end of the buffer.</value>
+  </data>
+  <data name="InMemoryTransportAdapter_NotRunning" xml:space="preserve">
+    <value>The in-memory transport adapter is not running</value>
+  </data>
+  <data name="TenantIdentityMiddleware_NoTenantIdentifierFound" xml:space="preserve">
+    <value>No tenant identifier found in message context</value>
+  </data>
+  <data name="TenantIdentityMiddleware_InvalidTenantIdentifierFormat" xml:space="preserve">
+    <value>Invalid tenant identifier format: {0}</value>
+  </data>
+  <data name="OutboxMiddleware_StoreNotRegistered" xml:space="preserve">
+    <value>Outbox middleware is enabled but IOutboxStore is not registered. Register an IOutboxStore implementation or disable outbox middleware.</value>
+  </data>
+  <data name="LoadBalancing_NoRoutesAvailable" xml:space="preserve">
+    <value>No routes available for selection</value>
+  </data>
+  <data name="SerializerRegistry_InvalidIdRange" xml:space="preserve">
+    <value>Serializer ID must be 1-254. ID {0} is reserved ({1}).</value>
+  </data>
+  <data name="SerializerRegistry_NameRequired" xml:space="preserve">
+    <value>Serializer name cannot be null or whitespace.</value>
+  </data>
+  <data name="SerializerRegistry_IdAlreadyRegistered" xml:space="preserve">
+    <value>Serializer ID 0x{0:X2} is already registered.</value>
+  </data>
+  <data name="SerializerRegistry_NameAlreadyRegistered" xml:space="preserve">
+    <value>Serializer name '{0}' is already registered.</value>
+  </data>
+  <data name="SerializerRegistry_SerializerNotRegistered" xml:space="preserve">
+    <value>Serializer '{0}' is not registered. Available: {1}</value>
+  </data>
+  <data name="SerializerRegistry_NoCurrentSerializer" xml:space="preserve">
+    <value>No current serializer configured. Call SetCurrent() first or ensure AddDispatch() was called.</value>
+  </data>
+  <data name="AuthorizationMiddleware_NoReasonProvided" xml:space="preserve">
+    <value>No reason provided</value>
+  </data>
+  <data name="MessageBusOutboxPublisher_PerTransportRequiresStore" xml:space="preserve">
+    <value>Per-transport publishing requires an IMultiTransportOutboxStore implementation.</value>
+  </data>
+  <data name="MessageBusOutboxPublisher_PerTransportRequiresRegistry" xml:space="preserve">
+    <value>Per-transport publishing requires a TransportRegistry to be configured.</value>
+  </data>
+  <data name="MultiTransportMessageBusAdapter_AdapterNotRegistered" xml:space="preserve">
+    <value>Adapter '{0}' is not registered.</value>
+  </data>
+  <data name="TimeoutOptions_DefaultTimeoutMustBePositive" xml:space="preserve">
+    <value>Default timeout must be positive.</value>
+  </data>
+  <data name="TimeoutOptions_ActionTimeoutMustBePositive" xml:space="preserve">
+    <value>Action timeout must be positive.</value>
+  </data>
+  <data name="TimeoutOptions_EventTimeoutMustBePositive" xml:space="preserve">
+    <value>Event timeout must be positive.</value>
+  </data>
+  <data name="TimeoutOptions_DocumentTimeoutMustBePositive" xml:space="preserve">
+    <value>Document timeout must be positive.</value>
+  </data>
+  <data name="TimeoutOptions_MessageTypeTimeoutMustBePositive" xml:space="preserve">
+    <value>Message type timeout for '{0}' must be positive.</value>
+  </data>
+  <data name="ZeroCopySerializer_DestinationBufferTooSmallFormat" xml:space="preserve">
+    <value>Destination buffer too small. Required: {0}, Available: {1}.</value>
+  </data>
+  <data name="ZeroCopySerializer_SourceBufferTooSmallForHeader" xml:space="preserve">
+    <value>Source buffer too small for header.</value>
+  </data>
+  <data name="ZeroCopySerializer_InvalidMessageMagicValue" xml:space="preserve">
+    <value>Invalid message magic value.</value>
+  </data>
+  <data name="ZeroCopySerializer_TypeMismatchFormat" xml:space="preserve">
+    <value>Type mismatch. Expected: {0}, Actual: {1}.</value>
+  </data>
+  <data name="ZeroCopySerializer_SourceBufferTooSmallForPayload" xml:space="preserve">
+    <value>Source buffer too small for payload.</value>
+  </data>
+  <data name="ZeroCopySerializer_ChecksumValidationFailed" xml:space="preserve">
+    <value>Checksum validation failed.</value>
+  </data>
+  <data name="CronTimerTransportConfigurationExtensions_CronExpressionMustBeConfigured" xml:space="preserve">
+    <value>CronExpression must be configured.</value>
+  </data>
+  <data name="CronTimerTransportAdapter_CronExpressionIsRequired" xml:space="preserve">
+    <value>CronExpression is required.</value>
+  </data>
+  <data name="Utf8JsonWriterPool_ThreadLocalCacheSizeMustBeBetweenZeroAnd32" xml:space="preserve">
+    <value>Thread local cache size must be between 0 and 32.</value>
+  </data>
+  <data name="Utf8JsonWriterPool_CountMustBeGreaterThanZero" xml:space="preserve">
+    <value>Count must be greater than zero.</value>
+  </data>
+  <data name="ExponentialBackoffCalculator_AttemptMustBeAtLeastOne" xml:space="preserve">
+    <value>Attempt must be at least 1.</value>
+  </data>
+  <data name="ExponentialBackoffCalculator_BaseDelayMustBePositive" xml:space="preserve">
+    <value>Base delay must be positive.</value>
+  </data>
+  <data name="ExponentialBackoffCalculator_MaxDelayMustBePositive" xml:space="preserve">
+    <value>Max delay must be positive.</value>
+  </data>
+  <data name="ExponentialBackoffCalculator_MultiplierMustBeAtLeastOne" xml:space="preserve">
+    <value>Multiplier must be at least 1.0.</value>
+  </data>
+  <data name="ExponentialBackoffCalculator_JitterFactorMustBeBetweenZeroAndOne" xml:space="preserve">
+    <value>Jitter factor must be between 0.0 and 1.0.</value>
+  </data>
+  <data name="LinearBackoffCalculator_MaxDelayMustBePositive" xml:space="preserve">
+    <value>Max delay must be positive.</value>
+  </data>
+  <data name="LinearBackoffCalculator_AttemptMustBeAtLeastOne" xml:space="preserve">
+    <value>Attempt must be at least 1.</value>
+  </data>
+  <data name="LinearBackoffCalculator_BaseDelayMustBePositive" xml:space="preserve">
+    <value>Base delay must be positive.</value>
+  </data>
+  <data name="FixedBackoffCalculator_DelayCannotBeNegative" xml:space="preserve">
+    <value>Delay cannot be negative.</value>
+  </data>
+  <data name="FixedBackoffCalculator_AttemptMustBeAtLeastOne" xml:space="preserve">
+    <value>Attempt must be at least 1.</value>
+  </data>
+  <data name="BackoffCalculatorFactory_UnknownBackoffStrategy" xml:space="preserve">
+    <value>Unknown backoff strategy.</value>
+  </data>
+  <data name="BackoffCalculatorFactory_UnknownRetryStrategy" xml:space="preserve">
+    <value>Unknown retry strategy.</value>
+  </data>
+  <data name="CircuitBreakerOpenException_CircuitBreakerIsOpen" xml:space="preserve">
+    <value>Circuit breaker is open. Operation rejected.</value>
+  </data>
+  <data name="CircuitBreakerOpenException_CircuitBreakerIsOpenWithName" xml:space="preserve">
+    <value>Circuit breaker '{0}' is open. Operation rejected.</value>
+  </data>
+  <data name="CircuitBreakerOpenException_CircuitBreakerIsOpenWithNameAndRetryAfter" xml:space="preserve">
+    <value>Circuit breaker '{0}' is open. Operation rejected. Retry after {1:F1} seconds.</value>
+  </data>
+  <data name="CompositeAotJsonSerializer_AtLeastOneContextMustBeProvided" xml:space="preserve">
+    <value>At least one context must be provided.</value>
+  </data>
+  <data name="InboxHandlerConfiguration_RetentionMustBePositive" xml:space="preserve">
+    <value>Retention must be positive.</value>
+  </data>
+  <data name="DispatchConfigurationServiceCollectionExtensions_MessageBusRegistrationMissingImplementation" xml:space="preserve">
+    <value>Message bus registration does not have an implementation.</value>
+  </data>
+  <data name="BatchResult_IndexOutOfRange" xml:space="preserve">
+    <value>Index was outside the bounds of the batch.</value>
+  </data>
+  <data name="BindingConfigurationBuilder_TransportNotFoundFormat" xml:space="preserve">
+    <value>Transport '{0}' not found.</value>
+  </data>
+  <data name="BindingConfigurationBuilder_PipelineNotFoundFormat" xml:space="preserve">
+    <value>Pipeline profile '{0}' not found.</value>
+  </data>
+  <data name="SerializerMigrationService_SourceSerializerNotRegisteredFormat" xml:space="preserve">
+    <value>Source serializer with ID 0x{0:X2} is not registered.</value>
+  </data>
+  <data name="SerializerMigrationService_TargetSerializerNotRegisteredFormat" xml:space="preserve">
+    <value>Target serializer with ID 0x{0:X2} is not registered.</value>
+  </data>
+  <data name="SerializerMigrationService_MigrationAbortedAfterFailuresFormat" xml:space="preserve">
+    <value>Migration aborted after {0} consecutive failures.</value>
+  </data>
+  <data name="FinalDispatchHandler_ReturnTypeMustHaveParameterlessCtorFormat" xml:space="preserve">
+    <value>Return type {0} must have a public parameterless constructor.</value>
+  </data>
+  <data name="TransportStartupValidator_NoTransportsRegistered" xml:space="preserve">
+    <value>Transport validation failed: No transports are registered. Use a transport-specific method like AddRabbitMQTransport(), AddKafkaTransport(), AddAwsSqsTransport(), etc. to register at least one transport, or set TransportValidationOptions.RequireAtLeastOneTransport = false to disable this check.</value>
+  </data>
+  <data name="TransportStartupValidator_DefaultTransportMissingFormat" xml:space="preserve">
+    <value>Transport validation failed: {0} transports are registered ({1}) but no default transport is set. Call TransportRegistry.SetDefaultTransport() to designate a default, or set TransportValidationOptions.RequireDefaultTransportWhenMultiple = false to disable this check.</value>
+  </data>
+  <data name="TransportStartupValidator_ValidationErrorsFormat" xml:space="preserve">
+    <value>Transport validation failed with {0} error(s):{1}</value>
+  </data>
+  <data name="DispatchBuilder_DispatcherNotInitialized" xml:space="preserve">
+    <value>Dispatcher has not been initialized. Build the service provider and resolve IDispatcher from DI.</value>
+  </data>
+  <data name="PipelineBuilder_ProfileRegistryNotRegistered" xml:space="preserve">
+    <value>Pipeline profile registry not registered.</value>
+  </data>
+  <data name="PipelineBuilder_ProfileNotFoundFormat" xml:space="preserve">
+    <value>Pipeline profile '{0}' not found.</value>
+  </data>
+  <data name="Dispatcher_NotConfigured" xml:space="preserve">
+    <value>Dispatcher is not properly configured. Ensure IDispatchMiddlewareInvoker and FinalDispatchHandler are registered.</value>
+  </data>
+  <data name="Dispatcher_ResultTypeMismatchFormat" xml:space="preserve">
+    <value>Expected IMessageResult&lt;{0}&gt;, but got {1}.</value>
+  </data>
+  <data name="Dispatcher_HandlerNotFoundFormat" xml:space="preserve">
+    <value>No handler of type '{0}' is registered. Ensure the handler is registered with the service provider.</value>
+  </data>
+  <data name="EventStoreMessage_ConversionFromStringToAggregateKeyNotImplemented" xml:space="preserve">
+    <value>Conversion from string to TAggregateKey not implemented.</value>
+  </data>
+  <data name="MemoryMessageOfT_CannotDeserializeWithoutSerializer" xml:space="preserve">
+    <value>Cannot deserialize content without serializer.</value>
+  </data>
+<data name="HistogramConfiguration_AtLeastOneBucketBoundaryIsRequired" xml:space="preserve">
+    <value>At least one bucket boundary is required.</value>
+  </data>
+  <data name="HistogramConfiguration_StartMustBePositive" xml:space="preserve">
+    <value>Start must be positive.</value>
+  </data>
+  <data name="HistogramConfiguration_FactorMustBeGreaterThanOne" xml:space="preserve">
+    <value>Factor must be greater than one.</value>
+  </data>
+  <data name="HistogramConfiguration_CountMustBePositive" xml:space="preserve">
+    <value>Count must be positive.</value>
+  </data>
+  <data name="HistogramConfiguration_WidthMustBePositive" xml:space="preserve">
+    <value>Width must be positive.</value>
+  </data>
+  <data name="LabeledCounter_MetadataMustBeForCounterType" xml:space="preserve">
+    <value>Metadata must be for counter type.</value>
+  </data>
+  <data name="LabeledCounter_CounterCanOnlyIncrease" xml:space="preserve">
+    <value>Counter can only increase.</value>
+  </data>
+  <data name="ValidationMiddleware_LoggerNotInitialized" xml:space="preserve">
+    <value>Logger is not initialized.</value>
+  </data>
+  <data name="DedicatedThreadMessageProcessor_ThreadCountMustBePositive" xml:space="preserve">
+    <value>Thread count must be positive.</value>
+  </data>
+  <data name="DedicatedThreadMessageProcessor_AlreadyRunning" xml:space="preserve">
+    <value>Processor is already running.</value>
+  </data>
+  <data name="LockFreeMessageBuffer_CapacityMustBeAtLeastTwo" xml:space="preserve">
+    <value>Capacity must be at least two.</value>
+  </data>
+  <data name="MpmcLockFreeBuffer_BufferSizeMustBeAtLeastTwo" xml:space="preserve">
+    <value>Buffer size must be at least two.</value>
+  </data>
+  <data name="TransportConfigurationValidator_DuplicateTransportNameFormat" xml:space="preserve">
+    <value>Duplicate transport name '{0}'. Transport names must be unique.</value>
+  </data>
+  <data name="TransportConfigurationValidator_TransportNameCannotBeNullOrEmpty" xml:space="preserve">
+    <value>Transport name cannot be null or empty.</value>
+  </data>
+  <data name="TransportConfigurationValidator_TransportTypeCannotBeNullOrEmpty" xml:space="preserve">
+    <value>Transport type cannot be null or empty.</value>
+  </data>
+  <data name="TransportConfigurationValidator_KafkaBootstrapServersCannotBeEmpty" xml:space="preserve">
+    <value>Kafka BootstrapServers cannot be empty when specified.</value>
+  </data>
+  <data name="TransportConfigurationValidator_ConnectionStringCannotBeEmptyFormat" xml:space="preserve">
+    <value>{0} ConnectionString cannot be empty when specified.</value>
+  </data>
+  <data name="TransportConfigurationValidator_CronExpressionCannotBeEmpty" xml:space="preserve">
+    <value>CronTimer CronExpression cannot be empty when specified.</value>
+  </data>
+  <data name="TransportConfigurationValidator_InvalidCronExpressionFormat" xml:space="preserve">
+    <value>Invalid cron expression format: '{0}'. Expected 5 or 6 space-separated fields.</value>
+  </data>
+</root>

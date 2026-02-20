@@ -1,0 +1,76 @@
+<Project>
+  <!--
+    Global test project settings
+    Suppresses style and code analysis rules that are overly restrictive for test code
+    These suppressions allow tests to build and execute while maintaining production code quality
+  -->
+
+  <!-- ============================================================================================
+       Sprint 325 T0.2: Project Classification Metadata (AD-325-2)
+       ============================================================================================
+       All projects under tests/ are classified as "Test" by default.
+       - IsTestProject=true (xUnit test SDK enabled)
+       - IsPackable=false (tests are not packaged)
+       ============================================================================================ -->
+  <PropertyGroup>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+    <ProjectClassification>Test</ProjectClassification>
+    <RepositoryRoot>$(MSBuildThisFileDirectory)..\</RepositoryRoot>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Suppress analyzer warnings that block test builds -->
+    <!-- Documentation: Test methods are internal; XML docs add no value -->
+    <!-- CS1591: Missing XML comment for publicly visible type or member -->
+    <!-- SA1600: Elements should be documented -->
+    <!-- SA1611: Element parameters should be documented -->
+    <!-- SA1615: Element return value should be documented -->
+    <!-- SA1618: Generic type parameters should be documented -->
+    <!-- SA1648: InheritDoc should be used with inheriting documentation -->
+    <!-- RCS1141: Add parameter to documentation comment -->
+
+    <!-- SA1402: File may only contain a single type (test helpers often grouped) -->
+    <!-- RCS1046: Add suffix 'Async' to asynchronous method name (test naming conventions) -->
+    <!-- CA1307: String operations should specify StringComparison (test clarity over perf) -->
+    <!-- CA1707: Identifiers should not contain underscores (test_naming_pattern) -->
+    <!-- CA1305: IFormatProvider for string operations (not critical in tests) -->
+    <!-- CA1848: Use LoggerMessage delegates (performance not critical in tests) -->
+    <!-- CA1849: Synchronous blocking detected (some test setups require it) -->
+    <!-- CA1854: Prefer TryGetValue over ContainsKey (readability in tests) -->
+    <!-- CA1860: Prefer IsEmpty check rather than Any() (test clarity) -->
+    <!-- CA1812: Internal class never instantiated (test middleware/helpers) -->
+    <!-- CA5394: Random is insecure (acceptable in test data generation) -->
+    <!-- CA1506: Class coupling too high (integration tests expected) -->
+    <!-- CA2000: Dispose objects (test setup/teardown handles lifecycle) -->
+    <!-- CA1310: StringComparison not always needed in tests -->
+    <!-- xUnit1030: ConfigureAwait(false) in tests (xUnit-specific rule) -->
+    <!-- MA0020: Use TrueForAll() instead of All() (test readability) -->
+    <!-- MA0044: Remove useless ToString call (test assertions sometimes need it) -->
+    <!-- Suppress duplicate package reference warnings (NU1504) -->
+    <!-- These packages are intentionally duplicated between Directory.Build.props and individual test projects -->
+    <!-- CA1873: Avoid expensive log arguments (not critical in tests) -->
+    <NoWarn>$(NoWarn);CS1591;SA1600;SA1611;SA1615;SA1618;SA1648;RCS1141;SA1402;RCS1046;CA1307;CA1707;CA1305;CA1848;CA1849;CA1854;CA1860;CA1812;CA1873;CA5394;CA1506;CA2000;CA1310;xUnit1030;MA0020;MA0044;NU1504</NoWarn>
+
+    <!-- Allow test-friendly code style -->
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <!-- Ensure all test projects get the test SDK packages -->
+  <ItemGroup Condition="'$(IsTestProject)' == 'true'">
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <!-- Copy xunit.runner.json to enable parallel execution -->
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)xunit.runner.json" CopyToOutputDirectory="PreserveNewest" Link="xunit.runner.json" />
+  </ItemGroup>
+
+  <!-- Test categorization traits -->
+  <PropertyGroup>
+    <!-- Enable parallel test execution at solution level -->
+    <RunSettingsFilePath>$(MSBuildThisFileDirectory)test.runsettings</RunSettingsFilePath>
+  </PropertyGroup>
+</Project>

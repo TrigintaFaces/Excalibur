@@ -1,0 +1,41 @@
+title: "[Idea] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Ideas & Brainstorming
+
+        Share ideas for the future of Excalibur! This is a place for open discussion
+        about potential features, patterns, or improvements.
+
+        For concrete feature requests with specific requirements, please use the
+        [Feature Request](../../issues/new?template=feature_request.yml) issue template instead.
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: Idea
+      description: Describe your idea in detail.
+      placeholder: What if Excalibur could...
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: What problem or opportunity does this address?
+      placeholder: This would help developers who...
+
+  - type: textarea
+    id: considerations
+    attributes:
+      label: Considerations
+      description: What trade-offs or challenges might be involved?
+      placeholder: |
+        Pros:
+        - ...
+
+        Cons:
+        - ...

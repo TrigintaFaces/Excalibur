@@ -1,0 +1,114 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Excalibur Contributors",
+  "classifications": ["CQRS", "Event Sourcing", "Excalibur", "Dispatch"],
+  "identity": "Excalibur.Dispatch.Cqrs",
+  "name": "Excalibur CQRS with Dispatch",
+  "shortName": "excalibur-cqrs",
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "sourceName": "Company.ExcaliburCqrs",
+  "preferNameDirectory": true,
+  "symbols": {
+    "Framework": {
+      "type": "parameter",
+      "description": "The target framework for the project.",
+      "datatype": "choice",
+      "choices": [
+        { "choice": "net8.0", "description": "Target .NET 8.0" },
+        { "choice": "net9.0", "description": "Target .NET 9.0" },
+        { "choice": "net10.0", "description": "Target .NET 10.0" }
+      ],
+      "defaultValue": "net10.0",
+      "replaces": "net8.0"
+    },
+    "Transport": {
+      "type": "parameter",
+      "description": "The message transport to use.",
+      "datatype": "choice",
+      "choices": [
+        { "choice": "inmemory", "description": "In-memory transport (default)" },
+        { "choice": "kafka", "description": "Apache Kafka" },
+        { "choice": "rabbitmq", "description": "RabbitMQ" },
+        { "choice": "azureservicebus", "description": "Azure Service Bus" },
+        { "choice": "awssqs", "description": "Amazon SQS" }
+      ],
+      "defaultValue": "inmemory"
+    },
+    "Database": {
+      "type": "parameter",
+      "description": "The database provider for event sourcing.",
+      "datatype": "choice",
+      "choices": [
+        { "choice": "sqlserver", "description": "SQL Server" },
+        { "choice": "postgresql", "description": "PostgreSQL" },
+        { "choice": "inmemory", "description": "In-memory (development only)" }
+      ],
+      "defaultValue": "sqlserver"
+    },
+    "UseKafka": {
+      "type": "computed",
+      "value": "(Transport == \"kafka\")"
+    },
+    "UseRabbitMQ": {
+      "type": "computed",
+      "value": "(Transport == \"rabbitmq\")"
+    },
+    "UseAzureServiceBus": {
+      "type": "computed",
+      "value": "(Transport == \"azureservicebus\")"
+    },
+    "UseAwsSqs": {
+      "type": "computed",
+      "value": "(Transport == \"awssqs\")"
+    },
+    "UseSqlServer": {
+      "type": "computed",
+      "value": "(Database == \"sqlserver\")"
+    },
+    "UsePostgreSql": {
+      "type": "computed",
+      "value": "(Database == \"postgresql\")"
+    },
+    "UseInMemoryDatabase": {
+      "type": "computed",
+      "value": "(Database == \"inmemory\")"
+    },
+    "FrameworkVersion": {
+      "type": "generated",
+      "generator": "switch",
+      "replaces": "8.0",
+      "parameters": {
+        "evaluator": "C++",
+        "datatype": "string",
+        "cases": [
+          { "condition": "(Framework == 'net10.0')", "value": "10.0" },
+          { "condition": "(Framework == 'net9.0')", "value": "9.0" },
+          { "condition": "", "value": "8.0" }
+        ]
+      }
+    },
+    "IncludeDocker": {
+      "type": "parameter",
+      "datatype": "bool",
+      "description": "Include Dockerfile and .dockerignore.",
+      "defaultValue": "false"
+    },
+    "IncludeTests": {
+      "type": "parameter",
+      "datatype": "bool",
+      "description": "Include a test project.",
+      "defaultValue": "false"
+    }
+  },
+  "sources": [
+    {
+      "modifiers": [
+        { "condition": "(!IncludeDocker)", "exclude": ["Dockerfile", ".dockerignore"] },
+        { "condition": "(!IncludeTests)", "exclude": ["Company.ExcaliburCqrs.Tests/**"] }
+      ]
+    }
+  ]
+}

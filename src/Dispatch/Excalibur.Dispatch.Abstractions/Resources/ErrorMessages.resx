@@ -1,0 +1,1438 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+	<value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+	<value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+	<value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+	<value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+	<data name="ValueStopwatchNotStarted" xml:space="preserve">
+	<value>ValueStopwatch has not been started. Use StartNew() first.</value>
+  </data>
+  <data name="StartTimestampCannotBeNegative" xml:space="preserve">
+	<value>Start timestamp cannot be negative.</value>
+  </data>
+  <data name="DeserializationTimeoutShouldBeLessThanDispatchTimeout" xml:space="preserve">
+	<value>DeserializationTimeout should be less than DispatchTimeout</value>
+  </data>
+  <data name="ScheduleRetrievalTimeoutShouldBeLessThanMaxSchedulingTimeout" xml:space="preserve">
+	<value>ScheduleRetrievalTimeout should be less than MaxSchedulingTimeout</value>
+  </data>
+  <data name="ScheduleUpdateTimeoutShouldBeLessThanMaxSchedulingTimeout" xml:space="preserve">
+	<value>ScheduleUpdateTimeout should be less than MaxSchedulingTimeout</value>
+  </data>
+  <data name="DispatchTimeoutShouldBeLessThanMaxSchedulingTimeout" xml:space="preserve">
+	<value>DispatchTimeout should be less than MaxSchedulingTimeout</value>
+  </data>
+  <data name="PollIntervalShouldBeLessThanScheduleRetrievalTimeout" xml:space="preserve">
+	<value>PollInterval should be less than ScheduleRetrievalTimeout to avoid timeout conflicts</value>
+  </data>
+  <data name="MessageTypeTimeoutCannotExceedMaxSchedulingTimeout" xml:space="preserve">
+	<value>Message type timeout for {0} cannot exceed MaxSchedulingTimeout</value>
+  </data>
+  <data name="MessageTypeTimeoutMustBePositive" xml:space="preserve">
+	<value>Message type timeout for {0} must be positive</value>
+  </data>
+  <data name="TimeoutEscalationMultiplierMustBeGreaterThanOne" xml:space="preserve">
+	<value>TimeoutEscalationMultiplier must be greater than 1.0 when escalation is enabled</value>
+  </data>
+  <data name="BulkOperationFailed" xml:space="preserve">
+	<value>Bulk Operation Failed</value>
+  </data>
+  <data name="BulkOperationFailedDetail" xml:space="preserve">
+	<value>Bulk operation failed: {0}</value>
+  </data>
+  <data name="OperationFailed" xml:space="preserve">
+	<value>Operation Failed</value>
+  </data>
+  <data name="OperationFailedDetail" xml:space="preserve">
+	<value>Operation failed: {0}</value>
+  </data>
+  <data name="TypeDoesNotImplementInterface" xml:space="preserve">
+	<value>Type {0} does not implement {1}</value>
+  </data>
+  <data name="TypeMustImplementInterface" xml:space="preserve">
+	<value>Type {0} must implement {1}</value>
+  </data>
+  <data name="MissingRequiredFields" xml:space="preserve">
+	<value>Missing required fields: {0}</value>
+  </data>
+  <data name="CorruptedFieldsDetected" xml:space="preserve">
+	<value>Corrupted fields detected: {0}</value>
+  </data>
+  <data name="CustomValidationFailed" xml:space="preserve">
+	<value>Custom validation failed</value>
+  </data>
+  <data name="CircuitBreakerManualReset" xml:space="preserve">
+	<value>Manual reset</value>
+  </data>
+  <data name="CircuitBreakerConsecutiveFailures" xml:space="preserve">
+	<value>Consecutive failures: {0}</value>
+  </data>
+  <data name="CircuitBreakerTestingRecovery" xml:space="preserve">
+	<value>Testing recovery after timeout</value>
+  </data>
+  <data name="CircuitBreakerTrialSuccess" xml:space="preserve">
+	<value>Trial success: {0}</value>
+  </data>
+  <data name="CircuitBreakerRecoveryConfirmed" xml:space="preserve">
+	<value>Recovery confirmed with {0} successes</value>
+  </data>
+  <data name="QueueCapacityCannotBeLessThanProducerBatchSize" xml:space="preserve">
+	<value>The QueueCapacity cannot be less than the ProducerBatchSize</value>
+  </data>
+  <data name="TypeNotFoundInRegistry" xml:space="preserve">
+	<value>Type '{0}' not found in registry</value>
+  </data>
+  <data name="CouldNotDeserializeAsDispatchMessage" xml:space="preserve">
+	<value>Could not deserialize {0} as a dispatch message.</value>
+  </data>
+  <data name="FailedToDeserializeMessageMetadata" xml:space="preserve">
+	<value>Failed to deserialize message metadata for message {0}</value>
+  </data>
+  <data name="AttemptedToRunWithoutCallingInit" xml:space="preserve">
+	<value>Attempted to run {0} without calling {1}.</value>
+  </data>
+  <data name="ProcessingFailedRetryAttempt" xml:space="preserve">
+	<value>Processing failed - retry attempt</value>
+  </data>
+  <data name="MessageMovedToDeadLetterQueueMaxRetriesExceeded" xml:space="preserve">
+	<value>Message moved to dead letter queue - max retries exceeded</value>
+  </data>
+  <data name="MessageDispatchFailed" xml:space="preserve">
+	<value>Message dispatch failed</value>
+  </data>
+  <data name="CouldNotDeserializeAsIntegrationEvent" xml:space="preserve">
+	<value>Could not deserialize {0} as a integration event.</value>
+  </data>
+  <data name="RetryAttempt" xml:space="preserve">
+	<value>Retry attempt</value>
+  </data>
+  <data name="MaxRetriesReachedMovedToDeadLetter" xml:space="preserve">
+	<value>Max retries reached - moved to dead letter</value>
+  </data>
+  <data name="ValidationFailedForMessageType" xml:space="preserve">
+	<value>Validation failed for message type {0}: {1}</value>
+  </data>
+  <data name="ValidationError" xml:space="preserve">
+	<value>Validation error</value>
+  </data>
+  <data name="LoggerIsNotInitialized" xml:space="preserve">
+	<value>Logger is not initialized</value>
+  </data>
+  <data name="AccessDeniedForMessageType" xml:space="preserve">
+	<value>Access denied for message type {0}: {1}</value>
+  </data>
+  <data name="NoAuthenticatedSubjectFound" xml:space="preserve">
+	<value>No authenticated subject found</value>
+  </data>
+  <data name="AuthenticationRequiredButNoCredentialsProvided" xml:space="preserve">
+	<value>Authentication required but no credentials provided</value>
+  </data>
+  <data name="NoDefaultAdapterConfigured" xml:space="preserve">
+	<value>No default adapter is configured for multi-transport message bus</value>
+  </data>
+  <data name="UseStructValidationResultForFailedResults" xml:space="preserve">
+	<value>Use StructValidationResult for failed results</value>
+  </data>
+  <data name="RequestServicesNotInitialized" xml:space="preserve">
+	<value>Request services not initialized.</value>
+  </data>
+  <data name="MessageTypeIsRequired" xml:space="preserve">
+	<value>Message type is required</value>
+  </data>
+  <data name="MessageIdIsRequired" xml:space="preserve">
+	<value>Message ID is required</value>
+  </data>
+  <data name="ErrorProcessingMessage" xml:space="preserve">
+	<value>Error processing message</value>
+  </data>
+  <data name="ErrorInMessagePump" xml:space="preserve">
+	<value>Error in message pump</value>
+  </data>
+  <data name="MessageTypeMustImplementIDispatchMessage" xml:space="preserve">
+	<value>Message type must implement IDispatchMessage</value>
+  </data>
+  <data name="EnvelopeDoesNotContainMemoryMessage" xml:space="preserve">
+	<value>Envelope does not contain a memory message</value>
+  </data>
+  <data name="NoTransportAdapterConfigured" xml:space="preserve">
+	<value>No transport adapter configured</value>
+  </data>
+  <data name="BindingNameIsRequired" xml:space="preserve">
+	<value>Binding name is required</value>
+  </data>
+  <data name="TransportNameIsRequired" xml:space="preserve">
+	<value>Transport name is required</value>
+  </data>
+  <data name="EndpointPatternIsRequired" xml:space="preserve">
+	<value>Endpoint pattern is required</value>
+  </data>
+  <data name="UnableToDecryptPayloadWithAnyRegisteredKey" xml:space="preserve">
+	<value>Unable to decrypt payload with any registered key</value>
+  </data>
+  <data name="ValidationFailed" xml:space="preserve">
+	<value>Validation failed</value>
+  </data>
+  <data name="ConfigurationErrorOccurred" xml:space="preserve">
+	<value>Configuration error occurred</value>
+  </data>
+  <data name="SerializationErrorOccurred" xml:space="preserve">
+	<value>A serialization error occurred.</value>
+  </data>
+  <data name="MessagingErrorOccurred" xml:space="preserve">
+	<value>Messaging error occurred</value>
+  </data>
+  <data name="DispatchFrameworkError" xml:space="preserve">
+	<value>An error occurred in the Dispatch framework</value>
+  </data>
+  <data name="ConnectionFailed" xml:space="preserve">
+	<value>Connection failed</value>
+  </data>
+  <data name="StoredDeadLetterMessage" xml:space="preserve">
+	<value>Stored dead letter message {0} of type {1} with reason: {2}</value>
+  </data>
+  <data name="MarkedDeadLetterMessageAsReplayed" xml:space="preserve">
+	<value>Marked dead letter message {0} as replayed</value>
+  </data>
+  <data name="DeletedDeadLetterMessage" xml:space="preserve">
+	<value>Deleted dead letter message {0}</value>
+  </data>
+  <data name="CleanedUpOldDeadLetterMessages" xml:space="preserve">
+	<value>Cleaned up {0} old dead letter messages older than {1} days</value>
+  </data>
+  <data name="AuthenticationFailed" xml:space="preserve">
+	<value>Authentication failed</value>
+  </data>
+  <data name="AuthenticationFailedDueToUnexpectedError" xml:space="preserve">
+	<value>Authentication failed due to unexpected error</value>
+  </data>
+  <data name="EventVersionNotSpecifiedAndExplicitVersionsRequired" xml:space="preserve">
+	<value>Event version not specified and explicit versions are required</value>
+  </data>
+  <data name="EventVersionIsIncompatible" xml:space="preserve">
+	<value>Event {0} version {1} is incompatible: {2}</value>
+  </data>
+  <data name="UnknownVersionStatusForEvent" xml:space="preserve">
+	<value>Unknown version status for event {0} version {1}</value>
+  </data>
+  <data name="MaxSpinCountMustBePositive" xml:space="preserve">
+	<value>Max spin count must be positive</value>
+  </data>
+  <data name="ContentionThresholdMustBePositive" xml:space="preserve">
+	<value>Contention threshold must be positive</value>
+  </data>
+  <data name="CapacityMustBeAtLeastTwo" xml:space="preserve">
+	<value>Capacity must be at least 2</value>
+  </data>
+  <data name="DelayMustBePositive" xml:space="preserve">
+	<value>Delay must be positive</value>
+  </data>
+  <data name="MessageBusIsNotConnected" xml:space="preserve">
+	<value>Message bus is not connected</value>
+  </data>
+  <data name="SpinCountMustBePositive" xml:space="preserve">
+	<value>Spin count must be positive</value>
+  </data>
+  <data name="DestinationBufferTooSmall" xml:space="preserve">
+	<value>Destination buffer too small</value>
+  </data>
+  <data name="FunctionExecutionTimedOut" xml:space="preserve">
+	<value>Function execution exceeded the available time limit</value>
+  </data>
+  <data name="FunctionContextMustBeFunctionContext" xml:space="preserve">
+	<value>Function context must be FunctionContext</value>
+  </data>
+  <data name="AzureFunctionsSupportNotAvailable" xml:space="preserve">
+	<value>Azure Functions support is not available. Ensure Microsoft.Azure.Functions.Worker package is installed.</value>
+  </data>
+  <data name="LambdaContextMustImplementILambdaContext" xml:space="preserve">
+	<value>Lambda context must implement ILambdaContext</value>
+  </data>
+  <data name="AwsLambdaSupportNotAvailable" xml:space="preserve">
+	<value>AWS Lambda support is not available. Ensure Amazon.Lambda.Core package is installed.</value>
+  </data>
+  <data name="SecurityAuditConnectionStringRequired" xml:space="preserve">
+	<value>SecurityAudit connection string is required</value>
+  </data>
+  <data name="FailedToStoreSecurityEvents" xml:space="preserve">
+	<value>Failed to store security events in SQL database</value>
+  </data>
+  <data name="MaxResultsMustBeGreaterThanZero" xml:space="preserve">
+	<value>MaxResults must be greater than 0</value>
+  </data>
+  <data name="StartTimeCannotBeGreaterThanEndTime" xml:space="preserve">
+	<value>StartTime cannot be greater than EndTime</value>
+  </data>
+  <data name="FailedToQuerySecurityEvents" xml:space="preserve">
+	<value>Failed to query security events from SQL database</value>
+  </data>
+  <data name="LambdaExecutionTimedOut" xml:space="preserve">
+	<value>Lambda execution exceeded the available time limit</value>
+  </data>
+  <data name="TableNameCannotBeNullOrEmpty" xml:space="preserve">
+	<value>Table name cannot be null or empty</value>
+  </data>
+  <data name="ConnectionTestFailed" xml:space="preserve">
+	<value>Failed to initialize SQL Server persistence provider - connection test failed</value>
+  </data>
+  <data name="FailedToBeginBatchTransaction" xml:space="preserve">
+	<value>Failed to begin batch transaction</value>
+  </data>
+  <data name="CheckpointNotFound" xml:space="preserve">
+	<value>Checkpoint {0} not found</value>
+  </data>
+  <data name="FromTimeMustBeBeforeToTime" xml:space="preserve">
+	<value>From time must be before to time</value>
+  </data>
+  <data name="BranchKeyCannotBeNullOrWhitespace" xml:space="preserve">
+	<value>Branch key cannot be null or whitespace.</value>
+  </data>
+  <data name="BranchEvaluatorMustBeSpecified" xml:space="preserve">
+	<value>Branch evaluator must be specified for multi-conditional step.</value>
+  </data>
+  <data name="AtLeastOneBranchMustBeSpecified" xml:space="preserve">
+	<value>At least one branch must be specified for multi-conditional step.</value>
+  </data>
+  <data name="ConditionMustBeSpecified" xml:space="preserve">
+	<value>Condition must be specified for conditional step.</value>
+  </data>
+  <data name="AlgorithmNotSupportedByImplementation" xml:space="preserve">
+	<value>Algorithm {0} is not supported by this implementation</value>
+  </data>
+  <data name="AlgorithmNotSupported" xml:space="preserve">
+	<value>Algorithm {0} is not supported</value>
+  </data>
+  <data name="ParallelismStrategyNotSupported" xml:space="preserve">
+	<value>Parallelism strategy '{0}' is not supported.</value>
+  </data>
+  <data name="ResourceCannotBeNullOrWhitespace" xml:space="preserve">
+	<value>Resource cannot be null or whitespace.</value>
+  </data>
+  <data name="CountMustBePositive" xml:space="preserve">
+	<value>Count must be positive.</value>
+  </data>
+  <data name="MessageIsRequired" xml:space="preserve">
+	<value>Message is required.</value>
+  </data>
+  <data name="ContextIsRequired" xml:space="preserve">
+	<value>Context is required.</value>
+  </data>
+  <data name="AtLeastOneDestinationMustBeSpecified" xml:space="preserve">
+	<value>At least one destination must be specified.</value>
+  </data>
+  <data name="MinimumLengthCannotBeNegative" xml:space="preserve">
+	<value>Minimum length cannot be negative.</value>
+  </data>
+  <data name="UnsupportedChannelMode" xml:space="preserve">
+	<value>Unsupported channel mode: {0}</value>
+  </data>
+  <data name="BatchSizeLimitExceededAtEvent" xml:space="preserve">
+	<value>Batch size limit exceeded at event {0}</value>
+  </data>
+  <data name="AwsSecretsManagerKeyIdRequired" xml:space="preserve">
+	<value>AWS SecretsManager KeyId is required</value>
+  </data>
+  <data name="KeyCannotBeNullOrEmpty" xml:space="preserve">
+	<value>Key cannot be null or empty</value>
+  </data>
+  <data name="FailedToRetrieveSecretFromAwsSecretsManager" xml:space="preserve">
+	<value>Failed to retrieve secret '{0}' from AWS Secrets Manager</value>
+  </data>
+  <data name="CredentialLengthMustBeBetween1And65536Characters" xml:space="preserve">
+	<value>Credential length must be between 1 and 65536 characters</value>
+  </data>
+  <data name="FailedToStoreSecretInAwsSecretsManager" xml:space="preserve">
+	<value>Failed to store secret '{0}' in AWS Secrets Manager</value>
+  </data>
+  <data name="VaultUrlRequired" xml:space="preserve">
+	<value>Vault URL is required</value>
+  </data>
+  <data name="VaultTokenRequired" xml:space="preserve">
+	<value>Vault token is required</value>
+  </data>
+  <data name="FailedToRetrieveSecretFromHashiCorpVault" xml:space="preserve">
+	<value>Failed to retrieve secret '{0}' from HashiCorp Vault</value>
+  </data>
+  <data name="CredentialCannotBeEmpty" xml:space="preserve">
+	<value>Credential cannot be empty</value>
+  </data>
+  <data name="FailedToStoreSecretInHashiCorpVault" xml:space="preserve">
+	<value>Failed to store secret '{0}' in HashiCorp Vault</value>
+  </data>
+  <data name="NoValidEventsToWriteToAuditLogFile" xml:space="preserve">
+	<value>No valid events to write to audit log file</value>
+  </data>
+  <data name="FailedToStoreSecurityEventsToAuditLogFiles" xml:space="preserve">
+	<value>Failed to store security events to audit log files</value>
+  </data>
+  <data name="FailedToQuerySecurityEventsFromAuditLogFiles" xml:space="preserve">
+	<value>Failed to query security events from audit log files</value>
+  </data>
+  <data name="CannotDivideMoneyByZero" xml:space="preserve">
+	<value>Cannot divide money by zero.</value>
+  </data>
+  <data name="ConnectionStringRequiredForSqlServer" xml:space="preserve">
+	<value>ConnectionString is required for SQL Server persistence provider.</value>
+  </data>
+  <data name="ConnectionTimeoutMustBeGreaterThanZero" xml:space="preserve">
+	<value>ConnectionTimeout must be greater than 0.</value>
+  </data>
+  <data name="CommandTimeoutMustBeGreaterThanZero" xml:space="preserve">
+	<value>CommandTimeout must be greater than 0.</value>
+  </data>
+  <data name="MaxRetryAttemptsCannotBeNegative" xml:space="preserve">
+	<value>MaxRetryAttempts cannot be negative.</value>
+  </data>
+  <data name="RetryDelayMillisecondsCannotBeNegative" xml:space="preserve">
+	<value>RetryDelayMilliseconds cannot be negative.</value>
+  </data>
+  <data name="MaxPoolSizeMustBeGreaterThanZero" xml:space="preserve">
+	<value>MaxPoolSize must be greater than 0 when connection pooling is enabled.</value>
+  </data>
+  <data name="MinPoolSizeCannotBeNegative" xml:space="preserve">
+	<value>MinPoolSize cannot be negative.</value>
+  </data>
+  <data name="MinPoolSizeCannotBeGreaterThanMaxPoolSize" xml:space="preserve">
+	<value>MinPoolSize cannot be greater than MaxPoolSize.</value>
+  </data>
+  <data name="PacketSizeMustBeBetween512And32768" xml:space="preserve">
+	<value>PacketSize must be between 512 and 32768.</value>
+  </data>
+  <data name="ConnectRetryCountMustBeBetween0And255" xml:space="preserve">
+	<value>ConnectRetryCount must be between 0 and 255.</value>
+  </data>
+  <data name="ConnectRetryIntervalMustBeBetween1And60Seconds" xml:space="preserve">
+	<value>ConnectRetryInterval must be between 1 and 60 seconds.</value>
+  </data>
+  <data name="UseSingleParameterConstructorForSpecificKeys" xml:space="preserve">
+	<value>Use the single parameter constructor for specific keys.</value>
+  </data>
+  <data name="CannotConvertNullToMoney" xml:space="preserve">
+	<value>Cannot convert null to Money.</value>
+  </data>
+  <data name="CannotConvertTypeToMoney" xml:space="preserve">
+	<value>Cannot convert {0} to Money.</value>
+  </data>
+  <data name="NestedTransactionScopesNotDirectlySupported" xml:space="preserve">
+	<value>Nested transaction scopes are not directly supported. Use savepoints instead.</value>
+  </data>
+  <data name="SqlServerDoesNotSupportDocumentBasedDataRequests" xml:space="preserve">
+	<value>SQL Server does not support document-based data requests. Use a relational data request instead.</value>
+  </data>
+  <data name="HandlerTypeDoesNotSpecifyGenericType" xml:space="preserve">
+	<value>The handler of type '{0}' does not specify a generic type and cannot be registered.</value>
+  </data>
+  <data name="CouldNotLocateGenericAddTypeHandlerMethod" xml:space="preserve">
+	<value>Could not locate the generic AddTypeHandler method on SqlMapper.</value>
+  </data>
+  <data name="CdcProcessorIsAlreadyRunning" xml:space="preserve">
+	<value>CDC Processor is already running.</value>
+  </data>
+  <data name="CannotStartProcessingNoValidMinimumLsnFound" xml:space="preserve">
+	<value>Cannot start processing; no valid minimum LSN found in CDC tables.</value>
+  </data>
+  <data name="RedisTransactionScopeOnlySupportsCreatingProvider" xml:space="preserve">
+	<value>Redis transaction scope only supports the creating provider.</value>
+  </data>
+  <data name="InMemoryTransactionScopeOnlySupportsCreatingProvider" xml:space="preserve">
+	<value>In-memory transaction scope only supports the creating provider.</value>
+  </data>
+  <data name="ServiceNameCannotBeNullOrEmpty" xml:space="preserve">
+	<value>Service name cannot be null or empty</value>
+  </data>
+  <data name="ServiceVersionCannotBeNullOrEmpty" xml:space="preserve">
+	<value>Service version cannot be null or empty</value>
+  </data>
+  <data name="SlowOperationThresholdMustBePositive" xml:space="preserve">
+	<value>Slow operation threshold must be positive</value>
+  </data>
+  <data name="ExportTimeoutMustBePositive" xml:space="preserve">
+	<value>Export timeout must be positive</value>
+  </data>
+  <data name="SamplingRatioMustBeBetween0And1" xml:space="preserve">
+	<value>Sampling ratio must be between 0 and 1</value>
+  </data>
+  <data name="PipelineSynthesisFailedWithErrors" xml:space="preserve">
+	<value>Pipeline synthesis failed with errors. See validation issues for details.</value>
+  </data>
+  <data name="MessageDetectedAsPoisonByDetector" xml:space="preserve">
+	<value>Message {0} detected as poison by {1}: {2}</value>
+  </data>
+  <data name="ErrorInPoisonDetectorForMessage" xml:space="preserve">
+	<value>Error in poison detector {0} for message {1}</value>
+  </data>
+  <data name="EventStoreDispatcherInitialized" xml:space="preserve">
+	<value>EventStore dispatcher {0} initialized.</value>
+  </data>
+  <data name="DuplicateInboxMessageIgnored" xml:space="preserve">
+	<value>Duplicate inbox message ignored: {0}</value>
+  </data>
+  <data name="ConversionFromEventStoreMessageNotImplemented" xml:space="preserve">
+	<value>Conversion from EventStoreMessage&lt;string&gt; to EventStoreMessage&lt;TAggregateKey&gt; is not implemented.</value>
+  </data>
+  <data name="CannotAccessValueOfFaultedResult" xml:space="preserve">
+	<value>Cannot access value of a faulted result.</value>
+  </data>
+  <data name="ResultHasNoValue" xml:space="preserve">
+	<value>Result has no value.</value>
+  </data>
+  <data name="CleanedUpDeadLetterMessages" xml:space="preserve">
+	<value>Cleaned up {0} dead letter messages older than {1} days</value>
+  </data>
+  <data name="FailedToCleanupOldDeadLetterMessages" xml:space="preserve">
+	<value>Failed to cleanup old dead letter messages</value>
+  </data>
+  <data name="CapacityMustBeAtLeastOne" xml:space="preserve">
+	<value>Capacity must be at least 1</value>
+  </data>
+  <data name="ContentDeduplicationWindowMustBePositive" xml:space="preserve">
+	<value>Content deduplication window must be positive</value>
+  </data>
+  <data name="InitialRetryDelayMustBePositive" xml:space="preserve">
+	<value>Initial retry delay must be positive</value>
+  </data>
+  <data name="MaximumRetryDelayMustBeGreaterThanInitial" xml:space="preserve">
+	<value>Maximum retry delay must be greater than initial retry delay</value>
+  </data>
+  <data name="CleanupIntervalMustBePositive" xml:space="preserve">
+	<value>Cleanup interval must be positive.</value>
+  </data>
+  <data name="ProcessedMessageRetentionMustBePositive" xml:space="preserve">
+	<value>Processed message retention must be positive</value>
+  </data>
+  <data name="StartingEventStoreMigrationToVersion" xml:space="preserve">
+	<value>Starting event store migration to schema version {0}</value>
+  </data>
+  <data name="EventStoreMigrationComplete" xml:space="preserve">
+	<value>Event store migration complete.</value>
+  </data>
+  <data name="MigratedEventFromVersionToVersion" xml:space="preserve">
+	<value>Migrated event {0} from v{1} to v{2}</value>
+  </data>
+  <data name="MessagesAndContextsMustHaveSameCount" xml:space="preserve">
+	<value>Messages and contexts must have the same count</value>
+  </data>
+  <data name="NoPipelineProfilesRegisteredSynthesizing" xml:space="preserve">
+	<value>No pipeline profiles registered. Synthesizing default profiles...</value>
+  </data>
+  <data name="RegisteredSynthesizedProfile" xml:space="preserve">
+	<value>Registered synthesized profile '{0}'</value>
+  </data>
+  <data name="MappedMessageKindToProfile" xml:space="preserve">
+	<value>Mapped {0} → {1}</value>
+  </data>
+  <data name="PipelineSynthesisWarning" xml:space="preserve">
+	<value>Pipeline synthesis warning: {0}</value>
+  </data>
+  <data name="PipelineProfileRegistryNotRegistered" xml:space="preserve">
+	<value>Pipeline profile registry not registered. Add it via services.AddDispatchPipelines()</value>
+  </data>
+  <data name="DispatchBuilderImplementationDoesNotSupportPipelineProfiles" xml:space="preserve">
+	<value>The IDispatchBuilder implementation does not support pipeline profiles configuration.</value>
+  </data>
+  <data name="FoundHandlersForMessageType" xml:space="preserve">
+	<value>Found {0} handlers for message type {1}</value>
+  </data>
+  <data name="ErrorRetrievingHandlersForMessageType" xml:space="preserve">
+	<value>Error retrieving handlers for message type {0}</value>
+  </data>
+  <data name="FoundHandlerForMessageType" xml:space="preserve">
+	<value>Found handler {0} for message type {1}</value>
+  </data>
+  <data name="NoHandlerFoundForMessageType" xml:space="preserve">
+	<value>No handler found for message type {0}</value>
+  </data>
+  <data name="ErrorRetrievingHandlerForMessageType" xml:space="preserve">
+	<value>Error retrieving handler for message type {0}</value>
+  </data>
+  <data name="MessageTypeHasHandlers" xml:space="preserve">
+	<value>Message type {0} has handlers: {1}</value>
+  </data>
+  <data name="ErrorCheckingHandlersForMessageType" xml:space="preserve">
+	<value>Error checking handlers for message type {0}</value>
+  </data>
+  <data name="ErrorProcessingBatchOfMessages" xml:space="preserve">
+	<value>Error processing batch of {0} messages</value>
+  </data>
+  <data name="ErrorFlushingBatch" xml:space="preserve">
+	<value>Error flushing batch</value>
+  </data>
+  <data name="MessageCannotBeNull" xml:space="preserve">
+	<value>Message cannot be null</value>
+  </data>
+  <data name="InsufficientDataForBatchHeader" xml:space="preserve">
+	<value>Insufficient data for batch header</value>
+  </data>
+  <data name="InboxEntryWithMessageIdAlreadyExists" xml:space="preserve">
+	<value>Inbox entry with MessageId {0} already exists</value>
+  </data>
+  <data name="CreatedInboxEntryForMessage" xml:space="preserve">
+	<value>Created inbox entry for message {0} of type {1} with correlation {2}</value>
+  </data>
+  <data name="RetrievedInboxEntryForMessage" xml:space="preserve">
+	<value>Retrieved inbox entry for message {0} with status {1}</value>
+  </data>
+  <data name="NoInboxEntryFoundForMessage" xml:space="preserve">
+	<value>No inbox entry found for message {0}</value>
+  </data>
+  <data name="MessageProcessedStatus" xml:space="preserve">
+	<value>Message {0} processed status: {1}</value>
+  </data>
+  <data name="MessageNotFoundInInbox" xml:space="preserve">
+	<value>Message {0} not found in inbox</value>
+  </data>
+  <data name="AttemptedToMarkAlreadyProcessedMessageAsProcessed" xml:space="preserve">
+	<value>Attempted to mark already processed message {0} as processed</value>
+  </data>
+  <data name="MarkedMessageAsProcessed" xml:space="preserve">
+	<value>Marked message {0} as processed with correlation {1}</value>
+  </data>
+  <data name="AttemptedToMarkNonExistentMessageAsProcessed" xml:space="preserve">
+	<value>Attempted to mark non-existent message {0} as processed</value>
+  </data>
+  <data name="MarkedMessageAsFailedWithError" xml:space="preserve">
+	<value>Marked message {0} as failed with error: {1}. Retry count: {2}</value>
+  </data>
+  <data name="AttemptedToMarkNonExistentMessageAsFailed" xml:space="preserve">
+	<value>Attempted to mark non-existent message {0} as failed</value>
+  </data>
+  <data name="InitializedInMemoryDeduplicatorWithAutomaticCleanup" xml:space="preserve">
+	<value>Initialized in-memory deduplicator with automatic cleanup every {0}</value>
+  </data>
+  <data name="InitializedInMemoryDeduplicatorWithoutAutomaticCleanup" xml:space="preserve">
+	<value>Initialized in-memory deduplicator without automatic cleanup</value>
+  </data>
+  <data name="MessageWasProcessedButExpiredTreatingAsNew" xml:space="preserve">
+	<value>Message {0} was processed but expired (processed at {1}), treating as new</value>
+  </data>
+  <data name="MessageIsADuplicate" xml:space="preserve">
+	<value>Message {0} is a duplicate (processed at {1})</value>
+  </data>
+  <data name="MessageIsNotADuplicate" xml:space="preserve">
+	<value>Message {0} is not a duplicate</value>
+  </data>
+  <data name="MarkedMessageAsProcessedWithExpiry" xml:space="preserve">
+	<value>Marked message {0} as processed at {1} with expiry {2}</value>
+  </data>
+  <data name="CannotDeserializeContentWithoutSerializer" xml:space="preserve">
+	<value>Cannot deserialize content without a serializer.</value>
+  </data>
+  <data name="ErrorDispatchingMessageOfType" xml:space="preserve">
+	<value>Error dispatching message of type {0}</value>
+  </data>
+  <data name="MessageWithIdAlreadyExistsInInbox" xml:space="preserve">
+	<value>A message with ID '{0}' already exists in the inbox.</value>
+  </data>
+  <data name="MessageWithIdNotFoundInInbox" xml:space="preserve">
+	<value>Message with ID '{0}' not found in the inbox.</value>
+  </data>
+  <data name="MessageWithIdAlreadyMarkedAsProcessed" xml:space="preserve">
+	<value>Message with ID '{0}' is already marked as processed.</value>
+  </data>
+  <data name="DispatchErrorUri" xml:space="preserve">
+	<value>urn:dispatch:error:internal</value>
+  </data>
+  <data name="ProcessingFailed" xml:space="preserve">
+	<value>Processing Failed</value>
+  </data>
+  <data name="DispatchError" xml:space="preserve">
+	<value>dispatch-error</value>
+  </data>
+  <data name="ConversionFromStringToTAggregateKeyNotImplemented" xml:space="preserve">
+	<value>Conversion from EventStoreMessage&lt;string&gt; to EventStoreMessage&lt;TAggregateKey&gt; is not implemented.</value>
+  </data>
+  <data name="MaximumRetryDelayMustBeGreaterThanInitialRetryDelay" xml:space="preserve">
+	<value>Maximum retry delay must be greater than initial retry delay</value>
+  </data>
+  <data name="StartingEventStoreMigrationToSchemaVersion" xml:space="preserve">
+	<value>Starting event store migration to schema version {0}</value>
+  </data>
+  <data name="MigratedEventFromCurrentToTarget" xml:space="preserve">
+	<value>Migrated event {0} from v{1} to v{2}</value>
+  </data>
+  <data name="NoMigrationPathFromCurrentToTargetForEvent" xml:space="preserve">
+	<value>No migration path from v{0} to v{1} for event {2}</value>
+  </data>
+  <data name="DispatchBuilderDoesNotSupportPipelineProfilesConfiguration" xml:space="preserve">
+	<value>The IDispatchBuilder implementation does not support pipeline profiles configuration.</value>
+  </data>
+  <data name="UnknownMessageTypeForScheduledDispatch" xml:space="preserve">
+	<value>Unknown message type {0} for scheduled dispatch</value>
+  </data>
+  <data name="NoSagaRegisteredForEventType" xml:space="preserve">
+	<value>No saga registered for event type {0}</value>
+  </data>
+  <data name="NoSagaMetadataConfiguredForSagaType" xml:space="preserve">
+	<value>No saga metadata configured for saga type {0}</value>
+  </data>
+  <data name="DeduplicationWindowMustBePositive" xml:space="preserve">
+	<value>Deduplication window must be positive</value>
+  </data>
+  <data name="CleanedUpProcessedInboxEntries" xml:space="preserve">
+	<value>Cleaned up {0} processed inbox entries older than {1}</value>
+  </data>
+  <data name="InMemoryInboxStoreDisposed" xml:space="preserve">
+	<value>In-memory inbox store disposed</value>
+  </data>
+  <data name="RetrievedFailedEntriesEligibleForRetry" xml:space="preserve">
+	<value>Retrieved {0} failed entries eligible for retry</value>
+  </data>
+  <data name="InvokingHandlersForMessageType" xml:space="preserve">
+	<value>Invoking {0} handlers for message type {1} with ID {2}</value>
+  </data>
+  <data name="HandlerCompletedForMessage" xml:space="preserve">
+	<value>Handler {0} completed for message {1} with result: {2}</value>
+  </data>
+  <data name="HandlerFailedForMessage" xml:space="preserve">
+	<value>Handler {0} failed for message {1}</value>
+  </data>
+  <data name="NoHandlersFoundForMessageType" xml:space="preserve">
+	<value>No handlers found for message type {0} with ID {1}</value>
+  </data>
+  <data name="FirstHandlerCompletedForMessage" xml:space="preserve">
+	<value>First handler {0} completed for message {1} with result: {2}</value>
+  </data>
+  <data name="FirstHandlerFailedForMessage" xml:space="preserve">
+	<value>First handler {0} failed for message {1}</value>
+  </data>
+  <data name="ProcessingBatchOfMessages" xml:space="preserve">
+	<value>Processing batch of {0} messages across {1} types</value>
+  </data>
+  <data name="BatchHandlerProcessedMessages" xml:space="preserve">
+	<value>Batch handler {0} processed {1} messages</value>
+  </data>
+  <data name="BatchHandlerFailedForMessages" xml:space="preserve">
+	<value>Batch handler {0} failed for {1} messages</value>
+  </data>
+  <data name="InboxMiddlewareEnabledButNeitherStoreNorDeduplicatorRegistered" xml:space="preserve">
+	<value>Inbox middleware is enabled but neither IInboxStore nor IInMemoryDeduplicator is registered. Register one of these services or disable inbox middleware.</value>
+  </data>
+  <data name="FailedToSerializeMessage" xml:space="preserve">
+	<value>Failed to serialize message {0}</value>
+  </data>
+  <data name="MessageIsDuplicateSkipping" xml:space="preserve">
+	<value>Message {0} is a duplicate, skipping</value>
+  </data>
+  <data name="MarkedMessageAsProcessedInLightMode" xml:space="preserve">
+	<value>Marked message {0} as processed in light mode</value>
+  </data>
+  <data name="CannotProcessMessageWithoutIdentifierSkippingInboxProcessing" xml:space="preserve">
+	<value>Cannot process message without identifier, skipping inbox processing</value>
+  </data>
+  <data name="ProcessingMessageWithInboxSemantics" xml:space="preserve">
+	<value>Processing message {0} with inbox semantics</value>
+  </data>
+  <data name="NoInboxStoreOrDeduplicatorAvailableProcessingWithoutInboxSemantics" xml:space="preserve">
+	<value>No inbox store or deduplicator available, processing without inbox semantics</value>
+  </data>
+  <data name="ExceptionOccurredDuringInboxProcessingForMessage" xml:space="preserve">
+	<value>Exception occurred during inbox processing for message {0}</value>
+  </data>
+  <data name="MessageHasAlreadyBeenProcessedSkipping" xml:space="preserve">
+	<value>Message {0} has already been processed, skipping</value>
+  </data>
+  <data name="MessageIsAlreadyBeingProcessedSkipping" xml:space="preserve">
+	<value>Message {0} is already being processed, skipping</value>
+  </data>
+  <data name="MessagePreviouslyFailedWillRetry" xml:space="preserve">
+	<value>Message {0} previously failed, will retry</value>
+  </data>
+  <data name="MessageIsReadyForProcessing" xml:space="preserve">
+	<value>Message {0} is ready for processing</value>
+  </data>
+  <data name="MarkedMessageAsFailedDueToException" xml:space="preserve">
+	<value>Marked message {0} as failed due to exception</value>
+  </data>
+  <data name="MessageProcessingFailedInLightModeWithError" xml:space="preserve">
+	<value>Message {0} processing failed in light mode: {1}</value>
+  </data>
+  <data name="ExceptionDuringLightModeProcessingForMessage" xml:space="preserve">
+	<value>Exception during light mode processing for message {0}</value>
+  </data>
+  <data name="UnifiedConnectionPoolInitialized" xml:space="preserve">
+	<value>Unified connection pool '{0}' initialized for {1} with min={2}, max={3}</value>
+  </data>
+  <data name="FailedToAcquireConnectionFromPool" xml:space="preserve">
+	<value>Failed to acquire connection from pool '{0}'</value>
+  </data>
+  <data name="NoHealthCheckerConfigured" xml:space="preserve">
+	<value>No health checker configured</value>
+  </data>
+  <data name="PoolIsDisposed" xml:space="preserve">
+	<value>Pool is disposed</value>
+  </data>
+  <data name="HealthCheckFailedForConnectionInPool" xml:space="preserve">
+	<value>Health check failed for connection in pool '{0}'</value>
+  </data>
+  <data name="CleanupRemovedExpiredConnectionsFromPool" xml:space="preserve">
+	<value>Cleanup removed {0} expired connections from pool '{1}'</value>
+  </data>
+  <data name="NewMaximumSizeMustBePositive" xml:space="preserve">
+	<value>New maximum size must be positive.</value>
+  </data>
+  <data name="ResizingPoolConnections" xml:space="preserve">
+	<value>Resizing pool '{0}' from {1} to {2} connections</value>
+  </data>
+  <data name="WarmingUpPoolWithConnections" xml:space="preserve">
+	<value>Warming up pool '{0}' with {1} connections</value>
+  </data>
+  <data name="PoolWarmUpCompleted" xml:space="preserve">
+	<value>Pool '{0}' warm-up completed: {1}/{2} connections created</value>
+  </data>
+  <data name="ConnectionReturnedToPool" xml:space="preserve">
+	<value>Connection returned to pool '{0}'. Available: {1}, Active: {2}</value>
+  </data>
+  <data name="ErrorReturningConnectionToPool" xml:space="preserve">
+	<value>Error returning connection to pool '{0}'</value>
+  </data>
+  <data name="DisposingConnectionPool" xml:space="preserve">
+	<value>Disposing connection pool '{0}'</value>
+  </data>
+  <data name="ConnectionPoolDisposedSuccessfully" xml:space="preserve">
+	<value>Connection pool '{0}' disposed successfully</value>
+  </data>
+  <data name="FailedToCreateConnectionDuringWarmUpForPool" xml:space="preserve">
+	<value>Failed to create connection during warm-up for pool '{0}'</value>
+  </data>
+  <data name="DisposedConnectionFromPool" xml:space="preserve">
+	<value>Disposed connection from pool '{0}'</value>
+  </data>
+  <data name="ErrorDisposingConnectionFromPool" xml:space="preserve">
+	<value>Error disposing connection from pool '{0}'</value>
+  </data>
+  <data name="ConnectionPoolIsNotAvailable" xml:space="preserve">
+	<value>Connection pool is not available.</value>
+  </data>
+  <data name="CleanupFailedForPool" xml:space="preserve">
+	<value>Cleanup failed for pool '{0}'</value>
+  </data>
+  <data name="HealthCheckFailedForPool" xml:space="preserve">
+	<value>Health check failed for pool '{0}'</value>
+  </data>
+  <data name="PoisonMessageCleanupServiceStarted" xml:space="preserve">
+	<value>Poison message cleanup service started. Cleanup interval: {0}, Retention period: {1}</value>
+  </data>
+  <data name="PoisonMessageAutoCleanupDisabled" xml:space="preserve">
+	<value>Poison message auto-cleanup is disabled</value>
+  </data>
+  <data name="PoisonMessageCleanupServiceStopped" xml:space="preserve">
+	<value>Poison message cleanup service stopped</value>
+  </data>
+  <data name="FailedToCheckAlertThreshold" xml:space="preserve">
+	<value>Failed to check alert threshold</value>
+  </data>
+  <data name="PoisonMessageAlertThresholdExceeded" xml:space="preserve">
+	<value>Poison message alert threshold exceeded. Recent count: {0}, Threshold: {1}, Time window: {2}</value>
+  </data>
+  <data name="TopPoisonMessageType" xml:space="preserve">
+	<value>Top poison message type: {0} with {1} occurrences</value>
+  </data>
+  <data name="TopPoisonReason" xml:space="preserve">
+	<value>Top poison reason: {0} with {1} occurrences</value>
+  </data>
+  <data name="FailedToCreateConnectionDuringWarmUp" xml:space="preserve">
+	<value>Failed to create connection during warm-up for pool '{0}'</value>
+  </data>
+  <data name="ConnectionPoolNotAvailable" xml:space="preserve">
+	<value>Connection pool is not available.</value>
+  </data>
+  <data name="ErrorDuringPoisonMessageCleanup" xml:space="preserve">
+	<value>Error during poison message cleanup</value>
+  </data>
+  <data name="CleanedUpOldDeadLetterMessagesRetentionDays" xml:space="preserve">
+	<value>Cleaned up {0} old dead letter messages older than {1} days</value>
+  </data>
+  <data name="FoundRegisteredMessageTypes" xml:space="preserve">
+	<value>Found {0} registered message types</value>
+  </data>
+  <data name="ErrorRetrievingRegisteredMessageTypes" xml:space="preserve">
+	<value>Error retrieving registered message types</value>
+  </data>
+  <data name="DeadLetterMessageNotFoundForReplay" xml:space="preserve">
+	<value>Dead letter message {0} not found for replay</value>
+  </data>
+  <data name="CannotReplayMessageTypeNotFound" xml:space="preserve">
+	<value>Cannot replay message {0}: Type {1} not found</value>
+  </data>
+  <data name="CannotReplayMessageNotDispatchMessage" xml:space="preserve">
+	<value>Cannot replay message {0}: Deserialized object is not IDispatchMessage</value>
+  </data>
+  <data name="SuccessfullyReplayedDeadLetterMessage" xml:space="preserve">
+	<value>Successfully replayed dead letter message {0}</value>
+  </data>
+  <data name="FailedToReplayDeadLetterMessage" xml:space="preserve">
+	<value>Failed to replay dead letter message {0}: {1}</value>
+  </data>
+  <data name="ErrorReplayingDeadLetterMessage" xml:space="preserve">
+	<value>Error replaying dead letter message {0}</value>
+  </data>
+  <data name="TrimmedOldestEntriesDueToMaxLimit" xml:space="preserve">
+	<value>Trimmed {0} oldest entries due to max entries limit ({1})</value>
+  </data>
+  <data name="UnknownScheduledMessageType" xml:space="preserve">
+	<value>Unknown scheduled message type {0} for message {1}</value>
+  </data>
+  <data name="FailedToDeserializeScheduledMessage" xml:space="preserve">
+	<value>Failed to deserialize scheduled message {0}</value>
+  </data>
+  <data name="SuccessfullyProcessedScheduledMessage" xml:space="preserve">
+	<value>Successfully processed scheduled message {0} of type {1}</value>
+  </data>
+  <data name="ErrorDuringAutomaticInboxCleanup" xml:space="preserve">
+	<value>Error during automatic inbox cleanup</value>
+  </data>
+  <data name="TimeoutOccurredProcessingScheduledMessage" xml:space="preserve">
+	<value>Timeout occurred processing scheduled message {0}</value>
+  </data>
+  <data name="ErrorProcessingScheduledMessage" xml:space="preserve">
+	<value>Error processing scheduled message {0}</value>
+  </data>
+  <data name="MessageMovedToDeadLetterQueueWithReason" xml:space="preserve">
+	<value>Message {0} of type {1} moved to dead letter queue. Reason: {2}</value>
+  </data>
+  <data name="FailedToHandlePoisonMessageOriginalReason" xml:space="preserve">
+	<value>Failed to handle poison message {0}. Original reason: {1}</value>
+  </data>
+  <data name="PercentileMustBeBetween0And100" xml:space="preserve">
+	<value>Percentile must be between 0 and 100</value>
+  </data>
+  <data name="PipeCompletedBeforeMessageCouldBeDeserialized" xml:space="preserve">
+	<value>Pipe completed before message could be deserialized</value>
+  </data>
+  <data name="ErrorProcessingBatchOfCountItems" xml:space="preserve">
+	<value>Error processing batch of {0} items</value>
+  </data>
+  <data name="MessageIsADuplicateProcessedAt" xml:space="preserve">
+	<value>Message {0} is a duplicate (processed at {1})</value>
+  </data>
+  <data name="CleanedUpExpiredEntriesFromDeduplicator" xml:space="preserve">
+	<value>Cleaned up {0} expired entries from deduplicator (remaining: {1})</value>
+  </data>
+  <data name="InMemoryDeduplicatorDisposed" xml:space="preserve">
+	<value>In-memory deduplicator disposed</value>
+  </data>
+  <data name="TrimmedOldestEntriesDueToMaxEntriesLimit" xml:space="preserve">
+	<value>Trimmed {0} oldest entries due to max entries limit ({1})</value>
+  </data>
+  <data name="ErrorDuringAutomaticDeduplicatorCleanup" xml:space="preserve">
+	<value>Error during automatic deduplicator cleanup</value>
+  </data>
+  <data name="CannotScheduleMessageInThePast" xml:space="preserve">
+	<value>Cannot schedule a message in the past.</value>
+  </data>
+  <data name="AttemptedToReturnObjectNotRentedFromPool" xml:space="preserve">
+	<value>Attempted to return object that was not rented from pool</value>
+  </data>
+  <data name="AttemptedToReturnArrayNotRentedFromThisPool" xml:space="preserve">
+	<value>Attempted to return array that was not rented from this pool</value>
+  </data>
+  <data name="PoolDisposedStatistics" xml:space="preserve">
+	<value>Pool disposed. Total created: {0}, Total rented: {1}, Total returned: {2}, Leaks: {3}</value>
+  </data>
+  <data name="ObjectLeakOnDisposal" xml:space="preserve">
+	<value>Object leak on disposal. Object still rented by thread {0}</value>
+  </data>
+  <data name="PotentialArrayLeak" xml:space="preserve">
+	<value>Potential array leak. Size: {0}, Duration: {1}ms, Thread: {2}</value>
+  </data>
+  <data name="PotentialObjectLeakDetected" xml:space="preserve">
+	<value>Potential object leak detected. Object rented for {0}ms by thread {1}. Stack: {2}</value>
+  </data>
+  <data name="SourceAndDestinationMustHaveSameLength" xml:space="preserve">
+	<value>Source and destination must have same length</value>
+  </data>
+  <data name="TimeAwareScheduledMessageServiceStarted" xml:space="preserve">
+	<value>TimeAwareScheduledMessageService started with timeout policies enabled.</value>
+  </data>
+  <data name="TimeAwareScheduledMessageServiceStopping" xml:space="preserve">
+	<value>TimeAwareScheduledMessageService stopping due to cancellation request.</value>
+  </data>
+  <data name="TimeoutOccurredDuringScheduledMessageProcessingCycle" xml:space="preserve">
+	<value>Timeout occurred during scheduled message processing cycle</value>
+  </data>
+  <data name="ErrorProcessingScheduledMessages" xml:space="preserve">
+	<value>Error processing scheduled messages</value>
+  </data>
+  <data name="TimeAwareScheduledMessageServiceStopped" xml:space="preserve">
+	<value>TimeAwareScheduledMessageService stopped.</value>
+  </data>
+  <data name="ActionDispatchFailed" xml:space="preserve">
+	<value>Action dispatch failed</value>
+  </data>
+  <data name="MessageBusAlreadyRegistered" xml:space="preserve">
+	<value>Message bus already registered</value>
+  </data>
+  <data name="RemoteMessageBusAlreadyRegistered" xml:space="preserve">
+	<value>Remote message bus already registered</value>
+  </data>
+  <data name="MessageProcessedButExpiredTreatingAsNew" xml:space="preserve">
+	<value>Message {0} was processed but has expired, treating as new</value>
+  </data>
+  <data name="MessageIsDuplicateProcessedAt" xml:space="preserve">
+	<value>Message {0} is a duplicate (processed at {1})</value>
+  </data>
+  <data name="MessageIsNotDuplicate" xml:space="preserve">
+	<value>Message {0} is not a duplicate</value>
+  </data>
+  <data name="DeserializedMessageCannotBeNull" xml:space="preserve">
+	<value>Deserialized message cannot be null</value>
+  </data>
+  <data name="ObjectLeakOnDisposalStillRentedByThread" xml:space="preserve">
+	<value>Object leak on disposal: {0} still rented by thread {1}</value>
+  </data>
+  <data name="ArgumentMustBePositive" xml:space="preserve">
+	<value>Argument must be positive</value>
+  </data>
+  <data name="CannotScheduleMessageInPast" xml:space="preserve">
+	<value>Cannot schedule message in the past</value>
+  </data>
+  <data name="PipeCompletedBeforeMessageDeserialized" xml:space="preserve">
+	<value>Pipe completed before message could be deserialized</value>
+  </data>
+  <data name="ErrorProcessingBatchOfItems" xml:space="preserve">
+	<value>Error processing batch of {0} items</value>
+  </data>
+  <data name="DeliveryCountCannotBeNegative" xml:space="preserve">
+	<value>Delivery count cannot be negative.</value>
+  </data>
+  <data name="MaxDeliveryCountMustBePositive" xml:space="preserve">
+	<value>Max delivery count must be positive.</value>
+  </data>
+  <data name="PriorityCannotBeNegative" xml:space="preserve">
+	<value>Priority cannot be negative.</value>
+  </data>
+  <data name="DuplicateDetectionWindowMustBePositive" xml:space="preserve">
+	<value>Duplicate detection window must be positive.</value>
+  </data>
+  <data name="GlobalPositionCannotBeNegative" xml:space="preserve">
+	<value>Global position cannot be negative.</value>
+  </data>
+  <data name="EventVersionCannotBeNegative" xml:space="preserve">
+	<value>Event version cannot be negative.</value>
+  </data>
+  <data name="MetadataMustBeForCounterType" xml:space="preserve">
+	<value>Metadata must be for a counter type.</value>
+  </data>
+  <data name="CronExpressionCannotBeNullOrEmpty" xml:space="preserve">
+	<value>Cron expression cannot be null or empty.</value>
+  </data>
+  <data name="CronExpressionMustBeCreatedByThisScheduler" xml:space="preserve">
+	<value>CronExpression must be created by this scheduler.</value>
+  </data>
+  <data name="SagaIdMarkedAsCompleted" xml:space="preserve">
+	<value>Saga {0} marked as completed.</value>
+  </data>
+  <data name="SentMessageRetentionMustBePositive" xml:space="preserve">
+	<value>Sent message retention must be positive</value>
+  </data>
+  <data name="FailedMessageRetentionMustBePositive" xml:space="preserve">
+	<value>Failed message retention must be positive</value>
+  </data>
+  <data name="MaximumScheduleAgeMustBePositive" xml:space="preserve">
+	<value>Maximum schedule age must be positive</value>
+  </data>
+  <data name="OutboxStarted" xml:space="preserve">
+	<value>Outbox started.</value>
+  </data>
+  <data name="ErrorWhileProcessingOutbox" xml:space="preserve">
+	<value>Error while processing Outbox.</value>
+  </data>
+  <data name="OutboxStopped" xml:space="preserve">
+	<value>Outbox stopped.</value>
+  </data>
+  <data name="NoMessagesToSaveToOutbox" xml:space="preserve">
+	<value>No messages to save to the outbox.</value>
+  </data>
+  <data name="CouldNotResolveMessageTypeForMessage" xml:space="preserve">
+	<value>Could not resolve message type {0} for message {1}</value>
+  </data>
+  <data name="FailedToDeserializeMessage" xml:space="preserve">
+	<value>Failed to deserialize message {0} of type {1}</value>
+  </data>
+  <data name="BatchTimeoutMustBePositive" xml:space="preserve">
+	<value>Batch timeout must be positive</value>
+  </data>
+  <data name="CompletedScheduleRetentionMustBePositive" xml:space="preserve">
+	<value>Completed schedule retention must be positive</value>
+  </data>
+  <data name="FailedScheduleRetentionMustBePositive" xml:space="preserve">
+	<value>Failed schedule retention must be positive</value>
+  </data>
+  <data name="ExecutionWindowBufferCannotBeNegative" xml:space="preserve">
+	<value>Execution window buffer cannot be negative</value>
+  </data>
+  <data name="MaximumFutureScheduleAgeMustBePositive" xml:space="preserve">
+	<value>Maximum future schedule age must be positive</value>
+  </data>
+  <data name="CacheRefreshIntervalMustBePositive" xml:space="preserve">
+	<value>Cache refresh interval must be positive</value>
+  </data>
+  <data name="BatchTimeoutShouldBeSignificantlyLessThanCleanupInterval" xml:space="preserve">
+	<value>Batch timeout should be significantly less than cleanup interval</value>
+  </data>
+  <data name="ScheduledMessageServiceStarted" xml:space="preserve">
+	<value>ScheduledMessageService started with timezone support.</value>
+  </data>
+  <data name="ScheduledMessageServiceStopped" xml:space="preserve">
+	<value>ScheduledMessageService stopped.</value>
+  </data>
+  <data name="DisablingScheduleDueToMissedExecutions" xml:space="preserve">
+	<value>Disabling schedule {0} due to missed executions</value>
+  </data>
+  <data name="FoundMissedExecutionsForSchedule" xml:space="preserve">
+	<value>Found {0} missed executions for schedule {1}</value>
+  </data>
+  <data name="MessageTypeNotSupportedForScheduling" xml:space="preserve">
+	<value>Message type {0} is not supported for scheduling</value>
+  </data>
+  <data name="NextExecutionCalculatedForSchedule" xml:space="preserve">
+	<value>Next execution for schedule {0} calculated as {1} in timezone {2}</value>
+  </data>
+  <data name="FailedToFindTimezoneUsingDefault" xml:space="preserve">
+	<value>Failed to find timezone {0}, using default</value>
+  </data>
+  <data name="AtLeastOneBucketBoundaryRequired" xml:space="preserve">
+	<value>At least one bucket boundary is required.</value>
+  </data>
+  <data name="StartMustBePositive" xml:space="preserve">
+	<value>Start must be positive</value>
+  </data>
+  <data name="FactorMustBeGreaterThanOne" xml:space="preserve">
+	<value>Factor must be greater than 1</value>
+  </data>
+  <data name="WidthMustBePositive" xml:space="preserve">
+	<value>Width must be positive</value>
+  </data>
+  <data name="InvalidApiKeyFormat" xml:space="preserve">
+	<value>Invalid API key format</value>
+  </data>
+  <data name="NoClientCertificateFoundInContext" xml:space="preserve">
+	<value>No client certificate found in context</value>
+  </data>
+  <data name="UsingCachedAuthenticationForToken" xml:space="preserve">
+	<value>Using cached authentication for token</value>
+  </data>
+  <data name="MessageTypeAllowsAnonymousAccess" xml:space="preserve">
+	<value>Message type {0} allows anonymous access</value>
+  </data>
+  <data name="NoAuthenticationTokenFoundAllowingAnonymousAccess" xml:space="preserve">
+	<value>No authentication token found for message {0}, allowing anonymous access</value>
+  </data>
+  <data name="AuthenticationRequiredButNoTokenFound" xml:space="preserve">
+	<value>Authentication required but no token found for message {0}</value>
+  </data>
+  <data name="AuthenticationFailedForMessageType" xml:space="preserve">
+	<value>Authentication failed for message {0}</value>
+  </data>
+  <data name="SuccessfullyAuthenticatedPrincipalForMessage" xml:space="preserve">
+	<value>Successfully authenticated principal {0} for message {1}</value>
+  </data>
+  <data name="UnexpectedErrorDuringAuthentication" xml:space="preserve">
+	<value>Unexpected error during authentication for message {0}</value>
+  </data>
+  <data name="MessageWillNotBeBatched" xml:space="preserve">
+	<value>Message {0} of type {1} will not be batched</value>
+  </data>
+  <data name="BatchReachedSizeThresholdProcessingImmediately" xml:space="preserve">
+	<value>Batch {0} reached size threshold {1}, processing immediately</value>
+  </data>
+  <data name="MessageAddedToBatch" xml:space="preserve">
+	<value>Message {0} added to batch {1} (current size: {2})</value>
+  </data>
+  <data name="ProcessingBatchWithMessages" xml:space="preserve">
+	<value>Processing batch {0} with {1} messages</value>
+  </data>
+  <data name="CompletedProcessingBatch" xml:space="preserve">
+	<value>Completed processing batch {0} with {1} messages in {2}ms</value>
+  </data>
+  <data name="ErrorProcessingBatchWithMessages" xml:space="preserve">
+	<value>Error processing batch {0} with {1} messages after {2}ms</value>
+  </data>
+  <data name="FlushingExpiredBatch" xml:space="preserve">
+	<value>Flushing expired batch {0} with {1} messages</value>
+  </data>
+  <data name="ErrorFlushingExpiredBatches" xml:space="preserve">
+	<value>Error flushing expired batches</value>
+  </data>
+  <data name="MessageTypeDoesNotRequireTransaction" xml:space="preserve">
+	<value>Message type {0} does not require transaction</value>
+  </data>
+  <data name="StartingTransactionForMessage" xml:space="preserve">
+	<value>Starting transaction for message {0} with isolation level {1}</value>
+  </data>
+  <data name="TransactionCommittedSuccessfully" xml:space="preserve">
+	<value>Transaction committed successfully for message {0}</value>
+  </data>
+  <data name="TransactionRolledBackDueToUnsuccessfulResult" xml:space="preserve">
+	<value>Transaction rolled back due to unsuccessful result for message {0}</value>
+  </data>
+  <data name="TransactionRolledBackDueToExceptionDuringProcessing" xml:space="preserve">
+	<value>Transaction rolled back due to exception during message processing for {0}</value>
+  </data>
+  <data name="ErrorOccurredDuringTransactionRollback" xml:space="preserve">
+	<value>Error occurred during transaction rollback for message {0}</value>
+  </data>
+  <data name="PoolNameCannotBeNullOrEmpty" xml:space="preserve">
+	<value>Pool name cannot be null or empty.</value>
+  </data>
+  <data name="MinimumConnectionsCannotBeNegative" xml:space="preserve">
+	<value>Minimum connections cannot be negative.</value>
+  </data>
+  <data name="MaximumConnectionsMustBePositive" xml:space="preserve">
+	<value>Maximum connections must be positive.</value>
+  </data>
+  <data name="MinimumConnectionsCannotExceedMaximumConnections" xml:space="preserve">
+	<value>Minimum connections cannot exceed maximum connections.</value>
+  </data>
+  <data name="AcquisitionTimeoutMustBePositive" xml:space="preserve">
+	<value>Acquisition timeout must be positive.</value>
+  </data>
+  <data name="IdleTimeoutMustBePositive" xml:space="preserve">
+	<value>Idle timeout must be positive.</value>
+  </data>
+  <data name="MaximumConnectionLifetimeMustBePositive" xml:space="preserve">
+	<value>Maximum connection lifetime must be positive.</value>
+  </data>
+  <data name="DispatchCoreBatchingMiddleware" xml:space="preserve">
+	<value>Excalibur.Dispatch.Middleware.BatchingMiddleware</value>
+  </data>
+  <data name="Version" xml:space="preserve">
+	<value>1.0.0</value>
+  </data>
+  <data name="BatchingMiddlewareInvoke" xml:space="preserve">
+	<value>BatchingMiddleware.Invoke</value>
+  </data>
+  <data name="BatchingMiddlewareProcessBatch" xml:space="preserve">
+	<value>BatchingMiddleware.ProcessBatch</value>
+  </data>
+  <data name="BatchProcessingError" xml:space="preserve">
+	<value>BatchProcessingError</value>
+  </data>
+  <data name="BatchProcessingFailed" xml:space="preserve">
+	<value>Batch Processing Failed</value>
+  </data>
+  <data name="MessageProcessingError" xml:space="preserve">
+	<value>MessageProcessingError</value>
+  </data>
+  <data name="MessageProcessingFailed" xml:space="preserve">
+	<value>Message Processing Failed</value>
+  </data>
+  <data name="SizeThreshold" xml:space="preserve">
+	<value>size_threshold</value>
+  </data>
+  <data name="BatchingTrigger" xml:space="preserve">
+	<value>batching.trigger</value>
+  </data>
+  <data name="BatchingAdded" xml:space="preserve">
+	<value>batching.added</value>
+  </data>
+  <data name="BatchingBatchSize" xml:space="preserve">
+	<value>batching.batch_size</value>
+  </data>
+  <data name="BatchKey" xml:space="preserve">
+	<value>batch.key</value>
+  </data>
+  <data name="BatchSize" xml:space="preserve">
+	<value>batch.size</value>
+  </data>
+  <data name="BatchDurationMs" xml:space="preserve">
+	<value>batch.duration_ms</value>
+  </data>
+  <data name="BatchSuccess" xml:space="preserve">
+	<value>batch.success</value>
+  </data>
+  <data name="AuthenticationScheme" xml:space="preserve">
+	<value>auth.scheme</value>
+  </data>
+  <data name="AuthenticationMessageType" xml:space="preserve">
+	<value>auth.message_type</value>
+  </data>
+  <data name="AuthenticationSucceeded" xml:space="preserve">
+	<value>auth.succeeded</value>
+  </data>
+  <data name="AuthenticationUserId" xml:space="preserve">
+	<value>auth.user_id</value>
+  </data>
+  <data name="Anonymous" xml:space="preserve">
+	<value>anonymous</value>
+  </data>
+  <data name="Principal" xml:space="preserve">
+	<value>principal</value>
+  </data>
+  <data name="IsAuthenticated" xml:space="preserve">
+	<value>is_authenticated</value>
+  </data>
+  <data name="UserId" xml:space="preserve">
+	<value>user_id</value>
+  </data>
+  <data name="TenantId" xml:space="preserve">
+	<value>tenant_id</value>
+  </data>
+  <data name="Authorization" xml:space="preserve">
+	<value>Authorization</value>
+  </data>
+  <data name="XApiKey" xml:space="preserve">
+	<value>X-API-Key</value>
+  </data>
+  <data name="Bearer" xml:space="preserve">
+	<value>Bearer</value>
+  </data>
+  <data name="ApiKey" xml:space="preserve">
+	<value>ApiKey</value>
+  </data>
+  <data name="Certificate" xml:space="preserve">
+	<value>Certificate</value>
+  </data>
+  <data name="CertificateUser" xml:space="preserve">
+	<value>Certificate User</value>
+  </data>
+  <data name="BatchTimeoutShouldBeLessThanCleanupInterval" xml:space="preserve">
+	<value>Batch timeout should be less than cleanup interval</value>
+  </data>
+  <data name="MessageId" xml:space="preserve">
+	<value>message.id</value>
+  </data>
+  <data name="MessageType" xml:space="preserve">
+	<value>message.type</value>
+  </data>
+  <data name="BatchingEnabled" xml:space="preserve">
+	<value>batching.enabled</value>
+  </data>
+  <data name="BatchingKey" xml:space="preserve">
+	<value>batching.key</value>
+  </data>
+  <data name="DefaultPool" xml:space="preserve">
+	<value>DefaultPool</value>
+  </data>
+  <data name="MinimumConnectionsCannotExceedMaximum" xml:space="preserve">
+	<value>Minimum connections cannot exceed maximum</value>
+  </data>
+  <data name="HealthCheckIntervalMustBePositive" xml:space="preserve">
+	<value>Health check interval must be positive.</value>
+  </data>
+  <data name="MaximumRetryAttemptsCannotBeNegative" xml:space="preserve">
+	<value>Maximum retry attempts cannot be negative.</value>
+  </data>
+  <data name="RetryDelayCannotBeNegative" xml:space="preserve">
+	<value>Retry delay cannot be negative.</value>
+  </data>
+  <data name="TimeoutOccurredDuringScheduledMessageProcessing" xml:space="preserve">
+	<value>Timeout occurred during scheduled message processing cycle</value>
+  </data>
+  <data name="AtLeastOneBucketBoundaryIsRequired" xml:space="preserve">
+	<value>At least one bucket boundary is required.</value>
+  </data>
+  <data name="CounterCanOnlyIncrease" xml:space="preserve">
+	<value>Counter can only increase.</value>
+  </data>
+  <data name="EvaluatingAuthorizationForMessage" xml:space="preserve">
+	<value>Evaluating authorization for message {MessageType} with subject {Subject}</value>
+  </data>
+  <data name="AuthorizationFailedForMessage" xml:space="preserve">
+	<value>Authorization failed for message {MessageType} with subject {Subject}: {Reason}</value>
+  </data>
+  <data name="AuthorizationSucceededForMessage" xml:space="preserve">
+	<value>Authorization succeeded for message {MessageType} with subject {Subject}</value>
+  </data>
+  <data name="ExceptionDuringAuthorizationEvaluation" xml:space="preserve">
+	<value>Exception occurred during authorization evaluation for message {MessageType}</value>
+  </data>
+  <data name="AuditMessagePayload" xml:space="preserve">
+	<value>AUDIT: Message payload - MessageId: {MessageId}, Payload: {Payload}</value>
+  </data>
+  <data name="AuditMessagePayloadTooLarge" xml:space="preserve">
+	<value>AUDIT: Message payload too large - MessageId: {MessageId}, Size: {PayloadSize} bytes</value>
+  </data>
+  <data name="FailedToSerializeMessagePayloadForAudit" xml:space="preserve">
+	<value>Failed to serialize message payload for audit log - MessageId: {MessageId}</value>
+  </data>
+  <data name="AtLeastOneHandlerIsRequired" xml:space="preserve">
+	<value>At least one handler is required</value>
+  </data>
+  <data name="CannotScheduleMessagesTooFarInFuture" xml:space="preserve">
+	<value>Cannot schedule messages more than {0} in the future</value>
+  </data>
+  <data name="ViewAlreadyRegistered" xml:space="preserve">
+	<value>View '{0}' is already registered.</value>
+  </data>
+  <data name="ViewNotRegistered" xml:space="preserve">
+	<value>View '{0}' is not registered.</value>
+  </data>
+  <data name="UnexpectedErrorOccurred" xml:space="preserve">
+	<value>An unexpected error occurred.</value>
+  </data>
+  <data name="StatusCodeMustBeBetween100And599" xml:space="preserve">
+	<value>Status code must be between 100 and 599.</value>
+  </data>
+  <data name="CannotDeserializeEmptyPayload" xml:space="preserve">
+	<value>Cannot deserialize empty payload.</value>
+  </data>
+  <data name="CannotExtractKeyBothBeforeAndAfterNull" xml:space="preserve">
+	<value>Cannot extract key: both Before and After are null.</value>
+  </data>
+  <data name="MaximumConnectionUseCountMustBePositive" xml:space="preserve">
+	<value>Maximum connection use count must be positive.</value>
+  </data>
+  <data name="ObjectMustBeOfTypeValueStopwatch" xml:space="preserve">
+	<value>Object must be of type ValueStopwatch</value>
+  </data>
+  <data name="DestinationArrayIsNotLargeEnough" xml:space="preserve">
+	<value>The destination array is not large enough.</value>
+  </data>
+  <data name="TypeNameCannotBeNullOrEmpty" xml:space="preserve">
+	<value>Type name cannot be null or empty</value>
+  </data>
+  </root>

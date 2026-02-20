@@ -1,0 +1,618 @@
+#nullable enable
+Excalibur.Data.Firestore.Authorization.FirestoreActivityGroupGrantService
+Excalibur.Data.Firestore.Authorization.FirestoreActivityGroupGrantService.DeleteActivityGroupGrantsByUserIdAsync(System.String userId, System.String grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Int32>
+Excalibur.Data.Firestore.Authorization.FirestoreActivityGroupGrantService.DeleteAllActivityGroupGrantsAsync(System.String grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Int32>
+Excalibur.Data.Firestore.Authorization.FirestoreActivityGroupGrantService.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.Authorization.FirestoreActivityGroupGrantService.FirestoreActivityGroupGrantService(Google.Cloud.Firestore.FirestoreDb db, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Authorization.FirestoreActivityGroupGrantService> logger) -> void
+Excalibur.Data.Firestore.Authorization.FirestoreActivityGroupGrantService.FirestoreActivityGroupGrantService(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Authorization.FirestoreActivityGroupGrantService> logger) -> void
+Excalibur.Data.Firestore.Authorization.FirestoreActivityGroupGrantService.GetDistinctActivityGroupGrantUserIdsAsync(System.String grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<System.String>>
+Excalibur.Data.Firestore.Authorization.FirestoreActivityGroupGrantService.InitializeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.Authorization.FirestoreActivityGroupGrantService.InsertActivityGroupGrantAsync(System.String userId, System.String fullName, System.String tenantId, System.String grantType, System.String qualifier, System.Nullable<System.DateTimeOffset> expiresOn, System.String grantedBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Int32>
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.ActivityGroupsCollectionName.get -> System.String
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.ActivityGroupsCollectionName.set -> void
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.CredentialsJson.get -> System.String
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.CredentialsJson.set -> void
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.CredentialsPath.get -> System.String
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.CredentialsPath.set -> void
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.EmulatorHost.get -> System.String
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.EmulatorHost.set -> void
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.FirestoreAuthorizationOptions() -> void
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.GrantsCollectionName.get -> System.String
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.GrantsCollectionName.set -> void
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.MaxBatchSize.get -> System.Int32
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.MaxBatchSize.set -> void
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.ProjectId.get -> System.String
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.ProjectId.set -> void
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.TimeoutInSeconds.get -> System.Int32
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.TimeoutInSeconds.set -> void
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.UseCollectionGroups.get -> System.Boolean
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.UseCollectionGroups.set -> void
+Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions.Validate() -> System.Void
+Excalibur.Data.Firestore.Authorization.FirestoreGrantService
+Excalibur.Data.Firestore.Authorization.FirestoreGrantService.DeleteGrantAsync(System.String userId, System.String tenantId, System.String grantType, System.String qualifier, System.String revokedBy, System.Nullable<System.DateTimeOffset> revokedOn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Int32>
+Excalibur.Data.Firestore.Authorization.FirestoreGrantService.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.Authorization.FirestoreGrantService.FindUserGrantsAsync(System.String userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<System.String, System.Object>>
+Excalibur.Data.Firestore.Authorization.FirestoreGrantService.FirestoreGrantService(Google.Cloud.Firestore.FirestoreDb db, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Authorization.FirestoreGrantService> logger) -> void
+Excalibur.Data.Firestore.Authorization.FirestoreGrantService.FirestoreGrantService(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Authorization.FirestoreGrantService> logger) -> void
+Excalibur.Data.Firestore.Authorization.FirestoreGrantService.GetAllGrantsAsync(System.String userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Abstractions.Authorization.Grant>>
+Excalibur.Data.Firestore.Authorization.FirestoreGrantService.GetGrantAsync(System.String userId, System.String tenantId, System.String grantType, System.String qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Abstractions.Authorization.Grant>
+Excalibur.Data.Firestore.Authorization.FirestoreGrantService.GetMatchingGrantsAsync(System.String userId, System.String tenantId, System.String grantType, System.String qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Abstractions.Authorization.Grant>>
+Excalibur.Data.Firestore.Authorization.FirestoreGrantService.GetService(System.Type serviceType) -> System.Object
+Excalibur.Data.Firestore.Authorization.FirestoreGrantService.GrantExistsAsync(System.String userId, System.String tenantId, System.String grantType, System.String qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Boolean>
+Excalibur.Data.Firestore.Authorization.FirestoreGrantService.InitializeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.Authorization.FirestoreGrantService.SaveGrantAsync(Excalibur.A3.Abstractions.Authorization.Grant grant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Int32>
+Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions
+Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions.ChannelCapacity.get -> System.Int32
+Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions.ChannelCapacity.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions.CollectionPath.get -> System.String
+Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions.CollectionPath.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions.FirestoreCdcOptions() -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions.MaxBatchSize.get -> System.Int32
+Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions.MaxBatchSize.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions.MaxWaitTime.get -> System.TimeSpan
+Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions.MaxWaitTime.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions.PollInterval.get -> System.TimeSpan
+Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions.PollInterval.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions.ProcessorName.get -> System.String
+Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions.ProcessorName.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions.StartPosition.get -> Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition
+Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions.StartPosition.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions.UseCollectionGroup.get -> System.Boolean
+Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions.UseCollectionGroup.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions.Validate() -> System.Void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition
+Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.CollectionPath.get -> System.String
+Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.Equals(Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition other) -> System.Boolean
+Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.Equals(Excalibur.Dispatch.Abstractions.ChangePosition other) -> System.Boolean
+Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.Equals(System.Object obj) -> System.Boolean
+Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.GetHashCode() -> System.Int32
+Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.IsAfterPosition(System.DateTimeOffset docUpdateTime, System.String docId) -> System.Boolean
+Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.IsBeginning.get -> System.Boolean
+Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.IsValid.get -> System.Boolean
+Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.LastDocumentId.get -> System.String
+Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.Timestamp.get -> System.Nullable<System.DateTimeOffset>
+Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.ToBase64() -> System.String
+Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.ToBytes() -> System.Byte[]
+Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.ToString() -> System.String
+Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.ToToken() -> System.String
+Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.UpdateTime.get -> System.Nullable<System.DateTimeOffset>
+Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.WithCollectionPath(System.String collectionPath) -> Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition
+Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.WithDocument(System.DateTimeOffset updateTime, System.String documentId) -> Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition
+Excalibur.Data.Firestore.Cdc.FirestoreCdcProcessor
+Excalibur.Data.Firestore.Cdc.FirestoreCdcProcessor.ConfirmPositionAsync(Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.Cdc.FirestoreCdcProcessor.Dispose() -> System.Void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.Cdc.FirestoreCdcProcessor.FirestoreCdcProcessor(Google.Cloud.Firestore.FirestoreDb db, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions> options, Excalibur.Data.Firestore.Cdc.IFirestoreCdcStateStore stateStore, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Cdc.FirestoreCdcProcessor> logger) -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition>
+Excalibur.Data.Firestore.Cdc.FirestoreCdcProcessor.ProcessBatchAsync(System.Func<Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent, System.Threading.CancellationToken, System.Threading.Tasks.Task> eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Int32>
+Excalibur.Data.Firestore.Cdc.FirestoreCdcProcessor.StartAsync(System.Func<Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent, System.Threading.CancellationToken, System.Threading.Tasks.Task> eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.<Clone>$() -> Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.AlwaysInvokeCallbackOnReset.get -> System.Boolean
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.AlwaysInvokeCallbackOnReset.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.AutoReconnectOnDisconnect.get -> System.Boolean
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.AutoReconnectOnDisconnect.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.Equals(Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions other) -> System.Boolean
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.Equals(System.Object obj) -> System.Boolean
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.FirestoreCdcRecoveryOptions() -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.GetHashCode() -> System.Int32
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.MaxRecoveryAttempts.get -> System.Int32
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.MaxRecoveryAttempts.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.MaxUnavailableWaitTime.get -> System.TimeSpan
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.MaxUnavailableWaitTime.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.OnPositionReset.get -> Excalibur.Cdc.CdcPositionResetHandler
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.OnPositionReset.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.ReconnectionTimeout.get -> System.TimeSpan
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.ReconnectionTimeout.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.RecoveryAttemptDelay.get -> System.TimeSpan
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.RecoveryAttemptDelay.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.RecoveryStrategy.get -> Excalibur.Cdc.StalePositionRecoveryStrategy
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.RecoveryStrategy.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.RetryOnPermissionDenied.get -> System.Boolean
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.RetryOnPermissionDenied.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.ToString() -> System.String
+Excalibur.Data.Firestore.Cdc.FirestoreCdcRecoveryOptions.Validate() -> System.Void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateEntry
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateEntry.EventCount.get -> System.Int64
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateEntry.EventCount.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateEntry.FirestoreCdcStateEntry() -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateEntry.PositionData.get -> System.String
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateEntry.PositionData.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateEntry.ProcessorName.get -> System.String
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateEntry.ProcessorName.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateEntry.UpdatedAt.get -> System.DateTimeOffset
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateEntry.UpdatedAt.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStore
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStore.DeletePositionAsync(System.String processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStore.Dispose() -> System.Void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStore.FirestoreCdcStateStore(Google.Cloud.Firestore.FirestoreDb db, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStore> logger) -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStore.FirestoreCdcStateStore(Google.Cloud.Firestore.FirestoreDb db, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStoreOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStore> logger) -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStore.FirestoreCdcStateStore(Google.Cloud.Firestore.FirestoreDb db, System.String collectionName, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStore> logger) -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStore.GetPositionAsync(System.String processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition>
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStore.SavePositionAsync(System.String processorName, Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStoreOptions
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStoreOptions.CollectionName.get -> System.String
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStoreOptions.CollectionName.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStoreOptions.FirestoreCdcStateStoreOptions() -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStoreOptions.Validate() -> System.Void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStoreOptionsValidator
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStoreOptionsValidator.FirestoreCdcStateStoreOptionsValidator() -> void
+Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStoreOptionsValidator.Validate(System.String name, Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStoreOptions options) -> Microsoft.Extensions.Options.ValidateOptionsResult
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent.ChangeType.get -> Excalibur.Data.Firestore.Cdc.FirestoreDataChangeType
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent.ChangeType.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent.CollectionPath.get -> System.String
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent.CollectionPath.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent.CreateTime.get -> System.Nullable<System.DateTimeOffset>
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent.CreateTime.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent.DocumentData.get -> System.Collections.Generic.IReadOnlyDictionary<System.String, System.Object>
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent.DocumentData.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent.DocumentId.get -> System.String
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent.DocumentId.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent.FirestoreDataChangeEvent() -> void
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent.Position.get -> Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent.Position.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent.Timestamp.get -> System.DateTimeOffset
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent.Timestamp.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent.UpdateTime.get -> System.Nullable<System.DateTimeOffset>
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent.UpdateTime.set -> void
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeType
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeType.Added -> Excalibur.Data.Firestore.Cdc.FirestoreDataChangeType
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeType.Modified -> Excalibur.Data.Firestore.Cdc.FirestoreDataChangeType
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeType.Removed -> Excalibur.Data.Firestore.Cdc.FirestoreDataChangeType
+Excalibur.Data.Firestore.Cdc.FirestoreDataChangeTypeExtensions
+Excalibur.Data.Firestore.Cdc.FirestoreStalePositionDetector
+Excalibur.Data.Firestore.Cdc.FirestoreStalePositionException
+Excalibur.Data.Firestore.Cdc.FirestoreStalePositionException.CollectionPath.get -> System.String
+Excalibur.Data.Firestore.Cdc.FirestoreStalePositionException.DocumentId.get -> System.String
+Excalibur.Data.Firestore.Cdc.FirestoreStalePositionException.EventArgs.get -> Excalibur.Cdc.CdcPositionResetEventArgs
+Excalibur.Data.Firestore.Cdc.FirestoreStalePositionException.FirestoreStalePositionException() -> void
+Excalibur.Data.Firestore.Cdc.FirestoreStalePositionException.FirestoreStalePositionException(Excalibur.Cdc.CdcPositionResetEventArgs eventArgs) -> void
+Excalibur.Data.Firestore.Cdc.FirestoreStalePositionException.FirestoreStalePositionException(System.String message, Excalibur.Cdc.CdcPositionResetEventArgs eventArgs) -> void
+Excalibur.Data.Firestore.Cdc.FirestoreStalePositionException.FirestoreStalePositionException(System.String message, System.Exception innerException) -> void
+Excalibur.Data.Firestore.Cdc.FirestoreStalePositionException.FirestoreStalePositionException(System.String message) -> void
+Excalibur.Data.Firestore.Cdc.FirestoreStalePositionException.GrpcStatusCode.get -> System.Nullable<System.Int32>
+Excalibur.Data.Firestore.Cdc.FirestoreStalePositionException.ProcessorId.get -> System.String
+Excalibur.Data.Firestore.Cdc.FirestoreStalePositionException.ProjectId.get -> System.String
+Excalibur.Data.Firestore.Cdc.FirestoreStalePositionException.ReasonCode.get -> System.String
+Excalibur.Data.Firestore.Cdc.FirestoreStalePositionException.StalePositionBytes.get -> System.Byte[]
+Excalibur.Data.Firestore.Cdc.FirestoreStalePositionReasonCodes
+Excalibur.Data.Firestore.Cdc.IFirestoreCdcProcessor
+Excalibur.Data.Firestore.Cdc.IFirestoreCdcProcessor.ConfirmPositionAsync(Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.Cdc.IFirestoreCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition>
+Excalibur.Data.Firestore.Cdc.IFirestoreCdcProcessor.ProcessBatchAsync(System.Func<Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent, System.Threading.CancellationToken, System.Threading.Tasks.Task> eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Int32>
+Excalibur.Data.Firestore.Cdc.IFirestoreCdcProcessor.StartAsync(System.Func<Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent, System.Threading.CancellationToken, System.Threading.Tasks.Task> eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.Cdc.IFirestoreCdcStateStore
+Excalibur.Data.Firestore.Cdc.IFirestoreCdcStateStore.DeletePositionAsync(System.String processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.Cdc.IFirestoreCdcStateStore.GetPositionAsync(System.String processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition>
+Excalibur.Data.Firestore.Cdc.IFirestoreCdcStateStore.SavePositionAsync(System.String processorName, Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.Cdc.InMemoryFirestoreCdcStateStore
+Excalibur.Data.Firestore.Cdc.InMemoryFirestoreCdcStateStore.Clear() -> System.Void
+Excalibur.Data.Firestore.Cdc.InMemoryFirestoreCdcStateStore.DeletePositionAsync(System.String processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.Cdc.InMemoryFirestoreCdcStateStore.Dispose() -> System.Void
+Excalibur.Data.Firestore.Cdc.InMemoryFirestoreCdcStateStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.Cdc.InMemoryFirestoreCdcStateStore.GetAllPositions() -> System.Collections.Generic.IReadOnlyDictionary<System.String, Excalibur.Data.Firestore.Cdc.FirestoreCdcStateEntry>
+Excalibur.Data.Firestore.Cdc.InMemoryFirestoreCdcStateStore.GetPositionAsync(System.String processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition>
+Excalibur.Data.Firestore.Cdc.InMemoryFirestoreCdcStateStore.InMemoryFirestoreCdcStateStore() -> void
+Excalibur.Data.Firestore.Cdc.InMemoryFirestoreCdcStateStore.SavePositionAsync(System.String processorName, Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId
+Excalibur.Data.Firestore.FirestoreChangeEvent`1
+Excalibur.Data.Firestore.FirestoreChangeEvent`1.ContinuationToken.get -> System.String
+Excalibur.Data.Firestore.FirestoreChangeEvent`1.Document.get -> 
+Excalibur.Data.Firestore.FirestoreChangeEvent`1.DocumentId.get -> System.String
+Excalibur.Data.Firestore.FirestoreChangeEvent`1.EventType.get -> Excalibur.Data.Abstractions.CloudNative.ChangeFeedEventType
+Excalibur.Data.Firestore.FirestoreChangeEvent`1.FirestoreChangeEvent`1(Excalibur.Data.Abstractions.CloudNative.ChangeFeedEventType eventType,  document, System.String documentId, Excalibur.Data.Abstractions.CloudNative.IPartitionKey partitionKey, System.DateTimeOffset timestamp, System.String continuationToken, System.Int64 sequenceNumber) -> void
+Excalibur.Data.Firestore.FirestoreChangeEvent`1.PartitionKey.get -> Excalibur.Data.Abstractions.CloudNative.IPartitionKey
+Excalibur.Data.Firestore.FirestoreChangeEvent`1.SequenceNumber.get -> System.Int64
+Excalibur.Data.Firestore.FirestoreChangeEvent`1.Timestamp.get -> System.DateTimeOffset
+Excalibur.Data.Firestore.FirestoreEmulatorHelper
+Excalibur.Data.Firestore.FirestoreHealthCheck
+Excalibur.Data.Firestore.FirestoreHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>
+Excalibur.Data.Firestore.FirestoreHealthCheck.FirestoreHealthCheck(Excalibur.Data.Firestore.FirestorePersistenceProvider provider, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.FirestoreHealthCheck> logger) -> void
+Excalibur.Data.Firestore.FirestoreListenerSubscription`1
+Excalibur.Data.Firestore.FirestoreListenerSubscription`1.CurrentContinuationToken.get -> System.String
+Excalibur.Data.Firestore.FirestoreListenerSubscription`1.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.FirestoreListenerSubscription`1.FirestoreListenerSubscription`1(Google.Cloud.Firestore.FirestoreDb db, System.String collectionPath, Excalibur.Data.Abstractions.CloudNative.IChangeFeedOptions options, Microsoft.Extensions.Logging.ILogger logger) -> void
+Excalibur.Data.Firestore.FirestoreListenerSubscription`1.IsActive.get -> System.Boolean
+Excalibur.Data.Firestore.FirestoreListenerSubscription`1.ReadChangesAsync(System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.Data.Abstractions.CloudNative.IChangeFeedEvent<>>
+Excalibur.Data.Firestore.FirestoreListenerSubscription`1.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.FirestoreListenerSubscription`1.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.FirestoreListenerSubscription`1.SubscriptionId.get -> System.String
+Excalibur.Data.Firestore.FirestoreOptions
+Excalibur.Data.Firestore.FirestoreOptions.CredentialsJson.get -> System.String
+Excalibur.Data.Firestore.FirestoreOptions.CredentialsJson.set -> void
+Excalibur.Data.Firestore.FirestoreOptions.CredentialsPath.get -> System.String
+Excalibur.Data.Firestore.FirestoreOptions.CredentialsPath.set -> void
+Excalibur.Data.Firestore.FirestoreOptions.DefaultCollection.get -> System.String
+Excalibur.Data.Firestore.FirestoreOptions.DefaultCollection.set -> void
+Excalibur.Data.Firestore.FirestoreOptions.EmulatorHost.get -> System.String
+Excalibur.Data.Firestore.FirestoreOptions.EmulatorHost.set -> void
+Excalibur.Data.Firestore.FirestoreOptions.FirestoreOptions() -> void
+Excalibur.Data.Firestore.FirestoreOptions.MaxRetryAttempts.get -> System.Int32
+Excalibur.Data.Firestore.FirestoreOptions.MaxRetryAttempts.set -> void
+Excalibur.Data.Firestore.FirestoreOptions.Name.get -> System.String
+Excalibur.Data.Firestore.FirestoreOptions.Name.set -> void
+Excalibur.Data.Firestore.FirestoreOptions.ProjectId.get -> System.String
+Excalibur.Data.Firestore.FirestoreOptions.ProjectId.set -> void
+Excalibur.Data.Firestore.FirestoreOptions.TimeoutInSeconds.get -> System.Int32
+Excalibur.Data.Firestore.FirestoreOptions.TimeoutInSeconds.set -> void
+Excalibur.Data.Firestore.FirestoreOptions.Validate() -> System.Void
+Excalibur.Data.Firestore.FirestorePersistenceProvider
+Excalibur.Data.Firestore.FirestorePersistenceProvider.CloudProvider.get -> Excalibur.Data.Abstractions.CloudNative.CloudProviderType
+Excalibur.Data.Firestore.FirestorePersistenceProvider.ConnectionString.get -> System.String
+Excalibur.Data.Firestore.FirestorePersistenceProvider.CreateAsync( document, Excalibur.Data.Abstractions.CloudNative.IPartitionKey partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudOperationResult<>>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.CreateChangeFeedSubscriptionAsync(System.String containerName, Excalibur.Data.Abstractions.CloudNative.IChangeFeedOptions options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.IChangeFeedSubscription<>>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel, System.Nullable<System.TimeSpan> timeout) -> Excalibur.Data.Abstractions.Persistence.ITransactionScope
+Excalibur.Data.Firestore.FirestorePersistenceProvider.DeleteAsync(System.String id, Excalibur.Data.Abstractions.CloudNative.IPartitionKey partitionKey, System.String etag, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudOperationResult>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.Dispose() -> System.Void
+Excalibur.Data.Firestore.FirestorePersistenceProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.FirestorePersistenceProvider.DocumentStoreType.get -> System.String
+Excalibur.Data.Firestore.FirestorePersistenceProvider.ExecuteAggregationAsync(Excalibur.Data.Abstractions.IDocumentDataRequest<, > aggregationRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.ExecuteAsync(Excalibur.Data.Abstractions.IDataRequest<, > request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.ExecuteBatchAsync(Excalibur.Data.Abstractions.CloudNative.IPartitionKey partitionKey, System.Collections.Generic.IEnumerable<Excalibur.Data.Abstractions.CloudNative.ICloudBatchOperation> operations, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudBatchResult>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.ExecuteBulkDocumentAsync(Excalibur.Data.Abstractions.IDocumentDataRequest<, > bulkDocumentRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.ExecuteDocumentAsync(Excalibur.Data.Abstractions.IDocumentDataRequest<, > documentRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.ExecuteDocumentBatchAsync(System.Collections.Generic.IEnumerable<Excalibur.Data.Abstractions.IDocumentDataRequest<, System.Object>> documentRequests, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<System.Object>>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.ExecuteDocumentInTransactionAsync(Excalibur.Data.Abstractions.IDocumentDataRequest<, > documentRequest, Excalibur.Data.Abstractions.Persistence.ITransactionScope transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.ExecuteIndexOperationAsync(Excalibur.Data.Abstractions.IDocumentDataRequest<, System.String> indexRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.String>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.ExecuteInTransactionAsync(Excalibur.Data.Abstractions.IDataRequest<, > request, Excalibur.Data.Abstractions.Persistence.ITransactionScope transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.FirestorePersistenceProvider(Google.Cloud.Firestore.FirestoreDb db, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.FirestoreOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.FirestorePersistenceProvider> logger) -> void
+Excalibur.Data.Firestore.FirestorePersistenceProvider.FirestorePersistenceProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.FirestoreOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.FirestorePersistenceProvider> logger) -> void
+Excalibur.Data.Firestore.FirestorePersistenceProvider.GetByIdAsync(System.String id, Excalibur.Data.Abstractions.CloudNative.IPartitionKey partitionKey, Excalibur.Data.Abstractions.CloudNative.IConsistencyOptions consistencyOptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.GetCollectionInfoAsync(System.String collectionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<System.String, System.Object>>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.GetConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.GetConnectionPoolStatsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<System.String, System.Object>>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.GetDocumentStoreStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<System.String, System.Object>>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.GetMetricsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<System.String, System.Object>>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.GetService(System.Type serviceType) -> System.Object
+Excalibur.Data.Firestore.FirestorePersistenceProvider.GetSupportedOperationTypes() -> System.Collections.Generic.IEnumerable<System.String>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.InitializeAsync(Excalibur.Data.Abstractions.Persistence.IPersistenceOptions options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.FirestorePersistenceProvider.InitializeAsync(System.Collections.Generic.IDictionary<System.String, System.Object> initializationParameters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.FirestorePersistenceProvider.InitializeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.FirestorePersistenceProvider.IsAvailable.get -> System.Boolean
+Excalibur.Data.Firestore.FirestorePersistenceProvider.IsConnectionValidAsync( connection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Boolean>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.Name.get -> System.String
+Excalibur.Data.Firestore.FirestorePersistenceProvider.ProviderType.get -> System.String
+Excalibur.Data.Firestore.FirestorePersistenceProvider.QueryAsync(System.String queryText, Excalibur.Data.Abstractions.CloudNative.IPartitionKey partitionKey, System.Collections.Generic.IDictionary<System.String, System.Object> parameters, Excalibur.Data.Abstractions.CloudNative.IConsistencyOptions consistencyOptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudQueryResult<>>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.RetryPolicy.get -> Excalibur.Data.Abstractions.Resilience.IDataRequestRetryPolicy
+Excalibur.Data.Firestore.FirestorePersistenceProvider.ReturnConnection( connection) -> System.Void
+Excalibur.Data.Firestore.FirestorePersistenceProvider.SupportsChangeFeed.get -> System.Boolean
+Excalibur.Data.Firestore.FirestorePersistenceProvider.SupportsMultiRegionWrites.get -> System.Boolean
+Excalibur.Data.Firestore.FirestorePersistenceProvider.TestConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Boolean>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.UpdateAsync( document, Excalibur.Data.Abstractions.CloudNative.IPartitionKey partitionKey, System.String etag, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudOperationResult<>>
+Excalibur.Data.Firestore.FirestorePersistenceProvider.ValidateDocumentRequest(Excalibur.Data.Abstractions.IDocumentDataRequest<, > documentRequest) -> System.Boolean
+Excalibur.Data.Firestore.FirestorePersistenceProvider.ValidateRequest(Excalibur.Data.Abstractions.IDataRequest<, > request) -> System.Boolean
+Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions
+Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions.CollectionName.get -> System.String
+Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions.CollectionName.set -> void
+Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions.CredentialsJson.get -> System.String
+Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions.CredentialsJson.set -> void
+Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions.CredentialsPath.get -> System.String
+Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions.CredentialsPath.set -> void
+Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions.DefaultTtlSeconds.get -> System.Int32
+Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions.DefaultTtlSeconds.set -> void
+Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions.EmulatorHost.get -> System.String
+Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions.EmulatorHost.set -> void
+Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions.FirestoreInboxOptions() -> void
+Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions.ProjectId.get -> System.String
+Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions.ProjectId.set -> void
+Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions.TimeoutInSeconds.get -> System.Int32
+Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions.TimeoutInSeconds.set -> void
+Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions.Validate() -> System.Void
+Excalibur.Data.Firestore.Inbox.FirestoreInboxStore
+Excalibur.Data.Firestore.Inbox.FirestoreInboxStore.CleanupAsync(System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Int32>
+Excalibur.Data.Firestore.Inbox.FirestoreInboxStore.CreateEntryAsync(System.String messageId, System.String handlerType, System.String messageType, System.Byte[] payload, System.Collections.Generic.IDictionary<System.String, System.Object> metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry>
+Excalibur.Data.Firestore.Inbox.FirestoreInboxStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.Inbox.FirestoreInboxStore.FirestoreInboxStore(Google.Cloud.Firestore.FirestoreDb db, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Inbox.FirestoreInboxStore> logger) -> void
+Excalibur.Data.Firestore.Inbox.FirestoreInboxStore.FirestoreInboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Inbox.FirestoreInboxStore> logger) -> void
+Excalibur.Data.Firestore.Inbox.FirestoreInboxStore.GetAllEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry>>
+Excalibur.Data.Firestore.Inbox.FirestoreInboxStore.GetEntryAsync(System.String messageId, System.String handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry>
+Excalibur.Data.Firestore.Inbox.FirestoreInboxStore.GetFailedEntriesAsync(System.Int32 maxRetries, System.Nullable<System.DateTimeOffset> olderThan, System.Int32 batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry>>
+Excalibur.Data.Firestore.Inbox.FirestoreInboxStore.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxStatistics>
+Excalibur.Data.Firestore.Inbox.FirestoreInboxStore.IsProcessedAsync(System.String messageId, System.String handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Boolean>
+Excalibur.Data.Firestore.Inbox.FirestoreInboxStore.MarkFailedAsync(System.String messageId, System.String handlerType, System.String errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.Inbox.FirestoreInboxStore.MarkProcessedAsync(System.String messageId, System.String handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.Inbox.FirestoreInboxStore.TryMarkAsProcessedAsync(System.String messageId, System.String handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Boolean>
+Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition
+Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition.<Clone>$() -> Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition
+Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition.CompositeIndexDefinition(System.String Name, System.Collections.Generic.IReadOnlyList<System.String> Fields, System.String Description) -> void
+Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition.Deconstruct(ref System.String Name, ref System.Collections.Generic.IReadOnlyList<System.String> Fields, ref System.String Description) -> System.Void
+Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition.Description.get -> System.String
+Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition.Description.set -> void
+Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition.Equals(Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition other) -> System.Boolean
+Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition.Equals(System.Object obj) -> System.Boolean
+Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition.Fields.get -> System.Collections.Generic.IReadOnlyList<System.String>
+Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition.Fields.set -> void
+Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition.GetHashCode() -> System.Int32
+Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition.Name.get -> System.String
+Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition.Name.set -> void
+Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition.ToString() -> System.String
+Excalibur.Data.Firestore.Outbox.FirestoreIndexOptions
+Excalibur.Data.Firestore.Outbox.FirestoreIndexOptions.AdditionalIndexes.get -> System.Collections.Generic.IList<Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition>
+Excalibur.Data.Firestore.Outbox.FirestoreIndexOptions.AdditionalIndexes.set -> void
+Excalibur.Data.Firestore.Outbox.FirestoreIndexOptions.CollectionName.get -> System.String
+Excalibur.Data.Firestore.Outbox.FirestoreIndexOptions.CollectionName.set -> void
+Excalibur.Data.Firestore.Outbox.FirestoreIndexOptions.EnableCompositeIndexValidation.get -> System.Boolean
+Excalibur.Data.Firestore.Outbox.FirestoreIndexOptions.EnableCompositeIndexValidation.set -> void
+Excalibur.Data.Firestore.Outbox.FirestoreIndexOptions.FirestoreIndexOptions() -> void
+Excalibur.Data.Firestore.Outbox.FirestoreIndexOptions.RequiredIndexes.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition>
+Excalibur.Data.Firestore.Outbox.FirestoreIndexValidationResult
+Excalibur.Data.Firestore.Outbox.FirestoreIndexValidationResult.<Clone>$() -> Excalibur.Data.Firestore.Outbox.FirestoreIndexValidationResult
+Excalibur.Data.Firestore.Outbox.FirestoreIndexValidationResult.AllIndexesPresent.get -> System.Boolean
+Excalibur.Data.Firestore.Outbox.FirestoreIndexValidationResult.Deconstruct(ref System.Collections.Generic.IReadOnlyList<Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition> PresentIndexes, ref System.Collections.Generic.IReadOnlyList<Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition> MissingIndexes) -> System.Void
+Excalibur.Data.Firestore.Outbox.FirestoreIndexValidationResult.Equals(Excalibur.Data.Firestore.Outbox.FirestoreIndexValidationResult other) -> System.Boolean
+Excalibur.Data.Firestore.Outbox.FirestoreIndexValidationResult.Equals(System.Object obj) -> System.Boolean
+Excalibur.Data.Firestore.Outbox.FirestoreIndexValidationResult.FirestoreIndexValidationResult(System.Collections.Generic.IReadOnlyList<Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition> PresentIndexes, System.Collections.Generic.IReadOnlyList<Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition> MissingIndexes) -> void
+Excalibur.Data.Firestore.Outbox.FirestoreIndexValidationResult.GetHashCode() -> System.Int32
+Excalibur.Data.Firestore.Outbox.FirestoreIndexValidationResult.MissingIndexes.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition>
+Excalibur.Data.Firestore.Outbox.FirestoreIndexValidationResult.MissingIndexes.set -> void
+Excalibur.Data.Firestore.Outbox.FirestoreIndexValidationResult.PresentIndexes.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Data.Firestore.Outbox.CompositeIndexDefinition>
+Excalibur.Data.Firestore.Outbox.FirestoreIndexValidationResult.PresentIndexes.set -> void
+Excalibur.Data.Firestore.Outbox.FirestoreIndexValidationResult.ToString() -> System.String
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxIndexOptimizer
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxIndexOptimizer.FirestoreOutboxIndexOptimizer(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Outbox.FirestoreIndexOptions> indexOptions, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions> outboxOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Outbox.FirestoreOutboxIndexOptimizer> logger) -> void
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxIndexOptimizer.GetIndexCreationCommands() -> System.Collections.Generic.IReadOnlyList<System.String>
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxIndexOptimizer.ValidateIndexesAsync(Google.Cloud.Firestore.FirestoreDb db, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Firestore.Outbox.FirestoreIndexValidationResult>
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxListener
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxListener.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxListener.FirestoreOutboxListener(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Outbox.FirestoreOutboxListenerOptions> listenerOptions, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions> outboxOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Outbox.FirestoreOutboxListener> logger, System.Func<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.OutboundMessage>, System.Threading.CancellationToken, System.Threading.Tasks.Task> onMessagesReceived) -> void
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxListener.StartListeningAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxListener.StopListeningAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxListenerOptions
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxListenerOptions.AutoRestartOnError.get -> System.Boolean
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxListenerOptions.AutoRestartOnError.set -> void
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxListenerOptions.CollectionPath.get -> System.String
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxListenerOptions.CollectionPath.set -> void
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxListenerOptions.FirestoreOutboxListenerOptions() -> void
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxListenerOptions.MaxBatchSize.get -> System.Int32
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxListenerOptions.MaxBatchSize.set -> void
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxListenerOptions.PollInterval.get -> System.TimeSpan
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxListenerOptions.PollInterval.set -> void
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxListenerOptions.RestartDelay.get -> System.TimeSpan
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxListenerOptions.RestartDelay.set -> void
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions.CollectionName.get -> System.String
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions.CollectionName.set -> void
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions.CredentialsJson.get -> System.String
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions.CredentialsJson.set -> void
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions.CredentialsPath.get -> System.String
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions.CredentialsPath.set -> void
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions.EmulatorHost.get -> System.String
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions.EmulatorHost.set -> void
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions.FirestoreOutboxOptions() -> void
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions.MaxBatchSize.get -> System.Int32
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions.MaxBatchSize.set -> void
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions.ProjectId.get -> System.String
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions.ProjectId.set -> void
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions.SentMessageTtlSeconds.get -> System.Int32
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions.SentMessageTtlSeconds.set -> void
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions.TimeoutInSeconds.get -> System.Int32
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions.TimeoutInSeconds.set -> void
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions.Validate() -> System.Void
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxStore
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxStore.CleanupSentMessagesAsync(System.DateTimeOffset olderThan, System.Int32 batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Int32>
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxStore.EnqueueAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage message, Excalibur.Dispatch.Abstractions.IMessageContext context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxStore.FirestoreOutboxStore(Google.Cloud.Firestore.FirestoreDb db, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Outbox.FirestoreOutboxStore> logger) -> void
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxStore.FirestoreOutboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Outbox.FirestoreOutboxStore> logger) -> void
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxStore.GetFailedMessagesAsync(System.Int32 maxRetries, System.Nullable<System.DateTimeOffset> olderThan, System.Int32 batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.OutboundMessage>>
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxStore.GetScheduledMessagesAsync(System.DateTimeOffset scheduledBefore, System.Int32 batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.OutboundMessage>>
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxStore.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.OutboxStatistics>
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxStore.GetUnsentMessagesAsync(System.Int32 batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.OutboundMessage>>
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxStore.MarkFailedAsync(System.String messageId, System.String errorMessage, System.Int32 retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxStore.MarkSentAsync(System.String messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.Outbox.FirestoreOutboxStore.StageMessageAsync(Excalibur.Dispatch.Abstractions.OutboundMessage message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.Outbox.IOutboxListener
+Excalibur.Data.Firestore.Outbox.IOutboxListener.StartListeningAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.Outbox.IOutboxListener.StopListeningAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.Saga.FirestoreSagaOptions
+Excalibur.Data.Firestore.Saga.FirestoreSagaOptions.CollectionName.get -> System.String
+Excalibur.Data.Firestore.Saga.FirestoreSagaOptions.CollectionName.set -> void
+Excalibur.Data.Firestore.Saga.FirestoreSagaOptions.CredentialsJson.get -> System.String
+Excalibur.Data.Firestore.Saga.FirestoreSagaOptions.CredentialsJson.set -> void
+Excalibur.Data.Firestore.Saga.FirestoreSagaOptions.CredentialsPath.get -> System.String
+Excalibur.Data.Firestore.Saga.FirestoreSagaOptions.CredentialsPath.set -> void
+Excalibur.Data.Firestore.Saga.FirestoreSagaOptions.EmulatorHost.get -> System.String
+Excalibur.Data.Firestore.Saga.FirestoreSagaOptions.EmulatorHost.set -> void
+Excalibur.Data.Firestore.Saga.FirestoreSagaOptions.FirestoreSagaOptions() -> void
+Excalibur.Data.Firestore.Saga.FirestoreSagaOptions.ProjectId.get -> System.String
+Excalibur.Data.Firestore.Saga.FirestoreSagaOptions.ProjectId.set -> void
+Excalibur.Data.Firestore.Saga.FirestoreSagaOptions.TimeoutInSeconds.get -> System.Int32
+Excalibur.Data.Firestore.Saga.FirestoreSagaOptions.TimeoutInSeconds.set -> void
+Excalibur.Data.Firestore.Saga.FirestoreSagaOptions.Validate() -> System.Void
+Excalibur.Data.Firestore.Saga.FirestoreSagaStore
+Excalibur.Data.Firestore.Saga.FirestoreSagaStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.Saga.FirestoreSagaStore.FirestoreSagaStore(Google.Cloud.Firestore.FirestoreDb db, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Saga.FirestoreSagaOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Saga.FirestoreSagaStore> logger, Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer serializer) -> void
+Excalibur.Data.Firestore.Saga.FirestoreSagaStore.FirestoreSagaStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Saga.FirestoreSagaOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Saga.FirestoreSagaStore> logger, Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer serializer) -> void
+Excalibur.Data.Firestore.Saga.FirestoreSagaStore.LoadAsync(System.Guid sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Data.Firestore.Saga.FirestoreSagaStore.SaveAsync( sagaState, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.DeleteSnapshotsAsync(System.String aggregateId, System.String aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.DeleteSnapshotsOlderThanAsync(System.String aggregateId, System.String aggregateType, System.Int64 olderThanVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.Dispose() -> System.Void
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.FirestoreSnapshotStore(Google.Cloud.Firestore.FirestoreDb db, Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore> logger) -> void
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.FirestoreSnapshotStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore> logger) -> void
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.GetLatestSnapshotAsync(System.String aggregateId, System.String aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot>
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.CollectionName.get -> System.String
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.CollectionName.set -> void
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.CredentialsJson.get -> System.String
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.CredentialsJson.set -> void
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.CredentialsPath.get -> System.String
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.CredentialsPath.set -> void
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.DefaultTtlSeconds.get -> System.Int32
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.DefaultTtlSeconds.set -> void
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.EmulatorHost.get -> System.String
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.EmulatorHost.set -> void
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.FirestoreSnapshotStoreOptions() -> void
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.MaxBatchSize.get -> System.Int32
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.MaxBatchSize.set -> void
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.ProjectId.get -> System.String
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.ProjectId.set -> void
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.TimeoutInSeconds.get -> System.Int32
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.TimeoutInSeconds.set -> void
+Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions.Validate() -> System.Void
+Microsoft.Extensions.DependencyInjection.FirestoreAuthorizationExtensions
+Microsoft.Extensions.DependencyInjection.FirestoreCdcServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.FirestoreInboxExtensions
+Microsoft.Extensions.DependencyInjection.FirestoreOutboxExtensions
+Microsoft.Extensions.DependencyInjection.FirestoreSagaExtensions
+Microsoft.Extensions.DependencyInjection.FirestoreServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.FirestoreSnapshotStoreExtensions
+static const Excalibur.Data.Firestore.Cdc.FirestoreStalePositionDetector.GrpcAborted -> System.Int32
+static const Excalibur.Data.Firestore.Cdc.FirestoreStalePositionDetector.GrpcCancelled -> System.Int32
+static const Excalibur.Data.Firestore.Cdc.FirestoreStalePositionDetector.GrpcDeadlineExceeded -> System.Int32
+static const Excalibur.Data.Firestore.Cdc.FirestoreStalePositionDetector.GrpcInternal -> System.Int32
+static const Excalibur.Data.Firestore.Cdc.FirestoreStalePositionDetector.GrpcNotFound -> System.Int32
+static const Excalibur.Data.Firestore.Cdc.FirestoreStalePositionDetector.GrpcPermissionDenied -> System.Int32
+static const Excalibur.Data.Firestore.Cdc.FirestoreStalePositionDetector.GrpcResourceExhausted -> System.Int32
+static const Excalibur.Data.Firestore.Cdc.FirestoreStalePositionDetector.GrpcUnavailable -> System.Int32
+static const Excalibur.Data.Firestore.Cdc.FirestoreStalePositionReasonCodes.Aborted -> System.String
+static const Excalibur.Data.Firestore.Cdc.FirestoreStalePositionReasonCodes.Cancelled -> System.String
+static const Excalibur.Data.Firestore.Cdc.FirestoreStalePositionReasonCodes.DeadlineExceeded -> System.String
+static const Excalibur.Data.Firestore.Cdc.FirestoreStalePositionReasonCodes.Internal -> System.String
+static const Excalibur.Data.Firestore.Cdc.FirestoreStalePositionReasonCodes.NotFound -> System.String
+static const Excalibur.Data.Firestore.Cdc.FirestoreStalePositionReasonCodes.PermissionDenied -> System.String
+static const Excalibur.Data.Firestore.Cdc.FirestoreStalePositionReasonCodes.ResourceExhausted -> System.String
+static const Excalibur.Data.Firestore.Cdc.FirestoreStalePositionReasonCodes.Unavailable -> System.String
+static const Excalibur.Data.Firestore.Cdc.FirestoreStalePositionReasonCodes.Unknown -> System.String
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.AbortedError -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.ActivityGroupAllGrantsDeleted -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.ActivityGroupGrantInserted -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.ActivityGroupGrantsDeletedByUser -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.ActivityGroupServiceInitialized -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.BatchWriteExecuted -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CdcConfirmingPosition -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CdcDeletingPosition -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CdcEventDropped -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CdcGettingPosition -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CdcPositionNotFound -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CdcProcessingChange -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CdcProcessingError -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CdcReceivedChanges -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CdcResumingFromPosition -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CdcSavingPosition -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CdcStarting -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CdcStartingFromBeginning -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CdcStopping -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.ClientCreated -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.ClientDisposed -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CollectionDocumentsListed -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CollectionGroupQueried -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CollectionReferenceObtained -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CompositeIndexRequired -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.CredentialsConfigured -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.DocumentCreated -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.DocumentDeleted -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.DocumentNotFound -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.DocumentRead -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.DocumentReferenceObtained -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.DocumentSet -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.DocumentSnapshotChanged -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.DocumentUpdated -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.EmulatorConfigured -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.FirestoreException -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.GrantDeleted -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.GrantRevoked -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.GrantSaved -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.GrantServiceInitialized -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.HealthCheckCompleted -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.HealthCheckFailed -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.HealthCheckStarted -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.InboxCleanedUp -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.InboxEntryCreated -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.InboxEntryFailed -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.InboxEntryProcessed -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.InboxTryMarkProcessedDuplicate -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.InboxTryMarkProcessedSuccess -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.ListenerReceivedChanges -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.ListenerStarting -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.ListenerStopping -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.OperationCompleted -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.OperationFailed -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.OutboxCleanedUp -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.OutboxMessageEnqueued -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.OutboxMessageFailed -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.OutboxMessageSent -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.OutboxMessageStaged -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.PermissionDenied -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.ProjectIdConfigured -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.ProviderDisposing -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.ProviderInitializing -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.QueryCursorUsed -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.QueryExecuted -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.QueryExecuting -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.QueryFilterApplied -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.QuerySnapshotReceived -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.QuotaExceeded -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.SagaLoaded -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.SagaSaved -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.SnapshotDeleted -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.SnapshotListenerAdded -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.SnapshotListenerRemoved -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.SnapshotReceived -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.SnapshotRetrieved -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.SnapshotSaved -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.SnapshotsDeletedOlderThan -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.SnapshotVersionSkipped -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.SubcollectionAccessed -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.TransactionCommitted -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.TransactionMaxAttemptsExceeded -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.TransactionRetried -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.TransactionRolledBack -> System.Int32
+static const Excalibur.Data.Firestore.Diagnostics.DataFirestoreEventId.TransactionStarted -> System.Int32
+static Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.Beginning(System.String collectionPath) -> Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition
+static Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.FromBase64(System.String base64) -> Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition
+static Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.FromBytes(System.Byte[] bytes) -> Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition
+static Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.FromUpdateTime(System.String collectionPath, System.DateTimeOffset updateTime, System.String lastDocumentId) -> Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition
+static Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.Now(System.String collectionPath) -> Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition
+static Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition.TryFromBase64(System.String base64, ref Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition position) -> System.Boolean
+static Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent.CreateAdded(Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition position, System.String collectionPath, System.String documentId, System.Collections.Generic.IReadOnlyDictionary<System.String, System.Object> documentData, System.DateTimeOffset timestamp, System.Nullable<System.DateTimeOffset> updateTime, System.Nullable<System.DateTimeOffset> createTime) -> Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent
+static Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent.CreateModified(Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition position, System.String collectionPath, System.String documentId, System.Collections.Generic.IReadOnlyDictionary<System.String, System.Object> documentData, System.DateTimeOffset timestamp, System.Nullable<System.DateTimeOffset> updateTime, System.Nullable<System.DateTimeOffset> createTime) -> Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent
+static Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent.CreateRemoved(Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition position, System.String collectionPath, System.String documentId, System.DateTimeOffset timestamp) -> Excalibur.Data.Firestore.Cdc.FirestoreDataChangeEvent
+static Excalibur.Data.Firestore.Cdc.FirestoreDataChangeTypeExtensions.ToCdcChangeType(Excalibur.Data.Firestore.Cdc.FirestoreDataChangeType changeType) -> Excalibur.Cdc.CdcChangeType
+static Excalibur.Data.Firestore.Cdc.FirestoreStalePositionDetector.CreateEventArgs(System.Exception exception, System.String processorId, Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition stalePosition, Excalibur.Data.Firestore.Cdc.FirestoreCdcPosition newPosition, System.String projectId, System.String collectionPath, System.String documentId) -> Excalibur.Cdc.CdcPositionResetEventArgs
+static Excalibur.Data.Firestore.Cdc.FirestoreStalePositionDetector.GetReasonCode(Grpc.Core.RpcException exception) -> System.String
+static Excalibur.Data.Firestore.Cdc.FirestoreStalePositionDetector.GetStalePositionStatusCode(System.Exception exception) -> System.Nullable<System.Int32>
+static Excalibur.Data.Firestore.Cdc.FirestoreStalePositionDetector.IsStalePositionException(System.Exception exception) -> System.Boolean
+static Excalibur.Data.Firestore.Cdc.FirestoreStalePositionDetector.IsStalePositionStatusCode(Grpc.Core.StatusCode statusCode) -> System.Boolean
+static Excalibur.Data.Firestore.Cdc.FirestoreStalePositionDetector.IsStalePositionStatusCode(System.Int32 statusCode) -> System.Boolean
+static Excalibur.Data.Firestore.Cdc.FirestoreStalePositionDetector.StalePositionStatusCodes.get -> System.Collections.Generic.IReadOnlySet<System.Int32>
+static Excalibur.Data.Firestore.Cdc.FirestoreStalePositionReasonCodes.FromErrorMessage(System.String errorMessage) -> System.String
+static Excalibur.Data.Firestore.Cdc.FirestoreStalePositionReasonCodes.FromGrpcStatusCode(System.Int32 statusCode) -> System.String
+static Excalibur.Data.Firestore.FirestoreEmulatorHelper.TryConfigureEmulatorHost(System.String emulatorHost) -> System.Boolean
+static Microsoft.Extensions.DependencyInjection.FirestoreAuthorizationExtensions.AddFirestoreActivityGroupGrantService(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreAuthorizationExtensions.AddFirestoreAuthorization(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreAuthorizationExtensions.AddFirestoreAuthorization(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String projectId, System.String emulatorHost, System.String grantsCollectionName, System.String activityGroupsCollectionName) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreAuthorizationExtensions.AddFirestoreGrantService(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Data.Firestore.Authorization.FirestoreAuthorizationOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreCdcServiceCollectionExtensions.AddFirestoreCdc(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration, System.String sectionName) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreCdcServiceCollectionExtensions.AddFirestoreCdc(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreCdcServiceCollectionExtensions.AddFirestoreCdc(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Data.Firestore.Cdc.FirestoreCdcOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreCdcServiceCollectionExtensions.AddFirestoreCdcStateStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStoreOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreCdcServiceCollectionExtensions.AddFirestoreCdcStateStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String collectionName, System.Action<Excalibur.Data.Firestore.Cdc.FirestoreCdcStateStoreOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreCdcServiceCollectionExtensions.AddInMemoryFirestoreCdcStateStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreInboxExtensions.AddFirestoreInboxStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreInboxExtensions.AddFirestoreInboxStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Func<System.IServiceProvider, Google.Cloud.Firestore.FirestoreDb> dbProvider, System.Action<Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreInboxExtensions.AddFirestoreInboxStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String projectId) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreInboxExtensions.UseFirestoreInboxStore(Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder builder, System.Action<Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions> configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder
+static Microsoft.Extensions.DependencyInjection.FirestoreInboxExtensions.UseFirestoreInboxStore(Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder builder, System.Func<System.IServiceProvider, Google.Cloud.Firestore.FirestoreDb> dbProvider, System.Action<Excalibur.Data.Firestore.Inbox.FirestoreInboxOptions> configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder
+static Microsoft.Extensions.DependencyInjection.FirestoreInboxExtensions.UseFirestoreInboxStore(Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder builder, System.String projectId) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder
+static Microsoft.Extensions.DependencyInjection.FirestoreOutboxExtensions.AddFirestoreOutboxStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreOutboxExtensions.AddFirestoreOutboxStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Func<System.IServiceProvider, Google.Cloud.Firestore.FirestoreDb> dbProvider, System.Action<Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreOutboxExtensions.AddFirestoreOutboxStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String projectId) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreOutboxExtensions.UseFirestoreOutboxStore(Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder builder, System.Action<Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions> configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder
+static Microsoft.Extensions.DependencyInjection.FirestoreOutboxExtensions.UseFirestoreOutboxStore(Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder builder, System.Func<System.IServiceProvider, Google.Cloud.Firestore.FirestoreDb> dbProvider, System.Action<Excalibur.Data.Firestore.Outbox.FirestoreOutboxOptions> configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder
+static Microsoft.Extensions.DependencyInjection.FirestoreOutboxExtensions.UseFirestoreOutboxStore(Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder builder, System.String projectId) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder
+static Microsoft.Extensions.DependencyInjection.FirestoreSagaExtensions.AddFirestoreSagaStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Data.Firestore.Saga.FirestoreSagaOptions> configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreSagaExtensions.AddFirestoreSagaStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Func<System.IServiceProvider, Google.Cloud.Firestore.FirestoreDb> dbProvider, System.Action<Excalibur.Data.Firestore.Saga.FirestoreSagaOptions> configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreSagaExtensions.AddFirestoreSagaStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String projectId) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreServiceCollectionExtensions.AddFirestore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration, System.String sectionName) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreServiceCollectionExtensions.AddFirestore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreServiceCollectionExtensions.AddFirestore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Data.Firestore.FirestoreOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreServiceCollectionExtensions.AddFirestoreWithDatabase(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Data.Firestore.FirestoreOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreSnapshotStoreExtensions.AddFirestoreSnapshotStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FirestoreSnapshotStoreExtensions.AddFirestoreSnapshotStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String name, System.Action<Excalibur.Data.Firestore.Snapshots.FirestoreSnapshotStoreOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

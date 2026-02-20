@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>Excalibur.Dispatch.Serialization.MemoryPack</AssemblyName>
+    <RootNamespace>Excalibur.Dispatch.Serialization.MemoryPack</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageId>Excalibur.Dispatch.Serialization.MemoryPack</PackageId>
+    <Description>MemoryPack serialization plugin for Dispatch framework. High-performance, AOT-compatible binary serialization for internal persistence (Outbox, Inbox, Event Store) using magic byte format detection. Default serializer for maximum performance in .NET-only environments.</Description>
+    <PackageTags>dispatch;memorypack;serialization;binary;performance;aot;pluggable;event-sourcing;outbox</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+  <!-- AOT Configuration -->
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+    <PublishAot Condition="'$(PublishAot)' == ''">false</PublishAot>
+    <TrimMode>full</TrimMode>
+    <IlcOptimizationPreference>Speed</IlcOptimizationPreference>
+    <IlcGenerateStackTraceData>false</IlcGenerateStackTraceData>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(PublishAot)' == 'true' OR '$(PublishTrimmed)' == 'true'">
+    <DefineConstants>$(DefineConstants);USE_SOURCE_GENERATION;AOT_ENABLED</DefineConstants>
+    <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
+    <TrimmerDefaultAction>link</TrimmerDefaultAction>
+    <TrimMode>full</TrimMode>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MemoryPack" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Excalibur.Dispatch.AuditLogging.Postgres</RootNamespace>
+    <AssemblyName>Excalibur.Dispatch.AuditLogging.Postgres</AssemblyName>
+    <PackageId>Excalibur.Dispatch.AuditLogging.Postgres</PackageId>
+    <Description>Postgres audit store for Excalibur compliance framework. Provides tamper-evident hash-chain audit logging with Dapper and Npgsql.</Description>
+    <PackageTags>dispatch;audit;logging;Postgres;compliance;dapper;soc2;tamper-evident;hash-chain</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Dispatch.AuditLogging\Excalibur.Dispatch.AuditLogging.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch.Compliance.Abstractions\Excalibur.Dispatch.Compliance.Abstractions.csproj" />
+    <PackageReference Include="Dapper" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <PackageReference Include="System.Text.Json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>

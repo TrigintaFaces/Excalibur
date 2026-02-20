@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Benchmarks.LeaderElection.LeaderElectionBenchmarks-20260202-221637</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.102
+  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  Job-CNUJVU : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>InvocationCount=1  UnrollFactor=1  
+</code></pre>
+
+<table>
+<thead><tr><th>Method             </th><th>CandidateCount</th><th>Mean     </th><th>Error  </th><th>StdDev</th><th>Median   </th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>SingleCandidateAcquire</td><td>1</td><td>4,603.2 ns</td><td>406.41 ns</td><td>1,152.9 ns</td><td>4,300.0 ns</td><td>1.05</td><td>0.35</td><td>240 B</td><td>1.00</td>
+</tr><tr><td>MultipleCandidatesCompete</td><td>1</td><td>4,569.2 ns</td><td>313.55 ns</td><td>879.2 ns</td><td>4,300.0 ns</td><td>1.05</td><td>0.30</td><td>272 B</td><td>1.13</td>
+</tr><tr><td>CheckIsLeader</td><td>1</td><td>4,401.0 ns</td><td>334.28 ns</td><td>964.5 ns</td><td>4,150.0 ns</td><td>1.01</td><td>0.31</td><td>240 B</td><td>1.00</td>
+</tr><tr><td>GetCurrentLeaderId</td><td>1</td><td>4,352.7 ns</td><td>324.73 ns</td><td>921.2 ns</td><td>4,000.0 ns</td><td>1.00</td><td>0.30</td><td>240 B</td><td>1.00</td>
+</tr><tr><td>UpdateHealth</td><td>1</td><td>6,756.1 ns</td><td>476.85 ns</td><td>1,391.0 ns</td><td>6,400.0 ns</td><td>1.55</td><td>0.46</td><td>872 B</td><td>3.63</td>
+</tr><tr><td>GetCandidateHealth</td><td>1</td><td>6,908.3 ns</td><td>573.97 ns</td><td>1,656.0 ns</td><td>6,200.0 ns</td><td>1.58</td><td>0.51</td><td>568 B</td><td>2.37</td>
+</tr><tr><td>LeaderFailover</td><td>1</td><td>629.6 ns</td><td>71.71 ns</td><td>209.2 ns</td><td>600.0 ns</td><td>0.14</td><td>0.06</td><td>-</td><td>0.00</td>
+</tr><tr><td>UnhealthyStepDown</td><td>1</td><td>5,430.3 ns</td><td>287.13 ns</td><td>795.6 ns</td><td>5,500.0 ns</td><td>1.24</td><td>0.32</td><td>464 B</td><td>1.93</td>
+</tr><tr><td>GracefulShutdown</td><td>1</td><td>4,959.4 ns</td><td>264.03 ns</td><td>761.8 ns</td><td>4,750.0 ns</td><td>1.14</td><td>0.30</td><td>240 B</td><td>1.00</td>
+</tr><tr><td>SingleCandidateAcquire</td><td>5</td><td>5,097.8 ns</td><td>319.80 ns</td><td>907.2 ns</td><td>5,000.0 ns</td><td>1.03</td><td>0.25</td><td>240 B</td><td>1.00</td>
+</tr><tr><td>MultipleCandidatesCompete</td><td>5</td><td>8,247.4 ns</td><td>508.89 ns</td><td>1,460.1 ns</td><td>8,100.0 ns</td><td>1.67</td><td>0.41</td><td>1336 B</td><td>5.57</td>
+</tr><tr><td>CheckIsLeader</td><td>5</td><td>5,786.2 ns</td><td>535.93 ns</td><td>1,529.0 ns</td><td>5,700.0 ns</td><td>1.17</td><td>0.37</td><td>240 B</td><td>1.00</td>
+</tr><tr><td>GetCurrentLeaderId</td><td>5</td><td>5,337.8 ns</td><td>438.39 ns</td><td>1,278.8 ns</td><td>5,100.0 ns</td><td>1.08</td><td>0.32</td><td>240 B</td><td>1.00</td>
+</tr><tr><td>UpdateHealth</td><td>5</td><td>9,206.3 ns</td><td>731.40 ns</td><td>2,098.5 ns</td><td>9,100.0 ns</td><td>1.86</td><td>0.53</td><td>872 B</td><td>3.63</td>
+</tr><tr><td>GetCandidateHealth</td><td>5</td><td>7,801.0 ns</td><td>472.36 ns</td><td>1,362.9 ns</td><td>7,800.0 ns</td><td>1.58</td><td>0.38</td><td>568 B</td><td>2.37</td>
+</tr><tr><td>LeaderFailover</td><td>5</td><td>14,472,886.5 ns</td><td>285,126.08 ns</td><td>484,165.8 ns</td><td>14,375,300.0 ns</td><td>2,923.64</td><td>498.26</td><td>1672 B</td><td>6.97</td>
+</tr><tr><td>UnhealthyStepDown</td><td>5</td><td>6,394.8 ns</td><td>378.91 ns</td><td>1,099.3 ns</td><td>6,200.0 ns</td><td>1.29</td><td>0.31</td><td>464 B</td><td>1.93</td>
+</tr><tr><td>GracefulShutdown</td><td>5</td><td>6,297.9 ns</td><td>459.03 ns</td><td>1,331.7 ns</td><td>6,400.0 ns</td><td>1.27</td><td>0.34</td><td>240 B</td><td>1.00</td>
+</tr><tr><td>SingleCandidateAcquire</td><td>10</td><td>5,610.1 ns</td><td>478.83 ns</td><td>1,404.3 ns</td><td>5,700.0 ns</td><td>1.06</td><td>0.38</td><td>240 B</td><td>1.00</td>
+</tr><tr><td>MultipleCandidatesCompete</td><td>10</td><td>10,442.1 ns</td><td>509.74 ns</td><td>1,462.6 ns</td><td>10,400.0 ns</td><td>1.98</td><td>0.58</td><td>2576 B</td><td>10.73</td>
+</tr><tr><td>CheckIsLeader</td><td>10</td><td>6,396.8 ns</td><td>560.22 ns</td><td>1,589.3 ns</td><td>6,400.0 ns</td><td>1.21</td><td>0.44</td><td>240 B</td><td>1.00</td>
+</tr><tr><td>GetCurrentLeaderId</td><td>10</td><td>6,571.4 ns</td><td>612.94 ns</td><td>1,718.7 ns</td><td>6,200.0 ns</td><td>1.25</td><td>0.46</td><td>240 B</td><td>1.00</td>
+</tr><tr><td>UpdateHealth</td><td>10</td><td>12,794.9 ns</td><td>1,370.86 ns</td><td>4,020.5 ns</td><td>13,000.0 ns</td><td>2.43</td><td>1.00</td><td>872 B</td><td>3.63</td>
+</tr><tr><td>GetCandidateHealth</td><td>10</td><td>8,768.0 ns</td><td>651.96 ns</td><td>1,922.3 ns</td><td>8,700.0 ns</td><td>1.66</td><td>0.56</td><td>568 B</td><td>2.37</td>
+</tr><tr><td>LeaderFailover</td><td>10</td><td>14,480,466.7 ns</td><td>285,351.46 ns</td><td>427,100.7 ns</td><td>14,421,800.0 ns</td><td>2,748.19</td><td>702.96</td><td>2912 B</td><td>12.13</td>
+</tr><tr><td>UnhealthyStepDown</td><td>10</td><td>7,558.6 ns</td><td>507.24 ns</td><td>1,487.6 ns</td><td>7,600.0 ns</td><td>1.43</td><td>0.47</td><td>464 B</td><td>1.93</td>
+</tr><tr><td>GracefulShutdown</td><td>10</td><td>7,138.1 ns</td><td>519.86 ns</td><td>1,508.2 ns</td><td>7,000.0 ns</td><td>1.35</td><td>0.45</td><td>240 B</td><td>1.00</td>
+</tr></tbody></table>
+</body>
+</html>

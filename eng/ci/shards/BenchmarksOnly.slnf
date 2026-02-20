@@ -1,0 +1,11 @@
+{
+  "solution": {
+    "path": "..\\..\\..\\Excalibur.sln",
+    "projects": [
+      "benchmarks\\Dispatch.Benchmarks\\Dispatch.Benchmarks.csproj",
+      "benchmarks\\Dispatch.Core.Tests.Performance\\Dispatch.Core.Tests.Performance.csproj",
+      "benchmarks\\Excalibur.Benchmarks\\Excalibur.Benchmarks.csproj",
+      "tests\\benchmarks\\Dispatch.Compliance.Benchmarks\\Dispatch.Compliance.Benchmarks.csproj"
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+global using FakeItEasy;
+global using Shouldly;
+global using Tests.Shared;
+global using Xunit;
+global using Amazon.Lambda.Serialization.SystemTextJson;
+global using Microsoft.Extensions.Configuration;
+global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.Extensions.Hosting;
+global using Microsoft.Extensions.Logging;

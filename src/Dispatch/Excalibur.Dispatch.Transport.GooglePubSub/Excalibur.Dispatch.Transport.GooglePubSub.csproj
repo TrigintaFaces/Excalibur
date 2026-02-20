@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<PackageId>Excalibur.Dispatch.Transport.GooglePubSub</PackageId>
+		<Description>Google Cloud integration for Dispatch messaging framework. Provides Pub/Sub implementation with CloudEvents support.</Description>
+		<PackageTags>messaging;dispatch;google;gcp;pubsub;cloud;aot</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<!-- IL2026: Suppress RequiresUnreferencedCode for source-generated JSON serializer using Exception.TargetSite -->
+		<NoWarn>$(NoWarn);IL2026</NoWarn>
+		<IsAotCompatible>false</IsAotCompatible>
+	</PropertyGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+		<ProjectReference Include="..\Excalibur.Dispatch.Transport.Abstractions\Excalibur.Dispatch.Transport.Abstractions.csproj" />
+		<ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+	</ItemGroup>
+	<ItemGroup>
+		<!-- Google Cloud SDK packages -->
+		<PackageReference Include="Google.Cloud.PubSub.V1" />
+		<PackageReference Include="Google.Cloud.Monitoring.V3" />
+		<PackageReference Include="Google.Api.Gax.Grpc" />
+		<!-- CloudEvents support -->
+		<PackageReference Include="CloudNative.CloudEvents" />
+		<PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+		<PackageReference Include="System.Text.Json" />
+		<!-- Common dependencies -->
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+		<PackageReference Include="Polly" />
+		<!-- Compression support -->
+		<PackageReference Include="Snappier" />
+		<PackageReference Include="OpenTelemetry.Api" />
+		<PackageReference Include="OpenTelemetry" />
+		<PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+	</ItemGroup>
+	<ItemGroup>
+		<InternalsVisibleTo Include="Excalibur.Dispatch.Transport.GooglePubSub.Tests.Unit" />
+		<InternalsVisibleTo Include="Excalibur.Dispatch.Transport.GooglePubSub.Tests.Integration" />
+		<InternalsVisibleTo Include="Excalibur.Dispatch.Transport.GooglePubSub.Tests.Functional" />
+		<InternalsVisibleTo Include="Excalibur.Dispatch.Transport.GooglePubSub.Tests" />
+		<InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests" />
+	</ItemGroup>
+</Project>

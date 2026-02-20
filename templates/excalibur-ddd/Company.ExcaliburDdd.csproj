@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ExcaliburDispatchVersion Condition="'$(ExcaliburDispatchVersion)' == ''">0.1.0-*</ExcaliburDispatchVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Excalibur.Dispatch" Version="$(ExcaliburDispatchVersion)" />
+    <PackageReference Include="Excalibur.Dispatch.Hosting.AspNetCore" Version="$(ExcaliburDispatchVersion)" />
+    <PackageReference Include="Excalibur.Domain" Version="$(ExcaliburDispatchVersion)" />
+    <PackageReference Include="Excalibur.EventSourcing" Version="$(ExcaliburDispatchVersion)" />
+    <PackageReference Include="Excalibur.Hosting" Version="$(ExcaliburDispatchVersion)" />
+    <!--#if (UseSqlServer) -->
+    <PackageReference Include="Excalibur.EventSourcing.SqlServer" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+    <!--#if (UsePostgreSql) -->
+    <PackageReference Include="Excalibur.EventSourcing.Postgres" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+  </ItemGroup>
+
+</Project>

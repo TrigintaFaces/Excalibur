@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Comparative.MediatRComparisonBenchmarks-20260202-191044</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.102
+  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                          </th><th>Mean   </th><th>Error </th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Dispatch: Single command handler&#39;</td><td>1,771.86 ns</td><td>17.230 ns</td><td>14.388 ns</td><td>1.00</td><td>0.01</td><td>0.0820</td><td>-</td><td>1576 B</td><td>1.00</td>
+</tr><tr><td>&#39;MediatR: Single command handler&#39;</td><td>41.29 ns</td><td>0.685 ns</td><td>0.641 ns</td><td>0.02</td><td>0.00</td><td>0.0080</td><td>-</td><td>152 B</td><td>0.10</td>
+</tr><tr><td>&#39;Dispatch: Notification to 3 handlers&#39;</td><td>5,191.43 ns</td><td>101.164 ns</td><td>157.500 ns</td><td>2.93</td><td>0.09</td><td>0.1907</td><td>-</td><td>3712 B</td><td>2.36</td>
+</tr><tr><td>&#39;MediatR: Notification to 3 handlers&#39;</td><td>107.42 ns</td><td>2.118 ns</td><td>2.522 ns</td><td>0.06</td><td>0.00</td><td>0.0327</td><td>-</td><td>616 B</td><td>0.39</td>
+</tr><tr><td>&#39;Dispatch: Query with return value&#39;</td><td>278.23 ns</td><td>4.718 ns</td><td>5.795 ns</td><td>0.16</td><td>0.00</td><td>0.0429</td><td>-</td><td>808 B</td><td>0.51</td>
+</tr><tr><td>&#39;MediatR: Query with return value&#39;</td><td>51.38 ns</td><td>0.616 ns</td><td>0.546 ns</td><td>0.03</td><td>0.00</td><td>0.0157</td><td>-</td><td>296 B</td><td>0.19</td>
+</tr><tr><td>&#39;Dispatch: 10 concurrent commands&#39;</td><td>18,167.26 ns</td><td>252.568 ns</td><td>236.253 ns</td><td>10.25</td><td>0.15</td><td>0.7935</td><td>-</td><td>15473 B</td><td>9.82</td>
+</tr><tr><td>&#39;MediatR: 10 concurrent commands&#39;</td><td>517.17 ns</td><td>8.251 ns</td><td>7.314 ns</td><td>0.29</td><td>0.00</td><td>0.1001</td><td>-</td><td>1888 B</td><td>1.20</td>
+</tr><tr><td>&#39;Dispatch: 100 concurrent commands&#39;</td><td>177,226.80 ns</td><td>1,593.466 ns</td><td>1,412.566 ns</td><td>100.03</td><td>1.10</td><td>8.0566</td><td>0.2441</td><td>153003 B</td><td>97.08</td>
+</tr><tr><td>&#39;MediatR: 100 concurrent commands&#39;</td><td>4,656.57 ns</td><td>57.502 ns</td><td>44.894 ns</td><td>2.63</td><td>0.03</td><td>0.9079</td><td>-</td><td>17096 B</td><td>10.85</td>
+</tr></tbody></table>
+</body>
+</html>

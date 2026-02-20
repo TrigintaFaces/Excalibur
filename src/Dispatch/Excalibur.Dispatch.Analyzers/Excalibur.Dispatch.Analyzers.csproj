@@ -1,0 +1,52 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<!-- Analyzers MUST target netstandard2.0 only - override multi-targeting from Directory.Build.props -->
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<TargetFrameworks></TargetFrameworks>
+		<LangVersion>latest</LangVersion>
+		<Nullable>enable</Nullable>
+		<IsPackable>true</IsPackable>
+		<IncludeBuildOutput>false</IncludeBuildOutput>
+		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+		<IncludeSymbols>false</IncludeSymbols>
+		<DevelopmentDependency>true</DevelopmentDependency>
+		<SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+		<EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+		<!-- Disable AOT analysis - not applicable to analyzers (run in compiler, not runtime) -->
+		<IsAotCompatible>false</IsAotCompatible>
+		<IsTrimmable>false</IsTrimmable>
+		<EnableAotAnalyzer>false</EnableAotAnalyzer>
+		<EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<PackageId>Excalibur.Dispatch.Analyzers</PackageId>
+		<Title>Dispatch Namespace Analyzers</Title>
+		<Description>Roslyn analyzers for Dispatch framework namespace conventions and architectural boundaries enforcement per ADR-050</Description>
+		<PackageTags>roslyn;analyzer;dispatch;namespace;architecture</PackageTags>
+
+
+		<NoWarn>$(NoWarn);NU5017;NU5128;RS2007;RS2008</NoWarn>
+	<PackageReadmeFile>README.md</PackageReadmeFile>
+    </PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+		<AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+	</ItemGroup>
+
+<ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  </Project>

@@ -1,0 +1,60 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<IsPackable>true</IsPackable>
+		<PackageId>Excalibur.EventSourcing</PackageId>
+		<Description>Event sourcing implementation for Excalibur, providing event stores, aggregate repositories, snapshots, upcasting, and outbox pattern support.</Description>
+		<PackageTags>excalibur;event-sourcing;cqrs;aggregates;snapshots;outbox;ddd</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+	</PropertyGroup>
+
+	<!-- AOT Configuration -->
+	<PropertyGroup>
+		<IsAotCompatible>true</IsAotCompatible>
+		<EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+		<PublishAot Condition="'$(PublishAot)' == ''">false</PublishAot>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(PublishAot)' == 'true' OR '$(PublishTrimmed)' == 'true'">
+		<SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
+		<TrimmerDefaultAction>link</TrimmerDefaultAction>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Update="Resources.resx">
+			<Generator>ResXFileCodeGenerator</Generator>
+			<LastGenOutput>Resources.Designer.cs</LastGenOutput>
+		</EmbeddedResource>
+		<Compile Update="Resources.Designer.cs">
+			<DesignTime>True</DesignTime>
+			<AutoGen>True</AutoGen>
+			<DependentUpon>Resources.resx</DependentUpon>
+		</Compile>
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Options" />
+		<PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+		<PackageReference Include="NCrontab" />
+		<PackageReference Include="OpenTelemetry.Api" />
+		<PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+	</ItemGroup>
+
+	<ItemGroup><ProjectReference Include="..\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" /></ItemGroup><ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+		
+		<ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+		<ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Compliance\Excalibur.Dispatch.Compliance.csproj" />
+		<ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Compliance.Abstractions\Excalibur.Dispatch.Compliance.Abstractions.csproj" />
+	</ItemGroup>
+
+	<!-- CI mode: PackageReference for Dispatch packages -->
+	<ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+		<PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
+		<PackageReference Include="Excalibur.Dispatch.Compliance" VersionOverride="$(DispatchPackageVersion)" />
+		<PackageReference Include="Excalibur.Dispatch.Compliance.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+	</ItemGroup>
+</Project>

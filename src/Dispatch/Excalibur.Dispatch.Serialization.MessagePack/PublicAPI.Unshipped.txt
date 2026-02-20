@@ -1,0 +1,45 @@
+#nullable enable
+Excalibur.Dispatch.Serialization.MessagePack.AotMessagePackSerializer
+Excalibur.Dispatch.Serialization.MessagePack.AotMessagePackSerializer.AotMessagePackSerializer(MessagePack.MessagePackSerializerOptions options) -> void
+Excalibur.Dispatch.Serialization.MessagePack.AotMessagePackSerializer.Deserialize(System.Byte[] data) -> 
+Excalibur.Dispatch.Serialization.MessagePack.AotMessagePackSerializer.Serialize( message) -> System.Byte[]
+Excalibur.Dispatch.Serialization.MessagePack.AotMessagePackSerializer.SerializerName.get -> System.String
+Excalibur.Dispatch.Serialization.MessagePack.AotMessagePackSerializer.SerializerVersion.get -> System.String
+Excalibur.Dispatch.Serialization.MessagePack.DispatchMessagePackSerializer
+Excalibur.Dispatch.Serialization.MessagePack.DispatchMessagePackSerializer.Deserialize(System.Byte[] data) -> 
+Excalibur.Dispatch.Serialization.MessagePack.DispatchMessagePackSerializer.DispatchMessagePackSerializer(MessagePack.MessagePackSerializerOptions options) -> void
+Excalibur.Dispatch.Serialization.MessagePack.DispatchMessagePackSerializer.Serialize( message) -> System.Byte[]
+Excalibur.Dispatch.Serialization.MessagePack.DispatchMessagePackSerializer.SerializerName.get -> System.String
+Excalibur.Dispatch.Serialization.MessagePack.DispatchMessagePackSerializer.SerializerVersion.get -> System.String
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackMessageSerializer
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackMessageSerializer.Deserialize(System.Byte[] data) -> 
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackMessageSerializer.MessagePackMessageSerializer(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationOptions> options) -> void
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackMessageSerializer.Serialize( message) -> System.Byte[]
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackMessageSerializer.SerializerName.get -> System.String
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackMessageSerializer.SerializerVersion.get -> System.String
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackPluggableSerializer
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackPluggableSerializer.Deserialize(System.ReadOnlySpan<System.Byte> data) -> 
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackPluggableSerializer.DeserializeObject(System.ReadOnlySpan<System.Byte> data, System.Type type) -> System.Object
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackPluggableSerializer.MessagePackPluggableSerializer() -> void
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackPluggableSerializer.MessagePackPluggableSerializer(MessagePack.MessagePackSerializerOptions options) -> void
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackPluggableSerializer.Name.get -> System.String
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackPluggableSerializer.Serialize( value) -> System.Byte[]
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackPluggableSerializer.SerializeObject(System.Object value, System.Type type) -> System.Byte[]
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackPluggableSerializer.Version.get -> System.String
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationExtensions
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationOptions
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationOptions.MessagePackSerializationOptions() -> void
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationOptions.MessagePackSerializerOptions.get -> MessagePack.MessagePackSerializerOptions
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationOptions.UseLz4Compression.get -> System.Boolean
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationOptions.UseLz4Compression.set -> void
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackZeroCopySerializer
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackZeroCopySerializer.Deserialize(System.ReadOnlyMemory<System.Byte> buffer) -> 
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackZeroCopySerializer.DeserializeAsync(System.IO.Pipelines.PipeReader reader, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<>
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackZeroCopySerializer.MessagePackZeroCopySerializer() -> void
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackZeroCopySerializer.Serialize( message, System.Memory<System.Byte> buffer) -> System.Int32
+Excalibur.Dispatch.Serialization.MessagePack.MessagePackZeroCopySerializer.SerializeAsync(System.IO.Pipelines.PipeWriter writer,  message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+static Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationExtensions.AddMessagePackPluggableSerialization(Microsoft.Extensions.DependencyInjection.IServiceCollection services, MessagePack.MessagePackSerializerOptions options, System.Boolean setAsCurrent) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationExtensions.AddMessagePackPluggableSerialization(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Boolean setAsCurrent) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationExtensions.AddMessagePackSerialization(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationExtensions.GetPluggableSerializer() -> Excalibur.Dispatch.Abstractions.Serialization.IPluggableSerializer
+static Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationExtensions.GetPluggableSerializer(MessagePack.MessagePackSerializerOptions options) -> Excalibur.Dispatch.Abstractions.Serialization.IPluggableSerializer

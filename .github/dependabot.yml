@@ -1,0 +1,51 @@
+version: 2
+
+updates:
+  # NuGet package updates
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "nuget"
+    groups:
+      # Group Microsoft packages
+      microsoft-packages:
+        patterns:
+          - "Microsoft.*"
+          - "System.*"
+      # Group Azure SDK packages
+      azure-packages:
+        patterns:
+          - "Azure.*"
+      # Group AWS SDK packages
+      aws-packages:
+        patterns:
+          - "AWSSDK.*"
+      # Group Google Cloud packages
+      google-packages:
+        patterns:
+          - "Google.*"
+      # Group test frameworks
+      test-packages:
+        patterns:
+          - "xunit*"
+          - "Shouldly"
+          - "FakeItEasy"
+          - "TestContainers*"
+
+  # GitHub Actions updates
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"

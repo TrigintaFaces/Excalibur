@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<IsPackable>true</IsPackable>
+		<PackageId>Excalibur.Dispatch.Validation.FluentValidation</PackageId>
+		<Description>FluentValidation integration for the Dispatch messaging framework. Provides IValidatorResolver implementation using FluentValidation validators.</Description>
+		<PackageTags>dispatch;validation;fluentvalidation;cqrs;messaging</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<IsAotCompatible>false</IsAotCompatible>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="FluentValidation" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="/" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="Excalibur.Dispatch.Middleware.Tests" />
+	</ItemGroup>
+
+</Project>

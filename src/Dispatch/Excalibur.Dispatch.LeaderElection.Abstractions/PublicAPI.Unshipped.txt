@@ -1,0 +1,80 @@
+#nullable enable
+Excalibur.Dispatch.LeaderElection.CandidateHealth
+Excalibur.Dispatch.LeaderElection.CandidateHealth.CandidateHealth() -> void
+Excalibur.Dispatch.LeaderElection.CandidateHealth.CandidateId.get -> System.String
+Excalibur.Dispatch.LeaderElection.CandidateHealth.CandidateId.set -> void
+Excalibur.Dispatch.LeaderElection.CandidateHealth.HealthScore.get -> System.Double
+Excalibur.Dispatch.LeaderElection.CandidateHealth.HealthScore.set -> void
+Excalibur.Dispatch.LeaderElection.CandidateHealth.IsHealthy.get -> System.Boolean
+Excalibur.Dispatch.LeaderElection.CandidateHealth.IsHealthy.set -> void
+Excalibur.Dispatch.LeaderElection.CandidateHealth.IsLeader.get -> System.Boolean
+Excalibur.Dispatch.LeaderElection.CandidateHealth.IsLeader.set -> void
+Excalibur.Dispatch.LeaderElection.CandidateHealth.LastUpdated.get -> System.DateTimeOffset
+Excalibur.Dispatch.LeaderElection.CandidateHealth.LastUpdated.set -> void
+Excalibur.Dispatch.LeaderElection.CandidateHealth.Metadata.get -> System.Collections.Generic.IDictionary<System.String, System.String>
+Excalibur.Dispatch.LeaderElection.CandidateHealth.Metadata.set -> void
+Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware
+Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.ApplicableMessageKinds.get -> Excalibur.Dispatch.Abstractions.MessageKinds
+Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.FencingTokenMiddleware(Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider provider, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware> logger) -> void
+Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage message, Excalibur.Dispatch.Abstractions.IMessageContext context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult>
+Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.Stage.get -> System.Nullable<Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage>
+Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider
+Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider.GetTokenAsync(System.String resourceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Nullable<System.Int64>>
+Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider.IssueTokenAsync(System.String resourceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Int64>
+Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider.ValidateTokenAsync(System.String resourceId, System.Int64 token, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Boolean>
+Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection
+Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection.GetCandidateHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.LeaderElection.CandidateHealth>>
+Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection.UpdateHealthAsync(System.Boolean isHealthy, System.Collections.Generic.IDictionary<System.String, System.String> metadata) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.LeaderElection.ILeaderElection
+Excalibur.Dispatch.LeaderElection.ILeaderElection.BecameLeader.add -> void
+Excalibur.Dispatch.LeaderElection.ILeaderElection.BecameLeader.remove -> void
+Excalibur.Dispatch.LeaderElection.ILeaderElection.CandidateId.get -> System.String
+Excalibur.Dispatch.LeaderElection.ILeaderElection.CurrentLeaderId.get -> System.String
+Excalibur.Dispatch.LeaderElection.ILeaderElection.IsLeader.get -> System.Boolean
+Excalibur.Dispatch.LeaderElection.ILeaderElection.LeaderChanged.add -> void
+Excalibur.Dispatch.LeaderElection.ILeaderElection.LeaderChanged.remove -> void
+Excalibur.Dispatch.LeaderElection.ILeaderElection.LostLeadership.add -> void
+Excalibur.Dispatch.LeaderElection.ILeaderElection.LostLeadership.remove -> void
+Excalibur.Dispatch.LeaderElection.ILeaderElection.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.LeaderElection.ILeaderElection.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory
+Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory.CreateElection(System.String resourceName, System.String candidateId) -> Excalibur.Dispatch.LeaderElection.ILeaderElection
+Excalibur.Dispatch.LeaderElection.ILeaderElectionFactory.CreateHealthBasedElection(System.String resourceName, System.String candidateId) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection
+Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs
+Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.LeaderChangedEventArgs(System.String previousLeaderId, System.String newLeaderId, System.String resourceName) -> void
+Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.NewLeaderId.get -> System.String
+Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.PreviousLeaderId.get -> System.String
+Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.ResourceName.get -> System.String
+Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs.Timestamp.get -> System.DateTimeOffset
+Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs
+Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs.CandidateId.get -> System.String
+Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs.LeaderElectionEventArgs(System.String candidateId, System.String resourceName) -> void
+Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs.ResourceName.get -> System.String
+Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs.Timestamp.get -> System.DateTimeOffset
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptions
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.CandidateMetadata.get -> System.Collections.Generic.IDictionary<System.String, System.String>
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.EnableHealthChecks.get -> System.Boolean
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.EnableHealthChecks.set -> void
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.GracePeriod.get -> System.TimeSpan
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.GracePeriod.set -> void
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.InstanceId.get -> System.String
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.InstanceId.set -> void
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.LeaderElectionOptions() -> void
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.LeaseDuration.get -> System.TimeSpan
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.LeaseDuration.set -> void
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.MinimumHealthScore.get -> System.Double
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.MinimumHealthScore.set -> void
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.RenewInterval.get -> System.TimeSpan
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.RenewInterval.set -> void
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.RetryInterval.get -> System.TimeSpan
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.RetryInterval.set -> void
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.StepDownWhenUnhealthy.get -> System.Boolean
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptions.StepDownWhenUnhealthy.set -> void
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptionsValidator
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptionsValidator.LeaderElectionOptionsValidator() -> void
+Excalibur.Dispatch.LeaderElection.LeaderElectionOptionsValidator.Validate(System.String name, Excalibur.Dispatch.LeaderElection.LeaderElectionOptions options) -> Microsoft.Extensions.Options.ValidateOptionsResult
+Microsoft.Extensions.DependencyInjection.FencingTokenServiceCollectionExtensions
+static const Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.FencingResourceIdKey -> System.String
+static const Excalibur.Dispatch.LeaderElection.Fencing.FencingTokenMiddleware.FencingTokenKey -> System.String
+static Microsoft.Extensions.DependencyInjection.FencingTokenServiceCollectionExtensions.AddFencingTokenSupport(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Excalibur.Dispatch.LeaderElection.Fencing.IFencingTokenProvider provider) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.FencingTokenServiceCollectionExtensions.AddFencingTokenSupport(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

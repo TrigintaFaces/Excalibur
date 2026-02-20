@@ -1,0 +1,34 @@
+{
+  "startedUtc": "2026-02-19T19:00:30.8542778+00:00",
+  "endedUtc": "2026-02-19T19:11:41.5417030+00:00",
+  "duration": "00:11:10.6721557",
+  "configuration": "Release",
+  "artifactsPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FairComparative-20260219c",
+  "resultsPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FairComparative-20260219c\\results",
+  "selectedClasses": [
+    "WolverineComparisonBenchmarks",
+    "MassTransitComparisonBenchmarks"
+  ],
+  "totalBenchmarks": 23.0,
+  "failures": [],
+  "classResults": [
+    {
+      "ClassName": "WolverineComparisonBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 231.5,
+      "BenchmarkRows": 13,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FairComparative-20260219c\\results\\Excalibur.Dispatch.Benchmarks.Comparative.WolverineComparisonBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FairComparative-20260219c\\results\\run-WolverineComparisonBenchmarks-20260219-130030.log"
+    },
+    {
+      "ClassName": "MassTransitComparisonBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 439.1,
+      "BenchmarkRows": 10,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FairComparative-20260219c\\results\\Excalibur.Dispatch.Benchmarks.Comparative.MassTransitComparisonBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FairComparative-20260219c\\results\\run-MassTransitComparisonBenchmarks-20260219-130422.log"
+    }
+  ]
+}

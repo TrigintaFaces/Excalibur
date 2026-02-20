@@ -1,1 +1,0 @@
-global using static Excalibur.DataAccess.DataProcessing.DataProcessorDefaults;

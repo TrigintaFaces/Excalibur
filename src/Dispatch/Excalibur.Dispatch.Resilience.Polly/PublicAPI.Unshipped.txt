@@ -1,0 +1,486 @@
+#nullable enable
+Excalibur.Dispatch.Resilience.Polly.BulkheadManager
+Excalibur.Dispatch.Resilience.Polly.BulkheadManager.BulkheadManager(Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Resilience.Polly.BulkheadManager> logger) -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadManager.GetAllMetrics() -> System.Collections.Generic.IReadOnlyDictionary<System.String, Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics>
+Excalibur.Dispatch.Resilience.Polly.BulkheadManager.GetOrCreateBulkhead(System.String resourceName, Excalibur.Dispatch.Resilience.Polly.BulkheadOptions options) -> Excalibur.Dispatch.Resilience.Polly.IBulkheadPolicy
+Excalibur.Dispatch.Resilience.Polly.BulkheadManager.RemoveBulkhead(System.String resourceName) -> System.Boolean
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.ActiveExecutions.get -> System.Int32
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.ActiveExecutions.set -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.AvailableCapacity.get -> System.Int32
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.AvailableCapacity.set -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.BulkheadMetrics() -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.MaxConcurrency.get -> System.Int32
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.MaxConcurrency.set -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.MaxQueueLength.get -> System.Int32
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.MaxQueueLength.set -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.Name.get -> System.String
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.Name.set -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.QueuedExecutions.get -> System.Int64
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.QueuedExecutions.set -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.QueueLength.get -> System.Int32
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.QueueLength.set -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.RejectedExecutions.get -> System.Int64
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.RejectedExecutions.set -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.TotalExecutions.get -> System.Int64
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.TotalExecutions.set -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics.UtilizationPercentage.get -> System.Double
+Excalibur.Dispatch.Resilience.Polly.BulkheadOptions
+Excalibur.Dispatch.Resilience.Polly.BulkheadOptions.AllowQueueing.get -> System.Boolean
+Excalibur.Dispatch.Resilience.Polly.BulkheadOptions.AllowQueueing.set -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadOptions.BulkheadOptions() -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadOptions.MaxConcurrency.get -> System.Int32
+Excalibur.Dispatch.Resilience.Polly.BulkheadOptions.MaxConcurrency.set -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadOptions.MaxQueueLength.get -> System.Int32
+Excalibur.Dispatch.Resilience.Polly.BulkheadOptions.MaxQueueLength.set -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadOptions.OperationTimeout.get -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.BulkheadOptions.OperationTimeout.set -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadOptions.PrioritySelector.get -> System.Func<System.Object, System.Int32>
+Excalibur.Dispatch.Resilience.Polly.BulkheadOptions.PrioritySelector.set -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadPolicy
+Excalibur.Dispatch.Resilience.Polly.BulkheadPolicy.BulkheadPolicy(System.String name, Excalibur.Dispatch.Resilience.Polly.BulkheadOptions options, Microsoft.Extensions.Logging.ILogger logger) -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadPolicy.Dispose() -> System.Void
+Excalibur.Dispatch.Resilience.Polly.BulkheadPolicy.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Resilience.Polly.BulkheadPolicy.ExecuteAsync(System.Func<System.Threading.Tasks.Task<>> operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Dispatch.Resilience.Polly.BulkheadPolicy.GetMetrics() -> Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics
+Excalibur.Dispatch.Resilience.Polly.BulkheadPolicy.HasCapacity.get -> System.Boolean
+Excalibur.Dispatch.Resilience.Polly.BulkheadRejectedException
+Excalibur.Dispatch.Resilience.Polly.BulkheadRejectedException.BulkheadRejectedException() -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadRejectedException.BulkheadRejectedException(System.String message, System.Exception innerException) -> void
+Excalibur.Dispatch.Resilience.Polly.BulkheadRejectedException.BulkheadRejectedException(System.String message) -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationContext`1
+Excalibur.Dispatch.Resilience.Polly.DegradationContext`1.DegradationContext`1() -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationContext`1.Fallbacks.get -> System.Collections.Generic.IReadOnlyDictionary<Excalibur.Dispatch.Resilience.Polly.DegradationLevel, System.Func<System.Threading.Tasks.Task<>>>
+Excalibur.Dispatch.Resilience.Polly.DegradationContext`1.Fallbacks.set -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationContext`1.IsCritical.get -> System.Boolean
+Excalibur.Dispatch.Resilience.Polly.DegradationContext`1.IsCritical.set -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationContext`1.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<System.String, System.Object>
+Excalibur.Dispatch.Resilience.Polly.DegradationContext`1.Metadata.set -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationContext`1.OperationName.get -> System.String
+Excalibur.Dispatch.Resilience.Polly.DegradationContext`1.OperationName.set -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationContext`1.PrimaryOperation.get -> System.Func<System.Threading.Tasks.Task<>>
+Excalibur.Dispatch.Resilience.Polly.DegradationContext`1.PrimaryOperation.set -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationContext`1.Priority.get -> System.Int32
+Excalibur.Dispatch.Resilience.Polly.DegradationContext`1.Priority.set -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationLevel
+Excalibur.Dispatch.Resilience.Polly.DegradationLevel.Emergency -> Excalibur.Dispatch.Resilience.Polly.DegradationLevel
+Excalibur.Dispatch.Resilience.Polly.DegradationLevel.Major -> Excalibur.Dispatch.Resilience.Polly.DegradationLevel
+Excalibur.Dispatch.Resilience.Polly.DegradationLevel.Minor -> Excalibur.Dispatch.Resilience.Polly.DegradationLevel
+Excalibur.Dispatch.Resilience.Polly.DegradationLevel.Moderate -> Excalibur.Dispatch.Resilience.Polly.DegradationLevel
+Excalibur.Dispatch.Resilience.Polly.DegradationLevel.Normal -> Excalibur.Dispatch.Resilience.Polly.DegradationLevel
+Excalibur.Dispatch.Resilience.Polly.DegradationLevel.Severe -> Excalibur.Dispatch.Resilience.Polly.DegradationLevel
+Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig
+Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig.<Clone>$() -> Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig
+Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig.CpuThreshold.get -> System.Double
+Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig.CpuThreshold.set -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig.Deconstruct(ref System.String Name, ref System.Int32 PriorityThreshold, ref System.Double ErrorRateThreshold, ref System.Double CpuThreshold, ref System.Double MemoryThreshold) -> System.Void
+Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig.DegradationLevelConfig(System.String Name, System.Int32 PriorityThreshold, System.Double ErrorRateThreshold, System.Double CpuThreshold, System.Double MemoryThreshold) -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig.Equals(Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig other) -> System.Boolean
+Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig.Equals(System.Object obj) -> System.Boolean
+Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig.ErrorRateThreshold.get -> System.Double
+Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig.ErrorRateThreshold.set -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig.GetHashCode() -> System.Int32
+Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig.MemoryThreshold.get -> System.Double
+Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig.MemoryThreshold.set -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig.Name.get -> System.String
+Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig.Name.set -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig.PriorityThreshold.get -> System.Int32
+Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig.PriorityThreshold.set -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig.ToString() -> System.String
+Excalibur.Dispatch.Resilience.Polly.DegradationMetrics
+Excalibur.Dispatch.Resilience.Polly.DegradationMetrics.CurrentLevel.get -> Excalibur.Dispatch.Resilience.Polly.DegradationLevel
+Excalibur.Dispatch.Resilience.Polly.DegradationMetrics.CurrentLevel.set -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationMetrics.DegradationMetrics() -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationMetrics.HealthMetrics.get -> Excalibur.Dispatch.Resilience.Polly.HealthMetrics
+Excalibur.Dispatch.Resilience.Polly.DegradationMetrics.HealthMetrics.set -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationMetrics.LastChangeReason.get -> System.String
+Excalibur.Dispatch.Resilience.Polly.DegradationMetrics.LastChangeReason.set -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationMetrics.LastLevelChange.get -> System.DateTimeOffset
+Excalibur.Dispatch.Resilience.Polly.DegradationMetrics.LastLevelChange.set -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationMetrics.OperationStatistics.get -> System.Collections.Generic.IReadOnlyDictionary<System.String, Excalibur.Dispatch.Resilience.Polly.OperationStatistics>
+Excalibur.Dispatch.Resilience.Polly.DegradationMetrics.OperationStatistics.set -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationMetrics.SuccessRate.get -> System.Double
+Excalibur.Dispatch.Resilience.Polly.DegradationMetrics.SuccessRate.set -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationMetrics.TotalFallbacks.get -> System.Int64
+Excalibur.Dispatch.Resilience.Polly.DegradationMetrics.TotalFallbacks.set -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationMetrics.TotalOperations.get -> System.Int64
+Excalibur.Dispatch.Resilience.Polly.DegradationMetrics.TotalOperations.set -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationRejectedException
+Excalibur.Dispatch.Resilience.Polly.DegradationRejectedException.DegradationRejectedException() -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationRejectedException.DegradationRejectedException(System.String message, System.Exception innerException) -> void
+Excalibur.Dispatch.Resilience.Polly.DegradationRejectedException.DegradationRejectedException(System.String message) -> void
+Excalibur.Dispatch.Resilience.Polly.ResilienceEventId
+Excalibur.Dispatch.Resilience.Polly.DispatchBuilderResilienceExtensions
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreaker
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreaker.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreaker.DistributedCircuitBreaker(System.String name, Microsoft.Extensions.Caching.Distributed.IDistributedCache cache, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreaker> logger) -> void
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreaker.ExecuteAsync(System.Func<System.Threading.Tasks.Task<>> operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreaker.GetStateAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Resilience.CircuitState>
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreaker.Name.get -> System.String
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreaker.RecordFailureAsync(System.Threading.CancellationToken cancellationToken, System.Exception exception) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreaker.RecordSuccessAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreaker.ResetAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerFactory
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerFactory.DistributedCircuitBreakerFactory(Microsoft.Extensions.Caching.Distributed.IDistributedCache cache, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions> options, Microsoft.Extensions.Logging.ILoggerFactory loggerFactory) -> void
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerFactory.GetOrCreate(System.String name) -> Excalibur.Dispatch.Resilience.Polly.IDistributedCircuitBreaker
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions.BreakDuration.get -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions.BreakDuration.set -> void
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions.ConsecutiveFailureThreshold.get -> System.Int32
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions.ConsecutiveFailureThreshold.set -> void
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions.DistributedCircuitBreakerOptions() -> void
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions.FailureRatio.get -> System.Double
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions.FailureRatio.set -> void
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions.MetricsRetention.get -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions.MetricsRetention.set -> void
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions.MinimumThroughput.get -> System.Int32
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions.MinimumThroughput.set -> void
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions.SamplingDuration.get -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions.SamplingDuration.set -> void
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions.SuccessThresholdToClose.get -> System.Int32
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions.SuccessThresholdToClose.set -> void
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions.SyncInterval.get -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions.SyncInterval.set -> void
+Excalibur.Dispatch.Resilience.Polly.DispatchResilienceAdapter
+Excalibur.Dispatch.Resilience.Polly.DispatchResilienceAdapter.DispatchResilienceAdapter(Polly.ResiliencePipeline pipeline) -> void
+Excalibur.Dispatch.Resilience.Polly.DispatchResilienceAdapter.ExecuteAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<>> operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Dispatch.Resilience.Polly.DispatchResilienceAdapter.ExecuteAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task> operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.EnableAutoAdjustment.get -> System.Boolean
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.EnableAutoAdjustment.set -> void
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.GracefulDegradationOptions() -> void
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.HealthCheckInterval.get -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.HealthCheckInterval.set -> void
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.Levels.get -> System.Collections.Generic.List<Excalibur.Dispatch.Resilience.Polly.DegradationLevelConfig>
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.Levels.set -> void
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.MinimumLevelDuration.get -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions.MinimumLevelDuration.set -> void
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationService
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationService.CurrentLevel.get -> Excalibur.Dispatch.Resilience.Polly.DegradationLevel
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationService.Dispose() -> System.Void
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationService.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationService.ExecuteWithDegradationAsync(Excalibur.Dispatch.Resilience.Polly.DegradationContext<> context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationService.GetMetrics() -> Excalibur.Dispatch.Resilience.Polly.DegradationMetrics
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationService.GracefulDegradationService(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Resilience.Polly.GracefulDegradationService> logger) -> void
+Excalibur.Dispatch.Resilience.Polly.GracefulDegradationService.SetLevel(Excalibur.Dispatch.Resilience.Polly.DegradationLevel level, System.String reason) -> System.Void
+Excalibur.Dispatch.Resilience.Polly.HealthMetrics
+Excalibur.Dispatch.Resilience.Polly.HealthMetrics.ActiveConnections.get -> System.Int32
+Excalibur.Dispatch.Resilience.Polly.HealthMetrics.ActiveConnections.set -> void
+Excalibur.Dispatch.Resilience.Polly.HealthMetrics.CpuUsagePercent.get -> System.Double
+Excalibur.Dispatch.Resilience.Polly.HealthMetrics.CpuUsagePercent.set -> void
+Excalibur.Dispatch.Resilience.Polly.HealthMetrics.ErrorRate.get -> System.Double
+Excalibur.Dispatch.Resilience.Polly.HealthMetrics.ErrorRate.set -> void
+Excalibur.Dispatch.Resilience.Polly.HealthMetrics.HealthMetrics() -> void
+Excalibur.Dispatch.Resilience.Polly.HealthMetrics.MemoryUsagePercent.get -> System.Double
+Excalibur.Dispatch.Resilience.Polly.HealthMetrics.MemoryUsagePercent.set -> void
+Excalibur.Dispatch.Resilience.Polly.HealthMetrics.ResponseTimeMs.get -> System.Double
+Excalibur.Dispatch.Resilience.Polly.HealthMetrics.ResponseTimeMs.set -> void
+Excalibur.Dispatch.Resilience.Polly.HealthMetrics.Timestamp.get -> System.DateTimeOffset
+Excalibur.Dispatch.Resilience.Polly.HealthMetrics.Timestamp.set -> void
+Excalibur.Dispatch.Resilience.Polly.HedgingOptions
+Excalibur.Dispatch.Resilience.Polly.HedgingOptions.Delay.get -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.HedgingOptions.Delay.set -> void
+Excalibur.Dispatch.Resilience.Polly.HedgingOptions.EnableDetailedLogging.get -> System.Boolean
+Excalibur.Dispatch.Resilience.Polly.HedgingOptions.EnableDetailedLogging.set -> void
+Excalibur.Dispatch.Resilience.Polly.HedgingOptions.HedgingOptions() -> void
+Excalibur.Dispatch.Resilience.Polly.HedgingOptions.MaxHedgedAttempts.get -> System.Int32
+Excalibur.Dispatch.Resilience.Polly.HedgingOptions.MaxHedgedAttempts.set -> void
+Excalibur.Dispatch.Resilience.Polly.HedgingOptions.ShouldHedge.get -> System.Func<System.Exception, System.Boolean>
+Excalibur.Dispatch.Resilience.Polly.HedgingOptions.ShouldHedge.set -> void
+Excalibur.Dispatch.Resilience.Polly.HedgingPolicy
+Excalibur.Dispatch.Resilience.Polly.HedgingPolicy.ExecuteAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<>> operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Dispatch.Resilience.Polly.HedgingPolicy.ExecuteAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task> operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Resilience.Polly.HedgingPolicy.HedgingPolicy(Excalibur.Dispatch.Resilience.Polly.HedgingOptions options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Resilience.Polly.HedgingPolicy> logger) -> void
+Excalibur.Dispatch.Resilience.Polly.IBulkheadPolicy
+Excalibur.Dispatch.Resilience.Polly.IBulkheadPolicy.ExecuteAsync(System.Func<System.Threading.Tasks.Task<>> operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Dispatch.Resilience.Polly.IBulkheadPolicy.GetMetrics() -> Excalibur.Dispatch.Resilience.Polly.BulkheadMetrics
+Excalibur.Dispatch.Resilience.Polly.IBulkheadPolicy.HasCapacity.get -> System.Boolean
+Excalibur.Dispatch.Resilience.Polly.IDistributedCircuitBreaker
+Excalibur.Dispatch.Resilience.Polly.IDistributedCircuitBreaker.ExecuteAsync(System.Func<System.Threading.Tasks.Task<>> operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Dispatch.Resilience.Polly.IDistributedCircuitBreaker.GetStateAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Resilience.CircuitState>
+Excalibur.Dispatch.Resilience.Polly.IDistributedCircuitBreaker.RecordFailureAsync(System.Threading.CancellationToken cancellationToken, System.Exception exception) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Resilience.Polly.IDistributedCircuitBreaker.RecordSuccessAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Resilience.Polly.IDistributedCircuitBreaker.ResetAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Resilience.Polly.IGracefulDegradationService
+Excalibur.Dispatch.Resilience.Polly.IGracefulDegradationService.CurrentLevel.get -> Excalibur.Dispatch.Resilience.Polly.DegradationLevel
+Excalibur.Dispatch.Resilience.Polly.IGracefulDegradationService.ExecuteWithDegradationAsync(Excalibur.Dispatch.Resilience.Polly.DegradationContext<> context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Dispatch.Resilience.Polly.IGracefulDegradationService.GetMetrics() -> Excalibur.Dispatch.Resilience.Polly.DegradationMetrics
+Excalibur.Dispatch.Resilience.Polly.IGracefulDegradationService.SetLevel(Excalibur.Dispatch.Resilience.Polly.DegradationLevel level, System.String reason) -> System.Void
+Excalibur.Dispatch.Resilience.Polly.ITimeoutManager
+Excalibur.Dispatch.Resilience.Polly.ITimeoutManager.DefaultTimeout.get -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.ITimeoutManager.GetTimeout(System.String operationName) -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.ITimeoutManager.RegisterTimeout(System.String operationName, System.TimeSpan timeout) -> System.Void
+Excalibur.Dispatch.Resilience.Polly.JitterStrategy
+Excalibur.Dispatch.Resilience.Polly.JitterStrategy.Decorrelated -> Excalibur.Dispatch.Resilience.Polly.JitterStrategy
+Excalibur.Dispatch.Resilience.Polly.JitterStrategy.Equal -> Excalibur.Dispatch.Resilience.Polly.JitterStrategy
+Excalibur.Dispatch.Resilience.Polly.JitterStrategy.Exponential -> Excalibur.Dispatch.Resilience.Polly.JitterStrategy
+Excalibur.Dispatch.Resilience.Polly.JitterStrategy.Full -> Excalibur.Dispatch.Resilience.Polly.JitterStrategy
+Excalibur.Dispatch.Resilience.Polly.JitterStrategy.None -> Excalibur.Dispatch.Resilience.Polly.JitterStrategy
+Excalibur.Dispatch.Resilience.Polly.NoFallbackAvailableException
+Excalibur.Dispatch.Resilience.Polly.NoFallbackAvailableException.NoFallbackAvailableException() -> void
+Excalibur.Dispatch.Resilience.Polly.NoFallbackAvailableException.NoFallbackAvailableException(System.String message, System.Exception innerException) -> void
+Excalibur.Dispatch.Resilience.Polly.NoFallbackAvailableException.NoFallbackAvailableException(System.String message) -> void
+Excalibur.Dispatch.Resilience.Polly.OperationStatistics
+Excalibur.Dispatch.Resilience.Polly.OperationStatistics.Clone() -> Excalibur.Dispatch.Resilience.Polly.OperationStatistics
+Excalibur.Dispatch.Resilience.Polly.OperationStatistics.Failures.get -> System.Int64
+Excalibur.Dispatch.Resilience.Polly.OperationStatistics.FallbackExecutions.get -> System.Int64
+Excalibur.Dispatch.Resilience.Polly.OperationStatistics.OperationStatistics() -> void
+Excalibur.Dispatch.Resilience.Polly.OperationStatistics.RecordAttempt() -> System.Void
+Excalibur.Dispatch.Resilience.Polly.OperationStatistics.RecordFailure() -> System.Void
+Excalibur.Dispatch.Resilience.Polly.OperationStatistics.RecordFallback() -> System.Void
+Excalibur.Dispatch.Resilience.Polly.OperationStatistics.RecordSuccess() -> System.Void
+Excalibur.Dispatch.Resilience.Polly.OperationStatistics.Successes.get -> System.Int64
+Excalibur.Dispatch.Resilience.Polly.OperationStatistics.TotalAttempts.get -> System.Int64
+Excalibur.Dispatch.Resilience.Polly.PollyBackoffCalculatorAdapter
+Excalibur.Dispatch.Resilience.Polly.PollyBackoffCalculatorAdapter.CalculateDelay(System.Int32 attempt) -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.PollyBackoffCalculatorAdapter.GenerateDelays(System.Int32 retryCount) -> System.Collections.Generic.IEnumerable<System.TimeSpan>
+Excalibur.Dispatch.Resilience.Polly.PollyBackoffCalculatorAdapter.PollyBackoffCalculatorAdapter() -> void
+Excalibur.Dispatch.Resilience.Polly.PollyBackoffCalculatorAdapter.PollyBackoffCalculatorAdapter(Polly.DelayBackoffType backoffType, System.TimeSpan baseDelay, System.TimeSpan maxDelay, System.Boolean useJitter, System.Double factor) -> void
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.Configuration.get -> System.Collections.Generic.IReadOnlyDictionary<System.String, System.Object>
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.ExecuteAsync(System.Func<System.Threading.Tasks.Task<>> operation, System.Func<System.Threading.Tasks.Task<>> fallback, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.ExecuteAsync(System.Func<System.Threading.Tasks.Task<>> operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.GetCircuitBreakerMetrics() -> Excalibur.Dispatch.CloudNative.CircuitBreakerMetrics
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.GetMetrics() -> Excalibur.Dispatch.CloudNative.PatternMetrics
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.HealthStatus.get -> Excalibur.Dispatch.CloudNative.PatternHealthStatus
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.InitializeAsync(System.Collections.Generic.IReadOnlyDictionary<System.String, System.Object> configuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.Name.get -> System.String
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.PollyCircuitBreakerAdapter(System.String name, Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions options, Microsoft.Extensions.Logging.ILogger logger) -> void
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.Reset() -> System.Void
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.State.get -> Excalibur.Dispatch.CloudNative.ResilienceState
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.Subscribe(Excalibur.Dispatch.CloudNative.IPatternObserver observer) -> System.Void
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerAdapter.Unsubscribe(Excalibur.Dispatch.CloudNative.IPatternObserver observer) -> System.Void
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerFactory
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerFactory.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerFactory.GetAllMetrics() -> System.Collections.Generic.Dictionary<System.String, Excalibur.Dispatch.CloudNative.CircuitBreakerMetrics>
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerFactory.GetOrCreate(System.String name, Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions options) -> Excalibur.Dispatch.CloudNative.CircuitBreakerPattern
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerFactory.PollyCircuitBreakerFactory(Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions defaultOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerFactory> logger) -> void
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerFactory.Remove(System.String name) -> System.Boolean
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter.ConsecutiveFailures.get -> System.Int32
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter.Dispose() -> System.Void
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter.ExecuteAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<>> action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter.ExecuteAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task> action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter.LastOpenedAt.get -> System.Nullable<System.DateTimeOffset>
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter.PollyCircuitBreakerPolicyAdapter(Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions options, System.String circuitName, Microsoft.Extensions.Logging.ILogger logger) -> void
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter.RecordFailure(System.Exception exception) -> System.Void
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter.RecordSuccess() -> System.Void
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter.Reset() -> System.Void
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter.State.get -> Excalibur.Dispatch.Resilience.CircuitState
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter.StateChanged.add -> void
+Excalibur.Dispatch.Resilience.Polly.PollyCircuitBreakerPolicyAdapter.StateChanged.remove -> void
+Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions
+Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions.CircuitBreakerOptions.get -> Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions
+Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions.CircuitBreakerOptions.set -> void
+Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions.EnableTelemetry.get -> System.Boolean
+Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions.EnableTelemetry.set -> void
+Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions.MaxBackoffDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions.MaxBackoffDelay.set -> void
+Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions.PollyResilienceAdapterOptions() -> void
+Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions.RetryOptions.get -> Excalibur.Dispatch.Resilience.Polly.RetryOptions
+Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions.RetryOptions.set -> void
+Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyAdapter
+Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyAdapter.ExecuteAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<>> action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyAdapter.ExecuteAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task> action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyAdapter.PollyRetryPolicyAdapter(Excalibur.Dispatch.Resilience.Polly.RetryOptions options, Microsoft.Extensions.Logging.ILogger logger) -> void
+Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory
+Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory.Create(Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions busOptions) -> Polly.IAsyncPolicy
+Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory.CreateRetryPolicyAdapter(Excalibur.Dispatch.Abstractions.Transport.IMessageBusOptions busOptions) -> Excalibur.Dispatch.Resilience.IRetryPolicy
+Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory.PollyRetryPolicyFactory(Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory> logger, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Resilience.RetryPolicyOptions> options) -> void
+Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory.PollyRetryPolicyFactory(Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Resilience.Polly.PollyRetryPolicyFactory> logger) -> void
+Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry
+Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.Count.get -> System.Int32
+Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.Dispose() -> System.Void
+Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.GetAllStates() -> System.Collections.Generic.IReadOnlyDictionary<System.String, Excalibur.Dispatch.Resilience.CircuitState>
+Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.GetOrCreate(System.String transportName, Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions options) -> Excalibur.Dispatch.Resilience.ICircuitBreakerPolicy
+Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.GetOrCreate(System.String transportName) -> Excalibur.Dispatch.Resilience.ICircuitBreakerPolicy
+Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.GetTransportNames() -> System.Collections.Generic.IEnumerable<System.String>
+Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.PollyTransportCircuitBreakerRegistry() -> void
+Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.PollyTransportCircuitBreakerRegistry(Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions defaultOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry> logger) -> void
+Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.PollyTransportCircuitBreakerRegistry(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry> logger) -> void
+Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.Remove(System.String transportName) -> System.Boolean
+Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.ResetAll() -> System.Void
+Excalibur.Dispatch.Resilience.Polly.PollyTransportCircuitBreakerRegistry.TryGet(System.String transportName) -> Excalibur.Dispatch.Resilience.ICircuitBreakerPolicy
+Excalibur.Dispatch.Resilience.Polly.ResilienceOptions
+Excalibur.Dispatch.Resilience.Polly.ResilienceOptions.DefaultRetryCount.get -> System.Int32
+Excalibur.Dispatch.Resilience.Polly.ResilienceOptions.DefaultRetryCount.set -> void
+Excalibur.Dispatch.Resilience.Polly.ResilienceOptions.DefaultTimeoutSeconds.get -> System.Int32
+Excalibur.Dispatch.Resilience.Polly.ResilienceOptions.DefaultTimeoutSeconds.set -> void
+Excalibur.Dispatch.Resilience.Polly.ResilienceOptions.EnableCircuitBreaker.get -> System.Boolean
+Excalibur.Dispatch.Resilience.Polly.ResilienceOptions.EnableCircuitBreaker.set -> void
+Excalibur.Dispatch.Resilience.Polly.ResilienceOptions.Enabled.get -> System.Boolean
+Excalibur.Dispatch.Resilience.Polly.ResilienceOptions.Enabled.set -> void
+Excalibur.Dispatch.Resilience.Polly.ResilienceOptions.ResilienceOptions() -> void
+Excalibur.Dispatch.Resilience.Polly.RetryOptions
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.BackoffStrategy.get -> Excalibur.Dispatch.Resilience.BackoffStrategy
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.BackoffStrategy.set -> void
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.BaseDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.BaseDelay.set -> void
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.EnableDetailedLogging.get -> System.Boolean
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.EnableDetailedLogging.set -> void
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.JitterFactor.get -> System.Double
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.JitterFactor.set -> void
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.JitterStrategy.get -> Excalibur.Dispatch.Resilience.Polly.JitterStrategy
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.JitterStrategy.set -> void
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.MaxDelay.get -> System.Nullable<System.TimeSpan>
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.MaxDelay.set -> void
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.MaxRetries.get -> System.Int32
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.MaxRetries.set -> void
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.OperationTimeout.get -> System.Nullable<System.TimeSpan>
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.OperationTimeout.set -> void
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.RetryOptions() -> void
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.ShouldRetry.get -> System.Func<System.Exception, System.Boolean>
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.ShouldRetry.set -> void
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.UseJitter.get -> System.Boolean
+Excalibur.Dispatch.Resilience.Polly.RetryOptions.UseJitter.set -> void
+Excalibur.Dispatch.Resilience.Polly.RetryPolicy
+Excalibur.Dispatch.Resilience.Polly.RetryPolicy.ExecuteAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<>> action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Dispatch.Resilience.Polly.RetryPolicy.ExecuteAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task> action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Resilience.Polly.RetryPolicy.ExecuteAsync(System.Func<System.Threading.Tasks.Task<>> operation, System.Threading.CancellationToken cancellationToken, System.String operationName) -> System.Threading.Tasks.Task<>
+Excalibur.Dispatch.Resilience.Polly.RetryPolicy.ExecuteAsync(System.Func<System.Threading.Tasks.Task> operation, System.Threading.CancellationToken cancellationToken, System.String operationName) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Resilience.Polly.RetryPolicy.RetryPolicy(Excalibur.Dispatch.Resilience.Polly.RetryOptions options, Microsoft.Extensions.Logging.ILogger logger, Excalibur.Dispatch.Resilience.Polly.ITimeoutManager timeoutManager) -> void
+Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants
+Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants+Instruments
+Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants+Tags
+Excalibur.Dispatch.Resilience.Polly.TelemetryResiliencePipeline
+Excalibur.Dispatch.Resilience.Polly.TelemetryResiliencePipeline.Dispose() -> System.Void
+Excalibur.Dispatch.Resilience.Polly.TelemetryResiliencePipeline.ExecuteAsync(System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<>> operation, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Dispatch.Resilience.Polly.TelemetryResiliencePipeline.RecordCircuitBreakerTransition(System.String fromState, System.String toState) -> System.Void
+Excalibur.Dispatch.Resilience.Polly.TelemetryResiliencePipeline.RecordRetryAttempt(System.Int32 attemptNumber, System.String strategyType) -> System.Void
+Excalibur.Dispatch.Resilience.Polly.TelemetryResiliencePipeline.TelemetryResiliencePipeline(System.String pipelineName, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Resilience.Polly.TelemetryResiliencePipeline> logger, System.Diagnostics.Metrics.IMeterFactory meterFactory) -> void
+Excalibur.Dispatch.Resilience.Polly.TimeoutManager
+Excalibur.Dispatch.Resilience.Polly.TimeoutManager.DefaultTimeout.get -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.TimeoutManager.GetTimeout(System.String operationName) -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.TimeoutManager.IsSlowOperation(System.String operationName, System.TimeSpan elapsed) -> System.Boolean
+Excalibur.Dispatch.Resilience.Polly.TimeoutManager.RegisterTimeout(System.String operationName, System.TimeSpan timeout) -> System.Void
+Excalibur.Dispatch.Resilience.Polly.TimeoutManager.TimeoutManager(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Resilience.Polly.TimeoutManager> logger) -> void
+Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions
+Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.CacheTimeout.get -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.CacheTimeout.set -> void
+Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.DatabaseTimeout.get -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.DatabaseTimeout.set -> void
+Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.DefaultTimeout.get -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.DefaultTimeout.set -> void
+Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.HttpTimeout.get -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.HttpTimeout.set -> void
+Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.LogTimeoutWarnings.get -> System.Boolean
+Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.LogTimeoutWarnings.set -> void
+Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.MessageQueueTimeout.get -> System.TimeSpan
+Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.MessageQueueTimeout.set -> void
+Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.OperationTimeouts.get -> System.Collections.Generic.IDictionary<System.String, System.TimeSpan>
+Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.SlowOperationThreshold.get -> System.Double
+Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.SlowOperationThreshold.set -> void
+Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions.TimeoutManagerOptions() -> void
+Microsoft.Extensions.DependencyInjection.DispatchResilienceServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.AllCircuitBreakersReset -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadCompleted -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadExecuting -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadExecutionAllowed -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadExecutionRejected -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadPolicyCreated -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadQueueFull -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadQueueing -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadSlotAcquired -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.BulkheadSlotReleased -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerAdapterCreated -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerClosed -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerCoordinationError -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerFactoryCreated -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerFallbackExecuted -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerHalfOpen -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerInitializing -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerObserverSubscribed -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerObserverUnsubscribed -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerOpened -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerOperationFailed -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerPolicyAdapterCreated -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerPolicyCreated -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerRejected -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerReset -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerResetRequested -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerStarting -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerStateChanged -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerStopError -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerStopping -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.CircuitBreakerThresholdExceeded -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DefaultRetryAttempt -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DefaultRetryCompleted -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DefaultRetryConfigurationLoaded -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DefaultRetryPolicyApplied -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DegradationHealthCheckError -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DegradationHealthMetricsUpdated -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DegradationLevelChanged -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DegradationOperationRejected -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DegradationPrimaryOperationFailed -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DegradedResponseReturned -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DistributedCircuitBreakerConflict -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.DistributedCircuitBreakerSynced -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.FallbackExecuted -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.GracefulDegradationActivated -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.GracefulDegradationCreated -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.GracefulDegradationDeactivated -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.HedgingAttemptLaunched -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.HedgingCompleted -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.HedgingExhausted -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.JitterStrategyUsed -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.PollyCircuitBreakerCreated -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.PollyCircuitBreakerRemoved -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryAttemptStarted -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryDelayCalculated -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryExhausted -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryMaxExceeded -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryOperationTimeout -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryPolicyAdapterCreated -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryPolicyCreated -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryPolicyFactoryCreated -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetrySucceeded -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.RetryWithJitter -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.SlowOperationDetected -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TelemetryCircuitBreakerTransition -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TelemetryRetryAttemptRecorded -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutCancelled -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutCompleted -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutConfigured -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutExceeded -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutManagerCreated -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutRegistered -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutRetrieved -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TimeoutStarted -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TransportCircuitBreakerNotFound -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TransportCircuitBreakerRegistered -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TransportCircuitBreakerRetrieved -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceEventId.TransportCircuitBreakerUnregistered -> System.Int32
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.ActivitySourceName -> System.String
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.MeterName -> System.String
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants+Instruments.CircuitBreakerTransitions -> System.String
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants+Instruments.OperationDuration -> System.String
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants+Instruments.OperationsExecuted -> System.String
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants+Instruments.RetryAttempts -> System.String
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants+Instruments.Timeouts -> System.String
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants+Tags.CircuitState -> System.String
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants+Tags.Outcome -> System.String
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants+Tags.PipelineName -> System.String
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants+Tags.RetryAttempt -> System.String
+static const Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants+Tags.StrategyType -> System.String
+static Excalibur.Dispatch.Resilience.Polly.DispatchBuilderResilienceExtensions.AddDispatchResilience(Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder builder, System.Action<Excalibur.Dispatch.Resilience.Polly.ResilienceOptions> configureOptions) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder
+static Excalibur.Dispatch.Resilience.Polly.DispatchBuilderResilienceExtensions.AddDispatchResilience(Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder
+static Excalibur.Dispatch.Resilience.Polly.DispatchBuilderResilienceExtensions.AddPollyResilienceAdapters(Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder builder, System.Action<Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions> configureOptions) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder
+static Excalibur.Dispatch.Resilience.Polly.DispatchBuilderResilienceExtensions.AddPollyResilienceAdapters(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Dispatch.Resilience.Polly.PollyResilienceAdapterOptions> configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Excalibur.Dispatch.Resilience.Polly.DispatchBuilderResilienceExtensions.AddResilience(Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder builder, System.Action<Excalibur.Dispatch.Resilience.Polly.ResilienceOptions> configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder
+static Excalibur.Dispatch.Resilience.Polly.PollyBackoffCalculatorAdapter.CreateDecorrelatedJitter(System.TimeSpan medianFirstRetryDelay, System.TimeSpan maxDelay) -> Excalibur.Dispatch.Resilience.Polly.PollyBackoffCalculatorAdapter
+static Microsoft.Extensions.DependencyInjection.DispatchResilienceServiceCollectionExtensions.AddHedgingPolicy(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Dispatch.Resilience.Polly.HedgingOptions> configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.DispatchResilienceServiceCollectionExtensions.AddResilienceTelemetry(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String pipelineName) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.DispatchResilienceServiceCollectionExtensions.UseDispatchResilience(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String pipelineName, System.Action<Polly.ResiliencePipelineBuilder> configurePipeline) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions.AddBulkhead(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String resourceName, System.Action<Excalibur.Dispatch.Resilience.Polly.BulkheadOptions> configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions.AddDistributedCircuitBreaker(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String name, System.Action<Excalibur.Dispatch.Resilience.Polly.DistributedCircuitBreakerOptions> configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions.AddPollyCircuitBreaker(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String name, System.Action<Excalibur.Dispatch.Options.Resilience.CircuitBreakerOptions> configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions.AddPollyResilience(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions.AddPollyRetryPolicy(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String name, System.Action<Excalibur.Dispatch.Resilience.Polly.RetryOptions> configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions.AddRetryPolicyWithJitter(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String name, System.Action<Excalibur.Dispatch.Resilience.Polly.RetryOptions> configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions.ConfigureGracefulDegradation(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Dispatch.Resilience.Polly.GracefulDegradationOptions> configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PollyResilienceServiceCollectionExtensions.ConfigureTimeoutManager(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Dispatch.Resilience.Polly.TimeoutManagerOptions> configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static readonly Excalibur.Dispatch.Resilience.Polly.ResilienceTelemetryConstants.Version -> System.String

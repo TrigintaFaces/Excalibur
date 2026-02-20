@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<IsPackable>true</IsPackable>
+		<PackageId>Excalibur.Compliance.Postgres</PackageId>
+		<Description>Postgres implementation of GDPR compliance stores for the Excalibur framework. Provides erasure request tracking, legal hold management, and data inventory using Dapper and Npgsql.</Description>
+		<PackageTags>compliance;Postgres;dapper;gdpr;erasure;legal-hold;data-inventory</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<IsAotCompatible>true</IsAotCompatible>
+		<DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+		<ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Compliance\Excalibur.Dispatch.Compliance.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Dapper" />
+		<PackageReference Include="Npgsql" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Options" />
+		<PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+		<PackageReference Include="System.Text.Json" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="/" />
+	</ItemGroup>
+
+	<!-- CI mode: PackageReference for Dispatch packages -->
+	<ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+		<PackageReference Include="Excalibur.Dispatch.Compliance" VersionOverride="$(DispatchPackageVersion)" />
+	</ItemGroup>
+</Project>

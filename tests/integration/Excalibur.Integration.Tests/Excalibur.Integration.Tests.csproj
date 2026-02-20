@@ -1,0 +1,116 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Excalibur.Integration.Tests</RootNamespace>
+    <AssemblyName>Excalibur.Integration.Tests</AssemblyName>
+    <NoWarn>$(NoWarn);NU1510;CS8625</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Test framework (Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio) provided by Directory.Build.props -->
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="FakeItEasy" />
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Alba" />
+    <PackageReference Include="AutoFixture" />
+    <PackageReference Include="Bogus" />
+    <PackageReference Include="Verify.Xunit" />
+    <!-- Testcontainers -->
+    <PackageReference Include="TestContainers" />
+    <PackageReference Include="Testcontainers.MsSql" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Testcontainers.MongoDb" />
+    <PackageReference Include="Testcontainers.Redis" />
+    <PackageReference Include="Testcontainers.Elasticsearch" />
+    <PackageReference Include="Testcontainers.CosmosDb" />
+    <PackageReference Include="Testcontainers.LocalStack" />
+    <PackageReference Include="Testcontainers.Azurite" />
+    <PackageReference Include="Testcontainers.Kafka" />
+    <PackageReference Include="Testcontainers.RabbitMq" />
+    <!-- Provider SDKs -->
+    <PackageReference Include="Elastic.Clients.Elasticsearch" />
+    <PackageReference Include="Elastic.Transport" />
+    <PackageReference Include="MongoDB.Driver" />
+    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="Google.Cloud.Firestore" />
+    <PackageReference Include="Microsoft.Data.SqlClient" />
+    <!-- Excalibur.Tests.Integration dependencies -->
+    <PackageReference Include="Azure.Messaging.ServiceBus" />
+    <PackageReference Include="Confluent.Kafka" />
+    <PackageReference Include="Google.Cloud.PubSub.V1" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="RabbitMQ.Client" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Extensions.Hosting" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="AspNetCore.HealthChecks.UI" />
+    <PackageReference Include="AspNetCore.HealthChecks.UI.Client" />
+    <PackageReference Include="Amazon.Extensions.Configuration.SystemsManager" />
+    <!-- Excalibur.Data.ElasticSearch.Tests.Integration dependencies -->
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Dispatch projects -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Caching\Excalibur.Dispatch.Caching.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Resilience.Polly\Excalibur.Dispatch.Resilience.Polly.csproj" />
+    <!-- Excalibur core projects -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Domain\Excalibur.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Application\Excalibur.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.A3\Excalibur.A3.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.A3.Abstractions\Excalibur.A3.Abstractions.csproj" />
+    <!-- Excalibur data projects -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data\Excalibur.Data.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Postgres\Excalibur.Data.Postgres.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.DataProcessing\Excalibur.Data.DataProcessing.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.ElasticSearch\Excalibur.Data.ElasticSearch.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.CosmosDb\Excalibur.Data.CosmosDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.DynamoDb\Excalibur.Data.DynamoDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Firestore\Excalibur.Data.Firestore.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.MongoDB\Excalibur.Data.MongoDB.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Redis\Excalibur.Data.Redis.csproj" />
+    <!-- Excalibur hosting/jobs -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting\Excalibur.Hosting.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.Web\Excalibur.Hosting.Web.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.Jobs\Excalibur.Hosting.Jobs.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs\Excalibur.Jobs.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs.Abstractions\Excalibur.Jobs.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs.CloudProviders\Excalibur.Jobs.CloudProviders.csproj" />
+    <!-- Excalibur eventsourcing -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.SqlServer\Excalibur.EventSourcing.SqlServer.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.SqlServer\Excalibur.Outbox.SqlServer.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Caching\Excalibur.Caching.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
+    <ProjectReference Include="..\..\conformance\Excalibur.Dispatch.Tests.Conformance\Excalibur.Dispatch.Tests.Conformance.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="xunit.runner.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

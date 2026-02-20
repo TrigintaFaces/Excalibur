@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Benchmarks.Outbox.OutboxBenchmarks-20260202-222015</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.102
+  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                </th><th>MessageCount</th><th>Mean    </th><th>Error</th><th>StdDev</th><th>Median  </th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>CreateMessage</td><td>10</td><td>216.1145 ns</td><td>3.5946 ns</td><td>4.2791 ns</td><td>215.8248 ns</td><td>1.000</td><td>0.03</td><td>0.0322</td><td>-</td><td>608 B</td><td>1.00</td>
+</tr><tr><td>CreateMessageWithConstructor</td><td>10</td><td>160.4035 ns</td><td>1.6891 ns</td><td>1.4105 ns</td><td>160.6219 ns</td><td>0.742</td><td>0.02</td><td>0.0386</td><td>-</td><td>728 B</td><td>1.20</td>
+</tr><tr><td>CreateBatch_10</td><td>10</td><td>2,206.2516 ns</td><td>25.8504 ns</td><td>24.1805 ns</td><td>2,195.7600 ns</td><td>10.212</td><td>0.22</td><td>0.3281</td><td>0.0038</td><td>6184 B</td><td>10.17</td>
+</tr><tr><td>CreateBatch_100</td><td>10</td><td>21,563.5221 ns</td><td>114.7799 ns</td><td>107.3652 ns</td><td>21,544.9158 ns</td><td>99.815</td><td>1.96</td><td>3.2654</td><td>0.5188</td><td>61624 B</td><td>101.36</td>
+</tr><tr><td>MarkSending</td><td>10</td><td>16.3890 ns</td><td>0.0299 ns</td><td>0.0250 ns</td><td>16.3973 ns</td><td>0.076</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>MarkSent</td><td>10</td><td>16.4012 ns</td><td>0.0787 ns</td><td>0.0698 ns</td><td>16.3979 ns</td><td>0.076</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>MarkFailed</td><td>10</td><td>16.5505 ns</td><td>0.1938 ns</td><td>0.1718 ns</td><td>16.5141 ns</td><td>0.077</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>FullMessageLifecycle</td><td>10</td><td>242.5046 ns</td><td>2.3485 ns</td><td>2.1968 ns</td><td>242.5864 ns</td><td>1.123</td><td>0.02</td><td>0.0319</td><td>-</td><td>608 B</td><td>1.00</td>
+</tr><tr><td>CheckReadyForDelivery</td><td>10</td><td>16.0113 ns</td><td>0.0766 ns</td><td>0.0679 ns</td><td>16.0216 ns</td><td>0.074</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>CheckEligibleForRetry</td><td>10</td><td>0.2943 ns</td><td>0.0206 ns</td><td>0.0237 ns</td><td>0.2879 ns</td><td>0.001</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>GetMessageAge</td><td>10</td><td>16.0049 ns</td><td>0.0930 ns</td><td>0.0825 ns</td><td>15.9907 ns</td><td>0.074</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>AddTransport</td><td>10</td><td>352.1184 ns</td><td>4.2011 ns</td><td>3.9297 ns</td><td>352.1107 ns</td><td>1.630</td><td>0.04</td><td>0.0682</td><td>-</td><td>1288 B</td><td>2.12</td>
+</tr><tr><td>AddMultipleTransports</td><td>10</td><td>655.3765 ns</td><td>10.2462 ns</td><td>9.0830 ns</td><td>652.8276 ns</td><td>3.034</td><td>0.07</td><td>0.1421</td><td>-</td><td>2680 B</td><td>4.41</td>
+</tr><tr><td>UpdateAggregateStatus</td><td>10</td><td>640.7031 ns</td><td>40.6426 ns</td><td>119.8357 ns</td><td>571.9878 ns</td><td>2.966</td><td>0.56</td><td>0.1040</td><td>-</td><td>1968 B</td><td>3.24</td>
+</tr><tr><td>CheckAllTransportsComplete</td><td>10</td><td>0.0013 ns</td><td>0.0013 ns</td><td>0.0010 ns</td><td>0.0008 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>CreateMessage</td><td>100</td><td>207.5609 ns</td><td>1.2215 ns</td><td>1.0200 ns</td><td>207.5553 ns</td><td>1.000</td><td>0.01</td><td>0.0322</td><td>-</td><td>608 B</td><td>1.00</td>
+</tr><tr><td>CreateMessageWithConstructor</td><td>100</td><td>160.9313 ns</td><td>3.2238 ns</td><td>6.0551 ns</td><td>160.0134 ns</td><td>0.775</td><td>0.03</td><td>0.0386</td><td>-</td><td>728 B</td><td>1.20</td>
+</tr><tr><td>CreateBatch_10</td><td>100</td><td>2,252.4302 ns</td><td>44.9021 ns</td><td>102.2649 ns</td><td>2,224.8648 ns</td><td>10.852</td><td>0.49</td><td>0.3281</td><td>0.0038</td><td>6184 B</td><td>10.17</td>
+</tr><tr><td>CreateBatch_100</td><td>100</td><td>21,598.0576 ns</td><td>390.4420 ns</td><td>346.1167 ns</td><td>21,682.1106 ns</td><td>104.059</td><td>1.68</td><td>3.2654</td><td>0.5188</td><td>61624 B</td><td>101.36</td>
+</tr><tr><td>MarkSending</td><td>100</td><td>16.3802 ns</td><td>0.2063 ns</td><td>0.1722 ns</td><td>16.3673 ns</td><td>0.079</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>MarkSent</td><td>100</td><td>16.9061 ns</td><td>0.3514 ns</td><td>0.6154 ns</td><td>16.7288 ns</td><td>0.081</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>MarkFailed</td><td>100</td><td>16.4196 ns</td><td>0.0968 ns</td><td>0.0858 ns</td><td>16.4169 ns</td><td>0.079</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>FullMessageLifecycle</td><td>100</td><td>246.2586 ns</td><td>4.8730 ns</td><td>4.3198 ns</td><td>247.2576 ns</td><td>1.186</td><td>0.02</td><td>0.0319</td><td>-</td><td>608 B</td><td>1.00</td>
+</tr><tr><td>CheckReadyForDelivery</td><td>100</td><td>16.5995 ns</td><td>0.3457 ns</td><td>0.5484 ns</td><td>16.4316 ns</td><td>0.080</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>CheckEligibleForRetry</td><td>100</td><td>0.2647 ns</td><td>0.0251 ns</td><td>0.0268 ns</td><td>0.2570 ns</td><td>0.001</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>GetMessageAge</td><td>100</td><td>16.4223 ns</td><td>0.3465 ns</td><td>0.5291 ns</td><td>16.2648 ns</td><td>0.079</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>AddTransport</td><td>100</td><td>357.9369 ns</td><td>7.0119 ns</td><td>8.6112 ns</td><td>355.4110 ns</td><td>1.725</td><td>0.04</td><td>0.0682</td><td>-</td><td>1288 B</td><td>2.12</td>
+</tr><tr><td>AddMultipleTransports</td><td>100</td><td>685.5668 ns</td><td>12.5851 ns</td><td>25.9905 ns</td><td>680.5271 ns</td><td>3.303</td><td>0.13</td><td>0.1421</td><td>-</td><td>2680 B</td><td>4.41</td>
+</tr><tr><td>UpdateAggregateStatus</td><td>100</td><td>527.1914 ns</td><td>9.4314 ns</td><td>14.4027 ns</td><td>524.1297 ns</td><td>2.540</td><td>0.07</td><td>0.1040</td><td>-</td><td>1968 B</td><td>3.24</td>
+</tr><tr><td>CheckAllTransportsComplete</td><td>100</td><td>0.0234 ns</td><td>0.0189 ns</td><td>0.0239 ns</td><td>0.0173 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>CreateMessage</td><td>1000</td><td>215.6873 ns</td><td>4.2432 ns</td><td>6.4798 ns</td><td>214.9464 ns</td><td>1.001</td><td>0.04</td><td>0.0322</td><td>-</td><td>608 B</td><td>1.00</td>
+</tr><tr><td>CreateMessageWithConstructor</td><td>1000</td><td>159.4249 ns</td><td>2.8876 ns</td><td>4.6629 ns</td><td>159.1105 ns</td><td>0.740</td><td>0.03</td><td>0.0386</td><td>-</td><td>728 B</td><td>1.20</td>
+</tr><tr><td>CreateBatch_10</td><td>1000</td><td>2,203.2730 ns</td><td>42.2149 ns</td><td>81.3338 ns</td><td>2,173.8188 ns</td><td>10.224</td><td>0.48</td><td>0.3281</td><td>0.0038</td><td>6184 B</td><td>10.17</td>
+</tr><tr><td>CreateBatch_100</td><td>1000</td><td>22,155.6565 ns</td><td>441.3049 ns</td><td>618.6479 ns</td><td>21,960.0769 ns</td><td>102.810</td><td>4.12</td><td>3.2654</td><td>0.5188</td><td>61624 B</td><td>101.36</td>
+</tr><tr><td>MarkSending</td><td>1000</td><td>16.7068 ns</td><td>0.3543 ns</td><td>0.5516 ns</td><td>16.5043 ns</td><td>0.078</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>MarkSent</td><td>1000</td><td>16.2675 ns</td><td>0.1673 ns</td><td>0.1483 ns</td><td>16.2068 ns</td><td>0.075</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>MarkFailed</td><td>1000</td><td>16.8043 ns</td><td>0.3486 ns</td><td>0.4533 ns</td><td>16.7289 ns</td><td>0.078</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>FullMessageLifecycle</td><td>1000</td><td>251.5957 ns</td><td>4.9795 ns</td><td>9.1053 ns</td><td>249.0235 ns</td><td>1.167</td><td>0.05</td><td>0.0319</td><td>-</td><td>608 B</td><td>1.00</td>
+</tr><tr><td>CheckReadyForDelivery</td><td>1000</td><td>16.3134 ns</td><td>0.3255 ns</td><td>0.2886 ns</td><td>16.2946 ns</td><td>0.076</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>CheckEligibleForRetry</td><td>1000</td><td>0.3070 ns</td><td>0.0263 ns</td><td>0.0258 ns</td><td>0.3080 ns</td><td>0.001</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>GetMessageAge</td><td>1000</td><td>16.1644 ns</td><td>0.2231 ns</td><td>0.1863 ns</td><td>16.2005 ns</td><td>0.075</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr><tr><td>AddTransport</td><td>1000</td><td>348.0759 ns</td><td>6.9333 ns</td><td>6.4854 ns</td><td>348.0435 ns</td><td>1.615</td><td>0.06</td><td>0.0682</td><td>-</td><td>1288 B</td><td>2.12</td>
+</tr><tr><td>AddMultipleTransports</td><td>1000</td><td>691.9528 ns</td><td>13.8298 ns</td><td>29.4723 ns</td><td>689.5540 ns</td><td>3.211</td><td>0.16</td><td>0.1421</td><td>-</td><td>2680 B</td><td>4.41</td>
+</tr><tr><td>UpdateAggregateStatus</td><td>1000</td><td>521.7739 ns</td><td>9.6682 ns</td><td>9.0436 ns</td><td>521.7956 ns</td><td>2.421</td><td>0.08</td><td>0.1040</td><td>-</td><td>1968 B</td><td>3.24</td>
+</tr><tr><td>CheckAllTransportsComplete</td><td>1000</td><td>0.0003 ns</td><td>0.0012 ns</td><td>0.0011 ns</td><td>0.0000 ns</td><td>0.000</td><td>0.00</td><td>-</td><td>-</td><td>-</td><td>0.00</td>
+</tr></tbody></table>
+</body>
+</html>

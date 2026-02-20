@@ -1,0 +1,10 @@
+{
+  "label": "Data Providers",
+  "position": 7,
+  "link": {
+    "type": "doc",
+    "id": "data-providers/index"
+  },
+  "collapsible": true,
+  "collapsed": true
+}

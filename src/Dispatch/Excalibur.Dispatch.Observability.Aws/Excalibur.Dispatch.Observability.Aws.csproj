@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Excalibur.Dispatch.Observability.Aws</RootNamespace>
+    <AssemblyName>Excalibur.Dispatch.Observability.Aws</AssemblyName>
+    <PackageId>Excalibur.Dispatch.Observability.Aws</PackageId>
+    <Description>AWS X-Ray and CloudWatch observability integration for Excalibur.Dispatch. Bridges Dispatch telemetry to AWS native observability services.</Description>
+    <PackageTags>dispatch;observability;aws;xray;cloudwatch;telemetry;tracing</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <PackageReference Include="System.Diagnostics.DiagnosticSource" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Dispatch.Observability\Excalibur.Dispatch.Observability.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>

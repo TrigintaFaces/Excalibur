@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <DefineConstants>$(DefineConstants);AWS_LAMBDA_SUPPORT</DefineConstants>
+    <RootNamespace>Excalibur.Dispatch.Hosting.AwsLambda</RootNamespace>
+    <AssemblyName>Excalibur.Dispatch.Hosting.AwsLambda</AssemblyName>
+    <PackageId>$(AssemblyName)</PackageId>
+    <Description>AWS Lambda hosting integration for the Dispatch messaging framework</Description>
+    <PackageTags>dispatch;serverless;hosting;aws;lambda;messaging</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch.Hosting.Serverless.Abstractions\Excalibur.Dispatch.Hosting.Serverless.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+  </ItemGroup>
+  <!-- AWS Lambda Dependencies -->
+  <ItemGroup>
+    <PackageReference Include="Amazon.Lambda.Core" />
+    <PackageReference Include="Amazon.Lambda.RuntimeSupport" />
+    <PackageReference Include="Amazon.Lambda.Serialization.SystemTextJson" />
+    <PackageReference Include="Amazon.Lambda.APIGatewayEvents" />
+    <PackageReference Include="Amazon.Lambda.SQSEvents" />
+    <PackageReference Include="Amazon.Lambda.SNSEvents" />
+    <PackageReference Include="Amazon.Lambda.DynamoDBEvents" />
+    <PackageReference Include="Amazon.Lambda.KinesisEvents" Condition="'$(AllowAwsSdkV4)' == 'true'" />
+    <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<IsPackable>true</IsPackable>
+		<RootNamespace>Excalibur.LeaderElection.Consul</RootNamespace>
+		<!-- Not AOT compatible due to Consul client reflection usage -->
+		<IsAotCompatible>false</IsAotCompatible>
+		<EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<PackageId>Excalibur.LeaderElection.Consul</PackageId>
+		<Description>Consul-based leader election implementation for Excalibur framework using session-based distributed locking.</Description>
+		<PackageTags>excalibur;leader-election;consul;distributed-systems;high-availability</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Excalibur.LeaderElection\Excalibur.LeaderElection.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Consul" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Options" />
+		<PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+		<PackageReference Include="Polly" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="/" />
+	</ItemGroup>
+</Project>

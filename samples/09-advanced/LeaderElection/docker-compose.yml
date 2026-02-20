@@ -1,0 +1,38 @@
+# Leader Election Sample - Redis Infrastructure
+# =============================================
+#
+# Start Redis:
+#   docker-compose up -d
+#
+# Stop Redis:
+#   docker-compose down
+#
+# View logs:
+#   docker-compose logs -f redis
+#
+# Redis CLI (connect to container):
+#   docker exec -it leader-election-redis redis-cli
+#
+# Test leader election key:
+#   KEYS *leader*
+#   GET myapp:leader
+#   TTL myapp:leader
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: leader-election-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  redis-data:

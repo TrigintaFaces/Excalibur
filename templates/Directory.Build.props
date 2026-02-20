@@ -1,0 +1,11 @@
+<Project>
+  <!-- Isolate template packaging from the root Directory.Build.props -->
+  <PropertyGroup>
+    <PackageIcon></PackageIcon>
+    <PackageLicenseExpression></PackageLicenseExpression>
+    <PackageReadmeFile></PackageReadmeFile>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+</Project>

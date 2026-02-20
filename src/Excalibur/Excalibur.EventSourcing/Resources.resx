@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="CompositeSnapshotStrategy_AtLeastOneStrategyMustBeProvided" xml:space="preserve">
+    <value>At least one strategy must be provided.</value>
+  </data>
+  <data name="CompositeSnapshotStrategy_UnknownCompositeModeFormat" xml:space="preserve">
+    <value>Unknown composite mode: {0}</value>
+  </data>
+  <data name="Encryption_FailedToDeserializeEncryptedDataEnvelope" xml:space="preserve">
+    <value>Failed to deserialize encrypted data envelope.</value>
+  </data>
+  <data name="Encryption_NoProviderCanDecrypt" xml:space="preserve">
+    <value>No registered provider can decrypt this data. The encryption key may have been removed.</value>
+  </data>
+  <data name="Encryption_ReadOnlyEventStore" xml:space="preserve">
+    <value>Event store is in read-only mode. Writes are not permitted during this encryption migration phase.</value>
+  </data>
+  <data name="Encryption_ReadOnlyProjectionStore" xml:space="preserve">
+    <value>Projection store is in read-only mode. Writes are not permitted during this encryption migration phase.</value>
+  </data>
+  <data name="EventSourcedRepository_AggregateIdCannotConvertToNullString" xml:space="preserve">
+    <value>Aggregate ID cannot convert to null string.</value>
+  </data>
+  <data name="EventSourcedRepository_DeleteRequiresTombstoneFormat" xml:space="preserve">
+    <value>Delete operation requires a tombstone event implementation. Override DeleteAsync in a derived repository class for aggregate {0}.</value>
+  </data>
+  <data name="EventSourcedRepository_FindRequiresExecutorFormat" xml:space="preserve">
+    <value>Find operation requires a query executor implementation. Override FindAsync in a derived repository class or inject an IQueryExecutor&lt;{0}&gt;.</value>
+  </data>
+  <data name="EventSourcedRepository_QueryRequiresExecutorFormat" xml:space="preserve">
+    <value>Query operation requires a query executor implementation. Override QueryAsync in a derived repository class or inject an IQueryExecutor&lt;{0}&gt;.</value>
+  </data>
+  <data name="EventSourcedRepository_SaveFailedFormat" xml:space="preserve">
+    <value>Failed to save aggregate {0}: {1}</value>
+  </data>
+  <data name="EventVersionManager_EventTypeCannotBeNullOrEmpty" xml:space="preserve">
+    <value>Event type cannot be null or empty.</value>
+  </data>
+  <data name="EventVersionManager_NoUpgradePathFoundFormat" xml:space="preserve">
+    <value>No upgrade path found for {0} from version {1} to {2}.</value>
+  </data>
+  <data name="EventVersionManager_NoUpgradersRegisteredFormat" xml:space="preserve">
+    <value>No upgraders registered for event type {0}.</value>
+  </data>
+  <data name="EventVersionManager_UpgraderAlreadyExistsFormat" xml:space="preserve">
+    <value>An upgrader for {0} from version {1} to {2} already exists.</value>
+  </data>
+  <data name="SizeBasedSnapshotStrategy_MaxSizeMustBeGreaterThanZero" xml:space="preserve">
+    <value>Maximum size must be greater than zero.</value>
+  </data>
+  <data name="TimeBasedSnapshotStrategy_IntervalMustBeGreaterThanZero" xml:space="preserve">
+    <value>Interval must be greater than zero.</value>
+  </data>
+</root>

@@ -1,0 +1,423 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="DefaultFipsDetector_ErrorDetectingStatus" xml:space="preserve">
+    <value>Error detecting FIPS compliance status</value>
+  </data>
+  <data name="DefaultFipsDetector_ErrorReadingLinuxStatus" xml:space="preserve">
+    <value>Error reading Linux FIPS status</value>
+  </data>
+  <data name="DefaultFipsDetector_LinuxFipsMode" xml:space="preserve">
+    <value>Linux FIPS mode: {IsFipsEnabled} (value: {Value})</value>
+  </data>
+  <data name="DefaultFipsDetector_WindowsFipsMode" xml:space="preserve">
+    <value>Windows FIPS mode: {IsFipsEnabled}</value>
+  </data>
+  <data name="DevEncryptionWarningLogger_Message" xml:space="preserve">
+    <value>DEV ENCRYPTION IS ACTIVE. In-memory key management is being used. Keys are not persisted and will be lost on restart. Do NOT use this configuration in production. Configure a production key management provider using AddEncryption().</value>
+  </data>
+  <data name="EncryptionConfigurationBuilder_NoProvidersRegistered" xml:space="preserve">
+    <value>No encryption providers were registered. Call UseInMemoryKeyManagement(), UseKeyManagement&lt;T&gt;(), or UseProvider() to register at least one provider.</value>
+  </data>
+  <data name="EncryptionConfigurationBuilder_ProviderNotRegistered" xml:space="preserve">
+    <value>Provider '{0}' was not registered in this builder. Register the provider first.</value>
+  </data>
+  <data name="ComplianceServiceCollectionExtensions_PrimaryRegionConfigurationRequired" xml:space="preserve">
+    <value>Primary region configuration is required.</value>
+  </data>
+  <data name="ComplianceServiceCollectionExtensions_SecondaryRegionConfigurationRequired" xml:space="preserve">
+    <value>Secondary region configuration is required.</value>
+  </data>
+  <data name="EncryptingOutboxStoreDecorator_ReadOnlyMode" xml:space="preserve">
+    <value>Outbox store is in read-only mode. Writes are not permitted during this encryption migration phase.</value>
+  </data>
+  <data name="EncryptingInboxStoreDecorator_ReadOnlyMode" xml:space="preserve">
+    <value>Inbox store is in read-only mode. Writes are not permitted during this encryption migration phase.</value>
+  </data>
+  <data name="Soc2ReportExporter_CreatedEvidencePackage" xml:space="preserve">
+    <value>Created evidence package for report {ReportId}: {Size} bytes, {ItemCount} items</value>
+  </data>
+  <data name="Soc2ReportExporter_CreatingEvidencePackage" xml:space="preserve">
+    <value>Creating evidence package for report {ReportId} with {EvidenceCount} items</value>
+  </data>
+  <data name="Soc2ReportExporter_ExcelPlaceholder" xml:space="preserve">
+    <value>Excel export is a basic Open XML implementation. For production, use ClosedXML or EPPlus for better formatting</value>
+  </data>
+  <data name="Soc2ReportExporter_ExportedReport" xml:space="preserve">
+    <value>Exported report {ReportId} to {Format}: {Size} bytes</value>
+  </data>
+  <data name="Soc2ReportExporter_ExportingReport" xml:space="preserve">
+    <value>Exporting report {ReportId} to {Format}</value>
+  </data>
+  <data name="Soc2ReportExporter_PdfPlaceholder" xml:space="preserve">
+    <value>PDF export is a placeholder. For production, integrate a PDF library like QuestPDF or iTextSharp</value>
+  </data>
+  <data name="Soc2ReportExporter_ReportNotExportable" xml:space="preserve">
+    <value>Report cannot be exported: {0}</value>
+  </data>
+  <data name="Soc2ReportExporter_UnsupportedFormat" xml:space="preserve">
+    <value>Unsupported export format</value>
+  </data>
+  <data name="ComplianceMonitoringService_ControlValidationFailure" xml:space="preserve">
+    <value>Control validation failure: {ControlId} - {ErrorMessage} (Consecutive failures: {Failures})</value>
+  </data>
+  <data name="ComplianceMonitoringService_CycleCompleted" xml:space="preserve">
+    <value>Completed compliance monitoring cycle. Overall level: {Level}, Gaps: {GapCount}</value>
+  </data>
+  <data name="ComplianceMonitoringService_CycleStarting" xml:space="preserve">
+    <value>Starting compliance monitoring cycle</value>
+  </data>
+  <data name="ComplianceMonitoringService_ErrorInCycle" xml:space="preserve">
+    <value>Error in compliance monitoring cycle</value>
+  </data>
+  <data name="ComplianceMonitoringService_GapAlert" xml:space="preserve">
+    <value>Compliance gap alert: {GapId} - {Description} (Severity: {Severity}, Occurrences: {Occurrences})</value>
+  </data>
+  <data name="ComplianceMonitoringService_MonitoringDisabled" xml:space="preserve">
+    <value>Continuous compliance monitoring is disabled</value>
+  </data>
+  <data name="ComplianceMonitoringService_MonitoringStarting" xml:space="preserve">
+    <value>Starting continuous compliance monitoring with interval {Interval}</value>
+  </data>
+  <data name="ComplianceMonitoringService_MonitoringStopped" xml:space="preserve">
+    <value>Compliance monitoring service stopped</value>
+  </data>
+  <data name="ComplianceMonitoringService_StatusChangeDetected" xml:space="preserve">
+    <value>Compliance status change detected for {Criterion}: {PreviousStatus} -&gt; {CurrentStatus}</value>
+  </data>
+  <data name="ComplianceMonitoringService_StatusFetchFailed" xml:space="preserve">
+    <value>Failed to get compliance status during monitoring cycle</value>
+  </data>
+  <data name="Soc2ReportGenerator_GeneratedTypeIReport" xml:space="preserve">
+    <value>Generated Type I report {ReportId} with opinion {Opinion}</value>
+  </data>
+  <data name="Soc2ReportGenerator_GeneratedTypeIIReport" xml:space="preserve">
+    <value>Generated Type II report {ReportId} with opinion {Opinion}, {ExceptionCount} exceptions</value>
+  </data>
+  <data name="Soc2ReportGenerator_GeneratingTypeIReport" xml:space="preserve">
+    <value>Generating Type I report as of {AsOfDate} for tenant {TenantId}</value>
+  </data>
+  <data name="Soc2ReportGenerator_GeneratingTypeIIReport" xml:space="preserve">
+    <value>Generating Type II report for period {PeriodStart} to {PeriodEnd}, tenant {TenantId}</value>
+  </data>
+  <data name="Soc2ReportGenerator_ReportNotStored" xml:space="preserve">        
+    <value>Report {ReportId} generated but not stored - no ISoc2ReportStore configured</value>
+  </data>
+  <data name="Soc2ReportGenerator_StoredReport" xml:space="preserve">
+    <value>Stored report {ReportId}</value>
+  </data>
+  <data name="Soc2ReportGenerator_PeriodEndRequiredForTypeII" xml:space="preserve">
+    <value>PeriodEnd is required for Type II reports</value>
+  </data>
+  <data name="Soc2ReportGenerator_UnknownReportType" xml:space="preserve">
+    <value>Unknown report type</value>
+  </data>
+  <data name="Soc2ReportGenerator_PeriodEndAfterStart" xml:space="preserve">
+    <value>Period end must be after period start</value>
+  </data>
+  <data name="Soc2ReportGenerator_TypeIIPeriodTooShort" xml:space="preserve">
+    <value>Type II report period must be at least {0} days. Provided period is {1:F0} days.</value>
+  </data>
+  <data name="MultiRegionKeyProvider_AutoFailoverCooldown" xml:space="preserve">
+    <value>Automatic failover blocked by cooldown. Time remaining: {RemainingSeconds}s</value>
+  </data>
+  <data name="MultiRegionKeyProvider_AutoFailoverTriggered" xml:space="preserve">
+    <value>AUTOMATIC FAILOVER TRIGGERED. Primary: {PrimaryRegion} (unhealthy, {Failures} consecutive failures) -&gt; Secondary: {SecondaryRegion}</value>
+  </data>
+  <data name="MultiRegionKeyProvider_Disposed" xml:space="preserve">
+    <value>MultiRegionKeyProvider disposed</value>
+  </data>
+  <data name="MultiRegionKeyProvider_FailbackCompleted" xml:space="preserve">
+    <value>Failback completed. Secondary: {SecondaryRegion} -&gt; Primary: {PrimaryRegion}. Reason: {Reason}</value>
+  </data>
+  <data name="MultiRegionKeyProvider_HealthCheckError" xml:space="preserve">
+    <value>Error during health check cycle</value>
+  </data>
+  <data name="MultiRegionKeyProvider_Initialized" xml:space="preserve">
+    <value>MultiRegionKeyProvider initialized. Primary: {PrimaryRegion}, Secondary: {SecondaryRegion}, Mode: {ReplicationMode}, AutoFailover: {AutoFailover}</value>
+  </data>
+  <data name="MultiRegionKeyProvider_KeyReplicationCompleted" xml:space="preserve">
+    <value>Key replication completed. Source: {SourceRegion}, Target: {TargetRegion}, KeyId: {KeyId}</value>
+  </data>
+  <data name="MultiRegionKeyProvider_ManualFailoverInitiated" xml:space="preserve">
+    <value>Manual failover initiated. Primary: {PrimaryRegion} -&gt; Secondary: {SecondaryRegion}. Reason: {Reason}</value>
+  </data>
+  <data name="MultiRegionKeyProvider_ReplicationAlreadyInProgress" xml:space="preserve">
+    <value>Replication already in progress, skipping</value>
+  </data>
+  <data name="MultiRegionKeyProvider_RpoThresholdBreached" xml:space="preserve">
+    <value>RPO threshold breached. Current lag: {LagMinutes:F1} minutes, Target: {TargetMinutes:F1} minutes</value>
+  </data>
+  <data name="MultiRegionKeyProvider_SyncingKeys" xml:space="preserve">
+    <value>Syncing keys from {Source} to {Target}. SpecificKey: {KeyId}</value>
+  </data>
+  <data name="AesGcmEncryptionProvider_AuthenticationFailed" xml:space="preserve">
+    <value>Authentication failed.</value>
+  </data>
+  <data name="AesGcmEncryptionProvider_EncryptionKeyNotFound" xml:space="preserve">
+    <value>Encryption key not found.</value>
+  </data>
+  <data name="AesGcmEncryptionProvider_FipsComplianceRequired" xml:space="preserve">
+    <value>FIPS compliance is required.</value>
+  </data>
+  <data name="AesGcmEncryptionProvider_InvalidAuthTag" xml:space="preserve">
+    <value>Invalid authentication tag.</value>
+  </data>
+  <data name="AesGcmEncryptionProvider_InvalidNonceSize" xml:space="preserve">
+    <value>Invalid nonce size. Expected {0} bytes.</value>
+  </data>
+  <data name="AesGcmEncryptionProvider_KeyExpired" xml:space="preserve">
+    <value>Key has expired.</value>
+  </data>
+  <data name="AesGcmEncryptionProvider_KeyMaterialUnavailable" xml:space="preserve">
+    <value>Key material is unavailable.</value>
+  </data>
+  <data name="AesGcmEncryptionProvider_KeyStatusNotAllowedForDecryption" xml:space="preserve">
+    <value>Key status '{0}' does not allow decryption.</value>
+  </data>
+  <data name="AesGcmEncryptionProvider_KeyStatusNotAllowedForEncryption" xml:space="preserve">
+    <value>Key status '{0}' does not allow encryption.</value>
+  </data>
+  <data name="AesGcmEncryptionProvider_NoSuitableKeyFound" xml:space="preserve">
+    <value>No suitable key found for encryption.</value>
+  </data>
+  <data name="AesGcmEncryptionProvider_UnsupportedAlgorithm" xml:space="preserve">
+    <value>Unsupported encryption algorithm '{0}'.</value>
+  </data>
+  <data name="EncryptionDecryptionService_UnsupportedExportFormat" xml:space="preserve">
+    <value>Unsupported export format '{0}'.</value>
+  </data>
+  <data name="EncryptionProviderRegistry_NoPrimaryProviderConfigured" xml:space="preserve">
+    <value>No primary provider is configured.</value>
+  </data>
+  <data name="EncryptionProviderRegistry_PrimaryProviderNotFound" xml:space="preserve">
+    <value>Primary provider '{0}' was not found.</value>
+  </data>
+  <data name="EncryptionProviderRegistry_ProviderAlreadyRegistered" xml:space="preserve">
+    <value>Provider '{0}' is already registered.</value>
+  </data>
+  <data name="Encryption_EncryptedDataEnvelopeDeserializeFailed" xml:space="preserve">
+    <value>Failed to deserialize the encrypted data envelope.</value>
+  </data>
+  <data name="Encryption_NoPrimaryProviderRegistered" xml:space="preserve">
+    <value>No primary encryption provider is registered.</value>
+  </data>
+  <data name="Encryption_NoProviderCanDecrypt" xml:space="preserve">
+    <value>No provider can decrypt the data.</value>
+  </data>
+  <data name="Encryption_NoProviderCanDecryptKeyRemoved" xml:space="preserve">
+    <value>No provider can decrypt the data because the key was removed.</value>
+  </data>
+  <data name="InMemoryKeyManagementProvider_KeyMaterialDestroyed" xml:space="preserve">
+    <value>Key material has been destroyed.</value>
+  </data>
+  <data name="InMemoryKeyManagementProvider_KeyNotFound" xml:space="preserve">
+    <value>Key not found.</value>
+  </data>
+  <data name="InMemoryKeyManagementProvider_KeyVersionNotFound" xml:space="preserve">
+    <value>Key version not found.</value>
+  </data>
+  <data name="InMemoryMasterKeyBackupService_AtLeastOneShareRequired" xml:space="preserve">
+    <value>At least one share is required.</value>
+  </data>
+  <data name="InMemoryMasterKeyBackupService_BackupAtRisk" xml:space="preserve">
+    <value>Backup is at risk: expired or insufficient active shares.</value>
+  </data>
+  <data name="InMemoryMasterKeyBackupService_BackupExpired" xml:space="preserve">
+    <value>Backup has expired.</value>
+  </data>
+  <data name="InMemoryMasterKeyBackupService_BackupExpiresSoon" xml:space="preserve">
+    <value>Backup will expire within 30 days.</value>
+  </data>
+  <data name="InMemoryMasterKeyBackupService_BackupIntegrityCheckFailed" xml:space="preserve">
+    <value>Backup integrity check failed: missing key hash or encrypted data.</value>
+  </data>
+  <data name="InMemoryMasterKeyBackupService_CustodianIdsCountMismatch" xml:space="preserve">
+    <value>Custodian IDs count must match total shares.</value>
+  </data>
+  <data name="InMemoryMasterKeyBackupService_DecryptBackupFailed" xml:space="preserve">
+    <value>Failed to decrypt backup.</value>
+  </data>
+  <data name="InMemoryMasterKeyBackupService_InsufficientShares" xml:space="preserve">
+    <value>Insufficient shares: {0} provided, {1} required.</value>
+  </data>
+  <data name="InMemoryMasterKeyBackupService_KeyAlreadyExists" xml:space="preserve">
+    <value>Key '{0}' already exists.</value>
+  </data>
+  <data name="InMemoryMasterKeyBackupService_KeyHashVerificationFailed" xml:space="preserve">
+    <value>Key hash verification failed.</value>
+  </data>
+  <data name="InMemoryMasterKeyBackupService_KeyHashVerificationFailedAfterReconstruction" xml:space="preserve">
+    <value>Key hash verification failed after reconstruction.</value>
+  </data>
+  <data name="InMemoryMasterKeyBackupService_KeyNotFound" xml:space="preserve">
+    <value>Key '{0}' was not found.</value>
+  </data>
+  <data name="InMemoryMasterKeyBackupService_ReconstructionFailed" xml:space="preserve">
+    <value>Failed to reconstruct key from shares.</value>
+  </data>
+  <data name="InMemoryMasterKeyBackupService_ShareExpired" xml:space="preserve">
+    <value>Share {0} has expired.</value>
+  </data>
+  <data name="InMemoryMasterKeyBackupService_SharesKeyMismatch" xml:space="preserve">
+    <value>All shares must be from the same key.</value>
+  </data>
+  <data name="InMemoryMasterKeyBackupService_SharesKeyVersionMismatch" xml:space="preserve">
+    <value>All shares must be from the same key version.</value>
+  </data>
+  <data name="InMemoryMasterKeyBackupService_ThresholdExceedsTotalShares" xml:space="preserve">
+    <value>Threshold cannot exceed total shares.</value>
+  </data>
+  <data name="InMemoryMasterKeyBackupService_ThresholdTooLow" xml:space="preserve">
+    <value>Threshold must be at least 2.</value>
+  </data>
+  <data name="InMemoryMasterKeyBackupService_TotalSharesTooLow" xml:space="preserve">
+    <value>Total shares must be at least 2.</value>
+  </data>
+  <data name="InMemoryMasterKeyBackupService_UnsupportedFormatVersion" xml:space="preserve">
+    <value>Unsupported backup format version: {0}.</value>
+  </data>
+  <data name="ReEncryptionService_EmptyPlaintext" xml:space="preserve">
+    <value>Plaintext is empty after decryption.</value>
+  </data>
+  <data name="ReEncryptionService_SourceProviderNotFound" xml:space="preserve">
+    <value>Source provider '{0}' was not found.</value>
+  </data>
+  <data name="ReEncryptionService_TargetProviderNotFound" xml:space="preserve">
+    <value>Target provider '{0}' was not found.</value>
+  </data>
+  <data name="RotatingEncryptionProvider_AlreadyActiveKey" xml:space="preserve">
+    <value>Data already encrypted with active key, skipping re-encryption</value>
+  </data>
+  <data name="RotatingEncryptionProvider_KeyAgeExceedsMax" xml:space="preserve">
+    <value>Key {KeyId} age ({KeyAgeDays:F1} days) exceeds max age ({MaxAgeDays} days), initiating rotation</value>
+  </data>
+  <data name="RotatingEncryptionProvider_OldKeyVersionReencryptionHint" xml:space="preserve">
+    <value>Data encrypted with old key version {KeyId} v{Version}, consider re-encryption</value>
+  </data>
+  <data name="RotatingEncryptionProvider_ReencryptedData" xml:space="preserve">
+    <value>Re-encrypted data from key {OldKeyId} v{OldVersion} to {NewKeyId} v{NewVersion}</value>
+  </data>
+  <data name="ShamirSecretSharing_AllSharesMustHaveSameLength" xml:space="preserve">
+    <value>All shares must have the same length.</value>
+  </data>
+  <data name="ShamirSecretSharing_AtLeastOneShareRequired" xml:space="preserve">
+    <value>At least one share is required.</value>
+  </data>
+  <data name="ShamirSecretSharing_CannotDivideByZero" xml:space="preserve">
+    <value>Cannot divide by zero in GF(256).</value>
+  </data>
+  <data name="ShamirSecretSharing_DuplicateShareIndicesDetected" xml:space="preserve">
+    <value>Duplicate share indices detected.</value>
+  </data>
+  <data name="ShamirSecretSharing_ShareIndexCannotBeZero" xml:space="preserve">
+    <value>Share index cannot be 0.</value>
+  </data>
+  <data name="ShamirSecretSharing_SharesMustHaveAtLeastTwoBytes" xml:space="preserve">
+    <value>Shares must have at least 2 bytes (index + data).</value>
+  </data>
+  <data name="ShamirSecretSharing_ThresholdAtLeastTwo" xml:space="preserve">
+    <value>Threshold must be at least 2.</value>
+  </data>
+  <data name="ShamirSecretSharing_ThresholdExceedsTotalShares" xml:space="preserve">
+    <value>Threshold ({0}) cannot exceed total shares ({1}).</value>
+  </data>
+  <data name="ShamirSecretSharing_TotalSharesAtLeastTwo" xml:space="preserve">
+    <value>Total shares must be at least 2.</value>
+  </data>
+  <data name="ShamirSecretSharing_TotalSharesCannotExceedLimit" xml:space="preserve">
+    <value>Total shares cannot exceed 255 (GF(256) limitation).</value>
+  </data>
+  <data name="DataInventoryService_TableNameRequired" xml:space="preserve">
+    <value>TableName is required</value>
+  </data>
+  <data name="DataInventoryService_FieldNameRequired" xml:space="preserve">
+    <value>FieldName is required</value>
+  </data>
+  <data name="DataInventoryService_DataCategoryRequired" xml:space="preserve">
+    <value>DataCategory is required</value>
+  </data>
+  <data name="DataInventoryService_DataSubjectIdColumnRequired" xml:space="preserve">
+    <value>DataSubjectIdColumn is required</value>
+  </data>
+  <data name="DataInventoryService_KeyIdColumnRequired" xml:space="preserve">
+    <value>KeyIdColumn is required</value>
+  </data>
+  <data name="LegalHoldService_HoldNotFound" xml:space="preserve">
+    <value>Legal hold {0} not found</value>
+  </data>
+  <data name="LegalHoldService_HoldAlreadyReleased" xml:space="preserve">
+    <value>Legal hold {0} is already released</value>
+  </data>
+  <data name="LegalHoldService_HoldSubjectOrTenantRequired" xml:space="preserve">
+    <value>Either DataSubjectId or TenantId must be specified for a legal hold</value>
+  </data>
+  <data name="LegalHoldService_CaseReferenceRequired" xml:space="preserve">
+    <value>CaseReference is required</value>
+  </data>
+  <data name="LegalHoldService_DescriptionRequired" xml:space="preserve">
+    <value>Description is required</value>
+  </data>
+  <data name="LegalHoldService_CreatedByRequired" xml:space="preserve">
+    <value>CreatedBy is required</value>
+  </data>
+  <data name="LegalHoldService_ExpiresAtMustBeFuture" xml:space="preserve">
+    <value>ExpiresAt must be in the future</value>
+  </data>
+  <data name="ErasureService_CannotCancelRequest" xml:space="preserve">
+    <value>Erasure request {0} cannot be cancelled. Status: {1}</value>
+  </data>
+  <data name="ErasureService_RequestNotFound" xml:space="preserve">
+    <value>Erasure request {0} not found</value>
+  </data>
+  <data name="ErasureService_CannotGenerateCertificate" xml:space="preserve">
+    <value>Cannot generate certificate for request {0}. Status: {1}</value>
+  </data>
+  <data name="ErasureService_DataSubjectIdRequired" xml:space="preserve">
+    <value>DataSubjectId is required</value>
+  </data>
+  <data name="ErasureService_RequestedByRequired" xml:space="preserve">
+    <value>RequestedBy is required</value>
+  </data>
+  <data name="ErasureService_TenantIdRequiredForScope" xml:space="preserve">
+    <value>TenantId is required for Tenant scope</value>
+  </data>
+  <data name="ErasureService_DataCategoriesRequired" xml:space="preserve">
+    <value>DataCategories must be specified for Selective scope</value>
+  </data>
+  <data name="MultiRegionKeyProvider_AlreadyInFailoverMode" xml:space="preserve">
+    <value>Already in failover mode. Use FailbackToPrimaryAsync to return to primary.</value>
+  </data>
+  <data name="MultiRegionKeyProvider_NotInFailoverMode" xml:space="preserve">
+    <value>Not in failover mode. Cannot failback.</value>
+  </data>
+</root>

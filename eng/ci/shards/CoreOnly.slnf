@@ -1,0 +1,11 @@
+{
+  "solution": {
+    "path": "..\\..\\..\\Excalibur.sln",
+    "projects": [
+      "src\\Dispatch\\Dispatch.Abstractions\\Dispatch.Abstractions.csproj",
+      "src\\Dispatch\\Dispatch\\Dispatch.csproj",
+      "src\\Excalibur\\Excalibur.Data.Abstractions\\Excalibur.Data.Abstractions.csproj",
+      "src\\Excalibur\\Excalibur.Domain\\Excalibur.Domain.csproj"
+    ]
+  }
+}

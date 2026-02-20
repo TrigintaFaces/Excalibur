@@ -1,0 +1,56 @@
+name: Manage Repository Labels
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  ensure-labels:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure standard labels exist
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = [
+              // Areas
+              { name: 'area:serialization', color: '0e8a16', description: 'Serialization-related work' },
+              { name: 'area:governance', color: '5319e7', description: 'Governance/process items' },
+              { name: 'area:ci', color: '1d76db', description: 'CI and build pipeline' },
+              { name: 'area:security', color: 'b60205', description: 'Security and CVEs' },
+              { name: 'area:transports', color: 'fbca04', description: 'Transport providers' },
+              // PRs
+              { name: 'pr:governance', color: 'd4c5f9', description: 'Governance PRs' },
+              { name: 'pr:option-b', color: 'd4c5f9', description: 'Option B execution PRs' },
+              { name: 'pr:phase-1', color: 'd4c5f9', description: 'Phase 1 items' },
+              // Severity/Priority
+              { name: 'severity:low', color: '0e8a16', description: 'Low severity' },
+              { name: 'severity:medium', color: 'fbca04', description: 'Medium severity' },
+              { name: 'severity:high', color: 'b60205', description: 'High severity' },
+              { name: 'priority:p1', color: 'b60205', description: 'Priority 1' },
+              { name: 'priority:p2', color: 'fbca04', description: 'Priority 2' },
+              { name: 'priority:p3', color: '0e8a16', description: 'Priority 3' },
+              // CI Triage
+              { name: 'ci:packability', color: '0e8a16', description: 'Package/packability issues' },
+              { name: 'ci:bloat-guard', color: 'b60205', description: 'Transitive bloat violations' },
+              { name: 'ci:netarchtest', color: '5319e7', description: 'Architecture tests violations' },
+              { name: 'ci:api-compat', color: '1d76db', description: 'API compatibility issues' },
+              { name: 'ci:trim-aot', color: 'fbca04', description: 'Trim/AOT validation issues' },
+              { name: 'ci:r014-boundary', color: 'd93f0b', description: 'Serialization boundary (R0.14) issues' },
+              { name: 'sec:cve', color: 'b60205', description: 'Security CVE findings' }
+            ];
+            for (const l of labels) {
+              try {
+                await github.rest.issues.getLabel({ owner: context.repo.owner, repo: context.repo.repo, name: l.name });
+              } catch (e) {
+                if (e.status === 404) {
+                  await github.rest.issues.createLabel({ owner: context.repo.owner, repo: context.repo.repo, name: l.name, color: l.color, description: l.description });
+                } else {
+                  throw e;
+                }
+              }
+            }
+

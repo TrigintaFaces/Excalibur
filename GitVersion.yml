@@ -1,4 +1,4 @@
-next-version: 1.0.2
+next-version: 3.0.0
 assembly-versioning-scheme: MajorMinorPatch
 assembly-file-versioning-scheme: MajorMinorPatch
 tag-prefix: "[vV]?"

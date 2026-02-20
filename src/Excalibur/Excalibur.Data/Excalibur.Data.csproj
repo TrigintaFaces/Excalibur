@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<!-- NuGet Package Metadata -->
+		<PackageId>$(AssemblyName)</PackageId>
+		<Description>Data access layer implementation for Excalibur with repository patterns, unit of work, and data abstractions. Provides concrete implementations for data persistence.</Description>
+		<PackageTags>excalibur;data;repository;unit-of-work;persistence;dapper</PackageTags>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<IsAotCompatible>true</IsAotCompatible>
+		<DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+	</PropertyGroup>
+	<ItemGroup>
+		<PackageReference Include="Ben.Demystifier" />
+		<PackageReference Include="Dapper" />
+		<PackageReference Include="JsonNet.ContractResolvers" />
+		<PackageReference Include="Microsoft.ApplicationInsights" />
+		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+		<PackageReference Include="Microsoft.Extensions.Caching.Abstractions" />
+		<PackageReference Include="Microsoft.Extensions.Caching.Memory" />
+		<PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+		<!-- Polly needed for IDataAccessPolicyFactory - no longer transitive from Dispatch core -->
+		<PackageReference Include="Polly" />
+	</ItemGroup>
+	<!-- Excalibur internal references (always ProjectReference) -->
+	<ItemGroup>
+		<ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
+		<ProjectReference Include="..\Excalibur.Domain\Excalibur.Domain.csproj" />
+	</ItemGroup>
+
+	<!-- Development mode: Dispatch ProjectReferences -->
+	<ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+		<ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+		<ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+		<ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Patterns\Excalibur.Dispatch.Patterns.csproj" />
+	</ItemGroup>
+	<ItemGroup>
+		<EmbeddedResource Update="Resources\ErrorMessages.resx">
+			<Generator>ResXFileCodeGenerator</Generator>
+			<LastGenOutput>ErrorMessages.Designer.cs</LastGenOutput>
+		</EmbeddedResource>
+		<Compile Update="Resources\ErrorMessages.Designer.cs">
+			<DesignTime>True</DesignTime>
+			<AutoGen>True</AutoGen>
+			<DependentUpon>ErrorMessages.resx</DependentUpon>
+		</Compile>
+	</ItemGroup>
+
+	<!-- CI mode: PackageReference for Dispatch packages -->
+	<ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+		<PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+		<PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
+		<PackageReference Include="Excalibur.Dispatch.Patterns" VersionOverride="$(DispatchPackageVersion)" />
+	</ItemGroup>
+</Project>

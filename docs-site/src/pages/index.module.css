@@ -1,0 +1,239 @@
+/**
+ * Landing page module styles for Excalibur.Dispatch
+ */
+
+/* Hero Section */
+.heroBanner {
+  padding: 6rem 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.heroContent {
+  position: relative;
+  z-index: 1;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.heroIllustrationRight {
+  position: absolute;
+  right: -40px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.heroIllustrationLeft {
+  position: absolute;
+  left: 140px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+.heroBadge {
+  display: inline-block;
+  padding: 0.375rem 1rem;
+  background: rgba(0, 212, 255, 0.15);
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #5de4ff;
+  margin-bottom: 1.5rem;
+}
+
+.heroButtons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+@media screen and (max-width: 996px) {
+  .heroBanner {
+    padding: 4rem 1rem;
+  }
+
+  .heroIllustrationRight,
+  .heroIllustrationLeft {
+    display: none;
+  }
+
+  .heroButtons {
+    flex-direction: column;
+  }
+}
+
+/* Features Section */
+.featuresSection {
+  padding: 5rem 0;
+}
+
+.sectionHeader {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.sectionHeader h2 {
+  font-size: 2.25rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.sectionHeader p {
+  font-size: 1.125rem;
+  color: var(--ifm-font-color-secondary);
+  margin: 0;
+}
+
+.featureCol {
+  margin-bottom: 2rem;
+}
+
+/* Quick Start Section */
+.quickStartGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.quickStartInstall h3,
+.quickStartCode h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+/* Decision Matrix Section */
+.decisionSection {
+  padding: 5rem 0;
+  background: var(--ifm-background-surface-color);
+}
+
+.decisionMatrix {
+  max-width: 800px;
+  margin: 0 auto;
+  overflow-x: auto;
+}
+
+.decisionMatrix table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.decisionMatrix th,
+.decisionMatrix td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.decisionMatrix th {
+  font-weight: 600;
+  background: rgba(0, 212, 255, 0.05);
+}
+
+.decisionMatrix th:first-child {
+  border-radius: 8px 0 0 0;
+}
+
+.decisionMatrix th:last-child {
+  border-radius: 0 8px 0 0;
+}
+
+.decisionMatrix td:first-child {
+  font-weight: 500;
+}
+
+.decisionMatrix code {
+  background: rgba(0, 212, 255, 0.1);
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+/* Comparison Section */
+.comparisonSection {
+  padding: 5rem 0;
+}
+
+.comparisonTable {
+  max-width: 900px;
+  margin: 0 auto;
+  overflow-x: auto;
+}
+
+.comparisonTable table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.comparisonTable th,
+.comparisonTable td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.comparisonTable th {
+  font-weight: 600;
+  background: rgba(0, 212, 255, 0.05);
+}
+
+.comparisonTable th:first-child {
+  border-radius: 8px 0 0 0;
+}
+
+.comparisonTable th:last-child {
+  border-radius: 0 8px 0 0;
+}
+
+.comparisonTable td:first-child {
+  font-weight: 500;
+}
+
+/* CTA Section */
+.ctaSection {
+  padding: 5rem 0;
+  background: linear-gradient(135deg, #1a1a2e 0%, #0f172a 100%);
+  text-align: center;
+}
+
+.ctaContent {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.ctaContent h2 {
+  color: #ffffff;
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.ctaContent p {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 1.125rem;
+  margin-bottom: 2rem;
+}
+
+.ctaButtons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+@media screen and (max-width: 768px) {
+  .ctaButtons {
+    flex-direction: column;
+  }
+}
