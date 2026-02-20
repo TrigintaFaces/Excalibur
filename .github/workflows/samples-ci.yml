@@ -56,8 +56,11 @@ jobs:
         run: |
           echo "🔍 Discovering sample directories..."
 
-          # Find all directories under samples/ that contain a .csproj file
-          samples=$(find samples -maxdepth 2 -name "*.csproj" -printf '%h\n' | \
+          # Find all sample project directories (exclude build output folders)
+          samples=$(find samples -type f -name "*.csproj" \
+                    -not -path "*/obj/*" \
+                    -not -path "*/bin/*" \
+                    -printf '%h\n' | \
                     sed 's|^samples/||' | \
                     sort -u | \
                     jq -R . | \
@@ -76,6 +79,7 @@ jobs:
     name: Build ${{ matrix.sample }}
     runs-on: ubuntu-latest
     needs: enumerate-samples
+    if: needs.enumerate-samples.outputs.sample_count != '0'
     timeout-minutes: 10
     strategy:
       fail-fast: false  # Continue building other samples even if one fails
@@ -153,7 +157,9 @@ jobs:
           echo "**Total Samples:** ${{ needs.enumerate-samples.outputs.sample_count }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [ "${{ needs.build-samples.result }}" = "success" ]; then
+          if [ "${{ needs.enumerate-samples.outputs.sample_count }}" = "0" ]; then
+            echo "### ⚪ No sample projects found to build" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.build-samples.result }}" = "success" ]; then
             echo "### ✅ All samples built successfully!" >> $GITHUB_STEP_SUMMARY
           else
             echo "### ❌ Some samples failed to build" >> $GITHUB_STEP_SUMMARY
@@ -165,7 +171,7 @@ jobs:
           echo "*Sprint 427 T427.2 - Sample CI Validation*" >> $GITHUB_STEP_SUMMARY
 
       - name: Check overall status
-        if: needs.build-samples.result != 'success'
+        if: needs.enumerate-samples.outputs.sample_count != '0' && needs.build-samples.result != 'success'
         run: |
           echo "::warning::Some samples failed to build. Review individual job logs."
           # Don't fail the workflow - we want to see all failures
