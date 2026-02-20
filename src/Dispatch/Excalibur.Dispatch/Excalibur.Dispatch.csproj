@@ -42,10 +42,16 @@
     <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
   <PropertyGroup>
-    <DefineConstants>$(DefineConstants);USE_SOURCE_GENERATION;AOT_ENABLED</DefineConstants>
+    <DefineConstants>$(DefineConstants);USE_SOURCE_GENERATION</DefineConstants>
     <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
     <TrimmerDefaultAction>link</TrimmerDefaultAction>
     <TrimMode>full</TrimMode>
+  </PropertyGroup>
+  <!-- AOT_ENABLED must only be defined when actually publishing AOT.
+       Unconditionally defining it disables JIT fallback paths (assembly scanning,
+       runtime type resolution) which breaks consumers running in JIT mode. -->
+  <PropertyGroup Condition="'$(PublishAot)' == 'true'">
+    <DefineConstants>$(DefineConstants);AOT_ENABLED</DefineConstants>
   </PropertyGroup>
   <!-- Preserve types for reflection -->
   <ItemGroup Condition="'$(PublishAot)' == 'true'">

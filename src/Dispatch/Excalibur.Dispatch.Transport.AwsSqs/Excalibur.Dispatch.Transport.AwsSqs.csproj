@@ -21,10 +21,13 @@
     <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
   <PropertyGroup>
-    <DefineConstants>$(DefineConstants);USE_SOURCE_GENERATION;AOT_ENABLED</DefineConstants>
+    <DefineConstants>$(DefineConstants);USE_SOURCE_GENERATION</DefineConstants>
     <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
     <TrimmerDefaultAction>link</TrimmerDefaultAction>
     <TrimMode>partial</TrimMode>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(PublishAot)' == 'true'">
+    <DefineConstants>$(DefineConstants);AOT_ENABLED</DefineConstants>
   </PropertyGroup>
   <!-- Feature flags for conditional compilation -->
   <PropertyGroup>
