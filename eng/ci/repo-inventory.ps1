@@ -10,19 +10,54 @@ function Write-Section($title) {
   "`n## $title`n" | Out-File -FilePath $Output -Encoding UTF8 -Append
 }
 
+function Get-RelativePath {
+  param(
+    [string]$BasePath,
+    [string]$TargetPath
+  )
+  $base = [System.IO.Path]::GetFullPath($BasePath)
+  if (-not $base.EndsWith([System.IO.Path]::DirectorySeparatorChar)) {
+    $base += [System.IO.Path]::DirectorySeparatorChar
+  }
+  $baseUri = [System.Uri]$base
+  $targetUri = [System.Uri]([System.IO.Path]::GetFullPath($TargetPath))
+  return [System.Uri]::UnescapeDataString($baseUri.MakeRelativeUri($targetUri).ToString()).Replace('/', [System.IO.Path]::DirectorySeparatorChar)
+}
+
+function Get-ProjectTargetFrameworks {
+  param([string]$ProjectPath)
+  $xml = [xml](Get-Content -Raw -- $ProjectPath)
+  $values = @()
+
+  foreach ($node in @($xml.SelectNodes('//PropertyGroup/TargetFrameworks'))) {
+    if ($node -and -not [string]::IsNullOrWhiteSpace($node.InnerText)) {
+      $values += $node.InnerText.Trim()
+    }
+  }
+  foreach ($node in @($xml.SelectNodes('//PropertyGroup/TargetFramework'))) {
+    if ($node -and -not [string]::IsNullOrWhiteSpace($node.InnerText)) {
+      $values += $node.InnerText.Trim()
+    }
+  }
+
+  $values = @($values | Where-Object { $_ } | Sort-Object -Unique)
+  if (@($values).Count -eq 0) {
+    return '(unspecified)'
+  }
+  return ($values -join ';')
+}
+
 "# Repository Inventory and Dependency Audit`nGenerated: $(Get-Date -Format o)" | Out-File -FilePath $Output -Encoding UTF8
 
 Write-Section "Solutions and Projects"
 Get-ChildItem -Recurse -File -Include *.sln,*.csproj |
-  ForEach-Object { "- ``$($_.FullName.Replace((Get-Location).Path + '\\',''))``" } |
+  ForEach-Object { "- ``$(Get-RelativePath -BasePath (Get-Location).Path -TargetPath $_.FullName)``" } |
   Out-File -FilePath $Output -Encoding UTF8 -Append
 
 Write-Section "Target Frameworks"
 Get-ChildItem -Recurse -File -Include *.csproj |
   ForEach-Object {
-    $xml = [xml](Get-Content -Raw -- $_.FullName)
-    $tfm = ($xml.Project.PropertyGroup.TargetFrameworks, $xml.Project.PropertyGroup.TargetFramework) -join ';' -replace ';$',''
-    if (-not $tfm) { $tfm = '(unspecified)' }
+    $tfm = Get-ProjectTargetFrameworks -ProjectPath $_.FullName
     "- ``$($_.FullName)`` → $tfm"
   } | Out-File -FilePath $Output -Encoding UTF8 -Append
 

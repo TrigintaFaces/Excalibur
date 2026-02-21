@@ -38,9 +38,9 @@ public sealed class OutboxServiceShould
 			.Returns(Task.FromResult(0));
 
 		// Act
-		await service.StartAsync(cts.Token).ConfigureAwait(false);
-		await Task.Delay(50, cts.Token).ConfigureAwait(false);
-		await cts.CancelAsync().ConfigureAwait(false);
+		await service.StartAsync(cts.Token).ConfigureAwait(true);
+		await Task.Delay(50, cts.Token).ConfigureAwait(true);
+		await cts.CancelAsync().ConfigureAwait(true);
 
 		// Assert
 		A.CallTo(() => _fakeOutbox.RunOutboxDispatchAsync(A<string>.That.IsNotNull(), A<CancellationToken>._))
@@ -59,8 +59,8 @@ public sealed class OutboxServiceShould
 		A.CallTo(() => _fakeOutbox.DisposeAsync()).Returns(ValueTask.CompletedTask);
 
 		// Act
-		await service.StartAsync(cts.Token).ConfigureAwait(false);
-		await service.StopAsync(CancellationToken.None).ConfigureAwait(false);
+		await service.StartAsync(cts.Token).ConfigureAwait(true);
+		await service.StopAsync(CancellationToken.None).ConfigureAwait(true);
 
 		// Assert
 		A.CallTo(() => _fakeOutbox.DisposeAsync()).MustHaveHappenedOnceExactly();
@@ -79,9 +79,9 @@ public sealed class OutboxServiceShould
 			.Returns(Task.FromResult(0));
 
 		// Act
-		await service.StartAsync(cts.Token).ConfigureAwait(false);
-		await Task.Delay(50, cts.Token).ConfigureAwait(false);
-		await cts.CancelAsync().ConfigureAwait(false);
+		await service.StartAsync(cts.Token).ConfigureAwait(true);
+		await Task.Delay(50, cts.Token).ConfigureAwait(true);
+		await cts.CancelAsync().ConfigureAwait(true);
 
 		// Assert
 		capturedId.ShouldNotBeNullOrWhiteSpace();
@@ -89,3 +89,4 @@ public sealed class OutboxServiceShould
 }
 
 #pragma warning restore CA2012
+

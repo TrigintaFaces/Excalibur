@@ -19,15 +19,16 @@ Write-Host "=== Dispatch Serializer Policy Validation ===" -ForegroundColor Cyan
 Write-Host "Solution Root: $SolutionRoot" -ForegroundColor Gray
 Write-Host ""
 
-# Rule 1: Excalibur.Dispatch MUST NOT reference System.Text.Json or MessagePack
+# Rule 1: Core runtime MUST use MemoryPack; abstractions remain contract-only
 Write-Host "[Rule 1] Validating core projects use MemoryPack only..." -ForegroundColor Yellow
 
 $coreProjects = @(
-    "Excalibur.Dispatch.Abstractions",
-    "Excalibur.Dispatch"
+    @{ Name = "Excalibur.Dispatch.Abstractions"; RequiresMemoryPack = $false; Kind = "contract-only abstractions" },
+    @{ Name = "Excalibur.Dispatch"; RequiresMemoryPack = $true; Kind = "core runtime" }
 )
 
-foreach ($project in $coreProjects) {
+foreach ($projectRule in $coreProjects) {
+    $project = $projectRule.Name
     $csprojPath = Get-ChildItem -Path "$SolutionRoot\src" -Recurse -Filter "$project.csproj" -ErrorAction SilentlyContinue | Select-Object -First 1
 
     if ($csprojPath) {
@@ -50,8 +51,10 @@ foreach ($project in $coreProjects) {
 
         if ($content -match 'PackageReference\s+Include="MemoryPack"') {
             Write-Host "  ✅ $project references MemoryPack (compliant)" -ForegroundColor Green
-        } else {
+        } elseif ($projectRule.RequiresMemoryPack) {
             $violations += "  ⚠️  $project does not reference MemoryPack (expected for internal wire format)"
+        } else {
+            Write-Host "  ℹ️  $project does not reference MemoryPack (allowed for $($projectRule.Kind))" -ForegroundColor DarkGray
         }
     } else {
         Write-Host "  ⚠️  Project '$project' not found" -ForegroundColor DarkYellow
@@ -111,8 +114,6 @@ Write-Host "[Rule 4] Validating Protobuf usage scope..." -ForegroundColor Yellow
 
 $allowedProtobufProjects = @(
     "Excalibur.Dispatch.Serialization.Protobuf",  # Opt-in Protobuf package (R0.14, R9.46)
-    "Excalibur.Dispatch.Transport.Google",
-    "Excalibur.Dispatch.Transport.Aws",
     "Tests.Shared.Extra"  # Test infrastructure
 )
 
@@ -124,9 +125,10 @@ $protobufRefs = Get-ChildItem -Path "$SolutionRoot\src" -Recurse -Filter "*.cspr
 
 foreach ($ref in $protobufRefs) {
     $projectName = [System.IO.Path]::GetFileNameWithoutExtension($ref.Name)
-    $isAllowed = $allowedProtobufProjects | Where-Object { $projectName -like "*$_*" }
+    $isAllowedTransportPackage = $projectName -like "Excalibur.Dispatch.Transport.*"
+    $isAllowedExplicitProject = $allowedProtobufProjects -contains $projectName
 
-    if (-not $isAllowed) {
+    if (-not $isAllowedTransportPackage -and -not $isAllowedExplicitProject) {
         $violations += "  ⚠️  $projectName references Google.Protobuf (should be isolated to transport packages)"
     } else {
         Write-Host "  ✅ $projectName uses Protobuf (allowed for transport interop)" -ForegroundColor Green
@@ -165,7 +167,7 @@ if ($violations.Count -eq 0) {
     Write-Host "  - Core projects use MemoryPack for internal wire format" -ForegroundColor Gray
     Write-Host "  - Public projects use System.Text.Json for external boundaries" -ForegroundColor Gray
     Write-Host "  - No obsolete serializers detected" -ForegroundColor Gray
-    Write-Host "  - Protobuf isolated to opt-in Excalibur.Dispatch.Serialization.Protobuf package" -ForegroundColor Gray
+    Write-Host "  - Protobuf isolated to transport packages and opt-in Excalibur.Dispatch.Serialization.Protobuf package" -ForegroundColor Gray
     Write-Host "  - MessagePack isolated to opt-in Excalibur.Dispatch.Serialization.MessagePack package" -ForegroundColor Gray
     Write-Host ""
     exit 0

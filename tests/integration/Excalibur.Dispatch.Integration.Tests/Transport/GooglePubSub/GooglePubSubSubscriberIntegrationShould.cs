@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Google.Api.Gax;
+using Google.Api.Gax.Grpc;
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
 using Grpc.Core;
@@ -327,10 +328,19 @@ public sealed class GooglePubSubSubscriberIntegrationShould : IAsyncLifetime
 		{
 			try
 			{
-				return await _subscriberApi!.PullAsync(
-					subscriptionName,
-					maxMessages: maxMessages,
-					returnImmediately: returnImmediately).ConfigureAwait(false);
+				var request = new PullRequest
+				{
+					SubscriptionAsSubscriptionName = subscriptionName,
+					MaxMessages = maxMessages
+				};
+
+				if (returnImmediately)
+				{
+					var callSettings = CallSettings.FromExpiration(Expiration.FromTimeout(TimeSpan.FromMilliseconds(300)));
+					return await _subscriberApi!.PullAsync(request, callSettings).ConfigureAwait(false);
+				}
+
+				return await _subscriberApi!.PullAsync(request).ConfigureAwait(false);
 			}
 			catch (Exception ex) when (IsTransientPullFailure(ex) && attempt < maxAttempts)
 			{

@@ -12,6 +12,10 @@ These environment variables control report-only vs enforce modes in CI. Defaults
   - Fails when coverage threshold is not met (when wired).
 - PACK_ENFORCE=true
   - Fails packaging validation (metadata/symbols/SourceLink) when issues are found (when wired).
+- LICENSE_ENFORCE=true
+  - Fails license header verification when missing headers are detected.
+- WARNINGS_ENFORCE=true
+  - Fails warnings scan when warnings are detected.
 
 Local runs (report-only):
   dotnet test tests/ArchitectureTests
@@ -21,4 +25,3 @@ CI suggestion (GitHub Actions example):
     run: |
       $env:ARCH_ENFORCE='false'
       dotnet test tests/ArchitectureTests
-

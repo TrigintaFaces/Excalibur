@@ -54,7 +54,7 @@ public class MultiTransportOutboxStoreFunctionalShould
 		var store = CreateStore(inner);
 		var message = new OutboundMessage("OrderCreated", TestPayload, "dest");
 
-		await store.PublishToTransportAsync("kafka", message, CancellationToken.None).ConfigureAwait(false);
+		await store.PublishToTransportAsync("kafka", message, CancellationToken.None).ConfigureAwait(true);
 
 		message.TargetTransports.ShouldBe("kafka");
 		message.IsMultiTransport.ShouldBeFalse();
@@ -71,7 +71,7 @@ public class MultiTransportOutboxStoreFunctionalShould
 
 		await Should.ThrowAsync<ArgumentException>(
 			() => store.PublishToTransportAsync(null!, message, CancellationToken.None).AsTask())
-			.ConfigureAwait(false);
+			.ConfigureAwait(true);
 	}
 
 	[Fact]
@@ -82,7 +82,7 @@ public class MultiTransportOutboxStoreFunctionalShould
 
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => store.PublishToTransportAsync("kafka", null!, CancellationToken.None).AsTask())
-			.ConfigureAwait(false);
+			.ConfigureAwait(true);
 	}
 
 	[Fact]
@@ -93,7 +93,7 @@ public class MultiTransportOutboxStoreFunctionalShould
 		var message = new OutboundMessage("OrderCreated", TestPayload, "dest");
 		var transports = new List<string> { "kafka", "rabbitmq", "azure-sb" };
 
-		await store.PublishToTransportsAsync(transports, message, CancellationToken.None).ConfigureAwait(false);
+		await store.PublishToTransportsAsync(transports, message, CancellationToken.None).ConfigureAwait(true);
 
 		message.TargetTransports.ShouldContain("kafka");
 		message.TargetTransports.ShouldContain("rabbitmq");
@@ -111,7 +111,7 @@ public class MultiTransportOutboxStoreFunctionalShould
 		var message = new OutboundMessage("OrderCreated", TestPayload, "dest");
 		var transports = new List<string> { "kafka" };
 
-		await store.PublishToTransportsAsync(transports, message, CancellationToken.None).ConfigureAwait(false);
+		await store.PublishToTransportsAsync(transports, message, CancellationToken.None).ConfigureAwait(true);
 
 		message.IsMultiTransport.ShouldBeFalse();
 	}
@@ -125,7 +125,7 @@ public class MultiTransportOutboxStoreFunctionalShould
 
 		await Should.ThrowAsync<ArgumentException>(
 			() => store.PublishToTransportsAsync(new List<string>(), message, CancellationToken.None).AsTask())
-			.ConfigureAwait(false);
+			.ConfigureAwait(true);
 	}
 
 	[Fact]
@@ -181,7 +181,7 @@ public class MultiTransportOutboxStoreFunctionalShould
 		var store = CreateStore(inner, options);
 		var message = new OutboundMessage { MessageType = "OrderCreated" };
 
-		await store.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(false);
+		await store.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(true);
 
 		message.TargetTransports.ShouldBe("kafka");
 		A.CallTo(() => inner.StageMessageAsync(message, A<CancellationToken>._))
@@ -197,7 +197,7 @@ public class MultiTransportOutboxStoreFunctionalShould
 		var store = CreateStore(inner, options);
 		var message = new OutboundMessage { MessageType = "OrderCreated" };
 
-		await store.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(false);
+		await store.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(true);
 
 		message.TargetTransports.ShouldBe("kafka");
 	}
@@ -211,7 +211,7 @@ public class MultiTransportOutboxStoreFunctionalShould
 		var store = CreateStore(inner, options);
 		var message = new OutboundMessage { MessageType = "UnknownEvent" };
 
-		await store.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(false);
+		await store.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(true);
 
 		message.TargetTransports.ShouldBe("rabbitmq");
 	}
@@ -231,7 +231,7 @@ public class MultiTransportOutboxStoreFunctionalShould
 
 		await Should.ThrowAsync<InvalidOperationException>(
 			() => store.StageMessageAsync(message, CancellationToken.None).AsTask())
-			.ConfigureAwait(false);
+			.ConfigureAwait(true);
 	}
 
 	[Fact]
@@ -242,7 +242,7 @@ public class MultiTransportOutboxStoreFunctionalShould
 
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => store.StageMessageAsync(null!, CancellationToken.None).AsTask())
-			.ConfigureAwait(false);
+			.ConfigureAwait(true);
 	}
 
 	[Fact]
@@ -253,7 +253,7 @@ public class MultiTransportOutboxStoreFunctionalShould
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
 
-		await store.EnqueueAsync(message, context, CancellationToken.None).ConfigureAwait(false);
+		await store.EnqueueAsync(message, context, CancellationToken.None).ConfigureAwait(true);
 
 		A.CallTo(() => inner.EnqueueAsync(message, context, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
@@ -269,7 +269,7 @@ public class MultiTransportOutboxStoreFunctionalShould
 
 		var store = CreateStore(inner);
 
-		var result = await store.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(false);
+		var result = await store.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(true);
 
 		result.ShouldBe(expected);
 	}
@@ -280,7 +280,7 @@ public class MultiTransportOutboxStoreFunctionalShould
 		var inner = A.Fake<IOutboxStore>();
 		var store = CreateStore(inner);
 
-		await store.MarkSentAsync("msg-1", CancellationToken.None).ConfigureAwait(false);
+		await store.MarkSentAsync("msg-1", CancellationToken.None).ConfigureAwait(true);
 
 		A.CallTo(() => inner.MarkSentAsync("msg-1", A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
@@ -292,7 +292,7 @@ public class MultiTransportOutboxStoreFunctionalShould
 		var inner = A.Fake<IOutboxStore>();
 		var store = CreateStore(inner);
 
-		await store.MarkFailedAsync("msg-1", "error", 2, CancellationToken.None).ConfigureAwait(false);
+		await store.MarkFailedAsync("msg-1", "error", 2, CancellationToken.None).ConfigureAwait(true);
 
 		A.CallTo(() => inner.MarkFailedAsync("msg-1", "error", 2, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
@@ -307,8 +307,9 @@ public class MultiTransportOutboxStoreFunctionalShould
 		var store = CreateStore(inner, options);
 		var message = new OutboundMessage { MessageType = "OrderCreated" };
 
-		await store.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(false);
+		await store.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(true);
 
 		message.TargetTransports.ShouldBe("kafka");
 	}
 }
+

@@ -11,13 +11,14 @@ New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
 Write-Host "🔎 Transitive bloat report (provider SDKs in Core/Abstractions)"
 
-if (-not (Test-Path $PackageMap)) {
-    Write-Warning "Package map not found at '$PackageMap'. Using fallback category heuristics (Core/Abstractions only)."
+$hasPackageMap = Test-Path $PackageMap
+if (-not $hasPackageMap) {
+    Write-Warning "Package map not found at '$PackageMap'. Using conservative fallback category heuristics."
 }
 
 # Quick YAML parse: id -> category
 $categories = @{}
-if (Test-Path $PackageMap) {
+if ($hasPackageMap) {
     $id = $null
     foreach ($line in Get-Content $PackageMap) {
         if ($line -match "^- id:\s*(.+)$") { $id = $Matches[1].Trim() }
@@ -43,16 +44,8 @@ foreach ($proj in $projects) {
         if ($pkgId -match '\.Abstractions($|\.)') {
             $cat = 'Abstractions'
         }
-        elseif ($pkgId -in @(
-            'Excalibur.Dispatch',
-            'Excalibur',
-            'Excalibur.Data',
-            'Excalibur.EventSourcing',
-            'Excalibur.Outbox',
-            'Excalibur.Saga',
-            'Excalibur.Jobs',
-            'Excalibur.LeaderElection'
-        )) {
+        elseif ($pkgId -eq 'Excalibur.Dispatch') {
+            # Without package-map metadata, only enforce on the canonical core package.
             $cat = 'Core'
         }
     }

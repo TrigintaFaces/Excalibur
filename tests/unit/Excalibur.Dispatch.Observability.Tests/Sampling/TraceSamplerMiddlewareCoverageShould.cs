@@ -18,7 +18,7 @@ public sealed class TraceSamplerMiddlewareCoverageShould
     private readonly TraceSamplerMiddleware _sut;
     private readonly IDispatchMessage _message;
     private readonly IMessageContext _context;
-    private readonly Dictionary<string, object?> _contextItems;
+    private readonly Dictionary<string, object> _contextItems;
 
     public TraceSamplerMiddlewareCoverageShould()
     {
@@ -26,7 +26,7 @@ public sealed class TraceSamplerMiddlewareCoverageShould
         _sut = new TraceSamplerMiddleware(_sampler);
         _message = A.Fake<IDispatchMessage>();
         _context = A.Fake<IMessageContext>();
-        _contextItems = new Dictionary<string, object?>();
+        _contextItems = new Dictionary<string, object>();
         A.CallTo(() => _context.Items).Returns(_contextItems);
     }
 

@@ -33,7 +33,7 @@ public class OutboxBulkCleanupAdapterFunctionalShould
 
 		await Should.ThrowAsync<ArgumentOutOfRangeException>(
 			() => adapter.BulkCleanupSentMessagesAsync(DateTimeOffset.UtcNow, 0, CancellationToken.None).AsTask())
-			.ConfigureAwait(false);
+			.ConfigureAwait(true);
 	}
 
 	[Fact]
@@ -47,7 +47,7 @@ public class OutboxBulkCleanupAdapterFunctionalShould
 		var adapter = new OutboxBulkCleanupAdapter(admin, NullLogger<OutboxBulkCleanupAdapter>.Instance);
 
 		var result = await adapter.BulkCleanupSentMessagesAsync(
-			DateTimeOffset.UtcNow, 100, CancellationToken.None).ConfigureAwait(false);
+			DateTimeOffset.UtcNow, 100, CancellationToken.None).ConfigureAwait(true);
 
 		result.ShouldBe(0);
 	}
@@ -64,7 +64,7 @@ public class OutboxBulkCleanupAdapterFunctionalShould
 		var adapter = new OutboxBulkCleanupAdapter(admin, NullLogger<OutboxBulkCleanupAdapter>.Instance);
 
 		var result = await adapter.BulkCleanupSentMessagesAsync(
-			DateTimeOffset.UtcNow, 100, CancellationToken.None).ConfigureAwait(false);
+			DateTimeOffset.UtcNow, 100, CancellationToken.None).ConfigureAwait(true);
 
 		result.ShouldBe(50);
 		A.CallTo(() => admin.CleanupSentMessagesAsync(
@@ -88,7 +88,7 @@ public class OutboxBulkCleanupAdapterFunctionalShould
 		var adapter = new OutboxBulkCleanupAdapter(admin, NullLogger<OutboxBulkCleanupAdapter>.Instance);
 
 		var result = await adapter.BulkCleanupSentMessagesAsync(
-			DateTimeOffset.UtcNow, 100, CancellationToken.None).ConfigureAwait(false);
+			DateTimeOffset.UtcNow, 100, CancellationToken.None).ConfigureAwait(true);
 
 		result.ShouldBe(330); // 100 + 100 + 100 + 30
 		A.CallTo(() => admin.CleanupSentMessagesAsync(
@@ -103,7 +103,7 @@ public class OutboxBulkCleanupAdapterFunctionalShould
 
 		await Should.ThrowAsync<ArgumentOutOfRangeException>(
 			() => adapter.BulkCleanupFailedMessagesAsync(3, DateTimeOffset.UtcNow, 0, CancellationToken.None).AsTask())
-			.ConfigureAwait(false);
+			.ConfigureAwait(true);
 	}
 
 	[Fact]
@@ -117,7 +117,7 @@ public class OutboxBulkCleanupAdapterFunctionalShould
 		var adapter = new OutboxBulkCleanupAdapter(admin, NullLogger<OutboxBulkCleanupAdapter>.Instance);
 
 		var result = await adapter.BulkCleanupFailedMessagesAsync(
-			3, DateTimeOffset.UtcNow, 100, CancellationToken.None).ConfigureAwait(false);
+			3, DateTimeOffset.UtcNow, 100, CancellationToken.None).ConfigureAwait(true);
 
 		result.ShouldBe(0);
 	}
@@ -139,7 +139,7 @@ public class OutboxBulkCleanupAdapterFunctionalShould
 		var adapter = new OutboxBulkCleanupAdapter(admin, NullLogger<OutboxBulkCleanupAdapter>.Instance);
 
 		var result = await adapter.BulkCleanupFailedMessagesAsync(
-			3, DateTimeOffset.UtcNow, 100, CancellationToken.None).ConfigureAwait(false);
+			3, DateTimeOffset.UtcNow, 100, CancellationToken.None).ConfigureAwait(true);
 
 		result.ShouldBe(30);
 	}
@@ -172,7 +172,7 @@ public class OutboxBulkCleanupAdapterFunctionalShould
 		var adapter = new OutboxBulkCleanupAdapter(admin, NullLogger<OutboxBulkCleanupAdapter>.Instance);
 
 		var result = await adapter.BulkCleanupFailedMessagesAsync(
-			3, DateTimeOffset.UtcNow, 100, CancellationToken.None).ConfigureAwait(false);
+			3, DateTimeOffset.UtcNow, 100, CancellationToken.None).ConfigureAwait(true);
 
 		result.ShouldBe(140); // 100 + 40
 	}
@@ -184,3 +184,4 @@ public class OutboxBulkCleanupAdapterFunctionalShould
 			.ToList();
 	}
 }
+

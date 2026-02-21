@@ -70,7 +70,6 @@
       "src\\Excalibur\\Excalibur.Data.MongoDB\\Excalibur.Data.MongoDB.csproj",
       "src\\Excalibur\\Excalibur.Data.MySql\\Excalibur.Data.MySql.csproj",
       "src\\Excalibur\\Excalibur.Data.Postgres\\Excalibur.Data.Postgres.csproj",
-      "src\\Excalibur\\Excalibur.Data.Postgres\\Excalibur.Data.Postgres.csproj",
       "src\\Excalibur\\Excalibur.Data.Redis\\Excalibur.Data.Redis.csproj",
       "src\\Excalibur\\Excalibur.Data.SqlServer\\Excalibur.Data.SqlServer.csproj",
       "src\\Excalibur\\Excalibur.Data\\Excalibur.Data.csproj",

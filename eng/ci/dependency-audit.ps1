@@ -34,7 +34,7 @@ foreach ($r in $results) {
   }
   $runs += @{ tool = @{ driver = @{ name = 'dotnet list package'; informationUri = 'https://learn.microsoft.com/dotnet/core/tools/dotnet-list-package' } }; results = $findings }
 }
-$sarif = @{ version = '2.1.0'; $schema = 'https://json.schemastore.org/sarif-2.1.0.json'; runs = $runs }
+$sarif = @{ version = '2.1.0'; '$schema' = 'https://json.schemastore.org/sarif-2.1.0.json'; runs = $runs }
 $sarif | ConvertTo-Json -Depth 8 | Out-File -FilePath $sarifPath -Encoding UTF8
 Write-Host "Wrote $jsonPath and $sarifPath"
 

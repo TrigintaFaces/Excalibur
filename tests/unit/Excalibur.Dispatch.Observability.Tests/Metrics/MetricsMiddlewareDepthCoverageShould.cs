@@ -97,9 +97,7 @@ public sealed class MetricsMiddlewareDepthCoverageShould
 		var failedResult = A.Fake<IMessageResult>();
 		A.CallTo(() => failedResult.IsSuccess).Returns(false);
 		var pd = A.Fake<IMessageProblemDetails>();
-#pragma warning disable CS8625 // Cannot convert null literal — testing null Type fallback
-		A.CallTo(() => pd.Type).Returns(null);
-#pragma warning restore CS8625
+		A.CallTo(() => pd.Type).ReturnsLazily(() => (string)null!);
 		A.CallTo(() => failedResult.ProblemDetails).Returns(pd);
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(failedResult);
 
