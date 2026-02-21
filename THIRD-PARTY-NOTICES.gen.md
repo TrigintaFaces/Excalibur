@@ -1,4 +1,4 @@
-# THIRD-PARTY NOTICES
+﻿# THIRD-PARTY NOTICES
 
 This file lists third-party packages referenced by this repository.
 It is generated from project files; licenses remain with their respective owners.
