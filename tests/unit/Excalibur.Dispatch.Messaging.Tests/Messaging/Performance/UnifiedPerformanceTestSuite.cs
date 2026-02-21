@@ -419,40 +419,51 @@ public sealed class UnifiedPerformanceTestSuite : IDisposable
 		var options = new InMemoryInboxOptions { MaxEntries = 1000, EnableAutomaticCleanup = false };
 		var store = CreateInboxStore(options);
 
-		const int messageCount = 500;
+		const int messageCount = 1000;
 		var payload = new byte[100];
 		var metadata = new Dictionary<string, object> { ["test"] = "value" };
 
+		// Warm-up both code paths to reduce JIT and first-use noise in CI.
+		_ = await store.CreateEntryAsync("warmup-msg", "TestHandler", "TestMessage", payload, metadata, CancellationToken.None);
+		using (var warmupActivity = activitySource.StartActivity("warmup-activity"))
+		{
+			_ = await store.CreateEntryAsync("warmup-msg-activity", "TestHandler", "TestMessage", payload, metadata, CancellationToken.None);
+			_ = warmupActivity?.SetTag("component", "InboxStore");
+		}
+
+		// Act - Measure baseline performance without Activity creation first
+		var store2 = CreateInboxStore(options);
+		var stopwatchBaseline = Stopwatch.StartNew();
+		var tasksBaseline = Enumerable.Range(0, messageCount)
+			.Select(i => store2.CreateEntryAsync($"baseline-{i}", "TestHandler", "TestMessage", payload, metadata, CancellationToken.None).AsTask())
+			.ToList();
+
+		_ = await Task.WhenAll(tasksBaseline);
+		stopwatchBaseline.Stop();
+
 		// Act - Measure performance with Activity creation
+		var initialActivityCount = activitiesCollected.Count;
 		var stopwatchWithActivity = Stopwatch.StartNew();
 		var tasksWithActivity = Enumerable.Range(0, messageCount)
 			.Select(async i =>
 			{
 				using var activity = activitySource.StartActivity($"CreateEntry-{i}");
-				_ = (activity?.SetTag("message.id", $"msg-{i}"));
-				_ = (activity?.SetTag("message.type", "TestMessage"));
-				_ = (activity?.SetTag("component", "InboxStore"));
+				_ = activity?.SetTag("message.id", $"msg-{i}");
+				_ = activity?.SetTag("message.type", "TestMessage");
+				_ = activity?.SetTag("component", "InboxStore");
 
-				_ = await store.CreateEntryAsync($"msg-{i}", "TestHandler", "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false);
+				_ = await store.CreateEntryAsync($"msg-{i}", "TestHandler", "TestMessage", payload, metadata, CancellationToken.None);
 			})
 			.ToList();
 
-		await Task.WhenAll(tasksWithActivity).ConfigureAwait(false);
+		await Task.WhenAll(tasksWithActivity);
 		stopwatchWithActivity.Stop();
 
-		// Act - Measure baseline performance without Activity creation
-		var store2 = CreateInboxStore(options);
-		var stopwatchBaseline = Stopwatch.StartNew();
-		var tasksBaseline = Enumerable.Range(0, messageCount)
-			.Select(async i => await store2.CreateEntryAsync($"baseline-{i}", "TestHandler", "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false))
-			.ToList();
-
-		_ = await Task.WhenAll(tasksBaseline).ConfigureAwait(false);
-		stopwatchBaseline.Stop();
-
 		// Assert - Activity overhead should be minimal
-		var baselineAvgMs = stopwatchBaseline.ElapsedMilliseconds / (double)messageCount;
-		var activityAvgMs = stopwatchWithActivity.ElapsedMilliseconds / (double)messageCount;
+		var baselineAvgMs = stopwatchBaseline.Elapsed.TotalMilliseconds / messageCount;
+		var activityAvgMs = stopwatchWithActivity.Elapsed.TotalMilliseconds / messageCount;
+		baselineAvgMs.ShouldBeGreaterThan(0.0);
+
 		var overheadPercentage = (activityAvgMs - baselineAvgMs) / baselineAvgMs * 100;
 
 		// CI-friendly: Relaxed from 60% to 150% overhead threshold for CI environment variance
@@ -461,7 +472,8 @@ public sealed class UnifiedPerformanceTestSuite : IDisposable
 
 		// CI-friendly: Activity count may be less than messageCount under load - some may be dropped
 		// Verify at least 50% of activities were captured (relaxed from 100%)
-		activitiesCollected.Count.ShouldBeGreaterThanOrEqualTo(messageCount / 2);
+		var capturedActivities = activitiesCollected.Count - initialActivityCount;
+		capturedActivities.ShouldBeGreaterThanOrEqualTo(messageCount / 2);
 
 		// Verify activity quality for captured activities
 		if (activitiesCollected.Any())

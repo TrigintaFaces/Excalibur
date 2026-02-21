@@ -1898,12 +1898,30 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Install Gitleaks
+        run: |
+          set -euo pipefail
+          GITLEAKS_VERSION="8.24.3"
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz
+          mkdir -p "${RUNNER_TEMP}/bin"
+          mv gitleaks "${RUNNER_TEMP}/bin/gitleaks"
+          chmod +x "${RUNNER_TEMP}/bin/gitleaks"
+          echo "${RUNNER_TEMP}/bin" >> "${GITHUB_PATH}"
+          "${RUNNER_TEMP}/bin/gitleaks" version
+
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          args: "detect --no-git -v --redact --report-path gitleaks.sarif --report-format sarif"
+        run: |
+          set -euo pipefail
+          # Scan current checkout only; avoids PR history-only findings from old commits.
+          gitleaks detect \
+            --source . \
+            --no-git \
+            -v \
+            --redact \
+            --exit-code 1 \
+            --report-format sarif \
+            --report-path gitleaks.sarif
       - name: Upload Gitleaks report
         if: always()
         uses: actions/upload-artifact@v4

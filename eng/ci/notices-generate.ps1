@@ -36,7 +36,9 @@ function Get-PackageReferencesFromCsproj {
 }
 
 $central = Get-PackageVersionsFromDirectoryProps (Join-Path (Get-Location) 'Directory.Packages.props')
-$projRefs = Get-ChildItem -Recurse -File -Include *.csproj | ForEach-Object { Get-PackageReferencesFromCsproj $_.FullName }
+$projRefs = Get-ChildItem -Recurse -File -Filter *.csproj |
+  Where-Object { $_.FullName -notmatch '[\\/](obj|bin)[\\/]' } |
+  ForEach-Object { Get-PackageReferencesFromCsproj $_.FullName }
 
 # Merge by Id, prefer explicit versions then central
 $all = @{}
