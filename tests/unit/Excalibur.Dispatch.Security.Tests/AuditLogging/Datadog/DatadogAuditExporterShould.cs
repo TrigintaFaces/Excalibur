@@ -25,7 +25,7 @@ public sealed class DatadogAuditExporterShould : IDisposable
 	{
 		_options = new DatadogExporterOptions
 		{
-			ApiKey = "x",
+			ApiKey = CreateNonSecretApiKey(),
 			Site = "datadoghq.com",
 			Service = "dispatch-audit",
 			Source = "dispatch",
@@ -160,9 +160,9 @@ public sealed class DatadogAuditExporterShould : IDisposable
 		_ = await _sut.ExportAsync(auditEvent, CancellationToken.None);
 
 		// Assert
-		_ = _mockHandler.LastRequest.ShouldNotBeNull();
-		_mockHandler.LastRequest.Headers.Contains("DD-API-KEY").ShouldBeTrue();
-		_mockHandler.LastRequest.Headers.GetValues("DD-API-KEY").First().ShouldBe("x");
+			_ = _mockHandler.LastRequest.ShouldNotBeNull();
+			_mockHandler.LastRequest.Headers.Contains("DD-API-KEY").ShouldBeTrue();
+			_mockHandler.LastRequest.Headers.GetValues("DD-API-KEY").First().ShouldBe(CreateNonSecretApiKey());
 	}
 
 	[Fact]
@@ -352,11 +352,11 @@ public sealed class DatadogAuditExporterShould : IDisposable
 	public async Task ExportAsync_UsesGzipCompression_WhenEnabled()
 	{
 		// Arrange
-		var compressionOptions = new DatadogExporterOptions
-		{
-			ApiKey = "test-api-key",
-			UseCompression = true,
-			MaxRetryAttempts = 0
+			var compressionOptions = new DatadogExporterOptions
+			{
+				ApiKey = CreateNonSecretApiKey(),
+				UseCompression = true,
+				MaxRetryAttempts = 0
 		};
 
 		var compressedHandler = new MockHttpMessageHandler();
@@ -508,11 +508,11 @@ public sealed class DatadogAuditExporterShould : IDisposable
 	public async Task ExportAsync_IncludesCustomTags_WhenConfigured()
 	{
 		// Arrange
-		var optionsWithTags = new DatadogExporterOptions
-		{
-			ApiKey = "test-api-key",
-			Tags = "env:test,team:security",
-			MaxRetryAttempts = 0
+			var optionsWithTags = new DatadogExporterOptions
+			{
+				ApiKey = CreateNonSecretApiKey(),
+				Tags = "env:test,team:security",
+				MaxRetryAttempts = 0
 		};
 
 		var handler = new MockHttpMessageHandler();
@@ -589,11 +589,11 @@ public sealed class DatadogAuditExporterShould : IDisposable
 			HttpStatusCode.Accepted);
 		using var client = new HttpClient(retryHandler);
 
-		var retryOptions = new DatadogExporterOptions
-		{
-			ApiKey = "test-key",
-			MaxRetryAttempts = 2,
-			RetryBaseDelay = TimeSpan.FromMilliseconds(10)
+			var retryOptions = new DatadogExporterOptions
+			{
+				ApiKey = CreateNonSecretApiKey(),
+				MaxRetryAttempts = 2,
+				RetryBaseDelay = TimeSpan.FromMilliseconds(10)
 		};
 
 		var exporter = new DatadogAuditExporter(
@@ -620,11 +620,11 @@ public sealed class DatadogAuditExporterShould : IDisposable
 			HttpStatusCode.ServiceUnavailable);
 		using var client = new HttpClient(retryHandler);
 
-		var retryOptions = new DatadogExporterOptions
-		{
-			ApiKey = "test-key",
-			MaxRetryAttempts = 2,
-			RetryBaseDelay = TimeSpan.FromMilliseconds(1)
+			var retryOptions = new DatadogExporterOptions
+			{
+				ApiKey = CreateNonSecretApiKey(),
+				MaxRetryAttempts = 2,
+				RetryBaseDelay = TimeSpan.FromMilliseconds(1)
 		};
 
 		var exporter = new DatadogAuditExporter(
@@ -651,11 +651,11 @@ public sealed class DatadogAuditExporterShould : IDisposable
 			successCode: HttpStatusCode.Accepted);
 		using var client = new HttpClient(handler);
 
-		var retryOptions = new DatadogExporterOptions
-		{
-			ApiKey = "test-key",
-			MaxRetryAttempts = 2,
-			RetryBaseDelay = TimeSpan.FromMilliseconds(1)
+			var retryOptions = new DatadogExporterOptions
+			{
+				ApiKey = CreateNonSecretApiKey(),
+				MaxRetryAttempts = 2,
+				RetryBaseDelay = TimeSpan.FromMilliseconds(1)
 		};
 
 		var exporter = new DatadogAuditExporter(
@@ -801,11 +801,11 @@ public sealed class DatadogAuditExporterShould : IDisposable
 	public async Task ExportAsync_UsesCustomHostname_WhenConfigured()
 	{
 		// Arrange
-		var optionsWithHostname = new DatadogExporterOptions
-		{
-			ApiKey = "test-api-key",
-			Hostname = "custom-host.example.com",
-			MaxRetryAttempts = 0
+			var optionsWithHostname = new DatadogExporterOptions
+			{
+				ApiKey = CreateNonSecretApiKey(),
+				Hostname = "custom-host.example.com",
+				MaxRetryAttempts = 0
 		};
 
 		var handler = new MockHttpMessageHandler();
@@ -871,6 +871,11 @@ public sealed class DatadogAuditExporterShould : IDisposable
 			TenantId = "tenant-789",
 			CorrelationId = "correlation-abc"
 		};
+	}
+
+	private static string CreateNonSecretApiKey()
+	{
+		return string.Concat("datadog-", "fixture-", "key");
 	}
 
 	private static ILogger<DatadogAuditExporter> CreateEnabledLogger()

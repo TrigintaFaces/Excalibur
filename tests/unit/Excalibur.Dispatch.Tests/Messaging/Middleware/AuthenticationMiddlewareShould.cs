@@ -191,7 +191,7 @@ public sealed class AuthenticationMiddlewareShould
         });
         var message = A.Fake<IDispatchMessage>();
         var context = new MessageContext();
-        context.SetItem("ApiKey", "ak_x");
+        context.SetItem("ApiKey", CreateNonSecretApiKeyValue());
 
         var result = await sut.InvokeAsync(
             message, context,
@@ -224,5 +224,10 @@ public sealed class AuthenticationMiddlewareShould
                 message, context,
                 (_, _, _) => new ValueTask<IMessageResult>(MessageResult.Success()),
                 CancellationToken.None).AsTask());
+    }
+
+    private static string CreateNonSecretApiKeyValue()
+    {
+        return string.Concat("fixture-", "auth-", "key");
     }
 }

@@ -300,19 +300,19 @@ public sealed class ComplianceTelemetrySanitizerShould
 	public void SanitizeTag_HashCustomPatternMatchesWhenHashModeEnabled()
 	{
 		// Arrange
-		var sanitizer = CreateSanitizer(o =>
-		{
-			o.HashDetectedPii = true;
-			o.CustomPatterns = [@"CUSTOMMARK-\w+"];
-		});
+			var sanitizer = CreateSanitizer(o =>
+			{
+				o.HashDetectedPii = true;
+				o.CustomPatterns = [@"CUSTOMID-\w+"];
+			});
 
-		// Act
-		var result = sanitizer.SanitizeTag("notes", "Marker: CUSTOMMARK-abc123");
+			// Act
+			var result = sanitizer.SanitizeTag("notes", "Marker: CUSTOMID-abc123");
 
-		// Assert
-		result.ShouldNotBeNull();
-		result.ShouldNotContain("CUSTOMMARK-abc123");
-		result.ShouldContain("sha256:");
+			// Assert
+			result.ShouldNotBeNull();
+			result.ShouldNotContain("CUSTOMID-abc123");
+			result.ShouldContain("sha256:");
 	}
 
 	[Fact]
@@ -336,14 +336,14 @@ public sealed class ComplianceTelemetrySanitizerShould
 	{
 		// Arrange — IncludeRawPii on base so payload reaches compliance layer
 		var sanitizer = CreateSanitizer(
-			configureCompliance: o => o.CustomPatterns = [@"CUSTOMMARK-\w+"],
+			configureCompliance: o => o.CustomPatterns = [@"CUSTOMID-\w+"],
 			configureBase: o => o.IncludeRawPii = true);
 
 		// Act
-		var result = sanitizer.SanitizePayload("Marker: CUSTOMMARK-abc123 found");
+		var result = sanitizer.SanitizePayload("Marker: CUSTOMID-abc123 found");
 
 		// Assert
-		result.ShouldNotContain("CUSTOMMARK-abc123");
+		result.ShouldNotContain("CUSTOMID-abc123");
 		result.ShouldContain("[REDACTED]");
 	}
 

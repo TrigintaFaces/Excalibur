@@ -17,7 +17,7 @@ dotnet add package Excalibur.Data.CosmosDb
 services.AddCosmosDb(options =>
 {
     options.AccountEndpoint = "https://your-account.documents.azure.com:443/";
-    options.AccountKey = "your-account-key";
+    options.AccountKey = Environment.GetEnvironmentVariable("COSMOS_ACCOUNT_KEY");
     options.DatabaseName = "your-database";
     options.DefaultContainerName = "your-container";
 });
@@ -32,7 +32,7 @@ services.AddCosmosDb(configuration.GetSection("CosmosDb"));
 {
   "CosmosDb": {
     "AccountEndpoint": "https://your-account.documents.azure.com:443/",
-    "AccountKey": "your-account-key",
+    "AccountKey": "${COSMOS_ACCOUNT_KEY}",
     "DatabaseName": "your-database",
     "DefaultContainerName": "your-container",
     "DefaultPartitionKeyPath": "/tenantId",
@@ -240,7 +240,7 @@ For local development with Azure Cosmos DB Emulator:
 services.AddCosmosDb(options =>
 {
     options.AccountEndpoint = "https://localhost:8081/";
-    options.AccountKey = "x";
+    options.AccountKey = Environment.GetEnvironmentVariable("COSMOS_EMULATOR_KEY");
     options.DatabaseName = "test-database";
 });
 ```

@@ -141,7 +141,7 @@ Excalibur.Dispatch.Aot.Sample/
 ├── Program.cs                     # Entry point with demos
 ├── Messages/
 │   ├── CreateOrderCommand.cs      # Command with response
-│   ├── GetOrderQuery.cs           # Query with nullable result
+│   ├── GetOrderQuery.cs           # Query with explicit not-found exception
 │   └── OrderCreatedEvent.cs       # Domain event
 ├── Handlers/
 │   ├── CreateOrderHandler.cs      # Command handler

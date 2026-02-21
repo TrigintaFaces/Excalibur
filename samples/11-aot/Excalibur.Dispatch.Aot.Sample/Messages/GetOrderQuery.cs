@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Aot.Sample.Messages;
 /// Query to retrieve an order by ID.
 /// Demonstrates AOT-compatible query dispatch.
 /// </summary>
-public sealed record GetOrderQuery : IDispatchAction<OrderDto?>
+public sealed record GetOrderQuery : IDispatchAction<OrderDto>
 {
 	/// <summary>
 	/// Gets or initializes the order ID to retrieve.

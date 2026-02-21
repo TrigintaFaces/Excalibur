@@ -10,16 +10,16 @@ namespace Excalibur.Dispatch.Aot.Sample.Handlers;
 /// Handles order query requests.
 /// </summary>
 /// <remarks>
-/// Demonstrates AOT-compatible query handling with nullable return types.
+/// Demonstrates AOT-compatible query handling with explicit not-found behavior.
 /// </remarks>
-public sealed class GetOrderHandler : IActionHandler<GetOrderQuery, OrderDto?>
+public sealed class GetOrderHandler : IActionHandler<GetOrderQuery, OrderDto>
 {
 	// In-memory store for demo purposes
 	private static readonly Dictionary<Guid, OrderDto> _orders = new();
 	private static readonly object _lock = new();
 
 	/// <inheritdoc />
-	public Task<OrderDto?> HandleAsync(GetOrderQuery action, CancellationToken cancellationToken)
+	public Task<OrderDto> HandleAsync(GetOrderQuery action, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(action);
 
@@ -27,11 +27,14 @@ public sealed class GetOrderHandler : IActionHandler<GetOrderQuery, OrderDto?>
 
 		lock (_lock)
 		{
-			_ = _orders.TryGetValue(action.OrderId, out var order);
-			Console.WriteLine(order != null
-				? $"[GetOrderHandler] Found order for customer {order.CustomerId}"
-				: $"[GetOrderHandler] Order not found");
-			return Task.FromResult(order);
+			if (_orders.TryGetValue(action.OrderId, out var order))
+			{
+				Console.WriteLine($"[GetOrderHandler] Found order for customer {order.CustomerId}");
+				return Task.FromResult(order);
+			}
+
+			Console.WriteLine("[GetOrderHandler] Order not found");
+			throw new InvalidOperationException($"Order '{action.OrderId}' was not found.");
 		}
 	}
 

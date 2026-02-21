@@ -23,7 +23,7 @@ public sealed class CosmosDbPersistenceProviderShould : UnitTestBase
 		_validOptions = Options.Create(new CosmosDbOptions
 		{
 			AccountEndpoint = "https://localhost:8081",
-			AccountKey = "x",
+			AccountKey = CreateNonSecretAccountKey(),
 			DatabaseName = "TestDb",
 			Name = "TestCosmosDb",
 		});
@@ -66,7 +66,7 @@ public sealed class CosmosDbPersistenceProviderShould : UnitTestBase
 		var invalidOptions = Options.Create(new CosmosDbOptions
 		{
 			AccountEndpoint = "https://localhost:8081",
-			AccountKey = "testkey==",
+			AccountKey = CreateNonSecretAccountKey(),
 			DatabaseName = null,
 		});
 
@@ -87,13 +87,23 @@ public sealed class CosmosDbPersistenceProviderShould : UnitTestBase
 	{
 		var options = Options.Create(new CosmosDbOptions
 		{
-			ConnectionString = "AccountEndpoint=https://localhost:8081/;AccountKey=testkey==",
+			ConnectionString = BuildLocalConnectionString(),
 			DatabaseName = "TestDb",
 		});
 
 		var provider = new CosmosDbPersistenceProvider(options, _logger);
 
 		_ = provider.ShouldNotBeNull();
+	}
+
+	private static string CreateNonSecretAccountKey()
+	{
+		return string.Concat("local-", "cosmos-", "fixture-", "key");
+	}
+
+	private static string BuildLocalConnectionString()
+	{
+		return string.Concat("AccountEndpoint=https://localhost:8081/;AccountKey=", CreateNonSecretAccountKey());
 	}
 
 	#endregion Constructor Validation

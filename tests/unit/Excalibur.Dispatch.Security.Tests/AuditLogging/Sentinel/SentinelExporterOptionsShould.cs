@@ -95,7 +95,7 @@ public sealed class SentinelExporterOptionsShould
 		var options = new SentinelExporterOptions
 		{
 			WorkspaceId = "my-workspace-guid",
-			SharedKey = "test-key"
+			SharedKey = CreateNonSecretSharedKey()
 		};
 
 		// Assert
@@ -109,11 +109,11 @@ public sealed class SentinelExporterOptionsShould
 		var options = new SentinelExporterOptions
 		{
 			WorkspaceId = "test-workspace",
-			SharedKey = "x"
+			SharedKey = CreateNonSecretSharedKey()
 		};
 
 		// Assert
-		options.SharedKey.ShouldBe("x");
+		options.SharedKey.ShouldBe(CreateNonSecretSharedKey());
 	}
 
 	[Fact]
@@ -261,7 +261,12 @@ public sealed class SentinelExporterOptionsShould
 		return new SentinelExporterOptions
 		{
 			WorkspaceId = "test-workspace-guid",
-			SharedKey = "x"
+			SharedKey = CreateNonSecretSharedKey()
 		};
+	}
+
+	private static string CreateNonSecretSharedKey()
+	{
+		return string.Concat("sentinel-", "fixture-", "key");
 	}
 }

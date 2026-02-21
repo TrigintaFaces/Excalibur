@@ -93,7 +93,7 @@ Console.WriteLine("Both OrderEventHandler and OrderAnalyticsHandler processed it
 Console.WriteLine();
 
 // ============================================================================
-// Demo 3: Query with Nullable Response
+// Demo 3: Query Existing Order
 // ============================================================================
 Console.WriteLine("--- Demo 3: Query Order ---");
 
@@ -109,14 +109,11 @@ GetOrderHandler.AddOrder(new OrderDto
 });
 
 var query = new GetOrderQuery { OrderId = orderId };
-var order = await directLocal.DispatchLocalAsync<GetOrderQuery, OrderDto?>(query, cancellationToken: default)
+var order = await directLocal.DispatchLocalAsync<GetOrderQuery, OrderDto>(query, cancellationToken: default)
 	.ConfigureAwait(false);
-if (order != null)
-{
-	Console.WriteLine("Order retrieved (source-generated serialization):");
-	var orderJson = JsonSerializer.Serialize(order, AppJsonSerializerContext.Default.OrderDto);
-	Console.WriteLine($"  {orderJson}");
-}
+Console.WriteLine("Order retrieved (source-generated serialization):");
+var orderJson = JsonSerializer.Serialize(order, AppJsonSerializerContext.Default.OrderDto);
+Console.WriteLine($"  {orderJson}");
 
 Console.WriteLine();
 
@@ -126,9 +123,16 @@ Console.WriteLine();
 Console.WriteLine("--- Demo 4: Query Non-Existent Order ---");
 
 var missingQuery = new GetOrderQuery { OrderId = Guid.NewGuid() };
-var missing = await directLocal.DispatchLocalAsync<GetOrderQuery, OrderDto?>(missingQuery, cancellationToken: default)
-	.ConfigureAwait(false);
-Console.WriteLine(missing == null ? "Order not found (as expected)" : "Unexpected: found order");
+try
+{
+	_ = await directLocal.DispatchLocalAsync<GetOrderQuery, OrderDto>(missingQuery, cancellationToken: default)
+		.ConfigureAwait(false);
+	Console.WriteLine("Unexpected: found order");
+}
+catch (InvalidOperationException ex)
+{
+	Console.WriteLine($"Order not found (as expected): {ex.Message}");
+}
 Console.WriteLine();
 
 // ============================================================================

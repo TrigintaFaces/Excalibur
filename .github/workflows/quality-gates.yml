@@ -364,7 +364,7 @@ jobs:
   api-compatibility:
     name: API Compatibility
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -379,17 +379,18 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Install API compatibility tools
+      - name: Run API compatibility report
+        shell: pwsh
         run: |
-          dotnet tool install -g Microsoft.DotNet.ApiCompat.Tool || true
+          ./eng/ci/api-compat-run.ps1 -OutputDir management/reports/ApiCompatReport
 
-      - name: Check public API compatibility
-        run: |
-          # Build packages
-          dotnet build --configuration Release
-
-          # Note: Full API compatibility check would compare against baseline
-          echo "✅ API compatibility check completed"
+      - name: Upload API compatibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-compat-report-quality-gates
+          path: management/reports/ApiCompatReport
+          retention-days: 7
 
   # Summary gate
   summary:

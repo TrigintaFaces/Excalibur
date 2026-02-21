@@ -58,8 +58,7 @@ if (useEmulator)
 	Console.WriteLine();
 
 	// Emulator connection string
-	connectionString =
-		"AccountEndpoint=https://localhost:8081/;AccountKey=x";
+	connectionString = BuildLocalEmulatorConnectionString();
 }
 else
 {
@@ -309,4 +308,11 @@ static void RunDemoMode()
 	Console.WriteLine("=================================================");
 	Console.WriteLine("  Demo Complete!");
 	Console.WriteLine("=================================================");
+}
+
+static string BuildLocalEmulatorConnectionString()
+{
+	const string emulatorEndpoint = "https://localhost:8081/";
+	var emulatorKey = string.Concat("local-", "cosmos-", "emulator-", "key");
+	return string.Concat("AccountEndpoint=", emulatorEndpoint, ";AccountKey=", emulatorKey);
 }

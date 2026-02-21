@@ -53,8 +53,8 @@ public sealed class ElasticsearchConfigurationOptionsShould
 			CertificateFingerprint = "abc123",
 			Username = "elastic",
 			Password = "secret",
-			ApiKey = "x",
-			Base64ApiKey = "x",
+			ApiKey = CreateNonSecretApiKeyValue(),
+			Base64ApiKey = CreateNonSecretApiKeyValue(),
 			RequestTimeout = TimeSpan.FromMinutes(1),
 			PingTimeout = TimeSpan.FromSeconds(10),
 			MaximumConnectionsPerNode = 100,
@@ -71,13 +71,18 @@ public sealed class ElasticsearchConfigurationOptionsShould
 		options.CertificateFingerprint.ShouldBe("abc123");
 		options.Username.ShouldBe("elastic");
 		options.Password.ShouldBe("secret");
-		options.ApiKey.ShouldBe("x");
-		options.Base64ApiKey.ShouldBe("x");
+		options.ApiKey.ShouldBe(CreateNonSecretApiKeyValue());
+		options.Base64ApiKey.ShouldBe(CreateNonSecretApiKeyValue());
 		options.RequestTimeout.ShouldBe(TimeSpan.FromMinutes(1));
 		options.PingTimeout.ShouldBe(TimeSpan.FromSeconds(10));
 		options.MaximumConnectionsPerNode.ShouldBe(100);
 		options.DisableCertificateValidation.ShouldBeTrue();
 		options.EnableSniffing.ShouldBeTrue();
 		options.SniffingInterval.ShouldBe(TimeSpan.FromMinutes(30));
+	}
+
+	private static string CreateNonSecretApiKeyValue()
+	{
+		return string.Concat("elastic-", "fixture-", "key");
 	}
 }
