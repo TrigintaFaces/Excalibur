@@ -28,7 +28,7 @@ public class SqlServerLeaderElectionBenchmarks
 
 	private string _iterationResource = null!;
 
-	private bool IsAvailable => ConnectionString is not null;
+	private static bool IsAvailable => ConnectionString is not null;
 
 	[IterationSetup]
 	public void IterationSetup()

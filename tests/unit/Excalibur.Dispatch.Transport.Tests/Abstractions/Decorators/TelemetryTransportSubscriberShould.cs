@@ -262,6 +262,7 @@ public sealed class TelemetryTransportSubscriberShould : IDisposable
 	{
 		if (_disposed) return;
 		_disposed = true;
+		(_innerSubscriber as IDisposable)?.Dispose();
 		_meterListener.Dispose();
 		_meter.Dispose();
 		_activitySource.Dispose();

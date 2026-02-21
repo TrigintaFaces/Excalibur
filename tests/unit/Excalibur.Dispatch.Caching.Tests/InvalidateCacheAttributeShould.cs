@@ -12,6 +12,8 @@ namespace Excalibur.Dispatch.Caching.Tests;
 [Trait("Component", "Caching")]
 public sealed class InvalidateCacheAttributeShould
 {
+	private static readonly string[] UserProfileTags = ["users", "profiles"];
+
 	#region Default Value Tests
 
 	[Fact]
@@ -36,7 +38,7 @@ public sealed class InvalidateCacheAttributeShould
 		var attribute = new InvalidateCacheAttribute { Tags = ["users", "profiles"] };
 
 		// Assert
-		attribute.Tags.ShouldBe(new[] { "users", "profiles" });
+		attribute.Tags.ShouldBe(UserProfileTags);
 	}
 
 	[Fact]

@@ -27,6 +27,8 @@ public class IsGreaterThan : Specification<int>
 [Trait("Category", "Unit")]
 public class SpecificationFunctionalShould
 {
+    private static readonly int[] PositiveEvenNumbers = [2, 4, 6];
+
     [Theory]
     [InlineData(5, true)]
     [InlineData(0, false)]
@@ -141,6 +143,6 @@ public class SpecificationFunctionalShould
 
         var results = numbers.Where(n => spec.IsSatisfiedBy(n)).ToArray();
 
-        results.ShouldBe(new[] { 2, 4, 6 });
+        results.ShouldBe(PositiveEvenNumbers);
     }
 }

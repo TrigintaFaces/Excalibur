@@ -165,7 +165,7 @@ public sealed class MetricsMiddlewareShould : UnitTestBase
 		// Arrange
 		var message = new TestMetricMessage();
 		var context = A.Fake<IMessageContext>();
-		var problemDetails = new MessageProblemDetails { Title = "Error", Type = null };
+		var problemDetails = new MessageProblemDetails { Title = "Error", Type = null! };
 		DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(MessageResult.Failed(problemDetails));
 
 		// Act

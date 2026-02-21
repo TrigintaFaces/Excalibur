@@ -425,7 +425,7 @@ public sealed class LruCacheShould : IDisposable
 	#region Thread Safety Tests
 
 	[Fact]
-	public void IsThreadSafe_ForConcurrentAccess()
+	public async Task IsThreadSafe_ForConcurrentAccess()
 	{
 		// Arrange
 		_cache = new LruCache<string, int>(1000);
@@ -445,7 +445,7 @@ public sealed class LruCacheShould : IDisposable
 			}));
 		}
 
-		Task.WaitAll(tasks.ToArray());
+		await Task.WhenAll(tasks);
 
 		// Assert - Should not throw and cache should have items
 		_cache.Count.ShouldBeGreaterThan(0);

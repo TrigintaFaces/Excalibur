@@ -16,12 +16,8 @@ function Get-RelativePath {
     [string]$TargetPath
   )
   $base = [System.IO.Path]::GetFullPath($BasePath)
-  if (-not $base.EndsWith([System.IO.Path]::DirectorySeparatorChar)) {
-    $base += [System.IO.Path]::DirectorySeparatorChar
-  }
-  $baseUri = [System.Uri]$base
-  $targetUri = [System.Uri]([System.IO.Path]::GetFullPath($TargetPath))
-  return [System.Uri]::UnescapeDataString($baseUri.MakeRelativeUri($targetUri).ToString()).Replace('/', [System.IO.Path]::DirectorySeparatorChar)
+  $target = [System.IO.Path]::GetFullPath($TargetPath)
+  return [System.IO.Path]::GetRelativePath($base, $target)
 }
 
 function Get-ProjectTargetFrameworks {

@@ -329,7 +329,7 @@ public sealed class EncryptingProjectionStoreDecoratorExtendedShould
 
 		// Assert
 		result.ShouldBe(5L);
-		A.CallTo(() => innerStore.CountAsync(A<IDictionary<string, object>?>.That.IsNotNull(), _ct))
+		A.CallTo(() => innerStore.CountAsync(A<IDictionary<string, object>>.That.IsNotNull(), _ct))
 			.MustHaveHappenedOnceExactly();
 	}
 

@@ -451,6 +451,7 @@ public sealed class RabbitMqDeadLetterQueueManagerShould : IDisposable
 	public void Dispose()
 	{
 		_sut.Dispose();
+		_fakeChannel.Dispose();
 	}
 
 	private static DeadLetterMessage CreateDeadLetterMessage(

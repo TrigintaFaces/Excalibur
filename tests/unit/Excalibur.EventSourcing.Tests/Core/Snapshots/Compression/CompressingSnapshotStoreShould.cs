@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.IO.Compression;
+using System.Security.Cryptography;
 
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing.Abstractions;
@@ -42,7 +43,7 @@ public sealed class CompressingSnapshotStoreShould
 	{
 		// Arrange
 		var originalData = new byte[100];
-		Random.Shared.NextBytes(originalData);
+		RandomNumberGenerator.Fill(originalData);
 		var snapshot = CreateSnapshot("agg-1", originalData);
 
 		ISnapshot? capturedSnapshot = null;

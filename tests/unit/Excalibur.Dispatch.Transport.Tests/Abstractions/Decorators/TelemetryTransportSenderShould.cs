@@ -170,6 +170,7 @@ public sealed class TelemetryTransportSenderShould : IDisposable
 	{
 		if (_disposed) return;
 		_disposed = true;
+		(_innerSender as IDisposable)?.Dispose();
 		_meterListener.Dispose();
 		_meter.Dispose();
 		_activitySource.Dispose();

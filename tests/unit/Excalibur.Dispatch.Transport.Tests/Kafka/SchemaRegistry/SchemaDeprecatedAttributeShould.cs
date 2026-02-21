@@ -169,7 +169,7 @@ public sealed class SchemaDeprecatedAttributeShould
 		public string? DeprecatedWithoutMessage { get; set; }
 
 		[SchemaDeprecated("Use NewField")]
-		public string? DeprecatedField;
+		public string? DeprecatedField = default;
 	}
 
 	#endregion

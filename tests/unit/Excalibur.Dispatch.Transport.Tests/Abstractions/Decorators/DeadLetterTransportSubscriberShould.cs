@@ -310,6 +310,7 @@ public sealed class DeadLetterTransportSubscriberShould : IDisposable
 	{
 		if (_disposed) return;
 		_disposed = true;
+		(_innerSubscriber as IDisposable)?.Dispose();
 		_meterListener.Dispose();
 		_meter.Dispose();
 	}

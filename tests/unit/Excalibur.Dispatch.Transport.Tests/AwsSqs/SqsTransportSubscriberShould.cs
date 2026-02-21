@@ -131,5 +131,6 @@ public sealed class SqsTransportSubscriberShould : IAsyncDisposable
 	public async ValueTask DisposeAsync()
 	{
 		await _sut.DisposeAsync();
+		_fakeSqsClient.Dispose();
 	}
 }

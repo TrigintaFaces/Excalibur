@@ -168,5 +168,9 @@ public sealed class PubSubTransportSubscriberShould : IAsyncDisposable
 	public async ValueTask DisposeAsync()
 	{
 		await _sut.DisposeAsync();
+		if (_fakeSubscriber is IDisposable disposable)
+		{
+			disposable.Dispose();
+		}
 	}
 }

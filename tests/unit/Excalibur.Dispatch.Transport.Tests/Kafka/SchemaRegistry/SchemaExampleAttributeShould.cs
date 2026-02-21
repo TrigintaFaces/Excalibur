@@ -209,7 +209,7 @@ public sealed class SchemaExampleAttributeShould
 		public string? Status { get; set; }
 
 		[SchemaExample(99.99)]
-		public decimal Amount;
+		public decimal Amount = default;
 	}
 
 	#endregion

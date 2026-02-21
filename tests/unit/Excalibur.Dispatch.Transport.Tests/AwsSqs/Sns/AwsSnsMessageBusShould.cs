@@ -130,5 +130,6 @@ public sealed class AwsSnsMessageBusShould : IAsyncDisposable
 	public async ValueTask DisposeAsync()
 	{
 		await _bus.DisposeAsync();
+		_snsClient.Dispose();
 	}
 }

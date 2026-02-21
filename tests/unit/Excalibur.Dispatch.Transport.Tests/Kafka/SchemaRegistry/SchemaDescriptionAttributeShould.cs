@@ -150,7 +150,7 @@ public sealed class SchemaDescriptionAttributeShould
 		public string? OrderId { get; set; }
 
 		[SchemaDescription("The total order amount")]
-		public decimal TotalAmount;
+		public decimal TotalAmount = default;
 	}
 
 	#endregion

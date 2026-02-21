@@ -147,5 +147,6 @@ public sealed class RabbitMqTransportSubscriberShould : IAsyncDisposable
 	public async ValueTask DisposeAsync()
 	{
 		await _sut.DisposeAsync();
+		_fakeChannel.Dispose();
 	}
 }

@@ -30,7 +30,11 @@ public sealed class SqsTransportSenderShould : IAsyncDisposable
 			NullLogger<SqsTransportSender>.Instance);
 	}
 
-	public ValueTask DisposeAsync() => _sender.DisposeAsync();
+	public async ValueTask DisposeAsync()
+	{
+		await _sender.DisposeAsync();
+		_fakeSqs.Dispose();
+	}
 
 	[Fact]
 	public void ExposeDestination()

@@ -212,6 +212,7 @@ public sealed class LongPollingOptimizerShould : IDisposable
 	public void Dispose()
 	{
 		_optimizer.Dispose();
+		_receiver.Dispose();
 	}
 }
 

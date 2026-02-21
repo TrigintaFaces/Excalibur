@@ -31,7 +31,7 @@ public class SqlServerSagaStoreBenchmarks
 	private Guid _iterationSagaId;
 	private string _correlationId = null!;
 
-	private bool IsAvailable => ConnectionString is not null;
+	private static bool IsAvailable => ConnectionString is not null;
 
 	[GlobalSetup]
 	public void GlobalSetup()

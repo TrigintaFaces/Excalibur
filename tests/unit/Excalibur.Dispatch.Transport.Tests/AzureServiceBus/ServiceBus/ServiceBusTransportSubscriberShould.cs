@@ -147,5 +147,13 @@ public sealed class ServiceBusTransportSubscriberShould : IAsyncDisposable
 	public async ValueTask DisposeAsync()
 	{
 		await _sut.DisposeAsync();
+		if (_fakeProcessor is IAsyncDisposable asyncDisposable)
+		{
+			await asyncDisposable.DisposeAsync();
+		}
+		else if (_fakeProcessor is IDisposable disposable)
+		{
+			disposable.Dispose();
+		}
 	}
 }

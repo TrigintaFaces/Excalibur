@@ -18,6 +18,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Validation;
 [Trait("Component", "Core")]
 public sealed class ValidationResultExtensionsShould
 {
+	private static readonly string[] MultipleFailurePropertyNames = ["Name", "Email", "Age"];
+
 	#region Test Messages
 
 	private sealed record ExtTestMessage(string Name, int Age) : IDispatchMessage;
@@ -191,7 +193,7 @@ public sealed class ValidationResultExtensionsShould
 		dispatchResult.Errors.Count.ShouldBe(3);
 
 		var errors = dispatchResult.Errors.Cast<DispatchValidationError>().ToList();
-		errors.Select(e => e.PropertyName).ShouldBe(new[] { "Name", "Email", "Age" });
+		errors.Select(e => e.PropertyName).ShouldBe(MultipleFailurePropertyNames);
 	}
 
 	[Fact]

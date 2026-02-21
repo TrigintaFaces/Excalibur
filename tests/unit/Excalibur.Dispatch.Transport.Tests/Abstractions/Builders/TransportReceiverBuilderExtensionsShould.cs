@@ -100,6 +100,7 @@ public sealed class TransportReceiverBuilderExtensionsShould : IDisposable
 	{
 		if (_disposed) return;
 		_disposed = true;
+		(_innerReceiver as IDisposable)?.Dispose();
 		_meter.Dispose();
 		_activitySource.Dispose();
 	}

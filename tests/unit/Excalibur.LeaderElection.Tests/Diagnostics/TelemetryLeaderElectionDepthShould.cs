@@ -256,6 +256,7 @@ public sealed class TelemetryLeaderElectionDepthShould : IDisposable
 
 	public void Dispose()
 	{
+		(_inner as IDisposable)?.Dispose();
 		_meter.Dispose();
 		_activitySource.Dispose();
 	}

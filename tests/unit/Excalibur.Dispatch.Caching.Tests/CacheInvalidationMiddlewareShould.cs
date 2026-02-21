@@ -40,6 +40,7 @@ public sealed class CacheInvalidationMiddlewareShould : IDisposable
 	public void Dispose()
 	{
 		if (_meterFactory is IDisposable d) d.Dispose();
+		_fakeMemoryCache.Dispose();
 	}
 
 	[Fact]

@@ -132,7 +132,7 @@ public sealed class RedisJobCoordinatorShould
 		A.CallTo(_database)
 			.Where(call => call.Method.Name == "StringSetAsync"
 				&& call.Arguments.Count > 0
-				&& (string)(RedisKey)call.Arguments[0]! == "test:instances:test-instance")
+				&& Equals(call.Arguments[0], (RedisKey)"test:instances:test-instance"))
 			.MustHaveHappenedOnceExactly();
 
 		A.CallTo(() => _database.SetAddAsync(
@@ -233,7 +233,7 @@ public sealed class RedisJobCoordinatorShould
 		A.CallTo(_database)
 			.Where(call => call.Method.Name == "StringSetAsync"
 				&& call.Arguments.Count > 0
-				&& (string)(RedisKey)call.Arguments[0]! == "test:completions:test-job")
+				&& Equals(call.Arguments[0], (RedisKey)"test:completions:test-job"))
 			.MustHaveHappenedOnceExactly();
 	}
 

@@ -114,7 +114,7 @@ public sealed class InMemorySagaCorrelationQueryShould
 	}
 
 	[Fact]
-	public void UpdateStatus_ChangesSagaStatus()
+	public async Task UpdateStatus_ChangesSagaStatus()
 	{
 		// Arrange
 		_sut.IndexSaga("saga-1", "OrderSaga", "corr-1", SagaStatus.Running, DateTimeOffset.UtcNow);
@@ -123,7 +123,7 @@ public sealed class InMemorySagaCorrelationQueryShould
 		_sut.UpdateStatus("saga-1", SagaStatus.Completed);
 
 		// The status changed to Completed, and IncludeCompleted = false
-		var result = _sut.FindByCorrelationIdAsync("corr-1", CancellationToken.None).Result;
+		var result = await _sut.FindByCorrelationIdAsync("corr-1", CancellationToken.None);
 		result.ShouldBeEmpty();
 	}
 

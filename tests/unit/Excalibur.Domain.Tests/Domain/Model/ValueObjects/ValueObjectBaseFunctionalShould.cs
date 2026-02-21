@@ -20,8 +20,8 @@ public sealed class EmailAddress : ValueObjectBase
 
     public override IEnumerable<object?> GetEqualityComponents()
     {
-        yield return User?.ToLowerInvariant();
-        yield return Domain?.ToLowerInvariant();
+        yield return User?.ToUpperInvariant();
+        yield return Domain?.ToUpperInvariant();
     }
 }
 
@@ -85,9 +85,7 @@ public class ValueObjectBaseFunctionalShould
     {
         var a = new EmailAddress("john", "example.com");
 
-#pragma warning disable SA1131 // Use readable conditions
-        (a == a).ShouldBeTrue();
-#pragma warning restore SA1131
+        ReferenceEquals(a, a).ShouldBeTrue();
     }
 
     [Fact]

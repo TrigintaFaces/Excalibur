@@ -166,7 +166,7 @@ public class LeaderElectionBenchmarks
 	/// Benchmark: Get candidate health info.
 	/// </summary>
 	[Benchmark]
-	public async Task<List<CandidateHealth>> GetCandidateHealth()
+	public async Task<IReadOnlyList<CandidateHealth>> GetCandidateHealth()
 	{
 		if (CandidateCount < 1)
 			return [];

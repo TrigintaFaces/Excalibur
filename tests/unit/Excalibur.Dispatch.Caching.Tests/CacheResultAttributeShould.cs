@@ -12,6 +12,9 @@ namespace Excalibur.Dispatch.Caching.Tests;
 [Trait("Component", "Caching")]
 public sealed class CacheResultAttributeShould
 {
+	private static readonly string[] UserProfileTags = ["users", "profiles"];
+	private static readonly string[] CacheTagValues = ["cache-tag-1", "cache-tag-2"];
+
 	#region Default Value Tests
 
 	[Fact]
@@ -82,7 +85,7 @@ public sealed class CacheResultAttributeShould
 		attribute.Tags = ["users", "profiles"];
 
 		// Assert
-		attribute.Tags.ShouldBe(new[] { "users", "profiles" });
+		attribute.Tags.ShouldBe(UserProfileTags);
 	}
 
 	[Fact]
@@ -157,7 +160,7 @@ public sealed class CacheResultAttributeShould
 
 		// Assert
 		attribute.ExpirationSeconds.ShouldBe(600);
-		attribute.Tags.ShouldBe(new[] { "cache-tag-1", "cache-tag-2" });
+		attribute.Tags.ShouldBe(CacheTagValues);
 		attribute.OnlyIfSuccess.ShouldBeFalse();
 		attribute.IgnoreNullResult.ShouldBeFalse();
 	}

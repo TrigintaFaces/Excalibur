@@ -293,6 +293,7 @@ public sealed class SqsLongPollingReceiverShould : IDisposable
 	public void Dispose()
 	{
 		_receiver.Dispose();
+		_sqsClient.Dispose();
 	}
 }
 

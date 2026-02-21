@@ -430,6 +430,32 @@ public sealed class ServiceBusDeadLetterQueueManagerShould : IDisposable
 	public void Dispose()
 	{
 		_sut.Dispose();
+		if (_fakeReceiver is IAsyncDisposable asyncReceiver)
+		{
+			asyncReceiver.DisposeAsync().AsTask().GetAwaiter().GetResult();
+		}
+		else if (_fakeReceiver is IDisposable receiverDisposable)
+		{
+			receiverDisposable.Dispose();
+		}
+
+		if (_fakeSender is IAsyncDisposable asyncSender)
+		{
+			asyncSender.DisposeAsync().AsTask().GetAwaiter().GetResult();
+		}
+		else if (_fakeSender is IDisposable senderDisposable)
+		{
+			senderDisposable.Dispose();
+		}
+
+		if (_fakeClient is IAsyncDisposable asyncClient)
+		{
+			asyncClient.DisposeAsync().AsTask().GetAwaiter().GetResult();
+		}
+		else if (_fakeClient is IDisposable clientDisposable)
+		{
+			clientDisposable.Dispose();
+		}
 	}
 
 	private static DeadLetterMessage CreateDeadLetterMessage(

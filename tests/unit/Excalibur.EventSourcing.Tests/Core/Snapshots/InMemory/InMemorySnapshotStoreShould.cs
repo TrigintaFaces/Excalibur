@@ -121,11 +121,11 @@ public sealed class InMemorySnapshotStoreShould
 	}
 
 	[Fact]
-	public void ClearAllSnapshots()
+	public async Task ClearAllSnapshots()
 	{
 		// Arrange
-		_sut.SaveSnapshotAsync(CreateSnapshot("a1", "T1", 1), CancellationToken.None).AsTask().Wait();
-		_sut.SaveSnapshotAsync(CreateSnapshot("a2", "T2", 1), CancellationToken.None).AsTask().Wait();
+		await _sut.SaveSnapshotAsync(CreateSnapshot("a1", "T1", 1), CancellationToken.None);
+		await _sut.SaveSnapshotAsync(CreateSnapshot("a2", "T2", 1), CancellationToken.None);
 		_sut.Count.ShouldBe(2);
 
 		// Act

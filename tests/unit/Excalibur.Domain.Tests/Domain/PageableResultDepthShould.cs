@@ -4,6 +4,9 @@ namespace Excalibur.Tests.Domain;
 [Trait("Component", "Domain")]
 public sealed class PageableResultDepthShould
 {
+    private static readonly string[] EnumeratorExpectedItems = ["a", "b", "c"];
+    private static readonly string[] TwoStringItems = ["a", "b"];
+
     [Fact]
     public void Constructor_WithItemsOnly_SetDefaults()
     {
@@ -152,7 +155,7 @@ public sealed class PageableResultDepthShould
         }
 
         // Assert
-        items.ShouldBe(new[] { "a", "b", "c" });
+        items.ShouldBe(EnumeratorExpectedItems);
     }
 
     [Fact]
@@ -195,7 +198,7 @@ public sealed class PageableResultDepthShould
     public void Constructor_AcceptIEnumerable()
     {
         // Arrange
-        IEnumerable<string> items = new[] { "a", "b" }.AsEnumerable();
+        IEnumerable<string> items = TwoStringItems.AsEnumerable();
 
         // Act
         var result = new PageableResult<string>(items);

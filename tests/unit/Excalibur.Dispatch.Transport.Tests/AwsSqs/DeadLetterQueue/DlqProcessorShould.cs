@@ -381,5 +381,6 @@ public sealed class DlqProcessorShould : IDisposable
 	public void Dispose()
 	{
 		_sut.Dispose();
+		_sqsClient.Dispose();
 	}
 }

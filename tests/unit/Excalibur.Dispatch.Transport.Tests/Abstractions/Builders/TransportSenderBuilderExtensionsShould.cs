@@ -119,6 +119,7 @@ public sealed class TransportSenderBuilderExtensionsShould : IDisposable
 	{
 		if (_disposed) return;
 		_disposed = true;
+		(_innerSender as IDisposable)?.Dispose();
 		_meter.Dispose();
 		_activitySource.Dispose();
 	}

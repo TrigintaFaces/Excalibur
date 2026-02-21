@@ -37,11 +37,11 @@ public sealed class ActivityAuditShould
 		A.CallTo(() => config["ApplicationName"]).Returns("TestApp");
 
 		var context = A.Fake<IActivityContext>();
-		A.CallTo(() => context.GetValue("AccessToken", A<IAccessToken?>.That.IsNull())).Returns(accessToken);
-		A.CallTo(() => context.GetValue("IConfiguration", A<IConfiguration?>.That.IsNull())).Returns(config);
-		A.CallTo(() => context.GetValue("ClientAddress", A<IClientAddress?>.That.IsNull())).Returns(clientAddress);
-		A.CallTo(() => context.GetValue("CorrelationId", A<ICorrelationId?>.That.IsNull())).Returns(correlationId);
-		A.CallTo(() => context.GetValue("TenantId", A<ITenantId?>.That.IsNull())).Returns(tenantId);
+		A.CallTo(() => context.GetValue("AccessToken", A<IAccessToken>.That.IsNull())).Returns(accessToken);
+		A.CallTo(() => context.GetValue("IConfiguration", A<IConfiguration>.That.IsNull())).Returns(config);
+		A.CallTo(() => context.GetValue("ClientAddress", A<IClientAddress>.That.IsNull())).Returns(clientAddress);
+		A.CallTo(() => context.GetValue("CorrelationId", A<ICorrelationId>.That.IsNull())).Returns(correlationId);
+		A.CallTo(() => context.GetValue("TenantId", A<ITenantId>.That.IsNull())).Returns(tenantId);
 
 		var request = new TestRequest();
 
@@ -67,8 +67,8 @@ public sealed class ActivityAuditShould
 		// Arrange
 		var context = A.Fake<IActivityContext>();
 		// GetValue returns null for AccessToken and IConfiguration
-		A.CallTo(() => context.GetValue("AccessToken", A<IAccessToken?>.That.IsNull())).Returns(null);
-		A.CallTo(() => context.GetValue("IConfiguration", A<IConfiguration?>.That.IsNull())).Returns(null);
+		A.CallTo(() => context.GetValue("AccessToken", A<IAccessToken>.That.IsNull())).Returns((IAccessToken)null!);
+		A.CallTo(() => context.GetValue("IConfiguration", A<IConfiguration>.That.IsNull())).Returns((IConfiguration)null!);
 
 		var request = new TestRequest();
 
@@ -255,8 +255,8 @@ public sealed class ActivityAuditShould
 		A.CallTo(() => config["ApplicationName"]).Returns("TestApp");
 
 		var context = A.Fake<IActivityContext>();
-		A.CallTo(() => context.GetValue("AccessToken", A<IAccessToken?>.That.IsNull())).Returns(null);
-		A.CallTo(() => context.GetValue("IConfiguration", A<IConfiguration?>.That.IsNull())).Returns(config);
+		A.CallTo(() => context.GetValue("AccessToken", A<IAccessToken>.That.IsNull())).Returns((IAccessToken)null!);
+		A.CallTo(() => context.GetValue("IConfiguration", A<IConfiguration>.That.IsNull())).Returns(config);
 		return context;
 	}
 

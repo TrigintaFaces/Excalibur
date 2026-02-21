@@ -109,10 +109,8 @@ public sealed class MetricsDispatchBuilderExtensionsShould : UnitTestBase
 		var services = new ServiceCollection();
 		var builder = A.Fake<IDispatchBuilder>();
 		A.CallTo(() => builder.Services).Returns(services);
-		var configured = false;
-
 		// Act
-		_ = builder.WithMetricsOptions(_ => configured = true);
+		_ = builder.WithMetricsOptions(_ => { });
 		var provider = services.BuildServiceProvider();
 
 		// Since we used Configure<T>, we can check if Options<T> is registered

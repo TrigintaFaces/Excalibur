@@ -99,7 +99,7 @@ public class AdaptiveTtlBenchmarks
 			HitRate = 0.85,
 			ContentSize = 1024,
 			SystemLoad = 0.5,
-			CurrentTime = DateTime.UtcNow
+			CurrentTime = DateTimeOffset.UtcNow
 		};
 		return _strategy.CalculateTtl(context);
 	}
@@ -120,7 +120,7 @@ public class AdaptiveTtlBenchmarks
 			HitRate = 0.85,
 			ContentSize = 1024,
 			SystemLoad = 0.9,
-			CurrentTime = DateTime.UtcNow
+			CurrentTime = DateTimeOffset.UtcNow
 		};
 		return _strategy.CalculateTtl(context);
 	}

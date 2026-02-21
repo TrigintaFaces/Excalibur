@@ -4,7 +4,6 @@
 #pragma warning disable CA2012 // FakeItEasy .Returns() stores ValueTask
 
 using Excalibur.Data.Postgres.Saga;
-using Excalibur.Data.Postgres.Saga;
 using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Dispatch.Abstractions.Serialization;
 

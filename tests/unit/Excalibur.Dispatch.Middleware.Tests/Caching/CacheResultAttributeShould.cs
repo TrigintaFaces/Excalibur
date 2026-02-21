@@ -12,6 +12,8 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 [Trait("Component", "Caching")]
 public sealed class CacheResultAttributeShould
 {
+	private static readonly string[] ProductCatalogTags = ["products", "catalog"];
+
 	[Fact]
 	public void HaveZeroExpirationSeconds_ByDefault()
 	{
@@ -133,7 +135,7 @@ public sealed class CacheResultAttributeShould
 
 		// Assert
 		attribute.ExpirationSeconds.ShouldBe(600);
-		attribute.Tags.ShouldBe(new[] { "products", "catalog" });
+		attribute.Tags.ShouldBe(ProductCatalogTags);
 		attribute.OnlyIfSuccess.ShouldBeFalse();
 		attribute.IgnoreNullResult.ShouldBeFalse();
 	}

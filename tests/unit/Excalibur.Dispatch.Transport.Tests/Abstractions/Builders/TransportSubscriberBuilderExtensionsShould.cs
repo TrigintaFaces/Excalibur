@@ -87,6 +87,7 @@ public sealed class TransportSubscriberBuilderExtensionsShould : IDisposable
 	{
 		if (_disposed) return;
 		_disposed = true;
+		(_innerSubscriber as IDisposable)?.Dispose();
 		_meter.Dispose();
 		_activitySource.Dispose();
 	}

@@ -110,7 +110,7 @@ public sealed class ProviderOptionsValidatorShould
         var options = new ProviderOptions
         {
             DefaultTimeoutMs = 5000,
-            RetryPolicy = null,
+            RetryPolicy = null!,
         };
 
         var result = _sut.Validate(null, options);

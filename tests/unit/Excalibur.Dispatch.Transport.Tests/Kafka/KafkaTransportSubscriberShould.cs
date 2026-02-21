@@ -143,5 +143,6 @@ public sealed class KafkaTransportSubscriberShould : IAsyncDisposable
 	public async ValueTask DisposeAsync()
 	{
 		await _sut.DisposeAsync();
+		_fakeConsumer.Dispose();
 	}
 }

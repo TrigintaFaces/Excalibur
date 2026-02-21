@@ -149,6 +149,7 @@ public sealed class AwsSqsMessageBusShould : IAsyncDisposable
 	public async ValueTask DisposeAsync()
 	{
 		await _bus.DisposeAsync();
+		_sqsClient.Dispose();
 	}
 }
 

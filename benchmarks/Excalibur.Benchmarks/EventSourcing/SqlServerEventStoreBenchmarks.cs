@@ -33,7 +33,7 @@ public class SqlServerEventStoreBenchmarks
 	private string _aggregateWith500Events = null!;
 	private string _iterationAggregateId = null!;
 
-	private bool IsAvailable => ConnectionString is not null;
+	private static bool IsAvailable => ConnectionString is not null;
 
 	[GlobalSetup]
 	public void GlobalSetup()

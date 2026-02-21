@@ -97,7 +97,7 @@ public sealed class OperationStatisticsDepthShould
 	}
 
 	[Fact]
-	public void MaintainConsistencyUnderMixedConcurrentOperations()
+	public async Task MaintainConsistencyUnderMixedConcurrentOperations()
 	{
 		// Arrange
 		var stats = new OperationStatistics();
@@ -112,7 +112,7 @@ public sealed class OperationStatisticsDepthShould
 			Task.Run(() => { for (var i = 0; i < opsPerType; i++) stats.RecordFallback(); }),
 		};
 
-		Task.WaitAll([.. tasks]);
+		await Task.WhenAll(tasks);
 
 		// Assert
 		stats.TotalAttempts.ShouldBe(opsPerType);

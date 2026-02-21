@@ -16,7 +16,7 @@ public sealed class ServiceCollectionExtensionsExtendedShould
 		var assembly = typeof(ServiceCollectionExtensionsExtendedShould).Assembly;
 
 		// Act
-		services.AddImplementations(assembly, typeof(ITestServiceForDIScan), ServiceLifetime.Singleton);
+		services.AddImplementations<ITestServiceForDIScan>(assembly, ServiceLifetime.Singleton);
 
 		// Assert
 		services.ShouldContain(sd =>
@@ -34,7 +34,7 @@ public sealed class ServiceCollectionExtensionsExtendedShould
 		var assembly = typeof(ServiceCollectionExtensionsExtendedShould).Assembly;
 
 		// Act
-		services.AddImplementations(assembly, typeof(ITestServiceForDIScan), ServiceLifetime.Transient, registerImplementingType: true);
+		services.AddImplementations<ITestServiceForDIScan>(assembly, ServiceLifetime.Transient, registerImplementingType: true);
 
 		// Assert
 		services.ShouldContain(sd => sd.ServiceType == typeof(ITestServiceForDIScan));
@@ -85,8 +85,8 @@ public sealed class ServiceCollectionExtensionsExtendedShould
 		var assembly = typeof(ServiceCollectionExtensionsExtendedShould).Assembly;
 
 		// Act — call twice to hit cache
-		services.AddImplementations(assembly, typeof(ITestServiceForDIScan), ServiceLifetime.Singleton);
-		services.AddImplementations(assembly, typeof(ITestServiceForDIScan), ServiceLifetime.Singleton);
+		services.AddImplementations<ITestServiceForDIScan>(assembly, ServiceLifetime.Singleton);
+		services.AddImplementations<ITestServiceForDIScan>(assembly, ServiceLifetime.Singleton);
 
 		// Assert — should have double registrations (cache just speeds it up, doesn't deduplicate)
 		services.Count(sd => sd.ServiceType == typeof(ITestServiceForDIScan)).ShouldBeGreaterThanOrEqualTo(2);
