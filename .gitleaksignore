@@ -10,4 +10,7 @@
 # Package references that trigger false positives
 # src/**/*.csproj:Azure.Identity
 
+# False positive: markdown heading at README.md:50 mis-detected as sidekiq-secret
+README.md:sidekiq-secret:50
+
 # End of file
