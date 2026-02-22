@@ -8,6 +8,25 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $violations = @()
 $enforce = [bool]::Parse([string]::IsNullOrWhiteSpace($env:R014_ENFORCE) ? 'False' : $env:R014_ENFORCE)
 
+function Test-DirectoryUsesSystemTextJson {
+  param([Parameter(Mandatory = $true)][string]$DirectoryPath)
+
+  $rg = Get-Command rg -ErrorAction SilentlyContinue
+  if ($rg) {
+    $matches = rg --no-heading -n "^\s*using\s+System\.Text\.Json" $DirectoryPath 2>$null
+    return -not [string]::IsNullOrWhiteSpace(($matches -join [Environment]::NewLine))
+  }
+
+  $csFiles = Get-ChildItem -Path $DirectoryPath -Recurse -File -Filter *.cs -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -notmatch '[/\\](obj|bin)[/\\]' }
+  if (-not $csFiles) {
+    return $false
+  }
+
+  $matches = $csFiles | Select-String -Pattern '^\s*using\s+System\.Text\.Json' -ErrorAction SilentlyContinue
+  return @($matches).Count -gt 0
+}
+
 # Policy: Excalibur.Dispatch MUST NOT reference System.Text.Json; public boundary projects SHOULD use STJ.
 $coreCsprojs = Get-ChildItem -Recurse -File -Include Excalibur.Dispatch.csproj
 foreach ($proj in $coreCsprojs) {
@@ -18,8 +37,7 @@ foreach ($proj in $coreCsprojs) {
   if ($hasStj) {
     $violations += [pscustomobject]@{ Project = $proj.FullName; Issue = 'Excalibur.Dispatch references System.Text.Json (forbidden)'}
   }
-  $usings = rg --no-heading -n "^\s*using\s+System\.Text\.Json" (Split-Path $proj.FullName -Parent) 2>$null
-  if ($usings) {
+  if (Test-DirectoryUsesSystemTextJson -DirectoryPath (Split-Path $proj.FullName -Parent)) {
     $violations += [pscustomobject]@{ Project = $proj.FullName; Issue = 'Excalibur.Dispatch has using System.Text.Json (forbidden)'}
   }
 }

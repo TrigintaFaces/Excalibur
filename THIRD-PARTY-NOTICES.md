@@ -1,4 +1,4 @@
-# THIRD-PARTY NOTICES
+﻿# THIRD-PARTY NOTICES
 
 This file lists third-party packages referenced by this repository.
 It is generated from project files; licenses remain with their respective owners.
@@ -148,7 +148,6 @@ It is generated from project files; licenses remain with their respective owners
 | Microsoft.Azure.Functions.Worker.Extensions.Storage.Queues | 5.5.3 |
 | Microsoft.Azure.Functions.Worker.Extensions.Timer | 4.3.1 |
 | Microsoft.Azure.Functions.Worker.Sdk | 1.17.4 |
-| Microsoft.Azure.WebJobs.Extensions.Storage.Queues | 5.3.6 |
 | Microsoft.CodeAnalysis.Analyzers | 3.11.0 |
 | Microsoft.CodeAnalysis.BannedApiAnalyzers | 3.3.4 |
 | Microsoft.CodeAnalysis.Common | 4.14.0 |
@@ -190,9 +189,7 @@ It is generated from project files; licenses remain with their respective owners
 | Microsoft.Extensions.Options.DataAnnotations | 10.0.0 |
 | Microsoft.Extensions.TimeProvider.Testing | 9.0.0 |
 | Microsoft.IdentityModel.Tokens | 8.14.0 |
-| Microsoft.NET.Sdk.Functions | 4.3.0 |
 | Microsoft.NET.Test.Sdk | 17.* |
-| Microsoft.NETCore.Targets | 3.0.0 |
 | Microsoft.Rest.ClientRuntime | 2.3.24 |
 | Microsoft.SourceLink.GitHub | 8.0.0 |
 | MongoDB.Driver | 2.25.0 |

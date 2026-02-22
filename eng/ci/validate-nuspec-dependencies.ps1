@@ -32,16 +32,35 @@ New-Item -ItemType Directory -Force -Path $packagesDir | Out-Null
 Get-ChildItem -Path $packagesDir -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 
 Write-Host "Packing shipping projects from $SolutionFilter ..."
-dotnet pack $SolutionFilter `
-    --configuration Release `
-    --verbosity minimal `
-    --output $packagesDir `
-    -p:PackageVersion=$Version `
-    -p:Version=$Version `
-    -p:DispatchPackageVersion=$Version `
-    -p:ExcaliburPackageVersion=$Version
-if ($LASTEXITCODE -ne 0) {
-    throw "dotnet pack failed with exit code $LASTEXITCODE"
+$packAttempts = 0
+$maxPackAttempts = 3
+$packSucceeded = $false
+while ($packAttempts -lt $maxPackAttempts -and -not $packSucceeded) {
+    $packAttempts++
+    if ($packAttempts -gt 1) {
+        Write-Warning "dotnet pack attempt $packAttempts/$maxPackAttempts ..."
+    }
+
+    dotnet pack $SolutionFilter `
+        --configuration Release `
+        --verbosity minimal `
+        --output $packagesDir `
+        -p:PackageVersion=$Version `
+        -p:Version=$Version `
+        -p:DispatchPackageVersion=$Version `
+        -p:ExcaliburPackageVersion=$Version `
+        -p:RestoreDisableParallel=true
+
+    if ($LASTEXITCODE -eq 0) {
+        $packSucceeded = $true
+    }
+    elseif ($packAttempts -lt $maxPackAttempts) {
+        Start-Sleep -Seconds 2
+    }
+}
+
+if (-not $packSucceeded) {
+    throw "dotnet pack failed after $maxPackAttempts attempt(s)."
 }
 
 # Parse expected project/package identities from slnf
@@ -272,6 +291,10 @@ Write-Host "Wrote report: $reportJsonPath"
 Write-Host "Wrote summary: $summaryPath"
 
 if ($Enforce -and $issues.Count -gt 0) {
+    Write-Host "Dependency graph issues detected:" -ForegroundColor Red
+    foreach ($issue in ($issues | Sort-Object -Unique)) {
+        Write-Host " - $issue"
+    }
     Write-Error "Dependency graph validation failed with $($issues.Count) issue(s)."
     exit 1
 }
