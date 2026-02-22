@@ -27,21 +27,37 @@ jobs:
 
       - name: Detect changed paths
         id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            core_perf:
-              - 'src/Dispatch/Excalibur.Dispatch/**'
-              - 'src/Dispatch/Excalibur.Dispatch.Abstractions/**'
-              - 'src/Dispatch/Excalibur.Dispatch.Transport.*/**'
-              - 'src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/**'
-              - 'benchmarks/**'
-              - 'eng/run-comparative-benchmarks.ps1'
-              - 'eng/run-benchmark-matrix.ps1'
-              - 'eng/validate-performance-gates.ps1'
-              - '.github/workflows/performance-tests.yml'
-              - '.github/workflows/ci.yml'
-              - '.github/workflows/quality-gates.yml'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          else
+            BASE_SHA="$(git rev-parse HEAD^ 2>/dev/null || echo HEAD)"
+            HEAD_SHA="$(git rev-parse HEAD)"
+          fi
+
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "${BASE_SHA}"
+          fi
+          if ! git cat-file -e "${HEAD_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "${HEAD_SHA}"
+          fi
+
+          CHANGED_FILES="$(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}" || true)"
+          if [[ -z "${CHANGED_FILES}" ]]; then
+            echo "core_perf=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          PATTERN='^(src/Dispatch/Excalibur\.Dispatch/|src/Dispatch/Excalibur\.Dispatch\.Abstractions/|src/Dispatch/Excalibur\.Dispatch\.Transport\.[^/]+/|src/Dispatch/Excalibur\.Dispatch\.Transport\.Abstractions/|benchmarks/|eng/run-comparative-benchmarks\.ps1$|eng/run-benchmark-matrix\.ps1$|eng/validate-performance-gates\.ps1$|\.github/workflows/performance-tests\.yml$|\.github/workflows/ci\.yml$|\.github/workflows/quality-gates\.yml$)'
+          if printf '%s\n' "${CHANGED_FILES}" | grep -Eq "${PATTERN}"; then
+            echo "core_perf=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "core_perf=false" >> "${GITHUB_OUTPUT}"
+          fi
 
   # Code coverage quality gate (sharded for runtime stability)
   coverage-shards:
