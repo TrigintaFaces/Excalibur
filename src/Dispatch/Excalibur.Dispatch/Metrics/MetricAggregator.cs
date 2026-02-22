@@ -12,6 +12,7 @@ public sealed class MetricAggregator : IDisposable
 	private readonly MetricRegistry _registry;
 	private readonly Timer _timer;
 	private readonly Action<MetricSnapshot[]> _onWindowComplete;
+	private int _disposed;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MetricAggregator" /> class.
@@ -35,10 +36,26 @@ public sealed class MetricAggregator : IDisposable
 	/// <summary>
 	/// Disposes the metric aggregator and stops the aggregation timer.
 	/// </summary>
-	public void Dispose() => _timer?.Dispose();
+	public void Dispose()
+	{
+		if (Interlocked.Exchange(ref _disposed, 1) == 1)
+		{
+			return;
+		}
+
+		using var disposedSignal = new ManualResetEvent(initialState: false);
+		_ = _timer.Dispose(disposedSignal);
+		_ = disposedSignal.WaitOne(TimeSpan.FromSeconds(5));
+		_timer.Dispose();
+	}
 
 	private void CollectAndReset(object? state)
 	{
+		if (Volatile.Read(ref _disposed) == 1)
+		{
+			return;
+		}
+
 		try
 		{
 			// Collect snapshots
@@ -50,17 +67,10 @@ public sealed class MetricAggregator : IDisposable
 			// Reset counters and histograms (but not gauges)
 			_registry.ResetAll();
 		}
-		catch (Exception ex)
+		catch (Exception)
 		{
-			try
-			{
-				// Best-effort fallback logging for timer callback failures.
-				Console.Error.WriteLine($"Error in metric aggregation: {ex}");
-			}
-			catch
-			{
-				// Swallow logging failures to avoid crashing timer threads during process teardown.
-			}
+			// Callback failures must never escape timer threads.
+			// Swallow to preserve process stability for callers and tests.
 		}
 	}
 }

@@ -26,6 +26,27 @@ if (-not (Test-Path $SolutionFilter)) {
     throw "Solution filter not found: $SolutionFilter"
 }
 
+function Convert-ToPlatformPath {
+    param([string]$PathValue)
+
+    if ([string]::IsNullOrWhiteSpace($PathValue)) {
+        return $PathValue
+    }
+
+    $separator = [System.IO.Path]::DirectorySeparatorChar
+    return $PathValue.Replace('\', $separator).Replace('/', $separator)
+}
+
+function Convert-ToRepoPath {
+    param([string]$PathValue)
+
+    if ([string]::IsNullOrWhiteSpace($PathValue)) {
+        return $PathValue
+    }
+
+    return $PathValue.Replace('\', '/')
+}
+
 $packagesDir = Join-Path $OutDir "packages"
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 New-Item -ItemType Directory -Force -Path $packagesDir | Out-Null
@@ -69,12 +90,13 @@ $projectPaths = @($slnf.solution.projects)
 $expectedPackageIds = @{}
 $packableProjectPaths = @()
 
-foreach ($path in $projectPaths) {
-    if (-not (Test-Path $path)) {
+foreach ($rawPath in $projectPaths) {
+    $platformPath = Convert-ToPlatformPath -PathValue $rawPath
+    if (-not (Test-Path $platformPath)) {
         continue
     }
 
-    [xml]$csproj = Get-Content -Raw $path
+    [xml]$csproj = Get-Content -Raw $platformPath
     $isPackableNode = $csproj.SelectSingleNode("//Project/PropertyGroup/IsPackable")
     $isPackable = $true
     if ($isPackableNode -and $isPackableNode.InnerText.Trim().ToLowerInvariant() -eq "false") {
@@ -84,9 +106,10 @@ foreach ($path in $projectPaths) {
         continue
     }
 
-    $packableProjectPaths += $path.Replace('\', '/')
+    $repoPath = Convert-ToRepoPath -PathValue $rawPath
+    $packableProjectPaths += $repoPath
 
-    $projectName = [System.IO.Path]::GetFileNameWithoutExtension($path)
+    $projectName = [System.IO.Path]::GetFileNameWithoutExtension($platformPath)
     $packageIdNode = $csproj.SelectSingleNode("//Project/PropertyGroup/PackageId")
     $assemblyNameNode = $csproj.SelectSingleNode("//Project/PropertyGroup/AssemblyName")
     $candidateId = if ($packageIdNode -and -not [string]::IsNullOrWhiteSpace($packageIdNode.InnerText)) {
@@ -102,7 +125,7 @@ foreach ($path in $projectPaths) {
     # If PackageId/AssemblyName still contains unresolved MSBuild properties, fall back to project name.
     $packageId = if ($candidateId -match '\$\(.+\)') { $projectName } else { $candidateId }
 
-    $expectedPackageIds[$packageId] = $path.Replace('\', '/')
+    $expectedPackageIds[$packageId] = $repoPath
 }
 
 $nupkgs = @(Get-ChildItem -Path $packagesDir -Filter "*.nupkg" -File | Where-Object { $_.Name -notlike "*.symbols.nupkg" })

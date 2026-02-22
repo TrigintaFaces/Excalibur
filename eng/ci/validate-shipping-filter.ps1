@@ -32,7 +32,7 @@ function Convert-ToRepoPath {
     $normalizedFull = [System.IO.Path]::GetFullPath($FullPath)
     $normalizedRoot = [System.IO.Path]::GetFullPath($repoRoot)
     $relative = $normalizedFull.Substring($normalizedRoot.Length).TrimStart('\', '/')
-    return $relative.Replace('\\', '/')
+    return $relative.Replace('\', '/')
 }
 
 function Normalize-RepoPath {
@@ -41,7 +41,7 @@ function Normalize-RepoPath {
         return ""
     }
 
-    return $PathValue.Replace('\\', '/').Trim().TrimStart('./').ToLowerInvariant()
+    return $PathValue.Replace('\', '/').Trim().TrimStart('./').ToLowerInvariant()
 }
 
 function Get-IsPackable {
@@ -67,7 +67,7 @@ function Get-IsPackable {
 }
 
 $slnf = Get-Content -Raw $SolutionFilter | ConvertFrom-Json
-$shippingProjects = @($slnf.solution.projects | ForEach-Object { $_.Replace('\\', '/') })
+$shippingProjects = @($slnf.solution.projects | ForEach-Object { $_.Replace('\', '/') })
 $shippingSet = @{}
 $shippingCanonicalByNormalized = @{}
 foreach ($project in $shippingProjects) {
