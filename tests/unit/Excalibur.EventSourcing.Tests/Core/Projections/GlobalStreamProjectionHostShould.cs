@@ -113,6 +113,7 @@ public sealed class GlobalStreamProjectionHostShould
 		// Arrange
 		var storedEvent = new StoredEvent("evt-1", "agg-1", "TestAggregate", "TestEvent", "data"u8.ToArray(), null, 0, DateTimeOffset.UtcNow, false);
 		var domainEvent = A.Fake<IDomainEvent>();
+		var applyObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		var callCount = 0;
 		A.CallTo(() => _globalStreamQuery.ReadAllAsync(A<GlobalStreamPosition>._, A<int>._, A<CancellationToken>._))
@@ -126,6 +127,12 @@ public sealed class GlobalStreamProjectionHostShould
 
 		A.CallTo(() => _eventSerializer.ResolveType("TestEvent")).Returns(typeof(IDomainEvent));
 		A.CallTo(() => _eventSerializer.DeserializeEvent(A<byte[]>._, A<Type>._)).Returns(domainEvent);
+		A.CallTo(() => _projection.ApplyAsync(domainEvent, A<GlobalStreamTestState>._, A<CancellationToken>._))
+			.ReturnsLazily((_call) =>
+			{
+				applyObserved.TrySetResult();
+				return Task.CompletedTask;
+			});
 
 		var host = new GlobalStreamProjectionHost<GlobalStreamTestState>(
 			_globalStreamQuery,
@@ -141,7 +148,7 @@ public sealed class GlobalStreamProjectionHostShould
 
 		// Act
 		await host.StartAsync(cts.Token);
-		await Task.Delay(300);
+		await applyObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 		await host.StopAsync(CancellationToken.None);
 
 		// Assert

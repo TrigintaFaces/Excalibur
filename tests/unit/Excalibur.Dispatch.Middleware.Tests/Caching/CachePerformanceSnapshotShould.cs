@@ -236,7 +236,8 @@ public sealed class CachePerformanceSnapshotShould : UnitTestBase
 		result.ShouldContain("Size=10.00MB");
 		result.ShouldContain("AvgGetTime=2.50ms");
 		result.ShouldContain("Throughput=1000.5ops/s");
-		result.ShouldContain("Errors=1.00%");
+		// Percent formatting may include a locale spacing before '%'
+		result.ShouldContain("Errors=1.00");
 	}
 
 	[Fact]

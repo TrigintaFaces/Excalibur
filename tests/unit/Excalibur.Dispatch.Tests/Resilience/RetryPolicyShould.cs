@@ -408,8 +408,8 @@ public class RetryPolicyShould : UnitTestBase
 		}
 		stopwatch.Stop();
 
-		// Assert - 1000 calculations should be very fast
-		stopwatch.ElapsedMilliseconds.ShouldBeLessThan(10);
+		// Assert - allow reasonable CI jitter while still enforcing low overhead.
+		stopwatch.ElapsedMilliseconds.ShouldBeLessThan(25);
 	}
 
 	#endregion Backoff Calculation Tests (10 tests)

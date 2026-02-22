@@ -52,8 +52,15 @@ public sealed class MetricAggregator : IDisposable
 		}
 		catch (Exception ex)
 		{
-			// Log error - in production, use proper logging
-			Console.Error.WriteLine($"Error in metric aggregation: {ex}");
+			try
+			{
+				// Best-effort fallback logging for timer callback failures.
+				Console.Error.WriteLine($"Error in metric aggregation: {ex}");
+			}
+			catch
+			{
+				// Swallow logging failures to avoid crashing timer threads during process teardown.
+			}
 		}
 	}
 }

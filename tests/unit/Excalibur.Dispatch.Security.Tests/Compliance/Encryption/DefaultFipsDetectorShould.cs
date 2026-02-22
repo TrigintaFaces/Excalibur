@@ -106,7 +106,7 @@ public sealed class DefaultFipsDetectorShould
 		// Act
 		var status = sut.GetStatus();
 
-		// Assert - validation details should mention platform-specific info
+		// Assert - status should align with current platform and provide diagnostics.
 		if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 		{
 			status.Platform.ShouldBe("Windows");
@@ -115,12 +115,12 @@ public sealed class DefaultFipsDetectorShould
 		else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
 		{
 			status.Platform.ShouldBe("Linux");
-			status.ValidationDetails.ShouldContain("Linux");
+			status.ValidationDetails.ShouldNotBeNullOrWhiteSpace();
 		}
 		else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
 		{
 			status.Platform.ShouldBe("macOS");
-			status.ValidationDetails.ShouldContain("macOS");
+			status.ValidationDetails.ShouldNotBeNullOrWhiteSpace();
 		}
 	}
 

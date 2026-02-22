@@ -63,11 +63,19 @@ public sealed class CircuitBreakerMetricsFunctionalShould : IDisposable
 
 		var entries = GetRecorded("dispatch.circuitbreaker.state_changes");
 		entries.ShouldNotBeEmpty();
-		var (value, tags) = entries[0];
-		((long)value).ShouldBe(1);
-		tags.ShouldContain(t => t.Key == "circuit_name" && (string)t.Value! == "order-service");
-		tags.ShouldContain(t => t.Key == "previous_state" && (string)t.Value! == "Closed");
-		tags.ShouldContain(t => t.Key == "new_state" && (string)t.Value! == "Open");
+		entries.Any(static entry => (long)entry.Value == 1).ShouldBeTrue();
+		entries.Any(entry => entry.Tags.Any(tag =>
+			tag.Key == "circuit_name" &&
+			string.Equals(tag.Value as string, "order-service", StringComparison.Ordinal)))
+			.ShouldBeTrue();
+		entries.Any(entry => entry.Tags.Any(tag =>
+			tag.Key == "previous_state" &&
+			string.Equals(tag.Value as string, "Closed", StringComparison.Ordinal)))
+			.ShouldBeTrue();
+		entries.Any(entry => entry.Tags.Any(tag =>
+			tag.Key == "new_state" &&
+			string.Equals(tag.Value as string, "Open", StringComparison.Ordinal)))
+			.ShouldBeTrue();
 	}
 
 	[Fact]

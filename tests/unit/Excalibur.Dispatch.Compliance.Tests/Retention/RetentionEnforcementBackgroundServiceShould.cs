@@ -101,12 +101,18 @@ public sealed class RetentionEnforcementBackgroundServiceShould
 	{
 		var enforcementService = A.Fake<IRetentionEnforcementService>();
 		var callCount = 0;
+		var secondCallObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		A.CallTo(() => enforcementService.EnforceRetentionAsync(A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
-				if (Interlocked.Increment(ref callCount) == 1)
+				var observedCount = Interlocked.Increment(ref callCount);
+				if (observedCount == 1)
 				{
 					throw new InvalidOperationException("First cycle fails");
+				}
+				if (observedCount >= 2)
+				{
+					_ = secondCallObserved.TrySetResult();
 				}
 
 				return Task.FromResult(new RetentionEnforcementResult
@@ -133,12 +139,11 @@ public sealed class RetentionEnforcementBackgroundServiceShould
 
 		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
-		await Task.Delay(TimeSpan.FromMilliseconds(400), CancellationToken.None).ConfigureAwait(false);
+		await secondCallObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None).ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Should have been called more than once (survived the error)
-		A.CallTo(() => enforcementService.EnforceRetentionAsync(A<CancellationToken>._))
-			.MustHaveHappenedTwiceOrMore();
+		callCount.ShouldBeGreaterThanOrEqualTo(2);
 	}
 
 	private static (IServiceScopeFactory, IServiceScope) SetupScopeFactory(IRetentionEnforcementService enforcementService)

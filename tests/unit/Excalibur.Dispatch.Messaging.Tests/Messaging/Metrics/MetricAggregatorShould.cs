@@ -224,33 +224,49 @@ public sealed class MetricAggregatorShould : UnitTestBase
 		// Arrange
 		var registry = new MetricRegistry();
 		var callCount = 0;
-		var disposed = false;
+		var exceptionCount = 0;
+		var completionObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		Action<MetricSnapshot[]> callback = _ =>
 		{
-			if (Volatile.Read(ref disposed))
+			var currentCount = Interlocked.Increment(ref callCount);
+			if (currentCount == 1)
 			{
-				return;
+				Interlocked.Increment(ref exceptionCount);
+				throw new InvalidOperationException("Test exception");
 			}
-
-			Interlocked.Increment(ref callCount);
-			throw new InvalidOperationException("Test exception");
+			completionObserved.TrySetResult();
 		};
 
-		var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(30), callback);
+		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(30), callback);
 
-		// Act - Poll until callback invoked multiple times despite exceptions
-		await WaitUntilAsync(() => Volatile.Read(ref callCount) > 1, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		// Act - ensure the callback continues being invoked after a thrown exception.
+		await completionObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None).ConfigureAwait(false);
 
-		// Cleanup - prevent exceptions during dispose
-		Volatile.Write(ref disposed, true);
+		// Assert
+		exceptionCount.ShouldBe(1);
+		callCount.ShouldBeGreaterThanOrEqualTo(2);
+	}
+
+	[Fact]
+	public async Task StopInvokingCallbackAfterDispose()
+	{
+		// Arrange
+		var registry = new MetricRegistry();
+		var callCount = 0;
+		Action<MetricSnapshot[]> callback = _ => Interlocked.Increment(ref callCount);
+
+		var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(25), callback);
+		await WaitUntilAsync(() => Volatile.Read(ref callCount) > 0, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+
+		// Act
 		aggregator.Dispose();
 
-		// Wait a bit to let any pending callbacks complete
-		await Task.Delay(100).ConfigureAwait(false);
+		var countAfterDispose = Volatile.Read(ref callCount);
+		await Task.Delay(TimeSpan.FromMilliseconds(150), CancellationToken.None).ConfigureAwait(false);
 
-		// Assert - Callback should have been invoked multiple times despite exceptions
-		callCount.ShouldBeGreaterThan(1);
+		// Assert
+		Volatile.Read(ref callCount).ShouldBe(countAfterDispose);
 	}
 
 	#endregion
