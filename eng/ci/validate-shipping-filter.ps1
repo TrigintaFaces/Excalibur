@@ -35,6 +35,15 @@ function Convert-ToRepoPath {
     return $relative.Replace('\\', '/')
 }
 
+function Normalize-RepoPath {
+    param([string]$PathValue)
+    if ([string]::IsNullOrWhiteSpace($PathValue)) {
+        return ""
+    }
+
+    return $PathValue.Replace('\\', '/').Trim().TrimStart('./').ToLowerInvariant()
+}
+
 function Get-IsPackable {
     param([string]$ProjectPath)
 
@@ -60,8 +69,15 @@ function Get-IsPackable {
 $slnf = Get-Content -Raw $SolutionFilter | ConvertFrom-Json
 $shippingProjects = @($slnf.solution.projects | ForEach-Object { $_.Replace('\\', '/') })
 $shippingSet = @{}
+$shippingCanonicalByNormalized = @{}
 foreach ($project in $shippingProjects) {
-    $shippingSet[$project] = $true
+    $normalized = Normalize-RepoPath -PathValue $project
+    if ($normalized) {
+        $shippingSet[$normalized] = $true
+        if (-not $shippingCanonicalByNormalized.ContainsKey($normalized)) {
+            $shippingCanonicalByNormalized[$normalized] = $project
+        }
+    }
 }
 
 $srcProjects = Get-ChildItem -Path $SourceRoot -Recurse -Filter "*.csproj" -File | ForEach-Object { Convert-ToRepoPath -FullPath $_.FullName }
@@ -76,12 +92,44 @@ foreach ($project in $srcProjects) {
 
 $packableProjects = @($packableProjects | Sort-Object -Unique)
 $packableSet = @{}
+$packableCanonicalByNormalized = @{}
 foreach ($project in $packableProjects) {
-    $packableSet[$project] = $true
+    $normalized = Normalize-RepoPath -PathValue $project
+    if ($normalized) {
+        $packableSet[$normalized] = $true
+        if (-not $packableCanonicalByNormalized.ContainsKey($normalized)) {
+            $packableCanonicalByNormalized[$normalized] = $project
+        }
+    }
 }
 
-$missing = @($packableProjects | Where-Object { -not $shippingSet.ContainsKey($_) })
-$extra = @($shippingProjects | Where-Object { -not $packableSet.ContainsKey($_) })
+$missing = @()
+foreach ($normalized in $packableSet.Keys) {
+    if (-not $shippingSet.ContainsKey($normalized)) {
+        $missing += $packableCanonicalByNormalized[$normalized]
+    }
+}
+
+$extra = @()
+foreach ($normalized in $shippingSet.Keys) {
+    if (-not $packableSet.ContainsKey($normalized)) {
+        $extra += $shippingCanonicalByNormalized[$normalized]
+    }
+}
+
+$casingMismatches = @()
+foreach ($normalized in $packableSet.Keys) {
+    if ($shippingSet.ContainsKey($normalized)) {
+        $expectedPath = $packableCanonicalByNormalized[$normalized]
+        $actualPath = $shippingCanonicalByNormalized[$normalized]
+        if ($expectedPath -cne $actualPath) {
+            $casingMismatches += [pscustomobject]@{
+                Expected = $expectedPath
+                Actual = $actualPath
+            }
+        }
+    }
+}
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $summaryPath = Join-Path $OutDir "shipping-filter-validation.md"
@@ -94,6 +142,7 @@ $report = [PSCustomObject]@{
     packableProjectCount = $packableProjects.Count
     missingFromShippingFilter = @($missing | Sort-Object)
     extraInShippingFilter = @($extra | Sort-Object)
+    casingMismatches = @($casingMismatches | Sort-Object Expected)
 }
 
 $report | ConvertTo-Json -Depth 5 | Out-File -FilePath $jsonPath -Encoding UTF8
@@ -106,6 +155,7 @@ $lines += "- Packable src projects: $($packableProjects.Count)"
 $lines += "- Projects in filter: $($shippingProjects.Count)"
 $lines += "- Missing from filter: $($missing.Count)"
 $lines += "- Extra in filter: $($extra.Count)"
+$lines += "- Casing mismatches (non-blocking): $($casingMismatches.Count)"
 $lines += ""
 
 if ($missing.Count -gt 0) {
@@ -124,6 +174,15 @@ if ($extra.Count -gt 0) {
     $lines += ""
 }
 
+if ($casingMismatches.Count -gt 0) {
+    $lines += "## Path Casing Mismatches (Non-Blocking)"
+    foreach ($item in ($casingMismatches | Sort-Object Expected)) {
+        $lines += "- expected: $($item.Expected)"
+        $lines += "  actual:   $($item.Actual)"
+    }
+    $lines += ""
+}
+
 if ($missing.Count -eq 0 -and $extra.Count -eq 0) {
     $lines += "## Result"
     $lines += "eng/ci/shards/ShippingOnly.slnf exactly matches packable src projects."
@@ -136,7 +195,23 @@ Write-Host "Wrote summary: $summaryPath"
 Write-Host "Wrote report: $jsonPath"
 
 if ($Enforce -and ($missing.Count -gt 0 -or $extra.Count -gt 0)) {
+    if ($missing.Count -gt 0) {
+        Write-Host "Missing projects from ShippingOnly.slnf:" -ForegroundColor Red
+        foreach ($item in ($missing | Sort-Object)) {
+            Write-Host " - $item"
+        }
+    }
+    if ($extra.Count -gt 0) {
+        Write-Host "Extra projects in ShippingOnly.slnf:" -ForegroundColor Red
+        foreach ($item in ($extra | Sort-Object)) {
+            Write-Host " - $item"
+        }
+    }
     throw "Shipping filter validation failed."
+}
+
+if ($casingMismatches.Count -gt 0) {
+    Write-Warning "Shipping filter has $($casingMismatches.Count) case-only path mismatch(es)."
 }
 
 Write-Host "Shipping filter validation passed."

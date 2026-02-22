@@ -58,5 +58,7 @@ foreach ($k in ($all.Keys | Sort-Object)) {
   $lines += "| $k | $v |"
 }
 
-Set-Content -Path $Output -Value ($lines -join "`n") -Encoding UTF8
+# Use explicit UTF-8 without BOM for stable cross-platform diffs in CI.
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText((Join-Path (Get-Location) $Output), (($lines -join "`n") + "`n"), $utf8NoBom)
 Write-Host "Wrote $Output with $($all.Count) entries"

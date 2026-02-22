@@ -99,7 +99,8 @@ foreach ($path in $projectPaths) {
         $projectName
     }
 
-    $packageId = if ($candidateId -match '^\$\(.+\)$') { $projectName } else { $candidateId }
+    # If PackageId/AssemblyName still contains unresolved MSBuild properties, fall back to project name.
+    $packageId = if ($candidateId -match '\$\(.+\)') { $projectName } else { $candidateId }
 
     $expectedPackageIds[$packageId] = $path.Replace('\', '/')
 }

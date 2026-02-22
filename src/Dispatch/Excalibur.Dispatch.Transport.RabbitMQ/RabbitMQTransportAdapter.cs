@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics;
-
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Transport;
 
@@ -88,7 +87,7 @@ public sealed partial class RabbitMQTransportAdapter : ITransportAdapter, ITrans
 		ArgumentNullException.ThrowIfNull(transportMessage);
 		ArgumentNullException.ThrowIfNull(dispatcher);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		if (!IsRunning)
 		{
@@ -135,19 +134,17 @@ public sealed partial class RabbitMQTransportAdapter : ITransportAdapter, ITrans
 
 			var result = await dispatcher.DispatchAsync(message, context, cancellationToken).ConfigureAwait(false);
 
-			stopwatch.Stop();
 			TransportMeter.RecordMessageReceived(Name, TransportType, messageType);
-			TransportMeter.RecordReceiveDuration(Name, TransportType, stopwatch.Elapsed.TotalMilliseconds);
+			TransportMeter.RecordReceiveDuration(Name, TransportType, stopwatch.ElapsedMilliseconds);
 			_ = Interlocked.Increment(ref _successfulMessages);
 
 			return result;
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
 			LogMessageProcessingFailed(messageId, ex);
 			TransportMeter.RecordError(Name, TransportType, "processing_failed");
-			TransportMeter.RecordReceiveDuration(Name, TransportType, stopwatch.Elapsed.TotalMilliseconds);
+			TransportMeter.RecordReceiveDuration(Name, TransportType, stopwatch.ElapsedMilliseconds);
 			_ = Interlocked.Increment(ref _failedMessages);
 
 			return MessageResult.Failed(new MessageProblemDetails
@@ -170,7 +167,7 @@ public sealed partial class RabbitMQTransportAdapter : ITransportAdapter, ITrans
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentException.ThrowIfNullOrWhiteSpace(destination);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		if (!IsRunning)
 		{
@@ -213,16 +210,14 @@ public sealed partial class RabbitMQTransportAdapter : ITransportAdapter, ITrans
 						nameof(message));
 			}
 
-			stopwatch.Stop();
 			TransportMeter.RecordMessageSent(Name, TransportType, messageType);
-			TransportMeter.RecordSendDuration(Name, TransportType, stopwatch.Elapsed.TotalMilliseconds);
+			TransportMeter.RecordSendDuration(Name, TransportType, stopwatch.ElapsedMilliseconds);
 		}
 		catch (Exception ex) when (ex is not ArgumentException and not InvalidOperationException)
 		{
-			stopwatch.Stop();
 			LogSendFailed(messageId, ex);
 			TransportMeter.RecordError(Name, TransportType, "send_failed");
-			TransportMeter.RecordSendDuration(Name, TransportType, stopwatch.Elapsed.TotalMilliseconds);
+			TransportMeter.RecordSendDuration(Name, TransportType, stopwatch.ElapsedMilliseconds);
 			throw new InvalidOperationException($"Failed to send message to RabbitMQ: {ex.Message}", ex);
 		}
 	}
@@ -274,7 +269,7 @@ public sealed partial class RabbitMQTransportAdapter : ITransportAdapter, ITrans
 		TransportHealthCheckContext context,
 		CancellationToken cancellationToken)
 	{
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		var total = Interlocked.Read(ref _totalMessages);
 		var successful = Interlocked.Read(ref _successfulMessages);
@@ -294,7 +289,7 @@ public sealed partial class RabbitMQTransportAdapter : ITransportAdapter, ITrans
 			result = TransportHealthCheckResult.Unhealthy(
 				"RabbitMQ transport adapter is not running",
 				context.RequestedCategories,
-				stopwatch.Elapsed,
+				stopwatch.GetElapsedTime(),
 				data);
 		}
 		else if (failed > 0 && failed > successful / 10)
@@ -302,7 +297,7 @@ public sealed partial class RabbitMQTransportAdapter : ITransportAdapter, ITrans
 			result = TransportHealthCheckResult.Degraded(
 				$"RabbitMQ transport has elevated failure rate: {failed}/{total}",
 				context.RequestedCategories,
-				stopwatch.Elapsed,
+				stopwatch.GetElapsedTime(),
 				data);
 		}
 		else
@@ -310,11 +305,10 @@ public sealed partial class RabbitMQTransportAdapter : ITransportAdapter, ITrans
 			result = TransportHealthCheckResult.Healthy(
 				"RabbitMQ transport adapter is healthy and running",
 				context.RequestedCategories,
-				stopwatch.Elapsed,
+				stopwatch.GetElapsedTime(),
 				data);
 		}
 
-		stopwatch.Stop();
 		_lastHealthCheck = DateTimeOffset.UtcNow;
 		_lastStatus = result.Status;
 
@@ -324,7 +318,7 @@ public sealed partial class RabbitMQTransportAdapter : ITransportAdapter, ITrans
 	/// <inheritdoc/>
 	public Task<TransportHealthCheckResult> CheckQuickHealthAsync(CancellationToken cancellationToken)
 	{
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		var status = IsRunning
 			? TransportHealthStatus.Healthy
@@ -338,7 +332,7 @@ public sealed partial class RabbitMQTransportAdapter : ITransportAdapter, ITrans
 			status,
 			description,
 			TransportHealthCheckCategory.Connectivity,
-			stopwatch.Elapsed);
+			stopwatch.GetElapsedTime());
 
 		_lastHealthCheck = DateTimeOffset.UtcNow;
 		_lastStatus = status;

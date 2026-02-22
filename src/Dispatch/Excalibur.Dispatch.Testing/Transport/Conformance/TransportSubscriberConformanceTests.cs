@@ -79,7 +79,7 @@ public abstract class TransportSubscriberConformanceTests
 			cts.Token);
 
 		// Give the subscription a moment to start
-		await Task.Delay(50).ConfigureAwait(false);
+		await Task.Delay(TimeSpan.FromMilliseconds(50), CancellationToken.None).ConfigureAwait(false);
 
 		await cts.CancelAsync().ConfigureAwait(false);
 
@@ -125,7 +125,7 @@ public abstract class TransportSubscriberConformanceTests
 			cts.Token);
 
 		// Give subscription time to register
-		await Task.Delay(50).ConfigureAwait(false);
+		await Task.Delay(TimeSpan.FromMilliseconds(50), CancellationToken.None).ConfigureAwait(false);
 
 		var testMsg = CreateTestMessage("ack-payload");
 		var action = await PushMessageToSubscriberAsync(subscriber, testMsg, CancellationToken.None)
@@ -166,7 +166,7 @@ public abstract class TransportSubscriberConformanceTests
 			(_, _) => Task.FromResult(MessageAction.Reject),
 			cts.Token);
 
-		await Task.Delay(50).ConfigureAwait(false);
+		await Task.Delay(TimeSpan.FromMilliseconds(50), CancellationToken.None).ConfigureAwait(false);
 
 		var action = await PushMessageToSubscriberAsync(
 			subscriber, CreateTestMessage("reject-payload"), CancellationToken.None)
@@ -194,7 +194,7 @@ public abstract class TransportSubscriberConformanceTests
 			(_, _) => Task.FromResult(MessageAction.Requeue),
 			cts.Token);
 
-		await Task.Delay(50).ConfigureAwait(false);
+		await Task.Delay(TimeSpan.FromMilliseconds(50), CancellationToken.None).ConfigureAwait(false);
 
 		var action = await PushMessageToSubscriberAsync(
 			subscriber, CreateTestMessage("requeue-payload"), CancellationToken.None)
@@ -228,7 +228,7 @@ public abstract class TransportSubscriberConformanceTests
 			},
 			cts.Token);
 
-		await Task.Delay(50).ConfigureAwait(false);
+		await Task.Delay(TimeSpan.FromMilliseconds(50), CancellationToken.None).ConfigureAwait(false);
 
 		await PushMessageToSubscriberAsync(
 			subscriber, CreateTestMessage("multi-1"), CancellationToken.None).ConfigureAwait(false);

@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -174,7 +175,7 @@ internal sealed partial class RabbitMqDeadLetterQueueManager : IDeadLetterQueueM
 		ArgumentNullException.ThrowIfNull(messages);
 		ArgumentNullException.ThrowIfNull(options);
 
-		var sw = Stopwatch.StartNew();
+		var sw = ValueStopwatch.StartNew();
 		var result = new ReprocessResult();
 		var messageList = messages as IList<DeadLetterMessage> ?? [.. messages];
 		var maxMessages = options.MaxMessages ?? messageList.Count;
@@ -240,8 +241,7 @@ internal sealed partial class RabbitMqDeadLetterQueueManager : IDeadLetterQueueM
 			}
 		}
 
-		sw.Stop();
-		result.ProcessingTime = sw.Elapsed;
+		result.ProcessingTime = sw.GetElapsedTime();
 
 		return result;
 	}

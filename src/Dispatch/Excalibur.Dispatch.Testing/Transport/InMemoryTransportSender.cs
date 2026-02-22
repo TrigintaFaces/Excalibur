@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
-using System.Diagnostics;
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Testing.Transport;
@@ -82,7 +82,7 @@ public sealed class InMemoryTransportSender : ITransportSender
 		ArgumentNullException.ThrowIfNull(messages);
 		cancellationToken.ThrowIfCancellationRequested();
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		var results = new List<SendResult>(messages.Count);
 
 		foreach (var message in messages)
@@ -91,8 +91,6 @@ public sealed class InMemoryTransportSender : ITransportSender
 			var result = _onSend?.Invoke(message) ?? SendResult.Success(message.Id);
 			results.Add(result);
 		}
-
-		stopwatch.Stop();
 
 		var successCount = 0;
 		var failureCount = 0;
@@ -115,7 +113,7 @@ public sealed class InMemoryTransportSender : ITransportSender
 			SuccessCount = successCount,
 			FailureCount = failureCount,
 			Results = results,
-			Duration = stopwatch.Elapsed,
+			Duration = stopwatch.GetElapsedTime(),
 		};
 
 		return Task.FromResult(batchResult);

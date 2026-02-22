@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Testing.Polling;
 /// <remarks>
 /// <para>
 /// <see cref="WaitHelpers"/> provides a clean way to poll for conditions in tests without busy-waiting.
-/// Unlike simple <see cref="Task.Delay(TimeSpan)"/> loops, these methods properly support cancellation and
+/// Unlike simple <see cref="Task.Delay(TimeSpan, CancellationToken)"/> loops, these methods properly support cancellation and
 /// distinguish between timeout and external cancellation.
 /// </para>
 /// <para>
