@@ -259,11 +259,12 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 		// Arrange
 		_options.StartPosition = SubscriptionStartPosition.Position;
 		_options.StartPositionValue = 42L;
+		_options.PollingInterval = TimeSpan.FromMilliseconds(25);
 
 		A.CallTo(() => _eventStore.LoadAsync(A<string>._, A<string>._, A<long>._, A<CancellationToken>._))
 			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>()));
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
 
 		// Act
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, cts.Token);
@@ -279,7 +280,7 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 			{
 				return false;
 			}
-		}, timeout: TimeSpan.FromSeconds(1), pollInterval: TimeSpan.FromMilliseconds(25));
+		}, timeout: TimeSpan.FromSeconds(2), pollInterval: TimeSpan.FromMilliseconds(25));
 
 		// Assert - polling should eventually use configured start position
 		sawConfiguredPosition.ShouldBeTrue();

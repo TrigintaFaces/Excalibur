@@ -11,6 +11,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using Tests.Shared.Infrastructure;
+
 namespace Excalibur.EventSourcing.Tests.MaterializedViews.Services;
 
 /// <summary>
@@ -440,12 +442,24 @@ public sealed class MaterializedViewRefreshServiceShould
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(350); // Should trigger at least 2-3 refresh cycles
+		var refreshStarted = await WaitHelpers.WaitUntilAsync(() =>
+		{
+			try
+			{
+				A.CallTo(() => _scopeFactory.CreateScope()).MustHaveHappened();
+				return true;
+			}
+			catch (ExpectationException)
+			{
+				return false;
+			}
+		}, timeout: TimeSpan.FromSeconds(3), pollInterval: TimeSpan.FromMilliseconds(50));
+
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
-		// Assert - scope should have been created multiple times
-		A.CallTo(() => _scopeFactory.CreateScope()).MustHaveHappenedOnceOrMore();
+		// Assert - configured interval should eventually trigger refresh execution
+		refreshStarted.ShouldBeTrue();
 	}
 
 	#endregion
