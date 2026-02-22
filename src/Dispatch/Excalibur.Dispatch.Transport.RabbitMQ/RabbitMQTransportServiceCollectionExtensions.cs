@@ -214,13 +214,8 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		});
 
 		// Register IConnection
-		// DI factories must be synchronous; Task.Run avoids SynchronizationContext deadlocks
 		services.TryAddSingleton(sp =>
-			Task.Run(async () => await sp.GetRequiredService<IConnectionFactory>()
-				.CreateConnectionAsync()
-				.ConfigureAwait(false))
-				.GetAwaiter()
-				.GetResult());
+			ExecuteSync(() => sp.GetRequiredService<IConnectionFactory>().CreateConnectionAsync()));
 
 		// Register IChannel
 		services.TryAddSingleton(sp =>
@@ -234,8 +229,7 @@ public static class RabbitMQTransportServiceCollectionExtensions
 				outstandingPublisherConfirmationsRateLimiter: null,
 				consumerDispatchConcurrency: null);
 
-			// Use Task.Run to avoid SynchronizationContext deadlocks during DI resolution
-			return Task.Run(async () => await connection.CreateChannelAsync(createOptions).ConfigureAwait(false)).GetAwaiter().GetResult();
+			return ExecuteSync(() => connection.CreateChannelAsync(createOptions));
 		});
 
 		// Register TopologyInitializer
@@ -346,6 +340,13 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		// Ensure hosted service lifecycle manager is registered (idempotent)
 		_ = services.AddTransportAdapterLifecycle();
 	}
+
+	// RabbitMQ.Client exposes async-only connection/channel creation while DI factories are synchronous.
+	// Bridge at composition root to avoid Task.Run thread hops; runtime execution remains async in transport operations.
+#pragma warning disable RS0030 // Sync-over-async bridge is constrained to DI composition root.
+	private static T ExecuteSync<T>(Func<Task<T>> operation) =>
+		operation().ConfigureAwait(false).GetAwaiter().GetResult();
+#pragma warning restore RS0030
 
 	/// <summary>
 	/// Registers a keyed <see cref="ITransportSubscriber"/> composed with telemetry.

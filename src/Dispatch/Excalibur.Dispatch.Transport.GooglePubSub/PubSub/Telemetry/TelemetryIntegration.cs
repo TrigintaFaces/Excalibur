@@ -4,6 +4,8 @@
 
 using System.Diagnostics;
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
+
 using Google.Cloud.PubSub.V1;
 
 using Microsoft.Extensions.Logging;
@@ -28,7 +30,7 @@ public static class TelemetryIntegration
 		string subscription) =>
 		async (message, cancellationToken) =>
 		{
-			var stopwatch = Stopwatch.StartNew();
+			var stopwatch = ValueStopwatch.StartNew();
 			using var activity = telemetryProvider.RecordMessageReceived(message, subscription);
 
 			try

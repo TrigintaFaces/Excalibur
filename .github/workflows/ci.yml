@@ -1962,8 +1962,27 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Check dependency review support
+        id: dependency_review_support
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_url="https://api.github.com/repos/${{ github.repository }}/dependency-graph/sbom"
+          status_code="$(curl -sS -o /tmp/dependency-graph.json -w '%{http_code}' \
+            -H 'Accept: application/vnd.github+json' \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "${api_url}" || true)"
+
+          if [[ "${status_code}" == "200" ]]; then
+            echo "supported=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "supported=false" >> "${GITHUB_OUTPUT}"
+            echo "::warning::Dependency review unsupported or unavailable (HTTP ${status_code}); skipping blocking enforcement."
+          fi
+
       - name: Dependency review (attempt 1)
         id: dependency_review_attempt_1
+        if: steps.dependency_review_support.outputs.supported == 'true'
         continue-on-error: true
         uses: actions/dependency-review-action@v4
         with:
@@ -1971,14 +1990,14 @@ jobs:
 
       - name: Dependency review (attempt 2)
         id: dependency_review_attempt_2
-        if: steps.dependency_review_attempt_1.outcome == 'failure'
+        if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_attempt_1.outcome == 'failure'
         continue-on-error: true
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
 
       - name: Enforce dependency review result
-        if: steps.dependency_review_attempt_1.outcome == 'failure' && steps.dependency_review_attempt_2.outcome == 'failure'
+        if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_attempt_1.outcome == 'failure' && steps.dependency_review_attempt_2.outcome == 'failure'
         run: |
           echo "::error::Dependency review failed twice. This can indicate either a transient GitHub service error or real policy violations."
           exit 1

@@ -163,8 +163,7 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 		services.TryAddSingleton(sp =>
 		{
 			var topicName = new TopicName(transportOptions.ProjectId, transportOptions.TopicId);
-			// Use Task.Run to avoid SynchronizationContext deadlocks during DI resolution
-			return Task.Run(async () => await PublisherClient.CreateAsync(topicName).ConfigureAwait(false)).GetAwaiter().GetResult();
+			return PublisherClient.Create(topicName);
 		});
 
 		// Register SubscriberClient if subscription is configured
@@ -175,8 +174,7 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 				var subscriptionName = new SubscriptionName(
 					transportOptions.ProjectId,
 					transportOptions.SubscriptionId);
-				// Use Task.Run to avoid SynchronizationContext deadlocks during DI resolution
-				return Task.Run(async () => await SubscriberClient.CreateAsync(subscriptionName).ConfigureAwait(false)).GetAwaiter().GetResult();
+				return SubscriberClient.Create(subscriptionName);
 			});
 		}
 

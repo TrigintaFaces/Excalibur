@@ -4,6 +4,8 @@
 
 using System.Diagnostics;
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
+
 using Google.Cloud.PubSub.V1;
 
 namespace Excalibur.Dispatch.Transport.Google;
@@ -33,7 +35,7 @@ public sealed class TelemetryMiddleware(PubSubTelemetryProvider telemetryProvide
 		Func<PubsubMessage, CancellationToken, Task> next,
 		CancellationToken cancellationToken)
 	{
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		using var activity = _telemetryProvider.RecordMessageReceived(message, _subscription);
 
 		try
