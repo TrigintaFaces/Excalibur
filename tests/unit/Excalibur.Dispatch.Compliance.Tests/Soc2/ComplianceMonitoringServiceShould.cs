@@ -97,14 +97,17 @@ public sealed class ComplianceMonitoringServiceShould
 	{
 		var complianceService = A.Fake<ISoc2ComplianceService>();
 		var callCount = 0;
+		var secondCycleObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		A.CallTo(() => complianceService.GetComplianceStatusAsync(A<string?>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
-				if (Interlocked.Increment(ref callCount) == 1)
+				var currentCall = Interlocked.Increment(ref callCount);
+				if (currentCall == 1)
 				{
 					throw new InvalidOperationException("First cycle fails");
 				}
 
+				secondCycleObserved.TrySetResult();
 				return Task.FromResult(CreateCompliantStatus());
 			});
 
@@ -122,13 +125,18 @@ public sealed class ComplianceMonitoringServiceShould
 			Microsoft.Extensions.Options.Options.Create(options),
 			NullLogger<ComplianceMonitoringService>.Instance);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
-		await Task.Delay(TimeSpan.FromMilliseconds(400), CancellationToken.None).ConfigureAwait(false);
+
+		var completed = await Task.WhenAny(
+			secondCycleObserved.Task,
+			Task.Delay(TimeSpan.FromSeconds(2), CancellationToken.None)).ConfigureAwait(false);
+
+		await cts.CancelAsync().ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
-		A.CallTo(() => complianceService.GetComplianceStatusAsync(A<string?>._, A<CancellationToken>._))
-			.MustHaveHappenedTwiceOrMore();
+		completed.ShouldBe(secondCycleObserved.Task);
+		callCount.ShouldBeGreaterThanOrEqualTo(2);
 	}
 
 	[Fact]
