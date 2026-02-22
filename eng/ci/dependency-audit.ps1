@@ -13,6 +13,40 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $jsonPath = Join-Path $OutDir 'vulnerabilities.json'
 $sarifPath = Join-Path $OutDir 'vulnerabilities.sarif'
 
+function Get-VulnerabilityEvidence {
+  param(
+    [string]$Output
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Output)) {
+    return @()
+  }
+
+  $lines = $Output -split "`r?`n"
+  $evidence = @()
+
+  for ($idx = 0; $idx -lt $lines.Count; $idx++) {
+    $line = [string]$lines[$idx]
+    if ([string]::IsNullOrWhiteSpace($line)) { continue }
+
+    # "has no vulnerable packages" is the clean case and must not trigger failures.
+    if ($line -match '(?i)has no vulnerable packages') { continue }
+
+    if ($line -match '(?i)has the following vulnerable packages' -or
+        $line -match '(?i)\bGHSA-[0-9A-Za-z-]+\b' -or
+        $line -match '(?i)\bCVE-\d{4}-\d+\b' -or
+        $line -match '(?i)https://github\.com/advisories/' -or
+        $line -match '(?i)\bSeverity\b') {
+      $evidence += [pscustomobject]@{
+        LineNumber = $idx + 1
+        Text       = $line.Trim()
+      }
+    }
+  }
+
+  return $evidence
+}
+
 function Invoke-ProcessWithTimeout {
   param(
     [string]$FilePath,
@@ -105,30 +139,46 @@ for ($i = 0; $i -lt $selectedProjects.Count; $i++) {
     $output = "FAILED (exit $($run.ExitCode))`n$output"
   }
 
+  $evidence = @(Get-VulnerabilityEvidence -Output $output)
+
   $results += [pscustomobject]@{
-    Project     = $proj.FullName
-    Relative    = $relativePath
-    ExitCode    = $run.ExitCode
-    TimedOut    = $run.TimedOut
-    DurationMs  = $run.DurationMs
-    Output      = $output
+    Project              = $proj.FullName
+    Relative             = $relativePath
+    ExitCode             = $run.ExitCode
+    TimedOut             = $run.TimedOut
+    DurationMs           = $run.DurationMs
+    Output               = $output
+    HasVulnerabilities   = $evidence.Count -gt 0
+    VulnerabilityEvidence = $evidence
   }
 }
 Write-Progress -Activity "Dependency audit" -Completed
 
 $results | ConvertTo-Json -Depth 5 | Out-File -FilePath $jsonPath -Encoding UTF8
 
-# Emit minimal SARIF 2.1.0 with findings per line containing 'Vulnerable'
+# Emit minimal SARIF 2.1.0 with findings based on positive vulnerability evidence.
 $runs = @()
 foreach ($r in $results) {
-  $lines = $r.Output -split "`n"
   $findings = @()
-  $idx = 0
-  foreach ($line in $lines) {
-    if ($line -match '(?i)vulnerable') {
-      $findings += @{ level = 'warning'; message = @{ text = $line.Trim() }; locations = @(@{ physicalLocation = @{ artifactLocation = @{ uri = $r.Project }; region = @{ startLine = $idx + 1 } } }) }
+  $evidence = @()
+  if ($r.PSObject.Properties.Name -contains 'VulnerabilityEvidence') {
+    $evidence = @($r.VulnerabilityEvidence)
+  }
+  if ($evidence.Count -eq 0) {
+    $evidence = @(Get-VulnerabilityEvidence -Output $r.Output)
+  }
+
+  foreach ($hit in $evidence) {
+    $findings += @{
+      level = 'warning'
+      message = @{ text = [string]$hit.Text }
+      locations = @(@{
+          physicalLocation = @{
+            artifactLocation = @{ uri = $r.Project }
+            region = @{ startLine = [int]$hit.LineNumber }
+          }
+        })
     }
-    $idx++
   }
   $runs += @{
     tool = @{

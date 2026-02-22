@@ -324,4 +324,4 @@ public interface IEventStore
 
 - [Patterns](../patterns/index.md) - Outbox pattern for reliable event publishing
 - [Handlers](../handlers.md) - Command and event handler patterns
-- [Package Guide](../package-guide) - Understanding which packages you need for event sourcing
+- [Package Guide](/docs/package-guide) - Understanding which packages you need for event sourcing

@@ -246,6 +246,16 @@ jobs:
           dotnet nuget locals http-cache --clear
           dotnet nuget locals temp --clear
 
+      - name: Restore Excalibur with PackageReference mode
+        run: |
+          echo "📥 Restoring Excalibur with PackageReference mode..."
+          find src/Excalibur -name '*.csproj' -print0 | while IFS= read -r -d '' proj; do
+            dotnet restore "$proj" \
+              -p:UsePackageReferences=true \
+              -p:DispatchPackageVersion=0.1.0-ci-${{ github.run_number }} \
+              -p:ExcaliburPackageVersion=0.1.0-ci-${{ github.run_number }}
+          done
+
       - name: Build Excalibur with PackageReference mode
         run: |
           echo "🔗 Building Excalibur with PackageReference mode..."
@@ -1679,9 +1689,24 @@ jobs:
       - name: Enforce vulnerability policy (allowlist optional)
         shell: pwsh
         run: |
-          $json = Get-Content 'management/reports/DependencyAuditReport/vulnerabilities.json' | ConvertFrom-Json
-          $anyVuln = ($json | ForEach-Object { $_.Output }) -match '(?i)vulnerable'
-          if ($anyVuln) {
+          $json = @(Get-Content 'management/reports/DependencyAuditReport/vulnerabilities.json' | ConvertFrom-Json)
+
+          $vulnRecords = @(
+            $json | Where-Object {
+              if ($_.PSObject.Properties.Name -contains 'HasVulnerabilities') {
+                return [bool]$_.HasVulnerabilities
+              }
+
+              $output = [string]$_.Output
+              return $output -match '(?i)has the following vulnerable packages' -or
+                     $output -match '(?i)\bGHSA-[0-9A-Za-z-]+\b' -or
+                     $output -match '(?i)\bCVE-\d{4}-\d+\b' -or
+                     $output -match '(?i)https://github\.com/advisories/'
+            }
+          )
+
+          if ($vulnRecords.Count -gt 0) {
+            Write-Host "Detected vulnerable packages in $($vulnRecords.Count) project(s)."
             if (Test-Path 'management/security/cve-allowlist.yaml') {
               Write-Host "Vulnerabilities found, but allowlist present. Non-blocking."
             } else {

@@ -12,7 +12,9 @@ $enforce = [bool]::Parse([string]::IsNullOrWhiteSpace($env:R014_ENFORCE) ? 'Fals
 $coreCsprojs = Get-ChildItem -Recurse -File -Include Excalibur.Dispatch.csproj
 foreach ($proj in $coreCsprojs) {
   $xml = [xml](Get-Content -Raw -- $proj.FullName)
-  $hasStj = $xml.Project.ItemGroup.PackageReference | Where-Object { $_.Include -like 'System.Text.Json*' }
+
+  $packageRefs = @($xml.SelectNodes('/Project/ItemGroup/PackageReference'))
+  $hasStj = @($packageRefs | Where-Object { [string]$_.Attributes['Include']?.Value -like 'System.Text.Json*' }).Count -gt 0
   if ($hasStj) {
     $violations += [pscustomobject]@{ Project = $proj.FullName; Issue = 'Excalibur.Dispatch references System.Text.Json (forbidden)'}
   }

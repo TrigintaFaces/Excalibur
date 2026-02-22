@@ -324,7 +324,7 @@ builder.Services.Configure<ExcaliburOptions>(
     builder.Configuration.GetSection("Excalibur"));
 ```
 
-See the **[Package Guide](../package-guide)** for the complete package selection framework with migration paths and code examples.
+See the **[Package Guide](/docs/package-guide)** for the complete package selection framework with migration paths and code examples.
 
 ## Step 5: Add a Transport (Optional)
 
@@ -372,4 +372,3 @@ Your handlers don't change — only the registration code changes. See [Choosing
 - [Project Templates](./project-templates.md) — Scaffold new Excalibur projects with dotnet new templates
 - [Actions and Handlers](../core-concepts/actions-and-handlers.md) — Deep dive into action types, handler patterns, and result handling
 - [Dependency Injection](../core-concepts/dependency-injection.md) — Configure Dispatch services and handler registration in the DI container
-
