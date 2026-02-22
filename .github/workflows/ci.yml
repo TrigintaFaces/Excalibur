@@ -1962,10 +1962,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Dependency review
+      - name: Dependency review (attempt 1)
+        id: dependency_review_attempt_1
+        continue-on-error: true
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
+
+      - name: Dependency review (attempt 2)
+        id: dependency_review_attempt_2
+        if: steps.dependency_review_attempt_1.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
+      - name: Enforce dependency review result
+        if: steps.dependency_review_attempt_1.outcome == 'failure' && steps.dependency_review_attempt_2.outcome == 'failure'
+        run: |
+          echo "::error::Dependency review failed twice. This can indicate either a transient GitHub service error or real policy violations."
+          exit 1
 
   secrets-scan:
     name: Secrets Scan (Gitleaks)

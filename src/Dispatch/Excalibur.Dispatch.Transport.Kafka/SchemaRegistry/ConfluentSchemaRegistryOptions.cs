@@ -108,13 +108,23 @@ public sealed class ConfluentSchemaRegistryOptions
 	/// Creates the configured subject name strategy instance.
 	/// </summary>
 	/// <returns>An <see cref="ISubjectNameStrategy"/> implementation.</returns>
-	[RequiresUnreferencedCode("CreateSubjectNameStrategy uses Activator.CreateInstance for custom strategy types.")]
-	[RequiresDynamicCode("CreateSubjectNameStrategy uses Activator.CreateInstance for custom strategy types.")]
+	[RequiresUnreferencedCode("CreateSubjectNameStrategy uses reflection to construct custom strategy types.")]
+	[RequiresDynamicCode("CreateSubjectNameStrategy uses reflection to construct custom strategy types.")]
 	public ISubjectNameStrategy CreateSubjectNameStrategy()
 	{
 		if (CustomSubjectNameStrategyType is not null)
 		{
-			return (ISubjectNameStrategy)Activator.CreateInstance(CustomSubjectNameStrategyType)!;
+			if (!typeof(ISubjectNameStrategy).IsAssignableFrom(CustomSubjectNameStrategyType))
+			{
+				throw new InvalidOperationException(
+					$"Custom subject name strategy type '{CustomSubjectNameStrategyType.FullName}' must implement {nameof(ISubjectNameStrategy)}.");
+			}
+
+			var constructor = CustomSubjectNameStrategyType.GetConstructor(Type.EmptyTypes)
+				?? throw new InvalidOperationException(
+					$"Custom subject name strategy type '{CustomSubjectNameStrategyType.FullName}' must have a public parameterless constructor.");
+
+			return (ISubjectNameStrategy)constructor.Invoke([]);
 		}
 
 		return SubjectNameStrategy.ToStrategy();

@@ -4,6 +4,8 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
+
 namespace Excalibur.Dispatch.Patterns.ClaimCheck;
 
 /// <summary>
@@ -83,11 +85,10 @@ public sealed class TelemetryClaimCheckProvider : IClaimCheckProvider
 		using var activity = _activitySource.StartActivity("claimcheck.store");
 		activity?.SetTag(ClaimCheckTelemetryConstants.Tags.Operation, "store");
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		try
 		{
 			var reference = await _inner.StoreAsync(payload, cancellationToken, metadata).ConfigureAwait(false);
-			stopwatch.Stop();
 
 			var tags = new TagList
 			{
@@ -101,8 +102,6 @@ public sealed class TelemetryClaimCheckProvider : IClaimCheckProvider
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
-
 			var failTags = new TagList
 			{
 				{ ClaimCheckTelemetryConstants.Tags.Operation, "store" },
@@ -124,11 +123,10 @@ public sealed class TelemetryClaimCheckProvider : IClaimCheckProvider
 		using var activity = _activitySource.StartActivity("claimcheck.retrieve");
 		activity?.SetTag(ClaimCheckTelemetryConstants.Tags.Operation, "retrieve");
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		try
 		{
 			var result = await _inner.RetrieveAsync(reference, cancellationToken).ConfigureAwait(false);
-			stopwatch.Stop();
 
 			var tags = new TagList
 			{
@@ -142,8 +140,6 @@ public sealed class TelemetryClaimCheckProvider : IClaimCheckProvider
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
-
 			var failTags = new TagList
 			{
 				{ ClaimCheckTelemetryConstants.Tags.Operation, "retrieve" },

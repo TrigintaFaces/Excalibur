@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics;
 using System.Text;
 
 using Confluent.Kafka;
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Transport.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -102,7 +102,7 @@ internal sealed partial class KafkaTransportSender : ITransportSender
 			return new BatchSendResult { TotalMessages = 0, SuccessCount = 0, FailureCount = 0 };
 		}
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		var results = new List<SendResult>(messages.Count);
 
 		foreach (var message in messages)
@@ -111,7 +111,6 @@ internal sealed partial class KafkaTransportSender : ITransportSender
 			results.Add(result);
 		}
 
-		stopwatch.Stop();
 		var successCount = results.Count(static r => r.IsSuccess);
 
 		LogBatchSent(Destination, messages.Count, successCount);
