@@ -322,6 +322,8 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			.ToList();
 
 		var hasReturned = false;
+		var dispatchCount = 0;
+		var secondDispatchObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
@@ -334,14 +336,23 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			});
 
 		A.CallTo(() => _dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(MessageResult.Success()));
+			.ReturnsLazily(() =>
+			{
+				var currentCount = Interlocked.Increment(ref dispatchCount);
+				if (currentCount >= 2)
+				{
+					_ = secondDispatchObserved.TrySetResult();
+				}
+
+				return Task.FromResult(MessageResult.Success());
+			});
 
 		using var cts = new CancellationTokenSource();
 		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, options);
 
 		// Act
-		var executeTask = service.StartAsync(cts.Token);
-		await Task.Delay(150);
+		await service.StartAsync(cts.Token);
+		await secondDispatchObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 		await cts.CancelAsync();
 
 		try

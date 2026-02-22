@@ -137,9 +137,10 @@ public sealed class RetentionEnforcementBackgroundServiceShould
 			Microsoft.Extensions.Options.Options.Create(options),
 			NullLogger<RetentionEnforcementBackgroundService>.Instance);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+		using var cts = new CancellationTokenSource();
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
 		await secondCallObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None).ConfigureAwait(false);
+		await cts.CancelAsync();
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Should have been called more than once (survived the error)

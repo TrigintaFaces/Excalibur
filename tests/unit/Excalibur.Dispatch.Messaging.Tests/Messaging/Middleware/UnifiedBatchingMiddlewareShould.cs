@@ -218,7 +218,7 @@ public sealed class UnifiedBatchingMiddlewareShould : IAsyncDisposable
 	}
 
 	[Fact]
-	public void UseCustomBatchKeySelector()
+	public async Task UseCustomBatchKeySelector()
 	{
 		// Arrange
 		var customKey = "custom-batch-key";
@@ -232,16 +232,15 @@ public sealed class UnifiedBatchingMiddlewareShould : IAsyncDisposable
 			return new ValueTask<IMessageResult>(MessageResult.Success());
 		}
 
-		// Act & Assert - Should not throw and process message
-		Should.NotThrow(async () =>
-		{
-			var result = await _middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
-			result.IsSuccess.ShouldBeTrue();
-		});
+		// Act
+		var result = await _middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
+
+		// Assert
+		result.IsSuccess.ShouldBeTrue();
 	}
 
 	[Fact]
-	public void UseCustomBatchFilter()
+	public async Task UseCustomBatchFilter()
 	{
 		// Arrange
 		var shouldBatch = false;
@@ -258,13 +257,10 @@ public sealed class UnifiedBatchingMiddlewareShould : IAsyncDisposable
 		}
 
 		// Act
-		Should.NotThrow(async () =>
-		{
-			var result = await _middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
-			result.IsSuccess.ShouldBeTrue();
-		});
+		var result = await _middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
+		result.IsSuccess.ShouldBeTrue();
 		wasProcessedDirectly.ShouldBeTrue();
 	}
 
@@ -320,7 +316,7 @@ public sealed class UnifiedBatchingMiddlewareShould : IAsyncDisposable
 	}
 
 	[Fact]
-	public void CreateActivityForBatchProcessing()
+	public async Task CreateActivityForBatchProcessing()
 	{
 		// Arrange
 		using var listener = new ActivityListener
@@ -348,9 +344,10 @@ public sealed class UnifiedBatchingMiddlewareShould : IAsyncDisposable
 		}
 
 		// Act
-		_ = Should.NotThrow(async () => _ = await _middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false));
+		var result = await _middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
+		result.IsSuccess.ShouldBeTrue();
 		activityCreated.ShouldBeTrue();
 	}
 
