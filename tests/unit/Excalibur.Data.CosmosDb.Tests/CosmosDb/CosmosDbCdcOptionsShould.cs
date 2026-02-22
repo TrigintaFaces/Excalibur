@@ -205,4 +205,20 @@ public sealed class CosmosDbCdcOptionsShould : UnitTestBase
 		options.IncludeTimestamp.ShouldBeFalse();
 		options.IncludeLsn.ShouldBeFalse();
 	}
+
+	[Theory]
+	[InlineData("orders")]
+	[InlineData("orders-v2")]
+	[InlineData("orders_v2")]
+	public void ValidateAcceptsContainerIdentifierShapes(string containerId)
+	{
+		var options = new CosmosDbCdcOptions
+		{
+			ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=test==",
+			DatabaseId = "TestDb",
+			ContainerId = containerId
+		};
+
+		Should.NotThrow(() => options.Validate());
+	}
 }

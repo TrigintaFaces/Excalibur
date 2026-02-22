@@ -1,6 +1,6 @@
-# Excalibur + Dispatch
+# Excalibur
 
-> A .NET 8+ messaging framework (MediatR alternative) and application framework distributed as NuGet packages. Dispatch handles messaging pipelines. Excalibur handles domain modeling, event sourcing, and persistence. 75+ packages.
+> A high-performance .NET framework for messaging, event sourcing, CQRS, and compliance — distributed as NuGet packages. Start with `Excalibur.Dispatch` for messaging, add domain modeling, event sourcing, and sagas as your architecture requires. 75+ packages.
 
 ## Quick Start
 
@@ -62,5 +62,5 @@
 
 ## Architecture
 
-- [Dispatch vs Excalibur](https://docs.excalibur-dispatch.dev/docs/dispatch-vs-excalibur): Framework boundary and dependency direction
+- [Package Guide](https://docs.excalibur-dispatch.dev/docs/package-guide): Package families and selection guide
 - [Architecture Overview](https://docs.excalibur-dispatch.dev/docs/architecture/): Design decisions and patterns

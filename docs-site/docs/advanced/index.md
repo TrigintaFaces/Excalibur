@@ -1,7 +1,7 @@
 ---
 sidebar_position: 40
 title: Advanced Topics
-description: Advanced topics for Dispatch and Excalibur
+description: Advanced topics for Excalibur applications
 ---
 
 # Advanced Topics

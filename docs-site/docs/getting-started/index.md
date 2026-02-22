@@ -1,12 +1,12 @@
 ---
 sidebar_position: 2
 title: Getting Started
-description: Install Dispatch and create your first message handler in 5 minutes
+description: Install Excalibur.Dispatch and create your first message handler in 5 minutes
 ---
 
-# Getting Started with Dispatch
+# Getting Started with Excalibur
 
-This guide gets you up and running with Dispatch in under 5 minutes. By the end, you'll have a working message handler processing commands through the Dispatch pipeline.
+This guide gets you up and running with Excalibur.Dispatch in under 5 minutes. By the end, you'll have a working message handler processing commands through the messaging pipeline.
 
 ## Before You Start
 
@@ -85,7 +85,7 @@ public class GetOrderHandler : IActionHandler<GetOrderAction, Order>
 
 ## Step 3: Register Services
 
-Configure Dispatch in your `Program.cs`:
+Configure Excalibur.Dispatch in your `Program.cs`:
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -105,7 +105,7 @@ var app = builder.Build();
 
 ## Step 4: Dispatch Messages
 
-Inject `IDispatcher` and send messages. No explicit context is needed - Dispatch manages context automatically:
+Inject `IDispatcher` and send messages. No explicit context is needed — the framework manages context automatically:
 
 ```csharp
 using Excalibur.Dispatch.Abstractions;
@@ -216,7 +216,7 @@ public record GreetRequest(string Name);
 
 ## Context Management
 
-Dispatch automatically manages message context for you:
+Excalibur.Dispatch automatically manages message context for you:
 
 - **Top-level dispatch**: A new context is created with a unique `CorrelationId`
 - **Nested dispatch**: Use `DispatchChildAsync` to propagate context in handlers
@@ -232,11 +232,11 @@ await _dispatcher.DispatchChildAsync(action, cancellationToken);
 
 See [Handlers](../handlers.md#context-propagation) for more details on nested dispatch patterns.
 
-## Dispatch vs MediatR
+## Excalibur.Dispatch vs MediatR
 
 If you're coming from MediatR, here's how concepts map:
 
-| MediatR | Dispatch |
+| MediatR | Excalibur.Dispatch |
 |---------|----------|
 | `IRequest` | `IDispatchAction` |
 | `IRequest<TResponse>` | `IDispatchAction<TResult>` |
@@ -246,9 +246,9 @@ If you're coming from MediatR, here's how concepts map:
 | `INotificationHandler<T>` | `IEventHandler<TEvent>` |
 | `IMediator` | `IDispatcher` |
 
-## When to Add Excalibur
+## Adding More Packages
 
-Dispatch is the messaging core. Add Excalibur packages when you need additional capabilities:
+`Excalibur.Dispatch` is the messaging core. Add more Excalibur packages as your architecture grows:
 
 | Need | Package |
 |------|---------|
@@ -269,9 +269,9 @@ dotnet add package Excalibur.EventSourcing
 dotnet add package Excalibur.EventSourcing.SqlServer
 ```
 
-### Unified Excalibur Registration
+### Unified Registration
 
-Use `AddExcalibur()` as the single entry point for all Excalibur subsystems. It registers Dispatch primitives with sensible defaults:
+Use `AddExcalibur()` as the single entry point for domain, event sourcing, and saga subsystems. It registers messaging primitives with sensible defaults:
 
 ```csharp
 builder.Services.AddExcalibur(excalibur =>
@@ -285,7 +285,7 @@ builder.Services.AddExcalibur(excalibur =>
 });
 ```
 
-Need custom Dispatch configuration (transports, pipelines, middleware)? Call `AddDispatch` with a builder action:
+Need custom messaging configuration (transports, pipelines, middleware)? Call `AddDispatch` with a builder action:
 
 ```csharp
 // Configure Dispatch with transports and middleware
@@ -324,7 +324,7 @@ builder.Services.Configure<ExcaliburOptions>(
     builder.Configuration.GetSection("Excalibur"));
 ```
 
-See the **[Dispatch vs Excalibur Decision Guide](../dispatch-vs-excalibur.md)** for the complete decision framework with migration paths and code examples, or [Excalibur Introduction](/docs/intro) for full Excalibur documentation.
+See the **[Package Guide](../package-guide)** for the complete package selection framework with migration paths and code examples.
 
 ## Step 5: Add a Transport (Optional)
 
@@ -369,7 +369,7 @@ Your handlers don't change — only the registration code changes. See [Choosing
 
 ## See Also
 
-- [Project Templates](./project-templates.md) — Scaffold new Dispatch and Excalibur projects with dotnet new templates
+- [Project Templates](./project-templates.md) — Scaffold new Excalibur projects with dotnet new templates
 - [Actions and Handlers](../core-concepts/actions-and-handlers.md) — Deep dive into action types, handler patterns, and result handling
 - [Dependency Injection](../core-concepts/dependency-injection.md) — Configure Dispatch services and handler registration in the DI container
 

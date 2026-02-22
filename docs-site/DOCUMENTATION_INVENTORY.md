@@ -8,14 +8,14 @@
 
 ## Executive Summary
 
-This inventory catalogs the **complete public API surface** of both Dispatch and Excalibur frameworks based on actual code analysis. Use this as the authoritative reference when writing documentation.
+This inventory catalogs the **complete public API surface** of the Excalibur framework based on actual code analysis. Use this as the authoritative reference when writing documentation.
 
-### Framework Scope
+### Package Family Scope
 
-| Framework | Focus | Package Count |
-|-----------|-------|---------------|
-| **Dispatch** | Message routing, pipelines, transports | **40 packages** |
-| **Excalibur** | Domain modeling, persistence, event sourcing | 37+ packages |
+| Package Family | Focus | Package Count |
+|----------------|-------|---------------|
+| **Excalibur.Dispatch.*** | Message routing, pipelines, transports | **40 packages** |
+| **Excalibur.Domain / EventSourcing / Saga** | Domain modeling, persistence, event sourcing | 37+ packages |
 
 ---
 

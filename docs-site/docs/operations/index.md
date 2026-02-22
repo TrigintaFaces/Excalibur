@@ -1,12 +1,12 @@
 ---
 sidebar_position: 22
 title: Operations
-description: Operational guides for running Dispatch and Excalibur in production
+description: Operational guides for running Excalibur in production
 ---
 
 # Operations
 
-Operational guidance for running Dispatch and Excalibur in production environments, including resilience, recovery procedures, and maintenance runbooks.
+Operational guidance for running Excalibur in production environments, including resilience, recovery procedures, and maintenance runbooks.
 
 ## Before You Start
 

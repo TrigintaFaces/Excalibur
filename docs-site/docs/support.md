@@ -1,12 +1,12 @@
 ---
 sidebar_position: 50
 title: Support
-description: How to get help with Dispatch and Excalibur
+description: How to get help with Excalibur
 ---
 
 # Getting Support
 
-This guide explains how to get help with Dispatch and Excalibur, our support policy, and what to expect.
+This guide explains how to get help with Excalibur, our support policy, and what to expect.
 
 ## Quick Links
 
@@ -187,7 +187,7 @@ For enterprise needs:
 - [Compatibility Matrix](https://github.com/TrigintaFaces/Excalibur/blob/main/docs/compatibility-matrix.md) - Framework and provider compatibility
 - [Release Process](https://github.com/TrigintaFaces/Excalibur/blob/main/RELEASE.md) - How releases are made
 - [Contributing Guide](https://github.com/TrigintaFaces/Excalibur/blob/main/CONTRIBUTING.md) - How to contribute
-- [Dispatch vs Excalibur](./dispatch-vs-excalibur.md) - Package selection guide
+- [Package Guide](./package-guide) - Package selection guide
 
 ---
 

@@ -100,6 +100,31 @@ public sealed class ErasureHealthCheckShould
 	}
 
 	[Fact]
+	public async Task Return_degraded_when_probe_exceeds_threshold()
+	{
+		// Arrange
+		A.CallTo(() => _erasureStore.GetStatusAsync(Guid.Empty, A<CancellationToken>._))
+			.ReturnsLazily(async _ =>
+			{
+				await Task.Delay(20);
+				return (ErasureStatus?)null;
+			});
+
+		var sut = new ErasureHealthCheck(
+			_erasureStore,
+			NullLogger<ErasureHealthCheck>.Instance,
+			TimeSpan.FromMilliseconds(1));
+
+		// Act
+		var result = await sut.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
+
+		// Assert
+		result.Status.ShouldBe(HealthStatus.Degraded);
+		result.Description.ShouldContain("responded slowly");
+		result.Data.ShouldContainKey("duration_ms");
+	}
+
+	[Fact]
 	public void Throw_for_null_erasure_store()
 	{
 		Should.Throw<ArgumentNullException>(() =>

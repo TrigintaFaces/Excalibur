@@ -3,9 +3,9 @@
 
 
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Net.Sockets;
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Diagnostics;
 
@@ -57,7 +57,7 @@ public partial class RouteHealthMonitor : IRouteHealthMonitor, IHostedService, I
 		await _healthCheckSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 		try
 		{
-			var stopwatch = Stopwatch.StartNew();
+			var stopwatch = ValueStopwatch.StartNew();
 			var isHealthy = false;
 			var errorMessage = string.Empty;
 
@@ -79,8 +79,6 @@ public partial class RouteHealthMonitor : IRouteHealthMonitor, IHostedService, I
 				LogHealthCheckFailed(ex, route.RouteId);
 				errorMessage = ex.Message;
 			}
-
-			stopwatch.Stop();
 
 			// Update health info
 			var healthInfo = _routeHealth.GetOrAdd(route.RouteId, static _ => new RouteHealthInfo());

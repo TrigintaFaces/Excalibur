@@ -240,6 +240,77 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		eventRaised.ShouldBeFalse();
 	}
 
+	[Fact]
+	public async Task Reset_Eventually_Allows_Execution_After_Circuit_Is_Open()
+	{
+		// Arrange
+		var options = new CircuitBreakerOptions
+		{
+			FailureThreshold = 2,
+			OpenDuration = TimeSpan.FromMinutes(5),
+		};
+		var adapter = CreateAdapter(options);
+
+		// Force failures to trip the circuit.
+		for (var i = 0; i < 4; i++)
+		{
+			try
+			{
+				_ = await adapter.ExecuteAsync<int>(
+					_ => Task.FromException<int>(new InvalidOperationException("boom")),
+					CancellationToken.None);
+			}
+			catch (Exception)
+			{
+				// Expected while opening/tripping.
+			}
+		}
+
+		var circuitOpened = false;
+		for (var i = 0; i < 25; i++)
+		{
+			try
+			{
+				await adapter.ExecuteAsync(
+					_ => Task.CompletedTask,
+					CancellationToken.None);
+			}
+			catch (CircuitBreakerOpenException)
+			{
+				circuitOpened = true;
+				break;
+			}
+
+			await Task.Delay(10);
+		}
+
+		circuitOpened.ShouldBeTrue();
+
+		// Act
+		adapter.Reset();
+
+		// Assert
+		var recovered = false;
+		for (var i = 0; i < 50; i++)
+		{
+			try
+			{
+				var value = await adapter.ExecuteAsync(
+					_ => Task.FromResult(42),
+					CancellationToken.None);
+				value.ShouldBe(42);
+				recovered = true;
+				break;
+			}
+			catch (CircuitBreakerOpenException)
+			{
+				await Task.Delay(10);
+			}
+		}
+
+		recovered.ShouldBeTrue();
+	}
+
 	#endregion Reset Tests
 
 	#region ExecuteAsync Tests

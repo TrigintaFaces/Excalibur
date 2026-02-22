@@ -275,6 +275,113 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 	}
 
 	[Fact]
+	public async Task Dispatch_PublishedMessage_To_SubscribedHandler()
+	{
+		await _adapter.StartAsync(CancellationToken.None);
+
+		var dispatched = new TaskCompletionSource<(IDispatchMessage Message, IMessageContext Context)>(
+			TaskCreationOptions.RunContinuationsAsynchronously);
+
+		await _adapter.SubscribeAsync(
+			"orders-subscription",
+			(message, context, _) =>
+			{
+				dispatched.TrySetResult((message, context));
+				return Task.FromResult<IMessageResult>(MessageResult.Success());
+			},
+			null,
+			CancellationToken.None);
+
+		var message = new TestDispatchMessage("order-created");
+		var context = new Excalibur.Dispatch.Messaging.MessageContext(message, A.Fake<IServiceProvider>())
+		{
+			MessageId = "msg-1001",
+		};
+
+		var publishResult = await _adapter.PublishAsync(message, context, CancellationToken.None);
+		publishResult.Succeeded.ShouldBeTrue();
+
+		var delivered = await dispatched.Task.WaitAsync(TimeSpan.FromSeconds(2));
+		delivered.Message.ShouldBeSameAs(message);
+		delivered.Context.MessageId.ShouldBe("msg-1001");
+	}
+
+	[Fact]
+	public async Task Continue_Dispatch_When_One_Handler_Throws()
+	{
+		await _adapter.StartAsync(CancellationToken.None);
+
+		var successfulHandlerCalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var throwingHandlerCalls = 0;
+		var successHandlerCalls = 0;
+
+		await _adapter.SubscribeAsync(
+			"throwing-handler",
+			(_, _, _) =>
+			{
+				Interlocked.Increment(ref throwingHandlerCalls);
+				throw new InvalidOperationException("handler failure");
+			},
+			null,
+			CancellationToken.None);
+
+		await _adapter.SubscribeAsync(
+			"successful-handler",
+			(_, _, _) =>
+			{
+				Interlocked.Increment(ref successHandlerCalls);
+				successfulHandlerCalled.TrySetResult();
+				return Task.FromResult<IMessageResult>(MessageResult.Success());
+			},
+			null,
+			CancellationToken.None);
+
+		var message = new TestDispatchMessage("payment-captured");
+		var context = new Excalibur.Dispatch.Messaging.MessageContext(message, A.Fake<IServiceProvider>());
+
+		var publishResult = await _adapter.PublishAsync(message, context, CancellationToken.None);
+		publishResult.Succeeded.ShouldBeTrue();
+
+		await successfulHandlerCalled.Task.WaitAsync(TimeSpan.FromSeconds(2));
+		throwingHandlerCalls.ShouldBe(1);
+		successHandlerCalls.ShouldBe(1);
+	}
+
+	[Fact]
+	public async Task Populate_Context_Defaults_Before_Dispatch()
+	{
+		await _adapter.StartAsync(CancellationToken.None);
+
+		var dispatched = new TaskCompletionSource<IMessageContext>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		await _adapter.SubscribeAsync(
+			"context-check",
+			(_, context, _) =>
+			{
+				dispatched.TrySetResult(context);
+				return Task.FromResult<IMessageResult>(MessageResult.Success());
+			},
+			null,
+			CancellationToken.None);
+
+		var message = new TestDispatchMessage("shipment-ready");
+		var context = new Excalibur.Dispatch.Messaging.MessageContext(message, A.Fake<IServiceProvider>())
+		{
+			MessageId = null,
+			MessageType = null
+		};
+
+		var publishResult = await _adapter.PublishAsync(message, context, CancellationToken.None);
+		publishResult.Succeeded.ShouldBeTrue();
+
+		var dispatchedContext = await dispatched.Task.WaitAsync(TimeSpan.FromSeconds(2));
+		dispatchedContext.Message.ShouldBeSameAs(message);
+		dispatchedContext.MessageId.ShouldNotBeNullOrWhiteSpace();
+		dispatchedContext.MessageType.ShouldBe(typeof(TestDispatchMessage).FullName);
+		dispatchedContext.ReceivedTimestampUtc.ShouldNotBe(default);
+	}
+
+	[Fact]
 	public void Dispose_DoesNotThrow()
 	{
 		// Act & Assert - IDisposable.Dispose should not throw
@@ -296,4 +403,6 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 		Should.Throw<ArgumentNullException>(() =>
 			new InMemoryMessageBusAdapter(null!));
 	}
+
+	private sealed record TestDispatchMessage(string Name) : IDispatchMessage;
 }

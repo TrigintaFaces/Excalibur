@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics;
 using System.Security.Cryptography;
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Compliance.Diagnostics;
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -184,7 +184,7 @@ public sealed partial class EncryptionHealthCheck : IHealthCheck
 
 		var context = new EncryptionContext { Purpose = "health-check", };
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		try
 		{
 			// Encrypt
@@ -195,7 +195,6 @@ public sealed partial class EncryptionHealthCheck : IHealthCheck
 			var decrypted = await _encryptionProvider.DecryptAsync(encrypted, context, cancellationToken)
 				.ConfigureAwait(false);
 
-			stopwatch.Stop();
 			var durationMs = stopwatch.Elapsed.TotalMilliseconds;
 
 			// Verify integrity
@@ -223,7 +222,6 @@ public sealed partial class EncryptionHealthCheck : IHealthCheck
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
 			LogEncryptionHealthCheckRoundTripFailed(ex);
 
 			return new VerificationResult(
@@ -235,7 +233,7 @@ public sealed partial class EncryptionHealthCheck : IHealthCheck
 
 	private async Task<KeyManagementResult> VerifyKeyManagementAsync(CancellationToken cancellationToken)
 	{
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		try
 		{
 			var activeKey = await _keyManagementProvider.GetActiveKeyAsync(
@@ -243,7 +241,6 @@ public sealed partial class EncryptionHealthCheck : IHealthCheck
 					cancellationToken)
 				.ConfigureAwait(false);
 
-			stopwatch.Stop();
 			var durationMs = stopwatch.Elapsed.TotalMilliseconds;
 
 			if (activeKey is null)
@@ -273,7 +270,6 @@ public sealed partial class EncryptionHealthCheck : IHealthCheck
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
 			LogEncryptionHealthCheckKeyManagementFailed(ex);
 
 			return new KeyManagementResult(

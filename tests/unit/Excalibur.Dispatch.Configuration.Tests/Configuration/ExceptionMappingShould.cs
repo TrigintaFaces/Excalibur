@@ -217,19 +217,16 @@ public sealed class ExceptionMappingShould
 	}
 
 	[Fact]
-	public void AsyncTypedExceptionMapping_Map_BlocksAndReturnsResult()
+	public void AsyncTypedExceptionMapping_Map_ThrowsInvalidOperationException()
 	{
 		// Arrange
 		var mapping = new AsyncTypedExceptionMapping<InvalidOperationException>(
 			(ex, ct) => Task.FromResult(CreateProblemDetails("sync-fallback", "Blocking call")));
 		var exception = new InvalidOperationException("Test");
 
-		// Act
-		var result = mapping.Map(exception);
-
-		// Assert - Sync Map should work (blocking)
-		_ = result.ShouldNotBeNull();
-		result.Type.ShouldBe("sync-fallback");
+		// Act & Assert
+		var ex = Should.Throw<InvalidOperationException>(() => mapping.Map(exception));
+		ex.Message.ShouldContain("MapAsync");
 	}
 
 	#endregion

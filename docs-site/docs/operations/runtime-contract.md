@@ -1,12 +1,12 @@
 ---
 sidebar_position: 3
 title: Runtime Contract
-description: Canonical runtime semantics for Dispatch and Excalibur execution paths
+description: Canonical runtime semantics for Excalibur execution paths
 ---
 
 # Runtime Contract
 
-This guide defines the runtime guarantees that Dispatch and Excalibur provide during message execution.
+This guide defines the runtime guarantees that Excalibur provides during message execution.
 
 ## Execution Modes
 

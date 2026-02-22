@@ -195,4 +195,18 @@ public sealed class DynamoDbCdcOptionsShould : UnitTestBase
 		options.AutoDiscoverShards.ShouldBeFalse();
 		options.ShardDiscoveryInterval.ShouldBe(TimeSpan.FromMinutes(10));
 	}
+
+	[Theory]
+	[InlineData("Orders")]
+	[InlineData("orders-prod")]
+	[InlineData("orders_prod_v2")]
+	public void ValidateAcceptsTableIdentifierShapes(string tableName)
+	{
+		var options = new DynamoDbCdcOptions
+		{
+			TableName = tableName
+		};
+
+		Should.NotThrow(() => options.Validate());
+	}
 }

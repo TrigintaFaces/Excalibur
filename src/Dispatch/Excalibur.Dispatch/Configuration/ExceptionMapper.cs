@@ -52,6 +52,12 @@ internal sealed class ExceptionMapper : IExceptionMapper
 		{
 			if (mapping.CanHandle(exception))
 			{
+				// Synchronous Map cannot safely execute async mappings without sync-over-async.
+				if (mapping.IsAsync)
+				{
+					return _defaultMapper(exception);
+				}
+
 				return mapping.Map(exception);
 			}
 		}

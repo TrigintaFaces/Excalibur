@@ -6,7 +6,7 @@ description: Comprehensive testing patterns for Dispatch handlers, Excalibur agg
 
 # Testing Guide
 
-This guide covers testing patterns for Dispatch and Excalibur applications, from unit testing handlers to integration testing with real infrastructure.
+This guide covers testing patterns for Excalibur applications, from unit testing handlers to integration testing with real infrastructure.
 
 ## Before You Start
 

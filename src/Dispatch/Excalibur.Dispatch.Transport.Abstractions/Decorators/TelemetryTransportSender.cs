@@ -4,6 +4,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Transport.Diagnostics;
 
 namespace Excalibur.Dispatch.Transport.Decorators;
@@ -74,12 +75,10 @@ public sealed class TelemetryTransportSender : DelegatingTransportSender
 		activity?.SetTag(TransportTelemetryConstants.Tags.Destination, guardedDestination);
 		activity?.SetTag(TransportTelemetryConstants.Tags.Operation, "send");
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		try
 		{
 			var result = await base.SendAsync(message, cancellationToken).ConfigureAwait(false);
-			stopwatch.Stop();
-
 			if (result.IsSuccess)
 			{
 				var tags = new TagList
@@ -112,8 +111,6 @@ public sealed class TelemetryTransportSender : DelegatingTransportSender
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
-
 			var failTags = new TagList
 			{
 				{ TransportTelemetryConstants.Tags.TransportName, _transportName },
@@ -151,11 +148,10 @@ public sealed class TelemetryTransportSender : DelegatingTransportSender
 		};
 		_batchSizeHistogram.Record(messages.Count, batchTags);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		try
 		{
 			var result = await base.SendBatchAsync(messages, cancellationToken).ConfigureAwait(false);
-			stopwatch.Stop();
 
 			if (result.SuccessCount > 0)
 			{
@@ -173,8 +169,6 @@ public sealed class TelemetryTransportSender : DelegatingTransportSender
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
-
 			var failTags = new TagList
 			{
 				{ TransportTelemetryConstants.Tags.TransportName, _transportName },

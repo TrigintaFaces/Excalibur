@@ -254,7 +254,7 @@ jobs:
         run: dotnet restore Excalibur.sln
 
       - name: Generate CycloneDX SBOM for release
-        uses: CycloneDX/gh-dotnet-generate-sbom@v2
+        uses: CycloneDX/gh-dotnet-generate-sbom@v1.0.1
         with:
           path: './src'
           github-bearer-token: ${{ secrets.GITHUB_TOKEN }}

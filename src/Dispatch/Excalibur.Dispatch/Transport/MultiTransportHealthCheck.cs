@@ -1,9 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
-using System.Diagnostics;
-
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Abstractions.Transport;
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -50,7 +48,7 @@ public sealed class MultiTransportHealthCheck : IHealthCheck
 		MsHealthCheckContext context,
 		CancellationToken cancellationToken)
 	{
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		var data = new Dictionary<string, object>(StringComparer.Ordinal);
 		var transports = _registry.GetAllTransports();
 
@@ -61,7 +59,6 @@ public sealed class MultiTransportHealthCheck : IHealthCheck
 		// No transports registered
 		if (transports.Count == 0)
 		{
-			stopwatch.Stop();
 			data["Duration"] = stopwatch.Elapsed.TotalMilliseconds;
 
 			if (_options.RequireAtLeastOneTransport)
@@ -154,12 +151,10 @@ public sealed class MultiTransportHealthCheck : IHealthCheck
 		data["HealthyCount"] = healthyCount;
 		data["DegradedCount"] = degradedCount;
 		data["UnhealthyCount"] = unhealthyCount;
-
-		stopwatch.Stop();
 		data["Duration"] = stopwatch.Elapsed.TotalMilliseconds;
 
 		// Determine overall status
-		var defaultTransportHealthy = IsDefaultTransportHealthy(transports);
+		var defaultTransportHealthy = await IsDefaultTransportHealthyAsync(transports, cancellationToken).ConfigureAwait(false);
 
 		// All unhealthy
 		if (unhealthyCount == transports.Count)
@@ -191,7 +186,9 @@ public sealed class MultiTransportHealthCheck : IHealthCheck
 			data: data);
 	}
 
-	private bool IsDefaultTransportHealthy(IReadOnlyDictionary<string, TransportRegistration> transports)
+	private async Task<bool> IsDefaultTransportHealthyAsync(
+		IReadOnlyDictionary<string, TransportRegistration> transports,
+		CancellationToken cancellationToken)
 	{
 		if (!_registry.HasDefaultTransport || _registry.DefaultTransportName is null)
 		{
@@ -212,12 +209,9 @@ public sealed class MultiTransportHealthCheck : IHealthCheck
 		// If it has a health checker, use that
 		if (defaultRegistration.Adapter is ITransportHealthChecker healthChecker)
 		{
-			// Use synchronous check via GetAwaiter for simplicity in this helper
 			try
 			{
-				var result = healthChecker.CheckQuickHealthAsync(CancellationToken.None)
-					.GetAwaiter()
-					.GetResult();
+				var result = await healthChecker.CheckQuickHealthAsync(cancellationToken).ConfigureAwait(false);
 
 				return result.Status != TransportHealthStatus.Unhealthy;
 			}

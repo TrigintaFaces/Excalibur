@@ -4,6 +4,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.LeaderElection;
 
 namespace Excalibur.LeaderElection.Diagnostics;
@@ -37,7 +38,7 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 	private readonly string _providerName;
 	private readonly TagCardinalityGuard _instanceGuard;
 
-	private Stopwatch? _leaseStopwatch;
+	private ValueStopwatch? _leaseStopwatch;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -186,7 +187,7 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 		_acquisitionsCounter.Add(1, tags);
 
 		// Start tracking lease duration
-		_leaseStopwatch = Stopwatch.StartNew();
+		_leaseStopwatch = ValueStopwatch.StartNew();
 
 		BecameLeader?.Invoke(this, e);
 	}
@@ -216,17 +217,15 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 
 	private void RecordLeaseDurationIfActive()
 	{
-		if (_leaseStopwatch is not null && _leaseStopwatch.IsRunning)
+		if (_leaseStopwatch is { } leaseStopwatch)
 		{
-			_leaseStopwatch.Stop();
-
 			var guardedInstance = _instanceGuard.Guard(_inner.CandidateId);
 			var tags = new TagList
 			{
 				{ LeaderElectionTelemetryConstants.Tags.Instance, guardedInstance },
 				{ LeaderElectionTelemetryConstants.Tags.Provider, _providerName },
 			};
-			_leaseDurationHistogram.Record(_leaseStopwatch.Elapsed.TotalSeconds, tags);
+			_leaseDurationHistogram.Record(leaseStopwatch.Elapsed.TotalSeconds, tags);
 
 			_leaseStopwatch = null;
 		}

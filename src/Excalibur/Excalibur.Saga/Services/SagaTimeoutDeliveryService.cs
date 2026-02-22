@@ -147,7 +147,7 @@ public partial class SagaTimeoutDeliveryService : BackgroundService
 		try
 		{
 			// Deserialize timeout message
-			var timeoutType = Type.GetType(timeout.TimeoutType);
+			var timeoutType = ResolveTypeByName(timeout.TimeoutType);
 			if (timeoutType is null)
 			{
 				LogTimeoutTypeResolutionFailed(
@@ -165,7 +165,7 @@ public partial class SagaTimeoutDeliveryService : BackgroundService
 			}
 			else
 			{
-				timeoutMessage = Activator.CreateInstance(timeoutType);
+				timeoutMessage = CreateTimeoutMessageInstance(timeoutType);
 			}
 
 			if (timeoutMessage is null)
@@ -209,6 +209,42 @@ public partial class SagaTimeoutDeliveryService : BackgroundService
 			_ = (activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Error, ex.Message));
 			// Do NOT mark as delivered - will retry on next poll
 		}
+	}
+
+	private static Type? ResolveTypeByName(string typeName)
+	{
+		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+		{
+			var resolved = assembly.GetType(typeName, throwOnError: false, ignoreCase: false);
+			if (resolved != null)
+			{
+				return resolved;
+			}
+		}
+
+		var assemblySeparator = typeName.IndexOf(',', StringComparison.Ordinal);
+		if (assemblySeparator <= 0)
+		{
+			return null;
+		}
+
+		var simpleTypeName = typeName[..assemblySeparator];
+		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+		{
+			var resolved = assembly.GetType(simpleTypeName, throwOnError: false, ignoreCase: false);
+			if (resolved != null)
+			{
+				return resolved;
+			}
+		}
+
+		return null;
+	}
+
+	private static object? CreateTimeoutMessageInstance(Type timeoutType)
+	{
+		var constructor = timeoutType.GetConstructor(Type.EmptyTypes);
+		return constructor?.Invoke(null);
 	}
 
 	// Source-generated logging methods

@@ -1,9 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics;
-
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Diagnostics;
@@ -170,7 +169,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 		_timerCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
 		// Start the timer loop
-		_timerTask = Task.Run(() => RunTimerLoopAsync(_timerCts.Token), CancellationToken.None);
+		_timerTask = RunTimerLoopAsync(_timerCts.Token);
 
 		// Record transport start metrics
 		TransportMeter.RecordTransportStarted(Name, TransportType);
@@ -244,7 +243,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 		TransportHealthCheckContext context,
 		CancellationToken cancellationToken)
 	{
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		var data = new Dictionary<string, object>(StringComparer.Ordinal)
 		{
@@ -296,7 +295,6 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 				data);
 		}
 
-		stopwatch.Stop();
 		_lastHealthCheck = DateTimeOffset.UtcNow;
 		_lastStatus = result.Status;
 
@@ -306,7 +304,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 	/// <inheritdoc />
 	public Task<TransportHealthCheckResult> CheckQuickHealthAsync(CancellationToken cancellationToken)
 	{
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		var status = IsRunning
 			? TransportHealthStatus.Healthy
@@ -495,7 +493,7 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 		CancellationToken cancellationToken)
 	{
 		var messageId = Guid.NewGuid().ToString();
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		try
 		{
@@ -508,7 +506,6 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 
 			var result = await dispatcher.DispatchAsync(message, context, cancellationToken).ConfigureAwait(false);
 
-			stopwatch.Stop();
 			TransportMeter.RecordMessageReceived(Name, TransportType, nameof(CronTimerTriggerMessage));
 			TransportMeter.RecordReceiveDuration(Name, TransportType, stopwatch.Elapsed.TotalMilliseconds);
 			_ = Interlocked.Increment(ref _successfulTriggers);
@@ -517,7 +514,6 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
 			LogTimerExecutionFailed(Name, ex);
 			TransportMeter.RecordError(Name, TransportType, "processing_failed");
 			TransportMeter.RecordReceiveDuration(Name, TransportType, stopwatch.Elapsed.TotalMilliseconds);

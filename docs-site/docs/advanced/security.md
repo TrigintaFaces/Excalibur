@@ -1,7 +1,7 @@
 ---
 sidebar_position: 1
 title: Security Guide
-description: Security hardening guide for Dispatch and Excalibur
+description: Security hardening guide for Excalibur applications
 ---
 
 # Security Guide

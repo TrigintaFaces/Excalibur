@@ -167,6 +167,101 @@ public sealed class SessionContextShould
     }
 
     [Fact]
+    public async Task Dispose_synchronously_does_not_wait_for_async_callback_completion()
+    {
+        // Arrange
+        var callbackStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowCallbackCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var callbackCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sut = new SessionContext
+        {
+            OnCompletion = async _ =>
+            {
+                callbackStarted.TrySetResult();
+                await allowCallbackCompletion.Task;
+                callbackCompleted.TrySetResult();
+            }
+        };
+
+        // Act
+        sut.Dispose();
+
+        // Assert
+        await callbackStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        callbackCompleted.Task.IsCompleted.ShouldBeFalse();
+
+        allowCallbackCompletion.TrySetResult();
+        await callbackCompleted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
+    public async Task Dispose_async_waits_for_async_callback_completion()
+    {
+        // Arrange
+        var callbackStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var allowCallbackCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sut = new SessionContext
+        {
+            OnCompletion = async _ =>
+            {
+                callbackStarted.TrySetResult();
+                await allowCallbackCompletion.Task;
+            }
+        };
+
+        // Act
+        var disposeTask = sut.DisposeAsync().AsTask();
+        await callbackStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+        // Assert
+        disposeTask.IsCompleted.ShouldBeFalse();
+        allowCallbackCompletion.TrySetResult();
+        await disposeTask;
+    }
+
+    [Fact]
+    public async Task Dispose_then_DisposeAsync_invokes_callback_only_once()
+    {
+        // Arrange
+        var callbackInvocations = 0;
+        var allowCallbackCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var callbackStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sut = new SessionContext
+        {
+            OnCompletion = async _ =>
+            {
+                callbackInvocations++;
+                callbackStarted.TrySetResult();
+                await allowCallbackCompletion.Task;
+            }
+        };
+
+        // Act
+        sut.Dispose();
+        await callbackStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        await sut.DisposeAsync();
+
+        // Assert
+        callbackInvocations.ShouldBe(1);
+
+        allowCallbackCompletion.TrySetResult();
+    }
+
+    [Fact]
+    public void Dispose_propagates_synchronous_callback_exception()
+    {
+        // Arrange
+        var sut = new SessionContext
+        {
+            OnCompletion = _ => throw new InvalidOperationException("sync callback failure")
+        };
+
+        // Act & Assert
+        var ex = Should.Throw<InvalidOperationException>(() => sut.Dispose());
+        ex.Message.ShouldBe("sync callback failure");
+    }
+
+    [Fact]
     public void Pass_self_to_completion_callback()
     {
         // Arrange

@@ -139,7 +139,8 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 		await EnsureLeaseExistsAsync(cancellationToken).ConfigureAwait(false);
 
 		// Start the election loop and track for graceful disposal
-		_trackedTasks.Add(Task.Run(() => RunElectionLoopAsync(_runningTokenSource.Token), cancellationToken));
+		cancellationToken.ThrowIfCancellationRequested();
+		_trackedTasks.Add(RunElectionLoopAsync(_runningTokenSource.Token));
 
 		// Start renewal timer
 		var renewInterval = TimeSpan.FromMilliseconds(_options.RenewIntervalMilliseconds);
@@ -608,22 +609,24 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 			return;
 		}
 
-		var task = Task.Run(async () =>
-		{
-			try
-			{
-				await TryAcquireOrRenewLeaseAsync(_runningTokenSource?.Token ?? CancellationToken.None).ConfigureAwait(false);
-			}
-			catch (OperationCanceledException)
-			{
-				// Shutdown requested — expected during disposal
-			}
-			catch (Exception ex)
-			{
-				LogRenewalError(ex, _leaseName);
-			}
-		});
+		var task = RenewLeadershipCoreAsync(_runningTokenSource?.Token ?? CancellationToken.None);
 		_trackedTasks.Add(task);
+	}
+
+	private async Task RenewLeadershipCoreAsync(CancellationToken cancellationToken)
+	{
+		try
+		{
+			await TryAcquireOrRenewLeaseAsync(cancellationToken).ConfigureAwait(false);
+		}
+		catch (OperationCanceledException)
+		{
+			// Shutdown requested — expected during disposal
+		}
+		catch (Exception ex)
+		{
+			LogRenewalError(ex, _leaseName);
+		}
 	}
 
 	private async Task ReleaseLeadershipAsync(CancellationToken cancellationToken)

@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics.CodeAnalysis;
-
 namespace Excalibur.Dispatch.Transport;
 
 /// <summary>
@@ -79,19 +77,17 @@ public class SessionContext : IDisposable, IAsyncDisposable
 	/// <param name="disposing"> Whether to dispose managed resources. </param>
 	/// <remarks>
 	/// <para>
-	/// If an async completion callback is registered, prefer <see cref="DisposeAsync"/> to avoid
-	/// sync-over-async. This synchronous dispose will block on the completion callback if one exists.
+	/// If an async completion callback is registered, prefer <see cref="DisposeAsync"/> for deterministic
+	/// completion. Synchronous dispose triggers completion without waiting.
 	/// </para>
 	/// </remarks>
-	[SuppressMessage("AsyncUsage", "VSTHRD002:Avoid problematic synchronous waits",
-		Justification = "Synchronous Dispose pattern requires blocking call when async completion callback is registered. Prefer DisposeAsync when possible. (AD-220-7)")]
 	protected virtual void Dispose(bool disposing)
 	{
 		if (!_disposed)
 		{
 			if (disposing)
 			{
-				OnCompletion?.Invoke(this).GetAwaiter().GetResult();
+				_ = OnCompletion?.Invoke(this);
 			}
 
 			_disposed = true;

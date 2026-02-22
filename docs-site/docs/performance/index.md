@@ -6,7 +6,7 @@ description: Performance characteristics and optimization strategies for Dispatc
 
 # Performance Overview
 
-Dispatch is designed for low-latency messaging with explicit performance profiles for local and transport paths.
+Excalibur.Dispatch is designed for low-latency messaging with explicit performance profiles for local and transport paths.
 
 ## Before You Start
 

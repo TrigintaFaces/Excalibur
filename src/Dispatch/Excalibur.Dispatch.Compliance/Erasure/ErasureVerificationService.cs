@@ -1,12 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Compliance.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -60,7 +60,7 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 		Guid requestId,
 		CancellationToken cancellationToken)
 	{
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		var failures = new List<VerificationFailure>();
 		var warnings = new List<string>();
 		var deletedKeyIds = new List<string>();
@@ -168,8 +168,6 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 				}
 			}
 
-			stopwatch.Stop();
-
 			// Determine overall result
 			var criticalFailures = failures.Where(f => f.Severity == VerificationSeverity.Critical).ToList();
 			if (criticalFailures.Count > 0)
@@ -223,13 +221,12 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 		CancellationToken cancellationToken)
 	{
 		var steps = new List<VerificationStep>();
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		// Step 1: Get erasure status
-		var stepStart = Stopwatch.StartNew();
+		var stepStart = ValueStopwatch.StartNew();
 		var status = await _erasureStore.GetStatusAsync(requestId, cancellationToken)
 			.ConfigureAwait(false);
-		stepStart.Stop();
 
 		steps.Add(new VerificationStep
 		{
@@ -252,10 +249,9 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 		var reportCertStore = (IErasureCertificateStore?)_erasureStore.GetService(typeof(IErasureCertificateStore));
 		if (status.CertificateId.HasValue && reportCertStore is not null)
 		{
-			stepStart = Stopwatch.StartNew();
+			stepStart = ValueStopwatch.StartNew();
 			certificate = await reportCertStore.GetCertificateByIdAsync(
 				status.CertificateId.Value, cancellationToken).ConfigureAwait(false);
-			stepStart.Stop();
 
 			steps.Add(new VerificationStep
 			{
@@ -275,10 +271,9 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 		var options = _options.Value;
 		if (options.VerificationMethods.HasFlag(VerificationMethod.KeyManagementSystem))
 		{
-			stepStart = Stopwatch.StartNew();
+			stepStart = ValueStopwatch.StartNew();
 			var kmsResult = await VerifyKeyDeletionsAsync(keyIdsToVerify, cancellationToken)
 				.ConfigureAwait(false);
-			stepStart.Stop();
 
 			steps.Add(new VerificationStep
 			{
@@ -295,10 +290,9 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 		// Step 4: Audit log verification
 		if (options.VerificationMethods.HasFlag(VerificationMethod.AuditLog))
 		{
-			stepStart = Stopwatch.StartNew();
+			stepStart = ValueStopwatch.StartNew();
 			var auditResult = await VerifyAuditTrailAsync(status, certificate, cancellationToken)
 				.ConfigureAwait(false);
-			stepStart.Stop();
 
 			steps.Add(new VerificationStep
 			{
@@ -315,10 +309,9 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 		// Step 5: Decryption failure verification
 		if (options.VerificationMethods.HasFlag(VerificationMethod.DecryptionFailure))
 		{
-			stepStart = Stopwatch.StartNew();
+			stepStart = ValueStopwatch.StartNew();
 			var decryptResult = await VerifyDecryptionFailsAsync(
 				status, keyIdsToVerify, cancellationToken).ConfigureAwait(false);
-			stepStart.Stop();
 
 			steps.Add(new VerificationStep
 			{
@@ -331,8 +324,6 @@ public sealed partial class ErasureVerificationService : IErasureVerificationSer
 				Duration = stepStart.Elapsed
 			});
 		}
-
-		stopwatch.Stop();
 
 		// Get overall verification result
 		var verificationResult = await VerifyErasureAsync(requestId, cancellationToken)

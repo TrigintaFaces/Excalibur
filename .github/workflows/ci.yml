@@ -21,7 +21,7 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
-  COVERAGE_THRESHOLD: 60
+  COVERAGE_THRESHOLD: 65
 
 jobs:
   # Build validation across multiple platforms
@@ -842,6 +842,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: unit-tests
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
       - name: Download coverage artifacts (all shards)
         uses: actions/download-artifact@v4
         with:
@@ -851,26 +853,10 @@ jobs:
       - name: Enforce coverage threshold
         shell: pwsh
         run: |
-          $threshold = [int]('${{ env.COVERAGE_THRESHOLD }}')
-          $files = Get-ChildItem -Recurse -Filter coverage.cobertura.xml -Path cov
-          if (-not $files) { Write-Error 'Coverage report not found'; exit 1 }
-          [int]$covered = 0; [int]$valid = 0
-          foreach ($f in $files) {
-            $xml = [xml](Get-Content -Raw -- $f.FullName)
-            foreach ($pkg in $xml.coverage.packages.package) {
-              foreach ($cls in $pkg.classes.class) {
-                $fname = [string]$cls.filename
-                if ($fname -match '^src/Dispatch\.') {
-                  $covered += [int]$cls.'lines-covered'
-                  $valid += [int]$cls.'lines-valid'
-                }
-              }
-            }
-          }
-          if ($valid -eq 0) { Write-Host 'No Excalibur.Dispatch.* classes found in coverage'; exit 0 }
-          $pct = [math]::Round(100.0 * $covered / $valid, 2)
-          Write-Host "Excalibur.Dispatch.* coverage: $pct% (threshold: $threshold%)"
-          if ($pct -lt $threshold) { Write-Error "Coverage below threshold"; exit 1 } else { exit 0 }
+          ./eng/ci/coverage-threshold.ps1 `
+            -CoverageRoot "cov" `
+            -Threshold ([int]'${{ env.COVERAGE_THRESHOLD }}') `
+            -FailBelowThreshold
 
   coverage-diff:
     name: Coverage Diff On Touched Files
@@ -918,21 +904,73 @@ jobs:
           script: |
             const files = await github.paginate(github.rest.pulls.listFiles, { owner: context.repo.owner, repo: context.repo.repo, pull_number: context.issue.number });
             core.setOutput('files', JSON.stringify(files.map(f => f.filename)));
-      - name: Enforce ≤1% coverage drop on touched files (Dispatch.*)
+      - name: Enforce ≤1% coverage drop on touched files (Dispatch+Excalibur)
         shell: pwsh
         env:
           CHANGED_FILES: ${{ steps.changed.outputs.files }}
         run: |
           $changed = (ConvertFrom-Json $env:CHANGED_FILES)
           if (-not $changed) { Write-Host 'No changed files'; exit 0 }
+          function NormalizeSourcePath([string]$path) {
+            if ([string]::IsNullOrWhiteSpace($path)) { return $null }
+            $p = $path.Replace('\','/')
+            $uri = $null
+            if ([Uri]::TryCreate($p, [UriKind]::Absolute, [ref]$uri)) {
+              try { $p = $uri.AbsolutePath } catch { }
+            }
+            if ($p -match '(?i)(src/(Dispatch|Excalibur)/.+)$') { return $Matches[1] }
+            return $null
+          }
+          function GetLineStats([System.Xml.XmlElement]$cls) {
+            $lc = [string]$cls.GetAttribute('lines-covered')
+            $lv = [string]$cls.GetAttribute('lines-valid')
+            if (-not [string]::IsNullOrWhiteSpace($lc) -and -not [string]::IsNullOrWhiteSpace($lv)) {
+              return [pscustomobject]@{ Covered = [int]$lc; Valid = [int]$lv }
+            }
+            [int]$covered = 0
+            [int]$valid = 0
+            foreach ($line in $cls.SelectNodes('lines/line')) {
+              $valid++
+              if ([int]$line.hits -gt 0) { $covered++ }
+            }
+            return [pscustomobject]@{ Covered = $covered; Valid = $valid }
+          }
           function ReadCoverage([string]$dir) {
             $map = @{}
-            $cov = Get-ChildItem -Recurse -Filter coverage.cobertura.xml -Path $dir | Select-Object -First 1
-            if (-not $cov) { return $map }
-            $xml = [xml](Get-Content -Raw -- $cov.FullName)
-            foreach ($pkg in $xml.coverage.packages.package) {
-              foreach ($cls in $pkg.classes.class) {
-                $map[[string]$cls.filename] = [pscustomobject]@{ Covered=[int]$cls.'lines-covered'; Valid=[int]$cls.'lines-valid' }
+            $covFiles = @(Get-ChildItem -Recurse -Filter coverage.cobertura.xml -Path $dir)
+            $lineHits = @{}
+            foreach ($cov in $covFiles) {
+              $xml = [xml](Get-Content -Raw -- $cov.FullName)
+              foreach ($cls in $xml.SelectNodes('//class')) {
+                $normalized = NormalizeSourcePath ([string]$cls.GetAttribute('filename'))
+                if ($null -eq $normalized) { continue }
+                foreach ($line in $cls.SelectNodes('lines/line')) {
+                  $lineNumber = 0
+                  if (-not [int]::TryParse([string]$line.GetAttribute('number'), [ref]$lineNumber)) { continue }
+                  if ($lineNumber -lt 1) { continue }
+                  $hits = 0
+                  [int]::TryParse([string]$line.GetAttribute('hits'), [ref]$hits) | Out-Null
+                  $lineKey = "$normalized`:$lineNumber"
+                  if ($lineHits.ContainsKey($lineKey)) {
+                    if ($hits -gt [int]$lineHits[$lineKey]) {
+                      $lineHits[$lineKey] = $hits
+                    }
+                  } else {
+                    $lineHits[$lineKey] = $hits
+                  }
+                }
+              }
+            }
+            foreach ($entry in $lineHits.GetEnumerator()) {
+              $separator = $entry.Key.LastIndexOf(':')
+              if ($separator -lt 1) { continue }
+              $filePath = $entry.Key.Substring(0, $separator)
+              if (-not $map.ContainsKey($filePath)) {
+                $map[$filePath] = [pscustomobject]@{ Covered = 0; Valid = 0 }
+              }
+              $map[$filePath].Valid++
+              if ([int]$entry.Value -gt 0) {
+                $map[$filePath].Covered++
               }
             }
             return $map
@@ -941,17 +979,18 @@ jobs:
           $headMap = ReadCoverage "head-cov"
           $fail = $false
           foreach ($file in $changed) {
-            if ($file -notmatch '^src/Dispatch\\.' -and $file -notmatch '^src/Dispatch\.') { continue }
-            $b = $baseMap[$file]
-            $h = $headMap[$file]
+            $normalizedFile = NormalizeSourcePath $file
+            if ($null -eq $normalizedFile) { continue }
+            $b = $baseMap[$normalizedFile]
+            $h = $headMap[$normalizedFile]
             if (-not $h) { continue }
             $bPct = if ($b -and $b.Valid -gt 0) { 100.0 * $b.Covered / $b.Valid } else { 0 }
             $hPct = if ($h.Valid -gt 0) { 100.0 * $h.Covered / $h.Valid } else { 0 }
             $delta = [math]::Round($hPct - $bPct, 2)
-            Write-Host "$file: base=$([math]::Round($bPct,2)) head=$([math]::Round($hPct,2)) delta=$delta"
+            Write-Host "$normalizedFile: base=$([math]::Round($bPct,2)) head=$([math]::Round($hPct,2)) delta=$delta"
             if ($delta -lt -1.0) { $fail = $true }
           }
-          if ($fail) { Write-Error 'Coverage drop >1% on touched Excalibur.Dispatch.* files'; exit 1 } else { exit 0 }
+          if ($fail) { Write-Error 'Coverage drop >1% on touched src/Dispatch or src/Excalibur files'; exit 1 } else { exit 0 }
 
   # Code quality and security analysis
   quality:
@@ -1584,6 +1623,7 @@ jobs:
   repo-inventory:
     name: Repo Inventory
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: build
     steps:
       - name: Checkout code
@@ -1598,7 +1638,13 @@ jobs:
       - name: Generate repository inventory
         shell: pwsh
         run: |
-          ./eng/ci/repo-inventory.ps1 -Output "management/reports/dependency-inventory.md"
+          ./eng/ci/repo-inventory.ps1 `
+            -Output "management/reports/dependency-inventory.md" `
+            -ProjectRoot "src" `
+            -PerProjectTimeoutSeconds 45 `
+            -TotalBudgetMinutes 12 `
+            -MaxDependencyProjects 180 `
+            -FailOnGuardrailBreach
       - name: Upload inventory report
         uses: actions/upload-artifact@v4
         with:
@@ -1608,6 +1654,7 @@ jobs:
   dependency-audit:
     name: Dependency Vulnerability Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: build
     steps:
       - name: Checkout code
@@ -1622,7 +1669,13 @@ jobs:
       - name: Run dependency audit
         shell: pwsh
         run: |
-          ./eng/ci/dependency-audit.ps1 -OutDir management/reports/DependencyAuditReport
+          ./eng/ci/dependency-audit.ps1 `
+            -OutDir management/reports/DependencyAuditReport `
+            -ProjectRoot src `
+            -PerProjectTimeoutSeconds 60 `
+            -TotalBudgetMinutes 15 `
+            -MaxProjects 180 `
+            -FailOnGuardrailBreach
       - name: Enforce vulnerability policy (allowlist optional)
         shell: pwsh
         run: |

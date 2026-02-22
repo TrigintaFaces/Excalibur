@@ -9,6 +9,7 @@ using System.Text;
 using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Observability.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -89,7 +90,7 @@ public sealed partial class ContextObservabilityMiddleware(
 		// Enrich the activity with context information
 		_traceEnricher.EnrichActivity(activity, context);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		ContextSnapshot? beforeSnapshot = null;
 		ContextSnapshot? afterSnapshot = null;
 
@@ -117,7 +118,7 @@ public sealed partial class ContextObservabilityMiddleware(
 		}
 		finally
 		{
-			EmitDiagnosticEventIfEnabled(context, stageName, beforeSnapshot, afterSnapshot, stopwatch.ElapsedMilliseconds);
+			EmitDiagnosticEventIfEnabled(context, stageName, beforeSnapshot, afterSnapshot, GetElapsedMilliseconds(stopwatch));
 		}
 	}
 
@@ -215,7 +216,7 @@ public sealed partial class ContextObservabilityMiddleware(
 		IMessageContext context,
 		ContextSnapshot? beforeSnapshot,
 		string stageName,
-		Stopwatch stopwatch)
+		ValueStopwatch stopwatch)
 	{
 		// Capture context state after processing
 		var afterSnapshot = CaptureContextSnapshot(context, $"{stageName}.After");
@@ -228,8 +229,7 @@ public sealed partial class ContextObservabilityMiddleware(
 		CheckContextSize(afterSnapshot, stageName);
 
 		// Record success metrics
-		stopwatch.Stop();
-		_metrics.RecordPipelineStageLatency(stageName, stopwatch.ElapsedMilliseconds);
+		_metrics.RecordPipelineStageLatency(stageName, GetElapsedMilliseconds(stopwatch));
 		_metrics.RecordContextPreservationSuccess(stageName);
 
 		return afterSnapshot;
@@ -237,12 +237,10 @@ public sealed partial class ContextObservabilityMiddleware(
 
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
-	private void HandlePipelineException(Exception ex, IMessageContext context, string stageName, Stopwatch stopwatch)
+	private void HandlePipelineException(Exception ex, IMessageContext context, string stageName, ValueStopwatch stopwatch)
 	{
-		stopwatch.Stop();
-
 		// Record failure metrics
-		_metrics.RecordPipelineStageLatency(stageName, stopwatch.ElapsedMilliseconds);
+		_metrics.RecordPipelineStageLatency(stageName, GetElapsedMilliseconds(stopwatch));
 		_metrics.RecordContextError("pipeline_exception", stageName);
 
 		// Log the exception with context details
@@ -274,6 +272,8 @@ public sealed partial class ContextObservabilityMiddleware(
 			EmitDiagnosticEvent(context, stageName, beforeSnapshot, afterSnapshot, elapsedMilliseconds);
 		}
 	}
+
+	private static long GetElapsedMilliseconds(ValueStopwatch stopwatch) => stopwatch.ElapsedTicks / TimeSpan.TicksPerMillisecond;
 
 	[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]

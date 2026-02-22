@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Reflection;
+
 using Excalibur.Data.Abstractions.Validation;
+using Excalibur.Data.SqlServer.Cdc;
 
 namespace Excalibur.Data.Tests.SqlServer.Cdc;
 
@@ -14,6 +17,10 @@ namespace Excalibur.Data.Tests.SqlServer.Cdc;
 [Trait("Feature", "CDC")]
 public sealed class CdcRepositoryValidationShould : UnitTestBase
 {
+	private static readonly MethodInfo NormalizeCaptureInstanceForSqlMethod = typeof(CdcRepository)
+		.GetMethod("NormalizeCaptureInstanceForSql", BindingFlags.NonPublic | BindingFlags.Static)
+		?? throw new InvalidOperationException("Expected private normalization helper on CdcRepository.");
+
 	#region Whitelist Regex Tests
 
 	[Theory]
@@ -77,6 +84,36 @@ public sealed class CdcRepositoryValidationShould : UnitTestBase
 		// Act & Assert — should not throw for valid identifiers
 		Should.NotThrow(() => SqlIdentifierValidator.ThrowIfInvalid(validInput, "testParam"));
 	}
+
+	#endregion
+
+	#region Capture Instance Normalization
+
+	[Theory]
+	[InlineData("dbo.Orders", "dbo_Orders")]
+	[InlineData("sales.InvoiceItems", "sales_InvoiceItems")]
+	[InlineData("dbo_Orders", "dbo_Orders")]
+	public void NormalizeCaptureInstanceForSql_ConvertsValidDottedTableNames(string input, string expected)
+	{
+		NormalizeCaptureInstanceForSql(input).ShouldBe(expected);
+	}
+
+	[Theory]
+	[InlineData("dbo..Orders")]
+	[InlineData(".Orders")]
+	[InlineData("dbo.")]
+	[InlineData("dbo.Order-Items")]
+	[InlineData("dbo.Order Items")]
+	[InlineData("dbo.orders.extra")]
+	public void NormalizeCaptureInstanceForSql_LeavesInvalidDottedNamesUnchanged(string input)
+	{
+		var normalized = NormalizeCaptureInstanceForSql(input);
+		normalized.ShouldBe(input);
+		Should.Throw<ArgumentException>(() => SqlIdentifierValidator.ThrowIfInvalid(normalized, "captureInstance"));
+	}
+
+	private static string NormalizeCaptureInstanceForSql(string input) =>
+		(string?)NormalizeCaptureInstanceForSqlMethod.Invoke(null, [input]) ?? string.Empty;
 
 	#endregion
 }

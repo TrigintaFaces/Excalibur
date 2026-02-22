@@ -31,18 +31,20 @@ public sealed class OutboxServiceShould
 	public async Task DelegateExecutionToOutboxDispatcher()
 	{
 		// Arrange
-		using var cts = new CancellationTokenSource();
+		var dispatchStarted = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 		using var service = new OutboxService(_fakeOutbox);
 
 		A.CallTo(() => _fakeOutbox.RunOutboxDispatchAsync(A<string>._, A<CancellationToken>._))
+			.Invokes((string dispatcherId, CancellationToken _) => dispatchStarted.TrySetResult(dispatcherId))
 			.Returns(Task.FromResult(0));
 
 		// Act
-		await service.StartAsync(cts.Token).ConfigureAwait(true);
-		await Task.Delay(50, cts.Token).ConfigureAwait(true);
-		await cts.CancelAsync().ConfigureAwait(true);
+		await service.StartAsync(CancellationToken.None).ConfigureAwait(true);
+		var dispatcherId = await dispatchStarted.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(true);
+		await service.StopAsync(CancellationToken.None).ConfigureAwait(true);
 
 		// Assert
+		dispatcherId.ShouldNotBeNullOrWhiteSpace();
 		A.CallTo(() => _fakeOutbox.RunOutboxDispatchAsync(A<string>.That.IsNotNull(), A<CancellationToken>._))
 			.MustHaveHappenedOnceOrMore();
 	}
@@ -70,18 +72,17 @@ public sealed class OutboxServiceShould
 	public async Task PassUniqueDispatcherIdToOutbox()
 	{
 		// Arrange
-		string? capturedId = null;
-		using var cts = new CancellationTokenSource();
+		var capturedDispatcherId = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
 		using var service = new OutboxService(_fakeOutbox);
 
 		A.CallTo(() => _fakeOutbox.RunOutboxDispatchAsync(A<string>._, A<CancellationToken>._))
-			.Invokes((string id, CancellationToken _) => capturedId = id)
+			.Invokes((string id, CancellationToken _) => capturedDispatcherId.TrySetResult(id))
 			.Returns(Task.FromResult(0));
 
 		// Act
-		await service.StartAsync(cts.Token).ConfigureAwait(true);
-		await Task.Delay(50, cts.Token).ConfigureAwait(true);
-		await cts.CancelAsync().ConfigureAwait(true);
+		await service.StartAsync(CancellationToken.None).ConfigureAwait(true);
+		var capturedId = await capturedDispatcherId.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(true);
+		await service.StopAsync(CancellationToken.None).ConfigureAwait(true);
 
 		// Assert
 		capturedId.ShouldNotBeNullOrWhiteSpace();

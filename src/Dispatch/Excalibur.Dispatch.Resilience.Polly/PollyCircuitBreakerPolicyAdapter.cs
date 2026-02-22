@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics.CodeAnalysis;
-
 using Excalibur.Dispatch.Options.Resilience;
 
 using Microsoft.Extensions.Logging;
@@ -255,16 +253,13 @@ public sealed partial class PollyCircuitBreakerPolicyAdapter : ICoreCircuitBreak
 
 	/// <inheritdoc />
 	/// <remarks>
-	/// This method uses synchronous blocking because the <see cref="ICoreCircuitBreakerPolicy"/> interface
-	/// defines <see cref="Reset"/> as synchronous. The underlying Polly 8.x API only provides async
-	/// circuit control via <see cref="CircuitBreakerManualControl.CloseAsync"/>.
+	/// <see cref="ICoreCircuitBreakerPolicy.Reset"/> is synchronous while Polly's manual control API is
+	/// asynchronous; this method triggers close without blocking.
 	/// </remarks>
-	[SuppressMessage("AsyncUsage", "VSTHRD002:Avoid problematic synchronous waits",
-		Justification = "ICircuitBreakerPolicy.Reset() is synchronous by design, but Polly 8.x only provides async circuit control.")]
 	public void Reset()
 	{
-		// Use manual control to close the circuit
-		_manualControl.CloseAsync().GetAwaiter().GetResult();
+		// Use manual control to close the circuit without sync-over-async blocking.
+		_ = _manualControl.CloseAsync();
 
 		lock (_lock)
 		{

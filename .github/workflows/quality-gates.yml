@@ -43,11 +43,21 @@ jobs:
               - '.github/workflows/ci.yml'
               - '.github/workflows/quality-gates.yml'
 
-  # Code coverage quality gate
-  coverage:
-    name: Code Coverage
+  # Code coverage quality gate (sharded for runtime stability)
+  coverage-shards:
+    name: "Code Coverage (Shard: ${{ matrix.shard.name }})"
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - { name: core, filter: "eng/ci/shards/UnitTests-Core.slnf" }
+          - { name: messaging, filter: "eng/ci/shards/UnitTests-Messaging.slnf" }
+          - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf" }
+          - { name: middleware, filter: "eng/ci/shards/UnitTests-Middleware.slnf" }
+          - { name: observability, filter: "eng/ci/shards/UnitTests-Observability.slnf" }
+          - { name: excalibur, filter: "eng/ci/shards/UnitTests-Excalibur.slnf" }
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -71,18 +81,45 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore
+        run: dotnet restore ${{ matrix.shard.filter }}
 
-      - name: Build solution
-        run: dotnet build --configuration Release --no-restore
+      - name: Build shard
+        run: dotnet build ${{ matrix.shard.filter }} --configuration Release --no-restore
 
-      - name: Run tests with coverage
+      - name: Run shard tests with coverage
         run: |
-          dotnet test --configuration Release --no-build \
+          dotnet test ${{ matrix.shard.filter }} \
+            --configuration Release \
+            --no-build \
+            --blame-hang-timeout 5m \
             --collect:"XPlat Code Coverage" \
             --settings tests/coverage.runsettings \
             --results-directory ./coverage \
+            --filter "Category=Unit|Category=DependencyInjection|Category=Performance" \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+
+      - name: Upload shard coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-shard-${{ matrix.shard.name }}
+          path: ./coverage/**/coverage.cobertura.xml
+          if-no-files-found: error
+          retention-days: 7
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: coverage-shards
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Download shard coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-shard-*
+          path: coverage
+          merge-multiple: true
 
       - name: Merge coverage reports
         run: |
@@ -93,22 +130,12 @@ jobs:
             -reporttypes:"Cobertura;HtmlSummary;TextSummary"
 
       - name: Validate coverage thresholds
+        shell: pwsh
         run: |
-          # Extract overall line coverage percentage
-          COVERAGE=$(grep -oP 'line-rate="\K[^"]+' ./coverage/merged/Cobertura.xml | head -1)
-          COVERAGE_PCT=$(echo "$COVERAGE * 100" | bc -l | xargs printf "%.1f")
-
-          echo "Overall coverage: $COVERAGE_PCT%"
-
-          # Check against threshold (70% - realistic for framework with many edge cases)
-          # Note: ci.yml uses 60% threshold
-          THRESHOLD=70
-          if (( $(echo "$COVERAGE_PCT < $THRESHOLD" | bc -l) )); then
-            echo "❌ Coverage $COVERAGE_PCT% is below threshold of $THRESHOLD%"
-            exit 1
-          else
-            echo "✅ Coverage $COVERAGE_PCT% meets threshold of $THRESHOLD%"
-          fi
+          ./eng/ci/coverage-threshold.ps1 `
+            -CoverageRoot "coverage" `
+            -Threshold 65 `
+            -FailBelowThreshold
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4

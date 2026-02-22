@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Caching;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <strong>AOT / Trimming Behavior:</strong> This converter uses <see cref="Type.GetType(string)"/>
+/// <strong>AOT / Trimming Behavior:</strong> This converter uses runtime type-name resolution
 /// and <see cref="JsonSerializer.Deserialize(string, Type, JsonSerializerOptions)"/> to reconstruct
 /// typed values from their serialized form. In AOT or trimmed environments, type resolution may fail
 /// if the target type is not preserved. When this occurs, the <see cref="CachedValue.Value"/> property
@@ -103,11 +103,11 @@ public sealed class CachedValueJsonConverter : JsonConverter<CachedValue>
 		}
 
 		// Attempt to deserialize Value to the correct type using TypeName.
-		// In AOT/trimmed environments, Type.GetType or Deserialize may fail;
+		// In AOT/trimmed environments, type resolution or Deserialize may fail;
 		// the value gracefully falls back to the JsonElement representation.
 		if (value is JsonElement element && !string.IsNullOrEmpty(typeName))
 		{
-			var targetType = Type.GetType(typeName);
+			var targetType = ResolveTypeByName(typeName);
 			if (targetType != null)
 			{
 				try
@@ -157,5 +157,35 @@ public sealed class CachedValueJsonConverter : JsonConverter<CachedValue>
 		}
 
 		writer.WriteEndObject();
+	}
+
+	private static Type? ResolveTypeByName(string typeName)
+	{
+		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+		{
+			var resolved = assembly.GetType(typeName, throwOnError: false, ignoreCase: false);
+			if (resolved != null)
+			{
+				return resolved;
+			}
+		}
+
+		var assemblySeparator = typeName.IndexOf(',', StringComparison.Ordinal);
+		if (assemblySeparator <= 0)
+		{
+			return null;
+		}
+
+		var simpleTypeName = typeName[..assemblySeparator];
+		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+		{
+			var resolved = assembly.GetType(simpleTypeName, throwOnError: false, ignoreCase: false);
+			if (resolved != null)
+			{
+				return resolved;
+			}
+		}
+
+		return null;
 	}
 }

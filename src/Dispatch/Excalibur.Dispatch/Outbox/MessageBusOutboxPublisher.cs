@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
 // AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics;
 using System.Globalization;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Messaging;
@@ -34,7 +34,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger<MessageBusOutboxPublisher> _logger;
 
-	private readonly Stopwatch _operationStopwatch = new();
+	private ValueStopwatch _operationStopwatch = ValueStopwatch.Empty;
 	private long _totalOperations;
 	private long _totalPublished;
 	private long _totalFailed;
@@ -262,7 +262,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 							  Resources.MessageBusOutboxPublisher_NoTransportAdapter,
 							  transportName));
 
-		_operationStopwatch.Restart();
+		_operationStopwatch = ValueStopwatch.StartNew();
 		_totalOperations++;
 		_lastOperationAt = DateTimeOffset.UtcNow;
 
@@ -272,7 +272,6 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		var deliveryList = deliveries.ToList();
 		if (deliveryList.Count == 0)
 		{
-			_operationStopwatch.Stop();
 			return PublishingResult.Success(0, 0, _operationStopwatch.Elapsed);
 		}
 
@@ -294,13 +293,11 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		_ = Interlocked.Add(ref _totalPublished, successCount);
 		_ = Interlocked.Add(ref _totalFailed, failureCount);
 
-		_operationStopwatch.Stop();
-
 		LogTransportPublishSummary(
 			successCount,
 			transportName,
 			failureCount,
-			_operationStopwatch.ElapsedMilliseconds);
+			(long)_operationStopwatch.ElapsedMilliseconds);
 
 		return failureCount > 0
 			? PublishingResult.WithFailures(successCount, failureCount, errors, _operationStopwatch.Elapsed)
@@ -398,7 +395,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		IReadOnlyList<OutboundMessage> messages,
 		CancellationToken cancellationToken)
 	{
-		_operationStopwatch.Restart();
+		_operationStopwatch = ValueStopwatch.StartNew();
 		_totalOperations++;
 		_lastOperationAt = DateTimeOffset.UtcNow;
 
@@ -460,8 +457,6 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 				LogFailedToPublishToDestination(message.Id, message.Destination, ex);
 			}
 		}
-
-		_operationStopwatch.Stop();
 
 		return failureCount > 0
 			? PublishingResult.WithFailures(successCount, failureCount, errors, _operationStopwatch.Elapsed)

@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Reflection;
+
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Excalibur.Dispatch.Compliance.Tests.Encryption;
@@ -257,6 +260,61 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 	}
 
 	[Fact]
+	public void Dispose_waits_for_health_check_task_with_bounded_spin_wait()
+	{
+		// Arrange
+		var primary = A.Fake<IKeyManagementProvider>();
+		var secondary = A.Fake<IKeyManagementProvider>();
+		var options = new MultiRegionOptions
+		{
+			Primary = new RegionConfiguration
+			{
+				RegionId = "us-east-1",
+				Endpoint = new Uri("https://primary.example.com"),
+			},
+			Secondary = new RegionConfiguration
+			{
+				RegionId = "us-west-2",
+				Endpoint = new Uri("https://secondary.example.com"),
+			},
+			HealthCheckInterval = TimeSpan.FromMilliseconds(1),
+			OperationTimeout = TimeSpan.FromSeconds(2),
+			EnableAutomaticFailover = false,
+		};
+
+		_ = A.CallTo(() => primary.ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
+			.ReturnsLazily(async call =>
+			{
+				await Task.Delay(250, call.GetArgument<CancellationToken>(2));
+				return (IReadOnlyList<KeyMetadata>)[];
+			});
+		_ = A.CallTo(() => secondary.ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
+			.ReturnsLazily(async call =>
+			{
+				await Task.Delay(250, call.GetArgument<CancellationToken>(2));
+				return (IReadOnlyList<KeyMetadata>)[];
+			});
+
+		var sut = new MultiRegionKeyProvider(
+			primary,
+			secondary,
+			options,
+			NullLogger<MultiRegionKeyProvider>.Instance);
+
+		// Let the background loop start and enter a health-check cycle.
+		Thread.Sleep(30);
+		GetHealthCheckTask(sut).IsCompleted.ShouldBeFalse();
+
+		// Act
+		var sw = Stopwatch.StartNew();
+		sut.Dispose();
+		sw.Stop();
+
+		// Assert
+		sw.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(2));
+	}
+
+	[Fact]
 	public void Throw_for_null_primary()
 	{
 		Should.Throw<ArgumentNullException>(() =>
@@ -333,5 +391,16 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 	public void Dispose()
 	{
 		_sut.Dispose();
+	}
+
+	private static Task GetHealthCheckTask(MultiRegionKeyProvider provider)
+	{
+		var field = typeof(MultiRegionKeyProvider)
+			.GetField("_healthCheckTask", BindingFlags.Instance | BindingFlags.NonPublic);
+		field.ShouldNotBeNull();
+		var value = field!.GetValue(provider);
+		value.ShouldNotBeNull();
+		value.ShouldBeAssignableTo<Task>();
+		return (Task)(value ?? throw new InvalidOperationException("Health check task field should not be null."));
 	}
 }

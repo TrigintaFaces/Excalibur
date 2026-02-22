@@ -144,57 +144,7 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		ArgumentException.ThrowIfNullOrEmpty(keyId);
 
-		try
-		{
-			KeyMetadata? previousKeyMetadata = null;
-
-			if (_keys.TryGetValue(keyId, out var existingEntry))
-			{
-				// Rotating existing key - mark current version as decrypt-only
-				var currentVersion = existingEntry.Versions.Keys.Max();
-				var currentVersionEntry = existingEntry.Versions[currentVersion];
-
-				if (currentVersionEntry.Status == KeyStatus.Active)
-				{
-					previousKeyMetadata = CreateMetadata(existingEntry, currentVersionEntry);
-					currentVersionEntry.Status = KeyStatus.DecryptOnly;
-					currentVersionEntry.RotatedAt = DateTimeOffset.UtcNow;
-				}
-
-				// Create new version
-				var newVersion = currentVersion + 1;
-				var newVersionEntry = CreateVersionEntry(expiresAt);
-				existingEntry.Versions[newVersion] = newVersionEntry;
-
-				LogKeyRotated(keyId, currentVersion, newVersion);
-
-				var newMetadata = CreateMetadata(existingEntry, newVersionEntry);
-				return Task.FromResult(KeyRotationResult.Succeeded(newMetadata, previousKeyMetadata));
-			}
-			else
-			{
-				// Creating new key
-				var keyEntry = new KeyEntry { KeyId = keyId, Purpose = purpose, Algorithm = algorithm };
-
-				var versionEntry = CreateVersionEntry(expiresAt);
-				keyEntry.Versions[1] = versionEntry;
-
-				if (!_keys.TryAdd(keyId, keyEntry))
-				{
-					return Task.FromResult(KeyRotationResult.Failed("Key already exists (race condition)."));
-				}
-
-				LogKeyCreated(keyId);
-
-				var newMetadata = CreateMetadata(keyEntry, versionEntry);
-				return Task.FromResult(KeyRotationResult.Succeeded(newMetadata));
-			}
-		}
-		catch (Exception ex)
-		{
-			LogKeyRotationFailed(ex, keyId);
-			return Task.FromResult(KeyRotationResult.Failed(ex.Message));
-		}
+		return Task.FromResult(RotateKeyCore(keyId, algorithm, purpose, expiresAt));
 	}
 
 	/// <inheritdoc/>
@@ -448,19 +398,72 @@ public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvid
 	/// <summary>
 	/// Generates the default key synchronously for lazy initialization.
 	/// </summary>
-	/// <remarks>
-	/// This method is safe because RotateKeyAsync is fully synchronous (uses Task.FromResult).
-	/// </remarks>
 	private KeyMetadata? GenerateDefaultKeySync()
 	{
-		var result = RotateKeyAsync(
+		var result = RotateKeyCore(
 			_options.DefaultKeyId,
 			EncryptionAlgorithm.Aes256Gcm,
 			null,
-			null,
-			CancellationToken.None).GetAwaiter().GetResult();
+			null);
 
 		return result.NewKey;
+	}
+
+	private KeyRotationResult RotateKeyCore(
+		string keyId,
+		EncryptionAlgorithm algorithm,
+		string? purpose,
+		DateTimeOffset? expiresAt)
+	{
+		try
+		{
+			KeyMetadata? previousKeyMetadata = null;
+
+			if (_keys.TryGetValue(keyId, out var existingEntry))
+			{
+				// Rotating existing key - mark current version as decrypt-only
+				var currentVersion = existingEntry.Versions.Keys.Max();
+				var currentVersionEntry = existingEntry.Versions[currentVersion];
+
+				if (currentVersionEntry.Status == KeyStatus.Active)
+				{
+					previousKeyMetadata = CreateMetadata(existingEntry, currentVersionEntry);
+					currentVersionEntry.Status = KeyStatus.DecryptOnly;
+					currentVersionEntry.RotatedAt = DateTimeOffset.UtcNow;
+				}
+
+				// Create new version
+				var newVersion = currentVersion + 1;
+				var newVersionEntry = CreateVersionEntry(expiresAt);
+				existingEntry.Versions[newVersion] = newVersionEntry;
+
+				LogKeyRotated(keyId, currentVersion, newVersion);
+
+				var newMetadata = CreateMetadata(existingEntry, newVersionEntry);
+				return KeyRotationResult.Succeeded(newMetadata, previousKeyMetadata);
+			}
+
+			// Creating new key
+			var keyEntry = new KeyEntry { KeyId = keyId, Purpose = purpose, Algorithm = algorithm };
+
+			var versionEntry = CreateVersionEntry(expiresAt);
+			keyEntry.Versions[1] = versionEntry;
+
+			if (!_keys.TryAdd(keyId, keyEntry))
+			{
+				return KeyRotationResult.Failed("Key already exists (race condition).");
+			}
+
+			LogKeyCreated(keyId);
+
+			var createdMetadata = CreateMetadata(keyEntry, versionEntry);
+			return KeyRotationResult.Succeeded(createdMetadata);
+		}
+		catch (Exception ex)
+		{
+			LogKeyRotationFailed(ex, keyId);
+			return KeyRotationResult.Failed(ex.Message);
+		}
 	}
 
 	private sealed class KeyEntry

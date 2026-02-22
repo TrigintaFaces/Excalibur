@@ -1,9 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics;
-
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 
 using Excalibur.Outbox.Diagnostics;
 using Excalibur.Outbox.Health;
@@ -162,7 +161,7 @@ public partial class OutboxBackgroundService : BackgroundService
 
 	private async Task ProcessOutboxAsync(CancellationToken cancellationToken)
 	{
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		var totalSuccess = 0;
 		var totalFailure = 0;
 
@@ -239,8 +238,6 @@ public partial class OutboxBackgroundService : BackgroundService
 					retryResult.FailureCount);
 			}
 		}
-
-		stopwatch.Stop();
 
 		// Record cycle metrics
 		var result = totalFailure > 0

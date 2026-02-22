@@ -5,8 +5,11 @@ using Excalibur.Dispatch.Abstractions;
 
 using Excalibur.Outbox.Health;
 using Excalibur.Outbox.Outbox;
+using Excalibur.Outbox.Diagnostics;
 
 using FakeItEasy;
+
+using System.Diagnostics.Metrics;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -390,6 +393,70 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Assert - Cycle should have recorded success
 		healthState.TotalProcessed.ShouldBeGreaterThan(0);
+	}
+
+	[Fact]
+	public async Task ExecuteAsync_RecordsProcessingDurationMetric_ForOutboxService()
+	{
+		// Arrange
+		var publisher = A.Fake<IOutboxPublisher>();
+		_ = A.CallTo(() => publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
+			.Returns(PublishingResult.Success(2));
+		_ = A.CallTo(() => publisher.PublishScheduledMessagesAsync(A<CancellationToken>._))
+			.Returns(PublishingResult.Success(0));
+		_ = A.CallTo(() => publisher.RetryFailedMessagesAsync(A<int>._, A<CancellationToken>._))
+			.Returns(PublishingResult.Success(0));
+
+		var options = Options.Create(new OutboxProcessingOptions
+		{
+			Enabled = true,
+			PollingInterval = TimeSpan.FromMilliseconds(75),
+			ProcessScheduledMessages = false,
+			RetryFailedMessages = false
+		});
+		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
+		var durations = new List<double>();
+
+		using var listener = new MeterListener();
+		listener.InstrumentPublished = (instrument, meterListener) =>
+		{
+			if (instrument.Meter.Name == BackgroundServiceMetrics.MeterName &&
+				instrument.Name == "excalibur.background_service.processing_duration")
+			{
+				meterListener.EnableMeasurementEvents(instrument);
+			}
+		};
+		listener.SetMeasurementEventCallback<double>((instrument, measurement, tags, state) =>
+		{
+			string? serviceType = null;
+			foreach (var tag in tags)
+			{
+				if (tag.Key == "service.type")
+				{
+					serviceType = tag.Value?.ToString();
+					break;
+				}
+			}
+
+			if (serviceType == BackgroundServiceTypes.Outbox)
+			{
+				durations.Add(measurement);
+			}
+		});
+		listener.Start();
+
+		var service = new OutboxBackgroundService(publisher, options, logger);
+		using var cts = new CancellationTokenSource();
+
+		// Act
+		await service.StartAsync(cts.Token);
+		await Task.Delay(220);
+		await cts.CancelAsync();
+		await service.StopAsync(CancellationToken.None);
+
+		// Assert
+		durations.ShouldNotBeEmpty();
+		durations.All(duration => duration >= 0).ShouldBeTrue();
 	}
 
 	[Fact]

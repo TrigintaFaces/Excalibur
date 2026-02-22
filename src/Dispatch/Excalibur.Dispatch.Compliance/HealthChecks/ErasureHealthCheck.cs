@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics;
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 
 using Excalibur.Dispatch.Compliance.Diagnostics;
 
@@ -56,13 +56,12 @@ public sealed partial class ErasureHealthCheck : IHealthCheck
 			["store_type"] = _erasureStore.GetType().Name,
 		};
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		try
 		{
 			// Lightweight probe: query status for a well-known non-existent ID
 			var status = await _erasureStore.GetStatusAsync(Guid.Empty, cancellationToken).ConfigureAwait(false);
 
-			stopwatch.Stop();
 			data["duration_ms"] = stopwatch.Elapsed.TotalMilliseconds;
 			data["probe_result"] = status is null ? "no_record" : status.ToString();
 
@@ -81,7 +80,6 @@ public sealed partial class ErasureHealthCheck : IHealthCheck
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
 			data["duration_ms"] = stopwatch.Elapsed.TotalMilliseconds;
 
 			LogErasureHealthCheckFailed(ex);

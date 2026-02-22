@@ -6,7 +6,7 @@ description: Step-by-step recovery procedures for common operational failure sce
 
 # Recovery Runbooks
 
-This guide provides step-by-step procedures for recovering from common operational failures in Dispatch and Excalibur applications.
+This guide provides step-by-step procedures for recovering from common operational failures in Excalibur applications.
 
 ## Before You Start
 

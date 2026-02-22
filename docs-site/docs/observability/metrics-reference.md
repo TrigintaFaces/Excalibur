@@ -6,7 +6,7 @@ description: Complete catalog of OpenTelemetry metrics exposed by Excalibur.Disp
 
 # Metrics Reference
 
-Complete catalog of all OpenTelemetry metrics exposed by Excalibur.Dispatch and Excalibur framework components.
+Complete catalog of all OpenTelemetry metrics exposed by Excalibur framework components.
 
 ## Before You Start
 

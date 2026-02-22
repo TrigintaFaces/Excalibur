@@ -135,7 +135,8 @@ public sealed class DeadLetterQueueMetricsFunctionalShould : IDisposable
 
 		var entries = GetRecorded("dispatch.dlq.depth");
 		entries.ShouldNotBeEmpty();
-		var (value, tags) = entries[0];
+		var (value, tags) = entries.First(e =>
+			e.Tags.Any(t => t.Key == "queue_name" && (string)t.Value! == "default"));
 		((long)value).ShouldBe(42);
 		tags.ShouldContain(t => t.Key == "queue_name" && (string)t.Value! == "default");
 	}
@@ -147,7 +148,8 @@ public sealed class DeadLetterQueueMetricsFunctionalShould : IDisposable
 
 		var entries = GetRecorded("dispatch.dlq.depth");
 		entries.ShouldNotBeEmpty();
-		var (value, tags) = entries[0];
+		var (value, tags) = entries.First(e =>
+			e.Tags.Any(t => t.Key == "queue_name" && (string)t.Value! == "orders-dlq"));
 		((long)value).ShouldBe(10);
 		tags.ShouldContain(t => t.Key == "queue_name" && (string)t.Value! == "orders-dlq");
 	}
@@ -161,7 +163,8 @@ public sealed class DeadLetterQueueMetricsFunctionalShould : IDisposable
 		var entries = GetRecorded("dispatch.dlq.depth");
 		// Observable gauge reports latest value
 		entries.ShouldNotBeEmpty();
-		var lastEntry = entries[^1];
+		var lastEntry = entries.Last(e =>
+			e.Tags.Any(t => t.Key == "queue_name" && (string)t.Value! == "default"));
 		((long)lastEntry.Value).ShouldBe(50);
 	}
 

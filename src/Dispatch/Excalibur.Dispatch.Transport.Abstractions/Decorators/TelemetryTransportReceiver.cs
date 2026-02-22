@@ -4,6 +4,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Transport.Diagnostics;
 
 namespace Excalibur.Dispatch.Transport.Decorators;
@@ -72,9 +73,8 @@ public sealed class TelemetryTransportReceiver : DelegatingTransportReceiver
 		activity?.SetTag(TransportTelemetryConstants.Tags.Source, guardedSource);
 		activity?.SetTag(TransportTelemetryConstants.Tags.Operation, "receive");
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		var messages = await base.ReceiveAsync(maxMessages, cancellationToken).ConfigureAwait(false);
-		stopwatch.Stop();
 
 		if (messages.Count > 0)
 		{

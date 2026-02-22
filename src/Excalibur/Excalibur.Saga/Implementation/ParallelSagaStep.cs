@@ -171,24 +171,29 @@ public partial class ParallelSagaStep<TData>(
 		{
 			await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-			var task = Task.Run(
-				async () =>
-				{
-					try
-					{
-						return await ExecuteStepAsync(step, context, cancellationToken).ConfigureAwait(false);
-					}
-					finally
-					{
-						_ = semaphore.Release();
-					}
-				}, cancellationToken);
+			var task = ExecuteStepWithSemaphoreAsync(step, context, semaphore, cancellationToken);
 
 			tasks.Add(task);
 		}
 
 		results.AddRange(await Task.WhenAll(tasks).ConfigureAwait(false));
 		return results;
+	}
+
+	private async Task<StepResult> ExecuteStepWithSemaphoreAsync(
+		ISagaStep<TData> step,
+		ISagaContext<TData> context,
+		SemaphoreSlim semaphore,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			return await ExecuteStepAsync(step, context, cancellationToken).ConfigureAwait(false);
+		}
+		finally
+		{
+			_ = semaphore.Release();
+		}
 	}
 
 	private async Task<List<StepResult>> ExecuteBatchedAsync(

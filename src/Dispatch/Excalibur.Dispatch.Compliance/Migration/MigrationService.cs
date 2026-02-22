@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
-using System.Diagnostics;
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Compliance.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -110,7 +110,7 @@ public sealed partial class MigrationService : IMigrationService
 	{
 		ArgumentNullException.ThrowIfNull(ciphertext);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		var sourceVersion = DetectVersion(ciphertext);
 
 		if (sourceVersion == EncryptionVersion.Unknown)
@@ -143,7 +143,6 @@ public sealed partial class MigrationService : IMigrationService
 				.ConfigureAwait(false);
 			var newCiphertext = CreateVersionedCiphertext(newEncrypted);
 
-			stopwatch.Stop();
 			_ = Interlocked.Increment(ref _totalMigrated);
 
 			_metrics?.RecordEncryptionOperation(
@@ -151,7 +150,7 @@ public sealed partial class MigrationService : IMigrationService
 				"Migration",
 				ciphertext.Length);
 
-			LogMigrationSucceeded(sourceVersion, _options.TargetVersion, stopwatch.ElapsedMilliseconds);
+			LogMigrationSucceeded(sourceVersion, _options.TargetVersion, (long)stopwatch.ElapsedMilliseconds);
 
 			return VersionMigrationResult.Succeeded(
 				ciphertext,
@@ -166,7 +165,6 @@ public sealed partial class MigrationService : IMigrationService
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
 			_ = Interlocked.Increment(ref _totalFailures);
 
 			LogMigrationFailed(sourceVersion, _options.TargetVersion, ex);
@@ -188,7 +186,7 @@ public sealed partial class MigrationService : IMigrationService
 		ArgumentNullException.ThrowIfNull(items);
 
 		var itemList = items.ToList();
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		var results = new List<(string Id, VersionMigrationResult Result)>();
 		using var semaphore = new SemaphoreSlim(_options.MaxConcurrentMigrations);
 		var successCount = 0;
@@ -242,13 +240,11 @@ public sealed partial class MigrationService : IMigrationService
 			// Expected when FailFast is enabled
 		}
 
-		stopwatch.Stop();
-
 		LogMigrationBatchCompleted(
 			successCount,
 			failureCount,
 			skippedCount,
-			stopwatch.ElapsedMilliseconds);
+			(long)stopwatch.ElapsedMilliseconds);
 
 		return new VersionBatchMigrationResult(
 			itemList.Count,

@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-
-using System.Diagnostics;
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
@@ -14,20 +13,20 @@ namespace Excalibur.Dispatch.Extensions.HealthChecking;
 public sealed class HealthCheckDataBuilder
 {
 	private readonly Dictionary<string, object> _data = new(StringComparer.Ordinal);
-	private readonly Stopwatch _stopwatch;
+	private readonly ValueStopwatch _stopwatch;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="HealthCheckDataBuilder"/> class.
 	/// </summary>
 	public HealthCheckDataBuilder()
 	{
-		_stopwatch = Stopwatch.StartNew();
+		_stopwatch = ValueStopwatch.StartNew();
 	}
 
 	/// <summary>
 	/// Gets the elapsed milliseconds since the builder was created.
 	/// </summary>
-	public long ElapsedMilliseconds => _stopwatch.ElapsedMilliseconds;
+	public long ElapsedMilliseconds => (long)_stopwatch.ElapsedMilliseconds;
 
 	/// <summary>
 	/// Adds a key-value pair to the health check data.
@@ -47,7 +46,7 @@ public sealed class HealthCheckDataBuilder
 	/// <returns> The builder for chaining. </returns>
 	public HealthCheckDataBuilder AddResponseTime()
 	{
-		_data["ResponseTimeMs"] = _stopwatch.ElapsedMilliseconds;
+		_data["ResponseTimeMs"] = (long)_stopwatch.ElapsedMilliseconds;
 		return this;
 	}
 
@@ -70,7 +69,6 @@ public sealed class HealthCheckDataBuilder
 	/// <returns> The builder for chaining. </returns>
 	public HealthCheckDataBuilder Stop()
 	{
-		_stopwatch.Stop();
 		return AddResponseTime();
 	}
 

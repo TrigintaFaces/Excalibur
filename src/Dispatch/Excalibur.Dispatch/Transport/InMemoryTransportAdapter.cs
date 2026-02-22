@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Threading.Channels;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Messaging;
@@ -107,7 +107,7 @@ public sealed partial class InMemoryTransportAdapter : ITransportAdapter, ITrans
 		ArgumentNullException.ThrowIfNull(transportMessage);
 		ArgumentNullException.ThrowIfNull(dispatcher);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		if (!IsRunning)
 		{
@@ -156,7 +156,6 @@ public sealed partial class InMemoryTransportAdapter : ITransportAdapter, ITrans
 
 			var result = await dispatcher.DispatchAsync(message, context, cancellationToken).ConfigureAwait(false);
 
-			stopwatch.Stop();
 			TransportMeter.RecordMessageReceived(Name, TransportType, messageType);
 			TransportMeter.RecordReceiveDuration(Name, TransportType, stopwatch.Elapsed.TotalMilliseconds);
 			_ = Interlocked.Increment(ref _successfulMessages);
@@ -165,7 +164,6 @@ public sealed partial class InMemoryTransportAdapter : ITransportAdapter, ITrans
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
 			LogMessageProcessingFailed(messageId, ex);
 			TransportMeter.RecordError(Name, TransportType, "processing_failed");
 			TransportMeter.RecordReceiveDuration(Name, TransportType, stopwatch.Elapsed.TotalMilliseconds);
@@ -192,7 +190,7 @@ public sealed partial class InMemoryTransportAdapter : ITransportAdapter, ITrans
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentException.ThrowIfNullOrWhiteSpace(destination);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		if (!IsRunning)
 		{
@@ -208,7 +206,6 @@ public sealed partial class InMemoryTransportAdapter : ITransportAdapter, ITrans
 		// Store the message for testing verification
 		_sentMessages[messageId] = message;
 
-		stopwatch.Stop();
 		TransportMeter.RecordMessageSent(Name, TransportType, messageType);
 		TransportMeter.RecordSendDuration(Name, TransportType, stopwatch.Elapsed.TotalMilliseconds);
 
@@ -228,7 +225,7 @@ public sealed partial class InMemoryTransportAdapter : ITransportAdapter, ITrans
 
 		_processingCts?.Dispose();
 		_processingCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-		_processingTask = Task.Run(() => ProcessMessagesAsync(_processingCts.Token), CancellationToken.None);
+		_processingTask = ProcessMessagesAsync(_processingCts.Token);
 
 		// Record transport start metrics
 		TransportMeter.RecordTransportStarted(Name, TransportType);
@@ -295,7 +292,7 @@ public sealed partial class InMemoryTransportAdapter : ITransportAdapter, ITrans
 		TransportHealthCheckContext context,
 		CancellationToken cancellationToken)
 	{
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		var data = new Dictionary<string, object>(StringComparer.Ordinal)
 		{
@@ -333,7 +330,6 @@ public sealed partial class InMemoryTransportAdapter : ITransportAdapter, ITrans
 				data);
 		}
 
-		stopwatch.Stop();
 		_lastHealthCheck = DateTimeOffset.UtcNow;
 		_lastStatus = result.Status;
 
@@ -343,7 +339,7 @@ public sealed partial class InMemoryTransportAdapter : ITransportAdapter, ITrans
 	/// <inheritdoc />
 	public Task<TransportHealthCheckResult> CheckQuickHealthAsync(CancellationToken cancellationToken)
 	{
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		var status = IsRunning
 			? TransportHealthStatus.Healthy

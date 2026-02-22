@@ -3,10 +3,10 @@
 
 
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Compliance;
 using Excalibur.Dispatch.Security.Diagnostics;
 
@@ -53,7 +53,7 @@ public sealed partial class EncryptionMigrationService : IEncryptionMigrationSer
 		ArgumentNullException.ThrowIfNull(sourceContext);
 		ArgumentNullException.ThrowIfNull(targetContext);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		try
 		{
@@ -69,8 +69,6 @@ public sealed partial class EncryptionMigrationService : IEncryptionMigrationSer
 				targetContext,
 				cancellationToken).ConfigureAwait(false);
 
-			stopwatch.Stop();
-
 			LogMigrationSucceeded(encryptedData.KeyId, migratedData.KeyId, stopwatch.Elapsed.TotalMilliseconds);
 
 			return EncryptionMigrationResult.Succeeded(
@@ -81,7 +79,6 @@ public sealed partial class EncryptionMigrationService : IEncryptionMigrationSer
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
 			LogMigrationFailed(encryptedData.KeyId, ex);
 
 			return EncryptionMigrationResult.Failed(
@@ -104,7 +101,7 @@ public sealed partial class EncryptionMigrationService : IEncryptionMigrationSer
 
 		var migrationId = options.MigrationId ?? Guid.NewGuid().ToString();
 		var startedAt = DateTimeOffset.UtcNow;
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		var successResults = new ConcurrentDictionary<string, EncryptionMigrationResult>(StringComparer.Ordinal);
 		var failureResults = new ConcurrentDictionary<string, EncryptionMigrationResult>(StringComparer.Ordinal);
@@ -205,7 +202,6 @@ public sealed partial class EncryptionMigrationService : IEncryptionMigrationSer
 				};
 			}).ConfigureAwait(false);
 
-			stopwatch.Stop();
 			var completedAt = DateTimeOffset.UtcNow;
 
 			// Update final status
@@ -237,7 +233,6 @@ public sealed partial class EncryptionMigrationService : IEncryptionMigrationSer
 		}
 		catch (OperationCanceledException)
 		{
-			stopwatch.Stop();
 			var cancelledAt = DateTimeOffset.UtcNow;
 
 			_migrationStatuses[migrationId] = status with

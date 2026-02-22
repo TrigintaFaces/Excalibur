@@ -1,6 +1,6 @@
 ---
 title: Capability Migration Map
-description: Consolidated map of capability placement changes between Dispatch and Excalibur.
+description: Consolidated map of capability placement changes across Excalibur package families.
 ---
 
 # Capability Migration Map
@@ -31,5 +31,5 @@ Governance source:
 
 Related docs:
 
-- [Dispatch vs Excalibur](./dispatch-excalibur-boundary.md)
+- [Package Architecture](./dispatch-excalibur-boundary.md)
 - [Capability Ownership Matrix](./capability-ownership-matrix.md)

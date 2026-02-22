@@ -5,6 +5,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Outbox;
+using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Outbox;
 
@@ -212,6 +213,111 @@ public sealed class MessageBusOutboxPublisherShould
 		stats.TotalMessagesPublished.ShouldBe(0);
 		stats.TotalMessagesFailed.ShouldBe(0);
 		stats.CurrentSuccessRate.ShouldBe(100.0);
+	}
+
+	[Fact]
+	public async Task PublishPendingTransportDeliveries_WhenAdapterMissing_Throws()
+	{
+		// Arrange
+		var multiStore = A.Fake<IOutboxStore>(o => o.Implements<IMultiTransportOutboxStore>());
+		var transportRegistry = new TransportRegistry();
+		var publisher = new MessageBusOutboxPublisher(
+			multiStore,
+			_serializer,
+			transportRegistry,
+			_serviceProvider,
+			_logger);
+
+		// Act & Assert
+		await Should.ThrowAsync<InvalidOperationException>(
+			() => publisher.PublishPendingTransportDeliveriesAsync("kafka", CancellationToken.None, batchSize: 10));
+	}
+
+	[Fact]
+	public async Task PublishPendingTransportDeliveries_MarksTransportSent_OnSuccess()
+	{
+		// Arrange
+		var multiStoreBase = A.Fake<IOutboxStore>(o => o.Implements<IMultiTransportOutboxStore>());
+		var multiStore = multiStoreBase.ShouldBeAssignableTo<IMultiTransportOutboxStore>();
+
+		var adapter = A.Fake<ITransportAdapter>();
+		_ = A.CallTo(() => adapter.SendAsync(A<IDispatchMessage>._, A<string>._, A<CancellationToken>._))
+			.Returns(Task.CompletedTask);
+
+		var transportRegistry = new TransportRegistry();
+		transportRegistry.RegisterTransport("kafka", adapter, "Kafka");
+
+		var publisher = new MessageBusOutboxPublisher(
+			multiStoreBase,
+			_serializer,
+			transportRegistry,
+			_serviceProvider,
+			_logger);
+
+		var message = new OutboundMessage("OrderCreated", [1, 2, 3], "orders-default");
+		var transport = new OutboundMessageTransport(message.Id, "kafka")
+		{
+			Destination = "orders-topic"
+		};
+
+		_ = A.CallTo(() => multiStore.GetPendingTransportDeliveriesAsync("kafka", 10, A<CancellationToken>._))
+			.Returns(new[] { (message, transport) });
+
+		// Act
+		var result = await publisher.PublishPendingTransportDeliveriesAsync("kafka", CancellationToken.None, batchSize: 10);
+
+		// Assert
+		result.SuccessCount.ShouldBe(1);
+		result.FailureCount.ShouldBe(0);
+		_ = A.CallTo(() => adapter.SendAsync(A<IDispatchMessage>._, "orders-topic", A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+		_ = A.CallTo(() => multiStore.MarkTransportSentAsync(message.Id, "kafka", A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task PublishPendingTransportDeliveries_MarksTransportFailed_OnAdapterException()
+	{
+		// Arrange
+		var multiStoreBase = A.Fake<IOutboxStore>(o => o.Implements<IMultiTransportOutboxStore>());
+		var multiStore = multiStoreBase.ShouldBeAssignableTo<IMultiTransportOutboxStore>();
+
+		var adapter = A.Fake<ITransportAdapter>();
+		_ = A.CallTo(() => adapter.SendAsync(A<IDispatchMessage>._, A<string>._, A<CancellationToken>._))
+			.ThrowsAsync(new InvalidOperationException("transport unavailable"));
+
+		var transportRegistry = new TransportRegistry();
+		transportRegistry.RegisterTransport("kafka", adapter, "Kafka");
+
+		var publisher = new MessageBusOutboxPublisher(
+			multiStoreBase,
+			_serializer,
+			transportRegistry,
+			_serviceProvider,
+			_logger);
+
+		var message = new OutboundMessage("OrderCreated", [9, 9], "orders-default");
+		var transport = new OutboundMessageTransport(message.Id, "kafka")
+		{
+			Destination = "orders-topic"
+		};
+
+		_ = A.CallTo(() => multiStore.GetPendingTransportDeliveriesAsync("kafka", 10, A<CancellationToken>._))
+			.Returns(new[] { (message, transport) });
+
+		// Act
+		var result = await publisher.PublishPendingTransportDeliveriesAsync("kafka", CancellationToken.None, batchSize: 10);
+
+		// Assert
+		result.SuccessCount.ShouldBe(0);
+		result.FailureCount.ShouldBe(1);
+		result.Errors.ShouldContain(error => error.MessageId == message.Id);
+		_ = A.CallTo(() => multiStore.MarkTransportFailedAsync(
+				message.Id,
+				"kafka",
+				A<string>.That.Contains("transport unavailable"),
+				A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
 	}
 
 	private sealed class TestMessage

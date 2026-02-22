@@ -1,18 +1,18 @@
 ---
 sidebar_position: 1
 title: Compliance Disclaimer
-description: Important legal disclaimers regarding the use of Dispatch and Excalibur compliance-assistance features
+description: Important legal disclaimers regarding the use of Excalibur compliance-assistance features
 ---
 
 # Compliance and Liability Disclaimer
 
 :::warning Important Legal Notice
-This document contains legal disclaimers regarding the use of Dispatch and Excalibur framework packages. **Please read carefully before using any compliance-assistance features.**
+This document contains legal disclaimers regarding the use of Excalibur framework packages. **Please read carefully before using any compliance-assistance features.**
 :::
 
 ## Overview
 
-The Dispatch and Excalibur frameworks provide **tools and functionality** to assist with building compliant applications. However, these frameworks are **tools, not guarantees**. Your compliance obligations remain your responsibility.
+The Excalibur framework provides **tools and functionality** to assist with building compliant applications. However, the framework provides **tools, not guarantees**. Your compliance obligations remain your responsibility.
 
 ---
 
@@ -30,7 +30,7 @@ The Dispatch and Excalibur frameworks provide **tools and functionality** to ass
 
 ## Compliance Responsibility Notice
 
-Use of Dispatch and Excalibur frameworks does **NOT**:
+Use of the Excalibur framework does **NOT**:
 
 - Guarantee compliance with any law or regulation
 - Replace independent compliance testing and validation

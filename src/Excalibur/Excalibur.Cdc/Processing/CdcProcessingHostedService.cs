@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics;
-
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Cdc.Diagnostics;
 
 using Microsoft.Extensions.Hosting;
@@ -112,9 +111,8 @@ public partial class CdcProcessingHostedService : BackgroundService
 		{
 			try
 			{
-				var stopwatch = Stopwatch.StartNew();
+				var stopwatch = ValueStopwatch.StartNew();
 				var processed = await _processor.ProcessChangesAsync(stoppingToken).ConfigureAwait(false);
-				stopwatch.Stop();
 
 				_consecutiveErrors = 0;
 				_isHealthy = true;

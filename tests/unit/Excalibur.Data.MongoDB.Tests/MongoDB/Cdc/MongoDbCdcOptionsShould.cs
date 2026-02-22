@@ -160,4 +160,15 @@ public sealed class MongoDbCdcOptionsShould
 
 		Should.Throw<InvalidOperationException>(() => options.Validate());
 	}
+
+	[Fact]
+	public void ValidateAcceptsCollectionNamesWithAndWithoutDatabasePrefix()
+	{
+		var options = new MongoDbCdcOptions
+		{
+			CollectionNames = ["orders", "sales.orders"]
+		};
+
+		Should.NotThrow(() => options.Validate());
+	}
 }

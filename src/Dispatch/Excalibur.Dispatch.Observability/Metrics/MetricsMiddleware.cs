@@ -1,9 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics;
-
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Abstractions.Delivery;
 
 namespace Excalibur.Dispatch.Observability.Metrics;
@@ -51,11 +50,10 @@ public sealed class MetricsMiddleware(IDispatchMetrics metrics) : IDispatchMiddl
 		var messageType = message.GetType().Name;
 		var handlerType = context.GetItem<Type>("HandlerType")?.Name ?? "Unknown";
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		try
 		{
 			var result = await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
-			stopwatch.Stop();
 
 			var success = result.IsSuccess;
 			_metrics.RecordProcessingDuration(stopwatch.Elapsed.TotalMilliseconds, messageType, success);
@@ -70,7 +68,6 @@ public sealed class MetricsMiddleware(IDispatchMetrics metrics) : IDispatchMiddl
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
 			_metrics.RecordProcessingDuration(stopwatch.Elapsed.TotalMilliseconds, messageType, success: false);
 			_metrics.RecordMessageFailed(messageType, ex.GetType().Name, retryAttempt: 0);
 			throw;

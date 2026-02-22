@@ -1,6 +1,6 @@
 ---
 title: Capability Ownership Matrix
-description: Canonical Dispatch vs Excalibur ownership matrix generated from governance source.
+description: Canonical package family ownership matrix generated from governance source.
 ---
 
 # Capability Ownership Matrix

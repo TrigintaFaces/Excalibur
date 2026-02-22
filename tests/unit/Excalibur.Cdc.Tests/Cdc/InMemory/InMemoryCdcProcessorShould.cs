@@ -246,6 +246,142 @@ public sealed class InMemoryCdcProcessorShould : UnitTestBase
 		store.GetHistory().Count.ShouldBe(2);
 	}
 
+	[Fact]
+	public async Task ProcessChangesAsync_CallsMarkAsProcessedOnlyAfterSuccessfulBatch()
+	{
+		// Arrange
+		var store = A.Fake<IInMemoryCdcStore>();
+		var batch = new List<InMemoryCdcChange>
+		{
+			InMemoryCdcChange.Insert("dbo.Orders", new CdcDataChange { ColumnName = "Id", NewValue = 1 }),
+			InMemoryCdcChange.Insert("dbo.Orders", new CdcDataChange { ColumnName = "Id", NewValue = 2 })
+		};
+		var getCount = 0;
+		_ = A.CallTo(() => store.GetPendingChanges(A<int>._))
+			.ReturnsLazily(() => Interlocked.Increment(ref getCount) == 1 ? batch : new List<InMemoryCdcChange>());
+
+		var options = Options.Create(new InMemoryCdcOptions { BatchSize = 10 });
+		var logger = A.Fake<ILogger<InMemoryCdcProcessor>>();
+		using var processor = new InMemoryCdcProcessor(store, options, logger);
+
+		// Act
+		var result = await processor.ProcessChangesAsync((_, _) => Task.CompletedTask, CancellationToken.None).ConfigureAwait(false);
+
+		// Assert
+		result.ShouldBe(2);
+		A.CallTo(() => store.MarkAsProcessed(A<IEnumerable<InMemoryCdcChange>>.That.Matches(changes =>
+				changes.Count() == 2)))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task ProcessChangesAsync_DoesNotCallMarkAsProcessed_WhenHandlerThrows()
+	{
+		// Arrange
+		var store = A.Fake<IInMemoryCdcStore>();
+		var batch = new List<InMemoryCdcChange>
+		{
+			InMemoryCdcChange.Insert("dbo.Orders", new CdcDataChange { ColumnName = "Id", NewValue = 1 }),
+			InMemoryCdcChange.Insert("dbo.Orders", new CdcDataChange { ColumnName = "Id", NewValue = 2 })
+		};
+		_ = A.CallTo(() => store.GetPendingChanges(A<int>._)).Returns(batch);
+
+		var options = Options.Create(new InMemoryCdcOptions { BatchSize = 10 });
+		var logger = A.Fake<ILogger<InMemoryCdcProcessor>>();
+		using var processor = new InMemoryCdcProcessor(store, options, logger);
+
+		// Act & Assert
+		_ = await Should.ThrowAsync<InvalidOperationException>(async () =>
+			await processor.ProcessChangesAsync((_, _) =>
+				throw new InvalidOperationException("boom"), CancellationToken.None).ConfigureAwait(false));
+
+		A.CallTo(() => store.MarkAsProcessed(A<IEnumerable<InMemoryCdcChange>>._))
+			.MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task ProcessChangesAsync_MarksOnlyCompletedBatches_WhenLaterBatchHandlerFails()
+	{
+		// Arrange
+		var firstBatch = new List<InMemoryCdcChange>
+		{
+			InMemoryCdcChange.Insert("dbo.Orders", new CdcDataChange { ColumnName = "Id", NewValue = 1 }),
+			InMemoryCdcChange.Insert("dbo.Orders", new CdcDataChange { ColumnName = "Id", NewValue = 2 })
+		};
+		var secondBatch = new List<InMemoryCdcChange>
+		{
+			InMemoryCdcChange.Insert("dbo.Orders", new CdcDataChange { ColumnName = "Id", NewValue = 3 }),
+			InMemoryCdcChange.Insert("dbo.Orders", new CdcDataChange { ColumnName = "Id", NewValue = 4 })
+		};
+		var store = A.Fake<IInMemoryCdcStore>();
+		var getPendingCalls = 0;
+		_ = A.CallTo(() => store.GetPendingChanges(A<int>._))
+			.ReturnsLazily(() =>
+			{
+				var current = Interlocked.Increment(ref getPendingCalls);
+				return current switch
+				{
+					1 => firstBatch,
+					2 => secondBatch,
+					_ => []
+				};
+			});
+
+		var options = Options.Create(new InMemoryCdcOptions { BatchSize = 2 });
+		var logger = A.Fake<ILogger<InMemoryCdcProcessor>>();
+		using var processor = new InMemoryCdcProcessor(store, options, logger);
+
+		var handled = 0;
+
+		// Act & Assert
+		var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
+			processor.ProcessChangesAsync((_, _) =>
+			{
+				if (Interlocked.Increment(ref handled) == 3)
+				{
+					throw new InvalidOperationException("second batch failed");
+				}
+
+				return Task.CompletedTask;
+			}, CancellationToken.None));
+
+		ex.Message.ShouldBe("second batch failed");
+		A.CallTo(() => store.MarkAsProcessed(A<IEnumerable<InMemoryCdcChange>>.That.Matches(changes =>
+				changes.Count() == firstBatch.Count &&
+				changes.All(change => firstBatch.Contains(change)))))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task ProcessChangesAsync_DoesNotCallMarkAsProcessed_WhenCancellationOccursInHandler()
+	{
+		// Arrange
+		var store = A.Fake<IInMemoryCdcStore>();
+		var batch = new List<InMemoryCdcChange>
+		{
+			InMemoryCdcChange.Insert("dbo.Orders", new CdcDataChange { ColumnName = "Id", NewValue = 1 }),
+			InMemoryCdcChange.Insert("dbo.Orders", new CdcDataChange { ColumnName = "Id", NewValue = 2 })
+		};
+		_ = A.CallTo(() => store.GetPendingChanges(A<int>._)).Returns(batch);
+
+		var options = Options.Create(new InMemoryCdcOptions { BatchSize = 10 });
+		var logger = A.Fake<ILogger<InMemoryCdcProcessor>>();
+		using var processor = new InMemoryCdcProcessor(store, options, logger);
+		using var cts = new CancellationTokenSource();
+
+		// Act & Assert
+		_ = await Should.ThrowAsync<OperationCanceledException>(async () =>
+			await processor.ProcessChangesAsync((_, ct) =>
+			{
+				cts.Cancel();
+				ct.ThrowIfCancellationRequested();
+				return Task.CompletedTask;
+			}, cts.Token).ConfigureAwait(false));
+
+		A.CallTo(() => store.MarkAsProcessed(A<IEnumerable<InMemoryCdcChange>>._))
+			.MustNotHaveHappened();
+	}
+
 	#endregion
 
 	#region Dispose Tests

@@ -260,7 +260,7 @@ const config: Config = {
           position: 'left',
           items: [
             {
-              href: 'https://www.nuget.org/packages?q=Excalibur',
+              href: 'https://www.nuget.org/packages?q=owner:SystemDeveloper',
               label: 'Excalibur.*',
             },
           ],
@@ -299,7 +299,7 @@ const config: Config = {
           items: [
             {
               label: 'Excalibur.*',
-              href: 'https://www.nuget.org/packages?q=Excalibur',
+              href: 'https://www.nuget.org/packages?q=owner:SystemDeveloper',
             },
           ],
         },

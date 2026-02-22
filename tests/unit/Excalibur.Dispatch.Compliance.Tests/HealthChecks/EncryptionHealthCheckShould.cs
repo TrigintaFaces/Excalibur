@@ -153,6 +153,138 @@ public sealed class EncryptionHealthCheckShould
 	}
 
 	[Fact]
+	public async Task Return_degraded_when_round_trip_exceeds_degraded_threshold()
+	{
+		// Arrange
+		byte[]? capturedPlaintext = null;
+		A.CallTo(() => _encryptionProvider.EncryptAsync(A<byte[]>._, A<EncryptionContext>._, A<CancellationToken>._))
+			.ReturnsLazily(async call =>
+			{
+				await Task.Delay(20);
+				capturedPlaintext = call.GetArgument<byte[]>(0);
+				return new EncryptedData
+				{
+					Ciphertext = capturedPlaintext!,
+					Iv = [4, 5, 6],
+					AuthTag = [7, 8, 9],
+					KeyId = "test-key",
+					KeyVersion = 1,
+					Algorithm = EncryptionAlgorithm.Aes256Gcm,
+				};
+			});
+		A.CallTo(() => _encryptionProvider.DecryptAsync(A<EncryptedData>._, A<EncryptionContext>._, A<CancellationToken>._))
+			.ReturnsLazily(async _ =>
+			{
+				await Task.Delay(20);
+				return capturedPlaintext ?? [];
+			});
+
+		var options = new EncryptionHealthCheckOptions
+		{
+			DegradedThreshold = TimeSpan.FromMilliseconds(1),
+			VerifyKeyManagement = false
+		};
+		var sut = CreateHealthCheck(options);
+
+		// Act
+		var result = await sut.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
+
+		// Assert
+		result.Status.ShouldBe(HealthStatus.Degraded);
+		result.Description.ShouldContain("Round-trip is slow");
+	}
+
+	[Fact]
+	public async Task Return_degraded_when_key_management_exceeds_degraded_threshold()
+	{
+		// Arrange
+		SetupSuccessfulRoundTrip();
+		A.CallTo(() => _keyManagementProvider.GetActiveKeyAsync(null, A<CancellationToken>._))
+			.ReturnsLazily(async _ =>
+			{
+				await Task.Delay(20);
+				return new KeyMetadata
+				{
+					KeyId = "active-key",
+					Version = 1,
+					Status = KeyStatus.Active,
+					Algorithm = EncryptionAlgorithm.Aes256Gcm,
+					CreatedAt = DateTimeOffset.UtcNow,
+				};
+			});
+
+		var options = new EncryptionHealthCheckOptions
+		{
+			DegradedThreshold = TimeSpan.FromMilliseconds(1),
+			VerifyKeyManagement = true
+		};
+		var sut = CreateHealthCheck(options);
+
+		// Act
+		var result = await sut.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
+
+		// Assert
+		result.Status.ShouldBe(HealthStatus.Degraded);
+		result.Description.ShouldContain("Key management is slow");
+	}
+
+	[Fact]
+	public async Task Return_degraded_with_combined_timing_warnings_when_round_trip_and_key_management_are_slow()
+	{
+		// Arrange
+		byte[]? capturedPlaintext = null;
+		A.CallTo(() => _encryptionProvider.EncryptAsync(A<byte[]>._, A<EncryptionContext>._, A<CancellationToken>._))
+			.ReturnsLazily(async call =>
+			{
+				await Task.Delay(20);
+				capturedPlaintext = call.GetArgument<byte[]>(0);
+				return new EncryptedData
+				{
+					Ciphertext = capturedPlaintext!,
+					Iv = [4, 5, 6],
+					AuthTag = [7, 8, 9],
+					KeyId = "timing-key",
+					KeyVersion = 1,
+					Algorithm = EncryptionAlgorithm.Aes256Gcm,
+				};
+			});
+		A.CallTo(() => _encryptionProvider.DecryptAsync(A<EncryptedData>._, A<EncryptionContext>._, A<CancellationToken>._))
+			.ReturnsLazily(async _ =>
+			{
+				await Task.Delay(20);
+				return capturedPlaintext ?? [];
+			});
+		A.CallTo(() => _keyManagementProvider.GetActiveKeyAsync(null, A<CancellationToken>._))
+			.ReturnsLazily(async _ =>
+			{
+				await Task.Delay(20);
+				return new KeyMetadata
+				{
+					KeyId = "active-key",
+					Version = 1,
+					Status = KeyStatus.Active,
+					Algorithm = EncryptionAlgorithm.Aes256Gcm,
+					CreatedAt = DateTimeOffset.UtcNow,
+				};
+			});
+
+		var options = new EncryptionHealthCheckOptions
+		{
+			DegradedThreshold = TimeSpan.FromMilliseconds(1),
+			VerifyKeyManagement = true
+		};
+		var sut = CreateHealthCheck(options);
+
+		// Act
+		var result = await sut.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
+
+		// Assert
+		result.Status.ShouldBe(HealthStatus.Degraded);
+		result.Description.ShouldContain("Round-trip is slow");
+		result.Description.ShouldContain("Key management is slow");
+	}
+
+	[Fact]
 	public void Throw_for_null_encryption_provider()
 	{
 		Should.Throw<ArgumentNullException>(() =>

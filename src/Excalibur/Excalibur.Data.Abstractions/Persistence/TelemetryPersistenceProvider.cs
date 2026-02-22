@@ -4,6 +4,8 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
+
 namespace Excalibur.Data.Abstractions.Persistence;
 
 /// <summary>
@@ -73,12 +75,11 @@ public sealed class TelemetryPersistenceProvider : DelegatingPersistenceProvider
 		activity?.SetTag(PersistenceTelemetryConstants.AttributeOperation, "Execute");
 		activity?.SetTag(PersistenceTelemetryConstants.AttributeRequestType, requestType);
 
-		var sw = Stopwatch.StartNew();
+		var sw = ValueStopwatch.StartNew();
 		try
 		{
 			var result = await base.ExecuteAsync(request, cancellationToken).ConfigureAwait(false);
 
-			sw.Stop();
 			ExecuteCounter.Add(1,
 				new KeyValuePair<string, object?>(PersistenceTelemetryConstants.AttributeProviderName, Name),
 				new KeyValuePair<string, object?>(PersistenceTelemetryConstants.AttributeRequestType, requestType));
@@ -91,7 +92,6 @@ public sealed class TelemetryPersistenceProvider : DelegatingPersistenceProvider
 		}
 		catch (Exception ex)
 		{
-			sw.Stop();
 			ExecuteErrorCounter.Add(1,
 				new KeyValuePair<string, object?>(PersistenceTelemetryConstants.AttributeProviderName, Name),
 				new KeyValuePair<string, object?>(PersistenceTelemetryConstants.AttributeRequestType, requestType));

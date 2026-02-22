@@ -85,6 +85,7 @@
     <PackageReference Include="System.Threading.RateLimiting" />
     <!-- System.IO.Pipelines is in-box for net9.0, but needed as package for net8.0 -->
     <PackageReference Include="System.IO.Pipelines" Condition="'$(TargetFramework)' == 'net8.0'" />
+    <!-- Wasmtime REMOVED - No code in Dispatch uses it -->
     <!-- Database drivers REMOVED - Moved to Excalibur.Data.* provider packages -->
     <!-- FluentValidation moved to optional Excalibur.Dispatch.Validation.FluentValidation package -->
   </ItemGroup>

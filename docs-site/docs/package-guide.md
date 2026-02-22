@@ -1,22 +1,26 @@
-﻿---
+---
 sidebar_position: 4
-title: Dispatch vs Excalibur
-description: Comprehensive guide for choosing between Dispatch alone and the full Excalibur framework
+title: Package Guide
+description: Choose the right Excalibur packages for your application architecture
 ---
 
-# Dispatch vs Excalibur: Complete Decision Guide
+# Package Guide
 
-This guide helps you make the right choice for your application's architecture.
+Excalibur is one framework with focused package families. Install only what your application needs — every package beyond `Excalibur.Dispatch` is optional.
 
 ## Quick Summary
 
-| Framework | Handles | Best For |
-|-----------|---------|----------|
-| **Dispatch** | HOW messages flow | MediatR replacement, handlers, pipelines, transports |
-| **Excalibur** | WHAT gets persisted | Domain modeling, event sourcing, sagas, hosting |
+| Package Family | Purpose | When to Add |
+|----------------|---------|-------------|
+| `Excalibur.Dispatch.*` | Messaging, pipeline, handlers, transports | Always — this is the foundation |
+| `Excalibur.Domain` | Aggregates, entities, value objects | When you need rich domain modeling |
+| `Excalibur.EventSourcing.*` | Event stores, snapshots, persistence | When you need event sourcing |
+| `Excalibur.Saga.*` | Sagas and process managers | When you need long-running workflows |
+| `Excalibur.Hosting.*` | ASP.NET Core, serverless hosting | When you need opinionated hosting templates |
+| `Excalibur.LeaderElection.*` | Distributed coordination | When you need single-leader guarantees |
 
 :::tip Key Rule
-Excalibur depends on Excalibur.Dispatch. Dispatch does **NOT** depend on Excalibur. Start with Dispatch and add Excalibur packages when needed.
+All packages share the `Excalibur.*` namespace. You never rewrite existing code when adding new capabilities — just install additional packages.
 :::
 
 ---
@@ -26,22 +30,22 @@ Excalibur depends on Excalibur.Dispatch. Dispatch does **NOT** depend on Excalib
 ```mermaid
 flowchart TD
     A[Start] --> B{Need message<br/>dispatching?}
-    B -->|Yes| C[Install Dispatch]
+    B -->|Yes| C[Install Excalibur.Dispatch]
     C --> D{Need domain<br/>modeling?}
-    D -->|No| E[Dispatch Only]
+    D -->|No| E[Excalibur.Dispatch only]
     D -->|Yes| F[Add Excalibur.Domain]
     F --> G{Need event<br/>sourcing?}
     G -->|No| H[Dispatch + Domain]
     G -->|Yes| I[Add Excalibur.EventSourcing.*]
     I --> J{Need sagas/<br/>process managers?}
-    J -->|No| K[Full Event Sourcing]
+    J -->|No| K[Event Sourcing Stack]
     J -->|Yes| L[Add Excalibur.Saga.*]
-    L --> M[Full Framework]
+    L --> M[Full Stack]
 ```
 
 ---
 
-## Scenario-Based Decision Table
+## Scenario-Based Package Selection
 
 | If You're Building... | Install These |
 |----------------------|---------------|
@@ -58,42 +62,34 @@ flowchart TD
 
 ---
 
-## Hosting Decision Matrix
+## Hosting Packages
 
-Hosting is the most common question. Here's the definitive answer:
-
-| Deployment Model | Dispatch Package | Excalibur Package | Notes |
-|------------------|------------------|-------------------|-------|
-| **Console App** | `Excalibur.Dispatch` | — | Minimal |
-| **ASP.NET Core** | `Excalibur.Dispatch.Hosting.AspNetCore` | `Excalibur.Hosting.Web` | Full hosting |
-| **Worker Service** | `Excalibur.Dispatch` | `Excalibur.Hosting` | Background jobs |
-| **Azure Functions** | `Excalibur.Dispatch.Hosting.AzureFunctions` | — | Serverless |
-| **AWS Lambda** | `Excalibur.Dispatch.Hosting.AwsLambda` | — | Serverless |
-| **Google Cloud Functions** | `Excalibur.Dispatch.Hosting.GoogleCloudFunctions` | — | Serverless |
-
-:::note Serverless Hosting
-Serverless deployments use **Dispatch** hosting packages directly. They don't need Excalibur infrastructure packages.
-:::
+| Deployment Model | Package | Notes |
+|------------------|---------|-------|
+| **Console App** | `Excalibur.Dispatch` | Minimal |
+| **ASP.NET Core** | `Excalibur.Dispatch.Hosting.AspNetCore` + `Excalibur.Hosting.Web` | Full hosting |
+| **Worker Service** | `Excalibur.Dispatch` + `Excalibur.Hosting` | Background jobs |
+| **Azure Functions** | `Excalibur.Dispatch.Hosting.AzureFunctions` | Serverless |
+| **AWS Lambda** | `Excalibur.Dispatch.Hosting.AwsLambda` | Serverless |
+| **Google Cloud Functions** | `Excalibur.Dispatch.Hosting.GoogleCloudFunctions` | Serverless |
 
 ---
 
-## Compliance & Audit Package Ownership
+## Compliance & Audit Packages
 
-Per architectural decisions, compliance packages stay in **Dispatch**:
-
-| Package | Framework | Purpose |
-|---------|-----------|---------|
-| `Excalibur.Dispatch.Compliance.*` | Dispatch | Compliance scanning, audit trail |
-| `Excalibur.Dispatch.AuditLogging.Datadog` | Dispatch | Datadog SIEM integration |
-| `Excalibur.Dispatch.AuditLogging.Sentinel` | Dispatch | Microsoft Sentinel integration |
-| `Excalibur.Dispatch.AuditLogging.Splunk` | Dispatch | Splunk integration |
-| `Excalibur.Compliance.SqlServer` | Excalibur | Key escrow persistence |
+| Package | Purpose |
+|---------|---------|
+| `Excalibur.Dispatch.Compliance.*` | Compliance scanning, audit trail |
+| `Excalibur.Dispatch.AuditLogging.Datadog` | Datadog SIEM integration |
+| `Excalibur.Dispatch.AuditLogging.Sentinel` | Microsoft Sentinel integration |
+| `Excalibur.Dispatch.AuditLogging.Splunk` | Splunk integration |
+| `Excalibur.Compliance.SqlServer` | Key escrow persistence |
 
 ---
 
-## Migration Path: Gradual Adoption
+## Gradual Adoption Path
 
-### Phase 1: Dispatch Only (MediatR Replacement)
+### Phase 1: Messaging (MediatR Replacement)
 
 ```bash
 dotnet add package Excalibur.Dispatch
@@ -156,7 +152,6 @@ public class Order : AggregateRoot<Guid>
         RaiseEvent(new OrderConfirmedEvent(Id));
     }
 
-    // Pattern matching for event application
     protected override void ApplyEventInternal(IDomainEvent @event) => _ = @event switch
     {
         OrderCreatedEvent e => ApplyEvent(e),
@@ -164,18 +159,8 @@ public class Order : AggregateRoot<Guid>
         _ => false
     };
 
-    private bool ApplyEvent(OrderCreatedEvent e)
-    {
-        Id = e.OrderId;
-        Status = OrderStatus.Pending;
-        return true;
-    }
-
-    private bool ApplyEvent(OrderConfirmedEvent e)
-    {
-        Status = OrderStatus.Confirmed;
-        return true;
-    }
+    private bool ApplyEvent(OrderCreatedEvent e) { Id = e.OrderId; Status = OrderStatus.Pending; return true; }
+    private bool ApplyEvent(OrderConfirmedEvent e) { Status = OrderStatus.Confirmed; return true; }
 }
 ```
 
@@ -192,7 +177,7 @@ dotnet add package Excalibur.Hosting
 ```
 
 ```csharp
-// Program.cs — simple (Dispatch defaults are sufficient)
+// Program.cs — sensible defaults
 services.AddExcalibur(excalibur =>
 {
     excalibur.AddEventSourcing(es => es.UseEventStore<SqlServerEventStore>());
@@ -202,7 +187,7 @@ services.AddExcalibur(excalibur =>
 Need transports or custom pipelines? Call `AddDispatch` with a builder action:
 
 ```csharp
-// Program.cs — with custom Dispatch configuration
+// Program.cs — with custom messaging configuration
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
@@ -237,7 +222,7 @@ public class ConfirmOrderHandler : IActionHandler<ConfirmOrderAction>
 
 ---
 
-### Phase 4: Full Framework
+### Phase 4: Full Stack
 
 Add sagas, hosting templates, and compliance as needed:
 
@@ -248,7 +233,6 @@ dotnet add package Excalibur.Saga.SqlServer
 ```
 
 ```csharp
-// Full framework with transports and all subsystems
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
@@ -269,9 +253,9 @@ services.AddExcalibur(excalibur =>
 
 ---
 
-## What Belongs Where?
+## Package Ownership by Family
 
-### Dispatch Owns (Messaging)
+### Excalibur.Dispatch (Messaging)
 
 | Category | Package | Examples |
 |----------|---------|----------|
@@ -285,7 +269,7 @@ services.AddExcalibur(excalibur =>
 | Observability | `Excalibur.Dispatch.Observability` | Metrics, tracing |
 | Compliance | `Excalibur.Dispatch.Compliance.*` | Audit logging, SIEM |
 
-### Excalibur Owns (Application Framework)
+### Excalibur (Domain & Persistence)
 
 | Category | Package | Examples |
 |----------|---------|----------|
@@ -302,21 +286,21 @@ services.AddExcalibur(excalibur =>
 
 ## Common Questions
 
-### Can I use Dispatch without Excalibur?
+### Can I use Excalibur.Dispatch without the other packages?
 
-**Yes!** Dispatch is completely standalone. Use it as a MediatR replacement with zero Excalibur dependencies.
+**Yes!** `Excalibur.Dispatch` is completely standalone. Use it as a MediatR replacement with zero additional dependencies.
 
-### Do I need both for event sourcing?
+### Do I need multiple packages for event sourcing?
 
-**Yes.** Dispatch provides the message contracts (`IDomainEvent`), Excalibur provides the persistence (`IEventStore`).
+**Yes.** `Excalibur.Dispatch` provides the message contracts (`IDomainEvent`), `Excalibur.Domain` provides aggregates, and `Excalibur.EventSourcing` provides the persistence (`IEventStore`).
 
 ### Which hosting package for serverless?
 
-Use **Dispatch** hosting packages (`Excalibur.Dispatch.Hosting.AzureFunctions`, `Excalibur.Dispatch.Hosting.AwsLambda`). They don't need Excalibur infrastructure.
+Use the serverless hosting packages (`Excalibur.Dispatch.Hosting.AzureFunctions`, `Excalibur.Dispatch.Hosting.AwsLambda`). They don't need the full hosting stack.
 
 ### Where do compliance features live?
 
-In **Dispatch**. The `Excalibur.Dispatch.Compliance.*` and `Excalibur.Dispatch.AuditLogging.*` packages don't depend on Excalibur.
+In the `Excalibur.Dispatch.Compliance.*` and `Excalibur.Dispatch.AuditLogging.*` packages.
 
 ---
 
@@ -325,7 +309,5 @@ In **Dispatch**. The `Excalibur.Dispatch.Compliance.*` and `Excalibur.Dispatch.A
 - [Getting Started](./getting-started/) - Quick start tutorial
 - [Handlers](handlers.md) - Handler patterns and best practices
 - [Event Sourcing](./event-sourcing/index.md) - Event store patterns
-- [Architecture Overview](./architecture/index.md) - Dispatch/Excalibur boundary details
+- [Architecture Overview](./architecture/index.md) - Package architecture and boundaries
 - [Patterns](patterns/index.md) - Outbox, Inbox, and more
-
-

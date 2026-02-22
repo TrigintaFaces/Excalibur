@@ -1,11 +1,11 @@
 ---
 title: Threat Model Baseline
-description: Release-blocking threat categories and control expectations for Dispatch and Excalibur.
+description: Release-blocking threat categories and control expectations for Excalibur.
 ---
 
 # Threat Model Baseline
 
-Dispatch and Excalibur use a baseline threat model to keep releases security-ready by default.
+Excalibur uses a baseline threat model to keep releases security-ready by default.
 
 ## Covered Threat Areas
 

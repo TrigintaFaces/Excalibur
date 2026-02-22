@@ -22,7 +22,7 @@ Step-by-step checklists for achieving and maintaining compliance with major regu
 Each checklist provides:
 
 1. **Control Requirements** - What the regulation requires
-2. **Implementation Guidance** - How to implement with Dispatch/Excalibur
+2. **Implementation Guidance** - How to implement with Excalibur
 3. **Evidence Requirements** - What documentation you need
 4. **Automation Scripts** - Automated evidence collection where available
 

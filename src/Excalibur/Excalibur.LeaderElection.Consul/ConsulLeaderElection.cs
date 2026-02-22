@@ -591,39 +591,7 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 			return;
 		}
 
-		var task = Task.Run(async () =>
-		{
-			try
-			{
-				var result = await _consulClient.Session.Renew(_sessionId).ConfigureAwait(false);
-
-				if (result.Response == null)
-				{
-					LogSessionRenewalFailed(_resourceName);
-
-					// Session expired, recreate it
-					await CreateSessionAsync(_shutdownTokenSource.Token).ConfigureAwait(false);
-
-					// Try to reacquire leadership
-					if (!IsLeader)
-					{
-						await TryAcquireLeadershipAsync(_shutdownTokenSource.Token).ConfigureAwait(false);
-					}
-				}
-				else
-				{
-					LogRenewedSession(_resourceName);
-				}
-			}
-			catch (OperationCanceledException)
-			{
-				// Shutdown requested — expected during disposal
-			}
-			catch (Exception ex)
-			{
-				LogErrorDuringRenewal(ex, _resourceName);
-			}
-		});
+		var task = RenewSessionAsync();
 		_trackedTasks.Add(task);
 	}
 
@@ -638,48 +606,84 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 			return;
 		}
 
-		var task = Task.Run(async () =>
+		var task = MonitorLeadershipAsync();
+		_trackedTasks.Add(task);
+	}
+
+	private async Task RenewSessionAsync()
+	{
+		try
 		{
-			try
+			var result = await _consulClient.Session.Renew(_sessionId).ConfigureAwait(false);
+
+			if (result.Response == null)
 			{
-				var currentLeader = await FetchCurrentLeaderIdAsync(_shutdownTokenSource.Token).ConfigureAwait(false);
-				_cachedCurrentLeaderId = currentLeader;
+				LogSessionRenewalFailed(_resourceName);
 
-				// Check if leadership changed
-				if (!string.Equals(_lastKnownLeaderId, currentLeader, StringComparison.Ordinal))
-				{
-					LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(_lastKnownLeaderId, currentLeader, _resourceName));
+				// Session expired, recreate it
+				await CreateSessionAsync(_shutdownTokenSource.Token).ConfigureAwait(false);
 
-					if (string.Equals(currentLeader, CandidateId, StringComparison.Ordinal) &&
-						!string.Equals(_lastKnownLeaderId, CandidateId, StringComparison.Ordinal))
-					{
-						BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
-					}
-					else if (string.Equals(_lastKnownLeaderId, CandidateId, StringComparison.Ordinal) &&
-							 !string.Equals(currentLeader, CandidateId, StringComparison.Ordinal))
-					{
-						LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
-					}
-
-					_lastKnownLeaderId = currentLeader;
-				}
-
-				// If no leader and we're running, try to acquire
-				if (string.IsNullOrEmpty(currentLeader) && !string.IsNullOrEmpty(_sessionId))
+				// Try to reacquire leadership
+				if (!IsLeader)
 				{
 					await TryAcquireLeadershipAsync(_shutdownTokenSource.Token).ConfigureAwait(false);
 				}
 			}
-			catch (OperationCanceledException)
+			else
 			{
-				// Shutdown requested — expected during disposal
+				LogRenewedSession(_resourceName);
 			}
-			catch (Exception ex)
+		}
+		catch (OperationCanceledException)
+		{
+			// Shutdown requested — expected during disposal
+		}
+		catch (Exception ex)
+		{
+			LogErrorDuringRenewal(ex, _resourceName);
+		}
+	}
+
+	private async Task MonitorLeadershipAsync()
+	{
+		try
+		{
+			var currentLeader = await FetchCurrentLeaderIdAsync(_shutdownTokenSource.Token).ConfigureAwait(false);
+			_cachedCurrentLeaderId = currentLeader;
+
+			// Check if leadership changed
+			if (!string.Equals(_lastKnownLeaderId, currentLeader, StringComparison.Ordinal))
 			{
-				LogErrorDuringMonitoring(ex, _resourceName);
+				LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(_lastKnownLeaderId, currentLeader, _resourceName));
+
+				if (string.Equals(currentLeader, CandidateId, StringComparison.Ordinal) &&
+					!string.Equals(_lastKnownLeaderId, CandidateId, StringComparison.Ordinal))
+				{
+					BecameLeader?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
+				}
+				else if (string.Equals(_lastKnownLeaderId, CandidateId, StringComparison.Ordinal) &&
+						 !string.Equals(currentLeader, CandidateId, StringComparison.Ordinal))
+				{
+					LostLeadership?.Invoke(this, new LeaderElectionEventArgs(CandidateId, _resourceName));
+				}
+
+				_lastKnownLeaderId = currentLeader;
 			}
-		});
-		_trackedTasks.Add(task);
+
+			// If no leader and we're running, try to acquire
+			if (string.IsNullOrEmpty(currentLeader) && !string.IsNullOrEmpty(_sessionId))
+			{
+				await TryAcquireLeadershipAsync(_shutdownTokenSource.Token).ConfigureAwait(false);
+			}
+		}
+		catch (OperationCanceledException)
+		{
+			// Shutdown requested — expected during disposal
+		}
+		catch (Exception ex)
+		{
+			LogErrorDuringMonitoring(ex, _resourceName);
+		}
 	}
 
 	/// <summary>

@@ -224,7 +224,7 @@ function HomepageHeader() {
             {siteConfig.title}
           </Heading>
           <p className="hero__subtitle">
-            Dispatch messaging core + Excalibur CQRS/hosting wrapper for modern .NET services
+            High-performance .NET messaging, event sourcing, and CQRS — one framework, pick your packages
           </p>
           <div className={styles.heroButtons}>
             <Link className="cta-button cta-button--primary" to="/docs/intro">
@@ -248,8 +248,8 @@ function FeaturesSection() {
     <section className={styles.featuresSection}>
       <div className="container">
         <div className={styles.sectionHeader}>
-          <Heading as="h2">Why Excalibur + Dispatch?</Heading>
-          <p>Start lightweight with Dispatch and opt into Excalibur when you need CQRS, hosting, or compliance</p>
+          <Heading as="h2">Why Excalibur?</Heading>
+          <p>Start with Excalibur.Dispatch for messaging. Add domain modeling, event sourcing, and sagas as you grow.</p>
         </div>
         <div className="row">
           {features.map((props, idx) => (
@@ -267,7 +267,7 @@ function DecisionMatrixSection() {
       <div className="container">
         <div className={styles.sectionHeader}>
           <Heading as="h2">Which Packages Do You Need?</Heading>
-          <p>Start with Excalibur.Dispatch. Add Excalibur when you need more.</p>
+          <p>Install only what your application requires. Every package is optional.</p>
         </div>
         <div className={styles.decisionMatrix}>
           <table>
@@ -316,12 +316,12 @@ function QuickStartSection() {
         </div>
         <div className={styles.quickStartGrid}>
           <div className={styles.quickStartInstall}>
-            <h3>Install Dispatch (messaging core)</h3>
+            <h3>Install the messaging core</h3>
             <CodeBlock language="bash">
-{`dotnet add package Dispatch
+{`dotnet add package Excalibur.Dispatch
 dotnet add package Excalibur.Dispatch.Abstractions`}
             </CodeBlock>
-            <h4 style={{ marginTop: '1rem' }}>Add Excalibur when you need CQRS/hosting</h4>
+            <h4 style={{ marginTop: '1rem' }}>Add packages as your architecture grows</h4>
             <CodeBlock language="bash">
 {`dotnet add package Excalibur.Domain
 dotnet add package Excalibur.EventSourcing
@@ -353,7 +353,7 @@ function ComparisonSection() {
             <thead>
               <tr>
                 <th>Feature</th>
-                <th>Dispatch + Excalibur</th>
+                <th>Excalibur</th>
                 <th>MediatR</th>
                 <th>MassTransit</th>
               </tr>
@@ -411,7 +411,7 @@ function CTASection() {
           <Heading as="h2">Ready to Get Started?</Heading>
           <p>
             Join developers building fast, reliable .NET applications with
-            Dispatch + Excalibur
+            Excalibur
           </p>
           <div className={styles.ctaButtons}>
             <Link className="cta-button cta-button--primary" to="/docs/intro">
@@ -435,7 +435,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title="Fast .NET Messaging Framework"
-      description="Dispatch is a zero-allocation .NET messaging framework. Add Excalibur packages for event sourcing, CQRS, and compliance. Drop-in MediatR replacement."
+      description="Excalibur is a high-performance .NET framework for messaging, event sourcing, CQRS, and compliance. Drop-in MediatR replacement with zero-allocation dispatch."
     >
       <HomepageHeader />
       <main>

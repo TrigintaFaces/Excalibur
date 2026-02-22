@@ -404,8 +404,8 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 			new(A.Fake<IMessageResult>());
 
 		// Act - DeserializeCachedValue catch block is hit, value stays as JsonElement,
-		// then Activator.CreateInstance(CachedMessageResult<string>, JsonElement) fails
-		await Should.ThrowAsync<MissingMethodException>(async () =>
+		// then cached wrapper construction fails with an argument type mismatch
+		await Should.ThrowAsync<ArgumentException>(async () =>
 			await middleware.InvokeAsync(message, _context, Next, _ct));
 	}
 
@@ -414,7 +414,7 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 	{
 		// Arrange - cache hit with Value as JsonElement but empty TypeName.
 		// DeserializeCachedValue skips the if block (IsNullOrEmpty is true),
-		// value stays as JsonElement, then Activator.CreateInstance fails for CachedMessageResult<string>.
+		// value stays as JsonElement, then cached wrapper construction fails.
 		var middleware = CreateMiddleware();
 		var message = new AttrCacheableAction(); // IDispatchAction<string>
 		var jsonElement = JsonSerializer.Deserialize<JsonElement>("\"hello\"");
@@ -437,8 +437,8 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
 			new(A.Fake<IMessageResult>());
 
-		// Act - JsonElement stays as-is since TypeName is empty, then Activator.CreateInstance fails
-		await Should.ThrowAsync<MissingMethodException>(async () =>
+		// Act - JsonElement stays as-is since TypeName is empty, then wrapper construction fails
+		await Should.ThrowAsync<ArgumentException>(async () =>
 			await middleware.InvokeAsync(message, _context, Next, _ct));
 	}
 
@@ -469,9 +469,83 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
 			new(A.Fake<IMessageResult>());
 
-		// Act - Type.GetType returns null, value stays as JsonElement, Activator fails
-		await Should.ThrowAsync<MissingMethodException>(async () =>
+		// Act - type resolution fails, value stays as JsonElement, wrapper construction fails
+		await Should.ThrowAsync<ArgumentException>(async () =>
 			await middleware.InvokeAsync(message, _context, Next, _ct));
+	}
+
+	[Fact]
+	public async Task InvokeAsync_CacheHit_WithJsonElementValue_TypeWithoutAssembly_ResolvesFromLoadedAssemblies()
+	{
+		// Arrange - TypeName uses only FullName so resolver must scan loaded assemblies.
+		var middleware = CreateMiddleware();
+		var message = new AttrCacheableCustomPayloadAction();
+		var jsonElement = JsonSerializer.Deserialize<JsonElement>("""{"Name":"from-scan"}""");
+
+		A.CallTo(() => _cache.GetOrCreateAsync(
+			A<string>._,
+			A<Func<CancellationToken, ValueTask<CachedValue>>>._,
+			A<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>._,
+			A<HybridCacheEntryOptions?>._,
+			A<IEnumerable<string>?>._,
+			A<CancellationToken>._))
+			.Returns(new ValueTask<CachedValue>(new CachedValue
+			{
+				HasExecuted = true,
+				ShouldCache = true,
+				Value = jsonElement,
+				TypeName = typeof(CustomPayload).FullName
+			}));
+
+		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
+			new(A.Fake<IMessageResult>());
+
+		// Act
+		var result = await middleware.InvokeAsync(message, _context, Next, _ct);
+
+		// Assert
+		result.ShouldNotBeNull();
+		result.CacheHit.ShouldBeTrue();
+		var typed = result.ShouldBeAssignableTo<IMessageResult<CustomPayload>>();
+		typed.ReturnValue.ShouldNotBeNull();
+		typed.ReturnValue.Name.ShouldBe("from-scan");
+	}
+
+	[Fact]
+	public async Task InvokeAsync_CacheHit_WithJsonElementValue_WrongAssemblySuffix_ResolvesBySimpleTypeName()
+	{
+		// Arrange - TypeName has an invalid assembly suffix but valid type full name prefix.
+		var middleware = CreateMiddleware();
+		var message = new AttrCacheableGuidAction();
+		var expectedGuid = Guid.Parse("7d9e4e67-5cb3-4761-93d4-7d07f7f8704b");
+		var jsonElement = JsonSerializer.Deserialize<JsonElement>($"\"{expectedGuid:D}\"");
+
+		A.CallTo(() => _cache.GetOrCreateAsync(
+			A<string>._,
+			A<Func<CancellationToken, ValueTask<CachedValue>>>._,
+			A<Func<Func<CancellationToken, ValueTask<CachedValue>>, CancellationToken, ValueTask<CachedValue>>>._,
+			A<HybridCacheEntryOptions?>._,
+			A<IEnumerable<string>?>._,
+			A<CancellationToken>._))
+			.Returns(new ValueTask<CachedValue>(new CachedValue
+			{
+				HasExecuted = true,
+				ShouldCache = true,
+				Value = jsonElement,
+				TypeName = $"{typeof(Guid).FullName}, NonExistent.Assembly"
+			}));
+
+		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct) =>
+			new(A.Fake<IMessageResult>());
+
+		// Act
+		var result = await middleware.InvokeAsync(message, _context, Next, _ct);
+
+		// Assert
+		result.ShouldNotBeNull();
+		result.CacheHit.ShouldBeTrue();
+		var typed = result.ShouldBeAssignableTo<IMessageResult<Guid>>();
+		typed.ReturnValue.ShouldBe(expectedGuid);
 	}
 
 	// =========================================================================
@@ -1067,6 +1141,16 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 	{
 	}
 
+	[CacheResult(ExpirationSeconds = 60)]
+	private sealed class AttrCacheableGuidAction : IDispatchAction<Guid>
+	{
+	}
+
+	[CacheResult(ExpirationSeconds = 60)]
+	private sealed class AttrCacheableCustomPayloadAction : IDispatchAction<CustomPayload>
+	{
+	}
+
 	private sealed class CacheableWithShouldCacheFalse : ICacheable<int>
 	{
 		public string GetCacheKey() => "should-cache-false-key";
@@ -1090,5 +1174,10 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 	private sealed class FakeValidationResult
 	{
 		public bool IsValid { get; init; }
+	}
+
+	private sealed class CustomPayload
+	{
+		public string Name { get; set; } = string.Empty;
 	}
 }

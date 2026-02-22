@@ -228,6 +228,6 @@ public sealed class AuthenticationMiddlewareShould
 
     private static string CreateNonSecretApiKeyValue()
     {
-        return string.Concat("fixture-", "auth-", "key");
+        return string.Concat("ak_", "fixture_", "auth_", "key");
     }
 }

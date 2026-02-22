@@ -25,7 +25,7 @@ public sealed class DispatchMetricsFunctionalShould : IDisposable
 	{
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DispatchMetrics.MeterName)
+			if (ReferenceEquals(instrument.Meter, _metrics.Meter))
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}

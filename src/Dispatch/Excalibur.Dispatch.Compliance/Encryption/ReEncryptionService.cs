@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Reflection;
@@ -10,6 +9,7 @@ using System.Text;
 using System.Text.Json;
 
 using Excalibur.Dispatch.Compliance.Diagnostics;
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 
@@ -55,7 +55,7 @@ public sealed partial class ReEncryptionService : IReEncryptionService
 		ArgumentNullException.ThrowIfNull(entity);
 		ArgumentNullException.ThrowIfNull(context);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		try
 		{
@@ -88,8 +88,6 @@ public sealed partial class ReEncryptionService : IReEncryptionService
 				targetProviderId ??= target;
 			}
 
-			stopwatch.Stop();
-
 			if (fieldsReEncrypted == 0)
 			{
 				return ReEncryptionResult.Succeeded(
@@ -109,7 +107,6 @@ public sealed partial class ReEncryptionService : IReEncryptionService
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
 			LogReEncryptionFailed(ex);
 			return ReEncryptionResult.Failed(ex.Message, ex);
 		}

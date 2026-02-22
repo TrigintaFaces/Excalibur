@@ -16,7 +16,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Learn',
-      description: 'Get started with Dispatch and understand the fundamentals.',
+      description: 'Get started with Excalibur and understand the fundamentals.',
       collapsed: false,
       items: [
         { type: 'doc', id: 'intro' },
@@ -46,7 +46,7 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'core-concepts/configuration' },
           ],
         },
-        { type: 'doc', id: 'dispatch-vs-excalibur' },
+        { type: 'doc', id: 'package-guide' },
       ],
     },
 

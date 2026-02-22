@@ -146,6 +146,62 @@ public sealed class TelemetryTransportSenderShould : IDisposable
 	}
 
 	[Fact]
+	public async Task Record_DurationHistogram_On_BatchSend_Exception()
+	{
+		A.CallTo(() => _innerSender.SendBatchAsync(A<IReadOnlyList<TransportMessage>>._, A<CancellationToken>._))
+			.Throws(new TimeoutException("batch timeout"));
+
+		var sut = new TelemetryTransportSender(_innerSender, _meter, _activitySource, "Test");
+
+		await Should.ThrowAsync<TimeoutException>(
+			() => sut.SendBatchAsync(
+				[TransportMessage.FromString("a"), TransportMessage.FromString("b")],
+				CancellationToken.None));
+
+		_recordedCounters.ShouldContain(c =>
+			c.Name == TransportTelemetryConstants.MetricNames.MessagesSendFailed && c.Value == 2);
+		_recordedHistograms.ShouldContain(h =>
+			h.Name == TransportTelemetryConstants.MetricNames.SendDuration && h.Value >= 0);
+	}
+
+	[Fact]
+	public async Task Record_BatchSize_FailedCount_And_Duration_On_BatchSend_Exception()
+	{
+		A.CallTo(() => _innerSender.SendBatchAsync(A<IReadOnlyList<TransportMessage>>._, A<CancellationToken>._))
+			.Throws(new TimeoutException("batch timeout"));
+
+		var sut = new TelemetryTransportSender(_innerSender, _meter, _activitySource, "Test");
+		var messages = new[]
+		{
+			TransportMessage.FromString("a"),
+			TransportMessage.FromString("b"),
+			TransportMessage.FromString("c"),
+		};
+
+		await Should.ThrowAsync<TimeoutException>(() => sut.SendBatchAsync(messages, CancellationToken.None));
+
+		_recordedHistograms.ShouldContain(h =>
+			h.Name == TransportTelemetryConstants.MetricNames.BatchSize && (int)h.Value == 3);
+		_recordedCounters.ShouldContain(c =>
+			c.Name == TransportTelemetryConstants.MetricNames.MessagesSendFailed && c.Value == 3);
+		_recordedHistograms.ShouldContain(h =>
+			h.Name == TransportTelemetryConstants.MetricNames.SendDuration && h.Value >= 0);
+	}
+
+	[Fact]
+	public async Task Record_DurationHistogram_On_Failed_Send_Result()
+	{
+		A.CallTo(() => _innerSender.SendAsync(A<TransportMessage>._, A<CancellationToken>._))
+			.Returns(SendResult.Failure(new SendError { Code = "validation", Message = "invalid payload" }));
+
+		var sut = new TelemetryTransportSender(_innerSender, _meter, _activitySource, "Test");
+		_ = await sut.SendAsync(TransportMessage.FromString("hello"), CancellationToken.None);
+
+		_recordedHistograms.ShouldContain(h =>
+			h.Name == TransportTelemetryConstants.MetricNames.SendDuration && h.Value >= 0);
+	}
+
+	[Fact]
 	public void Throw_When_Meter_Is_Null()
 	{
 		Should.Throw<ArgumentNullException>(

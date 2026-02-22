@@ -1,7 +1,7 @@
 ---
 sidebar_position: 2
 title: Deployment Guide
-description: Cloud-native deployment patterns for Dispatch and Excalibur
+description: Cloud-native deployment patterns for Excalibur applications
 ---
 
 # Deployment Guide

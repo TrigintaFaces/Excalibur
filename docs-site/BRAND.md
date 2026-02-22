@@ -1,6 +1,6 @@
 # Excalibur.Dispatch Brand Guidelines
 
-This document defines the visual identity for the Excalibur.Dispatch documentation site and all related materials. The site serves two distinct but related projects: **Dispatch** (messaging framework) and **Excalibur** (application framework).
+This document defines the visual identity for the Excalibur documentation site and all related materials. The site covers the **Excalibur** framework — one framework with focused package families for messaging (`Excalibur.Dispatch.*`), domain modeling (`Excalibur.Domain`), event sourcing (`Excalibur.EventSourcing.*`), and more.
 
 ---
 

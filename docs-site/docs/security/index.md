@@ -1,12 +1,12 @@
 ---
 sidebar_position: 30
 title: Security
-description: Security implementation guides for Dispatch and Excalibur
+description: Security implementation guides for Excalibur
 ---
 
 # Security
 
-Dispatch and Excalibur provide comprehensive security features for enterprise applications, including encryption, audit logging, and compliance support.
+Excalibur provides comprehensive security features for enterprise applications, including encryption, audit logging, and compliance support.
 
 ## Before You Start
 

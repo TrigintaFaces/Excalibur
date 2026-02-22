@@ -7,6 +7,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Compliance.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -321,7 +322,7 @@ public sealed partial class ErasureService : IErasureService
 		CancellationToken cancellationToken)
 	{
 		using var activity = ErasureTelemetryConstants.ActivitySource.StartActivity("erasure.execute");
-		var executionStopwatch = Stopwatch.StartNew();
+		var executionStopwatch = ValueStopwatch.StartNew();
 
 		var status = await _store.GetStatusAsync(requestId, cancellationToken).ConfigureAwait(false);
 
@@ -443,7 +444,6 @@ public sealed partial class ErasureService : IErasureService
 			LogErasureCompleted(requestId, deletedCount);
 			KeysDeletedCounter.Add(deletedCount);
 			RequestsCompletedCounter.Add(1);
-			executionStopwatch.Stop();
 			ExecutionDurationHistogram.Record(executionStopwatch.Elapsed.TotalMilliseconds);
 			activity?.SetTag("erasure.keys_deleted", deletedCount);
 			activity?.SetTag("erasure.records_affected", totalRecordsAffected);
@@ -454,7 +454,6 @@ public sealed partial class ErasureService : IErasureService
 		{
 			LogErasureExecutionFailed(requestId, ex);
 			RequestsFailedCounter.Add(1, new TagList { { ErasureTelemetryConstants.Tags.ErrorType, ex.GetType().Name } });
-			executionStopwatch.Stop();
 			ExecutionDurationHistogram.Record(executionStopwatch.Elapsed.TotalMilliseconds);
 			activity?.SetTag(ErasureTelemetryConstants.Tags.ResultStatus, "failed");
 			_ = await _store.UpdateStatusAsync(requestId, ErasureRequestStatus.Failed, ex.Message, cancellationToken)

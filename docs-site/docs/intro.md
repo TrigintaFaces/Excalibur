@@ -1,16 +1,16 @@
 ---
 sidebar_position: 1
-title: Introduction to Dispatch
-description: Dispatch is a high-performance .NET messaging framework for building scalable applications with type-safe message dispatching, pipeline behaviors, and multi-transport support.
+title: Introduction to Excalibur
+description: Excalibur is a high-performance .NET framework for messaging, event sourcing, CQRS, and compliance — install only the packages you need.
 ---
 
-# Dispatch
+# Excalibur
 
-**Dispatch** is a modern, high-performance .NET messaging framework that provides clean, type-safe message dispatching for your applications. Whether you're building a simple CRUD API or a complex distributed system, Dispatch handles the messaging infrastructure so you can focus on business logic.
+**Excalibur** is a modern, high-performance .NET framework for building scalable applications. Start with `Excalibur.Dispatch` for type-safe message dispatching, then add domain modeling, event sourcing, and sagas as your architecture requires. Whether you're building a simple CRUD API or a complex distributed system, Excalibur handles the infrastructure so you can focus on business logic.
 
-## What Dispatch Does
+## What Excalibur.Dispatch Does
 
-Dispatch handles **how messages flow through your system**:
+`Excalibur.Dispatch` handles **how messages flow through your system**:
 
 - **Message Dispatching** — Send actions to handlers with full type safety
 - **Pipeline Behaviors** — Add cross-cutting concerns like validation, logging, and transactions
@@ -18,13 +18,21 @@ Dispatch handles **how messages flow through your system**:
 - **Result Handling** — Clean success/failure patterns without exceptions
 - **Context Propagation** — Automatic correlation ID and metadata tracking
 
-## Dispatch vs Excalibur
+## Package Families
 
-Dispatch provides the messaging pipeline, security, compliance, and transport infrastructure. When you need aggregates, event sourcing, sagas, or persistence, layer **Excalibur** on top of Excalibur.Dispatch. Excalibur packages (e.g., `Excalibur.Domain`, `Excalibur.EventSourcing`) call `AddDispatch()` internally so you keep the same handler code.
+Excalibur is one framework with focused package families. Install only what you need:
 
-See the **[Dispatch vs Excalibur Decision Guide](./dispatch-vs-excalibur.md)** for package selection, migration paths, and code examples.
+| Package Family | Purpose |
+|----------------|---------|
+| `Excalibur.Dispatch.*` | Messaging, pipeline, handlers, transports |
+| `Excalibur.Domain` | Domain modeling (aggregates, entities, value objects) |
+| `Excalibur.EventSourcing.*` | Event stores, snapshots, persistence |
+| `Excalibur.Saga.*` | Sagas and process managers |
+| `Excalibur.Hosting.*` | ASP.NET Core, serverless hosting templates |
 
-## Dispatch vs MediatR
+See the **[Package Guide](package-guide)** for selection help, migration paths, and code examples.
+
+## Excalibur.Dispatch vs MediatR
 
 If you're familiar with MediatR, you'll feel right at home. Here's how concepts map:
 
@@ -38,7 +46,7 @@ If you're familiar with MediatR, you'll feel right at home. Here's how concepts 
 | `INotificationHandler<T>` | `IEventHandler<T>` | Event handlers |
 | `IMediator` | `IDispatcher` | Message dispatcher |
 
-**Key improvements over MediatR:**
+**Key improvements over MediatR (all included in `Excalibur.Dispatch`):**
 
 - Built-in result types with error handling
 - Automatic context propagation for distributed tracing
@@ -135,24 +143,16 @@ public class OrderController : ControllerBase
 }
 ```
 
-## Dispatch vs Excalibur
+## Growing with Excalibur
 
-This framework is actually two complementary frameworks in one repository:
+Most applications start with `Excalibur.Dispatch` for messaging and add packages as needs grow:
 
-| Framework | Responsibility | When to Use |
-|-----------|----------------|-------------|
-| **Dispatch** | Message routing, pipelines, transports | You need to send messages between components |
-| **Excalibur** | Domain modeling, persistence, event sourcing | You need to model domain logic and persist state |
+1. **Messaging** — `Excalibur.Dispatch` routes commands/queries to handlers
+2. **Domain modeling** — `Excalibur.Domain` adds aggregates, entities, and value objects
+3. **Persistence** — `Excalibur.EventSourcing.*` provides event stores and snapshots
+4. **Workflows** — `Excalibur.Saga.*` adds sagas and process managers
 
-**Dispatch handles HOW messages flow.** It doesn't care about what's in them or how they're stored.
-
-**Excalibur handles WHAT gets persisted.** It provides domain building blocks like aggregates, event sourcing, and repositories.
-
-Most applications use both:
-1. Dispatch routes commands/queries to handlers
-2. Excalibur provides the domain model and persistence layer
-
-For domain modeling and event sourcing, see [Excalibur Documentation](/docs/intro).
+Because all packages share the same `Excalibur.*` namespace, you never rewrite existing code when adding new capabilities.
 
 ## Package Overview
 
@@ -240,12 +240,12 @@ For domain modeling and event sourcing, see [Excalibur Documentation](/docs/intr
 - [Pipeline](pipeline/) — Understand middleware and behaviors
 - [Configuration](core-concepts/configuration.md) — Configure Dispatch for your needs
 - [Transports](transports/) — Multi-transport routing
-- [Excalibur](/docs/intro) — Domain modeling and event sourcing
+- [Package Guide](package-guide) — Choose the right packages for your scenario
 - [Support](support.md) — Get help, report bugs, security policy
 
 ## See Also
 
-- [Dispatch vs Excalibur](./dispatch-vs-excalibur.md) - Decision guide for choosing between Dispatch alone and the full framework
+- [Package Guide](package-guide) - Decision guide for choosing which Excalibur packages to install
 - [Core Concepts](./core-concepts/index.md) - Actions, handlers, results, and message context
 - [Performance Overview](./performance/index.md) - Benchmarks and optimization strategies
 

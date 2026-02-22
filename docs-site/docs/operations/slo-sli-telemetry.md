@@ -6,7 +6,7 @@ description: Operational objectives, indicators, and telemetry schema for produc
 
 # SLO, SLI, and Telemetry
 
-This page defines baseline production objectives and the telemetry required to operate Dispatch/Excalibur safely.
+This page defines baseline production objectives and the telemetry required to operate Excalibur safely.
 
 ## Suggested SLO Baseline
 

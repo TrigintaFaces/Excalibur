@@ -1,12 +1,12 @@
 ﻿---
 sidebar_position: 2
 title: Encryption Architecture
-description: Comprehensive data protection and encryption patterns for Dispatch and Excalibur
+description: Comprehensive data protection and encryption patterns for Excalibur
 ---
 
 # Encryption Architecture
 
-Dispatch and Excalibur provide comprehensive encryption capabilities for data at rest and in transit, supporting enterprise compliance requirements including FedRAMP, GDPR, SOC 2, and HIPAA.
+Excalibur provides comprehensive encryption capabilities for data at rest and in transit, supporting enterprise compliance requirements including FedRAMP, GDPR, SOC 2, and HIPAA.
 
 ## Before You Start
 

@@ -3,7 +3,6 @@
 
 
 using System.Collections.Concurrent;
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
 using Medo;
@@ -270,11 +269,8 @@ public static class Uuid7Extensions
 	/// <param name="matchGuidEndianness"> Whether to match GUID endianness. </param>
 	/// <returns> An enumerable of sequential GUIDs. </returns>
 	/// <remarks>
-	/// This method uses synchronous delay to ensure distinct timestamps between sequential UUIDs.
-	/// Iterator methods (yield return) cannot be async, requiring synchronous blocking.
+	/// Iterator methods (yield return) cannot be async, so interval pacing uses a short spin-wait.
 	/// </remarks>
-	[SuppressMessage("AsyncUsage", "VSTHRD002:Avoid problematic synchronous waits",
-		Justification = "Iterator methods cannot be async. Synchronous delay is required to ensure distinct timestamps between sequential UUID v7 values. (AD-220-7)")]
 	public static IEnumerable<Guid> GenerateSequentialGuids(int count, int intervalMs = 1, DateTimeOffset? startTime = null, bool matchGuidEndianness = true)
 	{
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(count);
@@ -295,9 +291,19 @@ public static class Uuid7Extensions
 				// Sleep to ensure different timestamps if intervalMs > 0
 				if (intervalMs > 0 && i < count - 1)
 				{
-					Thread.Sleep(intervalMs);
+					WaitForInterval(intervalMs);
 				}
 			}
+		}
+	}
+
+	private static void WaitForInterval(int intervalMs)
+	{
+		var wait = Excalibur.Dispatch.Abstractions.Diagnostics.ValueStopwatch.StartNew();
+		var spinner = new SpinWait();
+		while (wait.ElapsedMilliseconds < intervalMs)
+		{
+			spinner.SpinOnce();
 		}
 	}
 

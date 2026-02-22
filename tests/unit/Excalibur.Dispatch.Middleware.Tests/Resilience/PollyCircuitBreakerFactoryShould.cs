@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
+using System.Reflection;
+
 using Excalibur.Dispatch.CloudNative;
 using Excalibur.Dispatch.Options.Resilience;
 using Excalibur.Dispatch.Resilience.Polly;
@@ -309,6 +312,24 @@ public sealed class PollyCircuitBreakerFactoryShould : UnitTestBase, IAsyncDispo
 		secondResult.ShouldBeFalse();
 	}
 
+	[Fact]
+	public void Remove_QueuesPendingDisposalTask()
+	{
+		// Arrange
+		_factory = new PollyCircuitBreakerFactory();
+		_ = _factory.GetOrCreate("test-breaker");
+
+		var pendingDisposals = GetPendingDisposals(_factory);
+		pendingDisposals.Count.ShouldBe(0);
+
+		// Act
+		var removed = _factory.Remove("test-breaker");
+
+		// Assert
+		removed.ShouldBeTrue();
+		pendingDisposals.Count.ShouldBeGreaterThanOrEqualTo(1);
+	}
+
 	#endregion
 
 	#region DisposeAsync Tests
@@ -346,6 +367,30 @@ public sealed class PollyCircuitBreakerFactoryShould : UnitTestBase, IAsyncDispo
 		_factory = null; // Prevent double dispose in test cleanup
 	}
 
+	[Fact]
+	public async Task DisposeAsync_AwaitsPendingDisposalTasks()
+	{
+		// Arrange
+		_factory = new PollyCircuitBreakerFactory();
+		_ = _factory.GetOrCreate("test-breaker");
+
+		var pendingDisposals = GetPendingDisposals(_factory);
+		var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		pendingDisposals.Add(gate.Task);
+
+		// Act
+		var disposeTask = _factory.DisposeAsync().AsTask();
+
+		// Assert
+		await Task.Delay(50);
+		disposeTask.IsCompleted.ShouldBeFalse();
+
+		gate.TrySetResult();
+		await disposeTask;
+
+		_factory = null; // Prevent double dispose in test cleanup
+	}
+
 	#endregion
 
 	#region ICircuitBreakerFactory Interface Tests
@@ -371,4 +416,12 @@ public sealed class PollyCircuitBreakerFactoryShould : UnitTestBase, IAsyncDispo
 	}
 
 	#endregion
+
+	private static ConcurrentBag<Task> GetPendingDisposals(PollyCircuitBreakerFactory factory)
+	{
+		var field = typeof(PollyCircuitBreakerFactory)
+			.GetField("_pendingDisposals", BindingFlags.Instance | BindingFlags.NonPublic);
+		field.ShouldNotBeNull();
+		return field!.GetValue(factory).ShouldBeOfType<ConcurrentBag<Task>>();
+	}
 }

@@ -1,12 +1,12 @@
 ---
 sidebar_position: 3
 title: Project Templates
-description: Use dotnet new templates to quickly scaffold Dispatch and Excalibur projects
+description: Use dotnet new templates to quickly scaffold Excalibur projects
 ---
 
 # Project Templates
 
-Get started quickly with `dotnet new` templates for Dispatch and Excalibur projects.
+Get started quickly with `dotnet new` templates for Excalibur projects.
 
 ## Before You Start
 
@@ -23,7 +23,7 @@ Get started quickly with `dotnet new` templates for Dispatch and Excalibur proje
 | Dispatch API | `dispatch-api` | ASP.NET Core API with Dispatch messaging | `--Transport`, `--IncludeDocker`, `--IncludeTests` |
 | Dispatch Worker | `dispatch-worker` | Background worker with message processing | `--Transport`, `--IncludeDocker`, `--IncludeTests` |
 | Excalibur DDD | `excalibur-ddd` | Domain-Driven Design with Event Sourcing | `--Database`, `--IncludeDocker`, `--IncludeTests` |
-| Excalibur CQRS | `excalibur-cqrs` | CQRS pattern with Dispatch and Excalibur | `--Transport`, `--Database`, `--IncludeDocker`, `--IncludeTests` |
+| Excalibur CQRS | `excalibur-cqrs` | Full CQRS pattern with event sourcing | `--Transport`, `--Database`, `--IncludeDocker`, `--IncludeTests` |
 
 ## Installation
 

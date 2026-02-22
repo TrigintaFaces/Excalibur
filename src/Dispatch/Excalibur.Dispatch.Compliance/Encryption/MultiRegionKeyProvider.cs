@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics;
 using System.Diagnostics.Metrics;
+
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 
@@ -330,13 +331,15 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider
 
 		_healthCheckCts.Cancel();
 
-		try
+		// Best-effort wait for background loop to observe cancellation without blocking with Task.Wait.
+		if (!_healthCheckTask.IsCompleted)
 		{
-			_ = _healthCheckTask.Wait(TimeSpan.FromSeconds(5));
-		}
-		catch (AggregateException)
-		{
-			// Expected during cancellation
+			var wait = ValueStopwatch.StartNew();
+			var spinner = new SpinWait();
+			while (!_healthCheckTask.IsCompleted && wait.Elapsed < TimeSpan.FromSeconds(5))
+			{
+				spinner.SpinOnce();
+			}
 		}
 
 		_healthCheckCts.Dispose();
@@ -554,7 +557,7 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider
 		RegionConfiguration config,
 		CancellationToken cancellationToken)
 	{
-		var sw = Stopwatch.StartNew();
+		var sw = ValueStopwatch.StartNew();
 		string? errorMessage = null;
 		bool isHealthy;
 
@@ -577,8 +580,6 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider
 			isHealthy = false;
 			errorMessage = ex.Message;
 		}
-
-		sw.Stop();
 
 		HealthCheckLatency.Record(sw.Elapsed.TotalMilliseconds,
 			new KeyValuePair<string, object?>("region", config.RegionId));

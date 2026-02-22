@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Cdc.Processing;
+using Microsoft.Extensions.Logging;
 
 namespace Excalibur.Tests.Cdc.Processing;
 
@@ -13,6 +14,109 @@ namespace Excalibur.Tests.Cdc.Processing;
 [Trait("Priority", "1")]
 public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 {
+	#region Health State Tests
+
+	[Fact]
+	public async Task ExecuteAsync_ShouldBecomeUnhealthy_WhenConsecutiveErrorsReachThreshold()
+	{
+		// Arrange
+		var processor = A.Fake<ICdcBackgroundProcessor>();
+		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
+			.ThrowsAsync(new InvalidOperationException("boom"));
+
+		var options = Options.Create(new CdcProcessingOptions
+		{
+			Enabled = true,
+			PollingInterval = TimeSpan.FromMilliseconds(20),
+			UnhealthyThreshold = 2
+		});
+		var logger = A.Fake<ILogger<CdcProcessingHostedService>>();
+		var service = new CdcProcessingHostedService(processor, options, logger);
+		using var cts = new CancellationTokenSource();
+
+		// Act
+		await service.StartAsync(cts.Token);
+		await WaitUntilAsync(() => service.ConsecutiveErrors >= 2, TimeSpan.FromSeconds(5));
+		await cts.CancelAsync();
+		await service.StopAsync(CancellationToken.None);
+
+		// Assert
+		service.ConsecutiveErrors.ShouldBeGreaterThanOrEqualTo(2);
+		service.IsHealthy.ShouldBeFalse();
+	}
+
+	[Fact]
+	public async Task ExecuteAsync_ShouldRecoverHealth_AfterSuccessfulCycleFollowingError()
+	{
+		// Arrange
+		var callCount = 0;
+		var processor = A.Fake<ICdcBackgroundProcessor>();
+		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
+			.ReturnsLazily(() =>
+			{
+				var current = Interlocked.Increment(ref callCount);
+				if (current == 1)
+				{
+					throw new InvalidOperationException("first failure");
+				}
+
+				return Task.FromResult(1);
+			});
+
+		var options = Options.Create(new CdcProcessingOptions
+		{
+			Enabled = true,
+			PollingInterval = TimeSpan.FromMilliseconds(20),
+			UnhealthyThreshold = 3
+		});
+		var logger = A.Fake<ILogger<CdcProcessingHostedService>>();
+		var service = new CdcProcessingHostedService(processor, options, logger);
+		using var cts = new CancellationTokenSource();
+
+		// Act
+		await service.StartAsync(cts.Token);
+		await WaitUntilAsync(() => Volatile.Read(ref callCount) >= 2, TimeSpan.FromSeconds(5));
+		await WaitUntilAsync(() => service.ConsecutiveErrors == 0, TimeSpan.FromSeconds(5));
+		var lastSuccess = service.LastSuccessfulProcessing;
+		await cts.CancelAsync();
+		await service.StopAsync(CancellationToken.None);
+
+		// Assert
+		lastSuccess.ShouldBeGreaterThan(DateTimeOffset.UnixEpoch);
+		service.IsHealthy.ShouldBeFalse(); // Service marks unhealthy when stopped.
+	}
+
+	[Fact]
+	public async Task StopAsync_ShouldSetServiceUnhealthy_AfterRunningHealthyCycle()
+	{
+		// Arrange
+		var processor = A.Fake<ICdcBackgroundProcessor>();
+		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
+			.Returns(1);
+
+		var options = Options.Create(new CdcProcessingOptions
+		{
+			Enabled = true,
+			PollingInterval = TimeSpan.FromMilliseconds(20),
+			UnhealthyThreshold = 3
+		});
+		var logger = A.Fake<ILogger<CdcProcessingHostedService>>();
+		var service = new CdcProcessingHostedService(processor, options, logger);
+		using var cts = new CancellationTokenSource();
+
+		// Act
+		await service.StartAsync(cts.Token);
+		await WaitUntilAsync(() => service.LastSuccessfulProcessing > DateTimeOffset.UnixEpoch, TimeSpan.FromSeconds(5));
+		service.IsHealthy.ShouldBeTrue();
+		await cts.CancelAsync();
+		await service.StopAsync(CancellationToken.None);
+
+		// Assert
+		service.IsHealthy.ShouldBeFalse();
+	}
+
+	#endregion
+
 	#region Drain Timeout Tests
 
 	[Fact]
@@ -280,8 +384,10 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 	public async Task ExecuteAsync_ShouldNotLogChanges_WhenNoChangesProcessed()
 	{
 		// Arrange
+		var firstCallObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var processor = A.Fake<ICdcBackgroundProcessor>();
 		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
+			.Invokes(() => firstCallObserved.TrySetResult(true))
 			.Returns(0); // Always returns 0 changes
 
 		var options = Options.Create(new CdcProcessingOptions
@@ -298,7 +404,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(200);
+		await firstCallObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -308,5 +414,131 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 			.MustHaveHappened();
 	}
 
+	[Fact]
+	public async Task ExecuteAsync_ShouldEmitDurationMs_WhenChangesAreProcessed()
+	{
+		// Arrange
+		var processor = A.Fake<ICdcBackgroundProcessor>();
+		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
+			.ReturnsLazily(() => Task.FromResult(3));
+
+		var options = Options.Create(new CdcProcessingOptions
+		{
+			Enabled = true,
+			PollingInterval = TimeSpan.FromMilliseconds(50)
+		});
+
+		var logger = A.Fake<ILogger<CdcProcessingHostedService>>();
+		var observedDurations = new List<double>();
+		_ = A.CallTo(() => logger.IsEnabled(LogLevel.Debug)).Returns(true);
+
+		A.CallTo(logger)
+			.Where(call => call.Method.Name == nameof(ILogger.Log))
+			.Invokes(call =>
+			{
+				if (call.Arguments.Count < 3 || call.Arguments[0] is not LogLevel level || level != LogLevel.Debug)
+				{
+					return;
+				}
+
+				if (TryReadStructuredLogDouble(call.Arguments[2], "DurationMs", out var durationMs))
+				{
+					observedDurations.Add(durationMs);
+				}
+			});
+
+		var service = new CdcProcessingHostedService(processor, options, logger);
+		using var cts = new CancellationTokenSource();
+
+		// Act
+		await service.StartAsync(cts.Token);
+		await Task.Delay(200);
+		await cts.CancelAsync();
+		await service.StopAsync(CancellationToken.None);
+
+		// Assert
+		observedDurations.ShouldNotBeEmpty();
+		observedDurations.All(duration => duration >= 0).ShouldBeTrue();
+	}
+
+	[Fact]
+	public async Task ExecuteAsync_ShouldNotEmitDurationMs_WhenNoChangesAreProcessed()
+	{
+		// Arrange
+		var processor = A.Fake<ICdcBackgroundProcessor>();
+		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
+			.Returns(0);
+
+		var options = Options.Create(new CdcProcessingOptions
+		{
+			Enabled = true,
+			PollingInterval = TimeSpan.FromMilliseconds(50)
+		});
+
+		var logger = A.Fake<ILogger<CdcProcessingHostedService>>();
+		var observedDurations = new List<double>();
+		_ = A.CallTo(() => logger.IsEnabled(LogLevel.Debug)).Returns(true);
+
+		A.CallTo(logger)
+			.Where(call => call.Method.Name == nameof(ILogger.Log))
+			.Invokes(call =>
+			{
+				if (call.Arguments.Count < 3 || call.Arguments[0] is not LogLevel level || level != LogLevel.Debug)
+				{
+					return;
+				}
+
+				if (TryReadStructuredLogDouble(call.Arguments[2], "DurationMs", out var durationMs))
+				{
+					observedDurations.Add(durationMs);
+				}
+			});
+
+		var service = new CdcProcessingHostedService(processor, options, logger);
+		using var cts = new CancellationTokenSource();
+
+		// Act
+		await service.StartAsync(cts.Token);
+		await Task.Delay(200);
+		await cts.CancelAsync();
+		await service.StopAsync(CancellationToken.None);
+
+		// Assert
+		observedDurations.ShouldBeEmpty();
+	}
+
 	#endregion
+
+	private static bool TryReadStructuredLogDouble(object? state, string key, out double value)
+	{
+		if (state is IEnumerable<KeyValuePair<string, object?>> structuredState)
+		{
+			var entry = structuredState.FirstOrDefault(pair => pair.Key == key);
+			if (entry.Key is not null && entry.Value is IConvertible convertible)
+			{
+				value = convertible.ToDouble(System.Globalization.CultureInfo.InvariantCulture);
+				return true;
+			}
+		}
+
+		value = default;
+		return false;
+	}
+
+	private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
+	{
+		var deadline = DateTime.UtcNow + timeout;
+		while (DateTime.UtcNow < deadline)
+		{
+			if (condition())
+			{
+				return;
+			}
+
+			await Task.Delay(25);
+		}
+
+		throw new TimeoutException("Condition was not met within the allotted timeout.");
+	}
 }
+

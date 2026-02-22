@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics;
 using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Diagnostics;
@@ -76,26 +76,25 @@ public sealed partial class LoggingMiddleware(
 			}
 		}
 
-		var stopwatch = _options.IncludeTiming ? Stopwatch.StartNew() : null;
+		ValueStopwatch? stopwatch = _options.IncludeTiming ? ValueStopwatch.StartNew() : null;
 
 		try
 		{
 			var result = await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
-			stopwatch?.Stop();
 
 			// Log completion
 			if (_options.LogCompletion)
 			{
 				if (result.IsSuccess)
 				{
-					LogSuccess(messageTypeName, messageId, stopwatch?.ElapsedMilliseconds ?? 0);
+					LogSuccess(messageTypeName, messageId, (long)(stopwatch?.ElapsedMilliseconds ?? 0));
 				}
 				else
 				{
 					LogFailure(
 						messageTypeName,
 						messageId,
-						stopwatch?.ElapsedMilliseconds ?? 0,
+						(long)(stopwatch?.ElapsedMilliseconds ?? 0),
 						result.ProblemDetails?.Detail ?? "Unknown error");
 				}
 			}
@@ -104,8 +103,7 @@ public sealed partial class LoggingMiddleware(
 		}
 		catch (Exception ex)
 		{
-			stopwatch?.Stop();
-			LogException(messageTypeName, messageId, stopwatch?.ElapsedMilliseconds ?? 0, ex);
+			LogException(messageTypeName, messageId, (long)(stopwatch?.ElapsedMilliseconds ?? 0), ex);
 			throw;
 		}
 	}

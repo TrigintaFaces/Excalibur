@@ -4,18 +4,20 @@ title: LLM Quick Reference
 description: Compact reference for LLM coding agents helping developers use Excalibur.Dispatch
 ---
 
-# Excalibur + Dispatch LLM Quick Reference
+# Excalibur LLM Quick Reference
 
 :::tip For AI Coding Agents
 This page is optimized for LLM coding agents (Cursor, Copilot, Claude Code, etc.). It provides the essential information needed to help developers use this framework without reading all documentation pages. For the full docs, see the sidebar navigation.
 :::
 
-**Excalibur + Dispatch** is a .NET 8+ NuGet package framework (75+ packages) with two distinct halves:
+**Excalibur** is a .NET 8+ NuGet package framework (75+ packages) with focused package families:
 
-- **Dispatch** — In-process messaging framework (MediatR alternative): dispatching, pipelines, middleware, transports
-- **Excalibur** — Application framework: domain modeling (DDD), event sourcing, CQRS, persistence, sagas, outbox
+- **`Excalibur.Dispatch.*`** — Messaging (MediatR alternative): dispatching, pipelines, middleware, transports
+- **`Excalibur.Domain`** — Domain modeling (DDD): aggregates, entities, value objects
+- **`Excalibur.EventSourcing.*`** — Persistence: event stores, snapshots, repositories
+- **`Excalibur.Saga.*`** — Workflows: sagas, process managers, outbox
 
-Dispatch depends on nothing. Excalibur depends on Dispatch (for `IDomainEvent`). Never the reverse.
+`Excalibur.Dispatch` is the foundation. All other families depend on it, but it depends on none of them.
 
 ## Package Map
 

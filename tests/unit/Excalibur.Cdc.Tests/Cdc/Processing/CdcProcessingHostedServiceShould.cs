@@ -143,9 +143,16 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 	{
 		// Arrange
 		var callCount = 0;
+		var twoCallsObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var processor = A.Fake<ICdcBackgroundProcessor>();
 		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
-			.Invokes(() => Interlocked.Increment(ref callCount))
+			.Invokes(() =>
+			{
+				if (Interlocked.Increment(ref callCount) >= 2)
+				{
+					twoCallsObserved.TrySetResult(true);
+				}
+			})
 			.Returns(0);
 
 		var options = Options.Create(new CdcProcessingOptions
@@ -161,7 +168,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(300); // Allow time for multiple cycles
+		await twoCallsObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 

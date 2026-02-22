@@ -180,7 +180,7 @@ public sealed partial class InMemoryMessageBusAdapter : IMessageBusAdapter, IAsy
 		{
 			_processingCts?.Dispose();
 			_processingCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-			_processingTask = Task.Run(() => ProcessMessagesAsync(_processingCts.Token), CancellationToken.None);
+			_processingTask = ProcessMessagesAsync(_processingCts.Token);
 		}
 
 		await Task.CompletedTask.ConfigureAwait(false);

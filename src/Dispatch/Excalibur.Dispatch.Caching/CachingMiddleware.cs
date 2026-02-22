@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Metrics;
 using System.Globalization;
@@ -11,6 +10,7 @@ using System.Text;
 using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Caching.Diagnostics;
 
 using Microsoft.Extensions.Caching.Hybrid;
@@ -199,8 +199,6 @@ public sealed class CachingMiddleware(
 	/// <param name="cachedResult">The cached value to deserialize.</param>
 	/// <returns>The deserialized value.</returns>
 	[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Deserialize(String, Type, JsonSerializerOptions)")]
-	[UnconditionalSuppressMessage("Trimming", "IL2057:Type.GetType may break with trimming",
-		Justification = "TypeName is from AssemblyQualifiedName and deserialization is handled with try-catch for AOT compatibility")]
 	private static object DeserializeCachedValue(CachedValue cachedResult)
 	{
 		var cachedValue = cachedResult.Value;
@@ -210,7 +208,7 @@ public sealed class CachingMiddleware(
 		{
 			try
 			{
-				var targetType = Type.GetType(cachedResult.TypeName);
+				var targetType = ResolveTypeByName(cachedResult.TypeName);
 				if (targetType != null)
 				{
 					var json = jsonElement.GetRawText();
@@ -280,11 +278,10 @@ public sealed class CachingMiddleware(
 					var returnType = actionInterface.GetGenericArguments()[0];
 
 					// Create CachedMessageResult<T> using reflection
-					var resultWrapperType = typeof(CachedMessageResult<>).MakeGenericType(returnType);
-					var resultInstance = Activator.CreateInstance(resultWrapperType, cachedValue);
+					var resultInstance = CreateCachedMessageResult(returnType, cachedValue);
 					context.Result = cachedValue;
 
-					return (IMessageResult)resultInstance!;
+					return resultInstance;
 				}
 
 				var implementedInterfaces = string.Join(
@@ -342,7 +339,7 @@ public sealed class CachingMiddleware(
 		using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		cts.CancelAfter(options.Value.Behavior.CacheTimeout);
 
-		var sw = Stopwatch.StartNew();
+		var sw = ValueStopwatch.StartNew();
 		try
 		{
 			var cachedResult = await cache.GetOrCreateAsync(
@@ -358,7 +355,6 @@ public sealed class CachingMiddleware(
 				tags,
 				cts.Token).ConfigureAwait(false);
 
-			sw.Stop();
 			_cacheLatencyHistogram.Record(sw.Elapsed.TotalMilliseconds);
 			RecordHitOrMiss(cachedResult, context);
 
@@ -367,7 +363,6 @@ public sealed class CachingMiddleware(
 		catch (OperationCanceledException)
 		{
 			// Timeout or cancellation - execute without caching
-			sw.Stop();
 			_cacheTimeoutCounter.Add(1);
 			_cacheLatencyHistogram.Record(sw.Elapsed.TotalMilliseconds);
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
@@ -565,7 +560,7 @@ public sealed class CachingMiddleware(
 		using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		cts.CancelAfter(options.Value.Behavior.CacheTimeout);
 
-		var sw = Stopwatch.StartNew();
+		var sw = ValueStopwatch.StartNew();
 		try
 		{
 			var cachedResult = await cache.GetOrCreateAsync(
@@ -581,7 +576,6 @@ public sealed class CachingMiddleware(
 				tags,
 				cts.Token).ConfigureAwait(false);
 
-			sw.Stop();
 			_cacheLatencyHistogram.Record(sw.Elapsed.TotalMilliseconds);
 			RecordHitOrMiss(cachedResult, context);
 
@@ -589,7 +583,6 @@ public sealed class CachingMiddleware(
 		}
 		catch (OperationCanceledException)
 		{
-			sw.Stop();
 			_cacheTimeoutCounter.Add(1);
 			_cacheLatencyHistogram.Record(sw.Elapsed.TotalMilliseconds);
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
@@ -680,6 +673,50 @@ public sealed class CachingMiddleware(
 		}
 
 		return _globalPolicy?.ShouldCache(message, result) ?? true;
+	}
+
+	private static Type? ResolveTypeByName(string typeName)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(typeName);
+
+		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+		{
+			var resolved = assembly.GetType(typeName, throwOnError: false, ignoreCase: false);
+			if (resolved != null)
+			{
+				return resolved;
+			}
+		}
+
+		var assemblySeparator = typeName.IndexOf(',', StringComparison.Ordinal);
+		if (assemblySeparator <= 0)
+		{
+			return null;
+		}
+
+		var simpleTypeName = typeName[..assemblySeparator];
+		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+		{
+			var resolved = assembly.GetType(simpleTypeName, throwOnError: false, ignoreCase: false);
+			if (resolved != null)
+			{
+				return resolved;
+			}
+		}
+
+		return null;
+	}
+
+	private static IMessageResult CreateCachedMessageResult(Type returnType, object cachedValue)
+	{
+		var resultWrapperType = typeof(CachedMessageResult<>).MakeGenericType(returnType);
+		var constructor = resultWrapperType.GetConstructors()
+			.FirstOrDefault(static ctor => ctor.GetParameters().Length == 1)
+			?? throw new InvalidOperationException(
+				$"No suitable constructor found for cached result wrapper type '{resultWrapperType.FullName}'.");
+
+		var resultInstance = constructor.Invoke([cachedValue]);
+		return (IMessageResult)resultInstance;
 	}
 
 	/// <summary>

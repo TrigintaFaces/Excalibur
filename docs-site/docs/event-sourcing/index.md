@@ -324,4 +324,4 @@ public interface IEventStore
 
 - [Patterns](../patterns/index.md) - Outbox pattern for reliable event publishing
 - [Handlers](../handlers.md) - Command and event handler patterns
-- [Dispatch vs Excalibur](../dispatch-vs-excalibur.md) - Understanding the Dispatch/Excalibur boundary for event sourcing
+- [Package Guide](../package-guide) - Understanding which packages you need for event sourcing

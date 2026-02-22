@@ -1,12 +1,12 @@
 ---
 sidebar_position: 6
 title: Incident Runbooks
-description: Escalation model and response playbooks for Dispatch/Excalibur runtime incidents
+description: Escalation model and response playbooks for Excalibur runtime incidents
 ---
 
 # Incident Runbooks
 
-Use this guide for production incident response across Dispatch and Excalibur workloads.
+Use this guide for production incident response across Excalibur workloads.
 
 ## Severity Model
 

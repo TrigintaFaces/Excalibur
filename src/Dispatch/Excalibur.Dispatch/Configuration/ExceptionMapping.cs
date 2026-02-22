@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics.CodeAnalysis;
-
 using Excalibur.Dispatch.Abstractions;
 
 namespace Excalibur.Dispatch.Configuration;
@@ -119,13 +117,10 @@ internal sealed class AsyncTypedExceptionMapping<TException> : ExceptionMapping
 	public override bool CanHandle(Exception exception) => exception is TException;
 
 	/// <inheritdoc />
-	[SuppressMessage("AsyncUsage", "VSTHRD002:Avoid problematic synchronous waits",
-		Justification = "ExceptionMapping.Map() is synchronous by base class contract. Callers should prefer MapAsync when possible.")]
 	public override IMessageProblemDetails Map(Exception exception)
 	{
-		// For async mappings, we need to block - but this should ideally be avoided
-		// by using MapAsync in the middleware
-		return MapAsync(exception, CancellationToken.None).GetAwaiter().GetResult();
+		throw new InvalidOperationException(
+			"Synchronous mapping is not supported for async exception mappings. Use MapAsync instead.");
 	}
 
 	/// <inheritdoc />

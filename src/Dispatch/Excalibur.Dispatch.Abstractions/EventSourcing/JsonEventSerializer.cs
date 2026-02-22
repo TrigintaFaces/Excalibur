@@ -85,10 +85,8 @@ public sealed class JsonEventSerializer : IEventSerializer
 			return cachedType;
 		}
 
-		// Strategy 1: Try Type.GetType (works for assembly-qualified names)
-		// Strategy 2: Search loaded assemblies by full name (handles short type names without assembly qualification)
-		var resolvedType = Type.GetType(typeName)
-			?? SearchLoadedAssemblies(typeName)
+		// Resolve from loaded assemblies to support both full names and assembly-qualified names
+		var resolvedType = SearchLoadedAssemblies(typeName)
 			?? throw new InvalidOperationException(
 				$"Cannot resolve type: '{typeName}'. Ensure the assembly containing this type is loaded. " +
 				"If using short type names, the type must be discoverable in loaded assemblies.");
@@ -109,6 +107,13 @@ public sealed class JsonEventSerializer : IEventSerializer
 	/// <returns>The resolved type, or <see langword="null"/> if not found.</returns>
 	private static Type? SearchLoadedAssemblies(string typeName)
 	{
+		var simpleTypeName = typeName;
+		var commaIndex = typeName.IndexOf(',', StringComparison.Ordinal);
+		if (commaIndex > 0)
+		{
+			simpleTypeName = typeName[..commaIndex].Trim();
+		}
+
 		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
 		{
 			// Skip dynamic assemblies that can't be searched
@@ -117,7 +122,7 @@ public sealed class JsonEventSerializer : IEventSerializer
 				continue;
 			}
 
-			var type = assembly.GetType(typeName);
+			var type = assembly.GetType(typeName) ?? assembly.GetType(simpleTypeName);
 			if (type is not null)
 			{
 				return type;

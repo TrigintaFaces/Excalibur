@@ -4,6 +4,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Microsoft.Extensions.Logging;
 
 namespace Excalibur.Dispatch.Resilience.Polly;
@@ -105,7 +106,7 @@ public sealed partial class TelemetryResiliencePipeline : IDisposable
 
 		activity?.SetTag(ResilienceTelemetryConstants.Tags.PipelineName, _pipelineName);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		var outcome = "success";
 
 		try
@@ -132,7 +133,6 @@ public sealed partial class TelemetryResiliencePipeline : IDisposable
 		}
 		finally
 		{
-			stopwatch.Stop();
 			_operationDuration.Record(stopwatch.Elapsed.TotalMilliseconds, new TagList
 			{
 				{ ResilienceTelemetryConstants.Tags.PipelineName, _pipelineName },

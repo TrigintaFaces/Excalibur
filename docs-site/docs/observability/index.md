@@ -1,12 +1,12 @@
 ---
 sidebar_position: 21
 title: Observability
-description: Monitor Dispatch and Excalibur applications with comprehensive observability
+description: Monitor Excalibur applications with comprehensive observability
 ---
 
 # Observability
 
-Monitor Dispatch and Excalibur applications with OpenTelemetry, health checks, and integrations.
+Monitor Excalibur applications with OpenTelemetry, health checks, and integrations.
 
 :::tip Start here
 The **[Production Observability Guide](production-observability.md)** explains which metrics matter, what to alert on, and how to build dashboards that tell you something useful.

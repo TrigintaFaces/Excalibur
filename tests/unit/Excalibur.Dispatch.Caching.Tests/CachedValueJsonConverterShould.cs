@@ -245,6 +245,51 @@ public sealed class CachedValueJsonConverterShould
 		result.Value.ShouldBeOfType<JsonElement>();
 	}
 
+	[Fact]
+	public void Deserialize_JsonWithTypeNameWithoutAssembly_ResolvesFromLoadedAssemblies()
+	{
+		// Arrange
+		var json = $$"""
+		{
+			"ShouldCache": true,
+			"HasExecuted": true,
+			"TypeName": "{{typeof(TestDto).FullName}}",
+			"Value": {"Id": 7, "Name": "resolved-by-scan"}
+		}
+		""";
+
+		// Act
+		var result = JsonSerializer.Deserialize<CachedValue>(json, Options);
+
+		// Assert
+		result.ShouldNotBeNull();
+		var dto = result.Value.ShouldBeOfType<TestDto>();
+		dto.Id.ShouldBe(7);
+		dto.Name.ShouldBe("resolved-by-scan");
+	}
+
+	[Fact]
+	public void Deserialize_JsonWithWrongAssemblySuffix_ResolvesBySimpleTypeName()
+	{
+		// Arrange
+		var json = $$"""
+		{
+			"ShouldCache": true,
+			"HasExecuted": true,
+			"TypeName": "{{typeof(Guid).FullName}}, Fake.Assembly.That.Does.Not.Exist",
+			"Value": "7d9e4e67-5cb3-4761-93d4-7d07f7f8704b"
+		}
+		""";
+
+		// Act
+		var result = JsonSerializer.Deserialize<CachedValue>(json, Options);
+
+		// Assert
+		result.ShouldNotBeNull();
+		result.Value.ShouldBeOfType<Guid>()
+			.ShouldBe(Guid.Parse("7d9e4e67-5cb3-4761-93d4-7d07f7f8704b"));
+	}
+
 	private sealed class TestDto
 	{
 		public int Id { get; set; }

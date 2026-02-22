@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 
@@ -26,7 +27,7 @@ public static class MetricsWarningLogger
 	{
 		if (Interlocked.CompareExchange(ref _emitted, 1, 0) == 0)
 		{
-			Console.WriteLine(Resources.MetricsWarningLogger_NoMetricsProviderConfigured);
+			Trace.WriteLine(Resources.MetricsWarningLogger_NoMetricsProviderConfigured);
 		}
 	}
 
@@ -38,7 +39,7 @@ public static class MetricsWarningLogger
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(message);
 
-		Console.WriteLine(string.Format(
+		Trace.WriteLine(string.Format(
 						CultureInfo.CurrentCulture,
 						WarningFormat,
 						message));
@@ -53,7 +54,7 @@ public static class MetricsWarningLogger
 		ArgumentException.ThrowIfNullOrWhiteSpace(message);
 
 #if DEBUG
-		Console.WriteLine(string.Format(
+		Trace.WriteLine(string.Format(
 						CultureInfo.CurrentCulture,
 						DebugFormat,
 						message));

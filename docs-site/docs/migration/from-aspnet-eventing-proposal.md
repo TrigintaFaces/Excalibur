@@ -122,8 +122,8 @@ public class CronJobHandler : IActionHandler<CronTimerTriggerMessage<ScheduledJo
 
 ### Queue Provider Support
 
-| Proposed Feature | Dispatch Equivalent | Implementation |
-|------------------|---------------------|----------------|
+| Proposed Feature | Excalibur Equivalent | Implementation |
+|------------------|----------------------|----------------|
 | `AddAzureStorageEventQueue()` | `AddAzureStorageQueueTransport()` | `AzureStorageQueueConsumer` - full consumer with CloudEvents, visibility timeout, DLQ, exponential backoff |
 | `AddAzureServiceBusEventQueue()` | `AddAzureServiceBusTransport()` | `SimpleServiceBusConsumer`, `SessionServiceBusConsumer` - sessions, peek-lock, auto-complete |
 | `AddAwsSqsEventQueue()` | `AddAwsSqsTransport()` | `AwsSqsConsumer` - long polling, FIFO support, visibility timeout |
@@ -134,16 +134,16 @@ public class CronJobHandler : IActionHandler<CronTimerTriggerMessage<ScheduledJo
 
 ### Handler Registration
 
-| Proposed Approach | Dispatch Approach | Advantage |
-|-------------------|-------------------|-----------|
+| Proposed Approach | Excalibur Approach | Advantage |
+|-------------------|--------------------|-----------|
 | `MapEvent("name", lambda)` | `IActionHandler<T>` classes | Type-safe, testable, full DI support |
 | String-based event names | Strongly-typed message classes | Compile-time safety, refactoring support |
 | Inline lambdas in Program.cs | Dedicated handler classes | Separation of concerns, unit testable |
 
 ### Framework Primitives
 
-| Proposed Feature | Dispatch Status | Implementation |
-|------------------|-----------------|----------------|
+| Proposed Feature | Excalibur Status | Implementation |
+|------------------|------------------|----------------|
 | Middleware/Filters | **Native** | `IDispatchMiddleware` with full pipeline |
 | DI Support | **Native** | Constructor injection in all handlers |
 | Serialization APIs | **Native** | Pluggable: MemoryPack, JSON, MessagePack, Protobuf |
@@ -153,16 +153,16 @@ public class CronJobHandler : IActionHandler<CronTimerTriggerMessage<ScheduledJo
 
 ## Community Requests Fulfilled
 
-The GitHub issue received significant community feedback requesting features beyond the initial proposal. Here's how Dispatch addresses each request:
+The GitHub issue received significant community feedback requesting features beyond the initial proposal. Here's how Excalibur addresses each request:
 
 ### Outbox Pattern (46 upvotes)
 
 > *"With outbox feature, please."*
 
-**Dispatch + Excalibur:** The outbox pattern is implemented across both frameworks:
+**Excalibur** provides full outbox support across two package families:
 
-- **Dispatch** provides abstractions (`IOutboxStore`, `IOutboxPublisher`) and middleware (`OutboxMiddleware`, `OutboxBackgroundService`)
-- **Excalibur** provides concrete store implementations for SQL Server, PostgreSQL, MongoDB, CosmosDB, DynamoDB, Firestore, Redis, and in-memory
+- `Excalibur.Dispatch` provides abstractions (`IOutboxStore`, `IOutboxPublisher`) and middleware (`OutboxMiddleware`, `OutboxBackgroundService`)
+- `Excalibur.EventSourcing.*` provides concrete store implementations for SQL Server, PostgreSQL, MongoDB, CosmosDB, DynamoDB, Firestore, Redis, and in-memory
 
 ```csharp
 // Install both packages for full outbox support
@@ -182,14 +182,14 @@ services.AddSqlServerOutboxStore(options =>
 ```
 
 :::note Package Architecture
-Dispatch focuses on messaging (dispatching, pipelines, middleware). Excalibur provides persistence implementations (event stores, outbox stores, repositories). This separation keeps Dispatch lightweight while allowing Excalibur to provide production-ready database integrations.
+`Excalibur.Dispatch.*` focuses on messaging (dispatching, pipelines, middleware). `Excalibur.EventSourcing.*` provides persistence implementations (event stores, outbox stores, repositories). This separation keeps the messaging core lightweight while offering production-ready database integrations as optional packages.
 :::
 
 ### Abstraction Layer Like ILogger (70 upvotes)
 
 > *"Introduce a common abstraction layer that can be used by third party tools, much like the `ILogger` abstraction."*
 
-**Dispatch:** Clean abstraction layer with:
+**`Excalibur.Dispatch`:** Clean abstraction layer with:
 
 - `ITransportAdapter` - transport abstraction
 - `IActionHandler<T>` / `IDispatchHandler<T>` - handler abstractions
@@ -200,13 +200,13 @@ Dispatch focuses on messaging (dispatching, pipelines, middleware). Excalibur pr
 
 > *"Support for database-backed queues with SKIP LOCKED in postgres."*
 
-**Excalibur:** SQL Server and PostgreSQL implementations use SKIP LOCKED for concurrent processing. Install `Excalibur.EventSourcing.SqlServer` or `Excalibur.EventSourcing.Postgres` to use these database-backed stores.
+**`Excalibur.EventSourcing.*`:** SQL Server and PostgreSQL implementations use SKIP LOCKED for concurrent processing. Install `Excalibur.EventSourcing.SqlServer` or `Excalibur.EventSourcing.Postgres` to use these database-backed stores.
 
 ### Lightweight Handlers
 
 > *"Don't force all existing handlers to use custom interfaces."*
 
-**Dispatch:** Simple, minimal interface:
+**`Excalibur.Dispatch`:** Simple, minimal interface:
 
 ```csharp
 public interface IActionHandler<TAction>
@@ -220,7 +220,7 @@ public interface IActionHandler<TAction>
 
 > *"Support for Roslyn source generators similar to MediatR and Wolverine."*
 
-**Dispatch:** Full source generator package (`Excalibur.Dispatch.SourceGenerators`) with:
+**`Excalibur.Dispatch`:** Full source generator package (`Excalibur.Dispatch.SourceGenerators`) with:
 
 - `HandlerRegistrySourceGenerator` - Auto-discover and register handlers
 - `HandlerInvokerSourceGenerator` - Zero-reflection handler invocation
@@ -238,7 +238,7 @@ builder.Services.AddDispatch(typeof(Program).Assembly);  // Handlers discovered 
 
 > *"Integration with schema registries for message validation."*
 
-**Dispatch:** Full schema registry integration for all major cloud platforms:
+**`Excalibur.Dispatch`:** Full schema registry integration for all major cloud platforms:
 
 ```csharp
 // Kafka with Confluent Schema Registry
@@ -264,7 +264,7 @@ services.AddAwsGlueSchemaRegistry(options =>
 
 ### Health Checks
 
-**Dispatch:** Built-in `ITransportHealthChecker` for all transports with ASP.NET Core Health Checks integration.
+**`Excalibur.Dispatch`:** Built-in `ITransportHealthChecker` for all transports with ASP.NET Core Health Checks integration.
 
 ```csharp
 builder.Services.AddHealthChecks()
@@ -275,7 +275,7 @@ app.MapHealthChecks("/health");
 
 ### Observability (Metrics/Tracing)
 
-**Dispatch:** OpenTelemetry instrumentation on all transports automatically.
+**`Excalibur.Dispatch`:** OpenTelemetry instrumentation on all transports automatically.
 
 ```csharp
 builder.Services.AddOpenTelemetry()
@@ -305,7 +305,7 @@ The ASP.NET Core team closed the issue as "not planned" after community feedback
 
 ## Full Consumer Support
 
-Unlike a proposal, Dispatch has **working implementations** with full consumer capabilities:
+Unlike a proposal, Excalibur has **working implementations** with full consumer capabilities:
 
 ### Azure Storage Queue Consumer
 
@@ -369,27 +369,27 @@ Unlike a proposal, Dispatch has **working implementations** with full consumer c
 
 ## Comparison Summary
 
-| Aspect | Proposed API | Dispatch + Excalibur |
-|--------|--------------|---------------------|
+| Aspect | Proposed API | Excalibur |
+|--------|--------------|-----------|
 | **Status** | Closed, not implemented | Production-ready, ~36,000 tests |
-| **Queue Consumers** | Proposed only | Full implementations for 6 providers (Dispatch) |
-| **Timer/Cron** | Proposed only | Native `AddCronTimerTransport<TTimer>()` with typed handlers (Dispatch) |
-| **Type Safety** | String-based event names | Strongly-typed `IActionHandler<T>` (Dispatch) |
-| **Testability** | Inline lambdas | Handler classes with full DI (Dispatch) |
-| **Pipeline** | Planned | Full `IDispatchMiddleware` pipeline (Dispatch) |
-| **Health Checks** | Planned | Built-in `ITransportHealthChecker` (Dispatch) |
-| **Observability** | Planned | OpenTelemetry instrumentation (Dispatch) |
-| **Source Generators** | Community requested | Full `Excalibur.Dispatch.SourceGenerators` package (Dispatch) |
-| **Schema Registry** | Community requested | Kafka Confluent + Google Pub/Sub + AWS Glue (all full implementations) |
-| **Outbox Pattern** | Community requested | Abstractions in Dispatch, stores in Excalibur |
-| **Database Queues** | Community requested | SQL Server/PostgreSQL with SKIP LOCKED (Excalibur) |
-| **AOT Support** | Mentioned | Source generation, no runtime reflection (Dispatch) |
+| **Queue Consumers** | Proposed only | Full implementations for 6 providers (`Excalibur.Dispatch.Transport.*`) |
+| **Timer/Cron** | Proposed only | Native `AddCronTimerTransport<TTimer>()` with typed handlers |
+| **Type Safety** | String-based event names | Strongly-typed `IActionHandler<T>` |
+| **Testability** | Inline lambdas | Handler classes with full DI |
+| **Pipeline** | Planned | Full `IDispatchMiddleware` pipeline |
+| **Health Checks** | Planned | Built-in `ITransportHealthChecker` |
+| **Observability** | Planned | OpenTelemetry instrumentation |
+| **Source Generators** | Community requested | Full `Excalibur.Dispatch.SourceGenerators` package |
+| **Schema Registry** | Community requested | Kafka Confluent + Google Pub/Sub + AWS Glue |
+| **Outbox Pattern** | Community requested | Abstractions in `Excalibur.Dispatch`, stores in `Excalibur.EventSourcing.*` |
+| **Database Queues** | Community requested | SQL Server/PostgreSQL with SKIP LOCKED (`Excalibur.EventSourcing.*`) |
+| **AOT Support** | Mentioned | Source generation, no runtime reflection |
 
 ---
 
 ## Migration Path
 
-If you were waiting for the ASP.NET Core Eventing Framework, here's how to adopt Dispatch:
+If you were waiting for the ASP.NET Core Eventing Framework, here's how to adopt Excalibur:
 
 ### 1. Install Packages
 
@@ -404,7 +404,7 @@ dotnet add package Excalibur.Dispatch.Transport.GooglePubSub     # Google Pub/Su
 dotnet add package Excalibur.Dispatch.Transport.Kafka            # Apache Kafka
 dotnet add package Excalibur.Dispatch.Transport.RabbitMQ         # RabbitMQ
 
-# For outbox pattern (optional - requires Excalibur)
+# For outbox pattern (optional)
 dotnet add package Excalibur.EventSourcing.SqlServer   # or Postgres, MongoDB, etc.
 ```
 
@@ -457,7 +457,7 @@ builder.Services.AddOpenTelemetry()
     .WithMetrics(b => b.AddDispatchMetrics());
 ```
 
-### 5. Add Outbox Pattern (Optional - Requires Excalibur)
+### 5. Add Outbox Pattern (Optional)
 
 ```csharp
 // Requires: dotnet add package Excalibur.EventSourcing.SqlServer
@@ -472,24 +472,25 @@ builder.Services.AddSqlServerOutboxStore(options =>
 
 ## Package Architecture
 
-The Excalibur ecosystem separates concerns between two frameworks:
+Excalibur is organized into focused package families:
 
-| Package | Responsibility |
-|---------|---------------|
-| **Dispatch** | Messaging: dispatching, pipelines, handlers, middleware, transports |
-| **Excalibur** | Persistence: event stores, outbox stores, repositories, domain building blocks |
+| Package Family | Responsibility |
+|----------------|---------------|
+| `Excalibur.Dispatch.*` | Messaging: dispatching, pipelines, handlers, middleware, transports |
+| `Excalibur.Domain` | Domain modeling: aggregates, entities, value objects |
+| `Excalibur.EventSourcing.*` | Persistence: event stores, snapshots, repositories |
+| `Excalibur.Saga.*` | Workflows: sagas, process managers |
 
-**When to use Dispatch alone:**
+**Start with `Excalibur.Dispatch`:**
 - Message dispatching (alternative to MediatR)
 - Cloud queue consumers (Azure, AWS, GCP)
 - Scheduled jobs with cron expressions
 - Pipeline middleware and observability
 
-**When to add Excalibur:**
-- Outbox pattern (reliable message publishing)
-- Event sourcing with aggregates
-- Database-backed message stores
-- Domain-driven design patterns
+**Add more packages as needed:**
+- `Excalibur.Domain` for domain-driven design patterns
+- `Excalibur.EventSourcing` for event sourcing with aggregates
+- `Excalibur.Saga` for reliable multi-step workflows
 
 ---
 

@@ -495,6 +495,101 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		callCount.ShouldBeGreaterThan(1);
 	}
 
+	[Fact]
+	public async Task ProcessTimeout_WhenTypeResolvedBySimpleNameFallback()
+	{
+		// Arrange
+		var timeoutId = Guid.NewGuid().ToString();
+		var timeout = CreateTimeout(
+			timeoutId,
+			Guid.NewGuid().ToString(),
+			$"{typeof(TestTimeoutMessage).FullName}, Missing.Assembly.Name",
+			JsonSerializer.SerializeToUtf8Bytes(new TestTimeoutMessage { Value = "fallback" }));
+
+		var hasReturned = false;
+		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
+			.ReturnsLazily(() =>
+			{
+				if (!hasReturned)
+				{
+					hasReturned = true;
+					return new List<SagaTimeout> { timeout };
+				}
+				return new List<SagaTimeout>();
+			});
+
+		A.CallTo(() => _dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Returns(Task.FromResult(MessageResult.Success()));
+
+		using var cts = new CancellationTokenSource();
+		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
+
+		// Act
+		await service.StartAsync(cts.Token);
+		await Task.Delay(150);
+		await cts.CancelAsync();
+		try
+		{
+			await service.StopAsync(CancellationToken.None);
+		}
+		catch (OperationCanceledException)
+		{
+			// Expected
+		}
+
+		// Assert
+		A.CallTo(() => _dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.MustHaveHappened();
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+			.MustHaveHappened();
+	}
+
+	[Fact]
+	public async Task MarkDelivered_WhenNullTimeoutData_AndTypeHasNoParameterlessConstructor()
+	{
+		// Arrange
+		var timeoutId = Guid.NewGuid().ToString();
+		var timeout = CreateTimeout(
+			timeoutId,
+			Guid.NewGuid().ToString(),
+			typeof(NoDefaultCtorDispatchMessage).AssemblyQualifiedName!,
+			null);
+
+		var hasReturned = false;
+		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
+			.ReturnsLazily(() =>
+			{
+				if (!hasReturned)
+				{
+					hasReturned = true;
+					return new List<SagaTimeout> { timeout };
+				}
+				return new List<SagaTimeout>();
+			});
+
+		using var cts = new CancellationTokenSource();
+		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
+
+		// Act
+		await service.StartAsync(cts.Token);
+		await Task.Delay(150);
+		await cts.CancelAsync();
+		try
+		{
+			await service.StopAsync(CancellationToken.None);
+		}
+		catch (OperationCanceledException)
+		{
+			// Expected
+		}
+
+		// Assert
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+			.MustHaveHappened();
+		A.CallTo(() => _dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
 	#endregion
 
 	#region Helper Methods
@@ -527,6 +622,13 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 	private sealed class NonDispatchMessage
 	{
 		public string Data { get; init; } = string.Empty;
+	}
+
+	private sealed class NoDefaultCtorDispatchMessage : IDispatchMessage
+	{
+		public NoDefaultCtorDispatchMessage(string value) => Value = value;
+
+		public string Value { get; }
 	}
 
 	#endregion

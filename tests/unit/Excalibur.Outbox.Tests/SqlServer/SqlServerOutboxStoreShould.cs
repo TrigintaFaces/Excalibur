@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Data.SqlServer.Inbox;
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Serialization;
 
 using Microsoft.Data.SqlClient;
@@ -510,6 +512,70 @@ public sealed class SqlServerOutboxStoreShould : UnitTestBase
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(
 			() => store.UpdateAggregateStatusAsync(null!, CancellationToken.None));
+	}
+
+	[Fact]
+	public async Task TryMarkSentAndReceivedAsync_ReturnsFalse_WhenInboxOptionsAreNotConfigured()
+	{
+		// Arrange
+		var factoryCalled = false;
+		Func<SqlConnection> factory = () =>
+		{
+			factoryCalled = true;
+			throw new InvalidOperationException("Connection factory should not be called.");
+		};
+		var outboxOptions = new SqlServerOutboxOptions
+		{
+			ConnectionString = "Server=outbox;Database=MessagingDb"
+		};
+		var store = new SqlServerOutboxStore(
+			factory,
+			outboxOptions,
+			payloadSerializer: null,
+			inboxOptions: null,
+			_logger);
+		var inboxEntry = new InboxEntry("msg-1", "Handler", "TestMessage", [1, 2, 3]);
+
+		// Act
+		var completed = await store.TryMarkSentAndReceivedAsync("msg-1", inboxEntry, CancellationToken.None);
+
+		// Assert
+		completed.ShouldBeFalse();
+		factoryCalled.ShouldBeFalse();
+	}
+
+	[Fact]
+	public async Task TryMarkSentAndReceivedAsync_ReturnsFalse_WhenInboxUsesDifferentConnectionString()
+	{
+		// Arrange
+		var factoryCalled = false;
+		Func<SqlConnection> factory = () =>
+		{
+			factoryCalled = true;
+			throw new InvalidOperationException("Connection factory should not be called.");
+		};
+		var outboxOptions = new SqlServerOutboxOptions
+		{
+			ConnectionString = "Server=outbox;Database=MessagingDb"
+		};
+		var inboxOptions = new SqlServerInboxOptions
+		{
+			ConnectionString = "Server=inbox;Database=InboxDb"
+		};
+		var store = new SqlServerOutboxStore(
+			factory,
+			outboxOptions,
+			payloadSerializer: null,
+			inboxOptions,
+			_logger);
+		var inboxEntry = new InboxEntry("msg-2", "Handler", "TestMessage", [4, 5, 6]);
+
+		// Act
+		var completed = await store.TryMarkSentAndReceivedAsync("msg-2", inboxEntry, CancellationToken.None);
+
+		// Assert
+		completed.ShouldBeFalse();
+		factoryCalled.ShouldBeFalse();
 	}
 
 	#endregion

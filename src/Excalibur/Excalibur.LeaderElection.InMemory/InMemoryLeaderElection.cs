@@ -309,7 +309,7 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 			{
 				// Try to acquire leadership if no one has it,
 				// but not if we stepped down due to being unhealthy
-				_ = Task.Run(TryAcquireLeadershipAsync, _cancellationTokenSource.Token);
+				_ = TryAcquireLeadershipAsync();
 			}
 		}
 		catch (Exception ex)

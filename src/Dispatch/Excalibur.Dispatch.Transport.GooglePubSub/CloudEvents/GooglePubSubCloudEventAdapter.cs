@@ -491,7 +491,8 @@ public sealed class GooglePubSubCloudEventAdapter : ICloudEventMapper<PubsubMess
 
 		if (!string.IsNullOrWhiteSpace(message.OrderingKey))
 		{
-			cloudEvent[$"{DispatchPrefix}partitionkey"] = message.OrderingKey;
+			// CloudEvent extension names cannot contain '-'. Preserve dispatch metadata
+			// using the normalized extension key and the plain key.
 			cloudEvent[$"{DispatchPrefixWithoutSeparator}partitionkey"] ??= message.OrderingKey;
 			cloudEvent["partitionkey"] ??= message.OrderingKey;
 		}
@@ -507,8 +508,8 @@ public sealed class GooglePubSubCloudEventAdapter : ICloudEventMapper<PubsubMess
 			}
 
 			var extensionName = attribute.Key[DispatchPrefix.Length..];
-			cloudEvent[DispatchPrefix + extensionName] = attribute.Value;
 			cloudEvent[DispatchPrefixWithoutSeparator + extensionName] ??= attribute.Value;
+			cloudEvent[extensionName] ??= attribute.Value;
 		}
 	}
 

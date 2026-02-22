@@ -163,4 +163,16 @@ public sealed class PostgresCdcOptionsShould
 
 		Should.NotThrow(() => options.Validate());
 	}
+
+	[Fact]
+	public void ValidateAcceptsSchemaQualifiedAndUnqualifiedTableNames()
+	{
+		var options = new PostgresCdcOptions
+		{
+			ConnectionString = "Host=localhost;Database=test",
+			TableNames = ["public.orders", "orders"]
+		};
+
+		Should.NotThrow(() => options.Validate());
+	}
 }

@@ -81,6 +81,185 @@ public sealed class ErasureVerificationServiceShould
 	}
 
 	[Fact]
+	public async Task Generate_report_populates_non_negative_step_durations()
+	{
+		// Arrange
+		var requestId = Guid.NewGuid();
+		SetupCompletedErasure(requestId);
+		A.CallTo(() => _keyProvider.GetKeyAsync(A<string>._, A<CancellationToken>._))
+			.Returns((KeyMetadata?)null);
+
+		var sut = CreateService();
+
+		// Act
+		var report = await sut.GenerateReportAsync(requestId, CancellationToken.None).ConfigureAwait(false);
+
+		// Assert
+		report.Steps.ShouldNotBeEmpty();
+		report.Steps.All(step => step.Duration >= TimeSpan.Zero).ShouldBeTrue();
+		report.Steps.All(step => step.Timestamp != default).ShouldBeTrue();
+		report.Result.Duration.ShouldBeGreaterThanOrEqualTo(TimeSpan.Zero);
+	}
+
+	[Fact]
+	public async Task Generate_report_includes_enabled_verification_steps_with_timing_details()
+	{
+		// Arrange
+		var requestId = Guid.NewGuid();
+		var certificateId = Guid.NewGuid();
+		var status = CreateErasureStatus(
+			requestId,
+			ErasureRequestStatus.Completed,
+			keysDeleted: 1,
+			certificateId: certificateId);
+		A.CallTo(() => _erasureStore.GetStatusAsync(requestId, A<CancellationToken>._))
+			.Returns(status);
+
+		var certificate = CreateCertificate(requestId, certificateId, "key-1");
+		var certificateStore = A.Fake<IErasureCertificateStore>();
+		A.CallTo(() => certificateStore.GetCertificateByIdAsync(certificateId, A<CancellationToken>._))
+			.Returns(certificate);
+		A.CallTo(() => _erasureStore.GetService(typeof(IErasureCertificateStore)))
+			.Returns(certificateStore);
+
+		A.CallTo(() => _keyProvider.GetKeyAsync("key-1", A<CancellationToken>._))
+			.Throws(new KeyNotFoundException("deleted"));
+
+		var now = DateTimeOffset.UtcNow;
+		A.CallTo(() => _auditStore.QueryAsync(A<AuditQuery>._, A<CancellationToken>._))
+			.Returns([
+				new AuditEvent
+				{
+					EventId = "audit-completed",
+					EventType = AuditEventType.Compliance,
+					Action = "DataErasure.Completed",
+					Outcome = AuditOutcome.Success,
+					Timestamp = now,
+					ActorId = "system",
+					ResourceId = requestId.ToString(),
+					ResourceType = "ErasureRequest",
+				},
+				new AuditEvent
+				{
+					EventId = "audit-key-deleted",
+					EventType = AuditEventType.Compliance,
+					Action = "DataErasure.KeyDeleted",
+					Outcome = AuditOutcome.Success,
+					Timestamp = now,
+					ActorId = "system",
+					ResourceId = requestId.ToString(),
+					ResourceType = "ErasureRequest",
+				}
+			]);
+
+		A.CallTo(() => _inventoryService.DiscoverAsync(
+				A<string>._,
+				A<DataSubjectIdType>._,
+				A<string?>._,
+				A<CancellationToken>._))
+			.Returns(new DataInventory
+			{
+				DataSubjectId = "hash-abc123",
+				Locations =
+				[
+					new DataLocation
+					{
+						TableName = "Orders",
+						FieldName = "EncryptedPayload",
+						DataCategory = "Operational",
+						RecordId = "order-1",
+						KeyId = "key-1",
+					}
+				]
+			});
+
+		var options = new ErasureOptions
+		{
+			VerificationMethods = VerificationMethod.KeyManagementSystem |
+			                      VerificationMethod.AuditLog |
+			                      VerificationMethod.DecryptionFailure
+		};
+		var sut = CreateService(options);
+
+		// Act
+		var report = await sut.GenerateReportAsync(requestId, CancellationToken.None).ConfigureAwait(false);
+
+		// Assert
+		report.Result.Verified.ShouldBeTrue();
+		report.Steps.ShouldContain(step => step.Name == "Retrieve Certificate" && step.Duration >= TimeSpan.Zero);
+		report.Steps.ShouldContain(step => step.Name == "Key Management System Verification" && step.Passed && step.Duration >= TimeSpan.Zero);
+		report.Steps.ShouldContain(step => step.Name == "Audit Log Verification" && step.Passed && step.Duration >= TimeSpan.Zero);
+		report.Steps.ShouldContain(step => step.Name == "Decryption Failure Verification" && step.Passed && step.Duration >= TimeSpan.Zero);
+	}
+
+	[Fact]
+	public async Task Verify_erasure_returns_verified_with_warnings_when_audit_contains_failure_events()
+	{
+		// Arrange
+		var requestId = Guid.NewGuid();
+		var certificateId = Guid.NewGuid();
+		var status = CreateErasureStatus(
+			requestId,
+			ErasureRequestStatus.Completed,
+			keysDeleted: 1,
+			certificateId: certificateId);
+		A.CallTo(() => _erasureStore.GetStatusAsync(requestId, A<CancellationToken>._))
+			.Returns(status);
+
+		var certificate = CreateCertificate(requestId, certificateId, "key-1");
+		var certificateStore = A.Fake<IErasureCertificateStore>();
+		A.CallTo(() => certificateStore.GetCertificateByIdAsync(certificateId, A<CancellationToken>._))
+			.Returns(certificate);
+		A.CallTo(() => _erasureStore.GetService(typeof(IErasureCertificateStore)))
+			.Returns(certificateStore);
+
+		// KMS passes by confirming key is gone.
+		A.CallTo(() => _keyProvider.GetKeyAsync("key-1", A<CancellationToken>._))
+			.Returns((KeyMetadata?)null);
+
+		var now = DateTimeOffset.UtcNow;
+		A.CallTo(() => _auditStore.QueryAsync(A<AuditQuery>._, A<CancellationToken>._))
+			.Returns([
+				new AuditEvent
+				{
+					EventId = "audit-completed",
+					EventType = AuditEventType.Compliance,
+					Action = "DataErasure.Completed",
+					Outcome = AuditOutcome.Success,
+					Timestamp = now,
+					ActorId = "system",
+					ResourceId = requestId.ToString(),
+					ResourceType = "ErasureRequest"
+				},
+				new AuditEvent
+				{
+					EventId = "audit-failed",
+					EventType = AuditEventType.Compliance,
+					Action = "DataErasure.Failed",
+					Outcome = AuditOutcome.Failure,
+					Timestamp = now,
+					ActorId = "system",
+					ResourceId = requestId.ToString(),
+					ResourceType = "ErasureRequest"
+				}
+			]);
+
+		var options = new ErasureOptions
+		{
+			VerificationMethods = VerificationMethod.KeyManagementSystem | VerificationMethod.AuditLog
+		};
+		var sut = CreateService(options);
+
+		// Act
+		var result = await sut.VerifyErasureAsync(requestId, CancellationToken.None);
+
+		// Assert
+		result.Verified.ShouldBeTrue();
+		result.Methods.ShouldBe(VerificationMethod.KeyManagementSystem);
+		result.Warnings.Any(w => w.Contains("failure/rollback", StringComparison.OrdinalIgnoreCase)).ShouldBeTrue();
+	}
+
+	[Fact]
 	public async Task Handle_exception_during_verification()
 	{
 		var requestId = Guid.NewGuid();
@@ -178,12 +357,41 @@ public sealed class ErasureVerificationServiceShould
 			.Returns(null);
 	}
 
-	private ErasureVerificationService CreateService() =>
+	private ErasureVerificationService CreateService(ErasureOptions? options = null) =>
 		new(
 			_erasureStore,
 			_keyProvider,
 			_inventoryService,
 			_auditStore,
-			Microsoft.Extensions.Options.Options.Create(_erasureOptions),
+			Microsoft.Extensions.Options.Options.Create(options ?? _erasureOptions),
 			_logger);
+
+	private static ErasureCertificate CreateCertificate(Guid requestId, Guid certificateId, string keyId) =>
+		new()
+		{
+			CertificateId = certificateId,
+			RequestId = requestId,
+			DataSubjectReference = "hash-abc123",
+			RequestReceivedAt = DateTimeOffset.UtcNow.AddHours(-2),
+			CompletedAt = DateTimeOffset.UtcNow.AddMinutes(-5),
+			Method = ErasureMethod.CryptographicErasure,
+			Summary = new ErasureSummary
+			{
+				KeysDeleted = 1,
+				RecordsAffected = 1,
+				DataCategories = ["Operational"],
+				TablesAffected = ["Orders"],
+				DataSizeBytes = 128
+			},
+			Verification = new VerificationSummary
+			{
+				Verified = true,
+				Methods = VerificationMethod.KeyManagementSystem | VerificationMethod.AuditLog,
+				VerifiedAt = DateTimeOffset.UtcNow,
+				DeletedKeyIds = [keyId]
+			},
+			LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
+			Signature = "test-signature",
+			RetainUntil = DateTimeOffset.UtcNow.AddYears(7)
+		};
 }

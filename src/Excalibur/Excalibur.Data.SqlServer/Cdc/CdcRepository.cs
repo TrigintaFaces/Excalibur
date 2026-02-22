@@ -66,11 +66,12 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 	{
 		ArgumentNullException.ThrowIfNull(captureInstance);
 		ArgumentNullException.ThrowIfNull(lastProcessedLsn);
-		SqlIdentifierValidator.ThrowIfInvalid(captureInstance, nameof(captureInstance));
+		var normalizedCaptureInstance = NormalizeCaptureInstanceForSql(captureInstance);
+		SqlIdentifierValidator.ThrowIfInvalid(normalizedCaptureInstance, nameof(captureInstance));
 
 		var commandText = $"""
 		                   SELECT Top 1 __$start_lsn AS Next_LSN
-		                   FROM cdc.{captureInstance}_CT
+		                   FROM cdc.{normalizedCaptureInstance}_CT
 		                   WHERE __$start_lsn > @LastProcessedLsn
 		                   ORDER BY __$start_lsn;
 		                   """;
@@ -125,10 +126,14 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 	/// <inheritdoc />
 	public async Task<byte[]> GetMinPositionAsync(string captureInstance, CancellationToken cancellationToken)
 	{
+		ArgumentNullException.ThrowIfNull(captureInstance);
+		var normalizedCaptureInstance = NormalizeCaptureInstanceForSql(captureInstance);
+		SqlIdentifierValidator.ThrowIfInvalid(normalizedCaptureInstance, nameof(captureInstance));
+
 		const string CommandText = "SELECT sys.fn_cdc_get_min_lsn(@CaptureInstance);";
 
 		var parameters = new DynamicParameters();
-		parameters.Add("CaptureInstance", captureInstance);
+		parameters.Add("CaptureInstance", normalizedCaptureInstance);
 
 		var command = new CommandDefinition(
 			CommandText,
@@ -163,11 +168,12 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 
 		foreach (var captureInstance in captureInstances)
 		{
-			SqlIdentifierValidator.ThrowIfInvalid(captureInstance, nameof(captureInstances));
+			var normalizedCaptureInstance = NormalizeCaptureInstanceForSql(captureInstance);
+			SqlIdentifierValidator.ThrowIfInvalid(normalizedCaptureInstance, nameof(captureInstances));
 
 			var commandText = $"""
 			                   SELECT TOP 1 1
-			                   FROM cdc.fn_cdc_get_all_changes_{captureInstance}(@from_lsn, @to_lsn, N'all update old')
+			                   FROM cdc.fn_cdc_get_all_changes_{normalizedCaptureInstance}(@from_lsn, @to_lsn, N'all update old')
 			                   """;
 
 			var parameters = new DynamicParameters();
@@ -224,7 +230,8 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(captureInstance);
 		ArgumentNullException.ThrowIfNull(lsn);
-		SqlIdentifierValidator.ThrowIfInvalid(captureInstance, nameof(captureInstance));
+		var normalizedCaptureInstance = NormalizeCaptureInstanceForSql(captureInstance);
+		SqlIdentifierValidator.ThrowIfInvalid(normalizedCaptureInstance, nameof(captureInstance));
 
 		var commandText = $"""
 		                   SELECT TOP (@batchSize)
@@ -234,7 +241,7 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 		                   	__$seqval AS SequenceValue,
 		                   	__$operation AS OperationCode,
 		                   *
-		                   FROM cdc.fn_cdc_get_all_changes_{captureInstance}(@lsn, @lsn, N'all update old')
+		                   FROM cdc.fn_cdc_get_all_changes_{normalizedCaptureInstance}(@lsn, @lsn, N'all update old')
 		                   WHERE
 		                   __$start_lsn = @lsn
 		                   AND
@@ -369,4 +376,33 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 			4 => CdcOperationCodes.UpdateAfter,
 			_ => CdcOperationCodes.Unknown,
 		};
+
+	/// <summary>
+	/// Normalizes a user-provided table/capture identifier into SQL Server CDC capture-instance format.
+	/// </summary>
+	/// <param name="captureInstance">A capture instance (for example, <c>dbo_Orders</c>) or dotted table name (for example, <c>dbo.Orders</c>).</param>
+	/// <returns>
+	/// The original value when no normalization applies, or a normalized capture instance (<c>schema_table</c>)
+	/// for valid two-part dotted names.
+	/// </returns>
+	private static string NormalizeCaptureInstanceForSql(string captureInstance)
+	{
+		if (captureInstance.IndexOf('.', StringComparison.Ordinal) < 0)
+		{
+			return captureInstance;
+		}
+
+		var parts = captureInstance.Split('.', StringSplitOptions.None);
+		if (parts.Length != 2)
+		{
+			return captureInstance;
+		}
+
+		if (parts.Any(static part => string.IsNullOrWhiteSpace(part) || !SqlIdentifierValidator.IsValid(part)))
+		{
+			return captureInstance;
+		}
+
+		return string.Concat(parts[0], "_", parts[1]);
+	}
 }

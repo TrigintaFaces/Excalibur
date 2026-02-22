@@ -1,12 +1,12 @@
 ---
 sidebar_position: 32
 title: Legal Notices
-description: Legal disclaimers and notices for Dispatch and Excalibur frameworks
+description: Legal disclaimers and notices for the Excalibur framework
 ---
 
 # Legal Notices
 
-This section contains important legal information regarding the use of Dispatch and Excalibur frameworks.
+This section contains important legal information regarding the use of the Excalibur framework.
 
 ## Documents
 
@@ -17,7 +17,7 @@ This section contains important legal information regarding the use of Dispatch 
 ## Quick Summary
 
 :::warning Framework Provides Tools, Not Compliance
-Dispatch and Excalibur provide **tools and functionality** to assist with building applications. These frameworks do **NOT** guarantee compliance with any law or regulation. Your compliance obligations remain your responsibility.
+Excalibur provides **tools and functionality** to assist with building applications. The framework does **NOT** guarantee compliance with any law or regulation. Your compliance obligations remain your responsibility.
 :::
 
 ### Key Points
@@ -42,7 +42,7 @@ However, proper implementation, configuration, and independent validation remain
 
 ## License
 
-Dispatch and Excalibur frameworks are distributed under a [multi-license scheme](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE). You may choose to use the software under any of the following licenses:
+The Excalibur framework is distributed under a [multi-license scheme](https://github.com/TrigintaFaces/Excalibur/blob/main/LICENSE). You may choose to use the software under any of the following licenses:
 
 - **Excalibur License 1.0** — Permissive with hosted-service restriction
 - **AGPL-3.0-or-later** — GNU Affero General Public License

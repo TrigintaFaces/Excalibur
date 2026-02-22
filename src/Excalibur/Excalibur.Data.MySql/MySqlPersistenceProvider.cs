@@ -381,7 +381,7 @@ public sealed partial class MySqlPersistenceProvider : IPersistenceProvider, IPe
 		{
 			if (_options.ClearPoolOnDispose)
 			{
-				await Task.Run(static () => MySqlConnection.ClearAllPools()).ConfigureAwait(false);
+				await MySqlConnection.ClearAllPoolsAsync().ConfigureAwait(false);
 				LogClearedConnectionPools();
 			}
 		}

@@ -113,10 +113,15 @@ public sealed class ContextFlowMetricsFunctionalShould : IDisposable
 	[Fact]
 	public void NotRecordFieldLoss_OnAdded()
 	{
+		_measurements.Clear();
 		_metrics.RecordContextMutation(ContextChangeType.Added, "NewField", "Middleware");
 
-		var fieldLoss = _measurements.FirstOrDefault(m => m.Name == "dispatch.context.flow.field_loss");
-		fieldLoss.Name.ShouldBeNull();
+		var addedFieldLoss = _measurements.Any(m =>
+			m.Name == "dispatch.context.flow.field_loss" &&
+			m.Tags.Any(t => t.Key == "change_type" && string.Equals((string?)t.Value, "Added", StringComparison.Ordinal)) &&
+			m.Tags.Any(t => t.Key == "field" && string.Equals((string?)t.Value, "NewField", StringComparison.Ordinal)) &&
+			m.Tags.Any(t => t.Key == "stage" && string.Equals((string?)t.Value, "Middleware", StringComparison.Ordinal)));
+		addedFieldLoss.ShouldBeFalse();
 	}
 
 	[Fact]

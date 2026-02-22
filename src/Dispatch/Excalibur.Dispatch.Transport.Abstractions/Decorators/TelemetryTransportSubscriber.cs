@@ -4,6 +4,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Transport.Diagnostics;
 
 namespace Excalibur.Dispatch.Transport.Decorators;
@@ -109,12 +110,11 @@ public sealed class TelemetryTransportSubscriber : DelegatingTransportSubscriber
 			};
 
 			_receivedCounter.Add(1, tags);
-			var stopwatch = Stopwatch.StartNew();
+			var stopwatch = ValueStopwatch.StartNew();
 
 			try
 			{
 				var action = await handler(message, ct).ConfigureAwait(false);
-				stopwatch.Stop();
 				_handlerDurationHistogram.Record(stopwatch.Elapsed.TotalMilliseconds, tags);
 
 				switch (action)
@@ -134,7 +134,6 @@ public sealed class TelemetryTransportSubscriber : DelegatingTransportSubscriber
 			}
 			catch (Exception ex)
 			{
-				stopwatch.Stop();
 				_handlerErrorCounter.Add(1, tags);
 				_handlerDurationHistogram.Record(stopwatch.Elapsed.TotalMilliseconds, tags);
 				activity?.SetStatus(ActivityStatusCode.Error, ex.Message);

@@ -118,6 +118,36 @@ public sealed class TelemetryTransportReceiverShould : IDisposable
 	}
 
 	[Fact]
+	public async Task Record_DurationHistogram_On_ReceiveAsync_WithReturnedMessages()
+	{
+		var messages = new List<TransportReceivedMessage> { CreateTestMessage() };
+		A.CallTo(() => _innerReceiver.ReceiveAsync(A<int>._, A<CancellationToken>._))
+			.Returns(messages);
+
+		var sut = new TelemetryTransportReceiver(_innerReceiver, _meter, _activitySource, "Test");
+		_ = await sut.ReceiveAsync(10, CancellationToken.None);
+
+		_recordedHistograms.ShouldContain(h =>
+			h.Name == TransportTelemetryConstants.MetricNames.ReceiveDuration && h.Value >= 0);
+	}
+
+	[Fact]
+	public async Task Propagate_Exception_From_InnerReceive_Without_Recording_Success_Metrics()
+	{
+		A.CallTo(() => _innerReceiver.ReceiveAsync(A<int>._, A<CancellationToken>._))
+			.ThrowsAsync(new InvalidOperationException("receive failed"));
+
+		var sut = new TelemetryTransportReceiver(_innerReceiver, _meter, _activitySource, "Test");
+
+		await Should.ThrowAsync<InvalidOperationException>(() => sut.ReceiveAsync(10, CancellationToken.None));
+
+		_recordedCounters.ShouldNotContain(c =>
+			c.Name == TransportTelemetryConstants.MetricNames.MessagesReceived);
+		_recordedHistograms.ShouldNotContain(h =>
+			h.Name == TransportTelemetryConstants.MetricNames.ReceiveDuration);
+	}
+
+	[Fact]
 	public async Task Create_Activity_With_Correct_Tags()
 	{
 		A.CallTo(() => _innerReceiver.ReceiveAsync(A<int>._, A<CancellationToken>._))

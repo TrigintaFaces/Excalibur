@@ -3,7 +3,6 @@
 
 
 using System.Collections.Concurrent;
-using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.CloudNative;
 using Excalibur.Dispatch.Options.Resilience;
@@ -23,6 +22,7 @@ public partial class PollyCircuitBreakerFactory(CircuitBreakerOptions? defaultOp
 	: ICircuitBreakerFactory, IAsyncDisposable
 {
 	private readonly ConcurrentDictionary<string, PollyCircuitBreakerAdapter> _circuitBreakers = new(StringComparer.Ordinal);
+	private readonly ConcurrentBag<Task> _pendingDisposals = [];
 	private readonly CircuitBreakerOptions _defaultOptions = defaultOptions ?? new CircuitBreakerOptions();
 	private readonly ILogger<PollyCircuitBreakerFactory> _logger = logger ?? NullLogger<PollyCircuitBreakerFactory>.Instance;
 
@@ -59,14 +59,13 @@ public partial class PollyCircuitBreakerFactory(CircuitBreakerOptions? defaultOp
 			StringComparer.Ordinal);
 
 	/// <inheritdoc />
-	[SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Circuit breaker disposal is intentionally fire-and-forget to avoid blocking Remove operation")]
 	public bool Remove(string name)
 	{
 		ArgumentNullException.ThrowIfNull(name);
 
 		if (_circuitBreakers.TryRemove(name, out var circuitBreaker))
 		{
-			_ = Task.Run(() => circuitBreaker.DisposeAsync().AsTask());
+			_pendingDisposals.Add(circuitBreaker.DisposeAsync().AsTask());
 			LogCircuitBreakerRemoved(name);
 			return true;
 		}
@@ -77,7 +76,9 @@ public partial class PollyCircuitBreakerFactory(CircuitBreakerOptions? defaultOp
 	/// <inheritdoc />
 	public async ValueTask DisposeAsync()
 	{
-		var disposeTasks = _circuitBreakers.Values.Select(static cb => cb.DisposeAsync().AsTask());
+		var disposeTasks = _circuitBreakers.Values
+			.Select(static cb => cb.DisposeAsync().AsTask())
+			.Concat(_pendingDisposals);
 		await Task.WhenAll(disposeTasks).ConfigureAwait(false);
 
 		_circuitBreakers.Clear();

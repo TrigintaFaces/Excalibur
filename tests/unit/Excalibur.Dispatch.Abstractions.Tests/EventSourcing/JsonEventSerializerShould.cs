@@ -181,6 +181,36 @@ public sealed class JsonEventSerializerShould : UnitTestBase
 
 	[Fact]
 	[RequiresDynamicCode("Test requires dynamic code")]
+	public void ResolveType_WithFullNameOnly_ReturnsType()
+	{
+		// Arrange
+		var serializer = CreateSerializer();
+		var fullNameOnly = typeof(TestDomainEvent).FullName!;
+
+		// Act
+		var result = serializer.ResolveType(fullNameOnly);
+
+		// Assert
+		result.ShouldBe(typeof(TestDomainEvent));
+	}
+
+	[Fact]
+	[RequiresDynamicCode("Test requires dynamic code")]
+	public void ResolveType_WithInvalidAssemblySuffix_FallsBackToSimpleTypeName()
+	{
+		// Arrange
+		var serializer = CreateSerializer();
+		var typeName = $"{typeof(TestDomainEvent).FullName}, Missing.Assembly";
+
+		// Act
+		var result = serializer.ResolveType(typeName);
+
+		// Assert
+		result.ShouldBe(typeof(TestDomainEvent));
+	}
+
+	[Fact]
+	[RequiresDynamicCode("Test requires dynamic code")]
 	public void ResolveType_CachesResolvedTypes()
 	{
 		// Arrange

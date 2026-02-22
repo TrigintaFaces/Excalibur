@@ -1,12 +1,12 @@
 ---
 sidebar_position: 20
 title: Deployment
-description: Deploy Dispatch and Excalibur applications to various environments
+description: Deploy Excalibur applications to various environments
 ---
 
 # Deployment
 
-Deploy Dispatch and Excalibur applications to cloud, container, and on-premises environments.
+Deploy Excalibur applications to cloud, container, and on-premises environments.
 
 ## Before You Start
 
