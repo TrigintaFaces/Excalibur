@@ -92,7 +92,7 @@ public sealed partial class SqsChannelAdapter : IMessageChannelAdapter<Message>,
 		_pollingTasks = new Task[_options.ConcurrentPollers];
 
 		// Initialize batch send task
-		_batchSendTask = Task.Run(() => ProcessSendBatchesAsync(_shutdownTokenSource.Token));
+		_batchSendTask = StartBackgroundTask(() => ProcessSendBatchesAsync(_shutdownTokenSource.Token));
 
 		// Initialize batch timer
 		_batchTimer = new Timer(
@@ -271,15 +271,16 @@ public sealed partial class SqsChannelAdapter : IMessageChannelAdapter<Message>,
 	/// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
 	public async Task StartAsync(CancellationToken cancellationToken)
 	{
+		_ = cancellationToken;
 		LogStartingAdapter(_options.QueueUrl.ToString(), _options.ConcurrentPollers);
 
 		// Start polling tasks
 		for (var i = 0; i < _options.ConcurrentPollers; i++)
 		{
 			var pollerIndex = i;
-			_pollingTasks[i] = Task.Run(
+			_pollingTasks[i] = StartBackgroundTask(
 				() => PollMessagesAsync(pollerIndex, _shutdownTokenSource.Token),
-				cancellationToken);
+				longRunning: true);
 		}
 
 		await Task.CompletedTask.ConfigureAwait(false);
@@ -448,6 +449,13 @@ public sealed partial class SqsChannelAdapter : IMessageChannelAdapter<Message>,
 			await SendBatchAsync(currentBatch, cancellationToken).ConfigureAwait(false);
 		}
 	}
+
+	private static Task StartBackgroundTask(Func<Task> operation, bool longRunning = false) =>
+		Task.Factory.StartNew(
+			operation,
+			CancellationToken.None,
+			longRunning ? TaskCreationOptions.LongRunning : TaskCreationOptions.DenyChildAttach,
+			TaskScheduler.Default).Unwrap();
 
 	private async Task SendBatchAsync(List<SendMessageBatchRequestEntry> entries, CancellationToken cancellationToken)
 	{

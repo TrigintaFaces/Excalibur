@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics;
 using System.Threading.Channels;
 
 using Amazon.SQS;
 using Amazon.SQS.Model;
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Transport.AwsSqs;
 
 using Microsoft.Extensions.Logging;
@@ -33,7 +33,7 @@ public sealed partial class ChannelLongPollingReceiver : IAsyncDisposable
 	private readonly SemaphoreSlim _pollingSemaphore;
 
 	// Metrics
-	private readonly Stopwatch _uptimeStopwatch;
+	private readonly ValueStopwatch _uptimeStopwatch;
 
 	private readonly Timer _adaptiveTimer;
 
@@ -76,7 +76,7 @@ public sealed partial class ChannelLongPollingReceiver : IAsyncDisposable
 
 		// Initialize metrics
 		Metrics = new LongPollingMetrics();
-		_uptimeStopwatch = Stopwatch.StartNew();
+		_uptimeStopwatch = ValueStopwatch.StartNew();
 
 		// Initialize adaptive polling timer
 		_adaptiveTimer = new Timer(
@@ -166,7 +166,7 @@ public sealed partial class ChannelLongPollingReceiver : IAsyncDisposable
 		await _adaptiveTimer.DisposeAsync().ConfigureAwait(false);
 	}
 
-	private void StartPoller(int index) => _pollingTasks[index] = Task.Run(() => PollMessagesAsync(index, _shutdownTokenSource.Token));
+	private void StartPoller(int index) => _pollingTasks[index] = StartBackgroundTask(() => PollMessagesAsync(index, _shutdownTokenSource.Token));
 
 	private async Task PollMessagesAsync(int pollerIndex, CancellationToken cancellationToken)
 	{
@@ -192,7 +192,7 @@ public sealed partial class ChannelLongPollingReceiver : IAsyncDisposable
 
 				try
 				{
-					var stopwatch = Stopwatch.StartNew();
+					var stopwatch = ValueStopwatch.StartNew();
 					var response = await _sqsClient.ReceiveMessageAsync(request, cancellationToken)
 						.ConfigureAwait(false);
 
@@ -308,6 +308,13 @@ public sealed partial class ChannelLongPollingReceiver : IAsyncDisposable
 
 		_currentPollers = targetCount;
 	}
+
+	private static Task StartBackgroundTask(Func<Task> operation) =>
+		Task.Factory.StartNew(
+			operation,
+			CancellationToken.None,
+			TaskCreationOptions.LongRunning,
+			TaskScheduler.Default).Unwrap();
 
 	// Source-generated logging methods
 	[LoggerMessage(AwsSqsEventId.LongPollingReceiverStarting, LogLevel.Information,

@@ -4,11 +4,12 @@
 
 using System.Buffers;
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Globalization;
 
 using Amazon.SQS;
 using Amazon.SQS.Model;
+
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 
@@ -133,7 +134,7 @@ public sealed class SqsBatchProcessor : IAsyncDisposable
 
 			try
 			{
-				var stopwatch = Stopwatch.StartNew();
+				var stopwatch = ValueStopwatch.StartNew();
 				var response = await _sqsClient.ReceiveMessageAsync(request, cancellationToken)
 					.ConfigureAwait(false);
 
@@ -176,18 +177,7 @@ public sealed class SqsBatchProcessor : IAsyncDisposable
 		{
 			await _sendSemaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-			tasks.Add(Task.Run(
-				async () =>
-				{
-					try
-					{
-						await SendBatchInternalAsync(batch, cancellationToken).ConfigureAwait(false);
-					}
-					finally
-					{
-						_ = _sendSemaphore.Release();
-					}
-				}, cancellationToken));
+			tasks.Add(SendBatchWithSemaphoreReleaseAsync(batch, cancellationToken));
 		}
 
 		await Task.WhenAll(tasks).ConfigureAwait(false);
@@ -301,7 +291,7 @@ public sealed class SqsBatchProcessor : IAsyncDisposable
 				}),
 			];
 
-			var stopwatch = Stopwatch.StartNew();
+			var stopwatch = ValueStopwatch.StartNew();
 			var response = await _sqsClient.SendMessageBatchAsync(request, cancellationToken)
 				.ConfigureAwait(false);
 
@@ -341,7 +331,7 @@ public sealed class SqsBatchProcessor : IAsyncDisposable
 					}),
 			];
 
-			var stopwatch = Stopwatch.StartNew();
+			var stopwatch = ValueStopwatch.StartNew();
 			var response = await _sqsClient.DeleteMessageBatchAsync(request, cancellationToken)
 				.ConfigureAwait(false);
 
@@ -370,19 +360,33 @@ public sealed class SqsBatchProcessor : IAsyncDisposable
 		// Trigger any pending batch sends
 		while (_sendBatches.TryDequeue(out var batch))
 		{
-			// Process batch asynchronously
-			_ = Task.Run(async () =>
-			{
-				try
-				{
-					await SendBatchInternalAsync(batch.Messages, CancellationToken.None)
-						.ConfigureAwait(false);
-				}
-				catch (Exception ex)
-				{
-					_logger.LogError(ex, "Error flushing send batch");
-				}
-			});
+			_ = FlushSendBatchAsync(batch.Messages);
+		}
+	}
+
+	private async Task SendBatchWithSemaphoreReleaseAsync(
+		List<SendMessageRequest> batch,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			await SendBatchInternalAsync(batch, cancellationToken).ConfigureAwait(false);
+		}
+		finally
+		{
+			_ = _sendSemaphore.Release();
+		}
+	}
+
+	private async Task FlushSendBatchAsync(List<SendMessageRequest> messages)
+	{
+		try
+		{
+			await SendBatchInternalAsync(messages, CancellationToken.None).ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			_logger.LogError(ex, "Error flushing send batch");
 		}
 	}
 

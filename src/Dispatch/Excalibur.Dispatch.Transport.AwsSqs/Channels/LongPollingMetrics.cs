@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
+
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 
 namespace Excalibur.Dispatch.Transport.Aws;
 
@@ -12,7 +13,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// </summary>
 public sealed class LongPollingMetrics
 {
-	private readonly Stopwatch _rateStopwatch = Stopwatch.StartNew();
+	private readonly ValueStopwatch _rateStopwatch = ValueStopwatch.StartNew();
 	private long _messagesReceived;
 	private long _emptyPolls;
 	private long _errors;

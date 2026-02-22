@@ -78,7 +78,7 @@ public sealed partial class SqsChannelMessageProcessor : IAsyncDisposable
 			AllowSynchronousContinuations = false,
 		};
 		_deleteChannel = Channel.CreateUnbounded<DeleteRequest>(deleteChannelOptions);
-		_deleteTask = Task.Run(() => ProcessDeletesAsync(_shutdownTokenSource.Token));
+		_deleteTask = StartBackgroundTask(() => ProcessDeletesAsync(_shutdownTokenSource.Token));
 
 		// Initialize metrics
 		Metrics = new SqsProcessorMetrics();
@@ -108,9 +108,8 @@ public sealed partial class SqsChannelMessageProcessor : IAsyncDisposable
 		for (var i = 0; i < _options.ProcessorCount; i++)
 		{
 			var processorIndex = i;
-			_processingTasks[i] = Task.Run(
-				() => ProcessMessagesAsync(processorIndex, _shutdownTokenSource.Token),
-				cancellationToken);
+			_processingTasks[i] = StartBackgroundTask(
+				() => ProcessMessagesAsync(processorIndex, _shutdownTokenSource.Token));
 		}
 
 		LogProcessorStarted();
@@ -295,6 +294,13 @@ public sealed partial class SqsChannelMessageProcessor : IAsyncDisposable
 			LogDeleteBatchError(entries.Count, ex);
 		}
 	}
+
+	private static Task StartBackgroundTask(Func<Task> operation) =>
+		Task.Factory.StartNew(
+			operation,
+			CancellationToken.None,
+			TaskCreationOptions.LongRunning,
+			TaskScheduler.Default).Unwrap();
 
 	// Source-generated logging methods
 	[LoggerMessage(AwsSqsEventId.ChannelProcessorStarting, LogLevel.Information,
