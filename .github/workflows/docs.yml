@@ -51,6 +51,7 @@ jobs:
           cache-dependency-path: docs-site/package-lock.json
 
       - name: Setup GitHub Pages
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
 
       - name: Install dependencies
