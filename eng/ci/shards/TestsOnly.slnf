@@ -4,8 +4,8 @@
     "projects": [
       "src\\Excalibur\\Excalibur.Testing\\Excalibur.Testing.csproj",
       "src\\Excalibur\\Excalibur.Testing.Conformance\\Excalibur.Testing.Conformance.csproj",
-      "tests\\shared\\Tests.Shared\\Tests.Shared.csproj",
-      "tests\\shared\\Excalibur.Dispatch.Testing\\Excalibur.Dispatch.Testing.csproj",
+      "tests\\Shared\\Tests.Shared\\Tests.Shared.csproj",
+      "tests\\Shared\\Excalibur.Dispatch.Testing\\Excalibur.Dispatch.Testing.csproj",
       "tests\\ArchitectureTests\\ArchitectureTests.csproj",
       "tests\\architecture\\Boundary.Tests\\Boundary.Tests.csproj",
       "tests\\conformance\\Excalibur.Dispatch.Tests.Conformance\\Excalibur.Dispatch.Tests.Conformance.csproj",
