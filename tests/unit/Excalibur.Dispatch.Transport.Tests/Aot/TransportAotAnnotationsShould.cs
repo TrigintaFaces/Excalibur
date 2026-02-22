@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Tests.Aot;
 
 /// <summary>
 /// Verifies that Sprint 522 AOT annotations are correctly applied to transport DI extension methods.
-/// Per AD-522.1: Only Kafka SchemaRegistry uses Activator.CreateInstance, so only Kafka transport
+/// Per AD-522.1: Kafka SchemaRegistry uses runtime reflection to construct custom strategy types, so only Kafka transport
 /// DI methods need [RequiresUnreferencedCode] + [RequiresDynamicCode].
 /// RabbitMQ, Azure, AWS, Google are verified AOT-safe (no reflection risk on DI entry points).
 /// </summary>
@@ -77,7 +77,7 @@ public sealed class TransportAotAnnotationsShould
 
 		var attr = method.GetCustomAttribute<RequiresUnreferencedCodeAttribute>();
 		attr.ShouldNotBeNull("CreateSubjectNameStrategy() should have [RequiresUnreferencedCode]");
-		attr.Message.ShouldContain("Activator.CreateInstance", Case.Insensitive);
+		attr.Message.ShouldContain("reflection", Case.Insensitive);
 	}
 
 	[Fact]

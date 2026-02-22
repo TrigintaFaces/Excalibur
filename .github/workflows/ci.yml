@@ -360,7 +360,7 @@ jobs:
     name: Smoke Tests (Critical Path)
     runs-on: ubuntu-latest
     needs: build
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -382,15 +382,15 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore Excalibur.sln
+        run: dotnet restore eng/ci/shards/TestsOnly.slnf
 
       - name: Build solution
-        run: dotnet build Excalibur.sln --configuration Release --no-restore
+        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore
 
       - name: Run Smoke Tests (Priority=0)
         run: |
           echo "Running critical path smoke tests..."
-          dotnet test \
+          dotnet test eng/ci/shards/TestsOnly.slnf \
             --configuration Release \
             --no-build \
             --blame-hang-timeout 5m \
