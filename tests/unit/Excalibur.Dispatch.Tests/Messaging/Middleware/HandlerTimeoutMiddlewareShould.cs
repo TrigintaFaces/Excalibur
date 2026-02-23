@@ -67,7 +67,7 @@ public sealed class HandlerTimeoutMiddlewareShould
 			context,
 			async (_, _, ct) =>
 			{
-				await Task.Delay(TimeSpan.FromMilliseconds(200), ct).ConfigureAwait(false);
+				await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
 				return MessageResult.Success();
 			},
 			CancellationToken.None).ConfigureAwait(false);
@@ -99,7 +99,7 @@ public sealed class HandlerTimeoutMiddlewareShould
 			context,
 			async (_, _, ct) =>
 			{
-				await Task.Delay(TimeSpan.FromMilliseconds(200), ct).ConfigureAwait(false);
+				await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
 				return MessageResult.Success();
 			},
 			CancellationToken.None).ConfigureAwait(false);
@@ -132,7 +132,7 @@ public sealed class HandlerTimeoutMiddlewareShould
 			context,
 			async (_, _, ct) =>
 			{
-				await Task.Delay(TimeSpan.FromMilliseconds(200), ct).ConfigureAwait(false);
+				await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
 				return MessageResult.Success();
 			},
 			CancellationToken.None).ConfigureAwait(false);
@@ -164,7 +164,7 @@ public sealed class HandlerTimeoutMiddlewareShould
 					context,
 					async (_, _, ct) =>
 					{
-						await Task.Delay(TimeSpan.FromMilliseconds(200), ct).ConfigureAwait(false);
+						await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
 						return MessageResult.Success();
 					},
 					CancellationToken.None)
