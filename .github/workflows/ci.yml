@@ -17,6 +17,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  pull-requests: read
+
 env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
   DOTNET_NOLOGO: true
@@ -499,6 +503,7 @@ jobs:
         with:
           name: code-coverage-unit-${{ matrix.shard.name }}
           path: TestResults/*/coverage.cobertura.xml
+          if-no-files-found: error
           retention-days: 30
 
   # Cross-platform unit test validation (Windows)
@@ -589,9 +594,10 @@ jobs:
             --blame-hang-timeout 5m \
             --logger "trx;LogFileName=integration-tests-${{ matrix.os }}.trx" \
             --logger "console;verbosity=minimal" \
+            --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \
             --filter "Category=Integration|Category=EndToEnd" \
-            -- RunConfiguration.TestSessionTimeout=1200000
+            -- RunConfiguration.TestSessionTimeout=1200000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
       - name: Upload test results
         if: always()
@@ -599,6 +605,15 @@ jobs:
         with:
           name: test-results-integration-${{ matrix.os }}
           path: TestResults/*.trx
+          retention-days: 30
+
+      - name: Upload code coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage-integration-${{ matrix.os }}
+          path: TestResults/*/coverage.cobertura.xml
+          if-no-files-found: error
           retention-days: 30
 
   # Functional tests - depends on integration tests
@@ -641,9 +656,10 @@ jobs:
             --blame-hang-timeout 5m \
             --logger "trx;LogFileName=functional-tests.trx" \
             --logger "console;verbosity=minimal" \
+            --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \
             --filter "Category=Functional" \
-            -- RunConfiguration.TestSessionTimeout=1800000
+            -- RunConfiguration.TestSessionTimeout=1800000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
       - name: Upload test results
         if: always()
@@ -651,6 +667,15 @@ jobs:
         with:
           name: test-results-functional
           path: TestResults/*.trx
+          retention-days: 30
+
+      - name: Upload code coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage-functional
+          path: TestResults/*/coverage.cobertura.xml
+          if-no-files-found: error
           retention-days: 30
 
   security-sast:
@@ -721,7 +746,9 @@ jobs:
             --blame-hang-timeout 5m \
             --logger "trx;LogFileName=contract-tests.trx" \
             --logger "console;verbosity=minimal" \
-            --results-directory ./TestResults
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./TestResults \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
       - name: Upload contract test results
         if: always()
@@ -729,6 +756,15 @@ jobs:
         with:
           name: test-results-contract
           path: TestResults/*.trx
+          retention-days: 30
+
+      - name: Upload code coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage-contract
+          path: TestResults/*/coverage.cobertura.xml
+          if-no-files-found: error
           retention-days: 30
 
   architecture-tests:
@@ -770,14 +806,18 @@ jobs:
             --blame-hang-timeout 5m \
             --logger "trx;LogFileName=architecture-tests.trx" \
             --logger "console;verbosity=minimal" \
-            --results-directory ./TestResults
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./TestResults \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
           dotnet test tests/architecture/Boundary.Tests/Boundary.Tests.csproj \
             --configuration Release \
             --no-build \
             --blame-hang-timeout 5m \
             --logger "trx;LogFileName=boundary-tests.trx" \
             --logger "console;verbosity=minimal" \
-            --results-directory ./TestResults
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./TestResults \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
       - name: Upload architecture test results
         if: always()
@@ -785,6 +825,15 @@ jobs:
         with:
           name: test-results-architecture
           path: TestResults/*.trx
+          retention-days: 30
+
+      - name: Upload code coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage-architecture
+          path: TestResults/*/coverage.cobertura.xml
+          if-no-files-found: error
           retention-days: 30
 
   serialization-policy:
@@ -850,16 +899,32 @@ jobs:
   coverage-enforce:
     name: Coverage Gate Enforcement
     runs-on: ubuntu-latest
-    needs: unit-tests
+    needs:
+      - unit-tests
+      - integration-tests
+      - functional-tests
+      - contract-tests
+      - architecture-tests
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Download coverage artifacts (all shards)
         uses: actions/download-artifact@v4
         with:
-          pattern: code-coverage-unit-*
+          pattern: code-coverage-*
           path: cov
           merge-multiple: true
+      - name: Validate coverage artifacts exist
+        shell: bash
+        run: |
+          shopt -s globstar nullglob
+          reports=(cov/**/coverage.cobertura.xml)
+          count=${#reports[@]}
+          echo "Found ${count} coverage report(s)."
+          if [ ${count} -eq 0 ]; then
+            echo "No coverage reports were downloaded."
+            exit 1
+          fi
       - name: Enforce coverage threshold
         shell: pwsh
         run: |
@@ -890,18 +955,19 @@ jobs:
       - name: Restore & build base
         working-directory: base
         run: |
-          dotnet restore
-          dotnet build --configuration Release --no-restore
+          dotnet restore eng/ci/shards/UnitTests.slnf
+          dotnet build eng/ci/shards/UnitTests.slnf --configuration Release --no-restore
       - name: Run tests with coverage (base)
         working-directory: base
         run: |
-          dotnet test \
+          dotnet test eng/ci/shards/UnitTests.slnf \
             --configuration Release \
             --no-build \
             --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             --results-directory ../base-cov \
-            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+            --filter "Category=Unit|Category=DependencyInjection|Category=Performance" \
+            -- RunConfiguration.TestSessionTimeout=1800000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
       - name: Download head coverage artifacts (all shards)
         uses: actions/download-artifact@v4
         with:
@@ -909,18 +975,20 @@ jobs:
           path: head-cov
           merge-multiple: true
       - name: List changed files
-        id: changed
         uses: actions/github-script@v7
         with:
           script: |
             const files = await github.paginate(github.rest.pulls.listFiles, { owner: context.repo.owner, repo: context.repo.repo, pull_number: context.issue.number });
-            core.setOutput('files', JSON.stringify(files.map(f => f.filename)));
+            const fs = require('fs');
+            fs.writeFileSync('changed-files.json', JSON.stringify(files.map(f => f.filename)));
       - name: Enforce ≤1% coverage drop on touched files (Dispatch+Excalibur)
         shell: pwsh
-        env:
-          CHANGED_FILES: ${{ steps.changed.outputs.files }}
         run: |
-          $changed = (ConvertFrom-Json $env:CHANGED_FILES)
+          $changedFile = "changed-files.json"
+          $changed = @()
+          if (Test-Path $changedFile) {
+            $changed = (Get-Content -Raw -- $changedFile | ConvertFrom-Json)
+          }
           if (-not $changed) { Write-Host 'No changed files'; exit 0 }
           function NormalizeSourcePath([string]$path) {
             if ([string]::IsNullOrWhiteSpace($path)) { return $null }
@@ -998,7 +1066,7 @@ jobs:
             $bPct = if ($b -and $b.Valid -gt 0) { 100.0 * $b.Covered / $b.Valid } else { 0 }
             $hPct = if ($h.Valid -gt 0) { 100.0 * $h.Covered / $h.Valid } else { 0 }
             $delta = [math]::Round($hPct - $bPct, 2)
-            Write-Host "$normalizedFile: base=$([math]::Round($bPct,2)) head=$([math]::Round($hPct,2)) delta=$delta"
+            Write-Host "${normalizedFile}: base=$([math]::Round($bPct,2)) head=$([math]::Round($hPct,2)) delta=$delta"
             if ($delta -lt -1.0) { $fail = $true }
           }
           if ($fail) { Write-Error 'Coverage drop >1% on touched src/Dispatch or src/Excalibur files'; exit 1 } else { exit 0 }
@@ -1073,7 +1141,12 @@ jobs:
   coverage:
     name: Coverage Analysis
     runs-on: ubuntu-latest
-    needs: unit-tests
+    needs:
+      - unit-tests
+      - integration-tests
+      - functional-tests
+      - contract-tests
+      - architecture-tests
     if: always()
     steps:
       - name: Checkout code
@@ -1082,7 +1155,7 @@ jobs:
       - name: Download coverage artifacts (all shards)
         uses: actions/download-artifact@v4
         with:
-          pattern: code-coverage-unit-*
+          pattern: code-coverage-*
           path: coverage
           merge-multiple: true
 
@@ -1176,8 +1249,10 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Run API compat (report-only until full eng/api baselines are curated)
+      - name: Run API compat (blocking)
         shell: pwsh
+        env:
+          API_ENFORCE: true
         run: |
           ./eng/ci/api-compat-run.ps1 -OutputDir management/reports/ApiCompatReport
 
@@ -1848,8 +1923,8 @@ jobs:
           echo "# Coverage Baseline" > "$f"
           echo "Run: ${GITHUB_RUN_ID}" >> "$f"
           echo "Workflow: ${GITHUB_WORKFLOW}" >> "$f"
-          echo "Artifacts contain Cobertura XML from the test job." >> "$f"
-          echo "See uploaded artifact: code-coverage-ubuntu-latest" >> "$f"
+          echo "Artifacts contain Cobertura XML from CI test jobs." >> "$f"
+          echo "See uploaded artifacts: code-coverage-*" >> "$f"
       - name: Upload coverage baseline
         uses: actions/upload-artifact@v4
         with:

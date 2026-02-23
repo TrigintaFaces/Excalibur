@@ -30,6 +30,7 @@ coverage-*/
 .coverage-temp/
 coverage/
 merged-coverage/
+tmp-coverage-*/
 ApiCompatReport/
 PublicApiBaselineReport/
 TransitiveBloatReport/
