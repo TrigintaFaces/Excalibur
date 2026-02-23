@@ -126,40 +126,39 @@ public sealed class BackgroundExecutionShould
 	public async Task BackgroundTaskRunner_RunDetachedInBackground_ExecutesTask()
 	{
 		// Arrange
-		var executed = false;
+		var executed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		Func<CancellationToken, Task> taskFactory = _ =>
 		{
-			executed = true;
+			executed.TrySetResult(true);
 			return Task.CompletedTask;
 		};
 
 		// Act
 		BackgroundTaskRunner.RunDetachedInBackground(taskFactory, CancellationToken.None);
-		await Task.Delay(200); // Allow background task to execute
 
 		// Assert
-		executed.ShouldBeTrue();
+		(await executed.Task.WaitAsync(TimeSpan.FromSeconds(10))).ShouldBeTrue();
 	}
 
 	[Fact]
 	public async Task BackgroundTaskRunner_RunDetachedInBackground_CallsErrorHandler()
 	{
 		// Arrange
-		Exception? caughtException = null;
+		var caughtException = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
 		Func<CancellationToken, Task> taskFactory = _ => throw new InvalidOperationException("test error");
 		Func<Exception, Task> onError = ex =>
 		{
-			caughtException = ex;
+			caughtException.TrySetResult(ex);
 			return Task.CompletedTask;
 		};
 
 		// Act
 		BackgroundTaskRunner.RunDetachedInBackground(taskFactory, CancellationToken.None, onError);
-		await Task.Delay(200); // Allow background task to execute
 
 		// Assert
-		caughtException.ShouldNotBeNull();
-		caughtException.ShouldBeOfType<InvalidOperationException>();
+		var exception = await caughtException.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		exception.ShouldNotBeNull();
+		exception.ShouldBeOfType<InvalidOperationException>();
 	}
 
 	[Fact]
