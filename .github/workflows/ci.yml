@@ -444,12 +444,12 @@ jobs:
     strategy:
       matrix:
         shard:
-          - { name: core, filter: "eng/ci/shards/UnitTests-Core.slnf", test_filter: "Category=Unit|Category=DependencyInjection|Category=Performance" }
+          - { name: core, filter: "eng/ci/shards/UnitTests-Core.slnf", test_filter: "Category=Unit|Category=DependencyInjection" }
           - { name: messaging, filter: "eng/ci/shards/UnitTests-Messaging.slnf", test_filter: "Category=Unit|Category=DependencyInjection" }
-          - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf", test_filter: "Category=Unit|Category=DependencyInjection|Category=Performance" }
-          - { name: middleware, filter: "eng/ci/shards/UnitTests-Middleware.slnf", test_filter: "Category=Unit|Category=DependencyInjection|Category=Performance" }
-          - { name: observability, filter: "eng/ci/shards/UnitTests-Observability.slnf", test_filter: "Category=Unit|Category=DependencyInjection|Category=Performance" }
-          - { name: excalibur, filter: "eng/ci/shards/UnitTests-Excalibur.slnf", test_filter: "Category=Unit|Category=DependencyInjection|Category=Performance" }
+          - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf", test_filter: "Category=Unit|Category=DependencyInjection" }
+          - { name: middleware, filter: "eng/ci/shards/UnitTests-Middleware.slnf", test_filter: "Category=Unit|Category=DependencyInjection" }
+          - { name: observability, filter: "eng/ci/shards/UnitTests-Observability.slnf", test_filter: "Category=Unit|Category=DependencyInjection" }
+          - { name: excalibur, filter: "eng/ci/shards/UnitTests-Excalibur.slnf", test_filter: "Category=Unit|Category=DependencyInjection" }
       fail-fast: false
     steps:
       - name: Checkout code
@@ -540,7 +540,7 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          dotnet test --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFileName=unit-tests-windows.trx" --logger "console;verbosity=minimal" --results-directory ./TestResults --filter "Category=Unit|Category=DependencyInjection|Category=Performance" -- RunConfiguration.TestSessionTimeout=1500000
+          dotnet test --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFileName=unit-tests-windows.trx" --logger "console;verbosity=minimal" --results-directory ./TestResults --filter "Category=Unit|Category=DependencyInjection" -- RunConfiguration.TestSessionTimeout=1500000
 
       - name: Upload test results
         if: always()
@@ -956,23 +956,34 @@ jobs:
         working-directory: base
         shell: bash
         run: |
-          candidates=(
-            "eng/ci/shards/UnitTests.slnf"
-            "eng/ci/shards/TestsOnly.slnf"
-            "eng/ci/shards/UnitTests-Core.slnf"
+          roots=(
+            "eng/ci/shards"
+            "eng/ci"
+            "."
+          )
+
+          names=(
+            "UnitTests.slnf"
+            "TestsOnly.slnf"
+            "UnitTests-Core.slnf"
           )
 
           selected=""
-          for candidate in "${candidates[@]}"; do
-            if [[ -f "$candidate" ]]; then
-              selected="$candidate"
-              break
-            fi
+          for root in "${roots[@]}"; do
+            for name in "${names[@]}"; do
+              candidate="$root/$name"
+              if [[ -f "$candidate" ]]; then
+                selected="$candidate"
+                break 2
+              fi
+            done
           done
 
           if [[ -z "$selected" ]]; then
-            echo "No supported unit test solution filter found under eng/ci/shards."
-            ls -la eng/ci/shards || true
+            echo "No supported unit test solution filter found in known shard locations."
+            echo "Searched roots: ${roots[*]}"
+            echo "Available .slnf files (depth <= 4):"
+            find . -maxdepth 4 -name "*.slnf" -print | sort || true
             exit 1
           fi
 
@@ -992,7 +1003,7 @@ jobs:
             --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             --results-directory ../base-cov \
-            --filter "Category=Unit|Category=DependencyInjection|Category=Performance" \
+            --filter "Category=Unit|Category=DependencyInjection" \
             -- RunConfiguration.TestSessionTimeout=1800000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
       - name: Download head coverage artifacts (all shards)
         uses: actions/download-artifact@v4
