@@ -474,13 +474,18 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 	{
 		// Arrange
 		var callCount = 0;
+		var observedSecondPoll = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
-				callCount++;
-				if (callCount == 1)
+				var currentCallCount = Interlocked.Increment(ref callCount);
+				if (currentCallCount == 1)
 				{
 					throw new InvalidOperationException("Database error");
+				}
+				if (currentCallCount >= 2)
+				{
+					observedSecondPoll.TrySetResult(true);
 				}
 				return new List<SagaTimeout>();
 			});
@@ -490,7 +495,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 
 		// Act
 		var executeTask = service.StartAsync(cts.Token);
-		await Task.Delay(200); // Allow for multiple poll cycles
+		await observedSecondPoll.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 
 		try
