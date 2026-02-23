@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Diagnostics;
-
 using Excalibur.Dispatch.Transport.GooglePubSub;
 
 using Google.Cloud.PubSub.V1;
@@ -200,7 +200,7 @@ public sealed partial class PubSubDeadLetterQueueManager : IDeadLetterQueueManag
 		try
 		{
 			var result = new ReprocessResult();
-			var stopwatch = Stopwatch.StartNew();
+			var stopwatch = ValueStopwatch.StartNew();
 
 			// Apply filter if provided
 			if (options.MessageFilter != null)
@@ -240,8 +240,6 @@ public sealed partial class PubSubDeadLetterQueueManager : IDeadLetterQueueManag
 					await Task.Delay(options.RetryDelay, cancellationToken).ConfigureAwait(false);
 				}
 			}
-
-			stopwatch.Stop();
 			result.ProcessingTime = stopwatch.Elapsed;
 
 			LogReprocessedMessages(result.SuccessCount, messageList.Count, (long)stopwatch.Elapsed.TotalMilliseconds,

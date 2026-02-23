@@ -85,6 +85,11 @@ public sealed partial class AdvancedPoisonMessageDetector : IPoisonMessageDetect
 		Exception exception,
 		CancellationToken cancellationToken)
 	{
+		return Task.FromResult(EvaluateMessageCore(message, exception));
+	}
+
+	private PoisonDetectionResult EvaluateMessageCore(PubsubMessage message, Exception exception)
+	{
 		using var activity = GooglePubSubTelemetryConstants.SharedActivitySource.StartActivity("EvaluateMessage");
 		_ = activity?.SetTag("message_id", message.MessageId);
 
@@ -150,7 +155,7 @@ public sealed partial class AdvancedPoisonMessageDetector : IPoisonMessageDetect
 				history.Failures.Count);
 		}
 
-		return Task.FromResult(new PoisonDetectionResult
+		return new PoisonDetectionResult
 		{
 			IsPoison = isPoison,
 			MessageId = message.MessageId,
@@ -166,7 +171,7 @@ public sealed partial class AdvancedPoisonMessageDetector : IPoisonMessageDetect
 						history.Failures.Select(f => f.ExceptionType).Distinct(StringComparer.Ordinal).Count().ToString(),
 				["pattern_match"] = (detectionResults.Count != 0).ToString(),
 			},
-		});
+		};
 	}
 
 	/// <summary>
@@ -213,11 +218,10 @@ public sealed partial class AdvancedPoisonMessageDetector : IPoisonMessageDetect
 	/// Determines if a message is a poison message.
 	/// </summary>
 	[SuppressMessage("AsyncUsage", "VSTHRD002:Avoid problematic synchronous waits",
-		Justification = "IPoisonMessageDetector.IsPoisonMessage() is synchronous by interface contract. Prefer EvaluateMessageAsync when possible.")]
+		Justification = "IPoisonMessageDetector.IsPoisonMessage() is synchronous by interface contract.")]
 	public bool IsPoisonMessage(PubsubMessage message, Exception exception)
 	{
-		var result = EvaluateMessageAsync(message, exception, CancellationToken.None).GetAwaiter().GetResult();
-		return result.IsPoison;
+		return EvaluateMessageCore(message, exception).IsPoison;
 	}
 
 	/// <summary>

@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics;
-
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Azure.Messaging.ServiceBus;
 
 using Microsoft.Extensions.Logging;
@@ -166,7 +165,7 @@ internal sealed partial class ServiceBusDeadLetterQueueManager : IDeadLetterQueu
 		ArgumentNullException.ThrowIfNull(messages);
 		ArgumentNullException.ThrowIfNull(options);
 
-		var sw = Stopwatch.StartNew();
+		var sw = ValueStopwatch.StartNew();
 		var result = new ReprocessResult();
 		var messageList = messages as IList<DeadLetterMessage> ?? [.. messages];
 		var maxMessages = options.MaxMessages ?? messageList.Count;
@@ -228,8 +227,6 @@ internal sealed partial class ServiceBusDeadLetterQueueManager : IDeadLetterQueu
 				LogReprocessFailed(_logger, ex, dlqMessage.OriginalMessage.Id);
 			}
 		}
-
-		sw.Stop();
 		result.ProcessingTime = sw.Elapsed;
 
 		return result;

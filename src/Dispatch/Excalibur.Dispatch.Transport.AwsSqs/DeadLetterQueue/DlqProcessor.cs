@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics;
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Globalization;
 using System.Text;
 
@@ -55,7 +55,7 @@ public sealed partial class DlqProcessor(
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		try
 		{
 			LogProcessingMessage(_logger, message.MessageId);
@@ -87,9 +87,7 @@ public sealed partial class DlqProcessor(
 							ReceiptHandle = message.ReceiptHandle,
 						}, cancellationToken).ConfigureAwait(false);
 			}
-
-			stopwatch.Stop();
-			LogMessageProcessed(_logger, message.MessageId, stopwatch.ElapsedMilliseconds);
+			LogMessageProcessed(_logger, message.MessageId, (long)stopwatch.ElapsedMilliseconds);
 
 			return new DlqProcessingResult
 			{
@@ -455,7 +453,7 @@ public sealed partial class DlqProcessor(
 		ArgumentNullException.ThrowIfNull(messages);
 		ArgumentNullException.ThrowIfNull(reprocessOptions);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		var result = new ReprocessResult();
 		var messageList = messages.ToList();
 

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics;
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Globalization;
 
 using Azure.Messaging.ServiceBus;
@@ -102,7 +102,7 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 			return new BatchSendResult { TotalMessages = 0, SuccessCount = 0, FailureCount = 0 };
 		}
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		try
 		{
@@ -131,8 +131,6 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 				var result = await SendAsync(message, cancellationToken).ConfigureAwait(false);
 				results.Add(result);
 			}
-
-			stopwatch.Stop();
 			var successCount = results.Count(static r => r.IsSuccess);
 
 			LogBatchSent(Destination, messages.Count, successCount);
@@ -148,7 +146,6 @@ internal sealed partial class ServiceBusTransportSender : ITransportSender
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
 			LogBatchSendFailed(Destination, messages.Count, ex);
 
 			var failedResults = messages.Select(m =>

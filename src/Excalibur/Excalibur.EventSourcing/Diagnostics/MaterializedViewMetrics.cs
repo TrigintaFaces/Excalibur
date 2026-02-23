@@ -178,7 +178,9 @@ public sealed class MaterializedViewMetrics : IDisposable
 	public Stopwatch StartRefresh(string viewName)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(viewName);
+#pragma warning disable RS0030 // Preserve public API contract returning Stopwatch for callers/tests
 		return Stopwatch.StartNew();
+#pragma warning restore RS0030
 	}
 
 	/// <summary>

@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics;
-
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -32,7 +31,7 @@ public sealed class PostgresPersistenceHealthCheck(
 		HealthCheckContext context,
 		CancellationToken cancellationToken)
 	{
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		var data = new Dictionary<string, object>(StringComparer.Ordinal);
 
 		try
@@ -52,7 +51,7 @@ public sealed class PostgresPersistenceHealthCheck(
 			data["database"] = connection.Database;
 
 			// Run a simple query to test responsiveness
-			stopwatch.Restart();
+			stopwatch = ValueStopwatch.StartNew();
 			await using (var command = connection.CreateCommand())
 			{
 				command.CommandText = "SELECT 1";
@@ -75,7 +74,7 @@ public sealed class PostgresPersistenceHealthCheck(
 			}
 
 			// Check database statistics
-			stopwatch.Restart();
+			stopwatch = ValueStopwatch.StartNew();
 			var dbStats = await GetDatabaseStatisticsAsync(connection, cancellationToken).ConfigureAwait(false);
 			data["stats_query_time_ms"] = stopwatch.ElapsedMilliseconds;
 
@@ -145,7 +144,6 @@ public sealed class PostgresPersistenceHealthCheck(
 		}
 		finally
 		{
-			stopwatch.Stop();
 			data["total_time_ms"] = stopwatch.ElapsedMilliseconds;
 		}
 	}

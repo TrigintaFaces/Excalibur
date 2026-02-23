@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
@@ -82,7 +83,7 @@ public sealed class TelemetryEventStore : DelegatingEventStore
 		using var activity = _activitySource.StartActivity(EventSourcingActivities.Load);
 		SetActivityTags(activity, guardedId, guardedType);
 
-		var sw = Stopwatch.StartNew();
+		var sw = ValueStopwatch.StartNew();
 		try
 		{
 			var result = await base.LoadAsync(aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
@@ -110,7 +111,7 @@ public sealed class TelemetryEventStore : DelegatingEventStore
 		SetActivityTags(activity, guardedId, guardedType);
 		activity?.SetTag(EventSourcingTags.FromVersion, fromVersion);
 
-		var sw = Stopwatch.StartNew();
+		var sw = ValueStopwatch.StartNew();
 		try
 		{
 			var result = await base.LoadAsync(aggregateId, aggregateType, fromVersion, cancellationToken).ConfigureAwait(false);
@@ -139,7 +140,7 @@ public sealed class TelemetryEventStore : DelegatingEventStore
 		SetActivityTags(activity, guardedId, guardedType);
 		activity?.SetTag(EventSourcingTags.ExpectedVersion, expectedVersion);
 
-		var sw = Stopwatch.StartNew();
+		var sw = ValueStopwatch.StartNew();
 		try
 		{
 			var result = await base.AppendAsync(aggregateId, aggregateType, events, expectedVersion, cancellationToken).ConfigureAwait(false);
@@ -162,7 +163,7 @@ public sealed class TelemetryEventStore : DelegatingEventStore
 		activity?.SetTag(EventSourcingTags.BatchSize, batchSize);
 		activity?.SetTag(EventSourcingTags.Provider, _providerName);
 
-		var sw = Stopwatch.StartNew();
+		var sw = ValueStopwatch.StartNew();
 		try
 		{
 			var result = await base.GetUndispatchedEventsAsync(batchSize, cancellationToken).ConfigureAwait(false);
@@ -189,7 +190,7 @@ public sealed class TelemetryEventStore : DelegatingEventStore
 		activity?.SetTag(EventSourcingTags.EventId, eventId);
 		activity?.SetTag(EventSourcingTags.Provider, _providerName);
 
-		var sw = Stopwatch.StartNew();
+		var sw = ValueStopwatch.StartNew();
 		try
 		{
 			await base.MarkEventAsDispatchedAsync(eventId, cancellationToken).ConfigureAwait(false);
@@ -202,9 +203,8 @@ public sealed class TelemetryEventStore : DelegatingEventStore
 		}
 	}
 
-	private void RecordSuccess(string operation, string? aggregateType, Stopwatch sw)
+	private void RecordSuccess(string operation, string? aggregateType, ValueStopwatch sw)
 	{
-		sw.Stop();
 		var tags = new TagList
 		{
 			{ EventSourcingTags.Operation, operation },
@@ -221,9 +221,8 @@ public sealed class TelemetryEventStore : DelegatingEventStore
 		_durationHistogram.Record(sw.Elapsed.TotalSeconds, tags);
 	}
 
-	private void RecordFailure(string operation, string? aggregateType, Stopwatch sw, Activity? activity, Exception ex)
+	private void RecordFailure(string operation, string? aggregateType, ValueStopwatch sw, Activity? activity, Exception ex)
 	{
-		sw.Stop();
 		var guardedExceptionType = _exceptionTypeGuard.Guard(ex.GetType().FullName);
 		activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
 		activity?.SetTag(EventSourcingTags.ExceptionType, guardedExceptionType);

@@ -345,7 +345,7 @@ public static class RabbitMQTransportServiceCollectionExtensions
 	// Bridge at composition root to avoid Task.Run thread hops; runtime execution remains async in transport operations.
 #pragma warning disable RS0030 // Sync-over-async bridge is constrained to DI composition root.
 	private static T ExecuteSync<T>(Func<Task<T>> operation) =>
-		operation().ConfigureAwait(false).GetAwaiter().GetResult();
+		operation().Result;
 #pragma warning restore RS0030
 
 	/// <summary>

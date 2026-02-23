@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
@@ -46,7 +47,7 @@ public abstract class BatchProcessorBase(ILogger logger, BatchMetricsCollector m
 		_ = activity?.SetTag("batch.size", batch.Count);
 		_ = activity?.SetTag("batch.bytes", batch.TotalSizeBytes);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		var successfulMessages = new List<ProcessedMessage>();
 		var failedMessages = new List<FailedMessage>();
 
@@ -59,8 +60,6 @@ public abstract class BatchProcessorBase(ILogger logger, BatchMetricsCollector m
 				successfulMessages,
 				failedMessages,
 				cancellationToken).ConfigureAwait(false);
-
-			stopwatch.Stop();
 
 			var result = new BatchProcessingResult(
 				batch,
@@ -205,7 +204,7 @@ public abstract class BatchProcessorBase(ILogger logger, BatchMetricsCollector m
 		List<FailedMessage> failedMessages,
 		CancellationToken cancellationToken)
 	{
-		var messageStopwatch = Stopwatch.StartNew();
+		var messageStopwatch = ValueStopwatch.StartNew();
 
 		try
 		{

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics;
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Net;
 
 using Amazon.SimpleNotificationService;
@@ -42,7 +42,7 @@ public sealed class AwsSnsHealthChecker(
 	{
 		var data = new Dictionary<string, object>(StringComparer.Ordinal);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		try
 		{
@@ -56,7 +56,6 @@ public sealed class AwsSnsHealthChecker(
 
 				if (response.HttpStatusCode == HttpStatusCode.OK)
 				{
-					stopwatch.Stop();
 
 					var subscriptionCount = response.Attributes.GetValueOrDefault("SubscriptionsConfirmed", "unknown");
 
@@ -83,7 +82,6 @@ public sealed class AwsSnsHealthChecker(
 
 				if (response.HttpStatusCode == HttpStatusCode.OK)
 				{
-					stopwatch.Stop();
 
 					_logger.LogDebug(
 						"SNS health check succeeded in {ElapsedMs}ms",
@@ -96,8 +94,6 @@ public sealed class AwsSnsHealthChecker(
 				}
 			}
 
-			stopwatch.Stop();
-
 			_logger.LogWarning("SNS health check returned non-OK status");
 
 			data["ResponseTimeMs"] = stopwatch.ElapsedMilliseconds;
@@ -107,7 +103,6 @@ public sealed class AwsSnsHealthChecker(
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
 
 			_logger.LogWarning(ex, "SNS health check failed after {ElapsedMs}ms", stopwatch.ElapsedMilliseconds);
 

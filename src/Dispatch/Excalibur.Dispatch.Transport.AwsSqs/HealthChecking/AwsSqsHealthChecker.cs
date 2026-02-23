@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics;
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Net;
 
 using Amazon.SQS;
@@ -42,7 +42,7 @@ public sealed class AwsSqsHealthChecker(
 	{
 		var data = new Dictionary<string, object>(StringComparer.Ordinal);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		try
 		{
@@ -56,7 +56,6 @@ public sealed class AwsSqsHealthChecker(
 
 				if (response.HttpStatusCode == HttpStatusCode.OK)
 				{
-					stopwatch.Stop();
 
 					_logger.LogDebug(
 						"SQS health check succeeded for queue {QueueUrl} in {ElapsedMs}ms",
@@ -80,7 +79,6 @@ public sealed class AwsSqsHealthChecker(
 
 				if (response.HttpStatusCode == HttpStatusCode.OK)
 				{
-					stopwatch.Stop();
 
 					_logger.LogDebug(
 						"SQS health check succeeded in {ElapsedMs}ms",
@@ -93,8 +91,6 @@ public sealed class AwsSqsHealthChecker(
 				}
 			}
 
-			stopwatch.Stop();
-
 			_logger.LogWarning("SQS health check returned non-OK status");
 
 			data["ResponseTimeMs"] = stopwatch.ElapsedMilliseconds;
@@ -104,7 +100,6 @@ public sealed class AwsSqsHealthChecker(
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
 
 			_logger.LogWarning(ex, "SQS health check failed after {ElapsedMs}ms", stopwatch.ElapsedMilliseconds);
 

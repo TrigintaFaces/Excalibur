@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics;
-
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Transport.Diagnostics;
 using Excalibur.Dispatch.Transport.GooglePubSub;
 
@@ -98,7 +97,7 @@ internal sealed partial class PubSubTransportSender : ITransportSender
 			return new BatchSendResult { TotalMessages = 0, SuccessCount = 0, FailureCount = 0 };
 		}
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		try
 		{
@@ -112,8 +111,6 @@ internal sealed partial class PubSubTransportSender : ITransportSender
 					new PublishRequest { Topic = Destination, Messages = { pubsubMessages } },
 					CreateCallSettings(cancellationToken))
 				.ConfigureAwait(false);
-
-			stopwatch.Stop();
 
 			var results = new List<SendResult>(messages.Count);
 			for (var i = 0; i < messages.Count; i++)
@@ -139,7 +136,6 @@ internal sealed partial class PubSubTransportSender : ITransportSender
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
 			LogBatchSendFailed(Destination, messages.Count, ex);
 
 			var failedResults = new List<SendResult>(messages.Count);

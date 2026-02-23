@@ -367,22 +367,20 @@ public partial class CdcProcessor : ICdcProcessor
 		if (_consumerTask is { IsCompleted: false })
 		{
 			LogConsumerNotCompletedSync();
-
-			try
-			{
-				_ = _consumerTask.Wait(TimeSpan.FromMinutes(5));
-			}
-			catch (AggregateException ex)
-			{
-				LogConsumerTimeoutSync(ex);
-			}
 		}
 
 		_tracking.Clear();
 		_producerCancellationTokenSource.Dispose();
 
-		_producerTask?.Dispose();
-		_consumerTask?.Dispose();
+		if (_producerTask?.IsCompleted == true)
+		{
+			_producerTask.Dispose();
+		}
+
+		if (_consumerTask?.IsCompleted == true)
+		{
+			_consumerTask.Dispose();
+		}
 		_cdcRepository.Dispose();
 		_stateStore.Dispose();
 

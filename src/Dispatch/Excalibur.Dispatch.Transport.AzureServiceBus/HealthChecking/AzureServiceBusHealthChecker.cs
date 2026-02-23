@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics;
-
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 
@@ -43,7 +42,7 @@ public sealed class AzureServiceBusHealthChecker(
 	{
 		var data = new Dictionary<string, object>(StringComparer.Ordinal);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		try
 		{
@@ -62,8 +61,6 @@ public sealed class AzureServiceBusHealthChecker(
 				// Peek a single message with short timeout
 				var message = await receiver.PeekMessageAsync(cancellationToken: cancellationToken)
 					.ConfigureAwait(false);
-
-				stopwatch.Stop();
 
 				_logger.LogDebug(
 					"Service Bus health check succeeded for queue {QueueName} in {ElapsedMs}ms",
@@ -86,8 +83,6 @@ public sealed class AzureServiceBusHealthChecker(
 				var properties = await adminClient.GetNamespacePropertiesAsync(cancellationToken)
 					.ConfigureAwait(false);
 
-				stopwatch.Stop();
-
 				_logger.LogDebug(
 					"Service Bus health check succeeded for namespace {Namespace} in {ElapsedMs}ms",
 					properties.Value.Name,
@@ -101,14 +96,12 @@ public sealed class AzureServiceBusHealthChecker(
 			}
 
 			// Basic check - if client is not closed, consider it healthy
-			stopwatch.Stop();
 
 			data["ResponseTimeMs"] = stopwatch.ElapsedMilliseconds;
 			return AspNetHealthCheckResult.Healthy("Service Bus client is not closed", data);
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
 
 			_logger.LogWarning(ex, "Service Bus health check failed after {ElapsedMs}ms", stopwatch.ElapsedMilliseconds);
 

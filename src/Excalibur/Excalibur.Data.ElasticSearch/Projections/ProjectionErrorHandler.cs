@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
@@ -80,7 +81,7 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 		_ = (activity?.SetTag("operation.type", context.OperationType));
 		_ = (activity?.SetTag("document.id", context.DocumentId));
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		try
 		{
@@ -145,7 +146,7 @@ public sealed class ProjectionErrorHandler : IProjectionErrorHandler
 		_ = (activity?.SetTag("total_documents", context.TotalDocuments));
 		_ = (activity?.SetTag("failed_documents", context.Failures.Count));
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		try
 		{

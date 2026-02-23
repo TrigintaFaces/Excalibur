@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
@@ -80,12 +81,10 @@ public sealed class EventStoreThroughputMetrics : DelegatingEventStore
 		CancellationToken cancellationToken)
 	{
 		var guardedType = _aggregateTypeGuard.Guard(aggregateType);
-		var sw = Stopwatch.StartNew();
+		var sw = ValueStopwatch.StartNew();
 
 		var result = await base.LoadAsync(aggregateId, aggregateType, cancellationToken)
 			.ConfigureAwait(false);
-
-		sw.Stop();
 		RecordLoad(guardedType, result.Count, sw.Elapsed.TotalSeconds);
 		return result;
 	}
@@ -98,12 +97,10 @@ public sealed class EventStoreThroughputMetrics : DelegatingEventStore
 		CancellationToken cancellationToken)
 	{
 		var guardedType = _aggregateTypeGuard.Guard(aggregateType);
-		var sw = Stopwatch.StartNew();
+		var sw = ValueStopwatch.StartNew();
 
 		var result = await base.LoadAsync(aggregateId, aggregateType, fromVersion, cancellationToken)
 			.ConfigureAwait(false);
-
-		sw.Stop();
 		RecordLoad(guardedType, result.Count, sw.Elapsed.TotalSeconds);
 		return result;
 	}
@@ -120,12 +117,10 @@ public sealed class EventStoreThroughputMetrics : DelegatingEventStore
 
 		// Materialize to count events without consuming the enumerable
 		var eventList = events as IReadOnlyCollection<IDomainEvent> ?? events.ToList();
-		var sw = Stopwatch.StartNew();
+		var sw = ValueStopwatch.StartNew();
 
 		var result = await base.AppendAsync(aggregateId, aggregateType, eventList, expectedVersion, cancellationToken)
 			.ConfigureAwait(false);
-
-		sw.Stop();
 		RecordAppend(guardedType, eventList.Count, sw.Elapsed.TotalSeconds);
 		return result;
 	}

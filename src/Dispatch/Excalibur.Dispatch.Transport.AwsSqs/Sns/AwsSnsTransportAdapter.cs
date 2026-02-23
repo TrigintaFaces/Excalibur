@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics;
-
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Transport.AwsSqs;
@@ -94,8 +93,6 @@ public sealed partial class AwsSnsTransportAdapter : ITransportAdapter, ITranspo
 		ArgumentNullException.ThrowIfNull(transportMessage);
 		ArgumentNullException.ThrowIfNull(dispatcher);
 
-		var stopwatch = Stopwatch.StartNew();
-
 		if (!IsRunning)
 		{
 			_ = Interlocked.Increment(ref _failedMessages);
@@ -138,15 +135,12 @@ public sealed partial class AwsSnsTransportAdapter : ITransportAdapter, ITranspo
 			};
 
 			var result = await dispatcher.DispatchAsync(message, context, cancellationToken).ConfigureAwait(false);
-
-			stopwatch.Stop();
 			_ = Interlocked.Increment(ref _successfulMessages);
 
 			return result;
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
 			LogMessageProcessingFailed(messageId, ex);
 			_ = Interlocked.Increment(ref _failedMessages);
 
@@ -169,8 +163,6 @@ public sealed partial class AwsSnsTransportAdapter : ITransportAdapter, ITranspo
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentException.ThrowIfNullOrWhiteSpace(destination);
-
-		var stopwatch = Stopwatch.StartNew();
 
 		if (!IsRunning)
 		{
@@ -210,12 +202,9 @@ public sealed partial class AwsSnsTransportAdapter : ITransportAdapter, ITranspo
 						"Message must implement IDispatchAction, IDispatchEvent, or IDispatchDocument.",
 						nameof(message));
 			}
-
-			stopwatch.Stop();
 		}
 		catch (Exception ex) when (ex is not ArgumentException and not InvalidOperationException)
 		{
-			stopwatch.Stop();
 			LogSendFailed(messageId, ex);
 			throw new InvalidOperationException($"Failed to send message to AWS SNS: {ex.Message}", ex);
 		}
@@ -264,7 +253,7 @@ public sealed partial class AwsSnsTransportAdapter : ITransportAdapter, ITranspo
 		TransportHealthCheckContext context,
 		CancellationToken cancellationToken)
 	{
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		var total = Interlocked.Read(ref _totalMessages);
 		var successful = Interlocked.Read(ref _successfulMessages);
@@ -304,8 +293,6 @@ public sealed partial class AwsSnsTransportAdapter : ITransportAdapter, ITranspo
 				stopwatch.Elapsed,
 				data);
 		}
-
-		stopwatch.Stop();
 		_lastHealthCheck = DateTimeOffset.UtcNow;
 		_lastStatus = result.Status;
 
@@ -315,7 +302,7 @@ public sealed partial class AwsSnsTransportAdapter : ITransportAdapter, ITranspo
 	/// <inheritdoc/>
 	public Task<TransportHealthCheckResult> CheckQuickHealthAsync(CancellationToken cancellationToken)
 	{
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		var status = IsRunning
 			? TransportHealthStatus.Healthy

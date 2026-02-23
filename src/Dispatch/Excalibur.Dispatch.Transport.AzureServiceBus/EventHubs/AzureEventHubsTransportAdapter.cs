@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics;
-
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Transport.AzureServiceBus;
@@ -88,7 +87,7 @@ public sealed partial class AzureEventHubsTransportAdapter : ITransportAdapter, 
 		ArgumentNullException.ThrowIfNull(transportMessage);
 		ArgumentNullException.ThrowIfNull(dispatcher);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		if (!IsRunning)
 		{
@@ -134,8 +133,6 @@ public sealed partial class AzureEventHubsTransportAdapter : ITransportAdapter, 
 			};
 
 			var result = await dispatcher.DispatchAsync(message, context, cancellationToken).ConfigureAwait(false);
-
-			stopwatch.Stop();
 			TransportMeter.RecordMessageReceived(Name, TransportType, messageType);
 			TransportMeter.RecordReceiveDuration(Name, TransportType, stopwatch.Elapsed.TotalMilliseconds);
 			_ = Interlocked.Increment(ref _successfulMessages);
@@ -144,7 +141,6 @@ public sealed partial class AzureEventHubsTransportAdapter : ITransportAdapter, 
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
 			LogMessageProcessingFailed(messageId, ex);
 			TransportMeter.RecordError(Name, TransportType, "processing_failed");
 			TransportMeter.RecordReceiveDuration(Name, TransportType, stopwatch.Elapsed.TotalMilliseconds);
@@ -170,7 +166,7 @@ public sealed partial class AzureEventHubsTransportAdapter : ITransportAdapter, 
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentException.ThrowIfNullOrWhiteSpace(destination);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		if (!IsRunning)
 		{
@@ -212,14 +208,11 @@ public sealed partial class AzureEventHubsTransportAdapter : ITransportAdapter, 
 						"Message must implement IDispatchAction, IDispatchEvent, or IDispatchDocument.",
 						nameof(message));
 			}
-
-			stopwatch.Stop();
 			TransportMeter.RecordMessageSent(Name, TransportType, messageType);
 			TransportMeter.RecordSendDuration(Name, TransportType, stopwatch.Elapsed.TotalMilliseconds);
 		}
 		catch (Exception ex) when (ex is not ArgumentException and not InvalidOperationException)
 		{
-			stopwatch.Stop();
 			LogSendFailed(messageId, ex);
 			TransportMeter.RecordError(Name, TransportType, "send_failed");
 			TransportMeter.RecordSendDuration(Name, TransportType, stopwatch.Elapsed.TotalMilliseconds);
@@ -274,7 +267,7 @@ public sealed partial class AzureEventHubsTransportAdapter : ITransportAdapter, 
 		TransportHealthCheckContext context,
 		CancellationToken cancellationToken)
 	{
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		var total = Interlocked.Read(ref _totalMessages);
 		var successful = Interlocked.Read(ref _successfulMessages);
@@ -313,8 +306,6 @@ public sealed partial class AzureEventHubsTransportAdapter : ITransportAdapter, 
 				stopwatch.Elapsed,
 				data);
 		}
-
-		stopwatch.Stop();
 		_lastHealthCheck = DateTimeOffset.UtcNow;
 		_lastStatus = result.Status;
 
@@ -324,7 +315,7 @@ public sealed partial class AzureEventHubsTransportAdapter : ITransportAdapter, 
 	/// <inheritdoc/>
 	public Task<TransportHealthCheckResult> CheckQuickHealthAsync(CancellationToken cancellationToken)
 	{
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		var status = IsRunning
 			? TransportHealthStatus.Healthy

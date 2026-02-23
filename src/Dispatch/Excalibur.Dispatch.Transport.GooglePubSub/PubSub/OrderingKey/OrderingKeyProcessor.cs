@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Collections.Concurrent;
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Diagnostics;
 using System.Threading.Channels;
 
@@ -299,7 +300,7 @@ public sealed partial class OrderingKeyProcessor : IOrderingKeyProcessor
 		_ = activity?.SetTag("messaging.message_id", work.Message.MessageId);
 		_ = activity?.SetTag("messaging.ordering_key", work.OrderingKey);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		try
 		{
@@ -358,7 +359,7 @@ public sealed partial class OrderingKeyProcessor : IOrderingKeyProcessor
 
 		_ = activity?.SetTag("messaging.message_id", message.MessageId);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		try
 		{

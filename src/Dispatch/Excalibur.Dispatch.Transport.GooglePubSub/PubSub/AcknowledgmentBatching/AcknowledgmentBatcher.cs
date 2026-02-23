@@ -3,7 +3,7 @@
 
 
 using System.Collections.Concurrent;
-using System.Diagnostics;
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Threading.Channels;
 
 using Google.Cloud.PubSub.V1;
@@ -242,7 +242,7 @@ public sealed class AcknowledgmentBatcher : IAcknowledgmentBatcher, IDisposable
 			return;
 		}
 
-		var sw = Stopwatch.StartNew();
+		var sw = ValueStopwatch.StartNew();
 		var ackIds = batch.Select(static b => b.AckId).ToArray();
 
 		try
@@ -250,8 +250,6 @@ public sealed class AcknowledgmentBatcher : IAcknowledgmentBatcher, IDisposable
 			var request = new AcknowledgeRequest { Subscription = _subscriptionName, AckIds = { ackIds } };
 
 			await _client.AcknowledgeAsync(request, cancellationToken).ConfigureAwait(false);
-
-			sw.Stop();
 			_metrics.RecordBatchSent(batch.Count, sw.Elapsed);
 
 			// Clean up tracked deadlines
@@ -267,7 +265,6 @@ public sealed class AcknowledgmentBatcher : IAcknowledgmentBatcher, IDisposable
 		}
 		catch (Exception ex)
 		{
-			sw.Stop();
 			_logger.LogError(
 				ex,
 				"Failed to acknowledge batch of {Count} messages after {ElapsedMs}ms",

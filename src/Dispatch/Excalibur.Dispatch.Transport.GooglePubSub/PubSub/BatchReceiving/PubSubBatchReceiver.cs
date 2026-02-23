@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics;
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Runtime.CompilerServices;
 
 using Excalibur.Dispatch.Transport.GooglePubSub;
@@ -82,7 +82,7 @@ public sealed partial class PubSubBatchReceiver : IBatchReceiver, IDisposable
 					new BatchMetadata { FlowControlApplied = true });
 			}
 
-			var stopwatch = Stopwatch.StartNew();
+			var stopwatch = ValueStopwatch.StartNew();
 
 			var pullRequest = new PullRequest
 			{
@@ -95,8 +95,6 @@ public sealed partial class PubSubBatchReceiver : IBatchReceiver, IDisposable
 			var response = await _subscriberClient.PullAsync(
 				pullRequest,
 				cancellationToken).ConfigureAwait(false);
-
-			stopwatch.Stop();
 
 			var messages = response.ReceivedMessages.ToList();
 			var totalSize = messages.Sum(static m => m.Message.Data.Length);
@@ -178,14 +176,12 @@ public sealed partial class PubSubBatchReceiver : IBatchReceiver, IDisposable
 
 		try
 		{
-			var stopwatch = Stopwatch.StartNew();
+			var stopwatch = ValueStopwatch.StartNew();
 
 			await _subscriberClient.AcknowledgeAsync(
 				subscriptionName,
 				ackIdsList,
 				cancellationToken).ConfigureAwait(false);
-
-			stopwatch.Stop();
 
 			_metricsCollector.RecordBatchAcknowledged(
 				ackIdsList.Count,

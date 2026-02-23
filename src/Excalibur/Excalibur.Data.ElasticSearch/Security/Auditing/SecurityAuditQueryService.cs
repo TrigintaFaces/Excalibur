@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 
@@ -106,7 +107,7 @@ internal sealed class SecurityAuditQueryService
 	{
 		using var activity = AuditTelemetryConstants.ActivitySource.StartActivity("audit.generate_report");
 		activity?.SetTag("audit.report_type", reportType.ToString());
-		var reportStopwatch = Stopwatch.StartNew();
+		var reportStopwatch = ValueStopwatch.StartNew();
 
 		try
 		{
@@ -173,8 +174,6 @@ internal sealed class SecurityAuditQueryService
 				ComplianceStatus = await EvaluateComplianceStatusAsync(events, cancellationToken).ConfigureAwait(false),
 				Recommendations = GenerateSecurityRecommendations(events),
 			};
-
-			reportStopwatch.Stop();
 			ReportDurationHistogram.Record(reportStopwatch.Elapsed.TotalMilliseconds);
 			activity?.SetTag("audit.events_analyzed", events.Count);
 
@@ -183,7 +182,6 @@ internal sealed class SecurityAuditQueryService
 		}
 		catch (Exception ex)
 		{
-			reportStopwatch.Stop();
 			activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
 			_logger.LogError(ex, "Failed to generate audit report");
 			throw;

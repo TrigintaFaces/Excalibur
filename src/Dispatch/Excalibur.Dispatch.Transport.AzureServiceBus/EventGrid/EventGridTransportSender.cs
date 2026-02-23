@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics;
-
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Azure;
 using Azure.Messaging.EventGrid;
 
@@ -93,7 +92,7 @@ internal sealed partial class EventGridTransportSender : ITransportSender
 			return new BatchSendResult { TotalMessages = 0, SuccessCount = 0, FailureCount = 0 };
 		}
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		try
 		{
@@ -107,8 +106,6 @@ internal sealed partial class EventGridTransportSender : ITransportSender
 				var eventGridEvents = messages.Select(MapToEventGridEvent).ToList();
 				await _client.SendEventsAsync(eventGridEvents, cancellationToken).ConfigureAwait(false);
 			}
-
-			stopwatch.Stop();
 
 			var results = messages.Select(m => SendResult.Success(m.Id)).ToList();
 			LogBatchSent(Destination, messages.Count, messages.Count);
@@ -124,7 +121,6 @@ internal sealed partial class EventGridTransportSender : ITransportSender
 		}
 		catch (RequestFailedException ex)
 		{
-			stopwatch.Stop();
 			LogBatchSendFailed(Destination, messages.Count, ex);
 
 			var failedResults = messages.Select(_ =>

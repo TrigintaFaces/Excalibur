@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Diagnostics;
 using System.Threading.Channels;
 
@@ -238,7 +239,7 @@ public sealed partial class ParallelMessageProcessor : IAsyncDisposable
 		_ = activity?.SetTag("messaging.worker_id", workerId);
 		_ = activity?.SetTag("messaging.message_id", work.Message.MessageId);
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 
 		try
 		{

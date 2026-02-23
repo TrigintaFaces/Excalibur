@@ -156,7 +156,7 @@ internal sealed partial class CdcChangeApplier
 		using var batchActivity = CdcTelemetryConstants.ActivitySource.StartActivity("cdc.consume_batch");
 		batchActivity?.SetTag("cdc.batch.size", batch.Count);
 
-		var batchStopwatch = Stopwatch.StartNew();
+		var batchStopwatch = ValueStopwatch.StartNew();
 
 		BatchSizeHistogram.Record(batch.Count);
 
@@ -207,8 +207,6 @@ internal sealed partial class CdcChangeApplier
 				changeEvent.CommitTime,
 				cancellationToken)).ConfigureAwait(false);
 		}
-
-		batchStopwatch.Stop();
 		BatchDurationHistogram.Record(batchStopwatch.Elapsed.TotalMilliseconds);
 	}
 

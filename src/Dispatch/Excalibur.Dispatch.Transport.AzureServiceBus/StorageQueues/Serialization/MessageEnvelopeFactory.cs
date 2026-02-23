@@ -3,6 +3,7 @@
 
 
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Text.Json;
 
 using Azure.Storage.Queues.Models;
@@ -241,18 +242,35 @@ public sealed class MessageEnvelopeFactory(
 
 		try
 		{
-			// Try assembly qualified name first
-			var type = Type.GetType(messageTypeName, throwOnError: false);
-			if (type != null)
+			var typeName = messageTypeName;
+			var assemblySimpleName = string.Empty;
+
+			var separatorIndex = messageTypeName.IndexOf(',', StringComparison.Ordinal);
+			if (separatorIndex > 0)
 			{
-				return type;
+				typeName = messageTypeName[..separatorIndex].Trim();
+				var assemblyName = messageTypeName[(separatorIndex + 1)..].Trim();
+				try
+				{
+					assemblySimpleName = new AssemblyName(assemblyName).Name ?? string.Empty;
+				}
+				catch (ArgumentException)
+				{
+					assemblySimpleName = assemblyName;
+				}
 			}
 
 			// Try searching loaded assemblies for the type name
 			foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
 			{
+				if (!string.IsNullOrEmpty(assemblySimpleName) &&
+					!string.Equals(assembly.GetName().Name, assemblySimpleName, StringComparison.Ordinal))
+				{
+					continue;
+				}
+
 				// Note: This may cause AOT warnings but is needed for runtime type resolution
-				type = assembly.GetType(messageTypeName, throwOnError: false);
+				var type = assembly.GetType(typeName, throwOnError: false);
 				if (type != null)
 				{
 					return type;

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics;
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Globalization;
 
 using Dapper;
@@ -37,7 +37,7 @@ public partial class SqlServerPersistenceHealthCheck(
 		HealthCheckContext context,
 		CancellationToken cancellationToken)
 	{
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		var data = new Dictionary<string, object>(StringComparer.Ordinal);
 
 		try
@@ -153,9 +153,7 @@ public partial class SqlServerPersistenceHealthCheck(
 				}
 
 				// Record metrics
-				_metrics.RecordHealthCheck(stopwatch.ElapsedMilliseconds, healthy: true);
-
-				stopwatch.Stop();
+				_metrics.RecordHealthCheck((long)stopwatch.ElapsedMilliseconds, healthy: true);
 				data["total_check_time_ms"] = stopwatch.ElapsedMilliseconds;
 
 				return HealthCheckResult.Healthy("SQL Server persistence provider is healthy", data);
@@ -164,7 +162,7 @@ public partial class SqlServerPersistenceHealthCheck(
 		catch (SqlException sqlEx)
 		{
 			LogHealthCheckFailed(sqlEx);
-			_metrics.RecordHealthCheck(stopwatch.ElapsedMilliseconds, healthy: false);
+			_metrics.RecordHealthCheck((long)stopwatch.ElapsedMilliseconds, healthy: false);
 
 			data["error"] = sqlEx.Message;
 			data["error_number"] = sqlEx.Number;
@@ -178,7 +176,7 @@ public partial class SqlServerPersistenceHealthCheck(
 		catch (Exception ex)
 		{
 			LogUnexpectedHealthCheckError(ex);
-			_metrics.RecordHealthCheck(stopwatch.ElapsedMilliseconds, healthy: false);
+			_metrics.RecordHealthCheck((long)stopwatch.ElapsedMilliseconds, healthy: false);
 
 			data["error"] = ex.Message;
 

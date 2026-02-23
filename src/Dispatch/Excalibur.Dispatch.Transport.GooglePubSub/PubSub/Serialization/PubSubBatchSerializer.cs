@@ -2,7 +2,7 @@
 // AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Buffers;
-using System.Diagnostics;
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
@@ -79,7 +79,7 @@ public sealed class PubSubBatchSerializer : IDisposable
 			return [];
 		}
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		var results = new PubsubMessage[messageList.Count];
 
 		if (messageList.Count > 10 && !cancellationToken.IsCancellationRequested)
@@ -116,8 +116,6 @@ public sealed class PubSubBatchSerializer : IDisposable
 			}
 		}
 
-		stopwatch.Stop();
-
 		var totalBytes = results.Sum(m => m.Data.Length);
 		_ = activity?.SetTag("batch.bytes", totalBytes);
 		_ = activity?.SetTag("batch.duration_ms", stopwatch.ElapsedMilliseconds);
@@ -150,7 +148,7 @@ public sealed class PubSubBatchSerializer : IDisposable
 			return [];
 		}
 
-		var stopwatch = Stopwatch.StartNew();
+		var stopwatch = ValueStopwatch.StartNew();
 		var results = new T[messageList.Count];
 		var errors = new List<(int Index, Exception Error)>();
 
@@ -204,8 +202,6 @@ public sealed class PubSubBatchSerializer : IDisposable
 				}
 			}
 		}
-
-		stopwatch.Stop();
 
 		_ = activity?.SetTag("batch.duration_ms", stopwatch.ElapsedMilliseconds);
 		_ = activity?.SetTag("batch.errors", errors.Count);
