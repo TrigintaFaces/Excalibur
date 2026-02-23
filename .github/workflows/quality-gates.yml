@@ -68,12 +68,12 @@ jobs:
       fail-fast: false
       matrix:
         shard:
-          - { name: core, filter: "eng/ci/shards/UnitTests-Core.slnf" }
-          - { name: messaging, filter: "eng/ci/shards/UnitTests-Messaging.slnf" }
-          - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf" }
-          - { name: middleware, filter: "eng/ci/shards/UnitTests-Middleware.slnf" }
-          - { name: observability, filter: "eng/ci/shards/UnitTests-Observability.slnf" }
-          - { name: excalibur, filter: "eng/ci/shards/UnitTests-Excalibur.slnf" }
+          - { name: core, filter: "eng/ci/shards/UnitTests-Core.slnf", test_filter: "Category=Unit|Category=DependencyInjection|Category=Performance" }
+          - { name: messaging, filter: "eng/ci/shards/UnitTests-Messaging.slnf", test_filter: "Category=Unit|Category=DependencyInjection" }
+          - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf", test_filter: "Category=Unit|Category=DependencyInjection|Category=Performance" }
+          - { name: middleware, filter: "eng/ci/shards/UnitTests-Middleware.slnf", test_filter: "Category=Unit|Category=DependencyInjection|Category=Performance" }
+          - { name: observability, filter: "eng/ci/shards/UnitTests-Observability.slnf", test_filter: "Category=Unit|Category=DependencyInjection|Category=Performance" }
+          - { name: excalibur, filter: "eng/ci/shards/UnitTests-Excalibur.slnf", test_filter: "Category=Unit|Category=DependencyInjection|Category=Performance" }
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -111,7 +111,7 @@ jobs:
             --collect:"XPlat Code Coverage" \
             --settings tests/coverage.runsettings \
             --results-directory ./coverage \
-            --filter "Category=Unit|Category=DependencyInjection|Category=Performance" \
+            --filter "${{ matrix.shard.test_filter }}" \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
       - name: Upload shard coverage artifact
