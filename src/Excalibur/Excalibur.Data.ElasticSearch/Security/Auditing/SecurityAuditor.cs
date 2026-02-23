@@ -410,7 +410,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 			return;
 		}
 
-		var task = Task.Run(async () =>
+		var task = QueueBackgroundWork(async () =>
 		{
 			await ProcessAuditEventQueueCoreAsync().ConfigureAwait(false);
 		});
@@ -512,7 +512,7 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 			return;
 		}
 
-		var task = Task.Run(async () =>
+		var task = QueueBackgroundWork(async () =>
 		{
 			var endTime = DateTimeOffset.UtcNow;
 			var startTime = endTime.AddDays(-1); // Daily reports
@@ -534,4 +534,11 @@ public sealed class SecurityAuditor : IElasticsearchSecurityAuditor, IElasticsea
 		});
 		_trackedTasks.Add(task);
 	}
+
+	private static Task QueueBackgroundWork(Func<Task> callback) =>
+		Task.Factory.StartNew(
+			callback,
+			CancellationToken.None,
+			TaskCreationOptions.DenyChildAttach,
+			TaskScheduler.Default).Unwrap();
 }

@@ -73,12 +73,16 @@ public class WorkflowContext(string instanceId, string? correlationId = null) : 
 		else
 		{
 			// Schedule for later execution with tracking
-			var task = Task.Run(
-				async () =>
-				{
-					await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
-					await ExecuteStepAsync(stepId, stepData, cancellationToken).ConfigureAwait(false);
-				}, cancellationToken);
+			var task = Task.Factory.StartNew(
+					async () =>
+					{
+						await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+						await ExecuteStepAsync(stepId, stepData, cancellationToken).ConfigureAwait(false);
+					},
+					cancellationToken,
+					TaskCreationOptions.DenyChildAttach,
+					TaskScheduler.Default)
+				.Unwrap();
 			_scheduledSteps.Add(task);
 		}
 	}

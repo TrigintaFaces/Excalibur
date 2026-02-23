@@ -105,21 +105,25 @@ public abstract class BatchProcessorBase(ILogger logger, BatchMetricsCollector m
 		try
 		{
 			// Producer task
-			var producerTask = Task.Run(
-				async () =>
-				{
-					try
+			var producerTask = Task.Factory.StartNew(
+					async () =>
 					{
-						await foreach (var batch in batches.WithCancellation(cancellationToken).ConfigureAwait(false))
+						try
 						{
-							await channel.Writer.WriteAsync(batch, cancellationToken).ConfigureAwait(false);
+							await foreach (var batch in batches.WithCancellation(cancellationToken).ConfigureAwait(false))
+							{
+								await channel.Writer.WriteAsync(batch, cancellationToken).ConfigureAwait(false);
+							}
 						}
-					}
-					finally
-					{
-						channel.Writer.Complete();
-					}
-				}, cancellationToken);
+						finally
+						{
+							channel.Writer.Complete();
+						}
+					},
+					cancellationToken,
+					TaskCreationOptions.DenyChildAttach,
+					TaskScheduler.Default)
+				.Unwrap();
 
 			// Process batches concurrently
 			var tasks = new List<Task<BatchProcessingResult>>();

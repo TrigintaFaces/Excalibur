@@ -401,17 +401,22 @@ public sealed partial class InMemoryPersistenceProvider : IPersistenceProvider, 
 		if (_options.PersistToDisk && !string.IsNullOrWhiteSpace(_options.PersistenceFilePath))
 		{
 			// Use fire-and-forget pattern to avoid blocking in Dispose
-			_ = Task.Run(async () =>
-			{
-				try
-				{
-					await PersistToDiskAsync(CancellationToken.None).ConfigureAwait(false);
-				}
-				catch (Exception ex)
-				{
-					LogFailedToPersistOnDispose(_logger, ex, Name);
-				}
-			});
+			_ = Task.Factory.StartNew(
+					async () =>
+					{
+						try
+						{
+							await PersistToDiskAsync(CancellationToken.None).ConfigureAwait(false);
+						}
+						catch (Exception ex)
+						{
+							LogFailedToPersistOnDispose(_logger, ex, Name);
+						}
+					},
+					CancellationToken.None,
+					TaskCreationOptions.DenyChildAttach,
+					TaskScheduler.Default)
+				.Unwrap();
 		}
 
 		_collections.Clear();

@@ -66,12 +66,12 @@ public sealed partial class ParallelMessageProcessor : IAsyncDisposable
 		_errorCount = new RateCounter();
 		_processingDuration = new ValueHistogram();
 
-		// Start worker tasks
-		for (var i = 0; i < parallelism; i++)
-		{
-			var workerId = i;
-			_workerTasks[i] = Task.Run(() => ProcessorWorkerAsync(workerId, _shutdownTokenSource.Token));
-		}
+			// Start worker tasks
+			for (var i = 0; i < parallelism; i++)
+			{
+				var workerId = i;
+				_workerTasks[i] = StartBackgroundTask(() => ProcessorWorkerAsync(workerId, _shutdownTokenSource.Token));
+			}
 
 		LogProcessorStarted(parallelism);
 	}
@@ -185,6 +185,13 @@ public sealed partial class ParallelMessageProcessor : IAsyncDisposable
 			_affinityLock.Dispose();
 		}
 	}
+
+	private static Task StartBackgroundTask(Func<Task> operation) =>
+		Task.Factory.StartNew(
+			operation,
+			CancellationToken.None,
+			TaskCreationOptions.LongRunning,
+			TaskScheduler.Default).Unwrap();
 
 	private async Task ProcessorWorkerAsync(int workerId, CancellationToken cancellationToken)
 	{

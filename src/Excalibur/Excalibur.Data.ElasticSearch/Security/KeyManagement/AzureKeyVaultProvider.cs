@@ -646,7 +646,7 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 			return;
 		}
 
-		var task = Task.Run(async () =>
+		var task = Task.Factory.StartNew(async () =>
 		{
 			try
 			{
@@ -662,7 +662,7 @@ public sealed partial class AzureKeyVaultProvider : IElasticsearchKeyProvider, I
 			{
 				_logger.LogWarning(ex, "Azure Key Vault health check failed");
 			}
-		});
+		}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 		_trackedTasks.Add(task);
 	}
 }

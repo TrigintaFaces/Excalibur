@@ -167,9 +167,12 @@ public sealed class RedisSessionStore : ISessionStore
 		// Note: This is an expensive operation in Redis for production use
 		var pattern = GetSessionKey("*");
 		var server = _database.Multiplexer.GetServer(_database.Multiplexer.GetEndPoints()[0]);
-		var keys = await Task.Run(() => server.Keys(pattern: pattern), cancellationToken).ConfigureAwait(false);
-
-		return keys.Count();
+		return await Task.Factory.StartNew(
+				() => server.Keys(pattern: pattern).Count(),
+				cancellationToken,
+				TaskCreationOptions.DenyChildAttach,
+				TaskScheduler.Default)
+			.ConfigureAwait(false);
 	}
 
 	private string GetSessionKey(string sessionId) => $"{_options.KeyPrefix}:sessions:{sessionId}";

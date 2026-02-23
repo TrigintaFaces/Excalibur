@@ -158,7 +158,12 @@ public partial class CdcProcessor : ICdcProcessor
 
 		_ = appLifetime.ApplicationStopping.Register(() =>
 		{
-			var task = Task.Run(OnApplicationStoppingAsync);
+			var task = Task.Factory.StartNew(
+					OnApplicationStoppingAsync,
+					CancellationToken.None,
+					TaskCreationOptions.DenyChildAttach,
+					TaskScheduler.Default)
+				.Unwrap();
 			_backgroundTasks.Add(task);
 		});
 	}
@@ -210,8 +215,18 @@ public partial class CdcProcessor : ICdcProcessor
 
 			LogStartingNewRun(ByteArrayToHex(lowestStartLsn));
 
-			_producerTask = Task.Run(() => ProducerLoopAsync(lowestStartLsn, cancellationToken), cancellationToken);
-			_consumerTask = Task.Run(() => ConsumerLoopAsync(eventHandler, cancellationToken), cancellationToken);
+			_producerTask = Task.Factory.StartNew(
+					() => ProducerLoopAsync(lowestStartLsn, cancellationToken),
+					cancellationToken,
+					TaskCreationOptions.LongRunning,
+					TaskScheduler.Default)
+				.Unwrap();
+			_consumerTask = Task.Factory.StartNew(
+					() => ConsumerLoopAsync(eventHandler, cancellationToken),
+					cancellationToken,
+					TaskCreationOptions.LongRunning,
+					TaskScheduler.Default)
+				.Unwrap();
 
 			await _producerTask.ConfigureAwait(false);
 			var totalProcessed = await _consumerTask.ConfigureAwait(false);
@@ -779,7 +794,7 @@ public partial class CdcProcessor : ICdcProcessor
 		using var batchActivity = CdcTelemetryConstants.ActivitySource.StartActivity("cdc.consume_batch");
 		batchActivity?.SetTag("cdc.batch.size", batch.Count);
 
-		var batchStopwatch = Stopwatch.StartNew();
+		var batchStopwatch = ValueStopwatch.StartNew();
 
 		BatchSizeHistogram.Record(batch.Count);
 
@@ -831,7 +846,6 @@ public partial class CdcProcessor : ICdcProcessor
 				cancellationToken)).ConfigureAwait(false);
 		}
 
-		batchStopwatch.Stop();
 		BatchDurationHistogram.Record(batchStopwatch.Elapsed.TotalMilliseconds);
 	}
 

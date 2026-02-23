@@ -45,7 +45,12 @@ public sealed class VisibilityTimeoutManager(QueueClient queueClient, ILogger<Vi
 		var renewalTask = new RenewalTask(message, TimeSpan.FromSeconds(renewalIntervalSeconds));
 		if (_activeRenewals.TryAdd(message.MessageId, renewalTask))
 		{
-			_ = Task.Run(() => RenewVisibilityLoopAsync(renewalTask, cancellationToken), cancellationToken);
+			_ = Task.Factory.StartNew(
+					() => RenewVisibilityLoopAsync(renewalTask, cancellationToken),
+					cancellationToken,
+					TaskCreationOptions.DenyChildAttach,
+					TaskScheduler.Default)
+				.Unwrap();
 			_logger.LogDebug("Started visibility renewal for message {MessageId}", message.MessageId);
 		}
 

@@ -483,7 +483,7 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	/// <summary>
 	/// Performs AES-GCM encryption with authenticated encryption.
 	/// </summary>
-	private static async Task<(byte[] EncryptedBytes, byte[] IV, byte[] AuthTag)> EncryptAesGcmAsync(byte[] plaintext, byte[] key)
+	private static Task<(byte[] EncryptedBytes, byte[] IV, byte[] AuthTag)> EncryptAesGcmAsync(byte[] plaintext, byte[] key)
 	{
 		using var aes = new AesGcm(key, 16); // 128-bit tag size
 		var iv = new byte[12]; // 96-bit IV for GCM
@@ -492,9 +492,9 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 
 		RandomNumberGenerator.Fill(iv);
 
-		await Task.Run(() => aes.Encrypt(iv, plaintext, ciphertext, authTag)).ConfigureAwait(false);
+		aes.Encrypt(iv, plaintext, ciphertext, authTag);
 
-		return (ciphertext, iv, authTag);
+		return Task.FromResult((ciphertext, iv, authTag));
 	}
 
 	/// <summary>
@@ -517,14 +517,14 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 	/// <summary>
 	/// Performs AES-GCM decryption with authentication verification.
 	/// </summary>
-	private static async Task<byte[]> DecryptAesGcmAsync(byte[] ciphertext, byte[] key, byte[] iv, byte[] authTag)
+	private static Task<byte[]> DecryptAesGcmAsync(byte[] ciphertext, byte[] key, byte[] iv, byte[] authTag)
 	{
 		using var aes = new AesGcm(key, 16); // 128-bit tag size
 		var plaintext = new byte[ciphertext.Length];
 
-		await Task.Run(() => aes.Decrypt(iv, ciphertext, authTag, plaintext)).ConfigureAwait(false);
+		aes.Decrypt(iv, ciphertext, authTag, plaintext);
 
-		return plaintext;
+		return Task.FromResult(plaintext);
 	}
 
 	/// <summary>
@@ -678,7 +678,7 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 			return;
 		}
 
-		var task = Task.Run(async () =>
+		var task = Task.Factory.StartNew(async () =>
 		{
 			try
 			{
@@ -694,7 +694,7 @@ public sealed class FieldEncryptor : IElasticsearchFieldEncryptor, IDisposable, 
 			{
 				_logger.LogError(ex, "Error during scheduled key rotation");
 			}
-		});
+		}, CancellationToken.None, TaskCreationOptions.DenyChildAttach, TaskScheduler.Default).Unwrap();
 		_trackedTasks.Add(task);
 	}
 }

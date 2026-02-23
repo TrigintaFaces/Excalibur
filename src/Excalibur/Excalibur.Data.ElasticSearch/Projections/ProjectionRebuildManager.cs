@@ -124,16 +124,19 @@ public sealed class ProjectionRebuildManager : IProjectionRebuildManager
 		var tokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 		_operationTokens[operationId] = tokenSource;
 
-		_ = Task.Run(
-			() => ExecuteRebuildAsync(
-				operationId,
-				request,
-				actualTargetIndex,
-				useAliasing,
-				totalDocuments,
-				startedAt,
-				tokenSource.Token),
-			CancellationToken.None);
+		_ = Task.Factory.StartNew(
+				() => ExecuteRebuildAsync(
+					operationId,
+					request,
+					actualTargetIndex,
+					useAliasing,
+					totalDocuments,
+					startedAt,
+					tokenSource.Token),
+				CancellationToken.None,
+				TaskCreationOptions.DenyChildAttach,
+				TaskScheduler.Default)
+			.Unwrap();
 
 		return new ProjectionRebuildResult { OperationId = operationId, Started = true, StartedAt = startedAt, };
 	}

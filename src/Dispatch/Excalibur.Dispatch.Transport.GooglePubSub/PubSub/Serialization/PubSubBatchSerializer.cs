@@ -85,20 +85,24 @@ public sealed class PubSubBatchSerializer : IDisposable
 		if (messageList.Count > 10 && !cancellationToken.IsCancellationRequested)
 		{
 			// Parallel processing for larger batches
-			await Task.Run(
-				() =>
-				{
-					_ = Parallel.For(0, messageList.Count, _parallelOptions, i =>
+			await Task.Factory.StartNew(
+					() =>
 					{
-						if (cancellationToken.IsCancellationRequested)
+						_ = Parallel.For(0, messageList.Count, _parallelOptions, i =>
 						{
-							return;
-						}
+							if (cancellationToken.IsCancellationRequested)
+							{
+								return;
+							}
 
-						var attributes = attributeSelector?.Invoke(messageList[i]);
-						results[i] = _serializer.SerializeToPubSubMessage(messageList[i], attributes);
-					});
-				}, cancellationToken).ConfigureAwait(false);
+							var attributes = attributeSelector?.Invoke(messageList[i]);
+							results[i] = _serializer.SerializeToPubSubMessage(messageList[i], attributes);
+						});
+					},
+					cancellationToken,
+					TaskCreationOptions.DenyChildAttach,
+					TaskScheduler.Default)
+				.ConfigureAwait(false);
 		}
 		else
 		{
@@ -153,31 +157,35 @@ public sealed class PubSubBatchSerializer : IDisposable
 		if (messageList.Count > 10 && !cancellationToken.IsCancellationRequested)
 		{
 			// Parallel processing for larger batches
-			await Task.Run(
-				() =>
-				{
-					var lockObj = new object();
-
-					_ = Parallel.For(0, messageList.Count, _parallelOptions, i =>
+			await Task.Factory.StartNew(
+					() =>
 					{
-						if (cancellationToken.IsCancellationRequested)
-						{
-							return;
-						}
+						var lockObj = new object();
 
-						try
+						_ = Parallel.For(0, messageList.Count, _parallelOptions, i =>
 						{
-							results[i] = _serializer.DeserializeFromPubSubMessage<T>(messageList[i]);
-						}
-						catch (Exception ex)
-						{
-							lock (lockObj)
+							if (cancellationToken.IsCancellationRequested)
 							{
-								errors.Add((i, ex));
+								return;
 							}
-						}
-					});
-				}, cancellationToken).ConfigureAwait(false);
+
+							try
+							{
+								results[i] = _serializer.DeserializeFromPubSubMessage<T>(messageList[i]);
+							}
+							catch (Exception ex)
+							{
+								lock (lockObj)
+								{
+									errors.Add((i, ex));
+								}
+							}
+						});
+					},
+					cancellationToken,
+					TaskCreationOptions.DenyChildAttach,
+					TaskScheduler.Default)
+				.ConfigureAwait(false);
 		}
 		else
 		{
@@ -292,22 +300,26 @@ public sealed class PubSubBatchSerializer : IDisposable
 
 		var results = new PubsubMessage[messageList.Count];
 
-		await Task.Run(
-			() =>
-			{
-				_ = Parallel.ForEach(messageGroups, _parallelOptions, group =>
+		await Task.Factory.StartNew(
+				() =>
 				{
-					if (cancellationToken.IsCancellationRequested)
+					_ = Parallel.ForEach(messageGroups, _parallelOptions, group =>
 					{
-						return;
-					}
+						if (cancellationToken.IsCancellationRequested)
+						{
+							return;
+						}
 
-					foreach (var (message, index) in group)
-					{
-						results[index] = _serializer.SerializeToPubSubMessage(message);
-					}
-				});
-			}, cancellationToken).ConfigureAwait(false);
+						foreach (var (message, index) in group)
+						{
+							results[index] = _serializer.SerializeToPubSubMessage(message);
+						}
+					});
+				},
+				cancellationToken,
+				TaskCreationOptions.DenyChildAttach,
+				TaskScheduler.Default)
+			.ConfigureAwait(false);
 
 		_ = activity?.SetTag("batch.type_count", messageGroups.Count);
 

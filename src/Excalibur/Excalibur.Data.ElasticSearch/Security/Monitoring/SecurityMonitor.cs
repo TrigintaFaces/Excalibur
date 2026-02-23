@@ -1028,12 +1028,17 @@ internal sealed class SecurityMonitor : IElasticsearchSecurityMonitor, IAsyncDis
 			return;
 		}
 
-		try
-		{
-			_ = Task.Run(async () => await PerformPeriodicMonitoring(_cancellationTokenSource.Token).ConfigureAwait(false));
-		}
-		catch (Exception ex)
-		{
+			try
+			{
+				_ = Task.Factory.StartNew(
+						() => PerformPeriodicMonitoring(_cancellationTokenSource.Token),
+						CancellationToken.None,
+						TaskCreationOptions.DenyChildAttach,
+						TaskScheduler.Default)
+					.Unwrap();
+			}
+			catch (Exception ex)
+			{
 			_logger.LogError(ex, "Error in monitoring callback");
 		}
 	}

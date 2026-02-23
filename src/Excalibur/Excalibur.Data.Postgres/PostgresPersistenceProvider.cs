@@ -556,13 +556,13 @@ public sealed partial class PostgresPersistenceProvider : IPersistenceProvider, 
 				await _dataSource.DisposeAsync().ConfigureAwait(false);
 			}
 
-			// Clear connection pool if configured
-			if (_options.ClearPoolOnDispose)
-			{
-				// ClearAllPoolsAsync doesn't exist in newer Npgsql versions Use synchronous version wrapped in Task.Run for async disposal
-				await Task.Run(static () => NpgsqlConnection.ClearAllPools()).ConfigureAwait(false);
-				LogClearedConnectionPools();
-			}
+				// Clear connection pool if configured
+				if (_options.ClearPoolOnDispose)
+				{
+					// ClearAllPoolsAsync doesn't exist in newer Npgsql versions.
+					NpgsqlConnection.ClearAllPools();
+					LogClearedConnectionPools();
+				}
 		}
 		catch (Exception ex)
 		{

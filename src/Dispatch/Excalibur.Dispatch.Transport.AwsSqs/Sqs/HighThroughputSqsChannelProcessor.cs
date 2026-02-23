@@ -4,13 +4,13 @@
 
 using System.Buffers;
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Text;
 using System.Threading.Channels;
 
 using Amazon.SQS;
 using Amazon.SQS.Model;
 
+using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Transport.AwsSqs;
 
@@ -33,7 +33,7 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 	private readonly SemaphoreSlim _concurrencyLimit;
 
 	// Performance tracking
-	private readonly Stopwatch _uptimeStopwatch;
+	private readonly ValueStopwatch _uptimeStopwatch;
 
 	/// <summary>
 	/// Object pools for zero-allocation.
@@ -91,7 +91,7 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 
 		// Initialize metrics
 		Metrics = new SqsChannelMetrics();
-		_uptimeStopwatch = Stopwatch.StartNew();
+		_uptimeStopwatch = ValueStopwatch.StartNew();
 
 		// Initialize object pools
 		_receiveRequestPool = new SimpleObjectPool<ReceiveMessageRequest>(
@@ -142,15 +142,15 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 	/// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
 	public Task StartAsync(CancellationToken cancellationToken)
 	{
+		_ = cancellationToken;
 		LogProcessorStarting(_options.QueueUrl.ToString(), _options.ConcurrentPollers);
 
 		// Start multiple polling tasks for increased throughput
 		for (var i = 0; i < _options.ConcurrentPollers; i++)
 		{
 			var pollerIndex = i;
-			var pollingTask = Task.Run(
-				() => PollMessagesAsync(pollerIndex, _shutdownTokenSource.Token),
-				cancellationToken);
+			var pollingTask = StartBackgroundTask(
+				() => PollMessagesAsync(pollerIndex, _shutdownTokenSource.Token));
 
 			_pollingTasks.Add(pollingTask);
 		}
@@ -162,6 +162,13 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 
 		return Task.CompletedTask;
 	}
+
+	private static Task StartBackgroundTask(Func<Task> operation) =>
+		Task.Factory.StartNew(
+			operation,
+			CancellationToken.None,
+			TaskCreationOptions.LongRunning,
+			TaskScheduler.Default).Unwrap();
 
 	/// <summary>
 	/// Disposes the processor asynchronously.

@@ -68,12 +68,12 @@ public sealed partial class OrderingKeyProcessor : IOrderingKeyProcessor
 		_processingDuration = new ValueHistogram();
 		_queueDepth = new ValueHistogram();
 
-		// Start worker tasks
-		for (var i = 0; i < workerCount; i++)
-		{
-			var workerId = i;
-			_workerTasks[i] = Task.Run(() => ProcessorWorkerAsync(workerId, _shutdownTokenSource.Token));
-		}
+			// Start worker tasks
+			for (var i = 0; i < workerCount; i++)
+			{
+				var workerId = i;
+				_workerTasks[i] = StartBackgroundTask(() => ProcessorWorkerAsync(workerId, _shutdownTokenSource.Token));
+			}
 
 		LogProcessorStarted(workerCount, _options.MaxConcurrentOrderingKeys);
 	}
@@ -215,6 +215,13 @@ public sealed partial class OrderingKeyProcessor : IOrderingKeyProcessor
 			_concurrencyLimiter.Dispose();
 		}
 	}
+
+	private static Task StartBackgroundTask(Func<Task> operation) =>
+		Task.Factory.StartNew(
+			operation,
+			CancellationToken.None,
+			TaskCreationOptions.LongRunning,
+			TaskScheduler.Default).Unwrap();
 
 	private async Task ProcessorWorkerAsync(int workerId, CancellationToken cancellationToken)
 	{

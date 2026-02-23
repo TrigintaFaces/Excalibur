@@ -908,15 +908,14 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 
 		_metrics?.Dispose();
 
-		// Clear connection pools if pooling is enabled
-		if (_options.EnableConnectionPooling)
-		{
-			try
+			// Clear connection pools if pooling is enabled
+			if (_options.EnableConnectionPooling)
 			{
-				// NpgsqlConnection.ClearAllPools is synchronous, so we wrap it in Task.Run
-				await Task.Run(static () => NpgsqlConnection.ClearAllPools()).ConfigureAwait(false);
-				_logger.LogDebug("Cleared all Postgres connection pools");
-			}
+				try
+				{
+					NpgsqlConnection.ClearAllPools();
+					_logger.LogDebug("Cleared all Postgres connection pools");
+				}
 			catch (Exception ex)
 			{
 				_logger.LogWarning(ex, "Error clearing connection pools");
