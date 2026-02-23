@@ -343,12 +343,8 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 				invocationCount++;
 				if (invocationCount == 1)
 				{
-					// Cancel after first failure (before retry delay completes)
-					_ = Task.Run(async () =>
-					{
-						await Task.Delay(50).ConfigureAwait(false);
-						cts.Cancel();
-					});
+					// Cancel immediately after first failure so retry delay observes cancellation deterministically.
+					cts.Cancel();
 					throw new InvalidOperationException("First failure");
 				}
 			})

@@ -71,9 +71,9 @@ jobs:
             --no-build \
             --no-restore \
             --filter "FullyQualifiedName~${{ matrix.transport }}TransportConformanceTests" \
-            --verbosity normal \
+            --verbosity minimal \
             --logger "trx;LogFileName=${{ matrix.transport }}-conformance-results.trx" \
-            --logger "console;verbosity=detailed" \
+            --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
 

@@ -395,7 +395,7 @@ jobs:
             --no-build \
             --blame-hang-timeout 5m \
             --logger "trx;LogFileName=smoke-tests.trx" \
-            --logger "console;verbosity=normal" \
+            --logger "console;verbosity=minimal" \
             --results-directory ./TestResults \
             --filter "Priority=0" \
             -- RunConfiguration.TestSessionTimeout=300000
@@ -480,7 +480,7 @@ jobs:
             --no-build \
             --blame-hang-timeout 5m \
             --logger "trx;LogFileName=unit-tests-${{ matrix.shard.name }}.trx" \
-            --logger "console;verbosity=normal" \
+            --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \
             --filter "${{ matrix.shard.test_filter }}" \
@@ -535,7 +535,7 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          dotnet test --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFileName=unit-tests-windows.trx" --logger "console;verbosity=normal" --results-directory ./TestResults --filter "Category=Unit|Category=DependencyInjection|Category=Performance" -- RunConfiguration.TestSessionTimeout=1500000
+          dotnet test --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFileName=unit-tests-windows.trx" --logger "console;verbosity=minimal" --results-directory ./TestResults --filter "Category=Unit|Category=DependencyInjection|Category=Performance" -- RunConfiguration.TestSessionTimeout=1500000
 
       - name: Upload test results
         if: always()
@@ -588,7 +588,7 @@ jobs:
             --no-build \
             --blame-hang-timeout 5m \
             --logger "trx;LogFileName=integration-tests-${{ matrix.os }}.trx" \
-            --logger "console;verbosity=normal" \
+            --logger "console;verbosity=minimal" \
             --results-directory ./TestResults \
             --filter "Category=Integration|Category=EndToEnd" \
             -- RunConfiguration.TestSessionTimeout=1200000
@@ -640,7 +640,7 @@ jobs:
             --no-build \
             --blame-hang-timeout 5m \
             --logger "trx;LogFileName=functional-tests.trx" \
-            --logger "console;verbosity=normal" \
+            --logger "console;verbosity=minimal" \
             --results-directory ./TestResults \
             --filter "Category=Functional" \
             -- RunConfiguration.TestSessionTimeout=1800000
@@ -720,7 +720,7 @@ jobs:
             --no-build \
             --blame-hang-timeout 5m \
             --logger "trx;LogFileName=contract-tests.trx" \
-            --logger "console;verbosity=normal" \
+            --logger "console;verbosity=minimal" \
             --results-directory ./TestResults
 
       - name: Upload contract test results
@@ -769,14 +769,14 @@ jobs:
             --no-build \
             --blame-hang-timeout 5m \
             --logger "trx;LogFileName=architecture-tests.trx" \
-            --logger "console;verbosity=normal" \
+            --logger "console;verbosity=minimal" \
             --results-directory ./TestResults
           dotnet test tests/architecture/Boundary.Tests/Boundary.Tests.csproj \
             --configuration Release \
             --no-build \
             --blame-hang-timeout 5m \
             --logger "trx;LogFileName=boundary-tests.trx" \
-            --logger "console;verbosity=normal" \
+            --logger "console;verbosity=minimal" \
             --results-directory ./TestResults
 
       - name: Upload architecture test results
@@ -898,6 +898,7 @@ jobs:
           dotnet test \
             --configuration Release \
             --no-build \
+            --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             --results-directory ../base-cov \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
@@ -1561,6 +1562,7 @@ jobs:
             --no-build \
             --blame-hang-timeout 5m \
             --logger "trx;LogFileName=transport-conformance.trx" \
+            --logger "console;verbosity=minimal" \
             --results-directory ./TestResults
 
       - name: Generate transport parity dashboard
@@ -2373,3 +2375,4 @@ jobs:
           else
             echo "❌ **Status:** AOT sample validation failed - see logs for details" >> $GITHUB_STEP_SUMMARY
           fi
+

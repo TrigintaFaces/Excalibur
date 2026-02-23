@@ -66,8 +66,13 @@ public sealed class ComplianceMonitoringServiceShould
 	public async Task Run_monitoring_cycle()
 	{
 		var complianceService = A.Fake<ISoc2ComplianceService>();
+		var cycleObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		A.CallTo(() => complianceService.GetComplianceStatusAsync(A<string?>._, A<CancellationToken>._))
-			.Returns(CreateCompliantStatus());
+			.ReturnsLazily(() =>
+			{
+				cycleObserved.TrySetResult();
+				return Task.FromResult(CreateCompliantStatus());
+			});
 
 		var (scopeFactory, _) = SetupScopeFactory(complianceService);
 
@@ -83,11 +88,17 @@ public sealed class ComplianceMonitoringServiceShould
 			Microsoft.Extensions.Options.Options.Create(options),
 			NullLogger<ComplianceMonitoringService>.Instance);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
-		await Task.Delay(TimeSpan.FromMilliseconds(300), CancellationToken.None).ConfigureAwait(false);
+
+		var completed = await Task.WhenAny(
+			cycleObserved.Task,
+			Task.Delay(TimeSpan.FromSeconds(2), CancellationToken.None)).ConfigureAwait(false);
+
+		await cts.CancelAsync().ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
+		completed.ShouldBe(cycleObserved.Task);
 		A.CallTo(() => complianceService.GetComplianceStatusAsync(A<string?>._, A<CancellationToken>._))
 			.MustHaveHappened();
 	}
@@ -144,9 +155,17 @@ public sealed class ComplianceMonitoringServiceShould
 	{
 		var complianceService = A.Fake<ISoc2ComplianceService>();
 		var alertHandler = A.Fake<IComplianceAlertHandler>();
+		var alertObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		A.CallTo(() => complianceService.GetComplianceStatusAsync(A<string?>._, A<CancellationToken>._))
 			.Returns(CreateStatusWithGaps());
+
+		A.CallTo(() => alertHandler.HandleComplianceGapAsync(A<ComplianceGapAlert>._, A<CancellationToken>._))
+			.ReturnsLazily(() =>
+			{
+				alertObserved.TrySetResult();
+				return Task.CompletedTask;
+			});
 
 		var (scopeFactory, _) = SetupScopeFactory(complianceService, alertHandler);
 
@@ -163,11 +182,17 @@ public sealed class ComplianceMonitoringServiceShould
 			Microsoft.Extensions.Options.Options.Create(options),
 			NullLogger<ComplianceMonitoringService>.Instance);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
-		await Task.Delay(TimeSpan.FromMilliseconds(300), CancellationToken.None).ConfigureAwait(false);
+
+		var completed = await Task.WhenAny(
+			alertObserved.Task,
+			Task.Delay(TimeSpan.FromSeconds(2), CancellationToken.None)).ConfigureAwait(false);
+
+		await cts.CancelAsync().ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
+		completed.ShouldBe(alertObserved.Task);
 		A.CallTo(() => alertHandler.HandleComplianceGapAsync(
 				A<ComplianceGapAlert>._, A<CancellationToken>._))
 			.MustHaveHappened();
@@ -178,9 +203,14 @@ public sealed class ComplianceMonitoringServiceShould
 	{
 		var complianceService = A.Fake<ISoc2ComplianceService>();
 		var alertHandler = A.Fake<IComplianceAlertHandler>();
+		var cycleObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		A.CallTo(() => complianceService.GetComplianceStatusAsync(A<string?>._, A<CancellationToken>._))
-			.Returns(CreateStatusWithLowSeverityGap());
+			.ReturnsLazily(() =>
+			{
+				cycleObserved.TrySetResult();
+				return Task.FromResult(CreateStatusWithLowSeverityGap());
+			});
 
 		var (scopeFactory, _) = SetupScopeFactory(complianceService, alertHandler);
 
@@ -197,11 +227,17 @@ public sealed class ComplianceMonitoringServiceShould
 			Microsoft.Extensions.Options.Options.Create(options),
 			NullLogger<ComplianceMonitoringService>.Instance);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
-		await Task.Delay(TimeSpan.FromMilliseconds(300), CancellationToken.None).ConfigureAwait(false);
+
+		var completed = await Task.WhenAny(
+			cycleObserved.Task,
+			Task.Delay(TimeSpan.FromSeconds(2), CancellationToken.None)).ConfigureAwait(false);
+
+		await cts.CancelAsync().ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
+		completed.ShouldBe(cycleObserved.Task);
 		// Gap alert below threshold should not be sent
 		A.CallTo(() => alertHandler.HandleComplianceGapAsync(
 				A<ComplianceGapAlert>._, A<CancellationToken>._))

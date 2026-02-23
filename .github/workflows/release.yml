@@ -103,7 +103,7 @@ jobs:
           dotnet test Excalibur.sln \
             --configuration Release \
             --no-build \
-            --logger "console;verbosity=normal" \
+            --logger "console;verbosity=minimal" \
             --blame-hang-timeout 10m \
             -- RunConfiguration.TestSessionTimeout=7200000
 
@@ -633,3 +633,4 @@ jobs:
           echo "- Example projects"
           echo "- Blog announcement"
           echo "- Social media"
+
