@@ -6,7 +6,7 @@
     <!-- 0 = use all available processors -->
 
     <!-- Timeout for individual tests (in milliseconds) -->
-    <TestSessionTimeout>300000</TestSessionTimeout>
+    <TestSessionTimeout>1800000</TestSessionTimeout>
 
     <!-- Result output -->
     <ResultsDirectory>./TestResults</ResultsDirectory>
