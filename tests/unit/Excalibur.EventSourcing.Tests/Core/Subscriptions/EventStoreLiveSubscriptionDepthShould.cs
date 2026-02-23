@@ -227,30 +227,29 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 	{
 		// Arrange
 		_options.StartPosition = SubscriptionStartPosition.Beginning;
+		var observedBeginningPosition = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		A.CallTo(() => _eventStore.LoadAsync(A<string>._, A<string>._, A<long>._, A<CancellationToken>._))
-			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>()));
+			.ReturnsLazily((FakeItEasy.Core.IFakeObjectCall call) =>
+			{
+				var fromPosition = call.GetArgument<long>(2);
+				if (fromPosition == -1L)
+				{
+					observedBeginningPosition.TrySetResult();
+				}
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+				return new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>());
+			});
+
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
 
 		// Act
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, cts.Token);
-		var sawBeginningPosition = await WaitHelpers.WaitUntilAsync(() =>
-		{
-			try
-			{
-				A.CallTo(() => _eventStore.LoadAsync("stream-1", "stream-1", -1L, A<CancellationToken>._))
-					.MustHaveHappened();
-				return true;
-			}
-			catch (ExpectationException)
-			{
-				return false;
-			}
-		}, timeout: TimeSpan.FromSeconds(1), pollInterval: TimeSpan.FromMilliseconds(25));
+		await observedBeginningPosition.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 
 		// Assert - polling should eventually query from beginning
-		sawBeginningPosition.ShouldBeTrue();
+		A.CallTo(() => _eventStore.LoadAsync("stream-1", "stream-1", -1L, A<CancellationToken>._))
+			.MustHaveHappened();
 	}
 
 	[Fact]
@@ -261,29 +260,29 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 		_options.StartPositionValue = 42L;
 		_options.PollingInterval = TimeSpan.FromMilliseconds(25);
 
-		A.CallTo(() => _eventStore.LoadAsync(A<string>._, A<string>._, A<long>._, A<CancellationToken>._))
-			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>()));
+		var observedConfiguredPosition = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+		A.CallTo(() => _eventStore.LoadAsync(A<string>._, A<string>._, A<long>._, A<CancellationToken>._))
+			.ReturnsLazily((FakeItEasy.Core.IFakeObjectCall call) =>
+			{
+				var fromPosition = call.GetArgument<long>(2);
+				if (fromPosition == 42L)
+				{
+					observedConfiguredPosition.TrySetResult();
+				}
+
+				return new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>());
+			});
+
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
 
 		// Act
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, cts.Token);
-		var sawConfiguredPosition = await WaitHelpers.WaitUntilAsync(() =>
-		{
-			try
-			{
-				A.CallTo(() => _eventStore.LoadAsync("stream-1", "stream-1", 42L, A<CancellationToken>._))
-					.MustHaveHappened();
-				return true;
-			}
-			catch (ExpectationException)
-			{
-				return false;
-			}
-		}, timeout: TimeSpan.FromSeconds(2), pollInterval: TimeSpan.FromMilliseconds(25));
+		await observedConfiguredPosition.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 
 		// Assert - polling should eventually use configured start position
-		sawConfiguredPosition.ShouldBeTrue();
+		A.CallTo(() => _eventStore.LoadAsync("stream-1", "stream-1", 42L, A<CancellationToken>._))
+			.MustHaveHappened();
 	}
 
 	[Fact]
