@@ -966,6 +966,7 @@ jobs:
             "UnitTests.slnf"
             "TestsOnly.slnf"
             "UnitTests-Core.slnf"
+            "Excalibur.sln"
           )
 
           selected=""
@@ -980,10 +981,19 @@ jobs:
           done
 
           if [[ -z "$selected" ]]; then
+            if [[ -f "Excalibur.sln" ]]; then
+              selected="Excalibur.sln"
+            else
+              selected="$(find . -maxdepth 4 -type f \( -name "*.slnf" -o -name "*.sln" \) -print | sort | head -n 1 || true)"
+              selected="${selected#./}"
+            fi
+          fi
+
+          if [[ -z "$selected" ]]; then
             echo "No supported unit test solution filter found in known shard locations."
             echo "Searched roots: ${roots[*]}"
-            echo "Available .slnf files (depth <= 4):"
-            find . -maxdepth 4 -name "*.slnf" -print | sort || true
+            echo "Available .slnf/.sln files (depth <= 6):"
+            find . -maxdepth 6 -type f \( -name "*.slnf" -o -name "*.sln" \) -print | sort || true
             exit 1
           fi
 
