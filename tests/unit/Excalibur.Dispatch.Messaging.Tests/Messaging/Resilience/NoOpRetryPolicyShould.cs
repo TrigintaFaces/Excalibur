@@ -37,18 +37,20 @@ public sealed class NoOpRetryPolicyShould
 	}
 
 	[Fact]
-	public void BeThreadSafe()
+	public async Task BeThreadSafe()
 	{
 		// Arrange
 		var instances = new NoOpRetryPolicy[100];
-		var barrier = new Barrier(100);
+		var startGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		// Act - Access instance from multiple threads simultaneously
-		_ = Parallel.For(0, 100, i =>
+		// Act - Trigger concurrent reads without blocking worker threads on a barrier.
+		var tasks = Enumerable.Range(0, instances.Length).Select(async i =>
 		{
-			barrier.SignalAndWait();
+			await startGate.Task.ConfigureAwait(false);
 			instances[i] = NoOpRetryPolicy.Instance;
 		});
+		startGate.SetResult();
+		await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 
 		// Assert - All instances should be the same
 		for (var i = 1; i < instances.Length; i++)
