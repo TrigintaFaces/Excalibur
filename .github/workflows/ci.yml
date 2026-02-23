@@ -952,15 +952,41 @@ jobs:
             8.0.x
             9.0.x
             10.0.x
+      - name: Resolve base unit test solution filter
+        working-directory: base
+        shell: bash
+        run: |
+          candidates=(
+            "eng/ci/shards/UnitTests.slnf"
+            "eng/ci/shards/TestsOnly.slnf"
+            "eng/ci/shards/UnitTests-Core.slnf"
+          )
+
+          selected=""
+          for candidate in "${candidates[@]}"; do
+            if [[ -f "$candidate" ]]; then
+              selected="$candidate"
+              break
+            fi
+          done
+
+          if [[ -z "$selected" ]]; then
+            echo "No supported unit test solution filter found under eng/ci/shards."
+            ls -la eng/ci/shards || true
+            exit 1
+          fi
+
+          echo "Using base solution filter: $selected"
+          echo "BASE_UNIT_TESTS_SLNF=$selected" >> "$GITHUB_ENV"
       - name: Restore & build base
         working-directory: base
         run: |
-          dotnet restore eng/ci/shards/UnitTests.slnf
-          dotnet build eng/ci/shards/UnitTests.slnf --configuration Release --no-restore
+          dotnet restore "$BASE_UNIT_TESTS_SLNF"
+          dotnet build "$BASE_UNIT_TESTS_SLNF" --configuration Release --no-restore
       - name: Run tests with coverage (base)
         working-directory: base
         run: |
-          dotnet test eng/ci/shards/UnitTests.slnf \
+          dotnet test "$BASE_UNIT_TESTS_SLNF" \
             --configuration Release \
             --no-build \
             --logger "console;verbosity=minimal" \
