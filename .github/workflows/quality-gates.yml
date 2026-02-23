@@ -178,14 +178,14 @@ jobs:
             10.0.x
 
       - name: Restore dependencies
-        run: dotnet restore
+        run: dotnet restore eng/ci/shards/TestsOnly.slnf
 
       - name: Build solution
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore
 
       - name: Run unit, functional, and architecture tests
         run: |
-          dotnet test --configuration Release --no-build \
+          dotnet test eng/ci/shards/TestsOnly.slnf --configuration Release --no-build \
             --blame-hang-timeout 5m \
             --filter "Category!=Integration&Category!=TransportConformance&Category!=LoadTest&Category!=Performance" \
             --logger "trx;LogFileName=test-results.trx" \
