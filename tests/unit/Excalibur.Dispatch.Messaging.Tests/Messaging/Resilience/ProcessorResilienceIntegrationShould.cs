@@ -18,6 +18,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 ///     - Exponential backoff coordination
 ///     - DeliveryGuaranteeOptions configuration
 /// </summary>
+[Trait("Category", "Unit")]
 public sealed class ProcessorResilienceIntegrationShould
 {
 	private readonly ILogger<InMemoryDeadLetterQueue> _dlqLogger;

@@ -25,6 +25,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Observability;
 ///     structured logs with correct correlation context propagation according to OpenTelemetry standards.
 /// </remarks>
 [Collection("Observability Tests")]
+[Trait("Category", "Unit")]
 public sealed class ObservabilityValidationTestSuite : IDisposable
 {
 	private readonly OpenTelemetryTestFixture _otelFixture;

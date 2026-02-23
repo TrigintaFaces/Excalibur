@@ -25,6 +25,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Performance;
 ///     BatchProcessor, UnifiedBatchingMiddleware) both in isolation and when integrated together.
 /// </remarks>
 [Collection("Performance Tests")]
+[Trait("Category", "Performance")]
 public sealed class UnifiedPerformanceTestSuite : IDisposable
 {
 	private readonly ILogger<InMemoryInboxStore> _inboxLogger;

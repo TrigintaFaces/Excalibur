@@ -97,11 +97,11 @@ public sealed class GlobalStreamProjectionHostShould
 			}),
 			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await host.StartAsync(cts.Token);
-		await Task.Delay(200);
+		await cts.CancelAsync().ConfigureAwait(false);
 		await host.StopAsync(CancellationToken.None);
 
 		// Assert - no exception thrown
@@ -144,11 +144,12 @@ public sealed class GlobalStreamProjectionHostShould
 			}),
 			NullLogger<GlobalStreamProjectionHost<GlobalStreamTestState>>.Instance);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await host.StartAsync(cts.Token);
 		await applyObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+		await cts.CancelAsync().ConfigureAwait(false);
 		await host.StopAsync(CancellationToken.None);
 
 		// Assert

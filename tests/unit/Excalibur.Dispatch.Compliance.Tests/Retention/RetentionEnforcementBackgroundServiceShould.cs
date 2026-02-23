@@ -65,13 +65,18 @@ public sealed class RetentionEnforcementBackgroundServiceShould
 	public async Task Run_enforcement_cycle()
 	{
 		var enforcementService = A.Fake<IRetentionEnforcementService>();
+		var cycleObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		A.CallTo(() => enforcementService.EnforceRetentionAsync(A<CancellationToken>._))
-			.Returns(new RetentionEnforcementResult
+			.ReturnsLazily(() =>
 			{
-				PoliciesEvaluated = 5,
-				RecordsCleaned = 0,
-				IsDryRun = false,
-				CompletedAt = DateTimeOffset.UtcNow
+				_ = cycleObserved.TrySetResult();
+				return Task.FromResult(new RetentionEnforcementResult
+				{
+					PoliciesEvaluated = 5,
+					RecordsCleaned = 0,
+					IsDryRun = false,
+					CompletedAt = DateTimeOffset.UtcNow
+				});
 			});
 
 		var (scopeFactory, _) = SetupScopeFactory(enforcementService);
@@ -87,9 +92,9 @@ public sealed class RetentionEnforcementBackgroundServiceShould
 			Microsoft.Extensions.Options.Options.Create(options),
 			NullLogger<RetentionEnforcementBackgroundService>.Instance);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+		using var cts = new CancellationTokenSource();
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
-		await Task.Delay(TimeSpan.FromMilliseconds(300), CancellationToken.None).ConfigureAwait(false);
+		await cycleObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None).ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		A.CallTo(() => enforcementService.EnforceRetentionAsync(A<CancellationToken>._))

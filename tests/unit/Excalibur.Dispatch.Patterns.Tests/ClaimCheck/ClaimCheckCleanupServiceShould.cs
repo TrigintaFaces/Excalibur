@@ -20,7 +20,6 @@ public sealed class ClaimCheckCleanupServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await Task.Delay(1000);
 		await sut.StopAsync(CancellationToken.None);
 
 		// Assert -- provider should never be called
@@ -40,7 +39,6 @@ public sealed class ClaimCheckCleanupServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await Task.Delay(1000);
 		await sut.StopAsync(CancellationToken.None);
 
 		// Assert -- service should exit gracefully without calling cleanup
@@ -58,17 +56,22 @@ public sealed class ClaimCheckCleanupServiceShould
 		};
 
 		var provider = A.Fake<IClaimCheckProviderWithCleanup>();
+		var cleanupObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		A.CallTo(() => provider.CleanupExpiredAsync(A<int>._, A<CancellationToken>._))
-			.Returns(3);
+			.ReturnsLazily(() =>
+			{
+				_ = cleanupObserved.TrySetResult();
+				return Task.FromResult(3);
+			});
 
 		var logger = CreateEnabledLogger();
 		var sut = new ClaimCheckCleanupService(provider, Microsoft.Extensions.Options.Options.Create(options), logger);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		try { await Task.Delay(300, cts.Token); } catch (OperationCanceledException) { }
+		await cleanupObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 		await sut.StopAsync(CancellationToken.None);
 
 		// Assert -- cleanup should have been invoked at least once
@@ -87,12 +90,17 @@ public sealed class ClaimCheckCleanupServiceShould
 		};
 
 		var callCount = 0;
+		var cleanupAttemptObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var provider = A.Fake<IClaimCheckProviderWithCleanup>();
 		A.CallTo(() => provider.CleanupExpiredAsync(A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
-				callCount++;
-				if (callCount == 1)
+				var observedCount = Interlocked.Increment(ref callCount);
+				if (observedCount >= 1)
+				{
+					_ = cleanupAttemptObserved.TrySetResult();
+				}
+				if (observedCount == 1)
 				{
 					throw new InvalidOperationException("Test error");
 				}
@@ -102,14 +110,14 @@ public sealed class ClaimCheckCleanupServiceShould
 		var logger = CreateEnabledLogger();
 		var sut = new ClaimCheckCleanupService(provider, Microsoft.Extensions.Options.Options.Create(options), logger);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+		using var cts = new CancellationTokenSource();
 
 		// Act -- service should not crash on error, should retry
 		await sut.StartAsync(cts.Token);
-		try { await Task.Delay(TimeSpan.FromSeconds(2), cts.Token); } catch (OperationCanceledException) { }
+		await cleanupAttemptObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 		await sut.StopAsync(CancellationToken.None);
 
-		// Assert -- should have been called more than once (retry after error)
+		// Assert -- at least one cleanup attempt occurred and the service remained stoppable after the error
 		callCount.ShouldBeGreaterThan(0);
 	}
 
@@ -127,11 +135,11 @@ public sealed class ClaimCheckCleanupServiceShould
 		var logger = CreateEnabledLogger();
 		var sut = new ClaimCheckCleanupService(provider, Microsoft.Extensions.Options.Options.Create(options), logger);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		try { await Task.Delay(200, cts.Token); } catch (OperationCanceledException) { }
+		await cts.CancelAsync().ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None);
 
 		// Assert -- should not throw, should exit cleanly

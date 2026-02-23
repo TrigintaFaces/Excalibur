@@ -24,6 +24,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Performance;
 ///     according to observability requirements.
 /// </remarks>
 [Collection("Performance Tests")]
+[Trait("Category", "Performance")]
 public sealed class ObservabilityValidationTestSuite : IDisposable
 {
 	private readonly List<IDisposable> _disposables;

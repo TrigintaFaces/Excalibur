@@ -91,12 +91,8 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 
 		var service = new CdcProcessingHostedService(processor, options, logger);
 
-		using var cts = new CancellationTokenSource();
-
 		// Act
-		await service.StartAsync(cts.Token);
-		await Task.Delay(200); // Allow time for ExecuteAsync to check Enabled flag
-		await cts.CancelAsync();
+		await service.StartAsync(CancellationToken.None);
 		await service.StopAsync(CancellationToken.None);
 
 		// Assert - No processing methods should be called when disabled
@@ -112,8 +108,10 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 	public async Task ExecuteAsync_CallsProcessChangesAsync_WhenEnabled()
 	{
 		// Arrange
+		var firstProcessingCall = CreateSignal();
 		var processor = A.Fake<ICdcBackgroundProcessor>();
 		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
+			.Invokes(() => firstProcessingCall.TrySetResult(true))
 			.Returns(0);
 
 		var options = Options.Create(new CdcProcessingOptions
@@ -129,7 +127,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(250); // Allow time for at least one processing cycle
+		await firstProcessingCall.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -185,12 +183,18 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 	{
 		// Arrange
 		var callCount = 0;
+		var twoCallsObserved = CreateSignal();
 		var processor = A.Fake<ICdcBackgroundProcessor>();
 		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
 			.Invokes(() =>
 			{
-				_ = Interlocked.Increment(ref callCount);
-				if (callCount == 1)
+				var currentCall = Interlocked.Increment(ref callCount);
+				if (currentCall >= 2)
+				{
+					twoCallsObserved.TrySetResult(true);
+				}
+
+				if (currentCall == 1)
 				{
 					throw new InvalidOperationException("Test exception");
 				}
@@ -210,7 +214,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(300); // Allow time for multiple cycles
+		await twoCallsObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -226,8 +230,10 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 	public async Task StopAsync_CompletesGracefully_WhenProcessorFinishesBeforeDrainTimeout()
 	{
 		// Arrange
+		var firstProcessingCall = CreateSignal();
 		var processor = A.Fake<ICdcBackgroundProcessor>();
 		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
+			.Invokes(() => firstProcessingCall.TrySetResult(true))
 			.Returns(0);
 
 		var options = Options.Create(new CdcProcessingOptions
@@ -244,7 +250,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(200);
+		await firstProcessingCall.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 
 		// StopAsync should complete without throwing
@@ -255,8 +261,10 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 	public async Task StopAsync_UsesDrainTimeout_FromOptions()
 	{
 		// Arrange
+		var firstProcessingCall = CreateSignal();
 		var processor = A.Fake<ICdcBackgroundProcessor>();
 		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
+			.Invokes(() => firstProcessingCall.TrySetResult(true))
 			.Returns(0);
 
 		var drainTimeoutSeconds = 10;
@@ -272,7 +280,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(CancellationToken.None);
-		await Task.Delay(200);
+		await firstProcessingCall.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// StopAsync should complete since the processor is fast
 		await service.StopAsync(CancellationToken.None);
@@ -422,6 +430,11 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 			PollingInterval = TimeSpan.FromSeconds(5),
 			DrainTimeoutSeconds = 30
 		});
+	}
+
+	private static TaskCompletionSource<bool> CreateSignal()
+	{
+		return new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 	}
 
 	#endregion

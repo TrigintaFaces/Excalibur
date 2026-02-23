@@ -8,8 +8,6 @@ using Excalibur.EventSourcing.Subscriptions;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
-using Tests.Shared.Infrastructure;
-
 namespace Excalibur.EventSourcing.Tests.Core.Subscriptions;
 
 [Trait("Category", "Unit")]
@@ -107,52 +105,56 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 	public async Task SubscribeAsyncStartsPolling()
 	{
 		// Arrange
+		var firstPollObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		A.CallTo(() => _eventStore.LoadAsync(A<string>._, A<string>._, A<long>._, A<CancellationToken>._))
-			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>()));
+			.ReturnsLazily(() =>
+			{
+				_ = firstPollObserved.TrySetResult();
+				return new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>());
+			});
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
 
 		// Act
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, cts.Token);
-		var pollingStarted = await WaitHelpers.WaitUntilAsync(() =>
-		{
-			try
-			{
-				A.CallTo(() => _eventStore.LoadAsync("stream-1", "stream-1", A<long>._, A<CancellationToken>._))
-					.MustHaveHappened();
-				return true;
-			}
-			catch (ExpectationException)
-			{
-				return false;
-			}
-		}, timeout: TimeSpan.FromSeconds(1), pollInterval: TimeSpan.FromMilliseconds(25));
+		await firstPollObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 
 		// Assert - polling should call LoadAsync at least once
-		pollingStarted.ShouldBeTrue();
+		A.CallTo(() => _eventStore.LoadAsync("stream-1", "stream-1", A<long>._, A<CancellationToken>._))
+			.MustHaveHappened();
+		await _sut.UnsubscribeAsync(CancellationToken.None).ConfigureAwait(false);
 	}
 
 	[Fact]
 	public async Task UnsubscribeAsyncStopsPolling()
 	{
 		// Arrange
+		var firstPollObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var loadCalls = 0;
 		A.CallTo(() => _eventStore.LoadAsync(A<string>._, A<string>._, A<long>._, A<CancellationToken>._))
-			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>()));
+			.ReturnsLazily(() =>
+			{
+				var count = Interlocked.Increment(ref loadCalls);
+				if (count == 1)
+				{
+					_ = firstPollObserved.TrySetResult();
+				}
+
+				return new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>());
+			});
 
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, cts.Token);
+		await firstPollObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None).ConfigureAwait(false);
 
 		// Act
 		await _sut.UnsubscribeAsync(CancellationToken.None);
+		var callsAfterUnsubscribe = Volatile.Read(ref loadCalls);
+		await Task.Delay(TimeSpan.FromMilliseconds(250), CancellationToken.None).ConfigureAwait(false);
 
-		// Assert - no exception should be thrown
-		Fake.ClearRecordedCalls(_eventStore);
-		await Task.Delay(200);
-
-		// After unsubscribe, no more calls should be made
-		A.CallTo(() => _eventStore.LoadAsync(A<string>._, A<string>._, A<long>._, A<CancellationToken>._))
-			.MustNotHaveHappened();
+		// Assert - no additional polls should occur after unsubscribe completes
+		Volatile.Read(ref loadCalls).ShouldBe(callsAfterUnsubscribe);
 	}
 
 	[Fact]
@@ -178,16 +180,21 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 		A.CallTo(() => _eventSerializer.DeserializeEvent(A<byte[]>._, A<Type>._)).Returns(domainEvent);
 
 		var deliveredEvents = new List<IDomainEvent>();
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+		var deliveredObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await _sut.SubscribeAsync("stream-1", events =>
 		{
 			deliveredEvents.AddRange(events);
+			if (events.Count > 0)
+			{
+				_ = deliveredObserved.TrySetResult();
+			}
 			return Task.CompletedTask;
 		}, cts.Token);
-
-		await Task.Delay(400);
+		await deliveredObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None).ConfigureAwait(false);
+		await _sut.UnsubscribeAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		deliveredEvents.Count.ShouldBeGreaterThan(0);
@@ -201,13 +208,25 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 		var storedEvent = new StoredEvent(
 			"evt-1", "agg-1", "TestAgg", "BadEvent", "data"u8.ToArray(), null, 0, DateTimeOffset.UtcNow, false);
 
+		var loadCalls = 0;
+		var secondPollObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		A.CallTo(() => _eventStore.LoadAsync("stream-1", "stream-1", A<long>._, A<CancellationToken>._))
-			.ReturnsLazily(_ => new ValueTask<IReadOnlyList<StoredEvent>>(new[] { storedEvent }));
+			.ReturnsLazily(call =>
+			{
+				var count = Interlocked.Increment(ref loadCalls);
+				if (count >= 2)
+				{
+					_ = secondPollObserved.TrySetResult();
+					return new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>());
+				}
+
+				return new ValueTask<IReadOnlyList<StoredEvent>>(new[] { storedEvent });
+			});
 
 		A.CallTo(() => _eventSerializer.ResolveType("BadEvent")).Throws(new InvalidOperationException("Unknown type"));
 
 		var deliveredEvents = new List<IDomainEvent>();
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+		using var cts = new CancellationTokenSource();
 
 		// Act - should not throw, deserialization errors are skipped
 		await _sut.SubscribeAsync("stream-1", events =>
@@ -215,8 +234,8 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 			deliveredEvents.AddRange(events);
 			return Task.CompletedTask;
 		}, cts.Token);
-
-		await Task.Delay(300);
+		await secondPollObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None).ConfigureAwait(false);
+		await _sut.UnsubscribeAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - no events should be delivered (they were all bad)
 		deliveredEvents.ShouldBeEmpty();
@@ -250,6 +269,7 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 		// Assert - polling should eventually query from beginning
 		A.CallTo(() => _eventStore.LoadAsync("stream-1", "stream-1", -1L, A<CancellationToken>._))
 			.MustHaveHappened();
+		await _sut.UnsubscribeAsync(CancellationToken.None).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -283,6 +303,7 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 		// Assert - polling should eventually use configured start position
 		A.CallTo(() => _eventStore.LoadAsync("stream-1", "stream-1", 42L, A<CancellationToken>._))
 			.MustHaveHappened();
+		await _sut.UnsubscribeAsync(CancellationToken.None).ConfigureAwait(false);
 	}
 
 	[Fact]

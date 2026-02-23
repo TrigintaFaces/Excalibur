@@ -20,8 +20,17 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 	public async Task ExecuteAsync_ShouldBecomeUnhealthy_WhenConsecutiveErrorsReachThreshold()
 	{
 		// Arrange
+		var callCount = 0;
+		var thresholdReached = CreateSignal();
 		var processor = A.Fake<ICdcBackgroundProcessor>();
 		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
+			.Invokes(() =>
+			{
+				if (Interlocked.Increment(ref callCount) >= 2)
+				{
+					thresholdReached.TrySetResult(true);
+				}
+			})
 			.ThrowsAsync(new InvalidOperationException("boom"));
 
 		var options = Options.Create(new CdcProcessingOptions
@@ -36,7 +45,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await WaitUntilAsync(() => service.ConsecutiveErrors >= 2, TimeSpan.FromSeconds(5));
+		await thresholdReached.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -50,6 +59,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 	{
 		// Arrange
 		var callCount = 0;
+		var postRecoveryObserved = CreateSignal();
 		var processor = A.Fake<ICdcBackgroundProcessor>();
 		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
 			.ReturnsLazily(() =>
@@ -58,6 +68,11 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 				if (current == 1)
 				{
 					throw new InvalidOperationException("first failure");
+				}
+
+				if (current >= 3)
+				{
+					postRecoveryObserved.TrySetResult(true);
 				}
 
 				return Task.FromResult(1);
@@ -75,8 +90,9 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await WaitUntilAsync(() => Volatile.Read(ref callCount) >= 2, TimeSpan.FromSeconds(5));
-		await WaitUntilAsync(() => service.ConsecutiveErrors == 0, TimeSpan.FromSeconds(5));
+		await postRecoveryObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		service.ConsecutiveErrors.ShouldBe(0);
+		service.IsHealthy.ShouldBeTrue();
 		var lastSuccess = service.LastSuccessfulProcessing;
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
@@ -90,8 +106,10 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 	public async Task StopAsync_ShouldSetServiceUnhealthy_AfterRunningHealthyCycle()
 	{
 		// Arrange
+		var firstSuccessObserved = CreateSignal();
 		var processor = A.Fake<ICdcBackgroundProcessor>();
 		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
+			.Invokes(() => firstSuccessObserved.TrySetResult(true))
 			.Returns(1);
 
 		var options = Options.Create(new CdcProcessingOptions
@@ -106,7 +124,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await WaitUntilAsync(() => service.LastSuccessfulProcessing > DateTimeOffset.UnixEpoch, TimeSpan.FromSeconds(5));
+		await firstSuccessObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		service.IsHealthy.ShouldBeTrue();
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
@@ -124,10 +142,12 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 	{
 		// Arrange
 		var processor = A.Fake<ICdcBackgroundProcessor>();
+		var processingStarted = CreateSignal();
 
 		// Configure processor to block indefinitely on ProcessChangesAsync
 		var processCompletionSource = new TaskCompletionSource<int>();
 		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
+			.Invokes(() => processingStarted.TrySetResult(true))
 			.Returns(processCompletionSource.Task);
 
 		var options = Options.Create(new CdcProcessingOptions
@@ -143,8 +163,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(CancellationToken.None);
-		// Let the service start processing
-		await Task.Delay(100);
+		await processingStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
 		// Stop should trigger drain timeout because processor is blocked
 		await service.StopAsync(CancellationToken.None);
@@ -209,13 +228,19 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 		// Arrange
 		var processor = A.Fake<ICdcBackgroundProcessor>();
 		var callCount = 0;
+		var multipleCyclesObserved = CreateSignal();
 
 		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
-				callCount++;
+				var current = Interlocked.Increment(ref callCount);
+				if (current >= 2)
+				{
+					multipleCyclesObserved.TrySetResult(true);
+				}
+
 				// Return positive count on first call, zero on subsequent calls
-				return Task.FromResult(callCount == 1 ? 5 : 0);
+				return Task.FromResult(current == 1 ? 5 : 0);
 			});
 
 		var options = Options.Create(new CdcProcessingOptions
@@ -232,7 +257,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(250); // Allow time for multiple cycles
+		await multipleCyclesObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -249,11 +274,13 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 	{
 		// Arrange
 		var processor = A.Fake<ICdcBackgroundProcessor>();
+		var processingObserved = CreateSignal();
 		using var cts = new CancellationTokenSource();
 
 		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
 			.Invokes(() =>
 			{
+				processingObserved.TrySetResult(true);
 				// Cancel during processing
 				cts.Cancel();
 			})
@@ -271,7 +298,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 
 		// Act - Should not throw
 		await service.StartAsync(cts.Token);
-		await Task.Delay(200);
+		await processingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await service.StopAsync(CancellationToken.None);
 	}
 
@@ -281,9 +308,14 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 		// Arrange
 		var processor = A.Fake<ICdcBackgroundProcessor>();
 		var callCount = 0;
+		var firstCallObserved = CreateSignal();
 
 		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
-			.Invokes(() => Interlocked.Increment(ref callCount))
+			.Invokes(() =>
+			{
+				Interlocked.Increment(ref callCount);
+				firstCallObserved.TrySetResult(true);
+			})
 			.Returns(0);
 
 		var options = Options.Create(new CdcProcessingOptions
@@ -300,7 +332,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(100); // Allow first processing call
+		await firstCallObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -316,8 +348,10 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 	public async Task StopAsync_ShouldCompleteGracefully_WhenPassedCancellationToken()
 	{
 		// Arrange
+		var firstCallObserved = CreateSignal();
 		var processor = A.Fake<ICdcBackgroundProcessor>();
 		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
+			.Invokes(() => firstCallObserved.TrySetResult(true))
 			.Returns(0);
 
 		var options = Options.Create(new CdcProcessingOptions
@@ -333,7 +367,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(CancellationToken.None);
-		await Task.Delay(150);
+		await firstCallObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
 		using var stopCts = new CancellationTokenSource();
 		await service.StopAsync(stopCts.Token);
@@ -349,10 +383,19 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 		// Arrange
 		var processor = A.Fake<ICdcBackgroundProcessor>();
 		var callCount = 0;
+		var multipleCyclesObserved = CreateSignal();
 
 		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
-			.Invokes(() => Interlocked.Increment(ref callCount))
-			.ReturnsLazily(() => Task.FromResult(callCount % 2 == 1 ? 3 : 0)); // Alternate between 3 and 0
+			.ReturnsLazily(() =>
+			{
+				var current = Interlocked.Increment(ref callCount);
+				if (current > 3)
+				{
+					multipleCyclesObserved.TrySetResult(true);
+				}
+
+				return Task.FromResult(current % 2 == 1 ? 3 : 0); // Alternate between 3 and 0
+			});
 
 		var options = Options.Create(new CdcProcessingOptions
 		{
@@ -368,7 +411,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(250);
+		await multipleCyclesObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -430,6 +473,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 
 		var logger = A.Fake<ILogger<CdcProcessingHostedService>>();
 		var observedDurations = new List<double>();
+		var durationObserved = CreateSignal();
 		_ = A.CallTo(() => logger.IsEnabled(LogLevel.Debug)).Returns(true);
 
 		A.CallTo(logger)
@@ -444,6 +488,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 				if (TryReadStructuredLogDouble(call.Arguments[2], "DurationMs", out var durationMs))
 				{
 					observedDurations.Add(durationMs);
+					durationObserved.TrySetResult(true);
 				}
 			});
 
@@ -452,7 +497,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(200);
+		await durationObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -465,8 +510,10 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 	public async Task ExecuteAsync_ShouldNotEmitDurationMs_WhenNoChangesAreProcessed()
 	{
 		// Arrange
+		var firstCallObserved = CreateSignal();
 		var processor = A.Fake<ICdcBackgroundProcessor>();
 		_ = A.CallTo(() => processor.ProcessChangesAsync(A<CancellationToken>._))
+			.Invokes(() => firstCallObserved.TrySetResult(true))
 			.Returns(0);
 
 		var options = Options.Create(new CdcProcessingOptions
@@ -499,7 +546,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(200);
+		await firstCallObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -525,20 +572,9 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 		return false;
 	}
 
-	private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
+	private static TaskCompletionSource<bool> CreateSignal()
 	{
-		var deadline = DateTime.UtcNow + timeout;
-		while (DateTime.UtcNow < deadline)
-		{
-			if (condition())
-			{
-				return;
-			}
-
-			await Task.Delay(25);
-		}
-
-		throw new TimeoutException("Condition was not met within the allotted timeout.");
+		return new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 	}
 }
 

@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.ErrorHandling;
 /// Tests for the <see cref="InMemoryDeadLetterQueue"/> class.
 /// Epic 6 (bd-rj9o): Integration tests for dead letter queue.
 /// </summary>
+[Trait("Category", "Unit")]
 public sealed class InMemoryDeadLetterQueueShould
 {
 	private readonly ILogger<InMemoryDeadLetterQueue> _logger;
