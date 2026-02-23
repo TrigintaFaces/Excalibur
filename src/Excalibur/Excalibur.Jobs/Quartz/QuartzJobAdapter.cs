@@ -4,6 +4,8 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
+using System.Reflection;
+using System.Runtime.Loader;
 
 using Excalibur.Jobs.Abstractions;
 using Excalibur.Jobs.Diagnostics;
@@ -28,7 +30,7 @@ public sealed partial class QuartzJobAdapter(
 	private readonly ILogger<QuartzJobAdapter> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <inheritdoc />
-	[RequiresUnreferencedCode("Type.GetType(string) is used to resolve job types from JobDataMap string values. " +
+	[RequiresUnreferencedCode("Runtime type resolution is used to resolve job types from JobDataMap string values. " +
 		"Pass Type objects in JobDataMap instead of type name strings for AOT compatibility.")]
 	public async Task Execute(IJobExecutionContext context)
 	{
@@ -39,7 +41,7 @@ public sealed partial class QuartzJobAdapter(
 		var jobType = jobTypeData switch
 		{
 			Type type => type,
-			string typeName => Type.GetType(typeName),
+			string typeName => ResolveJobType(typeName),
 			_ => null,
 		};
 
@@ -112,4 +114,77 @@ public sealed partial class QuartzJobAdapter(
 	[LoggerMessage(JobsEventId.ErrorExecutingJob, LogLevel.Error,
 		"Error executing job {JobType} with key {JobKey}")]
 	private partial void LogErrorExecutingJob(string jobType, object jobKey, Exception ex);
+
+	private static Type? ResolveJobType(string typeName)
+	{
+		if (string.IsNullOrWhiteSpace(typeName))
+		{
+			return null;
+		}
+
+		var simpleTypeName = typeName;
+		var assemblyName = string.Empty;
+		var commaIndex = typeName.IndexOf(',', StringComparison.Ordinal);
+		if (commaIndex > 0)
+		{
+			simpleTypeName = typeName[..commaIndex].Trim();
+			var assemblySegment = typeName[(commaIndex + 1)..];
+			var nextComma = assemblySegment.IndexOf(',', StringComparison.Ordinal);
+			assemblyName = nextComma >= 0
+				? assemblySegment[..nextComma].Trim()
+				: assemblySegment.Trim();
+		}
+
+		if (!string.IsNullOrWhiteSpace(assemblyName))
+		{
+			var assembly = FindLoadedAssembly(assemblyName) ?? TryLoadAssembly(assemblyName);
+			var resolvedFromAssembly = assembly?.GetType(simpleTypeName, throwOnError: false, ignoreCase: false);
+			if (resolvedFromAssembly is not null)
+			{
+				return resolvedFromAssembly;
+			}
+		}
+
+		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+		{
+			if (assembly.IsDynamic)
+			{
+				continue;
+			}
+
+			var resolved = assembly.GetType(typeName, throwOnError: false, ignoreCase: false)
+				?? assembly.GetType(simpleTypeName, throwOnError: false, ignoreCase: false);
+			if (resolved is not null)
+			{
+				return resolved;
+			}
+		}
+
+		return null;
+	}
+
+	private static Assembly? FindLoadedAssembly(string assemblyName)
+	{
+		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+		{
+			if (string.Equals(assembly.GetName().Name, assemblyName, StringComparison.Ordinal))
+			{
+				return assembly;
+			}
+		}
+
+		return null;
+	}
+
+	private static Assembly? TryLoadAssembly(string assemblyName)
+	{
+		try
+		{
+			return AssemblyLoadContext.Default.LoadFromAssemblyName(new AssemblyName(assemblyName));
+		}
+		catch (Exception ex) when (ex is FileNotFoundException or FileLoadException or BadImageFormatException)
+		{
+			return null;
+		}
+	}
 }

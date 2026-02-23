@@ -490,7 +490,7 @@ public abstract class LegalHoldStoreConformanceTestKit
 		await store.SaveHoldAsync(olderHold, CancellationToken.None).ConfigureAwait(false);
 
 		// Small delay to ensure different CreatedAt
-		await Task.Delay(10).ConfigureAwait(false);
+		await Task.Delay(10, CancellationToken.None).ConfigureAwait(false);
 
 		var newerHold = CreateLegalHold(isActive: true);
 		await store.SaveHoldAsync(newerHold, CancellationToken.None).ConfigureAwait(false);

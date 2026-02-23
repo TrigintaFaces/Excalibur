@@ -587,7 +587,7 @@ public abstract class ClaimCheckProviderConformanceTestKit
 			var reference = await provider.StoreAsync(payload, CancellationToken.None, null).ConfigureAwait(false);
 
 			// Wait for expiration
-			await Task.Delay(100).ConfigureAwait(false);
+			await Task.Delay(100, CancellationToken.None).ConfigureAwait(false);
 
 			// Act & Assert
 			var caughtException = false;

@@ -3,6 +3,7 @@
 
 
 using System.Reflection;
+using System.Runtime.Loader;
 
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Postgres;
@@ -102,7 +103,7 @@ internal static class MigratorFactory
 			throw new FileNotFoundException($"Migration assembly not found: {fullPath}");
 		}
 
-		return Assembly.LoadFrom(fullPath);
+		return AssemblyLoadContext.Default.LoadFromAssemblyPath(fullPath);
 	}
 
 	private static string GetDefaultNamespace(Assembly assembly)

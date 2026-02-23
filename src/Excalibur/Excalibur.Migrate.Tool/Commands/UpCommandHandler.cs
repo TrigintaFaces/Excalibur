@@ -25,7 +25,7 @@ internal sealed class UpCommandHandler
 		string? migrationNamespace,
 		bool verbose)
 	{
-		Console.WriteLine($"Applying migrations using {provider}...");
+		Console.Out.WriteLine($"Applying migrations using {provider}...");
 
 		using var migratorResult = MigratorFactory.CreateMigrator(provider, connectionString, assemblyPath, migrationNamespace, verbose);
 		var migrator = migratorResult.Migrator;
@@ -37,18 +37,18 @@ internal sealed class UpCommandHandler
 			if (result.AppliedMigrations.Count == 0)
 			{
 				Console.ForegroundColor = ConsoleColor.Green;
-				Console.WriteLine("Database is up to date. No pending migrations.");
+				Console.Out.WriteLine("Database is up to date. No pending migrations.");
 				Console.ResetColor();
 			}
 			else
 			{
 				Console.ForegroundColor = ConsoleColor.Green;
-				Console.WriteLine($"Successfully applied {result.AppliedMigrations.Count} migration(s):");
+				Console.Out.WriteLine($"Successfully applied {result.AppliedMigrations.Count} migration(s):");
 				Console.ResetColor();
 
 				foreach (var migration in result.AppliedMigrations)
 				{
-					Console.WriteLine($"  - {migration}");
+					Console.Out.WriteLine($"  - {migration}");
 				}
 			}
 		}
@@ -67,3 +67,4 @@ internal sealed class UpCommandHandler
 		}
 	}
 }
+

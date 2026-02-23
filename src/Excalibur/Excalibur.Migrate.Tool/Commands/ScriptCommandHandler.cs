@@ -3,6 +3,7 @@
 
 
 using System.Reflection;
+using System.Runtime.Loader;
 using System.Text;
 
 namespace Excalibur.Migrate.Tool.Commands;
@@ -30,7 +31,7 @@ internal sealed class ScriptCommandHandler
 		bool verbose,
 		string outputPath)
 	{
-		Console.WriteLine($"Generating migration script for {provider}...");
+		Console.Out.WriteLine($"Generating migration script for {provider}...");
 
 		using var migratorResult = MigratorFactory.CreateMigrator(provider, connectionString, assemblyPath, migrationNamespace, verbose);
 		var migrator = migratorResult.Migrator;
@@ -40,7 +41,7 @@ internal sealed class ScriptCommandHandler
 		if (pendingMigrations.Count == 0)
 		{
 			Console.ForegroundColor = ConsoleColor.Yellow;
-			Console.WriteLine("No pending migrations. Nothing to script.");
+			Console.Out.WriteLine("No pending migrations. Nothing to script.");
 			Console.ResetColor();
 			return;
 		}
@@ -89,8 +90,8 @@ internal sealed class ScriptCommandHandler
 		await File.WriteAllTextAsync(fullPath, scriptBuilder.ToString()).ConfigureAwait(false);
 
 		Console.ForegroundColor = ConsoleColor.Green;
-		Console.WriteLine($"Successfully generated migration script with {pendingMigrations.Count} migration(s).");
-		Console.WriteLine($"Output: {fullPath}");
+		Console.Out.WriteLine($"Successfully generated migration script with {pendingMigrations.Count} migration(s).");
+		Console.Out.WriteLine($"Output: {fullPath}");
 		Console.ResetColor();
 	}
 
@@ -107,7 +108,7 @@ internal sealed class ScriptCommandHandler
 			throw new FileNotFoundException($"Migration assembly not found: {fullPath}");
 		}
 
-		return Assembly.LoadFrom(fullPath);
+		return AssemblyLoadContext.Default.LoadFromAssemblyPath(fullPath);
 	}
 
 	private static string GetDefaultNamespace(Assembly assembly)
@@ -145,3 +146,4 @@ internal sealed class ScriptCommandHandler
 		return null;
 	}
 }
+

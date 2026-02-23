@@ -27,7 +27,7 @@ internal sealed class DownCommandHandler
 		bool verbose,
 		string targetMigrationId)
 	{
-		Console.WriteLine($"Rolling back to migration {targetMigrationId} using {provider}...");
+		Console.Out.WriteLine($"Rolling back to migration {targetMigrationId} using {provider}...");
 
 		using var migratorResult = MigratorFactory.CreateMigrator(provider, connectionString, assemblyPath, migrationNamespace, verbose);
 		var migrator = migratorResult.Migrator;
@@ -51,10 +51,10 @@ internal sealed class DownCommandHandler
 			Console.Error.WriteLine($"Target migration '{targetMigrationId}' not found in applied migrations.");
 			Console.ResetColor();
 
-			Console.WriteLine("\nApplied migrations:");
+			Console.Out.WriteLine("\nApplied migrations:");
 			foreach (var migration in appliedMigrations)
 			{
-				Console.WriteLine($"  - {migration.MigrationId} (applied: {migration.AppliedAt:yyyy-MM-dd HH:mm:ss})");
+				Console.Out.WriteLine($"  - {migration.MigrationId} (applied: {migration.AppliedAt:yyyy-MM-dd HH:mm:ss})");
 			}
 
 			throw new InvalidOperationException($"Target migration '{targetMigrationId}' not found.");
@@ -64,15 +64,15 @@ internal sealed class DownCommandHandler
 		if (migrationsToRemove == 0)
 		{
 			Console.ForegroundColor = ConsoleColor.Yellow;
-			Console.WriteLine("No migrations to roll back. The target migration is the latest applied migration.");
+			Console.Out.WriteLine("No migrations to roll back. The target migration is the latest applied migration.");
 			Console.ResetColor();
 			return;
 		}
 
-		Console.WriteLine($"This will remove {migrationsToRemove} migration(s):");
+		Console.Out.WriteLine($"This will remove {migrationsToRemove} migration(s):");
 		for (var i = appliedMigrations.Count - 1; i > targetIndex; i--)
 		{
-			Console.WriteLine($"  - {appliedMigrations[i].MigrationId}");
+			Console.Out.WriteLine($"  - {appliedMigrations[i].MigrationId}");
 		}
 
 		var result = await migrator.RollbackAsync(targetMigrationId, CancellationToken.None).ConfigureAwait(false);
@@ -80,7 +80,7 @@ internal sealed class DownCommandHandler
 		if (result.Success)
 		{
 			Console.ForegroundColor = ConsoleColor.Green;
-			Console.WriteLine($"Successfully rolled back {migrationsToRemove} migration(s).");
+			Console.Out.WriteLine($"Successfully rolled back {migrationsToRemove} migration(s).");
 			Console.ResetColor();
 		}
 		else
@@ -98,3 +98,4 @@ internal sealed class DownCommandHandler
 		}
 	}
 }
+

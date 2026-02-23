@@ -3,6 +3,9 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
+using System.Reflection;
+using System.Runtime.ExceptionServices;
+using System.Runtime.Loader;
 
 using Excalibur.A3;
 using Excalibur.A3.Audit;
@@ -36,7 +39,7 @@ public static class ServiceCollectionExtensions
 	/// if not already registered. For multi-tenant applications, register your tenant resolver
 	/// before calling this method.
 	/// </remarks>
-	[RequiresUnreferencedCode("Calls methods that use Type.GetType to dynamically load database-specific request providers.")]
+	[RequiresUnreferencedCode("Calls methods that use runtime type resolution to dynamically load database-specific request providers.")]
 	public static IServiceCollection AddExcaliburA3Services(this IServiceCollection services, SupportedDatabase databaseType)
 	{
 		_ = services.TryAddTenantId();
@@ -97,7 +100,7 @@ public static class ServiceCollectionExtensions
 	/// <param name="services"> The service collection to add services Excalibur.Dispatch.Transport.Aws.Sqs.LongPolling.Configuration. </param>
 	/// <param name="databaseType"> The type of database to configure for authorization services. </param>
 	/// <returns> The updated service collection. </returns>
-	[RequiresUnreferencedCode("Calls methods that use Type.GetType to dynamically load database-specific request providers.")]
+	[RequiresUnreferencedCode("Calls methods that use runtime type resolution to dynamically load database-specific request providers.")]
 	private static IServiceCollection AddAuthorization(this IServiceCollection services, SupportedDatabase databaseType)
 	{
 		_ = services
@@ -106,11 +109,8 @@ public static class ServiceCollectionExtensions
 			.AddTransient<ActivityGroups>()
 			.AddTransient<UserGrants>()
 			.AddScoped<IAuthorizationPolicyProvider, AuthorizationPolicyProvider>()
-			.AddScoped(static container => container
-				.GetRequiredService<IAuthorizationPolicyProvider>()
-				.GetPolicyAsync()
-				.GetAwaiter()
-				.GetResult())
+			.AddScoped<IAuthorizationPolicy>(static container =>
+				ResolvePolicySynchronously(container.GetRequiredService<IAuthorizationPolicyProvider>()))
 			.AddHttpClient<IActivityGroupService, ActivityGroupService>(static client =>
 			{
 				client.BaseAddress = new Uri(ApplicationContext.AuthorizationServiceEndpoint);
@@ -120,7 +120,7 @@ public static class ServiceCollectionExtensions
 		return services;
 	}
 
-	[RequiresUnreferencedCode("Calls methods that use Type.GetType to dynamically load database-specific request providers.")]
+	[RequiresUnreferencedCode("Calls methods that use runtime type resolution to dynamically load database-specific request providers.")]
 	private static IServiceCollection AddAuthorizationRequestProviders(this IServiceCollection services, SupportedDatabase databaseType)
 	{
 		_ = services.AddActivityGroupRequestProvider(databaseType);
@@ -130,42 +130,119 @@ public static class ServiceCollectionExtensions
 	}
 
 	[RequiresUnreferencedCode(
-		"Uses Type.GetType to dynamically load database-specific request providers. The types should be preserved if using AOT.")]
+		"Uses runtime type resolution to dynamically load database-specific request providers. The types should be preserved if using AOT.")]
 	private static IServiceCollection AddActivityGroupRequestProvider(this IServiceCollection services, SupportedDatabase databaseType)
 	{
-		var requestProviderType = databaseType switch
+		var (typeName, assemblyName) = databaseType switch
 		{
-			SupportedDatabase.Postgres => Type.GetType(
-				"Excalibur.Dispatch.Databases.Postgres.RequestProviders.Authorization.ActivityGroups.PostgresActivityGroupRequestProvider, Excalibur.Dispatch.Databases.Postgres"),
-			SupportedDatabase.SqlServer => Type.GetType(
-				"Excalibur.Dispatch.Databases.SqlServer.RequestProviders.Authorization.ActivityGroups.SqlServerActivityGroupRequestProvider, Excalibur.Dispatch.Databases.SqlServer"),
+			SupportedDatabase.Postgres => (
+				"Excalibur.Dispatch.Databases.Postgres.RequestProviders.Authorization.ActivityGroups.PostgresActivityGroupRequestProvider",
+				"Excalibur.Dispatch.Databases.Postgres"),
+			SupportedDatabase.SqlServer => (
+				"Excalibur.Dispatch.Databases.SqlServer.RequestProviders.Authorization.ActivityGroups.SqlServerActivityGroupRequestProvider",
+				"Excalibur.Dispatch.Databases.SqlServer"),
 			SupportedDatabase.Unknown or _ => throw new NotSupportedException(
 				$"Database type '{databaseType}' is not supported."),
-		}
-								  ?? throw new InvalidOperationException(
-									  $"The request provider for '{databaseType}' is not available. Ensure the appropriate NuGet package is installed.");
+		};
+
+		var requestProviderType = ResolveRequestProviderType(typeName, assemblyName, databaseType);
 
 		services.TryAddSingleton(typeof(IActivityGroupRequestProvider), requestProviderType);
 		return services;
 	}
 
 	[RequiresUnreferencedCode(
-		"Uses Type.GetType to dynamically load database-specific request providers. The types should be preserved if using AOT.")]
+		"Uses runtime type resolution to dynamically load database-specific request providers. The types should be preserved if using AOT.")]
 	private static IServiceCollection AddGrantRequestProvider(this IServiceCollection services, SupportedDatabase databaseType)
 	{
-		var requestProviderType = databaseType switch
+		var (typeName, assemblyName) = databaseType switch
 		{
-			SupportedDatabase.Postgres => Type.GetType(
-				"Excalibur.Dispatch.Databases.Postgres.RequestProviders.Authorization.Grants.PostgresGrantRequestProvider, Excalibur.Dispatch.Databases.Postgres"),
-			SupportedDatabase.SqlServer => Type.GetType(
-				"Excalibur.Dispatch.Databases.SqlServer.RequestProviders.Authorization.Grants.SqlServerGrantRequestProvider, Excalibur.Dispatch.Databases.SqlServer"),
+			SupportedDatabase.Postgres => (
+				"Excalibur.Dispatch.Databases.Postgres.RequestProviders.Authorization.Grants.PostgresGrantRequestProvider",
+				"Excalibur.Dispatch.Databases.Postgres"),
+			SupportedDatabase.SqlServer => (
+				"Excalibur.Dispatch.Databases.SqlServer.RequestProviders.Authorization.Grants.SqlServerGrantRequestProvider",
+				"Excalibur.Dispatch.Databases.SqlServer"),
 			SupportedDatabase.Unknown or _ => throw new NotSupportedException(
 				$"Database type '{databaseType}' is not supported."),
-		}
-								  ?? throw new InvalidOperationException(
-									  $"The request provider for '{databaseType}' is not available. Ensure the appropriate NuGet package is installed.");
+		};
+
+		var requestProviderType = ResolveRequestProviderType(typeName, assemblyName, databaseType);
 
 		services.TryAddSingleton(typeof(IGrantRequestProvider), requestProviderType);
 		return services;
+	}
+
+	private static IAuthorizationPolicy ResolvePolicySynchronously(IAuthorizationPolicyProvider policyProvider)
+	{
+		using var completed = new ManualResetEventSlim(false);
+		IAuthorizationPolicy? resolvedPolicy = null;
+		Exception? error = null;
+
+		_ = ResolveAsync();
+		if (!completed.Wait(TimeSpan.FromSeconds(30)))
+		{
+			throw new TimeoutException("Timed out while resolving authorization policy.");
+		}
+
+		if (error is not null)
+		{
+			ExceptionDispatchInfo.Capture(error).Throw();
+		}
+
+		return resolvedPolicy ?? throw new InvalidOperationException(
+			"Authorization policy resolution returned null.");
+
+		async Task ResolveAsync()
+		{
+			try
+			{
+				resolvedPolicy = await policyProvider.GetPolicyAsync().ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				error = ex;
+			}
+			finally
+			{
+				completed.Set();
+			}
+		}
+	}
+
+	private static Type ResolveRequestProviderType(string typeName, string assemblyName, SupportedDatabase databaseType)
+	{
+		var assembly = FindLoadedAssembly(assemblyName) ?? LoadAssembly(assemblyName);
+		var providerType = assembly.GetType(typeName, throwOnError: false, ignoreCase: false);
+
+		return providerType ?? throw new InvalidOperationException(
+			$"The request provider for '{databaseType}' is not available. Ensure the appropriate NuGet package is installed.");
+	}
+
+	private static Assembly? FindLoadedAssembly(string assemblyName)
+	{
+		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+		{
+			if (string.Equals(assembly.GetName().Name, assemblyName, StringComparison.Ordinal))
+			{
+				return assembly;
+			}
+		}
+
+		return null;
+	}
+
+	private static Assembly LoadAssembly(string assemblyName)
+	{
+		try
+		{
+			return AssemblyLoadContext.Default.LoadFromAssemblyName(new AssemblyName(assemblyName));
+		}
+		catch (Exception ex) when (ex is FileNotFoundException or FileLoadException or BadImageFormatException)
+		{
+			throw new InvalidOperationException(
+				$"The request provider assembly '{assemblyName}' is not available. Ensure the appropriate NuGet package is installed.",
+				ex);
+		}
 	}
 }

@@ -222,7 +222,7 @@ public abstract class CronJobStoreConformanceTestKit
 		await store.AddJobAsync(job, CancellationToken.None).ConfigureAwait(false);
 
 		var beforeUpdate = DateTimeOffset.UtcNow;
-		await Task.Delay(10).ConfigureAwait(false); // Small delay to ensure time difference
+		await Task.Delay(10, CancellationToken.None).ConfigureAwait(false); // Small delay to ensure time difference
 
 		job.Name = "ModifiedName";
 		await store.UpdateJobAsync(job, CancellationToken.None).ConfigureAwait(false);
@@ -788,7 +788,7 @@ public abstract class CronJobStoreConformanceTestKit
 		for (var i = 0; i < 5; i++)
 		{
 			await store.RecordExecutionAsync(job.Id, true, CancellationToken.None).ConfigureAwait(false);
-			await Task.Delay(10).ConfigureAwait(false); // Small delay to ensure different timestamps
+			await Task.Delay(10, CancellationToken.None).ConfigureAwait(false); // Small delay to ensure different timestamps
 		}
 
 		// Request only 3 entries

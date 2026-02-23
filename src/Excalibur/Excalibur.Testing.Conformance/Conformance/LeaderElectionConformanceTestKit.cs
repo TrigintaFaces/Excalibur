@@ -421,7 +421,7 @@ public abstract class LeaderElectionConformanceTestKit
 
 			var completedTask = await Task.WhenAny(
 				tcs.Task,
-				Task.Delay(EventTimeout)
+				Task.Delay(EventTimeout, CancellationToken.None)
 			).ConfigureAwait(false);
 
 			if (completedTask != tcs.Task)
@@ -472,7 +472,7 @@ public abstract class LeaderElectionConformanceTestKit
 
 			var completedTask = await Task.WhenAny(
 				tcs.Task,
-				Task.Delay(EventTimeout)
+				Task.Delay(EventTimeout, CancellationToken.None)
 			).ConfigureAwait(false);
 
 			if (completedTask != tcs.Task)
@@ -512,7 +512,7 @@ public abstract class LeaderElectionConformanceTestKit
 
 			var completedTask = await Task.WhenAny(
 				tcs.Task,
-				Task.Delay(EventTimeout)
+				Task.Delay(EventTimeout, CancellationToken.None)
 			).ConfigureAwait(false);
 
 			if (completedTask != tcs.Task)
