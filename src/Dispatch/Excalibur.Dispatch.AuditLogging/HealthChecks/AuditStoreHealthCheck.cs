@@ -57,21 +57,21 @@ public sealed partial class AuditStoreHealthCheck : IHealthCheck
 			["store_type"] = _auditStore.GetType().Name,
 		};
 
-		var stopwatch = Stopwatch.StartNew();
+		var startTimestamp = Stopwatch.GetTimestamp();
 		try
 		{
 			var query = new AuditQuery { MaxResults = 1 };
 			var count = await _auditStore.CountAsync(query, cancellationToken).ConfigureAwait(false);
+			var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
 
-			stopwatch.Stop();
-			data["duration_ms"] = stopwatch.Elapsed.TotalMilliseconds;
+			data["duration_ms"] = elapsed.TotalMilliseconds;
 			data["total_events"] = count;
 
-			if (stopwatch.Elapsed > _degradedThreshold)
+			if (elapsed > _degradedThreshold)
 			{
-				LogAuditStoreHealthCheckDegraded(stopwatch.Elapsed.TotalMilliseconds);
+				LogAuditStoreHealthCheckDegraded(elapsed.TotalMilliseconds);
 				return HealthCheckResult.Degraded(
-					$"Audit store responded slowly ({stopwatch.Elapsed.TotalMilliseconds:F1}ms > {_degradedThreshold.TotalMilliseconds}ms).",
+					$"Audit store responded slowly ({elapsed.TotalMilliseconds:F1}ms > {_degradedThreshold.TotalMilliseconds}ms).",
 					data: data);
 			}
 
@@ -82,8 +82,7 @@ public sealed partial class AuditStoreHealthCheck : IHealthCheck
 		}
 		catch (Exception ex)
 		{
-			stopwatch.Stop();
-			data["duration_ms"] = stopwatch.Elapsed.TotalMilliseconds;
+			data["duration_ms"] = Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
 
 			LogAuditStoreHealthCheckFailed(ex);
 			return HealthCheckResult.Unhealthy(

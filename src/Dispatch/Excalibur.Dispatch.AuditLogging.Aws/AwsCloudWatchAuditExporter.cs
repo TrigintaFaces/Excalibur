@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics;
 using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+
+using System.Diagnostics;
 
 using Excalibur.Dispatch.Compliance;
 
@@ -189,7 +190,7 @@ public sealed partial class AwsCloudWatchAuditExporter : IAuditLogExporter
 	/// <inheritdoc />
 	public async Task<AuditExporterHealthResult> CheckHealthAsync(CancellationToken cancellationToken)
 	{
-		var sw = Stopwatch.StartNew();
+		var startTimestamp = Stopwatch.GetTimestamp();
 
 		try
 		{
@@ -198,18 +199,18 @@ public sealed partial class AwsCloudWatchAuditExporter : IAuditLogExporter
 							 ?? $"https://logs.{_options.Region}.amazonaws.com";
 			using var request = new HttpRequestMessage(HttpMethod.Get, serviceUrl);
 			var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-			sw.Stop();
 
 			// Any response from the endpoint indicates reachability
 			var isHealthy = response.StatusCode is not HttpStatusCode.ServiceUnavailable
 							and not HttpStatusCode.GatewayTimeout;
+			var elapsedMs = (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
 
 			return new AuditExporterHealthResult
 			{
 				IsHealthy = isHealthy,
 				ExporterName = Name,
 				Endpoint = serviceUrl,
-				LatencyMs = sw.ElapsedMilliseconds,
+				LatencyMs = elapsedMs,
 				CheckedAt = DateTimeOffset.UtcNow,
 				ErrorMessage = isHealthy ? null : $"Unexpected status code: {response.StatusCode}",
 				Diagnostics = new Dictionary<string, string>
@@ -223,16 +224,15 @@ public sealed partial class AwsCloudWatchAuditExporter : IAuditLogExporter
 		}
 		catch (Exception ex)
 		{
-			sw.Stop();
-
 			LogHealthCheckFailed(ex);
+			var elapsedMs = (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
 
 			return new AuditExporterHealthResult
 			{
 				IsHealthy = false,
 				ExporterName = Name,
 				Endpoint = $"https://logs.{_options.Region}.amazonaws.com",
-				LatencyMs = sw.ElapsedMilliseconds,
+				LatencyMs = elapsedMs,
 				CheckedAt = DateTimeOffset.UtcNow,
 				ErrorMessage = ex.Message
 			};

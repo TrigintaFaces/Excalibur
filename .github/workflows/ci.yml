@@ -1980,26 +1980,77 @@ jobs:
             echo "::warning::Dependency review unsupported or unavailable (HTTP ${status_code}); skipping blocking enforcement."
           fi
 
+      - name: Check dependency review quota
+        id: dependency_review_quota
+        if: steps.dependency_review_support.outputs.supported == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          min_remaining=150
+
+          if ! command -v jq >/dev/null 2>&1; then
+            echo "quota_ok=false" >> "${GITHUB_OUTPUT}"
+            echo "::warning::jq unavailable; skipping blocking dependency review enforcement."
+            exit 0
+          fi
+
+          rate_json="$(curl -sS \
+            -H 'Accept: application/vnd.github+json' \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/rate_limit" || true)"
+
+          remaining="$(echo "${rate_json}" | jq -r '.resources.core.remaining // 0')"
+          reset_epoch="$(echo "${rate_json}" | jq -r '.resources.core.reset // 0')"
+          now_epoch="$(date +%s)"
+          reset_in=$(( reset_epoch - now_epoch ))
+
+          echo "remaining=${remaining}" >> "${GITHUB_OUTPUT}"
+
+          if [[ "${remaining}" -lt "${min_remaining}" ]]; then
+            echo "quota_ok=false" >> "${GITHUB_OUTPUT}"
+            echo "::warning::Low API quota (${remaining} remaining, reset in ${reset_in}s); skipping blocking dependency review enforcement."
+          else
+            echo "quota_ok=true" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Dependency review (attempt 1)
         id: dependency_review_attempt_1
-        if: steps.dependency_review_support.outputs.supported == 'true'
+        if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true'
         continue-on-error: true
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
 
+      - name: Backoff before dependency review retry 2
+        if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_attempt_1.outcome == 'failure'
+        shell: bash
+        run: sleep 30
+
       - name: Dependency review (attempt 2)
         id: dependency_review_attempt_2
-        if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_attempt_1.outcome == 'failure'
+        if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_attempt_1.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
+      - name: Backoff before dependency review retry 3
+        if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_attempt_2.outcome == 'failure'
+        shell: bash
+        run: sleep 90
+
+      - name: Dependency review (attempt 3)
+        id: dependency_review_attempt_3
+        if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_attempt_2.outcome == 'failure'
         continue-on-error: true
         uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
 
       - name: Enforce dependency review result
-        if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_attempt_1.outcome == 'failure' && steps.dependency_review_attempt_2.outcome == 'failure'
+        if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_attempt_1.outcome == 'failure' && steps.dependency_review_attempt_2.outcome == 'failure' && steps.dependency_review_attempt_3.outcome == 'failure'
         run: |
-          echo "::error::Dependency review failed twice. This can indicate either a transient GitHub service error or real policy violations."
+          echo "::error::Dependency review failed after 3 attempts. This may indicate either a transient GitHub service error or real policy violations."
           exit 1
 
   secrets-scan:

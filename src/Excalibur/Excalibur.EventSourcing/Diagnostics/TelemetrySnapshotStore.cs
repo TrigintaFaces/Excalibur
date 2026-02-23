@@ -82,18 +82,18 @@ public sealed class TelemetrySnapshotStore : DelegatingSnapshotStore
 		using var activity = _activitySource.StartActivity(EventSourcingActivities.GetSnapshot);
 		SetActivityTags(activity, guardedId, guardedType);
 
-		var sw = Stopwatch.StartNew();
+		var startTimestamp = Stopwatch.GetTimestamp();
 		try
 		{
 			var result = await base.GetLatestSnapshotAsync(aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
-			RecordSuccess("get_snapshot", guardedType, sw);
+			RecordSuccess("get_snapshot", guardedType, startTimestamp);
 			activity?.SetTag(EventSourcingTags.OperationResult,
 				result is not null ? EventSourcingTagValues.Success : EventSourcingTagValues.NotFound);
 			return result;
 		}
 		catch (Exception ex)
 		{
-			RecordFailure("get_snapshot", guardedType, sw, activity, ex);
+			RecordFailure("get_snapshot", guardedType, startTimestamp, activity, ex);
 			throw;
 		}
 	}
@@ -111,15 +111,15 @@ public sealed class TelemetrySnapshotStore : DelegatingSnapshotStore
 		SetActivityTags(activity, guardedId, guardedType);
 		activity?.SetTag(EventSourcingTags.Version, snapshot.Version);
 
-		var sw = Stopwatch.StartNew();
+		var startTimestamp = Stopwatch.GetTimestamp();
 		try
 		{
 			await base.SaveSnapshotAsync(snapshot, cancellationToken).ConfigureAwait(false);
-			RecordSuccess("save_snapshot", guardedType, sw);
+			RecordSuccess("save_snapshot", guardedType, startTimestamp);
 		}
 		catch (Exception ex)
 		{
-			RecordFailure("save_snapshot", guardedType, sw, activity, ex);
+			RecordFailure("save_snapshot", guardedType, startTimestamp, activity, ex);
 			throw;
 		}
 	}
@@ -135,15 +135,15 @@ public sealed class TelemetrySnapshotStore : DelegatingSnapshotStore
 		using var activity = _activitySource.StartActivity(EventSourcingActivities.DeleteSnapshots);
 		SetActivityTags(activity, guardedId, guardedType);
 
-		var sw = Stopwatch.StartNew();
+		var startTimestamp = Stopwatch.GetTimestamp();
 		try
 		{
 			await base.DeleteSnapshotsAsync(aggregateId, aggregateType, cancellationToken).ConfigureAwait(false);
-			RecordSuccess("delete_snapshots", guardedType, sw);
+			RecordSuccess("delete_snapshots", guardedType, startTimestamp);
 		}
 		catch (Exception ex)
 		{
-			RecordFailure("delete_snapshots", guardedType, sw, activity, ex);
+			RecordFailure("delete_snapshots", guardedType, startTimestamp, activity, ex);
 			throw;
 		}
 	}
@@ -161,22 +161,21 @@ public sealed class TelemetrySnapshotStore : DelegatingSnapshotStore
 		SetActivityTags(activity, guardedId, guardedType);
 		activity?.SetTag(EventSourcingTags.Version, olderThanVersion);
 
-		var sw = Stopwatch.StartNew();
+		var startTimestamp = Stopwatch.GetTimestamp();
 		try
 		{
 			await base.DeleteSnapshotsOlderThanAsync(aggregateId, aggregateType, olderThanVersion, cancellationToken).ConfigureAwait(false);
-			RecordSuccess("delete_snapshots_older", guardedType, sw);
+			RecordSuccess("delete_snapshots_older", guardedType, startTimestamp);
 		}
 		catch (Exception ex)
 		{
-			RecordFailure("delete_snapshots_older", guardedType, sw, activity, ex);
+			RecordFailure("delete_snapshots_older", guardedType, startTimestamp, activity, ex);
 			throw;
 		}
 	}
 
-	private void RecordSuccess(string operation, string guardedType, Stopwatch sw)
+	private void RecordSuccess(string operation, string guardedType, long startTimestamp)
 	{
-		sw.Stop();
 		var tags = new TagList
 		{
 			{ EventSourcingTags.Operation, operation },
@@ -186,12 +185,11 @@ public sealed class TelemetrySnapshotStore : DelegatingSnapshotStore
 		};
 
 		_operationsCounter.Add(1, tags);
-		_durationHistogram.Record(sw.Elapsed.TotalSeconds, tags);
+		_durationHistogram.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds, tags);
 	}
 
-	private void RecordFailure(string operation, string guardedType, Stopwatch sw, Activity? activity, Exception ex)
+	private void RecordFailure(string operation, string guardedType, long startTimestamp, Activity? activity, Exception ex)
 	{
-		sw.Stop();
 		var guardedExceptionType = _exceptionTypeGuard.Guard(ex.GetType().FullName);
 		activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
 		activity?.SetTag(EventSourcingTags.ExceptionType, guardedExceptionType);
@@ -205,7 +203,7 @@ public sealed class TelemetrySnapshotStore : DelegatingSnapshotStore
 		};
 
 		_operationsCounter.Add(1, tags);
-		_durationHistogram.Record(sw.Elapsed.TotalSeconds, tags);
+		_durationHistogram.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds, tags);
 	}
 
 	private void SetActivityTags(Activity? activity, string aggregateId, string guardedType)

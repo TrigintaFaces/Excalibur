@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+
+using System.Diagnostics;
 
 using Excalibur.Dispatch.Compliance;
 
@@ -191,7 +192,7 @@ public sealed partial class ElasticsearchAuditExporter : IAuditLogExporter
 	/// <inheritdoc />
 	public async Task<AuditExporterHealthResult> CheckHealthAsync(CancellationToken cancellationToken)
 	{
-		var sw = Stopwatch.StartNew();
+		var startTimestamp = Stopwatch.GetTimestamp();
 
 		try
 		{
@@ -200,16 +201,16 @@ public sealed partial class ElasticsearchAuditExporter : IAuditLogExporter
 			ApplyAuthentication(request);
 
 			var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-			sw.Stop();
 
 			var isHealthy = response.IsSuccessStatusCode;
+			var elapsedMs = (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
 
 			return new AuditExporterHealthResult
 			{
 				IsHealthy = isHealthy,
 				ExporterName = Name,
 				Endpoint = _options.ElasticsearchUrl,
-				LatencyMs = sw.ElapsedMilliseconds,
+				LatencyMs = elapsedMs,
 				CheckedAt = DateTimeOffset.UtcNow,
 				ErrorMessage = isHealthy ? null : $"Unexpected status code: {response.StatusCode}",
 				Diagnostics = new Dictionary<string, string>
@@ -222,16 +223,15 @@ public sealed partial class ElasticsearchAuditExporter : IAuditLogExporter
 		}
 		catch (Exception ex)
 		{
-			sw.Stop();
-
 			LogHealthCheckFailed(ex);
+			var elapsedMs = (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds;
 
 			return new AuditExporterHealthResult
 			{
 				IsHealthy = false,
 				ExporterName = Name,
 				Endpoint = _options.ElasticsearchUrl,
-				LatencyMs = sw.ElapsedMilliseconds,
+				LatencyMs = elapsedMs,
 				CheckedAt = DateTimeOffset.UtcNow,
 				ErrorMessage = ex.Message
 			};

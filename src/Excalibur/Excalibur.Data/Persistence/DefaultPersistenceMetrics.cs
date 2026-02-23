@@ -285,13 +285,12 @@ internal sealed class DefaultPersistenceMetrics : IPersistenceMetrics, IDisposab
 	/// </summary>
 	private sealed class TimedOperation(DefaultPersistenceMetrics metrics, string operationName) : IDisposable
 	{
-		private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
+		private readonly long _startTimestamp = Stopwatch.GetTimestamp();
 
 		public void Dispose()
 		{
-			_stopwatch.Stop();
 			metrics._queryDuration.Record(
-				_stopwatch.ElapsedMilliseconds,
+				Stopwatch.GetElapsedTime(_startTimestamp).TotalMilliseconds,
 				new KeyValuePair<string, object?>("operation", operationName));
 		}
 	}
