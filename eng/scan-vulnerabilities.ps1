@@ -58,19 +58,26 @@ foreach ($project in $projectFiles) {
         continue
     }
 
-    # Parse output for vulnerabilities
+    # Parse output for vulnerabilities.
+    # Do not key off raw severity words alone: terms like "following" contain "Low"
+    # and create false positives.
     $outputText = $output | Out-String
+    $hasVulnerabilitySignal =
+        $outputText -match '(?im)has the following vulnerable packages' -or
+        $outputText -match '(?im)\bGHSA-[0-9A-Za-z-]+\b' -or
+        $outputText -match '(?im)\bCVE-\d{4}-\d+\b'
 
-    if ($outputText -match "Critical|High|Moderate|Low") {
+    if ($hasVulnerabilitySignal) {
         $vulnerabilitiesFound = $true
         Write-Host "❌ Vulnerabilities detected in $($project.Name):" -ForegroundColor Red
         Write-Host $outputText -ForegroundColor Yellow
 
         # Count severity levels
-        $criticalCount += ([regex]::Matches($outputText, "Critical")).Count
-        $highCount += ([regex]::Matches($outputText, "High")).Count
-        $moderateCount += ([regex]::Matches($outputText, "Moderate")).Count
-        $lowCount += ([regex]::Matches($outputText, "Low")).Count
+        # dotnet list prints severity in a table column; use boundaries to avoid substring matches.
+        $criticalCount += ([regex]::Matches($outputText, '(?im)\bCritical\b')).Count
+        $highCount += ([regex]::Matches($outputText, '(?im)\bHigh\b')).Count
+        $moderateCount += ([regex]::Matches($outputText, '(?im)\bModerate\b')).Count
+        $lowCount += ([regex]::Matches($outputText, '(?im)\bLow\b')).Count
     }
     else {
         Write-Host "✅ No vulnerabilities detected" -ForegroundColor Green

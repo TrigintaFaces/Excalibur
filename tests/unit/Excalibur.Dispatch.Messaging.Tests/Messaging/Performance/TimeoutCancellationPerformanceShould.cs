@@ -303,16 +303,19 @@ public sealed class TimeoutCancellationPerformanceShould : IDisposable
 			await rootCts.CancelAsync().ConfigureAwait(false);
 
 			// Wait for all operations to be cancelled
-			await Task.WhenAll(operationTasks).ConfigureAwait(false);
+			await Task.WhenAll(operationTasks)
+				.WaitAsync(TimeSpan.FromSeconds(30))
+				.ConfigureAwait(false);
 			propagationStopwatch.Stop();
 
 			// Assert
 			var expectedCancellations = cascadeDepth * operationsPerLevel;
 
 			totalCancellations.ShouldBe(expectedCancellations);
-			// Cancellation propagation through 50-deep cascade should complete quickly
-			// Allow generous time for CI environments (200ms instead of 100ms)
-			propagationStopwatch.Elapsed.TotalMilliseconds.ShouldBeLessThan(200);
+			// Cancellation propagation through a 50-deep cascade should complete quickly.
+			// Profiling-based CI runs (coverage/CodeQL) can inflate cancellation callback latency significantly.
+			var maxPropagationMilliseconds = IsInstrumentedRuntime() ? 30000d : 200d;
+			propagationStopwatch.Elapsed.TotalMilliseconds.ShouldBeLessThan(maxPropagationMilliseconds);
 		}
 		finally
 		{
@@ -507,5 +510,12 @@ public sealed class TimeoutCancellationPerformanceShould : IDisposable
 		{
 			disposable?.Dispose();
 		}
+	}
+
+	private static bool IsInstrumentedRuntime()
+	{
+		return string.Equals(Environment.GetEnvironmentVariable("CORECLR_ENABLE_PROFILING"), "1", StringComparison.Ordinal)
+			   || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CODEQL_RUNNER"))
+			   || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CODEQL_ACTION_VERSION"));
 	}
 }

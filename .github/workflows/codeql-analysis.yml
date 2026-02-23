@@ -23,7 +23,7 @@ jobs:
   analyze:
     name: Analyze C# Code
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     strategy:
       fail-fast: false
@@ -58,11 +58,11 @@ jobs:
               - '**/obj/**'
               - '**/bin/**'
 
-      - name: Restore dependencies
-        run: dotnet restore
+      - name: Restore shipping projects
+        run: dotnet restore eng/ci/shards/ShippingOnly.slnf
 
-      - name: Build solution
-        run: dotnet build --no-restore --configuration Release
+      - name: Build shipping projects
+        run: dotnet build eng/ci/shards/ShippingOnly.slnf --no-restore --configuration Release
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3

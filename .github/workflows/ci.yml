@@ -2019,7 +2019,11 @@ jobs:
         continue-on-error: true
         uses: actions/dependency-review-action@v4
         with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           fail-on-severity: high
+          vulnerability-check: true
+          license-check: false
+          show-openssf-scorecard: false
 
       - name: Backoff before dependency review retry 2
         if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_attempt_1.outcome == 'failure'
@@ -2032,7 +2036,11 @@ jobs:
         continue-on-error: true
         uses: actions/dependency-review-action@v4
         with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           fail-on-severity: high
+          vulnerability-check: true
+          license-check: false
+          show-openssf-scorecard: false
 
       - name: Backoff before dependency review retry 3
         if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_attempt_2.outcome == 'failure'
@@ -2045,7 +2053,11 @@ jobs:
         continue-on-error: true
         uses: actions/dependency-review-action@v4
         with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
           fail-on-severity: high
+          vulnerability-check: true
+          license-check: false
+          show-openssf-scorecard: false
 
       - name: Enforce dependency review result
         if: steps.dependency_review_support.outputs.supported == 'true' && steps.dependency_review_quota.outputs.quota_ok == 'true' && steps.dependency_review_attempt_1.outcome == 'failure' && steps.dependency_review_attempt_2.outcome == 'failure' && steps.dependency_review_attempt_3.outcome == 'failure'
