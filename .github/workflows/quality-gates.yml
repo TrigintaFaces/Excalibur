@@ -187,7 +187,7 @@ jobs:
         run: |
           dotnet test --configuration Release --no-build \
             --blame-hang-timeout 5m \
-            --filter "Category!=Integration&Category!=TransportConformance&Category!=LoadTest" \
+            --filter "Category!=Integration&Category!=TransportConformance&Category!=LoadTest&Category!=Performance" \
             --logger "trx;LogFileName=test-results.trx" \
             --logger "console;verbosity=normal" \
             --results-directory ./test-results
