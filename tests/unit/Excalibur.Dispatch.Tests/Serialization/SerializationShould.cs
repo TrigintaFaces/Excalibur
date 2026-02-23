@@ -418,23 +418,30 @@ public sealed class SerializationShould : UnitTestBase
 		// Arrange
 		var testEvent = new TestDomainEvent("agg-1", 1);
 		var serialized = JsonSerializer.SerializeToUtf8Bytes(testEvent, _jsonOptions);
+		const int warmupIterations = 25;
+		const int measuredIterations = 250;
 
-		var initialMemory = GC.GetTotalMemory(forceFullCollection: true);
-
-		// Act - 100 iterations
-		for (var i = 0; i < 100; i++)
+		// Warm up serializer caches and JIT so we measure steady-state allocation behavior.
+		for (var i = 0; i < warmupIterations; i++)
 		{
-			var deserialized = JsonSerializer.Deserialize<TestDomainEvent>(serialized, _jsonOptions);
-			;
-			_ = deserialized.ShouldNotBeNull();
+			_ = JsonSerializer.Deserialize<TestDomainEvent>(serialized, _jsonOptions);
 		}
 
-		var finalMemory = GC.GetTotalMemory(forceFullCollection: true);
-		var memoryDelta = finalMemory - initialMemory;
+		// Act: Measure allocation on the current thread to avoid GC heap-noise flakiness in CI.
+		var startAllocatedBytes = GC.GetAllocatedBytesForCurrentThread();
+		TestDomainEvent? lastDeserialized = null;
 
-		// Assert - Memory delta should be reasonable (less than 1MB for 100 small objects)
-		// Note: Threshold increased to 1MB to account for GC variance under concurrent test loads
-		memoryDelta.ShouldBeLessThan(1024 * 1024);
+		for (var i = 0; i < measuredIterations; i++)
+		{
+			lastDeserialized = JsonSerializer.Deserialize<TestDomainEvent>(serialized, _jsonOptions);
+		}
+
+		var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - startAllocatedBytes;
+
+		// Assert
+		_ = lastDeserialized.ShouldNotBeNull();
+		var averageAllocationPerDeserialize = allocatedBytes / (double)measuredIterations;
+		averageAllocationPerDeserialize.ShouldBeLessThan(8 * 1024);
 	}
 
 	[Fact]
