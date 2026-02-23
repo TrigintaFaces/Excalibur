@@ -104,6 +104,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 		var erasureStore = A.Fake<IErasureStore>();
 		var erasureService = A.Fake<IErasureService>();
 		var queryStore = A.Fake<IErasureQueryStore>();
+		var executionObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		A.CallTo(() => erasureStore.GetService(typeof(IErasureQueryStore)))
 			.Returns(queryStore);
@@ -115,6 +116,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 				Task.FromResult<IReadOnlyList<ErasureStatus>>([]));
 
 		A.CallTo(() => erasureService.ExecuteAsync(requestId, A<CancellationToken>._))
+			.Invokes(() => executionObserved.TrySetResult(true))
 			.Returns(ErasureExecutionResult.Succeeded(3, 42));
 
 		var (scopeFactory, _) = SetupScopeFactory(erasureStore, erasureService);
@@ -131,9 +133,8 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 			Microsoft.Extensions.Options.Options.Create(options),
 			NullLogger<ErasureSchedulerBackgroundService>.Instance);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
-		await sut.StartAsync(cts.Token).ConfigureAwait(false);
-		await Task.Delay(TimeSpan.FromMilliseconds(300), CancellationToken.None).ConfigureAwait(false);
+		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await executionObserved.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		A.CallTo(() => erasureService.ExecuteAsync(requestId, A<CancellationToken>._))

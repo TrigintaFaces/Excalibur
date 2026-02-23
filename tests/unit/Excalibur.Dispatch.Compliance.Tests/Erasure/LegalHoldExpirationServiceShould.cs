@@ -67,6 +67,7 @@ public sealed class LegalHoldExpirationServiceShould
 	{
 		var holdStore = A.Fake<ILegalHoldStore>();
 		var queryStore = A.Fake<ILegalHoldQueryStore>();
+		var holdUpdated = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		A.CallTo(() => holdStore.GetService(typeof(ILegalHoldQueryStore)))
 			.Returns(queryStore);
@@ -77,6 +78,7 @@ public sealed class LegalHoldExpirationServiceShould
 			.Returns(new List<LegalHold> { expiredHold });
 
 		A.CallTo(() => holdStore.UpdateHoldAsync(A<LegalHold>._, A<CancellationToken>._))
+			.Invokes(() => holdUpdated.TrySetResult(true))
 			.Returns(true);
 
 		var (scopeFactory, _) = SetupScopeFactory(holdStore);
@@ -92,9 +94,8 @@ public sealed class LegalHoldExpirationServiceShould
 			Microsoft.Extensions.Options.Options.Create(options),
 			NullLogger<LegalHoldExpirationService>.Instance);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
-		await sut.StartAsync(cts.Token).ConfigureAwait(false);
-		await Task.Delay(TimeSpan.FromMilliseconds(300), CancellationToken.None).ConfigureAwait(false);
+		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await holdUpdated.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		A.CallTo(() => holdStore.UpdateHoldAsync(
