@@ -266,7 +266,9 @@ public sealed class InboxServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(50);
+		await WaitUntilAsync(
+			() => healthState.IsRunning,
+			TimeSpan.FromSeconds(2));
 
 		// Assert - Health state should be running
 		healthState.IsRunning.ShouldBeTrue();
