@@ -136,7 +136,7 @@ public sealed class BatchShould
 		var batch1 = new Batch<string>(items);
 
 		// Ensure different timestamps by waiting at least one tick
-		Thread.Sleep(1);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(1);
 		var batch2 = new Batch<string>(items);
 
 		// Assert - Same items reference but different timestamps

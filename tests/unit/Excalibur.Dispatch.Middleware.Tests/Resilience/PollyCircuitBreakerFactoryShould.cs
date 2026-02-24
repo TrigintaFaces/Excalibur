@@ -382,7 +382,7 @@ public sealed class PollyCircuitBreakerFactoryShould : UnitTestBase, IAsyncDispo
 		var disposeTask = _factory.DisposeAsync().AsTask();
 
 		// Assert
-		await Task.Delay(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 		disposeTask.IsCompleted.ShouldBeFalse();
 
 		gate.TrySetResult();

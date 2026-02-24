@@ -155,7 +155,7 @@ public sealed class FrozenCachePatternShould : IDisposable
 
 		var freezeTask = Task.Run(() =>
 		{
-			Thread.Sleep(10); // Small delay to ensure reads start
+			global::Tests.Shared.Infrastructure.TestTiming.Sleep(10); // Small delay to ensure reads start
 			HandlerInvoker.FreezeCache();
 		});
 

@@ -28,7 +28,7 @@ public class CircuitBreakerDataProviderFunctionalShould
 				return;
 			}
 
-			await Task.Delay(TimeSpan.FromMilliseconds(10)).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromMilliseconds(10)).ConfigureAwait(false);
 		}
 
 		provider.State.ShouldBe(expectedState);

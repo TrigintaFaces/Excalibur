@@ -86,7 +86,7 @@ public sealed class AuditStoreHealthCheckShould
 		A.CallTo(() => _fakeAuditStore.CountAsync(A<AuditQuery>._, A<CancellationToken>._))
 			.ReturnsLazily(async _ =>
 			{
-				await Task.Delay(50);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 				return 10L;
 			});
 

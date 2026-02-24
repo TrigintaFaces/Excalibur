@@ -281,7 +281,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 				break;
 			}
 
-			await Task.Delay(10);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10);
 		}
 
 		circuitOpened.ShouldBeTrue();
@@ -304,7 +304,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 			}
 			catch (CircuitBreakerOpenException)
 			{
-				await Task.Delay(10);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10);
 			}
 		}
 
@@ -324,7 +324,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		// Act
 		var result = await adapter.ExecuteAsync(async ct =>
 		{
-			await Task.Delay(1, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
 			return 42;
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -342,7 +342,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		// Act
 		await adapter.ExecuteAsync(async ct =>
 		{
-			await Task.Delay(1, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
 			executed = true;
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -362,7 +362,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		// Act
 		_ = await adapter.ExecuteAsync(async ct =>
 		{
-			await Task.Delay(1, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
 			return "success";
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -626,7 +626,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		// Act
 		await adapter.ExecuteAsync(async ct =>
 		{
-			await Task.Delay(1, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
 		}, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert

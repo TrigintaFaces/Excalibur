@@ -67,7 +67,7 @@ public sealed class HandlerTimeoutMiddlewareShould
 			context,
 			async (_, _, ct) =>
 			{
-				await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
 				return MessageResult.Success();
 			},
 			CancellationToken.None).ConfigureAwait(false);
@@ -99,7 +99,7 @@ public sealed class HandlerTimeoutMiddlewareShould
 			context,
 			async (_, _, ct) =>
 			{
-				await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
 				return MessageResult.Success();
 			},
 			CancellationToken.None).ConfigureAwait(false);
@@ -132,7 +132,7 @@ public sealed class HandlerTimeoutMiddlewareShould
 			context,
 			async (_, _, ct) =>
 			{
-				await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
 				return MessageResult.Success();
 			},
 			CancellationToken.None).ConfigureAwait(false);
@@ -164,7 +164,7 @@ public sealed class HandlerTimeoutMiddlewareShould
 					context,
 					async (_, _, ct) =>
 					{
-						await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
 						return MessageResult.Success();
 					},
 					CancellationToken.None)
@@ -195,7 +195,7 @@ public sealed class HandlerTimeoutMiddlewareShould
 					async (_, _, ct) =>
 					{
 						ct.ThrowIfCancellationRequested();
-						await Task.Delay(TimeSpan.FromMilliseconds(1), ct).ConfigureAwait(false);
+						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromMilliseconds(1), ct).ConfigureAwait(false);
 						return MessageResult.Success();
 					},
 					cts.Token)

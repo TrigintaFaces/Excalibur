@@ -419,7 +419,7 @@ public sealed class EncryptionMigrationServiceShould
 		_ = await _sut.MigrateBatchAsync(items, targetContext, options, CancellationToken.None);
 
 		// Assert - give time for progress to be reported
-		await Task.Delay(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 		progressReports.Count.ShouldBeGreaterThanOrEqualTo(1);
 	}
 
@@ -465,7 +465,7 @@ public sealed class EncryptionMigrationServiceShould
 		_ = await _sut.MigrateBatchAsync(items, targetContext, options, CancellationToken.None);
 
 		// Assert - give time for progress to be reported
-		await Task.Delay(100);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
 		progressReports.Count.ShouldBeGreaterThanOrEqualTo(1);
 
 		// Verify final progress report has correct values
@@ -503,7 +503,7 @@ public sealed class EncryptionMigrationServiceShould
 		_ = await _sut.MigrateBatchAsync(items, targetContext, options, CancellationToken.None);
 
 		// Assert - give time for progress (which shouldn't be reported)
-		await Task.Delay(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 		progressReports.ShouldBeEmpty();
 	}
 

@@ -151,7 +151,7 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 		// Act
 		await _sut.UnsubscribeAsync(CancellationToken.None);
 		var callsAfterUnsubscribe = Volatile.Read(ref loadCalls);
-		await Task.Delay(TimeSpan.FromMilliseconds(250), CancellationToken.None).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromMilliseconds(250), CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - no additional polls should occur after unsubscribe completes
 		Volatile.Read(ref loadCalls).ShouldBe(callsAfterUnsubscribe);

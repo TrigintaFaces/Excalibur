@@ -44,7 +44,7 @@ public sealed class InboxServiceShould2
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(200);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(200);
 		await service.StopAsync(CancellationToken.None);
 
 		// Assert
@@ -71,7 +71,7 @@ public sealed class InboxServiceShould2
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(200);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(200);
 		await service.StopAsync(CancellationToken.None);
 
 		// Assert - no exception
@@ -94,7 +94,7 @@ public sealed class InboxServiceShould2
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(200);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(200);
 		await service.StopAsync(CancellationToken.None);
 
 		// Assert - no exception

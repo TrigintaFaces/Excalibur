@@ -178,7 +178,7 @@ public sealed class OpenTelemetryTestFixture : IDisposable
 				return matching.AsReadOnly();
 			}
 
-			await Task.Delay(pollInterval).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(pollInterval).ConfigureAwait(false);
 		}
 
 		// Timeout - return what we have for diagnostic purposes

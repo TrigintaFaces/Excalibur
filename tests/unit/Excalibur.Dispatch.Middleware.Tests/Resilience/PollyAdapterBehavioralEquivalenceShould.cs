@@ -139,13 +139,13 @@ public sealed class PollyAdapterBehavioralEquivalenceShould : IDisposable
 		// Act
 		var defaultResult = await defaultCb.ExecuteAsync(async ct =>
 		{
-			await Task.Delay(1, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
 			return 42;
 		}, CancellationToken.None).ConfigureAwait(false);
 
 		var pollyResult = await pollyCb.ExecuteAsync(async ct =>
 		{
-			await Task.Delay(1, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
 			return 42;
 		}, CancellationToken.None).ConfigureAwait(false);
 

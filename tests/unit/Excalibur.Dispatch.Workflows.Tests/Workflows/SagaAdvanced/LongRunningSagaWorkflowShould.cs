@@ -405,7 +405,7 @@ public sealed class LongRunningSagaWorkflowShould
 			// Check for timeout
 			if (TimeoutOnStep == step)
 			{
-				await Task.Delay(StepTimeout + TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(StepTimeout + TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 				_log.Log($"{step}:Timeout");
 				state.Status = SagaStatus.TimedOut;
 				await CompensateAsync(state).ConfigureAwait(false);
@@ -452,7 +452,7 @@ public sealed class LongRunningSagaWorkflowShould
 				if (FailOnStep == step && _currentAttempts <= TransientFailCount)
 				{
 					_log.Log($"{step}:Attempt:{_currentAttempts}:Failed");
-					await Task.Delay(RetryDelayMs).ConfigureAwait(false);
+					await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(RetryDelayMs).ConfigureAwait(false);
 					continue;
 				}
 

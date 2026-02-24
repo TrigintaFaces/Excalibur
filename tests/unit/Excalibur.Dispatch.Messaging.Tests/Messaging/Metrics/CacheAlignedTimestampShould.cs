@@ -85,7 +85,7 @@ public sealed class CacheAlignedTimestampShould : UnitTestBase
 		var initialTicks = timestamp.Ticks;
 
 		// Small delay to ensure time changes
-		Thread.Sleep(1);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(1);
 
 		// Act
 		timestamp.UpdateNow();
@@ -133,7 +133,7 @@ public sealed class CacheAlignedTimestampShould : UnitTestBase
 	{
 		// Arrange
 		var timestamp = CacheAlignedTimestamp.Now();
-		Thread.Sleep(10);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
 
 		// Act
 		var elapsed = timestamp.GetElapsedMilliseconds();
@@ -147,7 +147,7 @@ public sealed class CacheAlignedTimestampShould : UnitTestBase
 	{
 		// Arrange
 		var timestamp = CacheAlignedTimestamp.Now();
-		Thread.Sleep(50);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(50);
 
 		// Act
 		var elapsed = timestamp.GetElapsedMilliseconds();
@@ -176,7 +176,7 @@ public sealed class CacheAlignedTimestampShould : UnitTestBase
 	{
 		// Arrange
 		var timestamp1 = CacheAlignedTimestamp.Now();
-		Thread.Sleep(1);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(1);
 		var timestamp2 = CacheAlignedTimestamp.Now();
 
 		// Act & Assert
@@ -231,7 +231,7 @@ public sealed class CacheAlignedTimestampShould : UnitTestBase
 	{
 		// Arrange
 		var timestamp1 = CacheAlignedTimestamp.Now();
-		Thread.Sleep(1);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(1);
 		var timestamp2 = CacheAlignedTimestamp.Now();
 
 		// Act & Assert

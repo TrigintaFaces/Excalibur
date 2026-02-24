@@ -30,10 +30,46 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		var deadline = DateTime.UtcNow + timeout;
 		while (!condition() && DateTime.UtcNow < deadline)
 		{
-			await Task.Delay(10).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10);
 		}
 
 		condition().ShouldBeTrue();
+	}
+
+	private static MeterListener CreateOutboxProcessingDurationListener(List<double> durations)
+	{
+		var listener = new MeterListener();
+		listener.InstrumentPublished = (instrument, meterListener) =>
+		{
+			if (instrument.Meter.Name == BackgroundServiceMetrics.MeterName &&
+				instrument.Name == "excalibur.background_service.processing_duration")
+			{
+				meterListener.EnableMeasurementEvents(instrument);
+			}
+		};
+		listener.SetMeasurementEventCallback<double>((_, measurement, tags, _) =>
+		{
+			if (IsOutboxServiceMeasurement(tags))
+			{
+				durations.Add(measurement);
+			}
+		});
+		listener.Start();
+		return listener;
+	}
+
+	private static bool IsOutboxServiceMeasurement(ReadOnlySpan<KeyValuePair<string, object?>> tags)
+	{
+		foreach (var tag in tags)
+		{
+			if (tag.Key == "service.type" &&
+				string.Equals(tag.Value?.ToString(), BackgroundServiceTypes.Outbox, StringComparison.Ordinal))
+			{
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	#region Constructor Tests
@@ -158,7 +194,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -196,7 +232,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await scheduledObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		await scheduledObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -235,7 +271,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await retryObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		await retryObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -269,7 +305,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -303,7 +339,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -377,7 +413,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -411,8 +447,8 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-		await WaitUntilAsync(() => healthState.TotalProcessed > 0, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		await WaitUntilAsync(() => healthState.TotalProcessed > 0, TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -444,41 +480,15 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
 		var durations = new List<double>();
 
-		using var listener = new MeterListener();
-		listener.InstrumentPublished = (instrument, meterListener) =>
-		{
-			if (instrument.Meter.Name == BackgroundServiceMetrics.MeterName &&
-				instrument.Name == "excalibur.background_service.processing_duration")
-			{
-				meterListener.EnableMeasurementEvents(instrument);
-			}
-		};
-		listener.SetMeasurementEventCallback<double>((instrument, measurement, tags, state) =>
-		{
-			string? serviceType = null;
-			foreach (var tag in tags)
-			{
-				if (tag.Key == "service.type")
-				{
-					serviceType = tag.Value?.ToString();
-					break;
-				}
-			}
-
-			if (serviceType == BackgroundServiceTypes.Outbox)
-			{
-				durations.Add(measurement);
-			}
-		});
-		listener.Start();
+		using var listener = CreateOutboxProcessingDurationListener(durations);
 
 		var service = new OutboxBackgroundService(publisher, options, logger);
 		using var cts = new CancellationTokenSource();
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
-		await WaitUntilAsync(() => durations.Count > 0, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		await WaitUntilAsync(() => durations.Count > 0, TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -513,7 +523,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -550,7 +560,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -589,7 +599,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await scheduledObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		await scheduledObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -630,7 +640,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await retryObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		await retryObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -669,7 +679,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -718,7 +728,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await secondCycleObserved.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+		await secondCycleObserved.Task.WaitAsync(TimeSpan.FromSeconds(10));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 

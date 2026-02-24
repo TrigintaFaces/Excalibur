@@ -146,7 +146,7 @@ public sealed class MaterializedViewMetricsShould : IDisposable
 	{
 		// Arrange - refresh two views at different times
 		_metrics.RecordRefreshSuccess("View1", TimeSpan.FromMilliseconds(100), 5);
-		Thread.Sleep(100); // Introduce delay
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(100); // Introduce delay
 		_metrics.RecordRefreshSuccess("View2", TimeSpan.FromMilliseconds(100), 5);
 
 		// Act

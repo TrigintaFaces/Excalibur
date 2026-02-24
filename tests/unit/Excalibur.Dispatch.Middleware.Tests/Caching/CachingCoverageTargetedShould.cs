@@ -387,7 +387,7 @@ public sealed class CachingCoverageTargetedShould : UnitTestBase
 		cache.Count.ShouldBe(2);
 
 		// Act -- wait for items to expire and timer to clean up
-		await Task.Delay(200);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(200);
 
 		// Assert -- expired items should have been removed by the timer callback
 		cache.TryGetValue("key1", out _).ShouldBeFalse();

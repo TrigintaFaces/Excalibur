@@ -108,7 +108,7 @@ public sealed class ValueGaugeShould
 		// Arrange
 		var gauge = new ValueGauge();
 		var originalUpdated = gauge.LastUpdated;
-		Thread.Sleep(10);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
 
 		// Act
 		gauge.Set(100);
@@ -172,7 +172,7 @@ public sealed class ValueGaugeShould
 		// Arrange
 		var gauge = new ValueGauge();
 		var originalUpdated = gauge.LastUpdated;
-		Thread.Sleep(10);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
 
 		// Act
 		_ = gauge.Increment();
@@ -216,7 +216,7 @@ public sealed class ValueGaugeShould
 		// Arrange
 		var gauge = new ValueGauge();
 		var originalUpdated = gauge.LastUpdated;
-		Thread.Sleep(10);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
 
 		// Act
 		_ = gauge.IncrementBy(10);
@@ -264,7 +264,7 @@ public sealed class ValueGaugeShould
 		// Arrange
 		var gauge = new ValueGauge();
 		var originalUpdated = gauge.LastUpdated;
-		Thread.Sleep(10);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
 
 		// Act
 		_ = gauge.Decrement();
@@ -309,7 +309,7 @@ public sealed class ValueGaugeShould
 		// Arrange
 		var gauge = new ValueGauge();
 		var originalUpdated = gauge.LastUpdated;
-		Thread.Sleep(10);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
 
 		// Act
 		_ = gauge.DecrementBy(5);
@@ -342,7 +342,7 @@ public sealed class ValueGaugeShould
 		// Arrange
 		var gauge = new ValueGauge();
 		var originalUpdated = gauge.LastUpdated;
-		Thread.Sleep(10);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
 
 		// Act
 		gauge.Reset();

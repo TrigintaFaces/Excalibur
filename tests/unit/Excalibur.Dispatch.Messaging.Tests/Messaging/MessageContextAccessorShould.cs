@@ -195,14 +195,14 @@ public sealed class MessageContextAccessorShould
 		var task1 = Task.Run(() =>
 		{
 			accessor.MessageContext = context1;
-			Thread.Sleep(50); // Give time for other task to set its context
+			global::Tests.Shared.Infrastructure.TestTiming.Sleep(50); // Give time for other task to set its context
 			capturedContext1 = accessor.MessageContext;
 		});
 
 		var task2 = Task.Run(() =>
 		{
 			accessor.MessageContext = context2;
-			Thread.Sleep(50); // Give time for other task to set its context
+			global::Tests.Shared.Infrastructure.TestTiming.Sleep(50); // Give time for other task to set its context
 			capturedContext2 = accessor.MessageContext;
 		});
 

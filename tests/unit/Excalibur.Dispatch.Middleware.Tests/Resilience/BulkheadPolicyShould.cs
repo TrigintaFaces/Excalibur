@@ -160,7 +160,7 @@ public sealed class BulkheadPolicyShould : UnitTestBase
 			tasks.Add(_policy.ExecuteAsync(async () =>
 			{
 				Interlocked.Increment(ref executionCount);
-				await Task.Delay(50);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 				return 1;
 			}, CancellationToken.None));
 		}
@@ -194,7 +194,7 @@ public sealed class BulkheadPolicyShould : UnitTestBase
 		var queuedTask = _policy.ExecuteAsync(() => Task.FromResult(2), CancellationToken.None);
 
 		// Small delay to let the queued task register
-		await Task.Delay(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 
 		// Act & Assert - Third task should be rejected
 		_ = await Should.ThrowAsync<BulkheadRejectedException>(

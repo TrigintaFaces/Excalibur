@@ -278,7 +278,7 @@ public sealed class RotatingEncryptionProviderShould : IDisposable
 		var plaintext = "Trigger rotation"u8.ToArray();
 
 		// Small delay to ensure key age check works
-		await Task.Delay(10);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10);
 
 		_ = await sut.EncryptAsync(plaintext, EncryptionContext.Default, CancellationToken.None);
 

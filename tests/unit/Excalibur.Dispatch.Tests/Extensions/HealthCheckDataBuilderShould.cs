@@ -50,7 +50,7 @@ public sealed class HealthCheckDataBuilderShould
 	{
 		// Arrange
 		var builder = new HealthCheckDataBuilder();
-		Thread.Sleep(10); // Ensure some time passes
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10); // Ensure some time passes
 
 		// Act
 		builder.AddResponseTime();

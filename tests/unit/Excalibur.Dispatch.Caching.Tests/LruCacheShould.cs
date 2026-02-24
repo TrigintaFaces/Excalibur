@@ -348,7 +348,7 @@ public sealed class LruCacheShould : IDisposable
 		_cache.Set("key1", 42);
 
 		// Act - Wait for expiration
-		Thread.Sleep(50);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(50);
 		var found = _cache.TryGetValue("key1", out _);
 
 		// Assert
@@ -364,7 +364,7 @@ public sealed class LruCacheShould : IDisposable
 		_cache.Set("key2", 2);
 
 		// Act
-		Thread.Sleep(50);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(50);
 		_cache.RemoveExpiredItems();
 
 		// Assert
@@ -379,7 +379,7 @@ public sealed class LruCacheShould : IDisposable
 		_cache.Set("key1", 42, TimeSpan.FromMilliseconds(1));
 
 		// Act
-		Thread.Sleep(50);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(50);
 		var found = _cache.TryGetValue("key1", out _);
 
 		// Assert

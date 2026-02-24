@@ -697,7 +697,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		election.IsLeader.ShouldBeTrue();
 
 		// Act - wait for at least one renewal cycle
-		await Task.Delay(TimeSpan.FromMilliseconds(200));
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromMilliseconds(200));
 
 		// Assert - still the leader after renewal
 		election.IsLeader.ShouldBeTrue();
@@ -719,7 +719,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		await election.StopAsync(CancellationToken.None);
 
 		// Act - wait to ensure timer does not cause issues
-		await Task.Delay(TimeSpan.FromMilliseconds(200));
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromMilliseconds(200));
 
 		// Assert - should remain not a leader
 		election.IsLeader.ShouldBeFalse();
@@ -741,7 +741,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		election.Dispose();
 
 		// Act - wait to ensure timer does not cause issues after dispose
-		await Task.Delay(TimeSpan.FromMilliseconds(200));
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromMilliseconds(200));
 
 		// Assert - should not throw, election is disposed
 		election.IsLeader.ShouldBeFalse();
@@ -1201,7 +1201,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		await election.StopAsync(CancellationToken.None);
 
 		// Wait to ensure no timer callbacks cause issues
-		await Task.Delay(TimeSpan.FromMilliseconds(100));
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromMilliseconds(100));
 
 		// Assert - no exceptions, still not leader
 		election.IsLeader.ShouldBeFalse();
@@ -1226,7 +1226,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		election.Dispose();
 
 		// Wait to ensure no timer callbacks cause issues
-		await Task.Delay(TimeSpan.FromMilliseconds(100));
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromMilliseconds(100));
 
 		// Assert - no exceptions, properly cleaned up
 		election.IsLeader.ShouldBeFalse();
@@ -1606,7 +1606,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		renewMethod.Invoke(follower, [null]);
 
 		// Small delay to let the Task.Run complete
-		await Task.Delay(TimeSpan.FromMilliseconds(50));
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromMilliseconds(50));
 
 		// Assert - follower still not leader (leader is still holding)
 		follower.IsLeader.ShouldBeFalse();
@@ -1775,7 +1775,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		renewMethod.Invoke(follower, [null]);
 
 		// Small delay to allow the catch block to execute
-		await Task.Delay(TimeSpan.FromMilliseconds(100));
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromMilliseconds(100));
 
 		// Assert - no exception propagated; callback caught the exception gracefully
 		follower.IsLeader.ShouldBeFalse();

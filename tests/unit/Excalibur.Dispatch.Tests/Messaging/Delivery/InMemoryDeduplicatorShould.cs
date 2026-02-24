@@ -121,7 +121,7 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 			"msg-1", TimeSpan.FromMilliseconds(1), CancellationToken.None);
 
 		// Wait for expiry
-		await Task.Delay(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 
 		var removedCount = await _deduplicator.CleanupExpiredEntriesAsync(CancellationToken.None);
 

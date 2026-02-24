@@ -44,7 +44,7 @@ public sealed class HistogramTimerShould
 		// Act
 		using (var timer = new HistogramTimer(histogram))
 		{
-			Thread.Sleep(10); // Small delay to ensure measurable time
+			global::Tests.Shared.Infrastructure.TestTiming.Sleep(10); // Small delay to ensure measurable time
 		}
 
 		// Assert
@@ -62,7 +62,7 @@ public sealed class HistogramTimerShould
 		for (var i = 0; i < 5; i++)
 		{
 			using var timer = new HistogramTimer(histogram);
-			Thread.Sleep(1);
+			global::Tests.Shared.Infrastructure.TestTiming.Sleep(1);
 		}
 
 		// Assert
@@ -135,7 +135,7 @@ public sealed class HistogramTimerShould
 		// Arrange
 		var histogram = new ValueHistogram();
 		var timer1 = new HistogramTimer(histogram);
-		Thread.Sleep(1); // Ensure different start ticks
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(1); // Ensure different start ticks
 		var timer2 = new HistogramTimer(histogram);
 
 		// Act

@@ -52,7 +52,7 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 		var reference = await provider.StoreAsync(payload, CancellationToken.None);
 
 		// Act - Wait for expiration
-		await Task.Delay(1000);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1000);
 		var removedCount = provider.RemoveExpiredEntries();
 
 		// Assert
@@ -94,7 +94,7 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 		_ = await provider.StoreAsync("Expiring 2"u8.ToArray(), CancellationToken.None);
 
 		// Wait for expiration
-		await Task.Delay(1000);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1000);
 
 		// Store fresh entries
 		var providerFresh = CreateProvider(options =>
@@ -127,7 +127,7 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 		var countBefore = provider.EntryCount;
 
 		// Act - Wait for expiration
-		await Task.Delay(1000);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1000);
 
 		// Assert
 		countBefore.ShouldBe(1);
@@ -174,7 +174,7 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 		var removed1 = provider.RemoveExpiredEntries();
 
 		// Wait for expiration
-		await Task.Delay(1000);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1000);
 
 		// Second cleanup (should remove expired)
 		var removed2 = provider.RemoveExpiredEntries();
@@ -258,7 +258,7 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 		var reference = await provider.StoreAsync(payload, CancellationToken.None);
 
 		// Wait for expiration
-		await Task.Delay(1000);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1000);
 
 		// Act - Delete expired entry
 		var deleted = await provider.DeleteAsync(reference, CancellationToken.None);
@@ -280,7 +280,7 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 		_ = await provider.StoreAsync("Initial"u8.ToArray(), CancellationToken.None);
 
 		// Wait for expiration
-		await Task.Delay(1000);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1000);
 
 		// Act - Concurrent cleanup and store
 		var cleanupTask = Task.Run(() => provider.RemoveExpiredEntries());
@@ -303,9 +303,9 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 
 		// Act
 		var ref1 = await provider.StoreAsync("First"u8.ToArray(), CancellationToken.None);
-		await Task.Delay(100); // Small delay
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100); // Small delay
 		var ref2 = await provider.StoreAsync("Second"u8.ToArray(), CancellationToken.None);
-		await Task.Delay(100); // Small delay
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100); // Small delay
 		var ref3 = await provider.StoreAsync("Third"u8.ToArray(), CancellationToken.None);
 
 		// Assert

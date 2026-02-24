@@ -61,7 +61,7 @@ public sealed class OrderedEventProcessorCoverageShould
         });
 
         // Give task1 a chance to acquire the semaphore
-        await Task.Delay(50);
+        await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 
         var task2 = Task.Run(() => processor.ProcessAsync(() =>
         {

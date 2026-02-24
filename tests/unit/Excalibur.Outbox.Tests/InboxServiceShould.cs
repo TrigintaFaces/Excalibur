@@ -205,7 +205,7 @@ public sealed class InboxServiceShould : UnitTestBase
 
 		// Act - Start the service and let ExecuteAsync run briefly
 		await service.StartAsync(cts.Token);
-		await Task.Delay(100);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -228,7 +228,7 @@ public sealed class InboxServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(100);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -252,7 +252,7 @@ public sealed class InboxServiceShould : UnitTestBase
 				var ct = call.GetArgument<CancellationToken>(1);
 				try
 				{
-					await Task.Delay(Timeout.Infinite, ct);
+					await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Timeout.Infinite, ct);
 				}
 				catch (OperationCanceledException)
 				{
@@ -310,7 +310,7 @@ public sealed class InboxServiceShould : UnitTestBase
 		// Act
 		await service1.StartAsync(cts1.Token);
 		await service2.StartAsync(cts2.Token);
-		await Task.Delay(100);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
 
 		await cts1.CancelAsync();
 		await cts2.CancelAsync();
@@ -339,7 +339,7 @@ public sealed class InboxServiceShould : UnitTestBase
 			{
 				var ct = call.GetArgument<CancellationToken>(1);
 				ct.ThrowIfCancellationRequested();
-				await Task.Delay(Timeout.Infinite, ct);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Timeout.Infinite, ct);
 				return 0;
 			});
 
@@ -348,7 +348,7 @@ public sealed class InboxServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 		await cts.CancelAsync();
 
 		// Assert - Should not throw, should stop gracefully

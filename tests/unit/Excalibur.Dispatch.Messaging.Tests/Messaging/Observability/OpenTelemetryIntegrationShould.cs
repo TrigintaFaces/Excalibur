@@ -69,7 +69,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
 
 		// Wait for any async operations to complete
-		await Task.Delay(200).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(200).ConfigureAwait(false);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -414,7 +414,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
 
 		// Wait for async operations
-		await Task.Delay(200).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(200).ConfigureAwait(false);
 
 		// Assert
 		result.IsSuccess.ShouldBeTrue();
@@ -470,7 +470,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		_ = await batchProcessed.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
 		// Wait for metrics to be emitted
-		await Task.Delay(100).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100).ConfigureAwait(false);
 
 		// Assert - verify batch processing completed and metrics infrastructure works
 		// Note: Metrics emission depends on the internal meter configuration
@@ -649,7 +649,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 			var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(true);
 
 			// Wait for async operations
-			await Task.Delay(100).ConfigureAwait(true);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100).ConfigureAwait(true);
 
 			// Assert
 			_ = result.ShouldNotBeNull($"Result should not be null for scenario {scenario.Name}");
@@ -693,7 +693,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 			async batch =>
 			{
 				// Simulate some processing time
-				await Task.Delay(10).ConfigureAwait(true);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ConfigureAwait(true);
 				_ = completionSignal.TrySetResult(true);
 			},
 			_processorLogger,
@@ -711,7 +711,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var processingEnd = DateTime.UtcNow;
 
 		// Wait for performance metrics to be captured
-		await Task.Delay(100).ConfigureAwait(true);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100).ConfigureAwait(true);
 
 		// Assert
 		var processingDuration = (processingEnd - processingStart).TotalMilliseconds;
@@ -776,7 +776,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(true);
 
 		// Wait for logging operations
-		await Task.Delay(200).ConfigureAwait(true);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(200).ConfigureAwait(true);
 
 		// Assert
 		result.IsSuccess.ShouldBeTrue();
@@ -914,7 +914,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 					observedSpanIds.Add(currentActivity.SpanId.ToString());
 				}
 
-				await Task.Delay(5).ConfigureAwait(true);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(5).ConfigureAwait(true);
 
 				currentActivity = Activity.Current;
 				if (currentActivity != null)
@@ -1011,20 +1011,20 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		await processor.AddAsync("batch1-item1", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("batch1-item2", CancellationToken.None).ConfigureAwait(false); // Batch 1 (size trigger)
 
-		await Task.Delay(50).ConfigureAwait(true);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50).ConfigureAwait(true);
 
 		await processor.AddAsync("batch2-item1", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("batch2-item2", CancellationToken.None).ConfigureAwait(false); // Batch 2 (size trigger)
 
-		await Task.Delay(50).ConfigureAwait(true);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50).ConfigureAwait(true);
 
 		await processor.AddAsync("batch3-item1", CancellationToken.None).ConfigureAwait(false);
-		await Task.Delay(150).ConfigureAwait(true); // Batch 3 (time trigger)
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(150).ConfigureAwait(true); // Batch 3 (time trigger)
 
 		_ = await allBatchesCompleted.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
 		// Wait for metrics aggregation
-		await Task.Delay(200).ConfigureAwait(true);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(200).ConfigureAwait(true);
 
 		// Assert - Primary assertions: batch processing completed correctly
 		batchesProcessed.ShouldBeGreaterThanOrEqualTo(3);

@@ -332,7 +332,7 @@ public sealed class ValueStopwatchShould
 	{
 		// Arrange
 		var stopwatch1 = ValueStopwatch.StartNew();
-		Thread.Sleep(1);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(1);
 		var stopwatch2 = ValueStopwatch.StartNew();
 
 		// Act & Assert
@@ -427,7 +427,7 @@ public sealed class ValueStopwatchShould
 	{
 		// Arrange
 		var earlier = ValueStopwatch.StartNew();
-		Thread.Sleep(1);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(1);
 		var later = ValueStopwatch.StartNew();
 
 		// Act & Assert
@@ -439,7 +439,7 @@ public sealed class ValueStopwatchShould
 	{
 		// Arrange
 		var earlier = ValueStopwatch.StartNew();
-		Thread.Sleep(1);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(1);
 		var later = ValueStopwatch.StartNew();
 
 		// Act & Assert
@@ -487,7 +487,7 @@ public sealed class ValueStopwatchShould
 	{
 		// Arrange
 		var stopwatch1 = ValueStopwatch.StartNew();
-		Thread.Sleep(1);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(1);
 		var stopwatch2 = ValueStopwatch.StartNew();
 
 		// Act & Assert
@@ -499,7 +499,7 @@ public sealed class ValueStopwatchShould
 	{
 		// Arrange
 		var earlier = ValueStopwatch.StartNew();
-		Thread.Sleep(1);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(1);
 		var later = ValueStopwatch.StartNew();
 
 		// Act & Assert
@@ -511,7 +511,7 @@ public sealed class ValueStopwatchShould
 	{
 		// Arrange
 		var earlier = ValueStopwatch.StartNew();
-		Thread.Sleep(1);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(1);
 		var later = ValueStopwatch.StartNew();
 
 		// Act & Assert

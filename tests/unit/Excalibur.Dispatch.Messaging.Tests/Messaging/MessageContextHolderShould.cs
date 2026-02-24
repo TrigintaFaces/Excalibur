@@ -141,14 +141,14 @@ public sealed class MessageContextHolderShould
 		var task1 = Task.Run(() =>
 		{
 			MessageContextHolder.Current = context1;
-			Thread.Sleep(50);
+			global::Tests.Shared.Infrastructure.TestTiming.Sleep(50);
 			capturedContext1 = MessageContextHolder.Current;
 		});
 
 		var task2 = Task.Run(() =>
 		{
 			MessageContextHolder.Current = context2;
-			Thread.Sleep(50);
+			global::Tests.Shared.Infrastructure.TestTiming.Sleep(50);
 			capturedContext2 = MessageContextHolder.Current;
 		});
 
@@ -175,13 +175,13 @@ public sealed class MessageContextHolderShould
 		var task1 = Task.Run(() =>
 		{
 			MessageContextHolder.Current = context;
-			Thread.Sleep(100);
+			global::Tests.Shared.Infrastructure.TestTiming.Sleep(100);
 			capturedBeforeClear = MessageContextHolder.Current;
 		});
 
 		var task2 = Task.Run(async () =>
 		{
-			await Task.Delay(50);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 			MessageContextHolder.Clear();
 			capturedAfterClear = MessageContextHolder.Current;
 		});

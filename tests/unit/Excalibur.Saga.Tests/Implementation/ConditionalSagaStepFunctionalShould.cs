@@ -171,7 +171,7 @@ public sealed class ConditionalSagaStepFunctionalShould
 			"AsyncCondition",
 			async (_, ct) =>
 			{
-				await Task.Delay(1, ct).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
 				return true;
 			},
 			thenStep, null,

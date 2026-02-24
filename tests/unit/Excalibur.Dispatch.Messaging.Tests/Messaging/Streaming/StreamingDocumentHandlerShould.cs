@@ -287,7 +287,7 @@ file sealed class DelayedStreamingHandler : IStreamingDocumentHandler<TestCsvDoc
 	{
 		foreach (var row in document.Rows)
 		{
-			await Task.Delay(10, cancellationToken).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10, cancellationToken).ConfigureAwait(false);
 			yield return new TestDataRow(row);
 		}
 	}

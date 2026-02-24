@@ -160,7 +160,7 @@ public sealed class EncryptionHealthCheckShould
 		A.CallTo(() => _encryptionProvider.EncryptAsync(A<byte[]>._, A<EncryptionContext>._, A<CancellationToken>._))
 			.ReturnsLazily(async call =>
 			{
-				await Task.Delay(20);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(20);
 				capturedPlaintext = call.GetArgument<byte[]>(0);
 				return new EncryptedData
 				{
@@ -175,7 +175,7 @@ public sealed class EncryptionHealthCheckShould
 		A.CallTo(() => _encryptionProvider.DecryptAsync(A<EncryptedData>._, A<EncryptionContext>._, A<CancellationToken>._))
 			.ReturnsLazily(async _ =>
 			{
-				await Task.Delay(20);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(20);
 				return capturedPlaintext ?? [];
 			});
 
@@ -202,7 +202,7 @@ public sealed class EncryptionHealthCheckShould
 		A.CallTo(() => _keyManagementProvider.GetActiveKeyAsync(null, A<CancellationToken>._))
 			.ReturnsLazily(async _ =>
 			{
-				await Task.Delay(20);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(20);
 				return new KeyMetadata
 				{
 					KeyId = "active-key",
@@ -236,7 +236,7 @@ public sealed class EncryptionHealthCheckShould
 		A.CallTo(() => _encryptionProvider.EncryptAsync(A<byte[]>._, A<EncryptionContext>._, A<CancellationToken>._))
 			.ReturnsLazily(async call =>
 			{
-				await Task.Delay(20);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(20);
 				capturedPlaintext = call.GetArgument<byte[]>(0);
 				return new EncryptedData
 				{
@@ -251,13 +251,13 @@ public sealed class EncryptionHealthCheckShould
 		A.CallTo(() => _encryptionProvider.DecryptAsync(A<EncryptedData>._, A<EncryptionContext>._, A<CancellationToken>._))
 			.ReturnsLazily(async _ =>
 			{
-				await Task.Delay(20);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(20);
 				return capturedPlaintext ?? [];
 			});
 		A.CallTo(() => _keyManagementProvider.GetActiveKeyAsync(null, A<CancellationToken>._))
 			.ReturnsLazily(async _ =>
 			{
-				await Task.Delay(20);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(20);
 				return new KeyMetadata
 				{
 					KeyId = "active-key",

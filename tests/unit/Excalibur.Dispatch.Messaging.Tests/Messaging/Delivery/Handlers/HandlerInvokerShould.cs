@@ -323,7 +323,7 @@ public sealed class HandlerInvokerShould : IDisposable
 	{
 		public async Task<int> HandleAsync(TestMessage message, CancellationToken cancellationToken)
 		{
-			await Task.Delay(10, cancellationToken).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10, cancellationToken).ConfigureAwait(false);
 			return 42;
 		}
 	}

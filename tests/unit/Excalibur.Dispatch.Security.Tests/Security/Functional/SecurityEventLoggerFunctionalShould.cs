@@ -89,7 +89,7 @@ public sealed class SecurityEventLoggerFunctionalShould : IDisposable
             CancellationToken.None);
 
         // Wait for background processing
-        await Task.Delay(200);
+        await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(200);
 
         // Stop gracefully
         await _sut.StopAsync(CancellationToken.None);
@@ -120,7 +120,7 @@ public sealed class SecurityEventLoggerFunctionalShould : IDisposable
                 CancellationToken.None);
         }
 
-        await Task.Delay(300);
+        await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(300);
         await _sut.StopAsync(CancellationToken.None);
 
         // Store should have been called (possibly batched)
@@ -151,7 +151,7 @@ public sealed class SecurityEventLoggerFunctionalShould : IDisposable
             SecuritySeverity.High,
             CancellationToken.None);
 
-        await Task.Delay(300);
+        await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(300);
         await _sut.StopAsync(CancellationToken.None);
 
         // Should have attempted batch first, then individual fallback
@@ -233,7 +233,7 @@ public sealed class SecurityEventLoggerFunctionalShould : IDisposable
             CancellationToken.None,
             context);
 
-        await Task.Delay(300);
+        await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(300);
         await _sut.StopAsync(CancellationToken.None);
 
         storedEvents.ShouldNotBeEmpty();

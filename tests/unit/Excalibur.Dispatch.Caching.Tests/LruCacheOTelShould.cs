@@ -115,7 +115,7 @@ public sealed class LruCacheOTelShould : IDisposable
 		cache.Set("key1", 42);
 
 		// Act — wait for expiry and trigger a lookup
-		Thread.Sleep(50);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(50);
 		cache.TryGetValue("key1", out _);
 		_listener.RecordObservableInstruments();
 

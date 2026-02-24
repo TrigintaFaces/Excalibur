@@ -413,7 +413,7 @@ public sealed class BackgroundServiceHealthStateShould : UnitTestBase
 		var firstActivityTime = state.LastActivityTime;
 
 		// Small delay to ensure time progresses
-		Thread.Sleep(1);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(1);
 
 		state.RecordCycle(processedCount: 1, failedCount: 0);
 		var secondActivityTime = state.LastActivityTime;

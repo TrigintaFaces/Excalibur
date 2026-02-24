@@ -62,7 +62,7 @@ public class DataPortabilityServiceShould
             NullLogger<DataPortabilityService>.Instance);
 
         var exported = await sut.ExportAsync("user-1", ExportFormat.Json, CancellationToken.None);
-        await Task.Delay(50); // Wait for expiration
+        await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50); // Wait for expiration
 
         var status = await sut.GetExportStatusAsync(exported.ExportId, CancellationToken.None);
 

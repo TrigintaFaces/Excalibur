@@ -121,7 +121,7 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 		// Arrange
 		await _deduplicator.MarkProcessedAsync("expired-1", TimeSpan.FromMilliseconds(1), CancellationToken.None);
 		await _deduplicator.MarkProcessedAsync("active-1", TimeSpan.FromHours(1), CancellationToken.None);
-		await Task.Delay(100).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100).ConfigureAwait(false);
 
 		// Act
 		var removed = await _deduplicator.CleanupExpiredEntriesAsync(CancellationToken.None);
@@ -213,7 +213,7 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 				return;
 			}
 
-			await Task.Delay(10).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ConfigureAwait(false);
 		}
 
 		throw new TimeoutException($"Message '{messageId}' did not expire within {timeout}.");

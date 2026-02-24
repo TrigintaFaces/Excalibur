@@ -135,7 +135,7 @@ public sealed class CircuitBreakerPatternShould : IAsyncDisposable
 		_sut.State.ShouldBe(ResilienceState.Open);
 
 		// Wait for open duration
-		await Task.Delay(_options.OpenDuration + TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(_options.OpenDuration + TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 
 		// Next call should allow through (transition to HalfOpen)
 		var result = await _sut.ExecuteAsync(

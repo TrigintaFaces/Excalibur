@@ -237,7 +237,7 @@ public sealed class YieldWaitStrategyShould : IDisposable
 		// Simulate a task that will set the flag
 		_ = Task.Run(async () =>
 		{
-			await Task.Delay(50);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 			completed = true;
 		});
 

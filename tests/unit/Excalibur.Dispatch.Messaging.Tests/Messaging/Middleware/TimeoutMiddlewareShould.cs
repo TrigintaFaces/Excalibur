@@ -218,7 +218,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		DispatchRequestDelegate next = async (msg, ctx, ct) =>
 		{
 			// Wait for the cancellation token to fire (the timeout), then throw
-			await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
 			return MessageResult.Success();
 		};
 
@@ -244,7 +244,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		DispatchRequestDelegate next = async (msg, ctx, ct) =>
 		{
 			// Wait for the cancellation token to fire (the timeout), then throw
-			await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
 			return MessageResult.Success();
 		};
 
@@ -274,7 +274,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		DispatchRequestDelegate next = async (msg, ctx, ct) =>
 		{
 			// Wait for the cancellation token to fire (the timeout), then throw
-			await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
 			return MessageResult.Success();
 		};
 
@@ -307,7 +307,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		DispatchRequestDelegate next = async (msg, ctx, ct) =>
 		{
 			// This should complete well within 100ms
-			await Task.Delay(1, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
 			return MessageResult.Success();
 		};
 
@@ -336,7 +336,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		DispatchRequestDelegate next = async (msg, ctx, ct) =>
 		{
 			// This 100ms delay would fail the 50ms default but passes the 30s override
-			await Task.Delay(100, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100, ct).ConfigureAwait(false);
 			return MessageResult.Success();
 		};
 
@@ -366,7 +366,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		DispatchRequestDelegate next = async (msg, ctx, ct) =>
 		{
 			// This 100ms delay would fail the 50ms default but passes the type-specific 30s
-			await Task.Delay(100, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100, ct).ConfigureAwait(false);
 			return MessageResult.Success();
 		};
 
@@ -394,7 +394,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		DispatchRequestDelegate next = async (msg, ctx, ct) =>
 		{
 			// This 100ms delay would fail the 50ms default but passes the 30s action timeout
-			await Task.Delay(100, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100, ct).ConfigureAwait(false);
 			return MessageResult.Success();
 		};
 
@@ -422,7 +422,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		DispatchRequestDelegate next = async (msg, ctx, ct) =>
 		{
 			// This 100ms delay would fail the 50ms default but passes the 30s event timeout
-			await Task.Delay(100, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100, ct).ConfigureAwait(false);
 			return MessageResult.Success();
 		};
 
@@ -533,7 +533,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		DispatchRequestDelegate next = async (msg, ctx, ct) =>
 		{
 			// Wait for the cancellation token to fire (the timeout), then throw
-			await Task.Delay(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
 			return MessageResult.Success();
 		};
 

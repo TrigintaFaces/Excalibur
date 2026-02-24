@@ -41,7 +41,7 @@ public sealed class HistogramExtensionsShould
 		using (histogram.StartTimer())
 		{
 			// Small delay to ensure measurable time
-			Thread.Sleep(1);
+			global::Tests.Shared.Infrastructure.TestTiming.Sleep(1);
 		}
 
 		// Assert
@@ -92,7 +92,7 @@ public sealed class HistogramExtensionsShould
 		var histogram = new ValueHistogram();
 
 		// Act
-		histogram.Time(() => Thread.Sleep(10));
+		histogram.Time(() => global::Tests.Shared.Infrastructure.TestTiming.Sleep(10));
 
 		// Assert
 		histogram.Count.ShouldBe(1);
@@ -121,7 +121,7 @@ public sealed class HistogramExtensionsShould
 		{
 			histogram.Time(() =>
 			{
-				Thread.Sleep(1);
+				global::Tests.Shared.Infrastructure.TestTiming.Sleep(1);
 				throw new InvalidOperationException("Test error");
 			});
 		}
@@ -175,7 +175,7 @@ public sealed class HistogramExtensionsShould
 		// Act
 		_ = histogram.Time(() =>
 		{
-			Thread.Sleep(10);
+			global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
 			return "result";
 		});
 
@@ -236,7 +236,7 @@ public sealed class HistogramExtensionsShould
 		// Act
 		await histogram.TimeAsync(async () =>
 		{
-			await Task.Delay(1);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 			executed = true;
 		});
 
@@ -251,7 +251,7 @@ public sealed class HistogramExtensionsShould
 		var histogram = new ValueHistogram();
 
 		// Act
-		await histogram.TimeAsync(() => Task.Delay(10));
+		await histogram.TimeAsync(() => global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10));
 
 		// Assert
 		histogram.Count.ShouldBe(1);
@@ -297,7 +297,7 @@ public sealed class HistogramExtensionsShould
 		// Act
 		var result = await histogram.TimeAsync(async () =>
 		{
-			await Task.Delay(1);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 			return 42;
 		});
 
@@ -314,7 +314,7 @@ public sealed class HistogramExtensionsShould
 		// Act
 		_ = await histogram.TimeAsync(async () =>
 		{
-			await Task.Delay(10);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10);
 			return "result";
 		});
 
@@ -333,7 +333,7 @@ public sealed class HistogramExtensionsShould
 		_ = await Should.ThrowAsync<InvalidOperationException>(async () =>
 			await histogram.TimeAsync<int>(async () =>
 			{
-				await Task.Delay(1);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 				throw new InvalidOperationException("Test error");
 			}));
 	}

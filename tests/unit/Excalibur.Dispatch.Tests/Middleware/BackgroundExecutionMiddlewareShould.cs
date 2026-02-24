@@ -111,7 +111,7 @@ public sealed class BackgroundExecutionMiddlewareShould : UnitTestBase
 		// Assert — The fire-and-forget dispatch may or may not have started yet,
 		// but we can verify we got a result back immediately.
 		// Give it a brief moment to process in background
-		await Task.Delay(100).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100).ConfigureAwait(false);
 
 		// The next delegate should eventually be called in background
 		// This is a fire-and-forget test - the key behavior is immediate return

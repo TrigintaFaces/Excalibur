@@ -338,7 +338,7 @@ public sealed class BatchProcessorShould : IDisposable
 		_disposables.Add(processor);
 
 		// Wait a bit to ensure no empty batches are processed
-		await Task.Delay(100).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100).ConfigureAwait(false);
 
 		batchProcessorCalled.ShouldBeFalse();
 	}
@@ -428,7 +428,7 @@ public sealed class BatchProcessorShould : IDisposable
 				var currentCall = Interlocked.Increment(ref callCount);
 				if (currentCall == 1)
 				{
-					await Task.Delay(10).ConfigureAwait(false);
+					await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ConfigureAwait(false);
 					throw new InvalidOperationException("Async test exception");
 				}
 
@@ -529,7 +529,7 @@ public sealed class BatchProcessorShould : IDisposable
 		// Wait for all items to be processed
 		while (processedCount < actualItemCount && stopwatch.ElapsedMilliseconds < 10000)
 		{
-			await Task.Delay(50).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50).ConfigureAwait(false);
 		}
 
 		stopwatch.Stop();
@@ -549,7 +549,7 @@ public sealed class BatchProcessorShould : IDisposable
 			async batch =>
 			{
 				processedBatches.Add(batch.Count);
-				await Task.Delay(processingDelay).ConfigureAwait(false); // Simulate slow processing
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(processingDelay).ConfigureAwait(false); // Simulate slow processing
 			},
 			_logger,
 			options);
@@ -568,7 +568,7 @@ public sealed class BatchProcessorShould : IDisposable
 		// Wait for processing to complete
 		while (processedBatches.Sum() < itemCount && stopwatch.ElapsedMilliseconds < 30000)
 		{
-			await Task.Delay(100).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100).ConfigureAwait(false);
 		}
 
 		stopwatch.Stop();
@@ -653,7 +653,7 @@ public sealed class BatchProcessorShould : IDisposable
 
 		while (processedCount < itemCount && stopwatch.Elapsed < timeout)
 		{
-			await Task.Delay(100).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100).ConfigureAwait(false);
 		}
 
 		processedCount.ShouldBe(itemCount);
@@ -718,7 +718,7 @@ public sealed class BatchProcessorShould : IDisposable
 		var stopwatch = Stopwatch.StartNew();
 		while (!condition() && stopwatch.Elapsed < timeout)
 		{
-			await Task.Delay(20).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(20).ConfigureAwait(false);
 		}
 
 		condition().ShouldBeTrue();
@@ -738,7 +738,7 @@ public sealed class BatchProcessorShould : IDisposable
 					processedItems.Add(item);
 				}
 
-				Thread.Sleep(10); // Simulate processing time
+				global::Tests.Shared.Infrastructure.TestTiming.Sleep(10); // Simulate processing time
 				return ValueTask.CompletedTask;
 			},
 			_logger,
@@ -753,7 +753,7 @@ public sealed class BatchProcessorShould : IDisposable
 				.Select(async i => await processor.AddAsync($"burst{burst}-item{i}", CancellationToken.None).ConfigureAwait(false));
 
 			await Task.WhenAll(burstTasks).ConfigureAwait(false);
-			await Task.Delay(100).ConfigureAwait(false); // Pause between bursts
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100).ConfigureAwait(false); // Pause between bursts
 		}
 
 		// Wait for all processing to complete (generous for full-suite parallel load)
@@ -814,7 +814,7 @@ public sealed class BatchProcessorShould : IDisposable
 						// Occasionally add small delays to create more realistic patterns
 						if (i % 10 == 0)
 						{
-							await Task.Delay(1).ConfigureAwait(false);
+							await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1).ConfigureAwait(false);
 						}
 					}
 				}
@@ -833,7 +833,7 @@ public sealed class BatchProcessorShould : IDisposable
 
 		while (processedItems.Count < expectedCount && stopwatch.Elapsed < timeout)
 		{
-			await Task.Delay(50).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50).ConfigureAwait(false);
 		}
 
 		exceptions.ShouldBeEmpty();

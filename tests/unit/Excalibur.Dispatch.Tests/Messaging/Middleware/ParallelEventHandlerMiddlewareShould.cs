@@ -193,7 +193,7 @@ public sealed class ParallelEventHandlerMiddlewareShould
 			new DispatchRequestDelegate((_, _, _) => ValueTask.FromException<IMessageResult>(new InvalidOperationException("boom"))),
 			new DispatchRequestDelegate(async (_, _, ct) =>
 			{
-				await Task.Delay(TimeSpan.FromMilliseconds(250), ct).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromMilliseconds(250), ct).ConfigureAwait(false);
 				return MessageResult.Success();
 			})
 		};

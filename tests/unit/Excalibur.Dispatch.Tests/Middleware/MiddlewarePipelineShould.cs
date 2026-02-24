@@ -1420,7 +1420,7 @@ public class MiddlewarePipelineShould : UnitTestBase
 		{
 			if (delayMs > 0)
 			{
-				await Task.Delay(delayMs, cancellationToken).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(delayMs, cancellationToken).ConfigureAwait(false);
 			}
 			invocations.Add(name);
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
@@ -1662,7 +1662,7 @@ public class MiddlewarePipelineShould : UnitTestBase
 		{
 			if (delayMs > 0)
 			{
-				await Task.Delay(delayMs, cancellationToken).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(delayMs, cancellationToken).ConfigureAwait(false);
 			}
 			invocations.Add(name);
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);

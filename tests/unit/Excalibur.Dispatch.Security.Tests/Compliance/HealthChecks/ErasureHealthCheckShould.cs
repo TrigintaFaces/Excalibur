@@ -86,7 +86,7 @@ public sealed class ErasureHealthCheckShould
 		A.CallTo(() => _fakeErasureStore.GetStatusAsync(Guid.Empty, A<CancellationToken>._))
 			.ReturnsLazily(async _ =>
 			{
-				await Task.Delay(50);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 				return (ErasureStatus?)null;
 			});
 

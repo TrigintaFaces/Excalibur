@@ -66,7 +66,7 @@ public sealed class OrderedEventProcessorShould : IAsyncDisposable
 			var index = i;
 			tasks.Add(_processor.ProcessAsync(async () =>
 			{
-				await Task.Delay(10).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ConfigureAwait(false);
 				order.Add(index);
 			}));
 		}

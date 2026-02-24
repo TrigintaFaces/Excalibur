@@ -643,6 +643,7 @@ jobs:
       - name: Run Integration Tests
         run: |
           dotnet test eng/ci/shards/IntegrationTests.slnf \
+            -m:1 \
             --configuration Release \
             --no-build \
             --blame-hang-timeout 5m \

@@ -355,7 +355,7 @@ public sealed class SerializerMigrationServiceShould
 			progress);
 
 		// Give Progress<T> time to invoke callback (it posts asynchronously)
-		_ = await Task.WhenAny(progressReported.Task, Task.Delay(TimeSpan.FromSeconds(1)));
+		_ = await Task.WhenAny(progressReported.Task, global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromSeconds(1)));
 
 		// Assert - Progress was reported
 		// Note: Progress<T> reports asynchronously; verify via final result if callback hasn't fired

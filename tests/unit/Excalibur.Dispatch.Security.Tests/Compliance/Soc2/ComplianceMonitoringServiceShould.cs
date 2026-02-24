@@ -93,7 +93,7 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await Task.Delay(2000); // Give it time to potentially run (generous for full-suite parallel load)
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(2000); // Give it time to potentially run (generous for full-suite parallel load)
 		await sut.StopAsync(cts.Token);
 
 		// Assert
@@ -113,7 +113,7 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await Task.Delay(3000); // Generous for full-suite parallel load (1s monitoring interval) // Let one cycle complete
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(3000); // Generous for full-suite parallel load (1s monitoring interval) // Let one cycle complete
 		cts.Cancel();
 
 		try
@@ -171,7 +171,7 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await Task.Delay(5000); // Generous for full-suite parallel load (needs 2+ cycles at 1s interval) // Give time for retries
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(5000); // Generous for full-suite parallel load (needs 2+ cycles at 1s interval) // Give time for retries
 		cts.Cancel();
 
 		try
@@ -201,7 +201,7 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await Task.Delay(3000); // Generous for full-suite parallel load (1s monitoring interval)
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(3000); // Generous for full-suite parallel load (1s monitoring interval)
 		cts.Cancel();
 
 		try
@@ -230,7 +230,7 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await Task.Delay(3000); // Generous for full-suite parallel load (1s monitoring interval)
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(3000); // Generous for full-suite parallel load (1s monitoring interval)
 		cts.Cancel();
 
 		try
@@ -267,7 +267,7 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await Task.Delay(3000); // Generous for full-suite parallel load (1s monitoring interval)
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(3000); // Generous for full-suite parallel load (1s monitoring interval)
 		cts.Cancel();
 
 		try
@@ -300,7 +300,7 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await Task.Delay(3000); // Generous for full-suite parallel load (1s monitoring interval)
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(3000); // Generous for full-suite parallel load (1s monitoring interval)
 		cts.Cancel();
 
 		try
@@ -344,7 +344,7 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await Task.Delay(5000); // Generous for full-suite parallel load (needs 2+ cycles at 1s interval) // Let two cycles complete
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(5000); // Generous for full-suite parallel load (needs 2+ cycles at 1s interval) // Let two cycles complete
 		cts.Cancel();
 
 		try
@@ -384,7 +384,7 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await Task.Delay(5000); // Generous for full-suite parallel load (needs 2+ cycles at 1s interval) // Let two cycles complete
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(5000); // Generous for full-suite parallel load (needs 2+ cycles at 1s interval) // Let two cycles complete
 		cts.Cancel();
 
 		try
@@ -427,7 +427,7 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await Task.Delay(5000); // Generous for full-suite parallel load (needs 2+ cycles at 1s interval) // Let multiple cycles complete
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(5000); // Generous for full-suite parallel load (needs 2+ cycles at 1s interval) // Let multiple cycles complete
 		cts.Cancel();
 
 		try

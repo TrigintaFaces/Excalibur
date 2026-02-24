@@ -128,7 +128,7 @@ public sealed class DocumentationExamplesShould
 
 		var dto = await result.MapAsync(async order =>
 		{
-			await Task.Delay(1); // Simulate async work
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1); // Simulate async work
 			return new TestOrderDto { OrderId = order.Id };
 		});
 
@@ -161,7 +161,7 @@ public sealed class DocumentationExamplesShould
 
 		var finalResult = await orderResult.BindAsync(async order =>
 		{
-			await Task.Delay(1); // Simulate async check
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1); // Simulate async check
 			return MessageResult.Success(new TestShipmentResult { Success = true });
 		});
 

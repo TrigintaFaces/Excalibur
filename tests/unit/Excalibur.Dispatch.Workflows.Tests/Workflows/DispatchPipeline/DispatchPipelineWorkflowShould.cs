@@ -270,7 +270,7 @@ public sealed class DispatchPipelineWorkflowShould
 				if (attempts <= command.FailCount)
 				{
 					_log.Log($"FailingCommandHandler:Failed:{attempts}");
-					await Task.Delay(10).ConfigureAwait(false); // Simulate retry delay
+					await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ConfigureAwait(false); // Simulate retry delay
 					continue;
 				}
 

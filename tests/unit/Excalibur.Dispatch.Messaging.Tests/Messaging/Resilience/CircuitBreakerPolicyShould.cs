@@ -17,6 +17,22 @@ public sealed class CircuitBreakerPolicyShould
 {
 	private readonly ILogger<CircuitBreakerPolicy> _logger;
 
+	private static async Task WaitForStateAsync(CircuitBreakerPolicy policy, CircuitState expectedState, TimeSpan timeout)
+	{
+		var deadline = DateTime.UtcNow + timeout;
+		while (DateTime.UtcNow < deadline)
+		{
+			if (policy.State == expectedState)
+			{
+				return;
+			}
+
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ConfigureAwait(false);
+		}
+
+		policy.State.ShouldBe(expectedState);
+	}
+
 	public CircuitBreakerPolicyShould()
 	{
 		_logger = NullLoggerFactory.Instance.CreateLogger<CircuitBreakerPolicy>();
@@ -136,7 +152,7 @@ public sealed class CircuitBreakerPolicyShould
 		_ = await Should.ThrowAsync<CircuitBreakerOpenException>(async () =>
 			await policy.ExecuteAsync(async ct =>
 			{
-				await Task.Delay(1, ct).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
 				return "result";
 			}, CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
 	}
@@ -184,7 +200,7 @@ public sealed class CircuitBreakerPolicyShould
 	#region Half-Open State Tests
 
 	[Fact]
-	public void TransitionToHalfOpenAfterOpenDuration()
+	public async Task TransitionToHalfOpenAfterOpenDuration()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions
@@ -198,11 +214,7 @@ public sealed class CircuitBreakerPolicyShould
 		policy.RecordFailure(new InvalidOperationException("Error"));
 		policy.State.ShouldBe(CircuitState.Open);
 
-		// Act - Wait for open duration
-		Thread.Sleep(100);
-
-		// Assert - Should transition to HalfOpen on next state check
-		policy.State.ShouldBe(CircuitState.HalfOpen);
+		await WaitForStateAsync(policy, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -219,12 +231,12 @@ public sealed class CircuitBreakerPolicyShould
 
 		// Open and wait for half-open
 		policy.RecordFailure(new InvalidOperationException("Error"));
-		Thread.Sleep(50);
+		await WaitForStateAsync(policy, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Act - Execute should work in half-open
 		var result = await policy.ExecuteAsync(async ct =>
 		{
-			await Task.Delay(1, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
 			return "success";
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -233,7 +245,7 @@ public sealed class CircuitBreakerPolicyShould
 	}
 
 	[Fact]
-	public void CloseCircuitAfterSuccessThresholdInHalfOpen()
+	public async Task CloseCircuitAfterSuccessThresholdInHalfOpen()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions
@@ -246,8 +258,7 @@ public sealed class CircuitBreakerPolicyShould
 
 		// Open and wait for half-open
 		policy.RecordFailure(new InvalidOperationException("Error"));
-		Thread.Sleep(50);
-		policy.State.ShouldBe(CircuitState.HalfOpen);
+		await WaitForStateAsync(policy, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Act - Record successes up to threshold
 		policy.RecordSuccess();
@@ -261,7 +272,7 @@ public sealed class CircuitBreakerPolicyShould
 	}
 
 	[Fact]
-	public void ReopenCircuitOnAnyFailureInHalfOpen()
+	public async Task ReopenCircuitOnAnyFailureInHalfOpen()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions
@@ -278,8 +289,7 @@ public sealed class CircuitBreakerPolicyShould
 			policy.RecordFailure(new InvalidOperationException($"Error {i}"));
 		}
 
-		Thread.Sleep(50);
-		policy.State.ShouldBe(CircuitState.HalfOpen);
+		await WaitForStateAsync(policy, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Record some successes
 		policy.RecordSuccess();
@@ -331,7 +341,7 @@ public sealed class CircuitBreakerPolicyShould
 		// Act
 		_ = await policy.ExecuteAsync(async ct =>
 		{
-			await Task.Delay(1, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
 			return "result";
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -442,7 +452,7 @@ public sealed class CircuitBreakerPolicyShould
 		// Act
 		var result = await policy.ExecuteAsync(async ct =>
 		{
-			await Task.Delay(1, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
 			return 42;
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -460,7 +470,7 @@ public sealed class CircuitBreakerPolicyShould
 		// Act
 		await policy.ExecuteAsync(async ct =>
 		{
-			await Task.Delay(1, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
 			executed = true;
 			return true;
 		}, CancellationToken.None).ConfigureAwait(false);
@@ -495,7 +505,7 @@ public sealed class CircuitBreakerPolicyShould
 			await policy.ExecuteAsync(async ct =>
 			{
 				ct.ThrowIfCancellationRequested();
-				await Task.Delay(1, ct).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
 				return "result";
 			}, cts.Token).ConfigureAwait(false)).ConfigureAwait(false);
 
@@ -620,7 +630,7 @@ public sealed class CircuitBreakerPolicyShould
 		var exception = await Should.ThrowAsync<CircuitBreakerOpenException>(async () =>
 			await policy.ExecuteAsync(async ct =>
 			{
-				await Task.Delay(1, ct).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
 				return "result";
 			}, CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
 
@@ -757,7 +767,7 @@ public sealed class CircuitBreakerPolicyShould
 	#region State Changed Event - Additional Scenarios
 
 	[Fact]
-	public void RaiseStateChangedEventOnHalfOpenTransition()
+	public async Task RaiseStateChangedEventOnHalfOpenTransition()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions
@@ -773,11 +783,7 @@ public sealed class CircuitBreakerPolicyShould
 		// Open the circuit
 		policy.RecordFailure(new InvalidOperationException("Error"));
 
-		// Wait for open duration
-		Thread.Sleep(50);
-
-		// Act - Force state check to trigger half-open
-		var state = policy.State;
+		await WaitForStateAsync(policy, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Assert
 		events.Count.ShouldBe(2); // Closed->Open, Open->HalfOpen
@@ -848,7 +854,7 @@ public sealed class CircuitBreakerPolicyShould
 	}
 
 	[Fact]
-	public void ResetSuccessfulProbesOnOpenTransition()
+	public async Task ResetSuccessfulProbesOnOpenTransition()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions
@@ -865,8 +871,7 @@ public sealed class CircuitBreakerPolicyShould
 			policy.RecordFailure();
 		}
 
-		Thread.Sleep(50);
-		policy.State.ShouldBe(CircuitState.HalfOpen);
+		await WaitForStateAsync(policy, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Record some successful probes
 		policy.RecordSuccess();
@@ -879,8 +884,7 @@ public sealed class CircuitBreakerPolicyShould
 		policy.State.ShouldBe(CircuitState.Open);
 
 		// Wait for half-open again
-		Thread.Sleep(50);
-		policy.State.ShouldBe(CircuitState.HalfOpen);
+		await WaitForStateAsync(policy, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Successful probes should be reset - need full threshold again
 		policy.RecordSuccess();

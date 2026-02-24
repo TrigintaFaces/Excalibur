@@ -222,7 +222,7 @@ public sealed class InboxHealthCheckShould : UnitTestBase
 		});
 
 		// Small delay to ensure inactivity
-		await Task.Delay(1);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 
 		var healthCheck = new InboxHealthCheck(state, options);
 
@@ -253,7 +253,7 @@ public sealed class InboxHealthCheckShould : UnitTestBase
 		});
 
 		// Small delay to ensure inactivity
-		await Task.Delay(1);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 
 		var healthCheck = new InboxHealthCheck(state, options);
 
@@ -279,7 +279,7 @@ public sealed class InboxHealthCheckShould : UnitTestBase
 			UnhealthyInactivityTimeout = TimeSpan.FromHours(1),
 		});
 
-		await Task.Delay(10); // Small delay to ensure measurable inactivity
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10); // Small delay to ensure measurable inactivity
 
 		var healthCheck = new InboxHealthCheck(state, options);
 

@@ -731,7 +731,7 @@ public class RetryPolicyShould : UnitTestBase
 					cancellationToken.ThrowIfCancellationRequested();
 					if (_delayMs > 0)
 					{
-						await Task.Delay(_delayMs, cancellationToken).ConfigureAwait(false);
+						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(_delayMs, cancellationToken).ConfigureAwait(false);
 					}
 				}
 			}
@@ -765,7 +765,7 @@ public class RetryPolicyShould : UnitTestBase
 					if (_initialDelayMs > 0)
 					{
 						var delay = (int)Math.Pow(2, attempt - 1) * _initialDelayMs;
-						await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(delay, cancellationToken).ConfigureAwait(false);
 					}
 				}
 			}
@@ -801,7 +801,7 @@ public class RetryPolicyShould : UnitTestBase
 					cancellationToken.ThrowIfCancellationRequested();
 					if (_baseDelayMs > 0)
 					{
-						await Task.Delay(_currentAttempt * _baseDelayMs, cancellationToken).ConfigureAwait(false);
+						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(_currentAttempt * _baseDelayMs, cancellationToken).ConfigureAwait(false);
 					}
 				}
 			}
@@ -834,7 +834,7 @@ public class RetryPolicyShould : UnitTestBase
 					cancellationToken.ThrowIfCancellationRequested();
 					if (_delayMs > 0)
 					{
-						await Task.Delay(_delayMs, cancellationToken).ConfigureAwait(false);
+						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(_delayMs, cancellationToken).ConfigureAwait(false);
 					}
 				}
 			}
@@ -869,7 +869,7 @@ public class RetryPolicyShould : UnitTestBase
 					cancellationToken.ThrowIfCancellationRequested();
 					if (_delayMs > 0)
 					{
-						await Task.Delay(_delayMs, cancellationToken).ConfigureAwait(false);
+						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(_delayMs, cancellationToken).ConfigureAwait(false);
 					}
 				}
 			}
@@ -903,7 +903,7 @@ public class RetryPolicyShould : UnitTestBase
 					cancellationToken.ThrowIfCancellationRequested();
 					if (_delayMs > 0)
 					{
-						await Task.Delay(_delayMs, cancellationToken).ConfigureAwait(false);
+						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(_delayMs, cancellationToken).ConfigureAwait(false);
 					}
 				}
 			}
@@ -935,7 +935,7 @@ public class RetryPolicyShould : UnitTestBase
 					cancellationToken.ThrowIfCancellationRequested();
 					if (_delayMs > 0)
 					{
-						await Task.Delay(_delayMs, cancellationToken).ConfigureAwait(false);
+						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(_delayMs, cancellationToken).ConfigureAwait(false);
 					}
 				}
 			}
@@ -974,7 +974,7 @@ public class RetryPolicyShould : UnitTestBase
 					cancellationToken.ThrowIfCancellationRequested();
 					if (_delayMs > 0)
 					{
-						await Task.Delay(_delayMs, cancellationToken).ConfigureAwait(false);
+						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(_delayMs, cancellationToken).ConfigureAwait(false);
 					}
 				}
 			}

@@ -59,7 +59,7 @@ public sealed class EventStoreLiveSubscriptionShould : IAsyncDisposable
 		{
 			if (Fake.GetCalls(_eventStore).Any(c => c.Method.Name == "LoadAsync"))
 				break;
-			await Task.Delay(100);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
 		}
 
 		// Assert - should have attempted to load events
@@ -100,7 +100,7 @@ public sealed class EventStoreLiveSubscriptionShould : IAsyncDisposable
 		var deadline2 = DateTime.UtcNow.AddSeconds(30);
 		while (received.Count == 0 && DateTime.UtcNow < deadline2)
 		{
-			await Task.Delay(100);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
 		}
 
 		// Assert
@@ -114,7 +114,7 @@ public sealed class EventStoreLiveSubscriptionShould : IAsyncDisposable
 		SetupEmptyLoad();
 
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, CancellationToken.None);
-		await Task.Delay(100);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
 
 		// Act
 		await _sut.UnsubscribeAsync(CancellationToken.None);
@@ -194,7 +194,7 @@ public sealed class EventStoreLiveSubscriptionShould : IAsyncDisposable
 		var deadline3 = DateTime.UtcNow.AddSeconds(30);
 		while (callCount <= 1 && DateTime.UtcNow < deadline3)
 		{
-			await Task.Delay(100);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
 		}
 
 		// Assert - should have retried after error

@@ -91,7 +91,7 @@ public sealed class OutboxServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 
 		// Allow some time for ExecuteAsync to be called
-		await Task.Delay(500);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(500);
 
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
@@ -122,7 +122,7 @@ public sealed class OutboxServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 
 		// Allow some time for ExecuteAsync to be called
-		await Task.Delay(100);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
 
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);

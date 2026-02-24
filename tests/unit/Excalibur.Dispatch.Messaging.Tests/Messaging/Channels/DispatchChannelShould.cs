@@ -419,7 +419,7 @@ public sealed class DispatchChannelShould : IDisposable
 		// Start a task to write after a delay
 		_ = Task.Run(async () =>
 		{
-			await Task.Delay(50);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 			await channel.Writer.WriteAsync("delayed", CancellationToken.None);
 		});
 

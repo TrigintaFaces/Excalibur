@@ -193,7 +193,7 @@ public sealed class OutboxHealthCheckShould : UnitTestBase
 			DegradedInactivityTimeout = TimeSpan.Zero,
 		});
 
-		await Task.Delay(1); // Small delay
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1); // Small delay
 
 		var healthCheck = new OutboxHealthCheck(state, options);
 
@@ -246,7 +246,7 @@ public sealed class OutboxHealthCheckShould : UnitTestBase
 			DegradedInactivityTimeout = TimeSpan.Zero,
 		});
 
-		await Task.Delay(1);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 
 		var healthCheck = new OutboxHealthCheck(state, options);
 
@@ -367,7 +367,7 @@ public sealed class OutboxHealthCheckShould : UnitTestBase
 			UnhealthyFailureRatePercent = 75.0,
 		});
 
-		await Task.Delay(1);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 
 		var healthCheck = new OutboxHealthCheck(state, options);
 

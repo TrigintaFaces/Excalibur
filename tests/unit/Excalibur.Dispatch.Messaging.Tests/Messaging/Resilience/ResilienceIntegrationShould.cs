@@ -19,6 +19,22 @@ public sealed class ResilienceIntegrationShould
 	private readonly ILogger<InMemoryDeadLetterQueue> _dlqLogger;
 	private readonly ILogger<CircuitBreakerPolicy> _cbLogger;
 
+	private static async Task WaitForCircuitStateAsync(CircuitBreakerPolicy policy, CircuitState expectedState, TimeSpan timeout)
+	{
+		var deadline = DateTime.UtcNow + timeout;
+		while (DateTime.UtcNow < deadline)
+		{
+			if (policy.State == expectedState)
+			{
+				return;
+			}
+
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ConfigureAwait(false);
+		}
+
+		policy.State.ShouldBe(expectedState);
+	}
+
 	public ResilienceIntegrationShould()
 	{
 		_dlqLogger = NullLoggerFactory.Instance.CreateLogger<InMemoryDeadLetterQueue>();
@@ -48,7 +64,7 @@ public sealed class ResilienceIntegrationShould
 		{
 			await circuitBreaker.ExecuteAsync(async ct =>
 			{
-				await Task.Delay(1, ct).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
 				return "processed";
 			}).ConfigureAwait(false);
 		}
@@ -104,7 +120,7 @@ public sealed class ResilienceIntegrationShould
 			{
 				var delay = backoffCalculator.CalculateDelay(attempt - 1);
 				delays.Add(delay);
-				await Task.Delay(delay).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(delay).ConfigureAwait(false);
 			}
 
 			try
@@ -183,7 +199,7 @@ public sealed class ResilienceIntegrationShould
 		await kafkaBreaker.ExecuteAsync(async ct =>
 		{
 			kafkaProcessed = true;
-			await Task.Delay(1, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
 			return true;
 		}).ConfigureAwait(false);
 
@@ -221,7 +237,7 @@ public sealed class ResilienceIntegrationShould
 		{
 			if (attempt > 1)
 			{
-				await Task.Delay(backoffCalculator.CalculateDelay(attempt - 1)).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(backoffCalculator.CalculateDelay(attempt - 1)).ConfigureAwait(false);
 			}
 
 			try
@@ -296,8 +312,7 @@ public sealed class ResilienceIntegrationShould
 			DeadLetterReason.CircuitBreakerOpen).ConfigureAwait(false);
 
 		// Wait for circuit to transition to half-open
-		await Task.Delay(100).ConfigureAwait(false);
-		circuitBreaker.State.ShouldBe(CircuitState.HalfOpen);
+		await WaitForCircuitStateAsync(circuitBreaker, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Record success to close circuit
 		circuitBreaker.RecordSuccess();
@@ -426,8 +441,7 @@ public sealed class ResilienceIntegrationShould
 		circuitBreaker.State.ShouldBe(CircuitState.Open);
 
 		// Step 3: Wait -> HalfOpen
-		await Task.Delay(100).ConfigureAwait(false);
-		circuitBreaker.State.ShouldBe(CircuitState.HalfOpen);
+		await WaitForCircuitStateAsync(circuitBreaker, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Step 4: Successes -> Closed
 		circuitBreaker.RecordSuccess();

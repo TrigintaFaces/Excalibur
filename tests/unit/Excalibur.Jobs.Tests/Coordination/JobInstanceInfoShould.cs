@@ -182,7 +182,7 @@ public sealed class JobInstanceInfoShould : UnitTestBase
 		// Arrange
 		var info = new JobInstanceInfo("instance-1", "host", CreateTestCapabilities());
 		var originalHeartbeat = info.LastHeartbeat;
-		Thread.Sleep(10); // Small delay to ensure time difference
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10); // Small delay to ensure time difference
 
 		// Act
 		info.UpdateHeartbeat();

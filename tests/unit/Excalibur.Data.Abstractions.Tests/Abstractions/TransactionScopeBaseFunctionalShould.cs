@@ -318,7 +318,7 @@ public class TransactionScopeBaseFunctionalShould
         var scope = new TestTransactionScope(timeout: TimeSpan.FromMilliseconds(1));
 
         // Wait for timeout to expire
-        await Task.Delay(50).ConfigureAwait(false);
+        await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50).ConfigureAwait(false);
 
         await Should.ThrowAsync<TimeoutException>(
             () => scope.CommitAsync(CancellationToken.None)).ConfigureAwait(false);

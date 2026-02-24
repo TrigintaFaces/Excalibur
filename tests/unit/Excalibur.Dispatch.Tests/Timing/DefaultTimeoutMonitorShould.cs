@@ -37,11 +37,11 @@ public sealed class DefaultTimeoutMonitorShould
 	public void TrackStatisticsAfterOperations()
 	{
 		var token1 = _sut.StartOperation(TimeoutOperationType.Handler);
-		Thread.Sleep(10);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
 		_sut.CompleteOperation(token1, success: true, timedOut: false);
 
 		var token2 = _sut.StartOperation(TimeoutOperationType.Handler);
-		Thread.Sleep(10);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
 		_sut.CompleteOperation(token2, success: false, timedOut: true);
 
 		var stats = _sut.GetStatistics(TimeoutOperationType.Handler);

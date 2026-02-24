@@ -285,13 +285,13 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 		_ = A.CallTo(() => primary.ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
 			.ReturnsLazily(async call =>
 			{
-				await Task.Delay(250, call.GetArgument<CancellationToken>(2));
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(250, call.GetArgument<CancellationToken>(2));
 				return (IReadOnlyList<KeyMetadata>)[];
 			});
 		_ = A.CallTo(() => secondary.ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
 			.ReturnsLazily(async call =>
 			{
-				await Task.Delay(250, call.GetArgument<CancellationToken>(2));
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(250, call.GetArgument<CancellationToken>(2));
 				return (IReadOnlyList<KeyMetadata>)[];
 			});
 
@@ -302,7 +302,7 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 			NullLogger<MultiRegionKeyProvider>.Instance);
 
 		// Let the background loop start and enter a health-check cycle.
-		Thread.Sleep(30);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(30);
 		GetHealthCheckTask(sut).IsCompleted.ShouldBeFalse();
 
 		// Act

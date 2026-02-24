@@ -312,9 +312,9 @@ public sealed class InMemoryDeadLetterQueueShould
 		// Arrange
 		var queue = CreateQueue();
 		await queue.EnqueueAsync(new TestMessage { Id = 1, Content = "First" }, DeadLetterReason.MaxRetriesExceeded).ConfigureAwait(false);
-		await Task.Delay(10).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ConfigureAwait(false);
 		await queue.EnqueueAsync(new TestMessage { Id = 2, Content = "Second" }, DeadLetterReason.MaxRetriesExceeded).ConfigureAwait(false);
-		await Task.Delay(10).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ConfigureAwait(false);
 		await queue.EnqueueAsync(new TestMessage { Id = 3, Content = "Third" }, DeadLetterReason.MaxRetriesExceeded).ConfigureAwait(false);
 
 		// Act
@@ -451,7 +451,7 @@ public sealed class InMemoryDeadLetterQueueShould
 		await queue.EnqueueAsync(new TestMessage { Id = 2 }, DeadLetterReason.MaxRetriesExceeded).ConfigureAwait(false);
 
 		// Wait a bit
-		await Task.Delay(100).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100).ConfigureAwait(false);
 
 		// Add more entries
 		await queue.EnqueueAsync(new TestMessage { Id = 3 }, DeadLetterReason.MaxRetriesExceeded).ConfigureAwait(false);

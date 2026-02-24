@@ -265,7 +265,7 @@ public sealed class LoggingMiddlewareShould : UnitTestBase
 		var context = A.Fake<IMessageContext>();
 		DispatchRequestDelegate next = async (_, _, _) =>
 		{
-			await Task.Delay(10); // Simulate some processing time
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10); // Simulate some processing time
 			return MessageResult.Success();
 		};
 

@@ -72,7 +72,7 @@ public sealed class NoOpRetryPolicyShould
 		// Act
 		var result = await policy.ExecuteAsync(async ct =>
 		{
-			await Task.Delay(1, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
 			return 42;
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -90,7 +90,7 @@ public sealed class NoOpRetryPolicyShould
 		// Act
 		await policy.ExecuteAsync(async ct =>
 		{
-			await Task.Delay(1, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
 			executed = true;
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -109,7 +109,7 @@ public sealed class NoOpRetryPolicyShould
 		_ = await policy.ExecuteAsync(async ct =>
 		{
 			executionCount++;
-			await Task.Delay(1, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
 			return "result";
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -258,7 +258,7 @@ public sealed class NoOpRetryPolicyShould
 			await policy.ExecuteAsync(async ct =>
 			{
 				ct.ThrowIfCancellationRequested();
-				await Task.Delay(1000, ct).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1000, ct).ConfigureAwait(false);
 				return "result";
 			}, cts.Token).ConfigureAwait(false)).ConfigureAwait(false);
 	}

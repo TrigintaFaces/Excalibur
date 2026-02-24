@@ -52,7 +52,7 @@ public sealed class JobHeartbeatTrackerShould
 		tracker.RecordHeartbeat("my-job");
 		var first = tracker.GetLastHeartbeat("my-job");
 
-		Thread.Sleep(10);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
 
 		tracker.RecordHeartbeat("my-job");
 		var second = tracker.GetLastHeartbeat("my-job");
@@ -69,7 +69,7 @@ public sealed class JobHeartbeatTrackerShould
 
 		// Act
 		tracker.RecordHeartbeat("job-a");
-		Thread.Sleep(10);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
 		tracker.RecordHeartbeat("job-b");
 
 		// Assert

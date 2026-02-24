@@ -154,7 +154,7 @@ public sealed class ElasticsearchPerformanceDiagnosticsShould
 	{
 		using (var context = _sut.StartOperation("search"))
 		{
-			Thread.Sleep(10); // Small delay to ensure non-zero duration
+			global::Tests.Shared.Infrastructure.TestTiming.Sleep(10); // Small delay to ensure non-zero duration
 			// Dispose auto-completes
 		}
 

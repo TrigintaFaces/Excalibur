@@ -63,7 +63,7 @@ public class ProcessingRestrictionServiceShould
             NullLogger<ProcessingRestrictionService>.Instance);
 
         await sut.RestrictAsync("user-1", RestrictionReason.AccuracyContested, CancellationToken.None);
-        await Task.Delay(50); // Wait for expiration
+        await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50); // Wait for expiration
 
         var isRestricted = await sut.IsRestrictedAsync("user-1", CancellationToken.None);
         isRestricted.ShouldBeFalse();

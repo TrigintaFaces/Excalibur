@@ -95,7 +95,7 @@ public sealed class OutboxBackgroundServiceShould
 
 		// Act
 		var task = service.StartAsync(cts.Token);
-		await Task.Delay(2000);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(2000);
 		cts.Cancel();
 		await task;
 
@@ -145,7 +145,7 @@ public sealed class OutboxBackgroundServiceShould
 
 		// Act
 		var task = service.StartAsync(cts.Token);
-		await Task.Delay(2000);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(2000);
 		cts.Cancel();
 		await task;
 
@@ -164,7 +164,7 @@ public sealed class OutboxBackgroundServiceShould
 
 		// Act
 		var task = service.StartAsync(cts.Token);
-		await Task.Delay(2000);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(2000);
 		cts.Cancel();
 		await task;
 
@@ -216,11 +216,11 @@ public sealed class OutboxBackgroundServiceShould
 
 		// Act
 		var task = service.StartAsync(cts.Token);
-		await Task.Delay(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 		cts.Cancel();
 
 		// Assert - should complete within reasonable time
-		var completed = await Task.WhenAny(task, Task.Delay(1000));
+		var completed = await Task.WhenAny(task, global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1000));
 		completed.ShouldBe(task);
 	}
 

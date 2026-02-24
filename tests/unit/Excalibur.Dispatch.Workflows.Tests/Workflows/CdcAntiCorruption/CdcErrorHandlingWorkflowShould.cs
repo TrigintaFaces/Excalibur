@@ -443,7 +443,7 @@ public sealed class CdcErrorHandlingWorkflowShould
 
 					if (attempts < _maxRetries)
 					{
-						await Task.Delay(_retryDelayMs, cancellationToken).ConfigureAwait(false);
+						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(_retryDelayMs, cancellationToken).ConfigureAwait(false);
 					}
 				}
 			}

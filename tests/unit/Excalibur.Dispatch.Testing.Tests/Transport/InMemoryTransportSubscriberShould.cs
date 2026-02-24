@@ -22,7 +22,7 @@ public sealed class InMemoryTransportSubscriberShould : IAsyncDisposable
 			(_, _) => Task.FromResult(MessageAction.Acknowledge),
 			cts.Token);
 
-		await Task.Delay(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 		_subscriber.IsSubscribed.ShouldBeTrue();
 
 		cts.Cancel();
@@ -58,7 +58,7 @@ public sealed class InMemoryTransportSubscriberShould : IAsyncDisposable
 			},
 			cts.Token);
 
-		await Task.Delay(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 
 		var msg = new TransportReceivedMessage { Id = "msg-1" };
 		await _subscriber.PushAsync(msg, CancellationToken.None);
@@ -77,7 +77,7 @@ public sealed class InMemoryTransportSubscriberShould : IAsyncDisposable
 			(_, _) => Task.FromResult(MessageAction.Reject),
 			cts.Token);
 
-		await Task.Delay(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 
 		var msg = new TransportReceivedMessage { Id = "msg-1" };
 		var action = await _subscriber.PushAsync(msg, CancellationToken.None);
@@ -113,7 +113,7 @@ public sealed class InMemoryTransportSubscriberShould : IAsyncDisposable
 			},
 			cts.Token);
 
-		await Task.Delay(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 
 		using var pushCts = new CancellationTokenSource();
 		var msg = new TransportReceivedMessage { Id = "msg-1" };
@@ -133,7 +133,7 @@ public sealed class InMemoryTransportSubscriberShould : IAsyncDisposable
 			(_, _) => Task.FromResult(MessageAction.Acknowledge),
 			cts.Token);
 
-		await Task.Delay(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 		await _subscriber.PushAsync(new TransportReceivedMessage { Id = "msg-1" }, CancellationToken.None);
 
 		_subscriber.Clear();
@@ -153,7 +153,7 @@ public sealed class InMemoryTransportSubscriberShould : IAsyncDisposable
 			(_, _) => Task.FromResult(MessageAction.Acknowledge),
 			cts.Token);
 
-		await Task.Delay(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 		_subscriber.IsSubscribed.ShouldBeTrue();
 
 		await _subscriber.DisposeAsync();

@@ -90,7 +90,7 @@ public sealed class MessageResultExtensionsShould
 		// Act
 		var mapped = await result.MapAsync(async x =>
 		{
-			await Task.Delay(1);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 			return x.ToString();
 		});
 
@@ -171,7 +171,7 @@ public sealed class MessageResultExtensionsShould
 		// Act
 		var bound = await result.BindAsync(async x =>
 		{
-			await Task.Delay(1);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 			return MessageResult.Success(x * 2);
 		});
 
@@ -269,12 +269,12 @@ public sealed class MessageResultExtensionsShould
 		var matched = await result.MatchAsync(
 			onSuccess: async x =>
 			{
-				await Task.Delay(1);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 				return $"Value: {x}";
 			},
 			onFailure: async _ =>
 			{
-				await Task.Delay(1);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 				return "Failed";
 			});
 
@@ -340,7 +340,7 @@ public sealed class MessageResultExtensionsShould
 		// Act
 		var tapped = await result.TapAsync(async x =>
 		{
-			await Task.Delay(1);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 			sideEffectExecuted = x == 42;
 		});
 
@@ -580,7 +580,7 @@ public sealed class MessageResultExtensionsShould
 
 		// Act & Assert
 		_ = Should.ThrowAsync<ArgumentNullException>(async () =>
-			await result.MapAsync(async x => { await Task.Delay(1); return x.ToString(); }));
+			await result.MapAsync(async x => { await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1); return x.ToString(); }));
 	}
 
 	[Fact]
@@ -646,7 +646,7 @@ public sealed class MessageResultExtensionsShould
 
 		// Act & Assert
 		_ = Should.ThrowAsync<ArgumentNullException>(async () =>
-			await result.BindAsync(async x => { await Task.Delay(1); return MessageResult.Success(x * 2); }));
+			await result.BindAsync(async x => { await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1); return MessageResult.Success(x * 2); }));
 	}
 
 	[Fact]
@@ -734,8 +734,8 @@ public sealed class MessageResultExtensionsShould
 
 		// Act & Assert
 		_ = Should.ThrowAsync<ArgumentNullException>(async () =>
-			await result.MatchAsync(async x => { await Task.Delay(1); return x.ToString(); },
-				async _ => { await Task.Delay(1); return "Failed"; }));
+			await result.MatchAsync(async x => { await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1); return x.ToString(); },
+				async _ => { await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1); return "Failed"; }));
 	}
 
 	[Fact]
@@ -747,7 +747,7 @@ public sealed class MessageResultExtensionsShould
 		// Act & Assert
 		_ = Should.ThrowAsync<ArgumentNullException>(async () =>
 			await result.MatchAsync(null!,
-				async _ => { await Task.Delay(1); return "Failed"; }));
+				async _ => { await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1); return "Failed"; }));
 	}
 
 	[Fact]
@@ -758,7 +758,7 @@ public sealed class MessageResultExtensionsShould
 
 		// Act & Assert
 		_ = Should.ThrowAsync<ArgumentNullException>(async () =>
-			await result.MatchAsync(async x => { await Task.Delay(1); return x.ToString(); },
+			await result.MatchAsync(async x => { await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1); return x.ToString(); },
 				null!));
 	}
 
@@ -790,7 +790,7 @@ public sealed class MessageResultExtensionsShould
 
 		// Act & Assert
 		_ = Should.ThrowAsync<ArgumentNullException>(async () =>
-			await result.TapAsync(async _ => await Task.Delay(1)));
+			await result.TapAsync(async _ => await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1)));
 	}
 
 	[Fact]
@@ -885,7 +885,7 @@ public sealed class MessageResultExtensionsShould
 		var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
 			await result.MapAsync<int, string>(async x =>
 			{
-				await Task.Delay(1);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 				throw expectedException;
 			}));
 		ex.ShouldBeSameAs(expectedException);
@@ -915,7 +915,7 @@ public sealed class MessageResultExtensionsShould
 		var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
 			await result.BindAsync<int, int>(async x =>
 			{
-				await Task.Delay(1);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 				throw expectedException;
 			}));
 		ex.ShouldBeSameAs(expectedException);
@@ -945,7 +945,7 @@ public sealed class MessageResultExtensionsShould
 		var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
 			await result.TapAsync(async _ =>
 			{
-				await Task.Delay(1);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 				throw expectedException;
 			}));
 		ex.ShouldBeSameAs(expectedException);
@@ -993,12 +993,12 @@ public sealed class MessageResultExtensionsShould
 			await result.MatchAsync(
 				onSuccess: async _ =>
 				{
-					await Task.Delay(1);
+					await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 					throw expectedException;
 				},
 				onFailure: async _ =>
 				{
-					await Task.Delay(1);
+					await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 					return "Failed";
 				}));
 		ex.ShouldBeSameAs(expectedException);
@@ -1016,12 +1016,12 @@ public sealed class MessageResultExtensionsShould
 			await result.MatchAsync(
 				onSuccess: async x =>
 				{
-					await Task.Delay(1);
+					await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 					return x.ToString();
 				},
 				onFailure: async _ =>
 				{
-					await Task.Delay(1);
+					await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 					throw expectedException;
 				}));
 		ex.ShouldBeSameAs(expectedException);
@@ -1042,7 +1042,7 @@ public sealed class MessageResultExtensionsShould
 		// Act
 		var mapped = await result.MapAsync(async x =>
 		{
-			await Task.Delay(1);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 			mapperCalled = true;
 			return x.ToString();
 		});
@@ -1064,7 +1064,7 @@ public sealed class MessageResultExtensionsShould
 		// Act
 		var bound = await result.BindAsync(async x =>
 		{
-			await Task.Delay(1);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 			binderCalled = true;
 			return MessageResult.Success(x * 2);
 		});
@@ -1144,12 +1144,12 @@ public sealed class MessageResultExtensionsShould
 		var matched = await result.MatchAsync(
 			onSuccess: async x =>
 			{
-				await Task.Delay(1);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 				return $"Value: {x}";
 			},
 			onFailure: async p =>
 			{
-				await Task.Delay(1);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 				return $"Error: {p?.Detail}";
 			});
 
@@ -1167,7 +1167,7 @@ public sealed class MessageResultExtensionsShould
 		// Act
 		var tapped = await result.TapAsync(async _ =>
 		{
-			await Task.Delay(1);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
 			sideEffectExecuted = true;
 		});
 

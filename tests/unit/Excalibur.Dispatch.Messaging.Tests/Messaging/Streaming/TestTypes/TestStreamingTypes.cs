@@ -126,7 +126,7 @@ public sealed class CancellationAwareStreamingHandler : IStreamingDocumentHandle
 		foreach (var row in document.Rows)
 		{
 			// Delay to allow cancellation to be observed
-			await Task.Delay(50, cancellationToken).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50, cancellationToken).ConfigureAwait(false);
 			cancellationToken.ThrowIfCancellationRequested();
 			yield return new TestDataRow(row);
 		}
@@ -208,7 +208,7 @@ public sealed class SlowStreamConsumerHandler : IStreamConsumerHandler<TestBatch
 	{
 		await foreach (var doc in documents.WithCancellation(cancellationToken).ConfigureAwait(false))
 		{
-			await Task.Delay(DelayMs, cancellationToken).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(DelayMs, cancellationToken).ConfigureAwait(false);
 			ProcessedCount++;
 		}
 	}
@@ -338,7 +338,7 @@ public sealed class SlowTransformHandler : IStreamTransformHandler<TestBatchDocu
 	{
 		await foreach (var doc in input.WithCancellation(cancellationToken).ConfigureAwait(false))
 		{
-			await Task.Delay(DelayMs, cancellationToken).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(DelayMs, cancellationToken).ConfigureAwait(false);
 			yield return doc;
 		}
 	}
@@ -383,7 +383,7 @@ public sealed class TestProgressHandler : IProgressDocumentHandler<TestProgressD
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
-			await Task.Delay(ProcessingDelayMs, cancellationToken).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(ProcessingDelayMs, cancellationToken).ConfigureAwait(false);
 
 			progress.Report(DocumentProgress.FromItems(
 				itemsProcessed: i + 1,
@@ -420,7 +420,7 @@ public sealed class ErrorThrowingProgressHandler : IProgressDocumentHandler<Test
 				itemsProcessed: i + 1,
 				totalItems: document.ItemCount));
 
-			await Task.Delay(1, cancellationToken).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, cancellationToken).ConfigureAwait(false);
 		}
 	}
 }
@@ -443,7 +443,7 @@ public sealed class IndeterminateProgressHandler : IProgressDocumentHandler<Test
 				itemsProcessed: i + 1,
 				currentPhase: "Processing..."));
 
-			await Task.Delay(1, cancellationToken).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, cancellationToken).ConfigureAwait(false);
 		}
 
 		progress.Report(DocumentProgress.Completed(document.ItemCount));
@@ -477,7 +477,7 @@ public sealed class MultiPhaseProgressHandler : IProgressDocumentHandler<TestPro
 					totalItems: document.ItemCount,
 					currentPhase: phase));
 
-				await Task.Delay(1, cancellationToken).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, cancellationToken).ConfigureAwait(false);
 			}
 		}
 

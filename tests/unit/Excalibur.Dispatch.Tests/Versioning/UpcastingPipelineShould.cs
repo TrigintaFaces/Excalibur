@@ -527,9 +527,9 @@ public sealed class UpcastingPipelineShould : IDisposable
 
 		var registrationTask = Task.Run(() =>
 		{
-			Thread.Sleep(10); // Small delay to interleave with reads
+			global::Tests.Shared.Infrastructure.TestTiming.Sleep(10); // Small delay to interleave with reads
 			_sut.Register(new UserCreatedEventV2ToV3Upcaster());
-			Thread.Sleep(10);
+			global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
 			_sut.Register(new UserCreatedEventV3ToV4Upcaster());
 		});
 

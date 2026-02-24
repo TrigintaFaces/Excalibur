@@ -107,7 +107,7 @@ public sealed class InterceptionContextShould : UnitTestBase
 		var initialStartTime = context.StartTime;
 
 		// Act - create new context to get different start time
-		Thread.Sleep(10);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
 		var context2 = new InterceptionContext();
 
 		// Assert
@@ -126,7 +126,7 @@ public sealed class InterceptionContextShould : UnitTestBase
 		var context = new InterceptionContext();
 
 		// Act
-		Thread.Sleep(10);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
 		var elapsed = context.ElapsedTime;
 
 		// Assert
@@ -141,7 +141,7 @@ public sealed class InterceptionContextShould : UnitTestBase
 
 		// Act
 		var elapsed1 = context.ElapsedTime;
-		Thread.Sleep(20);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(20);
 		var elapsed2 = context.ElapsedTime;
 
 		// Assert

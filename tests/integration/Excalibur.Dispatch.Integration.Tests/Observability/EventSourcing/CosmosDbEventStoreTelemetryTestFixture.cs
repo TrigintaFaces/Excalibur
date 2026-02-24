@@ -3,6 +3,7 @@
 
 using MsOptions = Microsoft.Extensions.Options.Options;
 using System.Text.Json;
+using System.Net;
 
 using Excalibur.EventSourcing.CosmosDb;
 using Excalibur.EventSourcing.Observability;
@@ -34,6 +35,54 @@ public sealed class CosmosDbEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 
 	private CosmosClient? _cosmosClient;
 	private Database? _database;
+
+	private static bool IsTransientCosmosFailure(Exception exception)
+	{
+		if (exception is CosmosException cosmosException)
+		{
+			return cosmosException.StatusCode is HttpStatusCode.RequestTimeout
+				or HttpStatusCode.TooManyRequests
+				or HttpStatusCode.ServiceUnavailable;
+		}
+
+		if (exception is TimeoutException or TaskCanceledException or HttpRequestException)
+		{
+			return true;
+		}
+
+		return exception.InnerException is not null && IsTransientCosmosFailure(exception.InnerException);
+	}
+
+	private static async Task<T> ExecuteWithTransientRetryAsync<T>(
+		Func<Task<T>> operation,
+		int maxAttempts = 4,
+		TimeSpan? initialDelay = null)
+	{
+		ArgumentNullException.ThrowIfNull(operation);
+		var delay = initialDelay ?? TimeSpan.FromMilliseconds(250);
+
+		Exception? lastException = null;
+		for (var attempt = 1; attempt <= maxAttempts; attempt++)
+		{
+			try
+			{
+				return await operation().ConfigureAwait(false);
+			}
+			catch (Exception ex) when (IsTransientCosmosFailure(ex) && attempt < maxAttempts)
+			{
+				lastException = ex;
+				await Task.Delay(delay).ConfigureAwait(false);
+				delay = TimeSpan.FromMilliseconds(Math.Min(delay.TotalMilliseconds * 2, 2000));
+			}
+			catch (Exception ex) when (IsTransientCosmosFailure(ex))
+			{
+				lastException = ex;
+				break;
+			}
+		}
+
+		throw lastException ?? new InvalidOperationException("Transient retry failed without captured exception.");
+	}
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="CosmosDbEventStoreTelemetryTestFixture"/> class.
@@ -103,12 +152,15 @@ public sealed class CosmosDbEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 			// Create Cosmos client with emulator settings and System.Text.Json serialization
 			_cosmosClient = new CosmosClientBuilder(_container.GetConnectionString())
 				.WithConnectionModeGateway()
+				.WithRequestTimeout(TimeSpan.FromSeconds(120))
+				.WithThrottlingRetryOptions(TimeSpan.FromSeconds(30), 9)
 				.WithHttpClientFactory(() => _container.HttpClient)
 				.WithSystemTextJsonSerializerOptions(jsonSerializerOptions)
 				.Build();
 
 			// Create database
-			var databaseResponse = await _cosmosClient.CreateDatabaseIfNotExistsAsync(DatabaseName)
+			var databaseResponse = await ExecuteWithTransientRetryAsync(
+				() => _cosmosClient.CreateDatabaseIfNotExistsAsync(DatabaseName))
 				.ConfigureAwait(false);
 			_database = databaseResponse.Database;
 
@@ -160,11 +212,15 @@ public sealed class CosmosDbEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 		{
 			// Drop and let the store recreate on next test
 			var container = _database.GetContainer(ContainerName);
-			_ = await container.DeleteContainerAsync().ConfigureAwait(false);
+			_ = await ExecuteWithTransientRetryAsync(() => container.DeleteContainerAsync()).ConfigureAwait(false);
 		}
 		catch (CosmosException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
 		{
 			// Container doesn't exist, that's fine
+		}
+		catch (Exception ex) when (IsTransientCosmosFailure(ex))
+		{
+			// Best-effort cleanup in CI: transient emulator overload should not fail tests.
 		}
 	}
 

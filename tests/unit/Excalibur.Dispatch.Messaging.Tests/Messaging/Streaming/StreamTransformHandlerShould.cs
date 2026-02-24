@@ -397,7 +397,7 @@ public sealed class StreamTransformHandlerShould
 			input, context, CancellationToken.None))
 		{
 			timestamps.Add(DateTime.UtcNow);
-			await Task.Delay(30);
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(30);
 		}
 
 		// Assert - should take at least 270ms for 10 items with 30ms delay each

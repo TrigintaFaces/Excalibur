@@ -187,7 +187,7 @@ public sealed class TelemetryLeaderElectionShould : UnitTestBase
 		_innerFake.BecameLeader += Raise.With(new LeaderElectionEventArgs("node-1", "test-resource"));
 
 		// Wait a tiny bit so duration > 0
-		Thread.Sleep(10);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
 
 		// Act — lose leadership
 		_innerFake.LostLeadership += Raise.With(new LeaderElectionEventArgs("node-1", "test-resource"));
@@ -206,7 +206,7 @@ public sealed class TelemetryLeaderElectionShould : UnitTestBase
 	{
 		// Arrange — become leader
 		_innerFake.BecameLeader += Raise.With(new LeaderElectionEventArgs("node-1", "test-resource"));
-		Thread.Sleep(10);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
 
 		// Act — stop while still leader
 		await _sut.StopAsync(CancellationToken.None);

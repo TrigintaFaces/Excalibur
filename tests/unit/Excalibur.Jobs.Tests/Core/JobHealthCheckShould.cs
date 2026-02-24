@@ -70,7 +70,7 @@ public sealed class JobHealthCheckShould
 		_tracker.RecordHeartbeat(jobName);
 
 		// Wait past the degraded threshold
-		await Task.Delay(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 
 		// Act
 		var result = await healthCheck.CheckHealthAsync(context, CancellationToken.None);

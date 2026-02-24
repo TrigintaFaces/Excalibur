@@ -276,7 +276,7 @@ public sealed class RateCounterShould
 		// Arrange
 		var counter = new RateCounter();
 		var originalReset = counter.LastReset;
-		Thread.Sleep(10);
+		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
 
 		// Act
 		_ = counter.Reset();
@@ -324,7 +324,7 @@ public sealed class RateCounterShould
 		_ = counter.IncrementBy(100);
 
 		// Act - Wait and increment more
-		await Task.Delay(100);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
 		_ = counter.IncrementBy(100);
 		var rate = counter.GetRate();
 
@@ -344,7 +344,7 @@ public sealed class RateCounterShould
 		_ = counter.IncrementBy(100);
 
 		// Act
-		await Task.Delay(100);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
 		var rate = counter.GetAverageRate();
 
 		// Assert - Average rate should be positive

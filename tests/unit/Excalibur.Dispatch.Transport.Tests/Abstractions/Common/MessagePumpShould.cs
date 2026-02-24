@@ -18,7 +18,7 @@ public sealed class MessagePumpShould
 
     private static async Task WaitForSignalAsync(Task signalTask, TimeSpan timeout, string failureMessage)
     {
-        var timeoutTask = Task.Delay(timeout);
+        var timeoutTask = global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(timeout);
         var completed = await Task.WhenAny(signalTask, timeoutTask).ConfigureAwait(false);
         completed.ShouldBe(signalTask, failureMessage);
         await signalTask.ConfigureAwait(false);

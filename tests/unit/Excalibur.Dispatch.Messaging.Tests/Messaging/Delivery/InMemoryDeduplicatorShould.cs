@@ -45,7 +45,7 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 	public async Task ReturnFalseForExpiredMessage()
 	{
 		await _sut.MarkProcessedAsync("msg-1", TimeSpan.FromMilliseconds(1), CancellationToken.None).ConfigureAwait(false);
-		await Task.Delay(50).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50).ConfigureAwait(false);
 		var result = await _sut.IsDuplicateAsync("msg-1", TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false);
 		result.ShouldBeFalse();
 	}
@@ -84,7 +84,7 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 		await _sut.MarkProcessedAsync("msg-1", TimeSpan.FromMilliseconds(1), CancellationToken.None).ConfigureAwait(false);
 		await _sut.MarkProcessedAsync("msg-2", TimeSpan.FromMilliseconds(1), CancellationToken.None).ConfigureAwait(false);
 		await _sut.MarkProcessedAsync("msg-3", TimeSpan.FromHours(1), CancellationToken.None).ConfigureAwait(false);
-		await Task.Delay(50).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50).ConfigureAwait(false);
 
 		var removed = await _sut.CleanupExpiredEntriesAsync(CancellationToken.None).ConfigureAwait(false);
 		removed.ShouldBe(2);

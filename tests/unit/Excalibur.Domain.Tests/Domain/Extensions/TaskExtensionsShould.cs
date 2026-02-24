@@ -18,7 +18,7 @@ public sealed class TaskExtensionsShould
 	public async Task TimeoutAfterAsync_Task_CompletesNormally_WhenWithinTimeout()
 	{
 		// Arrange
-		var task = Task.Delay(10);
+		var task = global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10);
 		var timeout = TimeSpan.FromSeconds(5);
 
 		// Act & Assert - should not throw
@@ -29,7 +29,7 @@ public sealed class TaskExtensionsShould
 	public async Task TimeoutAfterAsync_Task_ThrowsTimeoutException_WhenExceedsTimeout()
 	{
 		// Arrange
-		var task = Task.Delay(TimeSpan.FromSeconds(10));
+		var task = global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromSeconds(10));
 		var timeout = TimeSpan.FromMilliseconds(50);
 
 		// Act & Assert
@@ -162,7 +162,7 @@ public sealed class TaskExtensionsShould
 	public async Task TimeoutAfterAsync_Task_HandlesZeroTimeout()
 	{
 		// Arrange
-		var task = Task.Delay(100);
+		var task = global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
 		var timeout = TimeSpan.Zero;
 
 		// Act & Assert - zero timeout should cause immediate timeout
@@ -211,7 +211,7 @@ public sealed class TaskExtensionsShould
 
 	private static async Task<T> DelayWithResult<T>(TimeSpan delay, T result)
 	{
-		await Task.Delay(delay).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(delay).ConfigureAwait(false);
 		return result;
 	}
 

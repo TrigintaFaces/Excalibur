@@ -15,6 +15,22 @@ namespace Excalibur.Dispatch.Tests.Messaging.Resilience;
 [Trait("Category", "Unit")]
 public sealed class TransportCircuitBreakerRegistryShould
 {
+	private static async Task WaitForStateAsync(ICircuitBreakerPolicy policy, CircuitState expectedState, TimeSpan timeout)
+	{
+		var deadline = DateTime.UtcNow + timeout;
+		while (DateTime.UtcNow < deadline)
+		{
+			if (policy.State == expectedState)
+			{
+				return;
+			}
+
+			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ConfigureAwait(false);
+		}
+
+		policy.State.ShouldBe(expectedState);
+	}
+
 	#region GetOrCreate Tests
 
 	[Fact]
@@ -222,7 +238,7 @@ public sealed class TransportCircuitBreakerRegistryShould
 	}
 
 	[Fact]
-	public void MaintainIndependentStatePerTransport()
+	public async Task MaintainIndependentStatePerTransport()
 	{
 		// Arrange
 		var options = new CircuitBreakerOptions
@@ -241,7 +257,7 @@ public sealed class TransportCircuitBreakerRegistryShould
 		rabbitBreaker.State.ShouldBe(CircuitState.Open);
 
 		// Wait for half-open
-		Thread.Sleep(100);
+		await WaitForStateAsync(rabbitBreaker, CircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Act - Kafka still works, rabbit is half-open
 		kafkaBreaker.RecordSuccess();

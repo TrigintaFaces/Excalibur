@@ -41,7 +41,7 @@ public sealed class ProgressDocumentHandlerShould
 		await dispatcher.DispatchWithProgressAsync(document, context, progress, CancellationToken.None);
 
 		// Small delay to ensure all progress reports are collected
-		await Task.Delay(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 
 		// Assert
 		progressReports.Count.ShouldBeGreaterThan(0);
@@ -72,7 +72,7 @@ public sealed class ProgressDocumentHandlerShould
 
 		// Act
 		await dispatcher.DispatchWithProgressAsync(document, context, progress, CancellationToken.None);
-		await Task.Delay(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 
 		// Assert - progress should be monotonically increasing
 		var percentages = progressReports.Select(p => p.PercentComplete).Where(p => p >= 0).ToList();
@@ -105,7 +105,7 @@ public sealed class ProgressDocumentHandlerShould
 
 		// Act
 		await dispatcher.DispatchWithProgressAsync(document, context, progress, CancellationToken.None);
-		await Task.Delay(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 
 		// Assert - items processed should eventually equal total
 		progressReports.Last().ItemsProcessed.ShouldBe(10);
@@ -300,7 +300,7 @@ public sealed class ProgressDocumentHandlerShould
 		exception.Message.ShouldContain("Simulated progress handler error");
 
 		// Should have received some progress before error
-		await Task.Delay(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 		progressReports.Count.ShouldBeGreaterThan(0);
 		progressReports.Last().ItemsProcessed.ShouldBeLessThanOrEqualTo(5);
 	}
@@ -328,7 +328,7 @@ public sealed class ProgressDocumentHandlerShould
 
 		// Act
 		await dispatcher.DispatchWithProgressAsync(document, context, progress, CancellationToken.None);
-		await Task.Delay(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 
 		// Assert - should have indeterminate progress (-1) reports
 		var indeterminateReports = progressReports.Where(p => p.PercentComplete == -1).ToList();
@@ -363,7 +363,7 @@ public sealed class ProgressDocumentHandlerShould
 
 		// Act
 		await dispatcher.DispatchWithProgressAsync(document, context, progress, CancellationToken.None);
-		await Task.Delay(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
 
 		// Assert - should have different phases
 		var phases = progressReports.Select(p => p.CurrentPhase).Distinct().ToList();
