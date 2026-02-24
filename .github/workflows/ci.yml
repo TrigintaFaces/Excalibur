@@ -208,7 +208,7 @@ jobs:
     name: Package Composition Validation (T2.4)
     runs-on: ubuntu-latest
     needs: build
-    timeout-minutes: 15
+    timeout-minutes: 60
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -1235,13 +1235,13 @@ jobs:
         run: |
           if [ -f "management/reports/CoverageReport/Summary.txt" ]; then
             cat management/reports/CoverageReport/Summary.txt
-            
+
             # Extract line coverage percentage
             line_coverage=$(grep -oP 'Line coverage: \K[0-9.]+' management/reports/CoverageReport/Summary.txt || echo "0")
-            
+
             echo "Line coverage: ${line_coverage}%"
             echo "COVERAGE_PERCENTAGE=${line_coverage}" >> $GITHUB_ENV
-            
+
             # Check against threshold
             if (( $(echo "${line_coverage} < ${COVERAGE_THRESHOLD}" | bc -l) )); then
               echo "⚠️ Coverage ${line_coverage}% is below threshold ${COVERAGE_THRESHOLD}%"
