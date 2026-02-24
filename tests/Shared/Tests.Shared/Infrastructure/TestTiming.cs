@@ -12,21 +12,37 @@ namespace Tests.Shared.Infrastructure;
 /// </summary>
 public static class TestTiming
 {
+	private static async Task WaitUntilCancelledAsync(CancellationToken cancellationToken)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+
+		var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var registration = cancellationToken.Register(static state =>
+		{
+			var tcs = (TaskCompletionSource)state!;
+			tcs.TrySetResult();
+		}, completion);
+		await completion.Task.ConfigureAwait(false);
+		await registration.DisposeAsync().ConfigureAwait(false);
+		cancellationToken.ThrowIfCancellationRequested();
+	}
+
 	/// <summary>
 	/// Preferred async wait primitive for tests. Keeps waits centralized so they can be hardened over time.
 	/// </summary>
 	public static async Task PauseAsync(int millisecondsDelay, CancellationToken cancellationToken = default)
 	{
-		if (millisecondsDelay <= 0)
+		if (millisecondsDelay == Timeout.Infinite)
 		{
-			cancellationToken.ThrowIfCancellationRequested();
+			await WaitUntilCancelledAsync(cancellationToken).ConfigureAwait(false);
 			return;
 		}
 
-		if (millisecondsDelay <= 10)
+		ArgumentOutOfRangeException.ThrowIfNegative(millisecondsDelay);
+
+		if (millisecondsDelay <= 0)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
-			await Task.Yield();
 			return;
 		}
 
@@ -38,16 +54,17 @@ public static class TestTiming
 	/// </summary>
 	public static async Task PauseAsync(TimeSpan delay, CancellationToken cancellationToken = default)
 	{
-		if (delay <= TimeSpan.Zero)
+		if (delay == Timeout.InfiniteTimeSpan)
 		{
-			cancellationToken.ThrowIfCancellationRequested();
+			await WaitUntilCancelledAsync(cancellationToken).ConfigureAwait(false);
 			return;
 		}
 
-		if (delay <= TimeSpan.FromMilliseconds(10))
+		ArgumentOutOfRangeException.ThrowIfLessThan(delay, TimeSpan.Zero);
+
+		if (delay <= TimeSpan.Zero)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
-			await Task.Yield();
 			return;
 		}
 

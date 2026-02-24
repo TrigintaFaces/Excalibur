@@ -253,7 +253,7 @@ public class CircuitBreakerDataProviderFunctionalShould
 		await Should.ThrowAsync<TimeoutException>(
 			() => provider.ExecuteAsync(request, CancellationToken.None)).ConfigureAwait(false);
 
-		provider.State.ShouldBe(DataProviderCircuitState.Open);
+		await WaitForStateAsync(provider, DataProviderCircuitState.Open, TimeSpan.FromSeconds(1)).ConfigureAwait(false);
 	}
 
 	[Fact]
