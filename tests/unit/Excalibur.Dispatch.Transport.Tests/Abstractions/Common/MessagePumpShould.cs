@@ -16,6 +16,14 @@ public sealed class MessagePumpShould
 {
     private static Channel<MessageEnvelope> CreateChannel() => Channel.CreateUnbounded<MessageEnvelope>();
 
+    private static async Task WaitForSignalAsync(Task signalTask, TimeSpan timeout, string failureMessage)
+    {
+        var timeoutTask = Task.Delay(timeout);
+        var completed = await Task.WhenAny(signalTask, timeoutTask).ConfigureAwait(false);
+        completed.ShouldBe(signalTask, failureMessage);
+        await signalTask.ConfigureAwait(false);
+    }
+
     /// <summary>
     /// Helper that stops the pump gracefully by completing the channel first,
     /// which causes ReadAllAsync to end without throwing OperationCanceledException.
@@ -24,8 +32,6 @@ public sealed class MessagePumpShould
     {
         // Complete the channel so ReadAllAsync finishes naturally
         channel.Writer.TryComplete();
-        // Give processing loop time to exit
-        await Task.Delay(50).ConfigureAwait(false);
         // Now stop - the processing task should already be finished or finishing
         try
         {
@@ -169,11 +175,15 @@ public sealed class MessagePumpShould
     [Fact]
     public async Task Process_Messages_Written_To_Channel()
     {
-        var processed = new List<string>();
+        var messageProcessed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var channel = Channel.CreateUnbounded<MessageEnvelope>();
         var sut = new MessagePump("test", channel, envelope =>
         {
-            processed.Add(envelope.MessageId!);
+            if (envelope.MessageId == "msg-1")
+            {
+                messageProcessed.TrySetResult(true);
+            }
+
             return Task.CompletedTask;
         });
 
@@ -183,10 +193,7 @@ public sealed class MessagePumpShould
         var envelope = new MessageEnvelope { MessageId = "msg-1" };
         await channel.Writer.WriteAsync(envelope);
 
-        // Give processing loop time to pick up the message
-        await Task.Delay(200);
-
-        processed.ShouldContain("msg-1");
+        await WaitForSignalAsync(messageProcessed.Task, TimeSpan.FromSeconds(2), "Message pump did not process the message in time.").ConfigureAwait(false);
 
         await StopPumpGracefully(sut, channel);
     }
@@ -288,15 +295,19 @@ public sealed class MessagePumpShould
     {
         var channel = Channel.CreateUnbounded<MessageEnvelope>();
         var processedAfterError = false;
+        var failMessageObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var successMessageProcessed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var sut = new MessagePump("test", channel, envelope =>
         {
             if (envelope.MessageId == "fail")
             {
+                failMessageObserved.TrySetResult(true);
                 throw new InvalidOperationException("Test error");
             }
 
             processedAfterError = true;
+            successMessageProcessed.TrySetResult(true);
             return Task.CompletedTask;
         });
 
@@ -305,11 +316,11 @@ public sealed class MessagePumpShould
 
         // Send a message that throws
         await channel.Writer.WriteAsync(new MessageEnvelope { MessageId = "fail" });
-        await Task.Delay(100);
+        await WaitForSignalAsync(failMessageObserved.Task, TimeSpan.FromSeconds(2), "Failing message was not observed by the handler.").ConfigureAwait(false);
 
         // Send a second message to verify the pump is still running
         await channel.Writer.WriteAsync(new MessageEnvelope { MessageId = "ok" });
-        await Task.Delay(200);
+        await WaitForSignalAsync(successMessageProcessed.Task, TimeSpan.FromSeconds(2), "Message pump did not continue processing after handler exception.").ConfigureAwait(false);
 
         processedAfterError.ShouldBeTrue();
         sut.IsRunning.ShouldBeTrue();

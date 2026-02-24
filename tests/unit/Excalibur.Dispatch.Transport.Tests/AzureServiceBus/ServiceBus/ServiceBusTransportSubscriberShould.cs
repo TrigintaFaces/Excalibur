@@ -73,13 +73,16 @@ public sealed class ServiceBusTransportSubscriberShould : IAsyncDisposable
 	public async Task Start_and_stop_processor_on_subscribe()
 	{
 		using var cts = new CancellationTokenSource();
+		var processorStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		A.CallTo(() => _fakeProcessor.StartProcessingAsync(A<CancellationToken>._))
+			.Invokes(() => _ = processorStarted.TrySetResult())
+			.Returns(Task.CompletedTask);
 
 		var subscribeTask = _sut.SubscribeAsync(
 			(_, _) => Task.FromResult(MessageAction.Acknowledge),
 			cts.Token);
 
-		// Allow time for processor to start
-		await Task.Delay(100);
+		await processorStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), CancellationToken.None).ConfigureAwait(false);
 
 		// Verify StartProcessingAsync was called
 		A.CallTo(() => _fakeProcessor.StartProcessingAsync(A<CancellationToken>._))

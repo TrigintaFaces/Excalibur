@@ -73,13 +73,16 @@ public sealed class PubSubTransportSubscriberShould : IAsyncDisposable
 	public async Task Start_and_stop_subscriber_on_subscribe()
 	{
 		using var cts = new CancellationTokenSource();
+		var subscriberStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		A.CallTo(() => _fakeSubscriber.StartAsync(A<Func<PubsubMessage, CancellationToken, Task<SubscriberClient.Reply>>>._))
+			.Invokes(() => _ = subscriberStarted.TrySetResult())
+			.Returns(Task.CompletedTask);
 
 		var subscribeTask = _sut.SubscribeAsync(
 			(_, _) => Task.FromResult(MessageAction.Acknowledge),
 			cts.Token);
 
-		// Allow time for subscriber to start
-		await Task.Delay(100);
+		await subscriberStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), CancellationToken.None).ConfigureAwait(false);
 
 		// Verify StartAsync was called
 		A.CallTo(() => _fakeSubscriber.StartAsync(A<Func<PubsubMessage, CancellationToken, Task<SubscriberClient.Reply>>>._))
@@ -150,6 +153,10 @@ public sealed class PubSubTransportSubscriberShould : IAsyncDisposable
 		// StopAsync may throw InvalidOperationException if subscriber never started
 		A.CallTo(() => _fakeSubscriber.StopAsync(A<CancellationToken>._))
 			.Throws(new InvalidOperationException("Subscriber has not been started."));
+		var subscriberStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		A.CallTo(() => _fakeSubscriber.StartAsync(A<Func<PubsubMessage, CancellationToken, Task<SubscriberClient.Reply>>>._))
+			.Invokes(() => _ = subscriberStarted.TrySetResult())
+			.Returns(Task.CompletedTask);
 
 		using var cts = new CancellationTokenSource();
 
@@ -157,8 +164,7 @@ public sealed class PubSubTransportSubscriberShould : IAsyncDisposable
 			(_, _) => Task.FromResult(MessageAction.Acknowledge),
 			cts.Token);
 
-		// Allow time for subscriber to start
-		await Task.Delay(100);
+		await subscriberStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), CancellationToken.None).ConfigureAwait(false);
 
 		// Cancel the subscription - should not throw despite StopAsync throwing
 		await cts.CancelAsync();

@@ -25,6 +25,17 @@ namespace Excalibur.Outbox.Tests;
 [Trait("Priority", "0")]
 public sealed class OutboxBackgroundServiceShould : UnitTestBase
 {
+	private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
+	{
+		var deadline = DateTime.UtcNow + timeout;
+		while (!condition() && DateTime.UtcNow < deadline)
+		{
+			await Task.Delay(10).ConfigureAwait(false);
+		}
+
+		condition().ShouldBeTrue();
+	}
+
 	#region Constructor Tests
 
 	[Fact]
@@ -106,7 +117,6 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(200); // Allow time for ExecuteAsync to check Enabled flag
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -124,7 +134,9 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 	{
 		// Arrange
 		var publisher = A.Fake<IOutboxPublisher>();
+		var pendingObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
+			.Invokes(() => pendingObserved.TrySetResult(true))
 			.Returns(PublishingResult.Success(0));
 		_ = A.CallTo(() => publisher.PublishScheduledMessagesAsync(A<CancellationToken>._))
 			.Returns(PublishingResult.Success(0));
@@ -146,7 +158,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(250); // Allow time for at least one processing cycle
+		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -162,7 +174,9 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		var publisher = A.Fake<IOutboxPublisher>();
 		_ = A.CallTo(() => publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
 			.Returns(PublishingResult.Success(0));
+		var scheduledObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => publisher.PublishScheduledMessagesAsync(A<CancellationToken>._))
+			.Invokes(() => scheduledObserved.TrySetResult(true))
 			.Returns(PublishingResult.Success(0));
 		_ = A.CallTo(() => publisher.RetryFailedMessagesAsync(A<int>._, A<CancellationToken>._))
 			.Returns(PublishingResult.Success(0));
@@ -182,7 +196,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(250); // Allow time for at least one processing cycle
+		await scheduledObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -200,7 +214,9 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 			.Returns(PublishingResult.Success(0));
 		_ = A.CallTo(() => publisher.PublishScheduledMessagesAsync(A<CancellationToken>._))
 			.Returns(PublishingResult.Success(0));
+		var retryObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => publisher.RetryFailedMessagesAsync(A<int>._, A<CancellationToken>._))
+			.Invokes(() => retryObserved.TrySetResult(true))
 			.Returns(PublishingResult.Success(0));
 
 		var options = Options.Create(new OutboxProcessingOptions
@@ -219,7 +235,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(250); // Allow time for at least one processing cycle
+		await retryObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -233,7 +249,9 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 	{
 		// Arrange
 		var publisher = A.Fake<IOutboxPublisher>();
+		var pendingObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
+			.Invokes(() => pendingObserved.TrySetResult(true))
 			.Returns(PublishingResult.Success(0));
 
 		var options = Options.Create(new OutboxProcessingOptions
@@ -251,7 +269,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(250);
+		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -265,7 +283,9 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 	{
 		// Arrange
 		var publisher = A.Fake<IOutboxPublisher>();
+		var pendingObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
+			.Invokes(() => pendingObserved.TrySetResult(true))
 			.Returns(PublishingResult.Success(0));
 
 		var options = Options.Create(new OutboxProcessingOptions
@@ -283,7 +303,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(250);
+		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -336,7 +356,9 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 	{
 		// Arrange
 		var publisher = A.Fake<IOutboxPublisher>();
+		var pendingObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
+			.Invokes(() => pendingObserved.TrySetResult(true))
 			.Returns(PublishingResult.Success(0));
 
 		var options = Options.Create(new OutboxProcessingOptions
@@ -355,7 +377,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(150);
+		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -368,7 +390,9 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 	{
 		// Arrange
 		var publisher = A.Fake<IOutboxPublisher>();
+		var pendingObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
+			.Invokes(() => pendingObserved.TrySetResult(true))
 			.Returns(PublishingResult.Success(5)); // 5 successful messages
 
 		var options = Options.Create(new OutboxProcessingOptions
@@ -387,7 +411,8 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(200);
+		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		await WaitUntilAsync(() => healthState.TotalProcessed > 0, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -400,7 +425,9 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 	{
 		// Arrange
 		var publisher = A.Fake<IOutboxPublisher>();
+		var pendingObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
+			.Invokes(() => pendingObserved.TrySetResult(true))
 			.Returns(PublishingResult.Success(2));
 		_ = A.CallTo(() => publisher.PublishScheduledMessagesAsync(A<CancellationToken>._))
 			.Returns(PublishingResult.Success(0));
@@ -450,7 +477,8 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(220);
+		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		await WaitUntilAsync(() => durations.Count > 0, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -464,7 +492,9 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 	{
 		// Arrange
 		var publisher = A.Fake<IOutboxPublisher>();
+		var pendingObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
+			.Invokes(() => pendingObserved.TrySetResult(true))
 			.Returns(PublishingResult.WithFailures(0, 2, Array.Empty<PublishingError>())); // 2 failed messages
 
 		var options = Options.Create(new OutboxProcessingOptions
@@ -483,7 +513,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(200);
+		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -500,7 +530,9 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 	{
 		// Arrange
 		var publisher = A.Fake<IOutboxPublisher>();
+		var pendingObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
+			.Invokes(() => pendingObserved.TrySetResult(true))
 			.Returns(PublishingResult.Success(0));
 
 		var options = Options.Create(new OutboxProcessingOptions
@@ -518,7 +550,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(100);
+		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -537,7 +569,9 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		var publisher = A.Fake<IOutboxPublisher>();
 		_ = A.CallTo(() => publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
 			.Returns(PublishingResult.Success(0));
+		var scheduledObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => publisher.PublishScheduledMessagesAsync(A<CancellationToken>._))
+			.Invokes(() => scheduledObserved.TrySetResult(true))
 			.Returns(PublishingResult.Success(3)); // 3 scheduled messages processed
 
 		var options = Options.Create(new OutboxProcessingOptions
@@ -555,7 +589,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(250);
+		await scheduledObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -575,7 +609,9 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		var publisher = A.Fake<IOutboxPublisher>();
 		_ = A.CallTo(() => publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
 			.Returns(PublishingResult.Success(0));
+		var retryObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => publisher.RetryFailedMessagesAsync(A<int>._, A<CancellationToken>._))
+			.Invokes(() => retryObserved.TrySetResult(true))
 			.Returns(PublishingResult.Success(2)); // 2 retried messages succeeded
 
 		var options = Options.Create(new OutboxProcessingOptions
@@ -594,7 +630,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(250);
+		await retryObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -612,7 +648,9 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 	{
 		// Arrange
 		var publisher = A.Fake<IOutboxPublisher>();
+		var pendingObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
+			.Invokes(() => pendingObserved.TrySetResult(true))
 			.Returns(PublishingResult.WithFailures(successCount: 3, failureCount: 2, errors: Array.Empty<PublishingError>())); // Mixed results
 
 		var options = Options.Create(new OutboxProcessingOptions
@@ -631,7 +669,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(200);
+		await pendingObserved.Task.WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -648,6 +686,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 	{
 		// Arrange
 		var callCount = 0;
+		var secondCycleObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var publisher = A.Fake<IOutboxPublisher>();
 		_ = A.CallTo(() => publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
 			.Invokes(() =>
@@ -656,6 +695,10 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 				if (callCount == 1)
 				{
 					throw new InvalidOperationException("Test exception");
+				}
+				if (callCount >= 2)
+				{
+					secondCycleObserved.TrySetResult(true);
 				}
 			})
 			.Returns(PublishingResult.Success(0));
@@ -675,7 +718,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(300); // Allow time for multiple cycles
+		await secondCycleObserved.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
