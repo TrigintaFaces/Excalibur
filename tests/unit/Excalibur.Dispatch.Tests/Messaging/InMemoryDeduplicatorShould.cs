@@ -54,7 +54,7 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 	{
 		// Arrange - use very short expiry
 		await _deduplicator.MarkProcessedAsync("msg-1", TimeSpan.FromMilliseconds(1), CancellationToken.None);
-		await Task.Delay(10); // Wait for expiry
+		await WaitUntilNotDuplicateAsync("msg-1", TimeSpan.FromSeconds(5));
 
 		// Act
 		var isDuplicate = await _deduplicator.IsDuplicateAsync("msg-1", TimeSpan.FromHours(1), CancellationToken.None);
@@ -121,7 +121,7 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 		// Arrange
 		await _deduplicator.MarkProcessedAsync("expired-1", TimeSpan.FromMilliseconds(1), CancellationToken.None);
 		await _deduplicator.MarkProcessedAsync("active-1", TimeSpan.FromHours(1), CancellationToken.None);
-		await Task.Delay(10); // Wait for first to expire
+		await Task.Delay(100).ConfigureAwait(false);
 
 		// Act
 		var removed = await _deduplicator.CleanupExpiredEntriesAsync(CancellationToken.None);
@@ -197,5 +197,25 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 
 		// Assert - all should detect as duplicate
 		results.ShouldAllBe(r => r);
+	}
+
+	private async Task WaitUntilNotDuplicateAsync(string messageId, TimeSpan timeout)
+	{
+		var startedAt = DateTimeOffset.UtcNow;
+		while ((DateTimeOffset.UtcNow - startedAt) < timeout)
+		{
+			var isDuplicate = await _deduplicator
+				.IsDuplicateAsync(messageId, TimeSpan.FromHours(1), CancellationToken.None)
+				.ConfigureAwait(false);
+
+			if (!isDuplicate)
+			{
+				return;
+			}
+
+			await Task.Delay(10).ConfigureAwait(false);
+		}
+
+		throw new TimeoutException($"Message '{messageId}' did not expire within {timeout}.");
 	}
 }

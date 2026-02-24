@@ -234,11 +234,21 @@ public sealed class HandlerInvokerShould : IDisposable
 	[Fact]
 	public async Task Prefer_Precompiled_Generated_Invoker_When_Available()
 	{
-		ConfigureSyntheticPrecompiledProvider();
 		var handler = new PrecompiledPathHandler();
 		var message = new PrecompiledPathMessage();
+		object? result = null;
+		var usedSyntheticInvoker = false;
 
-		var result = await _invoker.InvokeAsync(handler, message, CancellationToken.None);
+		// Global precompiled caches are reset on assembly-load notifications; retry with a
+		// bounded loop to avoid transient misses while still asserting the precompiled path works.
+		for (var attempt = 0; attempt < 5 && !usedSyntheticInvoker; attempt++)
+		{
+			ConfigureSyntheticPrecompiledProvider();
+			result = await _invoker.InvokeAsync(handler, message, CancellationToken.None);
+			usedSyntheticInvoker = result is 777 && Volatile.Read(ref s_syntheticPrecompiledInvocations) == 1;
+		}
+
+		usedSyntheticInvoker.ShouldBeTrue();
 		result.ShouldBe(777);
 		Volatile.Read(ref s_syntheticPrecompiledInvocations).ShouldBe(1);
 	}

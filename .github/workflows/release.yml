@@ -135,10 +135,57 @@ jobs:
           rm -rf ./temp-packages
 
   # Build and package libraries
+  pre-tag-unit-soak:
+    name: Pre-Tag Unit Soak (${{ matrix.os }}, run ${{ matrix.iteration }})
+    runs-on: ${{ matrix.os }}
+    needs: pre-release-validation
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        iteration: [1, 2, 3]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore unit shard
+        run: dotnet restore eng/ci/shards/UnitTests.slnf
+
+      - name: Build unit shard
+        run: dotnet build eng/ci/shards/UnitTests.slnf --configuration Release --no-restore --verbosity minimal
+
+      - name: Run unit shard soak iteration
+        run: dotnet test eng/ci/shards/UnitTests.slnf --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFileName=pre-tag-unit-soak-${{ matrix.os }}-${{ matrix.iteration }}.trx" --logger "console;verbosity=minimal" --filter "(Category=Unit|Category=DependencyInjection)&Category!=Performance" -- RunConfiguration.TestSessionTimeout=1500000
+
+      - name: Upload soak test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-tag-unit-soak-${{ matrix.os }}-${{ matrix.iteration }}
+          path: "**/pre-tag-unit-soak-*.trx"
+          retention-days: 30
+
   build-packages:
     name: Build Release Packages
     runs-on: ${{ matrix.os }}
-    needs: pre-release-validation
+    needs: [pre-release-validation, pre-tag-unit-soak]
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
@@ -235,7 +282,7 @@ jobs:
   release-sbom:
     name: Release SBOM (CycloneDX)
     runs-on: ubuntu-latest
-    needs: pre-release-validation
+    needs: [pre-release-validation, pre-tag-unit-soak]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

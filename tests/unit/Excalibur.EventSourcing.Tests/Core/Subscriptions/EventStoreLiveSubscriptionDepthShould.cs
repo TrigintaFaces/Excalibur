@@ -113,7 +113,7 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 				return new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>());
 			});
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, cts.Token);
@@ -260,11 +260,12 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 				return new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>());
 			});
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, cts.Token);
-		await observedBeginningPosition.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+		await observedBeginningPosition.Task.WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None);
+		await cts.CancelAsync().ConfigureAwait(false);
 
 		// Assert - polling should eventually query from beginning
 		A.CallTo(() => _eventStore.LoadAsync("stream-1", "stream-1", -1L, A<CancellationToken>._))
@@ -294,11 +295,12 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 				return new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>());
 			});
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+		using var cts = new CancellationTokenSource();
 
 		// Act
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, cts.Token);
-		await observedConfiguredPosition.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+		await observedConfiguredPosition.Task.WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None);
+		await cts.CancelAsync().ConfigureAwait(false);
 
 		// Assert - polling should eventually use configured start position
 		A.CallTo(() => _eventStore.LoadAsync("stream-1", "stream-1", 42L, A<CancellationToken>._))

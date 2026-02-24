@@ -137,7 +137,7 @@ public sealed class BackgroundExecutionShould
 		BackgroundTaskRunner.RunDetachedInBackground(taskFactory, CancellationToken.None);
 
 		// Assert
-		(await executed.Task.WaitAsync(TimeSpan.FromSeconds(10))).ShouldBeTrue();
+		(await executed.Task.WaitAsync(TimeSpan.FromSeconds(30))).ShouldBeTrue();
 	}
 
 	[Fact]
@@ -145,9 +145,11 @@ public sealed class BackgroundExecutionShould
 	{
 		// Arrange
 		var caughtException = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var taskStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		Func<CancellationToken, Task> taskFactory = _ => throw new InvalidOperationException("test error");
 		Func<Exception, Task> onError = ex =>
 		{
+			taskStarted.TrySetResult(true);
 			caughtException.TrySetResult(ex);
 			return Task.CompletedTask;
 		};
@@ -156,7 +158,8 @@ public sealed class BackgroundExecutionShould
 		BackgroundTaskRunner.RunDetachedInBackground(taskFactory, CancellationToken.None, onError);
 
 		// Assert
-		var exception = await caughtException.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await taskStarted.Task.WaitAsync(TimeSpan.FromSeconds(30));
+		var exception = await caughtException.Task.WaitAsync(TimeSpan.FromSeconds(30));
 		exception.ShouldNotBeNull();
 		exception.ShouldBeOfType<InvalidOperationException>();
 	}

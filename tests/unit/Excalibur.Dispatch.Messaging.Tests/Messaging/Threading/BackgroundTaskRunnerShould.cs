@@ -55,6 +55,10 @@ public sealed class BackgroundTaskRunnerShould
 	{
 		var logger = A.Fake<ILogger>();
 		A.CallTo(() => logger.IsEnabled(A<LogLevel>._)).Returns(true);
+		var logObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		A.CallTo(logger)
+			.Where(call => call.Method.Name == nameof(ILogger.Log))
+			.Invokes(_ => logObserved.TrySetResult(true));
 
 		var completed = new TaskCompletionSource<bool>();
 
@@ -68,9 +72,7 @@ public sealed class BackgroundTaskRunnerShould
 			logger: logger);
 
 		await completed.Task.WaitAsync(TimeSpan.FromSeconds(120)).ConfigureAwait(false);
-
-		// Give the logger call time to complete — generous for full-suite load
-		await Task.Delay(500).ConfigureAwait(false);
+		await logObserved.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 	}
 
 	[Fact]

@@ -55,8 +55,8 @@ public sealed class InMemoryClaimCheckCleanupServiceTests : IAsyncLifetime
 		_ = await provider.StoreAsync("Test"u8.ToArray(), CancellationToken.None);
 
 		// Act
-		var executeTask = service.StartAsync(_cts.Token);
-		await Task.Delay(2000); // Give it time to potentially run
+		await service.StartAsync(_cts.Token);
+		await AssertEntryCountRemainsAsync(provider, 1, TimeSpan.FromSeconds(2));
 
 		// Assert
 		provider.EntryCount.ShouldBe(1); // Entry not cleaned up
@@ -80,7 +80,7 @@ public sealed class InMemoryClaimCheckCleanupServiceTests : IAsyncLifetime
 
 		// Act - Start service and wait for cleanup
 		await service.StartAsync(_cts.Token);
-		await Task.Delay(5000); // Wait for TTL expiration + cleanup cycle
+		await WaitForEntryCountAsync(provider, 0, TimeSpan.FromSeconds(10));
 
 		// Assert
 		provider.EntryCount.ShouldBe(0);
@@ -103,7 +103,7 @@ public sealed class InMemoryClaimCheckCleanupServiceTests : IAsyncLifetime
 
 		// Act - Start service and wait
 		await service.StartAsync(_cts.Token);
-		await Task.Delay(3000);
+		await AssertEntryCountRemainsAsync(provider, 2, TimeSpan.FromSeconds(3));
 
 		// Assert
 		provider.EntryCount.ShouldBe(2); // No cleanup
@@ -125,7 +125,7 @@ public sealed class InMemoryClaimCheckCleanupServiceTests : IAsyncLifetime
 		_ = await provider.StoreAsync("Batch 1 - Item 2"u8.ToArray(), CancellationToken.None);
 
 		await service.StartAsync(_cts.Token);
-		await Task.Delay(5000); // Wait for TTL expiration + cleanup
+		await WaitForEntryCountAsync(provider, 0, TimeSpan.FromSeconds(10));
 
 		provider.EntryCount.ShouldBe(0);
 
@@ -133,7 +133,7 @@ public sealed class InMemoryClaimCheckCleanupServiceTests : IAsyncLifetime
 		_ = await provider.StoreAsync("Batch 2 - Item 1"u8.ToArray(), CancellationToken.None);
 		_ = await provider.StoreAsync("Batch 2 - Item 2"u8.ToArray(), CancellationToken.None);
 
-		await Task.Delay(5000); // Wait for TTL expiration + cleanup
+		await WaitForEntryCountAsync(provider, 0, TimeSpan.FromSeconds(10));
 
 		provider.EntryCount.ShouldBe(0);
 	}
@@ -159,7 +159,7 @@ public sealed class InMemoryClaimCheckCleanupServiceTests : IAsyncLifetime
 		await service.StopAsync(CancellationToken.None);
 
 		// Wait for TTL to expire, but cleanup shouldn't run since service is stopped
-		await Task.Delay(3000);
+		await AssertEntryCountRemainsAsync(provider, 2, TimeSpan.FromSeconds(3));
 
 		// Assert - Entries should still exist (no cleanup after stop)
 		provider.EntryCount.ShouldBe(2);
@@ -180,11 +180,11 @@ public sealed class InMemoryClaimCheckCleanupServiceTests : IAsyncLifetime
 
 		// Store entries that will expire
 		_ = await provider.StoreAsync("Payload 1"u8.ToArray(), CancellationToken.None);
-		await Task.Delay(3000); // Wait for first cleanup
+		await WaitForEntryCountAsync(provider, 0, TimeSpan.FromSeconds(10));
 
 		// Store more entries after potential error
 		_ = await provider.StoreAsync("Payload 2"u8.ToArray(), CancellationToken.None);
-		await Task.Delay(5000); // Wait for TTL expiration + cleanup
+		await WaitForEntryCountAsync(provider, 0, TimeSpan.FromSeconds(10));
 
 		// Assert - Service should still be running and cleaning up
 		provider.EntryCount.ShouldBe(0);
@@ -202,12 +202,10 @@ public sealed class InMemoryClaimCheckCleanupServiceTests : IAsyncLifetime
 
 		// Act
 		await service.StartAsync(_cts.Token);
-		await Task.Delay(500); // Let it start
-
 		_cts.Cancel(); // Cancel execution
 
 		// Wait for graceful shutdown
-		await Task.Delay(2000);
+		await service.StopAsync(CancellationToken.None);
 
 		// Assert - Should exit without exception
 		// No exception means graceful shutdown
@@ -231,11 +229,11 @@ public sealed class InMemoryClaimCheckCleanupServiceTests : IAsyncLifetime
 		var countBefore = provider.EntryCount;
 
 		// Wait less than cleanup interval (but after TTL expires)
-		await Task.Delay(2000);
+		await AssertEntryCountRemainsAsync(provider, 1, TimeSpan.FromSeconds(2));
 		var countAfterShortWait = provider.EntryCount;
 
 		// Wait for cleanup interval to fire
-		await Task.Delay(8000);
+		await WaitForEntryCountAsync(provider, 0, TimeSpan.FromSeconds(12));
 		var countAfterLongWait = provider.EntryCount;
 
 		// Assert
@@ -280,11 +278,32 @@ public sealed class InMemoryClaimCheckCleanupServiceTests : IAsyncLifetime
 
 		// Act
 		await shortService.StartAsync(_cts.Token);
-		await Task.Delay(5000); // Wait for TTL expiration + cleanup
+		await WaitForEntryCountAsync(shortProvider, 0, TimeSpan.FromSeconds(10));
 
 		// Assert
 		shortProvider.EntryCount.ShouldBe(0); // Expired entry removed
 		longProvider.EntryCount.ShouldBe(1); // Active entry remains
+	}
+
+	private static async Task WaitForEntryCountAsync(InMemoryClaimCheckProvider provider, int expectedCount, TimeSpan timeout)
+	{
+		var start = DateTime.UtcNow;
+		while (provider.EntryCount != expectedCount && (DateTime.UtcNow - start) < timeout)
+		{
+			await Task.Delay(100).ConfigureAwait(false);
+		}
+
+		provider.EntryCount.ShouldBe(expectedCount);
+	}
+
+	private static async Task AssertEntryCountRemainsAsync(InMemoryClaimCheckProvider provider, int expectedCount, TimeSpan duration)
+	{
+		var start = DateTime.UtcNow;
+		while ((DateTime.UtcNow - start) < duration)
+		{
+			provider.EntryCount.ShouldBe(expectedCount);
+			await Task.Delay(100).ConfigureAwait(false);
+		}
 	}
 
 	private static ILogger<InMemoryClaimCheckCleanupService> CreateEnabledLogger()

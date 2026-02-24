@@ -370,8 +370,8 @@ public sealed class BatchProcessorShould : IDisposable
 			await processor.AddAsync($"item{i}", CancellationToken.None).ConfigureAwait(false);
 		}
 
-		// Wait for processing to complete (generous for full-suite parallel load)
-		await Task.Delay(3000).ConfigureAwait(false);
+		// Wait for processing to complete
+		await WaitForConditionAsync(() => processedItems.Count == 50, TimeSpan.FromSeconds(20)).ConfigureAwait(false);
 
 		processedItems.Count.ShouldBe(50);
 	}
@@ -484,7 +484,7 @@ public sealed class BatchProcessorShould : IDisposable
 			.Select(async i => await processor.AddAsync($"item{i}", CancellationToken.None).ConfigureAwait(false));
 
 		await Task.WhenAll(tasks).ConfigureAwait(false);
-		await Task.Delay(3000).ConfigureAwait(false); // Wait for processing to complete
+		await WaitForConditionAsync(() => processedItems.Count == 500, TimeSpan.FromSeconds(20)).ConfigureAwait(false);
 		stopwatch.Stop();
 
 		processedItems.Count.ShouldBe(500);
@@ -601,8 +601,8 @@ public sealed class BatchProcessorShould : IDisposable
 		await processor.AddAsync("item2", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("item3", CancellationToken.None).ConfigureAwait(false);
 
-		// Wait for batch to be processed (increased timeout for CI environments)
-		await Task.Delay(1500).ConfigureAwait(false);
+		// Wait for batch to be processed
+		await WaitForConditionAsync(() => batchTimestamps.Count == 1, TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
 		batchTimestamps.Count.ShouldBe(1);
 		var timestamps = batchTimestamps.ToArray();
@@ -668,12 +668,19 @@ public sealed class BatchProcessorShould : IDisposable
 	public async Task ProcessVariableSizedBatches()
 	{
 		var batchSizes = new ConcurrentBag<int>();
+		var totalProcessed = 0;
+		var allItemsProcessed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var options = new MicroBatchOptions { MaxBatchSize = 20, MaxBatchDelay = TimeSpan.FromMilliseconds(50) };
 
 		var processor = new BatchProcessor<string>(
 			batch =>
 			{
 				batchSizes.Add(batch.Count);
+				var currentTotal = Interlocked.Add(ref totalProcessed, batch.Count);
+				if (currentTotal >= 32)
+				{
+					_ = allItemsProcessed.TrySetResult();
+				}
 				return ValueTask.CompletedTask;
 			},
 			_logger,
@@ -684,14 +691,14 @@ public sealed class BatchProcessorShould : IDisposable
 		// Add items in bursts with pauses to create variable batch sizes
 		await processor.AddAsync("burst1-item1", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("burst1-item2", CancellationToken.None).ConfigureAwait(false);
-		await Task.Delay(60).ConfigureAwait(false); // Let this batch process
+		await WaitForConditionAsync(() => Volatile.Read(ref totalProcessed) >= 2, TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
 		await processor.AddAsync("burst2-item1", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("burst2-item2", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("burst2-item3", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("burst2-item4", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("burst2-item5", CancellationToken.None).ConfigureAwait(false);
-		await Task.Delay(60).ConfigureAwait(false); // Let this batch process
+		await WaitForConditionAsync(() => Volatile.Read(ref totalProcessed) >= 7, TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
 		// Add enough items to trigger size-based batching
 		for (var i = 0; i < 25; i++)
@@ -699,11 +706,22 @@ public sealed class BatchProcessorShould : IDisposable
 			await processor.AddAsync($"burst3-item{i}", CancellationToken.None).ConfigureAwait(false);
 		}
 
-		await Task.Delay(200).ConfigureAwait(false); // Wait for all processing
+		await allItemsProcessed.Task.WaitAsync(TimeSpan.FromSeconds(20), CancellationToken.None).ConfigureAwait(false);
 
 		batchSizes.Count.ShouldBeGreaterThan(1);
 		batchSizes.All(size => size <= options.MaxBatchSize).ShouldBeTrue();
-		batchSizes.Sum().ShouldBe(32); // 2 + 5 + 25 = 32 total items
+		Volatile.Read(ref totalProcessed).ShouldBe(32); // 2 + 5 + 25 = 32 total items
+	}
+
+	private static async Task WaitForConditionAsync(Func<bool> condition, TimeSpan timeout)
+	{
+		var stopwatch = Stopwatch.StartNew();
+		while (!condition() && stopwatch.Elapsed < timeout)
+		{
+			await Task.Delay(20).ConfigureAwait(false);
+		}
+
+		condition().ShouldBeTrue();
 	}
 
 	[Fact]
@@ -739,7 +757,7 @@ public sealed class BatchProcessorShould : IDisposable
 		}
 
 		// Wait for all processing to complete (generous for full-suite parallel load)
-		await Task.Delay(5000).ConfigureAwait(false);
+		await WaitForConditionAsync(() => processedItems.Count == 75, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
 		processedItems.Count.ShouldBe(75); // 5 bursts * 15 items each
 	}

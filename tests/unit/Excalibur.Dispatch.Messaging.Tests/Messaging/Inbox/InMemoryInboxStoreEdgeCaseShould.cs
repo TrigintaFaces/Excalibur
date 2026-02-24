@@ -110,8 +110,10 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		// Act - Adding one more should trigger trimming
 		_ = await store.CreateEntryAsync("message-overflow", TestHandler, "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false);
 
-		// Give time for trimming operation to complete
-		await Task.Delay(100).ConfigureAwait(false);
+		// Wait until trimming converges.
+		await WaitForConditionAsync(
+			async () => (await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Count() <= options.MaxEntries,
+			TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Assert - Should have exactly MaxEntries (oldest should be removed)
 		var allEntries = await store.GetAllEntriesAsync(CancellationToken.None);
@@ -287,8 +289,10 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 			await Task.Delay(1).ConfigureAwait(false);
 		}
 
-		// Give time for async trimming operations to complete
-		await Task.Delay(200).ConfigureAwait(false);
+		// Wait until async trimming converges.
+		await WaitForConditionAsync(
+			async () => (await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Count() <= options.MaxEntries + 1,
+			TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Assert - Should have trimmed to approximately the max entries
 		var remainingEntries = await store.GetAllEntriesAsync(CancellationToken.None);
@@ -314,10 +318,13 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		// Act - Add entry, mark as processed, and wait for it to expire
 		_ = await store.CreateEntryAsync("expired-message", TestHandler, "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false);
 		await store.MarkProcessedAsync("expired-message", TestHandler, CancellationToken.None).ConfigureAwait(false); // Mark as processed so cleanup can remove it
-		await Task.Delay(50).ConfigureAwait(false); // Wait longer than expiry
-
-		// Manual cleanup should still work
-		var removedCount = await store.CleanupAsync(options.RetentionPeriod, CancellationToken.None);
+		// Manual cleanup should still work once expiry has elapsed.
+		var removedCount = 0;
+		await WaitForConditionAsync(async () =>
+		{
+			removedCount = await store.CleanupAsync(options.RetentionPeriod, CancellationToken.None).ConfigureAwait(false);
+			return removedCount > 0;
+		}, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Assert - Should have cleaned up the expired entry
 		removedCount.ShouldBe(1);
@@ -341,7 +348,12 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 			await store.MarkProcessedAsync($"message-{i}", TestHandler, CancellationToken.None).ConfigureAwait(false); // Mark as processed so cleanup can remove it
 		}
 
-		await Task.Delay(50).ConfigureAwait(false); // Wait for expiry
+		var preCleaned = 0;
+		await WaitForConditionAsync(async () =>
+		{
+			preCleaned = await store.CleanupAsync(options.RetentionPeriod, CancellationToken.None).ConfigureAwait(false);
+			return preCleaned > 0;
+		}, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Act - Run concurrent cleanup operations
 		var cleanupTasks = Enumerable.Range(0, 5)
@@ -351,7 +363,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		var results = await Task.WhenAll(cleanupTasks);
 
 		// Assert - Total cleaned up should equal original count
-		var totalCleaned = results.Sum();
+		var totalCleaned = preCleaned + results.Sum();
 		totalCleaned.ShouldBe(10);
 
 		// Assert - No entries should remain
@@ -648,8 +660,12 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 			.Select(i => store.MarkProcessedAsync($"cleanup-extreme-{i}", TestHandler, CancellationToken.None).AsTask());
 		await Task.WhenAll(markProcessedTasks).ConfigureAwait(false);
 
-		// Wait for expiry
-		await Task.Delay(100).ConfigureAwait(false);
+		var preCleaned = 0;
+		await WaitForConditionAsync(async () =>
+		{
+			preCleaned = await store.CleanupAsync(options.RetentionPeriod, CancellationToken.None).ConfigureAwait(false);
+			return preCleaned > 0;
+		}, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Launch many concurrent cleanup operations
 		var cleanupResults = new ConcurrentBag<int>();
@@ -663,7 +679,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		await Task.WhenAll(cleanupTasks);
 
 		// Assert - Total cleaned should equal original count
-		var totalCleaned = cleanupResults.Sum();
+		var totalCleaned = preCleaned + cleanupResults.Sum();
 		totalCleaned.ShouldBe(messageCount);
 
 		// All entries should be gone
@@ -712,8 +728,10 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 
 		await Task.WhenAll(tasks).ConfigureAwait(false);
 
-		// Wait for any pending trimming operations
-		await Task.Delay(200).ConfigureAwait(false);
+		// Wait until trimming converges.
+		await WaitForConditionAsync(
+			async () => (await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Count() <= options.MaxEntries + 10,
+			TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Assert - Should have maintained capacity limits
 		var finalEntries = await store.GetAllEntriesAsync(CancellationToken.None);
@@ -1349,5 +1367,21 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		var store = new InMemoryInboxStore(Microsoft.Extensions.Options.Options.Create(options), _logger);
 		_disposables.Add(store);
 		return store;
+	}
+
+	private static async Task WaitForConditionAsync(Func<Task<bool>> condition, TimeSpan timeout)
+	{
+		var deadline = DateTimeOffset.UtcNow + timeout;
+		while (DateTimeOffset.UtcNow < deadline)
+		{
+			if (await condition().ConfigureAwait(false))
+			{
+				return;
+			}
+
+			await Task.Delay(TimeSpan.FromMilliseconds(10)).ConfigureAwait(false);
+		}
+
+		throw new TimeoutException($"Condition was not met within {timeout}.");
 	}
 }

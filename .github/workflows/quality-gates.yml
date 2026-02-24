@@ -68,12 +68,12 @@ jobs:
       fail-fast: false
       matrix:
         shard:
-          - { name: core, filter: "eng/ci/shards/UnitTests-Core.slnf", test_filter: "Category=Unit|Category=DependencyInjection" }
-          - { name: messaging, filter: "eng/ci/shards/UnitTests-Messaging.slnf", test_filter: "Category=Unit|Category=DependencyInjection" }
-          - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf", test_filter: "Category=Unit|Category=DependencyInjection" }
-          - { name: middleware, filter: "eng/ci/shards/UnitTests-Middleware.slnf", test_filter: "Category=Unit|Category=DependencyInjection" }
-          - { name: observability, filter: "eng/ci/shards/UnitTests-Observability.slnf", test_filter: "Category=Unit|Category=DependencyInjection" }
-          - { name: excalibur, filter: "eng/ci/shards/UnitTests-Excalibur.slnf", test_filter: "Category=Unit|Category=DependencyInjection" }
+          - { name: core, filter: "eng/ci/shards/UnitTests-Core.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
+          - { name: messaging, filter: "eng/ci/shards/UnitTests-Messaging.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
+          - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
+          - { name: middleware, filter: "eng/ci/shards/UnitTests-Middleware.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
+          - { name: observability, filter: "eng/ci/shards/UnitTests-Observability.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
+          - { name: excalibur, filter: "eng/ci/shards/UnitTests-Excalibur.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -507,4 +507,5 @@ jobs:
             echo ""
             echo "✅ ALL QUALITY GATES PASSED"
           fi
+
 

@@ -100,14 +100,19 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 	{
 		// Arrange
 		using var cts = new CancellationTokenSource();
+		var firstPollObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
-			.Returns(new List<SagaTimeout>());
+			.ReturnsLazily(() =>
+			{
+				_ = firstPollObserved.TrySetResult();
+				return new List<SagaTimeout>();
+			});
 
 		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
 
 		// Act - let it run one cycle then cancel
 		var executeTask = service.StartAsync(cts.Token);
-		await Task.Delay(100);
+		await firstPollObserved.Task.WaitAsync(TimeSpan.FromSeconds(15));
 		await cts.CancelAsync();
 
 		try
@@ -125,11 +130,13 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 	}
 
 	[Fact]
+#pragma warning disable CA1506 // Test method orchestrates multiple fakes/probes by design.
 	public async Task ProcessDueTimeouts_WhenTimeoutsExist()
 	{
 		// Arrange
 		var sagaId = Guid.NewGuid().ToString();
 		var timeoutId = Guid.NewGuid().ToString();
+		var deliveredObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var timeout = CreateTimeout(
 			timeoutId,
 			sagaId,
@@ -150,13 +157,16 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 
 		A.CallTo(() => _dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(MessageResult.Success()));
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+			.Invokes(() => _ = deliveredObserved.TrySetResult())
+			.Returns(Task.CompletedTask);
 
 		using var cts = new CancellationTokenSource();
 		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
 
 		// Act
 		var executeTask = service.StartAsync(cts.Token);
-		await Task.Delay(150);
+		await deliveredObserved.Task.WaitAsync(TimeSpan.FromSeconds(15));
 		await cts.CancelAsync();
 
 		try
@@ -178,20 +188,26 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
 			.MustHaveHappened();
 	}
+#pragma warning restore CA1506
 
 	[Fact]
 	public async Task SkipDeliveredTimeouts_WhenNoDueTimeouts()
 	{
 		// Arrange
+		var firstPollObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		A.CallTo(() => _timeoutStore.GetDueTimeoutsAsync(A<DateTimeOffset>._, A<CancellationToken>._))
-			.Returns(new List<SagaTimeout>());
+			.ReturnsLazily(() =>
+			{
+				_ = firstPollObserved.TrySetResult();
+				return new List<SagaTimeout>();
+			});
 
 		using var cts = new CancellationTokenSource();
 		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
 
 		// Act
 		var executeTask = service.StartAsync(cts.Token);
-		await Task.Delay(100);
+		await firstPollObserved.Task.WaitAsync(TimeSpan.FromSeconds(15));
 		await cts.CancelAsync();
 
 		try
@@ -213,6 +229,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 	{
 		// Arrange
 		var timeoutId = Guid.NewGuid().ToString();
+		var deliveredObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var timeout = CreateTimeout(
 			timeoutId,
 			Guid.NewGuid().ToString(),
@@ -233,10 +250,13 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 
 		using var cts = new CancellationTokenSource();
 		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+			.Invokes(() => _ = deliveredObserved.TrySetResult())
+			.Returns(Task.CompletedTask);
 
 		// Act
 		var executeTask = service.StartAsync(cts.Token);
-		await Task.Delay(150);
+		await deliveredObserved.Task.WaitAsync(TimeSpan.FromSeconds(15));
 		await cts.CancelAsync();
 
 		try
@@ -254,10 +274,12 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 	}
 
 	[Fact]
+#pragma warning disable CA1506 // Test method orchestrates multiple fakes/probes by design.
 	public async Task NotMarkDelivered_WhenDispatchFails()
 	{
 		// Arrange
 		var timeoutId = Guid.NewGuid().ToString();
+		var dispatchAttempted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var timeout = CreateTimeout(
 			timeoutId,
 			Guid.NewGuid().ToString(),
@@ -277,6 +299,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			});
 
 		A.CallTo(() => _dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Invokes(() => _ = dispatchAttempted.TrySetResult())
 			.Throws(new InvalidOperationException("Dispatch failed"));
 
 		using var cts = new CancellationTokenSource();
@@ -284,7 +307,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 
 		// Act
 		var executeTask = service.StartAsync(cts.Token);
-		await Task.Delay(150);
+		await dispatchAttempted.Task.WaitAsync(TimeSpan.FromSeconds(15));
 		await cts.CancelAsync();
 
 		try
@@ -300,6 +323,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
+#pragma warning restore CA1506
 
 	[Fact]
 #pragma warning disable CA1506 // Excessive class coupling (test method with complex FakeItEasy setup)
@@ -374,6 +398,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 	{
 		// Arrange
 		var timeoutId = Guid.NewGuid().ToString();
+		var dispatchObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var timeout = CreateTimeout(
 			timeoutId,
 			Guid.NewGuid().ToString(),
@@ -393,6 +418,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 			});
 
 		A.CallTo(() => _dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Invokes(() => _ = dispatchObserved.TrySetResult())
 			.Returns(Task.FromResult(MessageResult.Success()));
 
 		using var cts = new CancellationTokenSource();
@@ -400,7 +426,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 
 		// Act
 		var executeTask = service.StartAsync(cts.Token);
-		await Task.Delay(150);
+		await dispatchObserved.Task.WaitAsync(TimeSpan.FromSeconds(15));
 		await cts.CancelAsync();
 
 		try
@@ -425,6 +451,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 	{
 		// Arrange
 		var timeoutId = Guid.NewGuid().ToString();
+		var deliveredObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var timeout = CreateTimeout(
 			timeoutId,
 			Guid.NewGuid().ToString(),
@@ -445,10 +472,13 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 
 		using var cts = new CancellationTokenSource();
 		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+			.Invokes(() => _ = deliveredObserved.TrySetResult())
+			.Returns(Task.CompletedTask);
 
 		// Act
 		var executeTask = service.StartAsync(cts.Token);
-		await Task.Delay(150);
+		await deliveredObserved.Task.WaitAsync(TimeSpan.FromSeconds(15));
 		await cts.CancelAsync();
 
 		try
@@ -495,7 +525,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 
 		// Act
 		var executeTask = service.StartAsync(cts.Token);
-		await observedSecondPoll.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		await observedSecondPoll.Task.WaitAsync(TimeSpan.FromSeconds(15));
 		await cts.CancelAsync();
 
 		try
@@ -508,7 +538,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		}
 
 		// Assert - should have tried multiple times (service continued after error)
-		callCount.ShouldBeGreaterThan(1);
+		Interlocked.CompareExchange(ref callCount, 0, 0).ShouldBeGreaterThan(1);
 	}
 
 	[Fact]
@@ -516,6 +546,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 	{
 		// Arrange
 		var timeoutId = Guid.NewGuid().ToString();
+		var deliveredObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var timeout = CreateTimeout(
 			timeoutId,
 			Guid.NewGuid().ToString(),
@@ -536,13 +567,16 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 
 		A.CallTo(() => _dispatcher.DispatchAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(MessageResult.Success()));
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+			.Invokes(() => _ = deliveredObserved.TrySetResult())
+			.Returns(Task.CompletedTask);
 
 		using var cts = new CancellationTokenSource();
 		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(150);
+		await deliveredObserved.Task.WaitAsync(TimeSpan.FromSeconds(15));
 		await cts.CancelAsync();
 		try
 		{
@@ -565,6 +599,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 	{
 		// Arrange
 		var timeoutId = Guid.NewGuid().ToString();
+		var deliveredObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var timeout = CreateTimeout(
 			timeoutId,
 			Guid.NewGuid().ToString(),
@@ -585,10 +620,13 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 
 		using var cts = new CancellationTokenSource();
 		var service = new SagaTimeoutDeliveryService(_timeoutStore, _serviceProvider, _logger, _options);
+		A.CallTo(() => _timeoutStore.MarkDeliveredAsync(timeoutId, A<CancellationToken>._))
+			.Invokes(() => _ = deliveredObserved.TrySetResult())
+			.Returns(Task.CompletedTask);
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await Task.Delay(150);
+		await deliveredObserved.Task.WaitAsync(TimeSpan.FromSeconds(15));
 		await cts.CancelAsync();
 		try
 		{

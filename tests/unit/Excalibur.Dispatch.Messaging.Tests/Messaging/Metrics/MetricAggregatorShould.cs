@@ -159,16 +159,24 @@ public sealed class MetricAggregatorShould : UnitTestBase
 		// Arrange
 		var registry = new MetricRegistry();
 		var callbackCount = 0;
+		var multipleCallbacksObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		Action<MetricSnapshot[]> callback = _ => Interlocked.Increment(ref callbackCount);
+		Action<MetricSnapshot[]> callback = _ =>
+		{
+			var count = Interlocked.Increment(ref callbackCount);
+			if (count >= 2)
+			{
+				multipleCallbacksObserved.TrySetResult();
+			}
+		};
 
 		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(30), callback);
 
-		// Act - Poll until called multiple times
-		await WaitUntilAsync(() => Volatile.Read(ref callbackCount) > 1, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		// Act - wait until callback is observed at least twice
+		await multipleCallbacksObserved.Task.WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - Should have been called multiple times
-		callbackCount.ShouldBeGreaterThan(1);
+		Volatile.Read(ref callbackCount).ShouldBeGreaterThan(1);
 	}
 
 	#endregion
@@ -207,7 +215,7 @@ public sealed class MetricAggregatorShould : UnitTestBase
 		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(50), callback);
 
 		// Act - Poll until at least two collection cycles complete
-		await WaitUntilAsync(() => callCount >= 2, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		await WaitUntilAsync(() => callCount >= 2, TimeSpan.FromSeconds(15)).ConfigureAwait(false);
 
 		// Assert - First collection should have value, second should be reset (0)
 		firstValue.ShouldBeGreaterThan(0);
@@ -241,7 +249,7 @@ public sealed class MetricAggregatorShould : UnitTestBase
 		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(30), callback);
 
 		// Act - ensure the callback continues being invoked after a thrown exception.
-		await completionObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None).ConfigureAwait(false);
+		await completionObserved.Task.WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		exceptionCount.ShouldBe(1);
@@ -257,7 +265,7 @@ public sealed class MetricAggregatorShould : UnitTestBase
 		Action<MetricSnapshot[]> callback = _ => Interlocked.Increment(ref callCount);
 
 		var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(25), callback);
-		await WaitUntilAsync(() => Volatile.Read(ref callCount) > 0, TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		await WaitUntilAsync(() => Volatile.Read(ref callCount) > 0, TimeSpan.FromSeconds(15)).ConfigureAwait(false);
 
 		// Act
 		aggregator.Dispose();

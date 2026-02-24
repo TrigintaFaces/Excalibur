@@ -1,17 +1,14 @@
 name: Performance Benchmarks
 
 on:
-  pull_request:
-    branches: [main, develop]
-    paths:
-      - "src/Dispatch/**"
-      - "benchmarks/**"
-      - ".github/workflows/performance-tests.yml"
   push:
     branches: [main]
     paths:
       - "src/Dispatch/**"
       - "benchmarks/**"
+      - "tests/performance/**"
+      - "eng/ci/shards/PerformanceTests.slnf"
+      - ".github/workflows/performance-tests.yml"
   schedule:
     - cron: "0 2 * * 0" # Weekly on Sunday at 2 AM UTC
   workflow_dispatch:
@@ -42,10 +39,53 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: 1
 
 jobs:
+  performance-unit-tests:
+    name: Performance Unit Suites
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore performance test shard
+        run: dotnet restore eng/ci/shards/PerformanceTests.slnf
+
+      - name: Build performance test shard
+        run: dotnet build eng/ci/shards/PerformanceTests.slnf --configuration Release --no-restore
+
+      - name: Run performance test shard
+        run: dotnet test eng/ci/shards/PerformanceTests.slnf --configuration Release --no-build --blame-hang-timeout 10m --logger "trx;LogFileName=performance-tests.trx" --logger "console;verbosity=minimal" --filter "Category=Performance"
+
+      - name: Upload performance test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-test-results
+          path: "**/performance-tests.trx"
+          retention-days: 30
+
   # Hot path benchmarks - critical performance validation
   hot-path-benchmarks:
     name: Hot Path Benchmarks (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    needs: performance-unit-tests
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
