@@ -157,7 +157,7 @@ public sealed class MaterializedViewRefreshServiceShould
 
 		// Act - start and wait briefly
 		await service.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(100);
 		await service.StopAsync(cts.Token);
 
 		// Assert - no scope should be created when disabled
@@ -190,7 +190,7 @@ public sealed class MaterializedViewRefreshServiceShould
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(200); // Give time for catch-up
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(200); // Give time for catch-up
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -252,7 +252,7 @@ public sealed class MaterializedViewRefreshServiceShould
 
 		// Act & Assert - should not throw
 		await service.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(200);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(200);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -283,7 +283,7 @@ public sealed class MaterializedViewRefreshServiceShould
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50);
 
 		// Request shutdown
 		await cts.CancelAsync();
@@ -315,7 +315,7 @@ public sealed class MaterializedViewRefreshServiceShould
 		await service.StartAsync(cts.Token);
 
 		// Cancel quickly - should not wait for the full 10 minute interval
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(100);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -414,7 +414,7 @@ public sealed class MaterializedViewRefreshServiceShould
 
 		// Act & Assert - should not throw, service uses 30s default
 		await service.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(100);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 	}
@@ -503,7 +503,7 @@ public sealed class MaterializedViewRefreshServiceShould
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(500); // Give time for retry
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(500); // Give time for retry
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -534,3 +534,4 @@ public sealed class MaterializedViewRefreshServiceShould
 
 	#endregion
 }
+

@@ -42,7 +42,12 @@ public sealed class EventStoreLiveSubscriptionShould : IAsyncDisposable
 	public async Task SubscribeAsync_StartPolling()
 	{
 		// Arrange
-		SetupEmptyLoad();
+		var loadObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+#pragma warning disable CA2012
+		A.CallTo(() => _eventStore.LoadAsync("stream-1", "stream-1", A<long>._, A<CancellationToken>._))
+			.Invokes(() => loadObserved.TrySetResult())
+			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>()));
+#pragma warning restore CA2012
 
 		var receivedEvents = new List<IDomainEvent>();
 
@@ -53,14 +58,7 @@ public sealed class EventStoreLiveSubscriptionShould : IAsyncDisposable
 			return Task.CompletedTask;
 		}, CancellationToken.None);
 
-		// Poll until the event store is called (generous for full-suite parallel load)
-		var deadline = DateTime.UtcNow.AddSeconds(30);
-		while (DateTime.UtcNow < deadline)
-		{
-			if (Fake.GetCalls(_eventStore).Any(c => c.Method.Name == "LoadAsync"))
-				break;
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
-		}
+		await loadObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 
 		// Assert - should have attempted to load events
 		A.CallTo(() => _eventStore.LoadAsync("stream-1", "stream-1", A<long>._, A<CancellationToken>._))
@@ -88,20 +86,20 @@ public sealed class EventStoreLiveSubscriptionShould : IAsyncDisposable
 		A.CallTo(() => _eventSerializer.DeserializeEvent(A<byte[]>._, A<Type>._)).Returns(domainEvent);
 
 		var received = new List<IDomainEvent>();
+		var eventObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		// Act
 		await _sut.SubscribeAsync("stream-1", events =>
 		{
 			received.AddRange(events);
+			if (received.Count > 0)
+			{
+				eventObserved.TrySetResult();
+			}
 			return Task.CompletedTask;
 		}, CancellationToken.None);
 
-		// Poll until events are received (generous for full-suite parallel load)
-		var deadline2 = DateTime.UtcNow.AddSeconds(30);
-		while (received.Count == 0 && DateTime.UtcNow < deadline2)
-		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
-		}
+		await eventObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 
 		// Assert
 		received.ShouldNotBeEmpty();
@@ -111,10 +109,15 @@ public sealed class EventStoreLiveSubscriptionShould : IAsyncDisposable
 	public async Task UnsubscribeAsync_StopPolling()
 	{
 		// Arrange
-		SetupEmptyLoad();
+		var loadObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+#pragma warning disable CA2012
+		A.CallTo(() => _eventStore.LoadAsync(A<string>._, A<string>._, A<long>._, A<CancellationToken>._))
+			.Invokes(() => loadObserved.TrySetResult())
+			.Returns(new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>()));
+#pragma warning restore CA2012
 
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, CancellationToken.None);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
+		await loadObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 
 		// Act
 		await _sut.UnsubscribeAsync(CancellationToken.None);
@@ -176,11 +179,17 @@ public sealed class EventStoreLiveSubscriptionShould : IAsyncDisposable
 	{
 		// Arrange
 		var callCount = 0;
+		var secondCallObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 #pragma warning disable CA2012
 		A.CallTo(() => _eventStore.LoadAsync(A<string>._, A<string>._, A<long>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
 				callCount++;
+				if (callCount >= 2)
+				{
+					secondCallObserved.TrySetResult();
+				}
+
 				return callCount == 1
 					? throw new InvalidOperationException("transient")
 					: new ValueTask<IReadOnlyList<StoredEvent>>(Array.Empty<StoredEvent>());
@@ -189,13 +198,7 @@ public sealed class EventStoreLiveSubscriptionShould : IAsyncDisposable
 
 		// Act
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, CancellationToken.None);
-
-		// Poll until retry happens (generous for full-suite parallel load)
-		var deadline3 = DateTime.UtcNow.AddSeconds(30);
-		while (callCount <= 1 && DateTime.UtcNow < deadline3)
-		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
-		}
+		await secondCallObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 
 		// Assert - should have retried after error
 		callCount.ShouldBeGreaterThan(1);

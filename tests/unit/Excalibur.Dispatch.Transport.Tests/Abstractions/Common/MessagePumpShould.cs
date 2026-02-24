@@ -18,7 +18,7 @@ public sealed class MessagePumpShould
 
     private static async Task WaitForSignalAsync(Task signalTask, TimeSpan timeout, string failureMessage)
     {
-        var timeoutTask = global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(timeout);
+        var timeoutTask = global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(timeout);
         var completed = await Task.WhenAny(signalTask, timeoutTask).ConfigureAwait(false);
         completed.ShouldBe(signalTask, failureMessage);
         await signalTask.ConfigureAwait(false);
@@ -294,7 +294,7 @@ public sealed class MessagePumpShould
     public async Task Handle_Exceptions_In_MessageHandler_Without_Crashing()
     {
         var channel = Channel.CreateUnbounded<MessageEnvelope>();
-        var processedAfterError = false;
+        var processedAfterErrorCount = 0;
         var failMessageObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var successMessageProcessed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -306,7 +306,7 @@ public sealed class MessagePumpShould
                 throw new InvalidOperationException("Test error");
             }
 
-            processedAfterError = true;
+            Interlocked.Increment(ref processedAfterErrorCount);
             successMessageProcessed.TrySetResult(true);
             return Task.CompletedTask;
         });
@@ -322,7 +322,7 @@ public sealed class MessagePumpShould
         await channel.Writer.WriteAsync(new MessageEnvelope { MessageId = "ok" });
         await WaitForSignalAsync(successMessageProcessed.Task, TimeSpan.FromSeconds(2), "Message pump did not continue processing after handler exception.").ConfigureAwait(false);
 
-        processedAfterError.ShouldBeTrue();
+        Volatile.Read(ref processedAfterErrorCount).ShouldBeGreaterThan(0);
         sut.IsRunning.ShouldBeTrue();
 
         await StopPumpGracefully(sut, channel);
@@ -345,3 +345,4 @@ public sealed class MessagePumpShould
         await StopPumpGracefully(sut, channel);
     }
 }
+

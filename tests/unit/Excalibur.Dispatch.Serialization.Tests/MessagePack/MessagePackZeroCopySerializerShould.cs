@@ -549,7 +549,7 @@ public sealed class MessagePackZeroCopySerializerShould : UnitTestBase
 		await pipe.Writer.FlushAsync();
 
 		// Give the reader a moment to process the partial data and loop back
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50);
 
 		// Write the remaining data
 		await pipe.Writer.WriteAsync(fullPayload.AsMemory(halfLength));
@@ -597,7 +597,7 @@ public sealed class MessagePackZeroCopySerializerShould : UnitTestBase
 		}
 
 		// Small delay to ensure the reader has looped
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(20);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(20);
 
 		// Write the final byte and complete
 		await pipe.Writer.WriteAsync(new ReadOnlyMemory<byte>(fullPayload, fullPayload.Length - 1, 1));
@@ -690,3 +690,4 @@ public sealed class MessagePackZeroCopySerializerShould : UnitTestBase
 
 	#endregion Interface Implementation Tests
 }
+

@@ -285,13 +285,13 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 		_ = A.CallTo(() => primary.ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
 			.ReturnsLazily(async call =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(250, call.GetArgument<CancellationToken>(2));
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(250, call.GetArgument<CancellationToken>(2));
 				return (IReadOnlyList<KeyMetadata>)[];
 			});
 		_ = A.CallTo(() => secondary.ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
 			.ReturnsLazily(async call =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(250, call.GetArgument<CancellationToken>(2));
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(250, call.GetArgument<CancellationToken>(2));
 				return (IReadOnlyList<KeyMetadata>)[];
 			});
 
@@ -404,3 +404,4 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 		return (Task)(value ?? throw new InvalidOperationException("Health check task field should not be null."));
 	}
 }
+

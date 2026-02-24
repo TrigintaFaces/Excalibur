@@ -200,7 +200,7 @@ public sealed class UnifiedBatchingMiddlewareShould : IAsyncDisposable
 				_ = semaphore.Release();
 			}
 
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10, ct).ConfigureAwait(false); // Simulate work
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10, ct).ConfigureAwait(false); // Simulate work
 			_ = Interlocked.Decrement(ref concurrentCount);
 			return MessageResult.Success();
 		}
@@ -359,3 +359,4 @@ public sealed class UnifiedBatchingMiddlewareShould : IAsyncDisposable
 		}
 	}
 }
+

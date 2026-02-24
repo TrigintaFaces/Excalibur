@@ -236,7 +236,7 @@ public sealed class HistogramExtensionsShould
 		// Act
 		await histogram.TimeAsync(async () =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
+			await Task.Run(() => global::Tests.Shared.Infrastructure.TestTiming.Sleep(1));
 			executed = true;
 		});
 
@@ -251,7 +251,7 @@ public sealed class HistogramExtensionsShould
 		var histogram = new ValueHistogram();
 
 		// Act
-		await histogram.TimeAsync(() => global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10));
+		await histogram.TimeAsync(() => Task.Run(() => global::Tests.Shared.Infrastructure.TestTiming.Sleep(10)));
 
 		// Assert
 		histogram.Count.ShouldBe(1);
@@ -297,7 +297,7 @@ public sealed class HistogramExtensionsShould
 		// Act
 		var result = await histogram.TimeAsync(async () =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
+			await Task.Run(() => global::Tests.Shared.Infrastructure.TestTiming.Sleep(1));
 			return 42;
 		});
 
@@ -314,7 +314,7 @@ public sealed class HistogramExtensionsShould
 		// Act
 		_ = await histogram.TimeAsync(async () =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10);
+			await Task.Run(() => global::Tests.Shared.Infrastructure.TestTiming.Sleep(10));
 			return "result";
 		});
 
@@ -333,7 +333,7 @@ public sealed class HistogramExtensionsShould
 		_ = await Should.ThrowAsync<InvalidOperationException>(async () =>
 			await histogram.TimeAsync<int>(async () =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
+				await Task.Run(() => global::Tests.Shared.Infrastructure.TestTiming.Sleep(1));
 				throw new InvalidOperationException("Test error");
 			}));
 	}

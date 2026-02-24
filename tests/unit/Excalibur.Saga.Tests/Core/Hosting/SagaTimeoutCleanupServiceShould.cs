@@ -42,7 +42,9 @@ public sealed class SagaTimeoutCleanupServiceShould
 				SagaStatus.Running, A<int>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IEnumerable<SagaStateModel>>(new[] { timedOutSaga }));
 
+		var updateObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		A.CallTo(() => _stateStore.UpdateStateAsync(A<SagaStateModel>._, A<CancellationToken>._))
+			.Invokes(() => updateObserved.TrySetResult(true))
 			.Returns(true);
 
 		var options = new SagaTimeoutCleanupOptions
@@ -53,12 +55,12 @@ public sealed class SagaTimeoutCleanupServiceShould
 			EnableVerboseLogging = true
 		};
 
-		using var cts = new CancellationTokenSource(500);
+		using var cts = new CancellationTokenSource();
 		using var sut = CreateService(options);
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		try { await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(300, cts.Token); } catch (OperationCanceledException) { }
+		await updateObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await sut.StopAsync(CancellationToken.None);
 
 		// Assert
@@ -72,6 +74,8 @@ public sealed class SagaTimeoutCleanupServiceShould
 	public async Task NotCleanup_WhenSagasAreWithinTimeout()
 	{
 		// Arrange
+		var queryCallCount = 0;
+		var firstQueryObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var recentSaga = new SagaStateModel
 		{
 			SagaId = "saga-1",
@@ -82,7 +86,12 @@ public sealed class SagaTimeoutCleanupServiceShould
 
 		A.CallTo(() => _stateStoreQuery.GetByStatusAsync(
 				SagaStatus.Running, A<int>._, A<CancellationToken>._))
-			.Returns(Task.FromResult<IEnumerable<SagaStateModel>>(new[] { recentSaga }));
+			.ReturnsLazily(() =>
+			{
+				queryCallCount++;
+				firstQueryObserved.TrySetResult(true);
+				return Task.FromResult<IEnumerable<SagaStateModel>>(new[] { recentSaga });
+			});
 
 		var options = new SagaTimeoutCleanupOptions
 		{
@@ -90,12 +99,12 @@ public sealed class SagaTimeoutCleanupServiceShould
 			TimeoutThreshold = TimeSpan.FromHours(24)
 		};
 
-		using var cts = new CancellationTokenSource(300);
+		using var cts = new CancellationTokenSource();
 		using var sut = CreateService(options);
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		try { await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(200, cts.Token); } catch (OperationCanceledException) { }
+		await firstQueryObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await sut.StopAsync(CancellationToken.None);
 
 		// Assert
@@ -108,16 +117,20 @@ public sealed class SagaTimeoutCleanupServiceShould
 	{
 		// Arrange
 		var callCount = 0;
+		var transientFailureObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var secondQueryObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		A.CallTo(() => _stateStoreQuery.GetByStatusAsync(
 				SagaStatus.Running, A<int>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
-				callCount++;
-				if (callCount == 1)
+				var observedCount = Interlocked.Increment(ref callCount);
+				if (observedCount == 1)
 				{
+					transientFailureObserved.TrySetResult(true);
 					throw new InvalidOperationException("transient");
 				}
 
+				secondQueryObserved.TrySetResult(true);
 				return Task.FromResult<IEnumerable<SagaStateModel>>(Array.Empty<SagaStateModel>());
 			});
 
@@ -127,16 +140,17 @@ public sealed class SagaTimeoutCleanupServiceShould
 			TimeoutThreshold = TimeSpan.FromHours(24)
 		};
 
-		using var cts = new CancellationTokenSource(400);
+		using var cts = new CancellationTokenSource();
 		using var sut = CreateService(options);
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		try { await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(300, cts.Token); } catch (OperationCanceledException) { }
+		await transientFailureObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		await secondQueryObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 		await sut.StopAsync(CancellationToken.None);
 
 		// Assert - should have retried after error
-		callCount.ShouldBeGreaterThan(1);
+		Volatile.Read(ref callCount).ShouldBeGreaterThan(1);
 	}
 
 	[Fact]

@@ -14,6 +14,22 @@ public sealed class InMemoryTransportSubscriberShould : IAsyncDisposable
 
 	public ValueTask DisposeAsync() => _subscriber.DisposeAsync();
 
+	private async Task WaitUntilSubscribedAsync(TimeSpan timeout)
+	{
+		var deadline = DateTime.UtcNow + timeout;
+		while (DateTime.UtcNow < deadline)
+		{
+			if (_subscriber.IsSubscribed)
+			{
+				return;
+			}
+
+			await Task.Yield();
+		}
+
+		throw new TimeoutException($"Subscriber did not reach subscribed state within {timeout}.");
+	}
+
 	[Fact]
 	public async Task SubscribeAsync_SetsIsSubscribed()
 	{
@@ -22,7 +38,7 @@ public sealed class InMemoryTransportSubscriberShould : IAsyncDisposable
 			(_, _) => Task.FromResult(MessageAction.Acknowledge),
 			cts.Token);
 
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
+		await WaitUntilSubscribedAsync(TimeSpan.FromSeconds(2));
 		_subscriber.IsSubscribed.ShouldBeTrue();
 
 		cts.Cancel();
@@ -58,7 +74,7 @@ public sealed class InMemoryTransportSubscriberShould : IAsyncDisposable
 			},
 			cts.Token);
 
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
+		await WaitUntilSubscribedAsync(TimeSpan.FromSeconds(2));
 
 		var msg = new TransportReceivedMessage { Id = "msg-1" };
 		await _subscriber.PushAsync(msg, CancellationToken.None);
@@ -77,7 +93,7 @@ public sealed class InMemoryTransportSubscriberShould : IAsyncDisposable
 			(_, _) => Task.FromResult(MessageAction.Reject),
 			cts.Token);
 
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
+		await WaitUntilSubscribedAsync(TimeSpan.FromSeconds(2));
 
 		var msg = new TransportReceivedMessage { Id = "msg-1" };
 		var action = await _subscriber.PushAsync(msg, CancellationToken.None);
@@ -113,7 +129,7 @@ public sealed class InMemoryTransportSubscriberShould : IAsyncDisposable
 			},
 			cts.Token);
 
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
+		await WaitUntilSubscribedAsync(TimeSpan.FromSeconds(2));
 
 		using var pushCts = new CancellationTokenSource();
 		var msg = new TransportReceivedMessage { Id = "msg-1" };
@@ -133,7 +149,7 @@ public sealed class InMemoryTransportSubscriberShould : IAsyncDisposable
 			(_, _) => Task.FromResult(MessageAction.Acknowledge),
 			cts.Token);
 
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
+		await WaitUntilSubscribedAsync(TimeSpan.FromSeconds(2));
 		await _subscriber.PushAsync(new TransportReceivedMessage { Id = "msg-1" }, CancellationToken.None);
 
 		_subscriber.Clear();
@@ -153,7 +169,7 @@ public sealed class InMemoryTransportSubscriberShould : IAsyncDisposable
 			(_, _) => Task.FromResult(MessageAction.Acknowledge),
 			cts.Token);
 
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
+		await WaitUntilSubscribedAsync(TimeSpan.FromSeconds(2));
 		_subscriber.IsSubscribed.ShouldBeTrue();
 
 		await _subscriber.DisposeAsync();

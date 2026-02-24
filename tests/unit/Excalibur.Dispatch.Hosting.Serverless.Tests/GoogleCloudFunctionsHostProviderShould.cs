@@ -124,7 +124,7 @@ public sealed class GoogleCloudFunctionsHostProviderShould : UnitTestBase
 			context,
 			static async (_, _, token) =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromSeconds(2), token);
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromSeconds(2), token);
 				return "unreachable";
 			},
 			CancellationToken.None));
@@ -143,7 +143,7 @@ public sealed class GoogleCloudFunctionsHostProviderShould : UnitTestBase
 			context,
 			static async (_, _, token) =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10, token);
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10, token);
 				return "unreachable";
 			},
 			cts.Token));
@@ -192,3 +192,4 @@ public sealed class GoogleCloudFunctionsHostProviderShould : UnitTestBase
 		Environment.SetEnvironmentVariable("K_SERVICE", null);
 	}
 }
+

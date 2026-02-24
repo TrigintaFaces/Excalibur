@@ -136,19 +136,23 @@ public sealed class MessageContextHolderShould
 		var context2 = A.Fake<IMessageContext>();
 		IMessageContext? capturedContext1 = null;
 		IMessageContext? capturedContext2 = null;
+		var firstContextSet = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var secondContextSet = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		// Act
-		var task1 = Task.Run(() =>
+		var task1 = Task.Run(async () =>
 		{
 			MessageContextHolder.Current = context1;
-			global::Tests.Shared.Infrastructure.TestTiming.Sleep(50);
+			firstContextSet.TrySetResult();
+			await secondContextSet.Task;
 			capturedContext1 = MessageContextHolder.Current;
 		});
 
-		var task2 = Task.Run(() =>
+		var task2 = Task.Run(async () =>
 		{
 			MessageContextHolder.Current = context2;
-			global::Tests.Shared.Infrastructure.TestTiming.Sleep(50);
+			secondContextSet.TrySetResult();
+			await firstContextSet.Task;
 			capturedContext2 = MessageContextHolder.Current;
 		});
 
@@ -170,20 +174,24 @@ public sealed class MessageContextHolderShould
 		var context = A.Fake<IMessageContext>();
 		IMessageContext? capturedBeforeClear = null;
 		IMessageContext? capturedAfterClear = null;
+		var contextSet = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var clearCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		// Act
-		var task1 = Task.Run(() =>
+		var task1 = Task.Run(async () =>
 		{
 			MessageContextHolder.Current = context;
-			global::Tests.Shared.Infrastructure.TestTiming.Sleep(100);
+			contextSet.TrySetResult();
+			await clearCompleted.Task;
 			capturedBeforeClear = MessageContextHolder.Current;
 		});
 
 		var task2 = Task.Run(async () =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
+			await contextSet.Task;
 			MessageContextHolder.Clear();
 			capturedAfterClear = MessageContextHolder.Current;
+			clearCompleted.TrySetResult();
 		});
 
 		await Task.WhenAll(task1, task2);

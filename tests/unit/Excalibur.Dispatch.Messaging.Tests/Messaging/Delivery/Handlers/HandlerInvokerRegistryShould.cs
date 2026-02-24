@@ -442,7 +442,7 @@ public sealed class HandlerInvokerRegistryShould : IDisposable
 
 		public async Task HandleAsync(IDispatchMessage message, CancellationToken ct)
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(DelayMs, ct);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(DelayMs, ct);
 			WasInvoked = true;
 		}
 	}
@@ -454,10 +454,11 @@ public sealed class HandlerInvokerRegistryShould : IDisposable
 
 		public async Task<string> HandleAsync(IDispatchMessage message, CancellationToken ct)
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(DelayMs, ct);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(DelayMs, ct);
 			return ResultToReturn;
 		}
 	}
 
 	#endregion
 }
+

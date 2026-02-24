@@ -17,7 +17,7 @@ public class OrderedEventProcessorFunctionalShould
         // Act - launch multiple concurrent processing tasks
         var tasks = events.Select(i => processor.ProcessAsync(async () =>
         {
-            await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1).ConfigureAwait(false);
+            await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(1).ConfigureAwait(false);
             lock (executionOrder)
             {
                 executionOrder.Add(i);
@@ -112,3 +112,4 @@ public class OrderedEventProcessorFunctionalShould
         counter.ShouldBe(50);
     }
 }
+

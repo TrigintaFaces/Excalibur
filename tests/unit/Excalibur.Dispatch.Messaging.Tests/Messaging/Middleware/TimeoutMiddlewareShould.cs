@@ -23,6 +23,21 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 	private readonly ILogger<TimeoutMiddleware> _logger;
 	private readonly TimeoutMiddleware _defaultMiddleware;
 
+	private static async Task WaitUntilCancelledAsync(CancellationToken cancellationToken)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+
+		var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var registration = cancellationToken.Register(static state =>
+		{
+			var tcs = (TaskCompletionSource)state!;
+			tcs.TrySetResult();
+		}, completion);
+		await completion.Task.ConfigureAwait(false);
+		await registration.DisposeAsync().ConfigureAwait(false);
+		throw new OperationCanceledException(cancellationToken);
+	}
+
 	public TimeoutMiddlewareShould()
 	{
 		_logger = NullLoggerFactory.Instance.CreateLogger<TimeoutMiddleware>();
@@ -218,7 +233,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		DispatchRequestDelegate next = async (msg, ctx, ct) =>
 		{
 			// Wait for the cancellation token to fire (the timeout), then throw
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+			await WaitUntilCancelledAsync(ct).ConfigureAwait(false);
 			return MessageResult.Success();
 		};
 
@@ -244,7 +259,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		DispatchRequestDelegate next = async (msg, ctx, ct) =>
 		{
 			// Wait for the cancellation token to fire (the timeout), then throw
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+			await WaitUntilCancelledAsync(ct).ConfigureAwait(false);
 			return MessageResult.Success();
 		};
 
@@ -274,7 +289,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		DispatchRequestDelegate next = async (msg, ctx, ct) =>
 		{
 			// Wait for the cancellation token to fire (the timeout), then throw
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+			await WaitUntilCancelledAsync(ct).ConfigureAwait(false);
 			return MessageResult.Success();
 		};
 
@@ -307,7 +322,8 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		DispatchRequestDelegate next = async (msg, ctx, ct) =>
 		{
 			// This should complete well within 100ms
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+			await Task.Yield();
 			return MessageResult.Success();
 		};
 
@@ -336,7 +352,8 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		DispatchRequestDelegate next = async (msg, ctx, ct) =>
 		{
 			// This 100ms delay would fail the 50ms default but passes the 30s override
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+			await Task.Yield();
 			return MessageResult.Success();
 		};
 
@@ -366,7 +383,8 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		DispatchRequestDelegate next = async (msg, ctx, ct) =>
 		{
 			// This 100ms delay would fail the 50ms default but passes the type-specific 30s
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+			await Task.Yield();
 			return MessageResult.Success();
 		};
 
@@ -394,7 +412,8 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		DispatchRequestDelegate next = async (msg, ctx, ct) =>
 		{
 			// This 100ms delay would fail the 50ms default but passes the 30s action timeout
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+			await Task.Yield();
 			return MessageResult.Success();
 		};
 
@@ -422,7 +441,8 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		DispatchRequestDelegate next = async (msg, ctx, ct) =>
 		{
 			// This 100ms delay would fail the 50ms default but passes the 30s event timeout
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+			await Task.Yield();
 			return MessageResult.Success();
 		};
 
@@ -533,7 +553,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 		DispatchRequestDelegate next = async (msg, ctx, ct) =>
 		{
 			// Wait for the cancellation token to fire (the timeout), then throw
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+			await WaitUntilCancelledAsync(ct).ConfigureAwait(false);
 			return MessageResult.Success();
 		};
 

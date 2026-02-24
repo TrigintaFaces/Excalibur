@@ -163,7 +163,7 @@ public sealed class StreamingCancellationShould
 		var context = CreateTestContext(provider);
 
 		// Cancel after a short delay
-		_ = global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100).ContinueWith(_ => cts.Cancel());
+		_ = global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(100).ContinueWith(_ => cts.Cancel());
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<OperationCanceledException>(async () =>
@@ -261,7 +261,7 @@ public sealed class StreamingCancellationShould
 		for (var i = 0; i < count; i++)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(20, cancellationToken).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(20, cancellationToken).ConfigureAwait(false);
 			yield return new TestBatchDocument($"Item{i}");
 		}
 	}
@@ -273,3 +273,4 @@ public sealed class StreamingCancellationShould
 
 	#endregion
 }
+

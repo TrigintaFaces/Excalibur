@@ -113,7 +113,7 @@ public sealed class SecurityEventLoggerLifecycleShould : IDisposable
             CancellationToken.None);
 
         // Allow time for background processing
-        await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(2000);
+        await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(2000);
         await _sut.StopAsync(CancellationToken.None);
 
         // Assert
@@ -150,7 +150,7 @@ public sealed class SecurityEventLoggerLifecycleShould : IDisposable
             context);
 
         // Allow time for background processing
-        await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(2000);
+        await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(2000);
         await _sut.StopAsync(CancellationToken.None);
 
         // Assert - verify events were stored
@@ -175,7 +175,7 @@ public sealed class SecurityEventLoggerLifecycleShould : IDisposable
             context: null);
 
         // Allow time for background processing
-        await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(2000);
+        await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(2000);
         await _sut.StopAsync(CancellationToken.None);
 
         // Assert
@@ -202,7 +202,7 @@ public sealed class SecurityEventLoggerLifecycleShould : IDisposable
             CancellationToken.None);
 
         // Allow time for background processing
-        await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(2000);
+        await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(2000);
 
         // Assert - should not throw during stop either
         await _sut.StopAsync(CancellationToken.None);
@@ -219,3 +219,4 @@ public sealed class SecurityEventLoggerLifecycleShould : IDisposable
         logger.Dispose();
     }
 }
+

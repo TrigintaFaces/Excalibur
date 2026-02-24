@@ -271,7 +271,7 @@ public sealed class MetricAggregatorShould : UnitTestBase
 		aggregator.Dispose();
 
 		var countAfterDispose = Volatile.Read(ref callCount);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromMilliseconds(150), CancellationToken.None).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromMilliseconds(150), CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		Volatile.Read(ref callCount).ShouldBe(countAfterDispose);
@@ -337,3 +337,4 @@ public sealed class MetricAggregatorShould : UnitTestBase
 
 	#endregion
 }
+

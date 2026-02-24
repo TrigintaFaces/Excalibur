@@ -281,7 +281,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 				break;
 			}
 
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10);
+			await Task.Yield();
 		}
 
 		circuitOpened.ShouldBeTrue();
@@ -304,7 +304,7 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 			}
 			catch (CircuitBreakerOpenException)
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10);
+				await Task.Yield();
 			}
 		}
 
@@ -324,7 +324,8 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		// Act
 		var result = await adapter.ExecuteAsync(async ct =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+			await Task.Yield();
 			return 42;
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -342,7 +343,8 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		// Act
 		await adapter.ExecuteAsync(async ct =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+			await Task.Yield();
 			executed = true;
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -362,7 +364,8 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		// Act
 		_ = await adapter.ExecuteAsync(async ct =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+			await Task.Yield();
 			return "success";
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -626,7 +629,8 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 		// Act
 		await adapter.ExecuteAsync(async ct =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+			await Task.Yield();
 		}, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
@@ -710,3 +714,5 @@ public sealed class PollyCircuitBreakerPolicyAdapterShould : IDisposable
 
 	#endregion Thread Safety Tests
 }
+
+

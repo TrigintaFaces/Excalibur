@@ -106,8 +106,9 @@ public sealed class InterceptionContextShould : UnitTestBase
 		var context = new InterceptionContext();
 		var initialStartTime = context.StartTime;
 
-		// Act - create new context to get different start time
-		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
+		// Act - create new context after clock advanced
+		SpinWait.SpinUntil(() => DateTime.UtcNow > initialStartTime, TimeSpan.FromSeconds(1))
+			.ShouldBeTrue();
 		var context2 = new InterceptionContext();
 
 		// Assert
@@ -126,7 +127,8 @@ public sealed class InterceptionContextShould : UnitTestBase
 		var context = new InterceptionContext();
 
 		// Act
-		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
+		SpinWait.SpinUntil(() => context.ElapsedTime >= TimeSpan.FromMilliseconds(5), TimeSpan.FromSeconds(1))
+			.ShouldBeTrue();
 		var elapsed = context.ElapsedTime;
 
 		// Assert
@@ -141,7 +143,8 @@ public sealed class InterceptionContextShould : UnitTestBase
 
 		// Act
 		var elapsed1 = context.ElapsedTime;
-		global::Tests.Shared.Infrastructure.TestTiming.Sleep(20);
+		SpinWait.SpinUntil(() => context.ElapsedTime > elapsed1, TimeSpan.FromSeconds(1))
+			.ShouldBeTrue();
 		var elapsed2 = context.ElapsedTime;
 
 		// Assert

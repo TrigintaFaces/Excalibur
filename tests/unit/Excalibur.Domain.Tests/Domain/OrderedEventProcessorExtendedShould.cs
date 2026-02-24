@@ -16,7 +16,7 @@ public sealed class OrderedEventProcessorExtendedShould
 		// Act
 		await processor.ProcessAsync(async () =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10).ConfigureAwait(false);
 			results.Add(1);
 		}).ConfigureAwait(false);
 
@@ -96,3 +96,4 @@ public sealed class OrderedEventProcessorExtendedShould
 		await processor.DisposeAsync().ConfigureAwait(false);
 	}
 }
+

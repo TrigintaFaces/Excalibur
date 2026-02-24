@@ -360,7 +360,7 @@ public sealed class SagaOrchestrationWorkflowShould
 			// Check for simulated timeout
 			if (TimeoutOnStep == step)
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(StepTimeout + TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(StepTimeout + TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
 				_log.Log($"{step}:Timeout");
 				state.Status = SagaStatus.TimedOut;
 				await CompensateAsync(state).ConfigureAwait(false);
@@ -408,3 +408,4 @@ public sealed class SagaOrchestrationWorkflowShould
 
 	#endregion Saga Infrastructure
 }
+

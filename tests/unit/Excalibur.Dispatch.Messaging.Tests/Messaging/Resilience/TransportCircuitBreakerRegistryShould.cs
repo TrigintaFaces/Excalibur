@@ -25,7 +25,7 @@ public sealed class TransportCircuitBreakerRegistryShould
 				return;
 			}
 
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10).ConfigureAwait(false);
 		}
 
 		policy.State.ShouldBe(expectedState);
@@ -450,3 +450,4 @@ public sealed class TransportCircuitBreakerRegistryShould
 
 	#endregion Logger Factory Tests
 }
+

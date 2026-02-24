@@ -731,7 +731,7 @@ public class RetryPolicyShould : UnitTestBase
 					cancellationToken.ThrowIfCancellationRequested();
 					if (_delayMs > 0)
 					{
-						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(_delayMs, cancellationToken).ConfigureAwait(false);
+						await Task.Yield();
 					}
 				}
 			}
@@ -764,8 +764,7 @@ public class RetryPolicyShould : UnitTestBase
 					cancellationToken.ThrowIfCancellationRequested();
 					if (_initialDelayMs > 0)
 					{
-						var delay = (int)Math.Pow(2, attempt - 1) * _initialDelayMs;
-						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(delay, cancellationToken).ConfigureAwait(false);
+						await Task.Yield();
 					}
 				}
 			}
@@ -801,7 +800,7 @@ public class RetryPolicyShould : UnitTestBase
 					cancellationToken.ThrowIfCancellationRequested();
 					if (_baseDelayMs > 0)
 					{
-						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(_currentAttempt * _baseDelayMs, cancellationToken).ConfigureAwait(false);
+						await Task.Yield();
 					}
 				}
 			}
@@ -834,7 +833,7 @@ public class RetryPolicyShould : UnitTestBase
 					cancellationToken.ThrowIfCancellationRequested();
 					if (_delayMs > 0)
 					{
-						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(_delayMs, cancellationToken).ConfigureAwait(false);
+						await Task.Yield();
 					}
 				}
 			}
@@ -869,7 +868,7 @@ public class RetryPolicyShould : UnitTestBase
 					cancellationToken.ThrowIfCancellationRequested();
 					if (_delayMs > 0)
 					{
-						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(_delayMs, cancellationToken).ConfigureAwait(false);
+						await Task.Yield();
 					}
 				}
 			}
@@ -903,7 +902,7 @@ public class RetryPolicyShould : UnitTestBase
 					cancellationToken.ThrowIfCancellationRequested();
 					if (_delayMs > 0)
 					{
-						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(_delayMs, cancellationToken).ConfigureAwait(false);
+						await Task.Yield();
 					}
 				}
 			}
@@ -935,7 +934,7 @@ public class RetryPolicyShould : UnitTestBase
 					cancellationToken.ThrowIfCancellationRequested();
 					if (_delayMs > 0)
 					{
-						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(_delayMs, cancellationToken).ConfigureAwait(false);
+						await Task.Yield();
 					}
 				}
 			}
@@ -974,7 +973,7 @@ public class RetryPolicyShould : UnitTestBase
 					cancellationToken.ThrowIfCancellationRequested();
 					if (_delayMs > 0)
 					{
-						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(_delayMs, cancellationToken).ConfigureAwait(false);
+						await Task.Yield();
 					}
 				}
 			}
@@ -1090,3 +1089,4 @@ public class RetryPolicyShould : UnitTestBase
 
 	#endregion Backoff Calculator Implementations
 }
+

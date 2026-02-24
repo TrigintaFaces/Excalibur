@@ -62,7 +62,7 @@ public class DataPortabilityServiceShould
             NullLogger<DataPortabilityService>.Instance);
 
         var exported = await sut.ExportAsync("user-1", ExportFormat.Json, CancellationToken.None);
-        await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50); // Wait for expiration
+        await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50); // Wait for expiration
 
         var status = await sut.GetExportStatusAsync(exported.ExportId, CancellationToken.None);
 
@@ -122,3 +122,4 @@ public class DataPortabilityServiceShould
         result.DataSize.ShouldBeGreaterThan(0);
     }
 }
+

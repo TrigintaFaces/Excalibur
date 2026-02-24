@@ -120,10 +120,12 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 		await _deduplicator.MarkProcessedAsync(
 			"msg-1", TimeSpan.FromMilliseconds(1), CancellationToken.None);
 
-		// Wait for expiry
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
-
-		var removedCount = await _deduplicator.CleanupExpiredEntriesAsync(CancellationToken.None);
+		var removedCount = 0;
+		await WaitUntilAsync(async () =>
+		{
+			removedCount = await _deduplicator.CleanupExpiredEntriesAsync(CancellationToken.None);
+			return removedCount == 1;
+		}, TimeSpan.FromSeconds(2));
 
 		removedCount.ShouldBe(1);
 	}
@@ -156,4 +158,21 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 	{
 		_deduplicator.Dispose();
 	}
+
+	private static async Task WaitUntilAsync(Func<Task<bool>> condition, TimeSpan timeout)
+	{
+		var deadline = DateTimeOffset.UtcNow + timeout;
+		while (DateTimeOffset.UtcNow < deadline)
+		{
+			if (await condition())
+			{
+				return;
+			}
+
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10);
+		}
+
+		throw new TimeoutException($"Condition was not met within {timeout}.");
+	}
 }
+

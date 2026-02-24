@@ -83,7 +83,8 @@ public sealed class DefaultRetryPolicyShould
 		// Act
 		var result = await policy.ExecuteAsync(async ct =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+			await Task.Yield();
 			return 42;
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -101,7 +102,8 @@ public sealed class DefaultRetryPolicyShould
 		// Act
 		await policy.ExecuteAsync(async ct =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+			await Task.Yield();
 			executed = true;
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -120,7 +122,8 @@ public sealed class DefaultRetryPolicyShould
 		_ = await policy.ExecuteAsync(async ct =>
 		{
 			executionCount++;
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+			await Task.Yield();
 			return "success";
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -153,7 +156,9 @@ public sealed class DefaultRetryPolicyShould
 				throw new InvalidOperationException($"Transient error {executionCount}");
 			}
 
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+
+			await Task.Yield();
 			return "success";
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -300,7 +305,7 @@ public sealed class DefaultRetryPolicyShould
 			await policy.ExecuteAsync(async ct =>
 			{
 				ct.ThrowIfCancellationRequested();
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1000, ct).ConfigureAwait(false);
+				await Task.Yield();
 				return "result";
 			}, cts.Token).ConfigureAwait(false)).ConfigureAwait(false);
 	}
@@ -317,6 +322,7 @@ public sealed class DefaultRetryPolicyShould
 		var policy = CreatePolicy(options);
 		using var cts = new CancellationTokenSource();
 		var executionCount = 0;
+		cts.CancelAfter(TimeSpan.FromMilliseconds(50));
 
 		// Act
 		var task = policy.ExecuteAsync(async ct =>
@@ -327,13 +333,11 @@ public sealed class DefaultRetryPolicyShould
 				throw new InvalidOperationException("First failure");
 			}
 
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+
+			await Task.Yield();
 			return "success";
 		}, cts.Token);
-
-		// Cancel after a short delay (before retry delay completes)
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50).ConfigureAwait(false);
-		cts.Cancel();
 
 		// Assert
 		_ = await Should.ThrowAsync<OperationCanceledException>(async () =>
@@ -471,7 +475,9 @@ public sealed class DefaultRetryPolicyShould
 				throw new InvalidOperationException($"Error {executionCount}");
 			}
 
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+
+			await Task.Yield();
 		}, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
@@ -566,7 +572,9 @@ public sealed class DefaultRetryPolicyShould
 				throw new InvalidOperationException($"Error {executionCount}");
 			}
 
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+
+			await Task.Yield();
 			return "success on last attempt";
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -728,7 +736,9 @@ public sealed class DefaultRetryPolicyShould
 				throw new InvalidOperationException("Retry this");
 			}
 
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+
+			await Task.Yield();
 			return "success";
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -760,7 +770,8 @@ public sealed class DefaultRetryPolicyShould
 			await policy.ExecuteAsync(async ct =>
 			{
 				executionCount++;
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+				ct.ThrowIfCancellationRequested();
+				await Task.Yield();
 				throw new InvalidOperationException("Void action failed");
 			}, CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
 
@@ -789,7 +800,9 @@ public sealed class DefaultRetryPolicyShould
 				throw new InvalidOperationException("First attempt fails");
 			}
 
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+
+			await Task.Yield();
 			actionCompleted = true;
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -822,11 +835,13 @@ public sealed class DefaultRetryPolicyShould
 			if (executionCount == 1)
 			{
 				// Cancel after first attempt, during the delay
-				_ = global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ContinueWith(_ => cts.Cancel());
+				cts.CancelAfter(TimeSpan.FromMilliseconds(10));
 				throw new InvalidOperationException("Trigger retry");
 			}
 
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+
+			await Task.Yield();
 			return "success";
 		}, cts.Token);
 
@@ -867,3 +882,5 @@ public sealed class DefaultRetryPolicyShould
 
 	#endregion Derived Exception Type Tests
 }
+
+

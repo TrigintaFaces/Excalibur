@@ -74,6 +74,7 @@ public sealed class TimeoutPatternFunctionalShould : FunctionalTestBase
 		{
 			while (!cts.Token.IsCancellationRequested)
 			{
+				// Intentional timeout polling delay with CancellationToken to keep this loop responsive.
 				await Task.Delay(10, cts.Token).ConfigureAwait(false);
 			}
 

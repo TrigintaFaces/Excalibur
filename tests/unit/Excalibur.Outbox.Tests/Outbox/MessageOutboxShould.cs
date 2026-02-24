@@ -307,12 +307,31 @@ public sealed class MessageOutboxShould : IDisposable
 	{
 		// Arrange
 		_sut = new MessageOutbox(_outboxStore, _outboxProcessor, _serializer, _options, _logger);
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+		using var cts = new CancellationTokenSource();
+		var dispatchObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		A.CallTo(() => _outboxProcessor.DispatchPendingMessagesAsync(A<CancellationToken>._))
+			.Invokes(() => _ = dispatchObserved.TrySetResult())
+			.ReturnsLazily(async call =>
+			{
+				var ct = call.GetArgument<CancellationToken>(0);
+				try
+				{
+					await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(Timeout.Infinite, ct);
+				}
+				catch (OperationCanceledException)
+				{
+					// Expected
+				}
+				return 0;
+			});
 
 		// Act
 		try
 		{
-			await _sut.RunOutboxDispatchAsync("dispatcher-1", cts.Token);
+			var runTask = _sut.RunOutboxDispatchAsync("dispatcher-1", cts.Token);
+			await dispatchObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+			await cts.CancelAsync();
+			await runTask;
 		}
 		catch (OperationCanceledException)
 		{
@@ -329,14 +348,17 @@ public sealed class MessageOutboxShould : IDisposable
 		// Arrange
 		_sut = new MessageOutbox(_outboxStore, _outboxProcessor, _serializer, _options, _logger);
 		var callCount = 0;
+		using var cts = new CancellationTokenSource();
 		A.CallTo(() => _outboxProcessor.DispatchPendingMessagesAsync(A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
-				callCount++;
+				var currentCall = Interlocked.Increment(ref callCount);
+				if (currentCall >= 2)
+				{
+					cts.Cancel();
+				}
 				return 1;
 			});
-
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
 
 		// Act
 		var result = await _sut.RunOutboxDispatchAsync("dispatcher-1", cts.Token);
@@ -352,19 +374,22 @@ public sealed class MessageOutboxShould : IDisposable
 		// Arrange
 		_sut = new MessageOutbox(_outboxStore, _outboxProcessor, _serializer, _options, _logger);
 		var callCount = 0;
+		using var cts = new CancellationTokenSource();
 		A.CallTo(() => _outboxProcessor.DispatchPendingMessagesAsync(A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
-				callCount++;
-				if (callCount == 1)
+				var currentCall = Interlocked.Increment(ref callCount);
+				if (currentCall == 1)
 				{
 					throw new InvalidOperationException("Test error");
+				}
+				if (currentCall >= 2)
+				{
+					cts.Cancel();
 				}
 
 				return 0;
 			});
-
-		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
 
 		// Act & Assert - should not throw
 		await Should.NotThrowAsync(async () =>
@@ -478,3 +503,4 @@ public sealed class MessageOutboxShould : IDisposable
 
 	#endregion
 }
+

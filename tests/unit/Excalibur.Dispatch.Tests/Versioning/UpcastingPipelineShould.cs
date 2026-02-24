@@ -524,12 +524,12 @@ public sealed class UpcastingPipelineShould : IDisposable
 	{
 		// Arrange
 		_sut.Register(new UserCreatedEventV1ToV2Upcaster());
+		var firstUpcastStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		var registrationTask = Task.Run(() =>
+		var registrationTask = Task.Run(async () =>
 		{
-			global::Tests.Shared.Infrastructure.TestTiming.Sleep(10); // Small delay to interleave with reads
+			await firstUpcastStarted.Task;
 			_sut.Register(new UserCreatedEventV2ToV3Upcaster());
-			global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
 			_sut.Register(new UserCreatedEventV3ToV4Upcaster());
 		});
 
@@ -538,6 +538,7 @@ public sealed class UpcastingPipelineShould : IDisposable
 		{
 			upcastTasks.Add(Task.Run(() =>
 			{
+				firstUpcastStarted.TrySetResult();
 				var v1 = new UserCreatedEventV1 { Id = Guid.NewGuid(), Name = $"User {i}" };
 				try
 				{

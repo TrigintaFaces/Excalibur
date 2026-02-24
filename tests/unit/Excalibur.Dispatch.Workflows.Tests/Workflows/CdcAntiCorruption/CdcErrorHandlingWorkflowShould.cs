@@ -443,7 +443,7 @@ public sealed class CdcErrorHandlingWorkflowShould
 
 					if (attempts < _maxRetries)
 					{
-						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(_retryDelayMs, cancellationToken).ConfigureAwait(false);
+						await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(_retryDelayMs, cancellationToken).ConfigureAwait(false);
 					}
 				}
 			}
@@ -571,3 +571,4 @@ public sealed class CdcErrorHandlingWorkflowShould
 
 	#endregion Test Infrastructure
 }
+

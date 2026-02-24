@@ -28,7 +28,7 @@ public class CircuitBreakerDataProviderFunctionalShould
 				return;
 			}
 
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromMilliseconds(10)).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromMilliseconds(10)).ConfigureAwait(false);
 		}
 
 		provider.State.ShouldBe(expectedState);
@@ -356,3 +356,4 @@ public class CircuitBreakerDataProviderFunctionalShould
 		provider.State.ShouldBe(DataProviderCircuitState.Open);
 	}
 }
+

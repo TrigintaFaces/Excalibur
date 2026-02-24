@@ -28,7 +28,7 @@ public sealed class InMemoryClaimCheckProviderDepthShould
 		await provider.StoreAsync(payload, CancellationToken.None);
 
 		// Wait for expiration
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(500);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(500);
 
 		// Store a non-expiring entry
 		var provider2Opts = new ClaimCheckOptions { DefaultTtl = TimeSpan.Zero };
@@ -53,7 +53,7 @@ public sealed class InMemoryClaimCheckProviderDepthShould
 			await provider.StoreAsync(new byte[] { (byte)i }, CancellationToken.None);
 		}
 
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(500);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(500);
 
 		// Act - Remove at most 2
 		var removed = await provider.CleanupExpiredAsync(2, CancellationToken.None);
@@ -88,7 +88,7 @@ public sealed class InMemoryClaimCheckProviderDepthShould
 			await provider.StoreAsync(new byte[] { (byte)i }, CancellationToken.None);
 		}
 
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(500);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(500);
 
 		// Act - Cancel immediately
 		using var cts = new CancellationTokenSource();
@@ -109,7 +109,7 @@ public sealed class InMemoryClaimCheckProviderDepthShould
 			await provider.StoreAsync(new byte[] { (byte)i }, CancellationToken.None);
 		}
 
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(500);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(500);
 
 		// Act
 		var removed = provider.RemoveExpiredEntries();
@@ -126,7 +126,7 @@ public sealed class InMemoryClaimCheckProviderDepthShould
 		var provider = CreateProvider(o => o.DefaultTtl = TimeSpan.FromMilliseconds(1));
 		var reference = await provider.StoreAsync("expired"u8.ToArray(), CancellationToken.None);
 
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(500);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(500);
 
 		// Act & Assert
 		var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
@@ -249,3 +249,4 @@ public sealed class InMemoryClaimCheckProviderDepthShould
 		return new InMemoryClaimCheckProvider(Microsoft.Extensions.Options.Options.Create(options));
 	}
 }
+

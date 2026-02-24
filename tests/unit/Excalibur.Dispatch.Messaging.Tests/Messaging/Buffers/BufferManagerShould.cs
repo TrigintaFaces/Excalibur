@@ -124,7 +124,7 @@ public class BufferManagerShould
 				try
 				{
 					var buffer = BufferManager.Rent(256);
-					await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Random.Shared.Next(1, 5));
+					await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(Random.Shared.Next(1, 5));
 					BufferManager.Return(buffer);
 				}
 				catch (Exception ex)
@@ -161,3 +161,4 @@ public class BufferManagerShould
 		_ = buffer2.ShouldNotBeNull();
 	}
 }
+

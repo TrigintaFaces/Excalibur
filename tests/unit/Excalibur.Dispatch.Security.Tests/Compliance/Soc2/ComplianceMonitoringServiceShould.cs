@@ -32,7 +32,7 @@ public sealed class ComplianceMonitoringServiceShould
 		{
 			EnableContinuousMonitoring = true,
 			EnableAlerts = true,
-			MonitoringInterval = TimeSpan.FromSeconds(1),
+			MonitoringInterval = TimeSpan.FromMilliseconds(100),
 			AlertThreshold = GapSeverity.Medium,
 			EnabledCategories = [TrustServicesCategory.Security]
 		});
@@ -83,6 +83,12 @@ public sealed class ComplianceMonitoringServiceShould
 	public async Task ExecuteAsync_ExitImmediately_WhenMonitoringDisabled()
 	{
 		// Arrange
+		var complianceCallObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		_ = A.CallTo(() => _fakeComplianceService.GetComplianceStatusAsync(
+				A<string>._,
+				A<CancellationToken>._))
+			.Invokes(() => complianceCallObserved.TrySetResult());
+
 		_ = A.CallTo(() => _fakeOptions.Value).Returns(new Soc2Options
 		{
 			EnableContinuousMonitoring = false
@@ -93,7 +99,9 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(2000); // Give it time to potentially run (generous for full-suite parallel load)
+		_ = await Task.WhenAny(
+			complianceCallObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromMilliseconds(500), CancellationToken.None));
 		await sut.StopAsync(cts.Token);
 
 		// Assert
@@ -107,13 +115,19 @@ public sealed class ComplianceMonitoringServiceShould
 	public async Task ExecuteAsync_GetComplianceStatus_WhenMonitoringEnabled()
 	{
 		// Arrange
-		SetupFullyCompliantStatus();
+		var complianceCallObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		_ = A.CallTo(() => _fakeComplianceService.GetComplianceStatusAsync(
+				A<string>._,
+				A<CancellationToken>._))
+			.Invokes(() => complianceCallObserved.TrySetResult())
+			.ReturnsLazily(() => CreateFullyCompliantStatus());
+
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
 		var cts = new CancellationTokenSource();
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(3000); // Generous for full-suite parallel load (1s monitoring interval) // Let one cycle complete
+		await complianceCallObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 		cts.Cancel();
 
 		try
@@ -153,12 +167,17 @@ public sealed class ComplianceMonitoringServiceShould
 	{
 		// Arrange
 		var callCount = 0;
+		var secondCallObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => _fakeComplianceService.GetComplianceStatusAsync(
 				A<string>._,
 				A<CancellationToken>._))
 			.Invokes(() =>
 			{
 				callCount++;
+				if (callCount >= 2)
+				{
+					secondCallObserved.TrySetResult();
+				}
 				if (callCount == 1)
 				{
 					throw new InvalidOperationException("First call fails");
@@ -171,7 +190,7 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(5000); // Generous for full-suite parallel load (needs 2+ cycles at 1s interval) // Give time for retries
+		await secondCallObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 		cts.Cancel();
 
 		try
@@ -196,12 +215,18 @@ public sealed class ComplianceMonitoringServiceShould
 	{
 		// Arrange
 		SetupStatusWithGap(GapSeverity.High); // Above Medium threshold
+		var alertObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		_ = A.CallTo(() => _fakeAlertHandler.HandleComplianceGapAsync(
+				A<ComplianceGapAlert>._,
+				A<CancellationToken>._))
+			.Invokes(() => alertObserved.TrySetResult());
+
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
 		var cts = new CancellationTokenSource();
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(3000); // Generous for full-suite parallel load (1s monitoring interval)
+		await alertObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 		cts.Cancel();
 
 		try
@@ -230,7 +255,9 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(3000); // Generous for full-suite parallel load (1s monitoring interval)
+		await WaitUntilAsync(
+			() => GetCallCount(_fakeComplianceService, nameof(ISoc2ComplianceService.GetComplianceStatusAsync)) >= 2,
+			TimeSpan.FromSeconds(5));
 		cts.Cancel();
 
 		try
@@ -257,7 +284,7 @@ public sealed class ComplianceMonitoringServiceShould
 		{
 			EnableContinuousMonitoring = true,
 			EnableAlerts = false,
-			MonitoringInterval = TimeSpan.FromSeconds(1),
+			MonitoringInterval = TimeSpan.FromMilliseconds(100),
 			EnabledCategories = [TrustServicesCategory.Security]
 		});
 
@@ -267,7 +294,9 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(3000); // Generous for full-suite parallel load (1s monitoring interval)
+		await WaitUntilAsync(
+			() => GetCallCount(_fakeComplianceService, nameof(ISoc2ComplianceService.GetComplianceStatusAsync)) >= 2,
+			TimeSpan.FromSeconds(5));
 		cts.Cancel();
 
 		try
@@ -290,17 +319,22 @@ public sealed class ComplianceMonitoringServiceShould
 	public async Task ExecuteAsync_NotifyValidationFailure_WhenGetStatusFails()
 	{
 		// Arrange
+		var validationAlertObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => _fakeComplianceService.GetComplianceStatusAsync(
 				A<string>._,
 				A<CancellationToken>._))
 			.ThrowsAsync(new InvalidOperationException("Database unavailable"));
+		_ = A.CallTo(() => _fakeAlertHandler.HandleValidationFailureAsync(
+				A<ControlValidationFailureAlert>._,
+				A<CancellationToken>._))
+			.Invokes(() => validationAlertObserved.TrySetResult());
 
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
 		var cts = new CancellationTokenSource();
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(3000); // Generous for full-suite parallel load (1s monitoring interval)
+		await validationAlertObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 		cts.Cancel();
 
 		try
@@ -328,6 +362,7 @@ public sealed class ComplianceMonitoringServiceShould
 	{
 		// Arrange
 		var callCount = 0;
+		var statusChangeObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => _fakeComplianceService.GetComplianceStatusAsync(
 				A<string>._,
 				A<CancellationToken>._))
@@ -338,13 +373,17 @@ public sealed class ComplianceMonitoringServiceShould
 					? CreateFullyCompliantStatus()
 					: CreateNonCompliantStatus();
 			});
+		_ = A.CallTo(() => _fakeAlertHandler.HandleStatusChangeAsync(
+				A<ComplianceStatusChangeNotification>.That.Matches(n => !n.IsCompliant),
+				A<CancellationToken>._))
+			.Invokes(() => statusChangeObserved.TrySetResult());
 
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
 		var cts = new CancellationTokenSource();
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(5000); // Generous for full-suite parallel load (needs 2+ cycles at 1s interval) // Let two cycles complete
+		await statusChangeObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 		cts.Cancel();
 
 		try
@@ -368,6 +407,7 @@ public sealed class ComplianceMonitoringServiceShould
 	{
 		// Arrange
 		var callCount = 0;
+		var statusChangeObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => _fakeComplianceService.GetComplianceStatusAsync(
 				A<string>._,
 				A<CancellationToken>._))
@@ -378,13 +418,17 @@ public sealed class ComplianceMonitoringServiceShould
 					? CreateNonCompliantStatus()
 					: CreateFullyCompliantStatus();
 			});
+		_ = A.CallTo(() => _fakeAlertHandler.HandleStatusChangeAsync(
+				A<ComplianceStatusChangeNotification>.That.Matches(n => n.IsCompliant),
+				A<CancellationToken>._))
+			.Invokes(() => statusChangeObserved.TrySetResult());
 
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
 		var cts = new CancellationTokenSource();
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(5000); // Generous for full-suite parallel load (needs 2+ cycles at 1s interval) // Let two cycles complete
+		await statusChangeObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 		cts.Cancel();
 
 		try
@@ -427,7 +471,7 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(5000); // Generous for full-suite parallel load (needs 2+ cycles at 1s interval) // Let multiple cycles complete
+		await WaitUntilAsync(() => capturedAlerts.Count >= 2, TimeSpan.FromSeconds(5));
 		cts.Cancel();
 
 		try
@@ -544,6 +588,27 @@ public sealed class ComplianceMonitoringServiceShould
 			.Returns(new[] { _fakeAlertHandler });
 	}
 
+	private static int GetCallCount(object fake, string methodName)
+	{
+		return Fake.GetCalls(fake).Count(c => c.Method.Name == methodName);
+	}
+
+	private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
+	{
+		var deadline = DateTime.UtcNow.Add(timeout);
+		while (!condition())
+		{
+			if (DateTime.UtcNow >= deadline)
+			{
+				throw new TimeoutException($"Condition not met within {timeout}.");
+			}
+
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(
+				TimeSpan.FromMilliseconds(25),
+				CancellationToken.None);
+		}
+	}
+
 	private void SetupFullyCompliantStatus()
 	{
 		_ = A.CallTo(() => _fakeComplianceService.GetComplianceStatusAsync(
@@ -601,3 +666,4 @@ public sealed class ComplianceMonitoringServiceShould
 
 	#endregion Helper Methods
 }
+

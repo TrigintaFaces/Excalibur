@@ -298,7 +298,7 @@ public sealed class ExceptionMapperShould
 		var builder = new ExceptionMappingBuilder();
 		_ = builder.MapAsync<InvalidOperationException>(async (ex, ct) =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(1, ct);
 			return new MessageProblemDetails
 			{
 				Type = "test:async-invalid-op",
@@ -649,3 +649,4 @@ public sealed class ExceptionMapperShould
 
 	#endregion
 }
+

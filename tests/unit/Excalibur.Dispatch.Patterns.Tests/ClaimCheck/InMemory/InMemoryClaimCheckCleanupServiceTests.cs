@@ -290,7 +290,7 @@ public sealed class InMemoryClaimCheckCleanupServiceTests : IAsyncLifetime
 		var start = DateTime.UtcNow;
 		while (provider.EntryCount != expectedCount && (DateTime.UtcNow - start) < timeout)
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(100).ConfigureAwait(false);
 		}
 
 		provider.EntryCount.ShouldBe(expectedCount);
@@ -302,7 +302,7 @@ public sealed class InMemoryClaimCheckCleanupServiceTests : IAsyncLifetime
 		while ((DateTime.UtcNow - start) < duration)
 		{
 			provider.EntryCount.ShouldBe(expectedCount);
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(100).ConfigureAwait(false);
 		}
 	}
 
@@ -337,3 +337,4 @@ public sealed class InMemoryClaimCheckCleanupServiceTests : IAsyncLifetime
 		return (provider, service);
 	}
 }
+

@@ -29,7 +29,7 @@ public sealed class ResilienceIntegrationShould
 				return;
 			}
 
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10).ConfigureAwait(false);
 		}
 
 		policy.State.ShouldBe(expectedState);
@@ -64,7 +64,7 @@ public sealed class ResilienceIntegrationShould
 		{
 			await circuitBreaker.ExecuteAsync(async ct =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(1, ct).ConfigureAwait(false);
 				return "processed";
 			}).ConfigureAwait(false);
 		}
@@ -120,7 +120,7 @@ public sealed class ResilienceIntegrationShould
 			{
 				var delay = backoffCalculator.CalculateDelay(attempt - 1);
 				delays.Add(delay);
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(delay).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(delay).ConfigureAwait(false);
 			}
 
 			try
@@ -199,7 +199,7 @@ public sealed class ResilienceIntegrationShould
 		await kafkaBreaker.ExecuteAsync(async ct =>
 		{
 			kafkaProcessed = true;
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(1, ct).ConfigureAwait(false);
 			return true;
 		}).ConfigureAwait(false);
 
@@ -237,7 +237,7 @@ public sealed class ResilienceIntegrationShould
 		{
 			if (attempt > 1)
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(backoffCalculator.CalculateDelay(attempt - 1)).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(backoffCalculator.CalculateDelay(attempt - 1)).ConfigureAwait(false);
 			}
 
 			try
@@ -519,3 +519,4 @@ public sealed class ResilienceIntegrationShould
 
 	#endregion Test Message Types
 }
+

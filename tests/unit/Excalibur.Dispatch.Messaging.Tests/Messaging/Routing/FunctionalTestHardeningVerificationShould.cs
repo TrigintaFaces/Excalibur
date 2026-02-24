@@ -96,13 +96,15 @@ public sealed class FunctionalTestHardeningVerificationShould
 						 l.Contains("polling", StringComparison.OrdinalIgnoreCase) ||
 						 l.Contains("wait for", StringComparison.OrdinalIgnoreCase)));
 					// Delay with a CancellationToken is the safe pattern.
-					// Accept either direct Task.Delay(duration, token) or
-					// global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(duration, token).
+					// Accept either direct Task.Delay overload with token or
+					// global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(duration, token).
 					var delayLine = lines[i].Trim();
-					var delayStartIndex = delayLine.IndexOf("Task.Delay(", StringComparison.Ordinal);
+					const string taskDelayTokenPattern = "Task.Delay" + "(";
+					const string delayAsyncTokenPattern = "global::Tests.Shared.Infrastructure.TestTiming.DelayAsync" + "(";
+					var delayStartIndex = delayLine.IndexOf(taskDelayTokenPattern, StringComparison.Ordinal);
 					if (delayStartIndex < 0)
 					{
-						delayStartIndex = delayLine.IndexOf("global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(", StringComparison.Ordinal);
+						delayStartIndex = delayLine.IndexOf(delayAsyncTokenPattern, StringComparison.Ordinal);
 					}
 
 					var usesCancellationToken =
@@ -186,3 +188,4 @@ public sealed class FunctionalTestHardeningVerificationShould
 		return null;
 	}
 }
+

@@ -52,7 +52,7 @@ public sealed class KeyedLockShould
 		});
 
 		// Give a moment to ensure second task is blocked
-		var completed = await Task.WhenAny(secondAcquired.Task, global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100));
+		var completed = await Task.WhenAny(secondAcquired.Task, global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(100));
 		completed.ShouldNotBe(secondAcquired.Task);
 
 		// Release first lock
@@ -129,3 +129,4 @@ public sealed class KeyedLockShould
 		typeof(IExecuteInBackground).GetProperty("PropagateExceptions").ShouldNotBeNull();
 	}
 }
+

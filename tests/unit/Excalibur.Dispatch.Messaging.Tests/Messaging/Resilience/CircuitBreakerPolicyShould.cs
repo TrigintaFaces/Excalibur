@@ -27,7 +27,7 @@ public sealed class CircuitBreakerPolicyShould
 				return;
 			}
 
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ConfigureAwait(false);
+			await Task.Yield();
 		}
 
 		policy.State.ShouldBe(expectedState);
@@ -152,7 +152,8 @@ public sealed class CircuitBreakerPolicyShould
 		_ = await Should.ThrowAsync<CircuitBreakerOpenException>(async () =>
 			await policy.ExecuteAsync(async ct =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+				ct.ThrowIfCancellationRequested();
+				await Task.Yield();
 				return "result";
 			}, CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
 	}
@@ -236,7 +237,8 @@ public sealed class CircuitBreakerPolicyShould
 		// Act - Execute should work in half-open
 		var result = await policy.ExecuteAsync(async ct =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+			await Task.Yield();
 			return "success";
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -341,7 +343,8 @@ public sealed class CircuitBreakerPolicyShould
 		// Act
 		_ = await policy.ExecuteAsync(async ct =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+			await Task.Yield();
 			return "result";
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -452,7 +455,8 @@ public sealed class CircuitBreakerPolicyShould
 		// Act
 		var result = await policy.ExecuteAsync(async ct =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+			await Task.Yield();
 			return 42;
 		}, CancellationToken.None).ConfigureAwait(false);
 
@@ -470,7 +474,8 @@ public sealed class CircuitBreakerPolicyShould
 		// Act
 		await policy.ExecuteAsync(async ct =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+			ct.ThrowIfCancellationRequested();
+			await Task.Yield();
 			executed = true;
 			return true;
 		}, CancellationToken.None).ConfigureAwait(false);
@@ -505,7 +510,7 @@ public sealed class CircuitBreakerPolicyShould
 			await policy.ExecuteAsync(async ct =>
 			{
 				ct.ThrowIfCancellationRequested();
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+				await Task.Yield();
 				return "result";
 			}, cts.Token).ConfigureAwait(false)).ConfigureAwait(false);
 
@@ -630,7 +635,8 @@ public sealed class CircuitBreakerPolicyShould
 		var exception = await Should.ThrowAsync<CircuitBreakerOpenException>(async () =>
 			await policy.ExecuteAsync(async ct =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+				ct.ThrowIfCancellationRequested();
+				await Task.Yield();
 				return "result";
 			}, CancellationToken.None).ConfigureAwait(false)).ConfigureAwait(false);
 

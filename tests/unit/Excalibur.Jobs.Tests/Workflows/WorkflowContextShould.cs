@@ -132,7 +132,7 @@ public sealed class WorkflowContextShould
 		var waitTask = context.WaitForEventAsync("approval", TimeSpan.FromSeconds(5), CancellationToken.None);
 
 		// Give a small delay to ensure the wait is registered
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50);
 
 		// Raise the event
 		await context.RaiseEventAsync("approval", eventData, CancellationToken.None);
@@ -217,3 +217,4 @@ public sealed class WorkflowContextShould
 			await context.ScheduleStepAsync(null!, TimeSpan.FromSeconds(1), null, CancellationToken.None));
 	}
 }
+

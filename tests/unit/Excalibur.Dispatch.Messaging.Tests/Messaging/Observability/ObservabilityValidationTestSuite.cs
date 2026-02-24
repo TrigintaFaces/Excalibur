@@ -144,7 +144,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 			_ = await batchProcessedTcs.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
 			// Wait a bit more for metrics to be emitted
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(200).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(200).ConfigureAwait(false);
 		}
 
 		// Assert - Verify batch was processed
@@ -210,7 +210,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 			result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
 
 			// Wait for any async processing to complete
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(100).ConfigureAwait(false);
 		}
 
 		// Assert - Verify successful processing
@@ -337,7 +337,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 			_ = await allProcessed.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
 			// Wait for final telemetry to be emitted
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(500).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(500).ConfigureAwait(false);
 		}
 
 		// Assert - Verify all operations completed successfully
@@ -527,3 +527,4 @@ internal sealed class ObsTestSuiteLogEntry
 
 	public DateTimeOffset Timestamp { get; init; }
 }
+

@@ -315,7 +315,7 @@ public sealed class LruCacheShould : UnitTestBase
 
 		// Act
 		cache.Set("key1", 42, ttl: TimeSpan.FromMilliseconds(50));
-		global::Tests.Shared.Infrastructure.TestTiming.Sleep(100); // Wait for expiration
+		WaitForAtLeast(TimeSpan.FromMilliseconds(100));
 
 		// Assert
 		cache.TryGetValue("key1", out var value).ShouldBeFalse();
@@ -328,7 +328,7 @@ public sealed class LruCacheShould : UnitTestBase
 		// Arrange
 		using var cache = new LruCache<string, int>(10, defaultTtl: TimeSpan.FromMilliseconds(50));
 		cache.Set("key1", 42);
-		global::Tests.Shared.Infrastructure.TestTiming.Sleep(100); // Wait for expiration
+		WaitForAtLeast(TimeSpan.FromMilliseconds(100));
 
 		// Act
 		var found = cache.TryGetValue("key1", out var value);
@@ -348,7 +348,7 @@ public sealed class LruCacheShould : UnitTestBase
 		using var cache = new LruCache<string, int>(10, defaultTtl: TimeSpan.FromMilliseconds(50));
 		cache.Set("key1", 1);
 		cache.Set("key2", 2);
-		global::Tests.Shared.Infrastructure.TestTiming.Sleep(100); // Wait for expiration
+		WaitForAtLeast(TimeSpan.FromMilliseconds(100));
 
 		// Act
 		cache.RemoveExpiredItems();
@@ -382,7 +382,7 @@ public sealed class LruCacheShould : UnitTestBase
 
 		// Act
 		var value = cache.GetOrAdd("key1", key => 42, ttl: TimeSpan.FromMilliseconds(50));
-		global::Tests.Shared.Infrastructure.TestTiming.Sleep(100);
+		WaitForAtLeast(TimeSpan.FromMilliseconds(100));
 
 		// Assert
 		cache.TryGetValue("key1", out var expiredValue).ShouldBeFalse();
@@ -504,7 +504,7 @@ public sealed class LruCacheShould : UnitTestBase
 		using var cache = new LruCache<string, int>(10, defaultTtl: TimeSpan.FromMilliseconds(50));
 		cache.Set("key1", 1);
 		cache.Set("key2", 2);
-		global::Tests.Shared.Infrastructure.TestTiming.Sleep(100);
+		WaitForAtLeast(TimeSpan.FromMilliseconds(100));
 
 		// Act
 		_ = cache.TryGetValue("key1", out _); // Expired, increments expirations
@@ -522,7 +522,7 @@ public sealed class LruCacheShould : UnitTestBase
 		using var cache = new LruCache<string, int>(10, defaultTtl: TimeSpan.FromSeconds(10));
 		cache.Set("key1", 1, ttl: TimeSpan.FromMilliseconds(50));  // Will expire
 		cache.Set("key2", 2, ttl: TimeSpan.FromHours(1));          // Won't expire
-		global::Tests.Shared.Infrastructure.TestTiming.Sleep(100);
+		WaitForAtLeast(TimeSpan.FromMilliseconds(100));
 
 		// Act
 		cache.RemoveExpiredItems();
@@ -559,5 +559,12 @@ public sealed class LruCacheShould : UnitTestBase
 
 		// Assert
 		cache.Capacity.ShouldBe(25);
+	}
+
+	private static void WaitForAtLeast(TimeSpan duration)
+	{
+		var deadline = DateTime.UtcNow + duration;
+		SpinWait.SpinUntil(() => DateTime.UtcNow >= deadline, TimeSpan.FromSeconds(1))
+			.ShouldBeTrue();
 	}
 }

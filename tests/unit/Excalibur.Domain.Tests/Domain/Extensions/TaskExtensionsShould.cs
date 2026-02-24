@@ -18,7 +18,7 @@ public sealed class TaskExtensionsShould
 	public async Task TimeoutAfterAsync_Task_CompletesNormally_WhenWithinTimeout()
 	{
 		// Arrange
-		var task = global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10);
+		var task = CompleteOnNextTickAsync();
 		var timeout = TimeSpan.FromSeconds(5);
 
 		// Act & Assert - should not throw
@@ -29,7 +29,7 @@ public sealed class TaskExtensionsShould
 	public async Task TimeoutAfterAsync_Task_ThrowsTimeoutException_WhenExceedsTimeout()
 	{
 		// Arrange
-		var task = global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromSeconds(10));
+		var task = NeverCompletingTask();
 		var timeout = TimeSpan.FromMilliseconds(50);
 
 		// Act & Assert
@@ -162,7 +162,7 @@ public sealed class TaskExtensionsShould
 	public async Task TimeoutAfterAsync_Task_HandlesZeroTimeout()
 	{
 		// Arrange
-		var task = global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
+		var task = NeverCompletingTask();
 		var timeout = TimeSpan.Zero;
 
 		// Act & Assert - zero timeout should cause immediate timeout
@@ -211,8 +211,20 @@ public sealed class TaskExtensionsShould
 
 	private static async Task<T> DelayWithResult<T>(TimeSpan delay, T result)
 	{
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(delay).ConfigureAwait(false);
+		if (delay > TimeSpan.Zero)
+		{
+			await NeverCompletingTask().ConfigureAwait(false);
+		}
+
 		return result;
+	}
+
+	private static Task NeverCompletingTask() =>
+		new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously).Task;
+
+	private static async Task CompleteOnNextTickAsync()
+	{
+		await Task.Yield();
 	}
 
 	private sealed class TestObject

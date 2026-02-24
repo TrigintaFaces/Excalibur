@@ -348,7 +348,7 @@ public sealed class LruCacheShould : IDisposable
 		_cache.Set("key1", 42);
 
 		// Act - Wait for expiration
-		global::Tests.Shared.Infrastructure.TestTiming.Sleep(50);
+		WaitForAtLeast(TimeSpan.FromMilliseconds(50));
 		var found = _cache.TryGetValue("key1", out _);
 
 		// Assert
@@ -364,7 +364,7 @@ public sealed class LruCacheShould : IDisposable
 		_cache.Set("key2", 2);
 
 		// Act
-		global::Tests.Shared.Infrastructure.TestTiming.Sleep(50);
+		WaitForAtLeast(TimeSpan.FromMilliseconds(50));
 		_cache.RemoveExpiredItems();
 
 		// Assert
@@ -379,7 +379,7 @@ public sealed class LruCacheShould : IDisposable
 		_cache.Set("key1", 42, TimeSpan.FromMilliseconds(1));
 
 		// Act
-		global::Tests.Shared.Infrastructure.TestTiming.Sleep(50);
+		WaitForAtLeast(TimeSpan.FromMilliseconds(50));
 		var found = _cache.TryGetValue("key1", out _);
 
 		// Assert
@@ -452,4 +452,11 @@ public sealed class LruCacheShould : IDisposable
 	}
 
 	#endregion
+
+	private static void WaitForAtLeast(TimeSpan duration)
+	{
+		var deadline = DateTime.UtcNow + duration;
+		SpinWait.SpinUntil(() => DateTime.UtcNow >= deadline, TimeSpan.FromSeconds(1))
+			.ShouldBeTrue();
+	}
 }

@@ -88,7 +88,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
                 message, context,
                 async (_, _, ct) =>
                 {
-                    await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromSeconds(30), ct).ConfigureAwait(false);
+                    await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromSeconds(30), ct).ConfigureAwait(false);
                     return MessageResult.Success();
                 },
                 CancellationToken.None).AsTask());
@@ -113,7 +113,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
             message, context,
             async (_, _, ct) =>
             {
-                await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromSeconds(30), ct).ConfigureAwait(false);
+                await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromSeconds(30), ct).ConfigureAwait(false);
                 return MessageResult.Success();
             },
             CancellationToken.None);
@@ -195,7 +195,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
                 async (_, _, ct) =>
                 {
                     ct.ThrowIfCancellationRequested();
-                    await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
+                    await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
                     return MessageResult.Success();
                 },
                 cts.Token).AsTask());
@@ -220,7 +220,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
             message, context,
             async (_, _, ct) =>
             {
-                await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromSeconds(30), ct).ConfigureAwait(false);
+                await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromSeconds(30), ct).ConfigureAwait(false);
                 return MessageResult.Success();
             },
             CancellationToken.None);
@@ -228,3 +228,4 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
         context.GetItem<bool>("Timeout.Exceeded").ShouldBeTrue();
     }
 }
+

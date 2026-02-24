@@ -96,7 +96,7 @@ public sealed class ExceptionMappingBuilderShould
 		{
 			builder.MapAsync<InvalidOperationException>(async (ex, ct) =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, ct).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(1, ct).ConfigureAwait(false);
 				return new MessageProblemDetails
 				{
 					Title = "Async Mapped",
@@ -254,3 +254,4 @@ public sealed class ExceptionMappingBuilderShould
 			() => mapper.MapAsync(null!, CancellationToken.None)).ConfigureAwait(false);
 	}
 }
+

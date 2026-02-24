@@ -75,13 +75,27 @@ public sealed class OutboxServiceShould : UnitTestBase
 		// Arrange
 		var outbox = A.Fake<IOutboxDispatcher>();
 		string? capturedDispatcherId = null;
+		var dispatchStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		_ = A.CallTo(() => outbox.RunOutboxDispatchAsync(A<string>._, A<CancellationToken>._))
 			.Invokes(call =>
 			{
 				capturedDispatcherId = call.GetArgument<string>(0);
+				_ = dispatchStarted.TrySetResult();
 			})
-			.Returns(Task.FromResult(0));
+			.ReturnsLazily(async call =>
+			{
+				var ct = call.GetArgument<CancellationToken>(1);
+				try
+				{
+					await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(Timeout.Infinite, ct);
+				}
+				catch (OperationCanceledException)
+				{
+					// Expected
+				}
+				return 0;
+			});
 
 		var service = new OutboxService(outbox);
 
@@ -89,9 +103,7 @@ public sealed class OutboxServiceShould : UnitTestBase
 
 		// Act - Start the service and let ExecuteAsync run briefly
 		await service.StartAsync(cts.Token);
-
-		// Allow some time for ExecuteAsync to be called
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(500);
+		await dispatchStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
@@ -106,13 +118,27 @@ public sealed class OutboxServiceShould : UnitTestBase
 		// Arrange
 		var outbox = A.Fake<IOutboxDispatcher>();
 		CancellationToken capturedToken = default;
+		var dispatchStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		_ = A.CallTo(() => outbox.RunOutboxDispatchAsync(A<string>._, A<CancellationToken>._))
 			.Invokes(call =>
 			{
 				capturedToken = call.GetArgument<CancellationToken>(1);
+				_ = dispatchStarted.TrySetResult();
 			})
-			.Returns(Task.FromResult(0));
+			.ReturnsLazily(async call =>
+			{
+				var ct = call.GetArgument<CancellationToken>(1);
+				try
+				{
+					await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(Timeout.Infinite, ct);
+				}
+				catch (OperationCanceledException)
+				{
+					// Expected
+				}
+				return 0;
+			});
 
 		var service = new OutboxService(outbox);
 
@@ -120,9 +146,7 @@ public sealed class OutboxServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-
-		// Allow some time for ExecuteAsync to be called
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
+		await dispatchStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
@@ -130,7 +154,9 @@ public sealed class OutboxServiceShould : UnitTestBase
 		// Assert - Token should have been passed (it may already be cancelled)
 		_ = A.CallTo(() => outbox.RunOutboxDispatchAsync(A<string>._, A<CancellationToken>._))
 			.MustHaveHappened();
+		capturedToken.CanBeCanceled.ShouldBeTrue();
 	}
 
 	#endregion
 }
+

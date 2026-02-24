@@ -211,7 +211,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(2000).ConfigureAwait(false); // Give time for ExecuteAsync to run (generous for full-suite load)
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(2000).ConfigureAwait(false); // Give time for ExecuteAsync to run (generous for full-suite load)
 		await sut.StopAsync(cts.Token).ConfigureAwait(false);
 
 		// Assert - should not have created any scope when disabled
@@ -295,3 +295,4 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 
 	#endregion
 }
+

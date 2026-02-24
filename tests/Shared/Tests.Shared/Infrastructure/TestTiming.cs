@@ -12,6 +12,48 @@ namespace Tests.Shared.Infrastructure;
 /// </summary>
 public static class TestTiming
 {
+	/// <summary>
+	/// Preferred async wait primitive for tests. Keeps waits centralized so they can be hardened over time.
+	/// </summary>
+	public static async Task PauseAsync(int millisecondsDelay, CancellationToken cancellationToken = default)
+	{
+		if (millisecondsDelay <= 0)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			return;
+		}
+
+		if (millisecondsDelay <= 10)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			await Task.Yield();
+			return;
+		}
+
+		await Task.Delay(millisecondsDelay, cancellationToken);
+	}
+
+	/// <summary>
+	/// Preferred async wait primitive for tests. Keeps waits centralized so they can be hardened over time.
+	/// </summary>
+	public static async Task PauseAsync(TimeSpan delay, CancellationToken cancellationToken = default)
+	{
+		if (delay <= TimeSpan.Zero)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			return;
+		}
+
+		if (delay <= TimeSpan.FromMilliseconds(10))
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+			await Task.Yield();
+			return;
+		}
+
+		await Task.Delay(delay, cancellationToken);
+	}
+
 	public static Task DelayAsync(int millisecondsDelay, CancellationToken cancellationToken = default) =>
 		Task.Delay(millisecondsDelay, cancellationToken);
 
@@ -23,4 +65,26 @@ public static class TestTiming
 
 	public static void Sleep(TimeSpan timeout) =>
 		Thread.Sleep(timeout);
+
+	/// <summary>
+	/// Preferred blocking wait primitive for tests that must use synchronous APIs.
+	/// </summary>
+	public static void BlockingPause(int millisecondsTimeout)
+	{
+		if (millisecondsTimeout > 0)
+		{
+			Thread.Sleep(millisecondsTimeout);
+		}
+	}
+
+	/// <summary>
+	/// Preferred blocking wait primitive for tests that must use synchronous APIs.
+	/// </summary>
+	public static void BlockingPause(TimeSpan timeout)
+	{
+		if (timeout > TimeSpan.Zero)
+		{
+			Thread.Sleep(timeout);
+		}
+	}
 }

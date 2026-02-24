@@ -295,11 +295,17 @@ public sealed class SqsTransportSubscriberShould : IAsyncDisposable
 		// Arrange
 		var cts = new CancellationTokenSource();
 		var callCount = 0;
+		var secondPollObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		A.CallTo(() => _fakeSqs.ReceiveMessageAsync(A<ReceiveMessageRequest>._, A<CancellationToken>._))
 			.ReturnsLazily(_ =>
 			{
 				callCount++;
+				if (callCount >= 2)
+				{
+					secondPollObserved.TrySetResult();
+				}
+
 				if (callCount <= 2)
 				{
 					return Task.FromResult(new ReceiveMessageResponse { Messages = [] });
@@ -313,6 +319,7 @@ public sealed class SqsTransportSubscriberShould : IAsyncDisposable
 		await _subscriber.SubscribeAsync(
 			(_, _) => Task.FromResult(MessageAction.Acknowledge),
 			cts.Token);
+		await secondPollObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
 
 		// Assert - should have polled multiple times
 		callCount.ShouldBeGreaterThan(1);

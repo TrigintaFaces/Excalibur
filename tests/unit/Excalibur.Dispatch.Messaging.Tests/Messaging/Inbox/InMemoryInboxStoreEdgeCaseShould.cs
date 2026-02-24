@@ -141,8 +141,9 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		var markTasks = Enumerable.Range(0, operationCount / 2)
 			.Select(async i =>
 			{
-				// Wait a bit to ensure entry exists
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Random.Shared.Next(1, 10)).ConfigureAwait(false);
+				await WaitForConditionAsync(async () =>
+						await store.GetEntryAsync($"message-{i}", TestHandler, CancellationToken.None).ConfigureAwait(false) is not null,
+					TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 				try
 				{
 					await store.MarkProcessedAsync($"message-{i}", TestHandler, CancellationToken.None);
@@ -285,8 +286,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 			messageIds.Add(messageId);
 			_ = await store.CreateEntryAsync(messageId, TestHandler, "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false);
 
-			// Add small delay to ensure timestamp ordering
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1).ConfigureAwait(false);
+			await Task.Yield();
 		}
 
 		// Wait until async trimming converges.
@@ -450,7 +450,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 				{
 					_ = await store.CreateEntryAsync(messageId, TestHandler, "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false);
 					createdMessageIds.Add(messageId);
-					await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Random.Shared.Next(1, 5)).ConfigureAwait(false); // Simulate processing time
+					await Task.Yield();
 				}
 				catch (Exception ex)
 				{
@@ -467,7 +467,9 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 			{
 				try
 				{
-					await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Random.Shared.Next(5, 15)).ConfigureAwait(false); // Wait for creation
+					await WaitForConditionAsync(async () =>
+						await store.GetEntryAsync(messageId, TestHandler, CancellationToken.None).ConfigureAwait(false) is not null,
+						TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 					await store.MarkProcessedAsync(messageId, TestHandler, CancellationToken.None);
 					processedMessageIds.Add(messageId);
 				}
@@ -487,7 +489,9 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 			{
 				try
 				{
-					await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Random.Shared.Next(5, 15)).ConfigureAwait(false); // Wait for creation
+					await WaitForConditionAsync(async () =>
+						await store.GetEntryAsync(messageId, TestHandler, CancellationToken.None).ConfigureAwait(false) is not null,
+						TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 					await store.MarkFailedAsync(messageId, TestHandler, $"Test error for {messageId}", CancellationToken.None);
 					failedMessageIds.Add(messageId);
 				}
@@ -513,7 +517,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 					{
 						var stats = await store.GetStatisticsAsync(CancellationToken.None);
 						_ = stats.ShouldNotBeNull();
-						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Random.Shared.Next(1, 10)).ConfigureAwait(false);
+						await Task.Yield();
 					}
 				}
 				catch (Exception ex)
@@ -530,7 +534,9 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 			{
 				try
 				{
-					await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Random.Shared.Next(100, 200)).ConfigureAwait(false); // Wait for some entries
+					await WaitForConditionAsync(async () =>
+						(await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Any(),
+						TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 					_ = await store.CleanupAsync(options.RetentionPeriod, CancellationToken.None);
 				}
 				catch (Exception ex)
@@ -588,8 +594,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		{
 			try
 			{
-				// Small random delay to create race conditions
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Random.Shared.Next(0, 5)).ConfigureAwait(false);
+				await Task.Yield();
 
 				if (index % 2 == 0)
 				{
@@ -621,7 +626,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 					inconsistencies.Add($"Stats inconsistency: TotalAccounted={totalAccounted} > TotalEntries={stats.TotalEntries}");
 				}
 
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1).ConfigureAwait(false);
+				await Task.Yield();
 			}
 		});
 
@@ -717,8 +722,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 					_ = await store.CreateEntryAsync(messageId, TestHandler, "TestMessage", largePayload, metadata, CancellationToken.None).ConfigureAwait(false);
 					_ = Interlocked.Increment(ref successfulCreations);
 
-					// Small delay to let trimming occur
-					await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1).ConfigureAwait(false);
+					await Task.Yield();
 				}
 				catch (Exception)
 				{
@@ -848,19 +852,24 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		var operationExceptions = new ConcurrentBag<Exception>();
 		var operationsStarted = 0;
 		var operationsCompleted = 0;
+		var operationsPrimed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		// Act - Start operations and dispose concurrently
 		var operationTasks = Enumerable.Range(0, 50).Select(async i =>
 		{
-			try
-			{
-				_ = Interlocked.Increment(ref operationsStarted);
-				var messageId = $"disposal-race-{i}";
-				_ = await store.CreateEntryAsync(messageId, TestHandler, "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false);
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Random.Shared.Next(15, 40)).ConfigureAwait(false);
-				await store.MarkProcessedAsync(messageId, TestHandler, CancellationToken.None);
-				_ = Interlocked.Increment(ref operationsCompleted);
-			}
+				try
+				{
+					var started = Interlocked.Increment(ref operationsStarted);
+					if (started >= 10)
+					{
+						operationsPrimed.TrySetResult(true);
+					}
+					var messageId = $"disposal-race-{i}";
+					_ = await store.CreateEntryAsync(messageId, TestHandler, "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false);
+					await Task.Yield();
+					await store.MarkProcessedAsync(messageId, TestHandler, CancellationToken.None);
+					_ = Interlocked.Increment(ref operationsCompleted);
+				}
 			catch (Exception ex)
 			{
 				operationExceptions.Add(ex);
@@ -870,7 +879,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		// Dispose after a short delay
 		var disposalTask = Task.Run(async () =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(25).ConfigureAwait(false);
+			await operationsPrimed.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 			store.Dispose();
 		});
 
@@ -928,7 +937,6 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		{
 			try
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Random.Shared.Next(5, 15)).ConfigureAwait(false); // Wait for creation
 				await store.MarkProcessedAsync(sharedMessageId, TestHandler, CancellationToken.None);
 				_ = Interlocked.Increment(ref markAsProcessedCount);
 			}
@@ -948,7 +956,6 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		{
 			try
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Random.Shared.Next(5, 15)).ConfigureAwait(false); // Wait for creation
 				await store.MarkFailedAsync(sharedMessageId, TestHandler, "Contention test error", CancellationToken.None);
 				_ = Interlocked.Increment(ref markAsFailedCount);
 			}
@@ -1002,7 +1009,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		// Act - Create messages with staggered timing
 		var createTasks = Enumerable.Range(0, messageCount).Select(async i =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(i % 5).ConfigureAwait(false); // Stagger creation times
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(i % 5).ConfigureAwait(false); // Stagger creation times
 			var messageId = $"timing-attack-{i}";
 			_ = await store.CreateEntryAsync(messageId, TestHandler, "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false);
 			return messageId;
@@ -1013,7 +1020,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		// Concurrent cleanup attempts at precise timing
 		var cleanupTasks = Enumerable.Range(0, 10).Select(async i =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(35 + i).ConfigureAwait(false); // Just after expiry
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(35 + i).ConfigureAwait(false); // Just after expiry
 			var result = await store.CleanupAsync(options.RetentionPeriod, CancellationToken.None);
 			cleanupResults.Add(result);
 		});
@@ -1023,7 +1030,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		{
 			try
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Random.Shared.Next(25, 45)).ConfigureAwait(false); // During expiry window
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(Random.Shared.Next(25, 45)).ConfigureAwait(false); // During expiry window
 				if (Random.Shared.Next(0, 2) == 0)
 				{
 					await store.MarkProcessedAsync(messageId, TestHandler, CancellationToken.None);
@@ -1101,7 +1108,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 					try
 					{
 						// Microsecond delay to create race condition
-						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromMicroseconds(Random.Shared.Next(1, 100))).ConfigureAwait(false);
+						await Task.Yield();
 						await store.MarkProcessedAsync(messageId, TestHandler, CancellationToken.None);
 						operationResults.Add((messageId, "MarkProcessed", true));
 					}
@@ -1117,7 +1124,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 				{
 					try
 					{
-						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromMicroseconds(Random.Shared.Next(1, 100))).ConfigureAwait(false);
+						await Task.Yield();
 						await store.MarkFailedAsync(messageId, TestHandler, "Rapid test error", CancellationToken.None);
 						operationResults.Add((messageId, "MarkFailed", true));
 					}
@@ -1138,7 +1145,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 				{
 					var stats = await store.GetStatisticsAsync(CancellationToken.None);
 					_ = stats.ShouldNotBeNull();
-					await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromMicroseconds(Random.Shared.Next(1, 50))).ConfigureAwait(false);
+					await Task.Yield();
 				}
 			}));
 		}
@@ -1194,7 +1201,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 					inconsistentSnapshots.Add($"Snapshot {i}: TotalAccounted={totalAccounted} > TotalEntries={stats.TotalEntries}");
 				}
 
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1).ConfigureAwait(false);
+				await Task.Yield();
 			}
 		});
 
@@ -1206,7 +1213,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 			{
 				// Create
 				_ = await store.CreateEntryAsync(messageId, TestHandler, "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false);
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Random.Shared.Next(1, 3)).ConfigureAwait(false);
+				await Task.Yield();
 
 				// Random state change
 				if (Random.Shared.Next(0, 2) == 0)
@@ -1279,7 +1286,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 				{
 					try
 					{
-						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Random.Shared.Next(0, 5)).ConfigureAwait(false);
+						await Task.Yield();
 						await store.MarkProcessedAsync(messageId, TestHandler, CancellationToken.None);
 						successfulOperations.Add((messageId, "MarkAsProcessed"));
 					}
@@ -1302,7 +1309,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 				{
 					try
 					{
-						await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Random.Shared.Next(0, 5)).ConfigureAwait(false);
+						await Task.Yield();
 						await store.MarkFailedAsync(messageId, TestHandler, "High contention test error", CancellationToken.None);
 						// Check if the message was actually marked as failed
 						var entry = await store.GetEntryAsync(messageId, TestHandler, CancellationToken.None);
@@ -1379,9 +1386,10 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 				return;
 			}
 
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromMilliseconds(10)).ConfigureAwait(false);
+			await Task.Yield();
 		}
 
 		throw new TimeoutException($"Condition was not met within {timeout}.");
 	}
 }
+

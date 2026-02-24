@@ -324,7 +324,7 @@ public sealed class RateCounterShould
 		_ = counter.IncrementBy(100);
 
 		// Act - Wait and increment more
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(100);
 		_ = counter.IncrementBy(100);
 		var rate = counter.GetRate();
 
@@ -344,7 +344,7 @@ public sealed class RateCounterShould
 		_ = counter.IncrementBy(100);
 
 		// Act
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(100);
 		var rate = counter.GetAverageRate();
 
 		// Assert - Average rate should be positive
@@ -559,3 +559,4 @@ public sealed class RateCounterShould
 
 	#endregion
 }
+

@@ -160,7 +160,7 @@ public sealed class BulkheadPolicyShould : UnitTestBase
 			tasks.Add(_policy.ExecuteAsync(async () =>
 			{
 				Interlocked.Increment(ref executionCount);
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50);
 				return 1;
 			}, CancellationToken.None));
 		}
@@ -193,8 +193,9 @@ public sealed class BulkheadPolicyShould : UnitTestBase
 		// Start a task that fills the queue
 		var queuedTask = _policy.ExecuteAsync(() => Task.FromResult(2), CancellationToken.None);
 
-		// Small delay to let the queued task register
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
+		await WaitUntilAsync(
+			() => _policy.GetMetrics().QueuedExecutions >= 1,
+			TimeSpan.FromSeconds(2));
 
 		// Act & Assert - Third task should be rejected
 		_ = await Should.ThrowAsync<BulkheadRejectedException>(
@@ -310,4 +311,21 @@ public sealed class BulkheadPolicyShould : UnitTestBase
 	}
 
 	#endregion
+
+	private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
+	{
+		var deadline = DateTimeOffset.UtcNow + timeout;
+		while (DateTimeOffset.UtcNow < deadline)
+		{
+			if (condition())
+			{
+				return;
+			}
+
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10);
+		}
+
+		throw new TimeoutException($"Condition was not met within {timeout}.");
+	}
 }
+

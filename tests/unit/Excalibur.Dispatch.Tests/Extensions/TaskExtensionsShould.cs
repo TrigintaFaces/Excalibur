@@ -29,7 +29,7 @@ public sealed class TaskExtensionsShould
 	public async Task TimeoutAfterAsync_CompletesWhenTaskFinishesInTime()
 	{
 		// Arrange
-		var task = global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10);
+		var task = global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10);
 
 		// Act & Assert — should not throw
 		await task.TimeoutAfterAsync(TimeSpan.FromSeconds(5));
@@ -39,7 +39,7 @@ public sealed class TaskExtensionsShould
 	public async Task TimeoutAfterAsync_ThrowsTimeoutExceptionWhenTaskExceedsTimeout()
 	{
 		// Arrange
-		var task = global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromSeconds(10));
+		var task = global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromSeconds(10));
 
 		// Act & Assert
 		await Should.ThrowAsync<TimeoutException>(async () =>
@@ -185,3 +185,4 @@ public sealed class TaskExtensionsShould
 		result.ShouldBeNull();
 	}
 }
+

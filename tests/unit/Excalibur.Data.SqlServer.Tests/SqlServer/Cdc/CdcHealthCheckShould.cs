@@ -102,7 +102,7 @@ public sealed class CdcHealthCheckShould
 		_state.RecordCycle(1, 0);
 
 		// Wait just past the degraded threshold
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50);
 
 		var result = await sut.CheckHealthAsync(null!, CancellationToken.None);
 
@@ -124,7 +124,7 @@ public sealed class CdcHealthCheckShould
 		_state.RecordCycle(1, 0);
 
 		// Wait past the unhealthy threshold
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50);
 
 		var result = await sut.CheckHealthAsync(null!, CancellationToken.None);
 
@@ -141,3 +141,4 @@ public sealed class CdcHealthCheckShould
 		result.Data.ShouldNotContainKey("LastActivityTime");
 	}
 }
+

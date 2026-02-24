@@ -141,7 +141,7 @@ public sealed class StreamingBackpressureShould
 			document, context, CancellationToken.None))
 		{
 			processedTimestamps.Add(DateTime.UtcNow);
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(30); // Simulate slow processing by consumer
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(30); // Simulate slow processing by consumer
 		}
 
 		// Assert - items should be received incrementally, not all at once
@@ -175,7 +175,7 @@ public sealed class StreamingBackpressureShould
 				}
 
 				// Simulate some work
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1, cancellationToken).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(1, cancellationToken).ConfigureAwait(false);
 
 				_ = Interlocked.Decrement(ref _currentItems);
 				ProcessedCount++;
@@ -226,7 +226,7 @@ public sealed class StreamingBackpressureShould
 		for (var i = 0; i < count; i++)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10, cancellationToken).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10, cancellationToken).ConfigureAwait(false);
 			yield return new TestBatchDocument($"Slow{i}");
 		}
 	}
@@ -251,3 +251,4 @@ public sealed class StreamingBackpressureShould
 
 	#endregion
 }
+

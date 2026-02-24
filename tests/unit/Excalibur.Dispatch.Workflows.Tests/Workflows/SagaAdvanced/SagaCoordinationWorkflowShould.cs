@@ -380,7 +380,7 @@ public sealed class SagaCoordinationWorkflowShould
 			var tasks = state.Data.Items.Select(async item =>
 			{
 				_log.Log($"{groupName}:{item}:Start");
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ConfigureAwait(false); // Simulate work
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10).ConfigureAwait(false); // Simulate work
 				_log.Log($"{groupName}:{item}:Complete");
 				return true;
 			});
@@ -639,7 +639,7 @@ public sealed class SagaCoordinationWorkflowShould
 
 		public async Task<(bool Success, string Response)> CallAsync(string serviceName)
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ConfigureAwait(false); // Simulate network latency
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10).ConfigureAwait(false); // Simulate network latency
 			_callCount++;
 
 			if (_callCount <= FailCount)
@@ -706,7 +706,7 @@ public sealed class SagaCoordinationWorkflowShould
 				}
 
 				_log.Log($"ExternalService:{serviceName}:Attempt:{attempts}:Failed");
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ConfigureAwait(false); // Retry delay
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10).ConfigureAwait(false); // Retry delay
 			}
 
 			state.ExternalServiceCalls[serviceName] = new ExternalServiceCallResult
@@ -741,3 +741,4 @@ public sealed class SagaCoordinationWorkflowShould
 
 	#endregion Test Infrastructure
 }
+

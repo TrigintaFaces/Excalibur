@@ -117,7 +117,7 @@ public sealed class InboxStoreObservabilityShould : IDisposable
 		_ = await store.CreateEntryAsync("expired-message", TestHandlerType, "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false);
 		await store.MarkProcessedAsync("expired-message", TestHandlerType, CancellationToken.None);
 
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ConfigureAwait(false); // Wait for expiry
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10).ConfigureAwait(false); // Wait for expiry
 
 		// Act
 		var cleaned = await store.CleanupAsync(TimeSpan.FromMilliseconds(1), CancellationToken.None).ConfigureAwait(false);
@@ -264,3 +264,4 @@ public sealed class InboxStoreObservabilityShould : IDisposable
 		_store?.Dispose();
 	}
 }
+

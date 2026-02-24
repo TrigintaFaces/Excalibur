@@ -56,8 +56,9 @@ public sealed class TimeoutOperationTokenShould
 		// Arrange
 		var token = new TimeoutOperationToken(TimeoutOperationType.Handler);
 
-		// Act — small delay to ensure elapsed > 0
-		global::Tests.Shared.Infrastructure.TestTiming.Sleep(10);
+		// Act — wait until elapsed becomes measurable
+		SpinWait.SpinUntil(() => token.Elapsed > TimeSpan.Zero, TimeSpan.FromSeconds(1))
+			.ShouldBeTrue();
 
 		// Assert
 		token.Elapsed.ShouldBeGreaterThan(TimeSpan.Zero);

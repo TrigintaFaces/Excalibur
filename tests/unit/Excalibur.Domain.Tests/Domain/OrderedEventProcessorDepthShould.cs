@@ -72,7 +72,7 @@ public sealed class OrderedEventProcessorDepthShould
 		var tasks = Enumerable.Range(0, 10).Select(i =>
 			processor.ProcessAsync(async () =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1).ConfigureAwait(false);
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(1).ConfigureAwait(false);
 				results.Add(i);
 			})).ToList();
 
@@ -125,3 +125,4 @@ public sealed class OrderedEventProcessorDepthShould
 		secondExecuted.ShouldBeTrue();
 	}
 }
+

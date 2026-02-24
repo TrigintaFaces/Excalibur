@@ -356,12 +356,12 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 				// Simulate long-running processing that ignores cancellation
 				try
 				{
-					await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromSeconds(10), token).ConfigureAwait(false);
+					await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromSeconds(10), token).ConfigureAwait(false);
 				}
 				catch (OperationCanceledException)
 				{
 					// Continue anyway to simulate work that takes time to drain
-					await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(500).ConfigureAwait(false);
+					await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(500).ConfigureAwait(false);
 				}
 
 				return 0;
@@ -439,3 +439,4 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 
 	#endregion
 }
+

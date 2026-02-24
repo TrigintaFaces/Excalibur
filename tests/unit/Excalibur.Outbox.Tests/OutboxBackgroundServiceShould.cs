@@ -30,7 +30,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		var deadline = DateTime.UtcNow + timeout;
 		while (!condition() && DateTime.UtcNow < deadline)
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10);
 		}
 
 		condition().ShouldBeTrue();
@@ -754,3 +754,4 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 
 	#endregion
 }
+

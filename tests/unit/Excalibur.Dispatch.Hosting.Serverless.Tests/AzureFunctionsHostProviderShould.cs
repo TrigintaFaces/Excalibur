@@ -132,7 +132,7 @@ public sealed class AzureFunctionsHostProviderShould : UnitTestBase
 			context,
 			static async (_, _, token) =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromSeconds(2), token);
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromSeconds(2), token);
 				return "unreachable";
 			},
 			CancellationToken.None));
@@ -151,7 +151,7 @@ public sealed class AzureFunctionsHostProviderShould : UnitTestBase
 			context,
 			static async (_, _, token) =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10, token);
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10, token);
 				return "unreachable";
 			},
 			cts.Token));
@@ -253,3 +253,4 @@ public sealed class AzureFunctionsHostProviderShould : UnitTestBase
 		Environment.SetEnvironmentVariable("FUNCTIONS_WORKER_RUNTIME", null);
 	}
 }
+

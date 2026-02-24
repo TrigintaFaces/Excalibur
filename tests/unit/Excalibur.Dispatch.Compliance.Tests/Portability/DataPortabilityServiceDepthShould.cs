@@ -109,7 +109,7 @@ public sealed class DataPortabilityServiceDepthShould
 		var export = await sut.ExportAsync("user-1", ExportFormat.Json, CancellationToken.None).ConfigureAwait(false);
 
 		// Wait for expiry
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50).ConfigureAwait(false);
 
 		var status = await sut.GetExportStatusAsync(export.ExportId, CancellationToken.None).ConfigureAwait(false);
 
@@ -174,3 +174,4 @@ public sealed class DataPortabilityServiceDepthShould
 		}
 	}
 }
+

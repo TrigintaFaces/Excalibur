@@ -100,7 +100,7 @@ public sealed class BulkheadPolicyDepthShould : IAsyncDisposable
 		var queuedTask = _policy.ExecuteAsync(() => Task.FromResult(1), CancellationToken.None);
 
 		// Small delay to let the queued task register as pending
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50).ConfigureAwait(false);
 
 		// Act
 		var metrics = _policy.GetMetrics();
@@ -210,3 +210,4 @@ public sealed class BulkheadPolicyDepthShould : IAsyncDisposable
 		metrics.ActiveExecutions.ShouldBe(0);
 	}
 }
+

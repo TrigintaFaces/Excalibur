@@ -197,7 +197,7 @@ public sealed class InMemoryClaimCheckProviderConcurrencyTests
 		}
 
 		// Wait for some stores to complete
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(500);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(500);
 
 		// Retrieves
 		for (var i = 0; i < operationCount / 2; i++)
@@ -246,7 +246,7 @@ public sealed class InMemoryClaimCheckProviderConcurrencyTests
 		}
 
 		// Wait for expiration
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1000);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(1000);
 
 		// Act - Concurrent cleanup calls
 		var cleanupTasks = Enumerable.Range(0, 10).Select(_ => Task.Run(() =>
@@ -374,3 +374,4 @@ public sealed class InMemoryClaimCheckProviderConcurrencyTests
 		return new InMemoryClaimCheckProvider(Microsoft.Extensions.Options.Options.Create(options));
 	}
 }
+

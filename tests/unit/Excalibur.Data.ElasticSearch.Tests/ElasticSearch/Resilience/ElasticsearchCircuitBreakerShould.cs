@@ -251,7 +251,7 @@ public sealed class ElasticsearchCircuitBreakerShould : IDisposable
 		sut.IsOpen.ShouldBeTrue();
 
 		// Wait for break duration to elapse
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(100);
 
 		// Check that state transitioned to HalfOpen
 		sut.State.ShouldBe(CircuitBreakerState.HalfOpen);
@@ -271,3 +271,4 @@ public sealed class ElasticsearchCircuitBreakerShould : IDisposable
 
 	public void Dispose() => _sut.Dispose();
 }
+

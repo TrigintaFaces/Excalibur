@@ -382,7 +382,7 @@ public sealed class PollyCircuitBreakerFactoryShould : UnitTestBase, IAsyncDispo
 		var disposeTask = _factory.DisposeAsync().AsTask();
 
 		// Assert
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50);
 		disposeTask.IsCompleted.ShouldBeFalse();
 
 		gate.TrySetResult();
@@ -425,3 +425,4 @@ public sealed class PollyCircuitBreakerFactoryShould : UnitTestBase, IAsyncDispo
 		return field!.GetValue(factory).ShouldBeOfType<ConcurrentBag<Task>>();
 	}
 }
+

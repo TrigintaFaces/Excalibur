@@ -323,7 +323,7 @@ public sealed class HandlerInvokerShould : IDisposable
 	{
 		public async Task<int> HandleAsync(TestMessage message, CancellationToken cancellationToken)
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10, cancellationToken).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10, cancellationToken).ConfigureAwait(false);
 			return 42;
 		}
 	}
@@ -416,3 +416,4 @@ public sealed class HandlerInvokerShould : IDisposable
 
 	#endregion
 }
+

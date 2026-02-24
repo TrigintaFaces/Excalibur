@@ -144,7 +144,7 @@ public sealed class MessageHandlerDelegateCacheShould
 	{
 		// Arrange
 		Func<Func<TestMessage, ValueTask>> factory1 = () => _ => ValueTask.CompletedTask;
-		Func<Func<TestMessage, ValueTask>> factory2 = () => _ => new ValueTask(global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1));
+		Func<Func<TestMessage, ValueTask>> factory2 = () => _ => new ValueTask(global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(1));
 
 		// Act
 		var handler1 = _cache.GetValueTaskHandler(typeof(TestHandler), factory1);
@@ -350,3 +350,4 @@ public sealed class MessageHandlerDelegateCacheShould
 
 	#endregion
 }
+

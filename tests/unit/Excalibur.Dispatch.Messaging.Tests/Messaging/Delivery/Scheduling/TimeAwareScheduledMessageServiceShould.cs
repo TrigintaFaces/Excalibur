@@ -157,7 +157,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy(), new RecordingTimeoutMonitor());
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50).ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		store.AsyncDisposed.ShouldBeTrue();
@@ -349,3 +349,4 @@ public sealed class TimeAwareScheduledMessageServiceShould
 
 	private sealed class TestActionMessage : IDispatchAction;
 }
+

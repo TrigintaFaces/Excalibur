@@ -134,7 +134,7 @@ public sealed class ParallelSagaStepFunctionalShould
 				.ReturnsLazily(async _ =>
 				{
 					lock (executionOrder) { executionOrder.Add(index); }
-					await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ConfigureAwait(false);
+					await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10).ConfigureAwait(false);
 					return StepResult.Success();
 				});
 			steps.Add(step);
@@ -299,3 +299,4 @@ public sealed class ParallelSagaStepFunctionalShould
 		return step;
 	}
 }
+

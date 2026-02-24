@@ -185,7 +185,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 			Microsoft.Extensions.Options.Options.Create(options),
 			NullLogger<ErasureSchedulerBackgroundService>.Instance);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var cts = new CancellationTokenSource();
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
 		await failedStatusUpdated.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 		await cts.CancelAsync().ConfigureAwait(false);
@@ -235,7 +235,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 			Microsoft.Extensions.Options.Options.Create(options),
 			NullLogger<ErasureSchedulerBackgroundService>.Instance);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+		using var cts = new CancellationTokenSource();
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
 		await failedStatusUpdated.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 		await cts.CancelAsync().ConfigureAwait(false);

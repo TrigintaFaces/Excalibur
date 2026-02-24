@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Outbox.Health;
+using System.Diagnostics;
 
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
@@ -221,8 +222,7 @@ public sealed class InboxHealthCheckShould : UnitTestBase
 			DegradedInactivityTimeout = TimeSpan.Zero,
 		});
 
-		// Small delay to ensure inactivity
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
+		WaitForClockTick();
 
 		var healthCheck = new InboxHealthCheck(state, options);
 
@@ -252,8 +252,7 @@ public sealed class InboxHealthCheckShould : UnitTestBase
 			DegradedInactivityTimeout = TimeSpan.Zero, // Zero degraded threshold
 		});
 
-		// Small delay to ensure inactivity
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1);
+		WaitForClockTick();
 
 		var healthCheck = new InboxHealthCheck(state, options);
 
@@ -279,7 +278,7 @@ public sealed class InboxHealthCheckShould : UnitTestBase
 			UnhealthyInactivityTimeout = TimeSpan.FromHours(1),
 		});
 
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10); // Small delay to ensure measurable inactivity
+		WaitForClockTick();
 
 		var healthCheck = new InboxHealthCheck(state, options);
 
@@ -330,4 +329,10 @@ public sealed class InboxHealthCheckShould : UnitTestBase
 	}
 
 	#endregion Edge Cases
+
+	private static void WaitForClockTick()
+	{
+		var start = Stopwatch.StartNew();
+		_ = SpinWait.SpinUntil(() => start.ElapsedMilliseconds >= 2, TimeSpan.FromSeconds(1));
+	}
 }

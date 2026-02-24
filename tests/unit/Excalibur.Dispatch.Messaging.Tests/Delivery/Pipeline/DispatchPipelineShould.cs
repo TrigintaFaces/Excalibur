@@ -1282,7 +1282,7 @@ public class DispatchPipelineShould : UnitTestBase
 
 		public async ValueTask<IMessageResult> InvokeAsync(IDispatchMessage message, IMessageContext context, DispatchRequestDelegate nextDelegate, CancellationToken cancellationToken)
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(delayMs, cancellationToken).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(delayMs, cancellationToken).ConfigureAwait(false);
 			executionOrder.Add(name);
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 		}
@@ -1306,7 +1306,7 @@ public class DispatchPipelineShould : UnitTestBase
 		public async ValueTask<IMessageResult> InvokeAsync(IDispatchMessage message, IMessageContext context, DispatchRequestDelegate nextDelegate, CancellationToken cancellationToken)
 		{
 			executionTimes.Add((name, DateTime.UtcNow));
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(5, cancellationToken).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(5, cancellationToken).ConfigureAwait(false);
 			return await nextDelegate(message, context, cancellationToken).ConfigureAwait(false);
 		}
 	}
@@ -1317,7 +1317,7 @@ public class DispatchPipelineShould : UnitTestBase
 
 		public async ValueTask<IMessageResult> InvokeAsync(IDispatchMessage message, IMessageContext context, DispatchRequestDelegate nextDelegate, CancellationToken cancellationToken)
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(5, cancellationToken).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(5, cancellationToken).ConfigureAwait(false);
 			throw new InvalidOperationException($"Async middleware {name} threw an exception");
 		}
 	}
@@ -1583,3 +1583,4 @@ public class DispatchPipelineShould : UnitTestBase
 
 	#endregion Test Fixtures
 }
+

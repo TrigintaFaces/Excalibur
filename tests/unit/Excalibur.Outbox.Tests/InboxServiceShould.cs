@@ -20,6 +20,21 @@ namespace Excalibur.Outbox.Tests;
 [Trait("Priority", "0")]
 public sealed class InboxServiceShould : UnitTestBase
 {
+	private static async Task WaitUntilCancelledAsync(CancellationToken cancellationToken)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+
+		var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var registration = cancellationToken.Register(static state =>
+		{
+			var tcs = (TaskCompletionSource)state!;
+			tcs.TrySetResult();
+		}, completion);
+		await completion.Task.ConfigureAwait(false);
+		await registration.DisposeAsync().ConfigureAwait(false);
+		throw new OperationCanceledException(cancellationToken);
+	}
+
 	#region Constructor Tests
 
 	[Fact]
@@ -192,20 +207,34 @@ public sealed class InboxServiceShould : UnitTestBase
 		var inbox = A.Fake<IInbox>();
 		var logger = A.Fake<ILogger<InboxService>>();
 		string? capturedDispatcherId = null;
+		var dispatchStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		A.CallTo(() => inbox.RunInboxDispatchAsync(A<string>._, A<CancellationToken>._))
 			.Invokes(call =>
 			{
 				capturedDispatcherId = call.GetArgument<string>(0);
+				_ = dispatchStarted.TrySetResult();
 			})
-			.Returns(Task.FromResult(0));
+			.ReturnsLazily(async call =>
+			{
+				var ct = call.GetArgument<CancellationToken>(1);
+				try
+				{
+					await WaitUntilCancelledAsync(ct);
+				}
+				catch (OperationCanceledException)
+				{
+					// Expected
+				}
+				return 0;
+			});
 
 		var service = new InboxService(inbox, logger);
 		using var cts = new CancellationTokenSource();
 
 		// Act - Start the service and let ExecuteAsync run briefly
 		await service.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
+		await dispatchStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -219,16 +248,30 @@ public sealed class InboxServiceShould : UnitTestBase
 		// Arrange
 		var inbox = A.Fake<IInbox>();
 		var logger = A.Fake<ILogger<InboxService>>();
+		var dispatchStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		A.CallTo(() => inbox.RunInboxDispatchAsync(A<string>._, A<CancellationToken>._))
-			.Returns(Task.FromResult(0));
+			.Invokes(() => _ = dispatchStarted.TrySetResult())
+			.ReturnsLazily(async call =>
+			{
+				var ct = call.GetArgument<CancellationToken>(1);
+				try
+				{
+					await WaitUntilCancelledAsync(ct);
+				}
+				catch (OperationCanceledException)
+				{
+					// Expected
+				}
+				return 0;
+			});
 
 		var service = new InboxService(inbox, logger);
 		using var cts = new CancellationTokenSource();
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
+		await dispatchStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -252,7 +295,7 @@ public sealed class InboxServiceShould : UnitTestBase
 				var ct = call.GetArgument<CancellationToken>(1);
 				try
 				{
-					await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Timeout.Infinite, ct);
+					await WaitUntilCancelledAsync(ct);
 				}
 				catch (OperationCanceledException)
 				{
@@ -292,14 +335,48 @@ public sealed class InboxServiceShould : UnitTestBase
 
 		string? dispatcherId1 = null;
 		string? dispatcherId2 = null;
+		var service1DispatchStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var service2DispatchStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		A.CallTo(() => inbox1.RunInboxDispatchAsync(A<string>._, A<CancellationToken>._))
-			.Invokes(call => dispatcherId1 = call.GetArgument<string>(0))
-			.Returns(Task.FromResult(0));
+			.Invokes(call =>
+			{
+				dispatcherId1 = call.GetArgument<string>(0);
+				_ = service1DispatchStarted.TrySetResult();
+			})
+			.ReturnsLazily(async call =>
+			{
+				var ct = call.GetArgument<CancellationToken>(1);
+				try
+				{
+					await WaitUntilCancelledAsync(ct);
+				}
+				catch (OperationCanceledException)
+				{
+					// Expected
+				}
+				return 0;
+			});
 
 		A.CallTo(() => inbox2.RunInboxDispatchAsync(A<string>._, A<CancellationToken>._))
-			.Invokes(call => dispatcherId2 = call.GetArgument<string>(0))
-			.Returns(Task.FromResult(0));
+			.Invokes(call =>
+			{
+				dispatcherId2 = call.GetArgument<string>(0);
+				_ = service2DispatchStarted.TrySetResult();
+			})
+			.ReturnsLazily(async call =>
+			{
+				var ct = call.GetArgument<CancellationToken>(1);
+				try
+				{
+					await WaitUntilCancelledAsync(ct);
+				}
+				catch (OperationCanceledException)
+				{
+					// Expected
+				}
+				return 0;
+			});
 
 		var service1 = new InboxService(inbox1, logger);
 		var service2 = new InboxService(inbox2, logger);
@@ -310,7 +387,8 @@ public sealed class InboxServiceShould : UnitTestBase
 		// Act
 		await service1.StartAsync(cts1.Token);
 		await service2.StartAsync(cts2.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100);
+		await service1DispatchStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+		await service2DispatchStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
 		await cts1.CancelAsync();
 		await cts2.CancelAsync();
@@ -334,12 +412,14 @@ public sealed class InboxServiceShould : UnitTestBase
 		var inbox = A.Fake<IInbox>();
 		var logger = A.Fake<ILogger<InboxService>>();
 
+		var dispatchStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		A.CallTo(() => inbox.RunInboxDispatchAsync(A<string>._, A<CancellationToken>._))
 			.ReturnsLazily(async call =>
 			{
 				var ct = call.GetArgument<CancellationToken>(1);
+				_ = dispatchStarted.TrySetResult();
 				ct.ThrowIfCancellationRequested();
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(Timeout.Infinite, ct);
+				await WaitUntilCancelledAsync(ct);
 				return 0;
 			});
 
@@ -348,7 +428,7 @@ public sealed class InboxServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50);
+		await dispatchStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
 		await cts.CancelAsync();
 
 		// Assert - Should not throw, should stop gracefully
@@ -357,3 +437,4 @@ public sealed class InboxServiceShould : UnitTestBase
 
 	#endregion
 }
+

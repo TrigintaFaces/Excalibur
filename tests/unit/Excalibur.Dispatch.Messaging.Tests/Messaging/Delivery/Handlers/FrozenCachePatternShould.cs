@@ -143,19 +143,25 @@ public sealed class FrozenCachePatternShould : IDisposable
 		var handler = new TestHandler();
 		var message = new TestMessage();
 		_ = await _invoker.InvokeAsync(handler, message, CancellationToken.None);
+		var readStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		// Act - freeze while concurrent reads happening
 		var readTask = Task.Run(async () =>
 		{
 			for (int i = 0; i < 100; i++)
 			{
+				if (i == 0)
+				{
+					readStarted.TrySetResult();
+				}
+
 				_ = await _invoker.InvokeAsync(handler, message, CancellationToken.None);
 			}
 		});
 
-		var freezeTask = Task.Run(() =>
+		var freezeTask = Task.Run(async () =>
 		{
-			global::Tests.Shared.Infrastructure.TestTiming.Sleep(10); // Small delay to ensure reads start
+			await readStarted.Task;
 			HandlerInvoker.FreezeCache();
 		});
 

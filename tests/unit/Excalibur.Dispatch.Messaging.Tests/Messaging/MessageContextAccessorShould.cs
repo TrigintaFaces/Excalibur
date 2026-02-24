@@ -190,19 +190,23 @@ public sealed class MessageContextAccessorShould
 		var context2 = A.Fake<IMessageContext>();
 		IMessageContext? capturedContext1 = null;
 		IMessageContext? capturedContext2 = null;
+		var firstContextSet = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var secondContextSet = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		// Act - Set different contexts in different async flows
-		var task1 = Task.Run(() =>
+		var task1 = Task.Run(async () =>
 		{
 			accessor.MessageContext = context1;
-			global::Tests.Shared.Infrastructure.TestTiming.Sleep(50); // Give time for other task to set its context
+			firstContextSet.TrySetResult();
+			await secondContextSet.Task;
 			capturedContext1 = accessor.MessageContext;
 		});
 
-		var task2 = Task.Run(() =>
+		var task2 = Task.Run(async () =>
 		{
 			accessor.MessageContext = context2;
-			global::Tests.Shared.Infrastructure.TestTiming.Sleep(50); // Give time for other task to set its context
+			secondContextSet.TrySetResult();
+			await firstContextSet.Task;
 			capturedContext2 = accessor.MessageContext;
 		});
 

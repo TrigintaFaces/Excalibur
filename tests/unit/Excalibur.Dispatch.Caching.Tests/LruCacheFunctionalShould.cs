@@ -200,7 +200,7 @@ public sealed class LruCacheFunctionalShould
 		cache.TryGetValue("expires-soon", out _).ShouldBeTrue();
 
 		// Wait for TTL to expire
-		global::Tests.Shared.Infrastructure.TestTiming.Sleep(100);
+		WaitForAtLeast(TimeSpan.FromMilliseconds(100));
 
 		cache.TryGetValue("expires-soon", out _).ShouldBeFalse();
 	}
@@ -216,7 +216,7 @@ public sealed class LruCacheFunctionalShould
 		// This item uses the default (60s) TTL
 		cache.Set("long-lived", 2);
 
-		global::Tests.Shared.Infrastructure.TestTiming.Sleep(100);
+		WaitForAtLeast(TimeSpan.FromMilliseconds(100));
 
 		cache.TryGetValue("short-lived", out _).ShouldBeFalse();
 		cache.TryGetValue("long-lived", out _).ShouldBeTrue();
@@ -262,7 +262,7 @@ public sealed class LruCacheFunctionalShould
 		cache.Set("item2", 2);
 		cache.Set("item3", 3);
 
-		global::Tests.Shared.Infrastructure.TestTiming.Sleep(100);
+		WaitForAtLeast(TimeSpan.FromMilliseconds(100));
 
 		cache.RemoveExpiredItems();
 
@@ -286,5 +286,12 @@ public sealed class LruCacheFunctionalShould
 
 		cache.Dispose();
 		cache.Dispose(); // Should not throw
+	}
+
+	private static void WaitForAtLeast(TimeSpan duration)
+	{
+		var deadline = DateTime.UtcNow + duration;
+		SpinWait.SpinUntil(() => DateTime.UtcNow >= deadline, TimeSpan.FromSeconds(1))
+			.ShouldBeTrue();
 	}
 }

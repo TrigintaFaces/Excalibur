@@ -131,7 +131,7 @@ public sealed class LegalHoldExpirationServiceShould
 
 		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(TimeSpan.FromMilliseconds(300), CancellationToken.None).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromMilliseconds(300), CancellationToken.None).ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		A.CallTo(() => holdStore.UpdateHoldAsync(A<LegalHold>._, A<CancellationToken>._))
@@ -178,3 +178,4 @@ public sealed class LegalHoldExpirationServiceShould
 		return (scopeFactory, scope);
 	}
 }
+

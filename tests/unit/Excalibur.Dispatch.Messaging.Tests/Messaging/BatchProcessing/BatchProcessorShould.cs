@@ -325,11 +325,13 @@ public sealed class BatchProcessorShould : IDisposable
 	public async Task ProcessEmptyBatchesCorrectly()
 	{
 		var batchProcessorCalled = false;
+		var unexpectedBatchProcessed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		var processor = new BatchProcessor<string>(
 			batch =>
 			{
 				batchProcessorCalled = true;
+				_ = unexpectedBatchProcessed.TrySetResult();
 				batch.Count.ShouldBeGreaterThan(0);
 				return ValueTask.CompletedTask;
 			},
@@ -337,8 +339,8 @@ public sealed class BatchProcessorShould : IDisposable
 
 		_disposables.Add(processor);
 
-		// Wait a bit to ensure no empty batches are processed
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100).ConfigureAwait(false);
+		await Should.ThrowAsync<TimeoutException>(async () =>
+			await unexpectedBatchProcessed.Task.WaitAsync(TimeSpan.FromMilliseconds(250)).ConfigureAwait(false)).ConfigureAwait(false);
 
 		batchProcessorCalled.ShouldBeFalse();
 	}
@@ -428,7 +430,7 @@ public sealed class BatchProcessorShould : IDisposable
 				var currentCall = Interlocked.Increment(ref callCount);
 				if (currentCall == 1)
 				{
-					await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10).ConfigureAwait(false);
+					await Task.Yield();
 					throw new InvalidOperationException("Async test exception");
 				}
 
@@ -527,10 +529,9 @@ public sealed class BatchProcessorShould : IDisposable
 		await Task.WhenAll(producerTasks).ConfigureAwait(false);
 
 		// Wait for all items to be processed
-		while (processedCount < actualItemCount && stopwatch.ElapsedMilliseconds < 10000)
-		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50).ConfigureAwait(false);
-		}
+		await WaitForConditionAsync(
+			() => Volatile.Read(ref processedCount) >= actualItemCount,
+			TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
 		stopwatch.Stop();
 
@@ -549,7 +550,7 @@ public sealed class BatchProcessorShould : IDisposable
 			async batch =>
 			{
 				processedBatches.Add(batch.Count);
-				await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(processingDelay).ConfigureAwait(false); // Simulate slow processing
+				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(processingDelay).ConfigureAwait(false); // Simulate slow processing
 			},
 			_logger,
 			options);
@@ -566,10 +567,9 @@ public sealed class BatchProcessorShould : IDisposable
 		await Task.WhenAll(addTasks).ConfigureAwait(false);
 
 		// Wait for processing to complete
-		while (processedBatches.Sum() < itemCount && stopwatch.ElapsedMilliseconds < 30000)
-		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100).ConfigureAwait(false);
-		}
+		await WaitForConditionAsync(
+			() => processedBatches.Sum() >= itemCount,
+			TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
 		stopwatch.Stop();
 
@@ -648,13 +648,9 @@ public sealed class BatchProcessorShould : IDisposable
 		await Task.WhenAll(tasks).ConfigureAwait(false);
 
 		// Wait for processing
-		var timeout = TimeSpan.FromSeconds(30);
-		var stopwatch = Stopwatch.StartNew();
-
-		while (processedCount < itemCount && stopwatch.Elapsed < timeout)
-		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100).ConfigureAwait(false);
-		}
+		await WaitForConditionAsync(
+			() => Volatile.Read(ref processedCount) >= itemCount,
+			TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
 		processedCount.ShouldBe(itemCount);
 
@@ -718,7 +714,7 @@ public sealed class BatchProcessorShould : IDisposable
 		var stopwatch = Stopwatch.StartNew();
 		while (!condition() && stopwatch.Elapsed < timeout)
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(20).ConfigureAwait(false);
+			await Task.Yield();
 		}
 
 		condition().ShouldBeTrue();
@@ -738,7 +734,6 @@ public sealed class BatchProcessorShould : IDisposable
 					processedItems.Add(item);
 				}
 
-				global::Tests.Shared.Infrastructure.TestTiming.Sleep(10); // Simulate processing time
 				return ValueTask.CompletedTask;
 			},
 			_logger,
@@ -753,7 +748,10 @@ public sealed class BatchProcessorShould : IDisposable
 				.Select(async i => await processor.AddAsync($"burst{burst}-item{i}", CancellationToken.None).ConfigureAwait(false));
 
 			await Task.WhenAll(burstTasks).ConfigureAwait(false);
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(100).ConfigureAwait(false); // Pause between bursts
+			var expectedProcessed = (burst + 1) * 15;
+			await WaitForConditionAsync(
+				() => processedItems.Count >= expectedProcessed,
+				TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 		}
 
 		// Wait for all processing to complete (generous for full-suite parallel load)
@@ -814,7 +812,7 @@ public sealed class BatchProcessorShould : IDisposable
 						// Occasionally add small delays to create more realistic patterns
 						if (i % 10 == 0)
 						{
-							await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(1).ConfigureAwait(false);
+							await Task.Yield();
 						}
 					}
 				}
@@ -828,13 +826,9 @@ public sealed class BatchProcessorShould : IDisposable
 
 		// Wait for processing to complete
 		var expectedCount = threadCount * itemsPerThread;
-		var timeout = TimeSpan.FromSeconds(30);
-		var stopwatch = Stopwatch.StartNew();
-
-		while (processedItems.Count < expectedCount && stopwatch.Elapsed < timeout)
-		{
-			await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50).ConfigureAwait(false);
-		}
+		await WaitForConditionAsync(
+			() => processedItems.Count >= expectedCount,
+			TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
 		exceptions.ShouldBeEmpty();
 		processedItems.Count.ShouldBe(expectedCount);
@@ -852,3 +846,4 @@ public sealed class BatchProcessorShould : IDisposable
 		}
 	}
 }
+

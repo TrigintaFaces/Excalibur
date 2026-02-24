@@ -64,7 +64,7 @@ public sealed class ProcessingRestrictionServiceDepthShould
 		await sut.RestrictAsync("user-1", RestrictionReason.AccuracyContested, CancellationToken.None).ConfigureAwait(false);
 
 		// Wait for restriction to expire
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50).ConfigureAwait(false);
 
 		var isRestricted = await sut.IsRestrictedAsync("user-1", CancellationToken.None).ConfigureAwait(false);
 		isRestricted.ShouldBeFalse();
@@ -183,3 +183,4 @@ public sealed class ProcessingRestrictionServiceDepthShould
 	private ProcessingRestrictionService CreateService() =>
 		new(Microsoft.Extensions.Options.Options.Create(_options), _logger);
 }
+

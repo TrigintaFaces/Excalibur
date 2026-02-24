@@ -179,7 +179,7 @@ public sealed class ObservabilityValidationShould : IDisposable
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
 
 		// Wait a bit for async operations to complete
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(200).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(200).ConfigureAwait(false);
 
 		// Assert - Verify result
 		_ = result.ShouldNotBeNull();
@@ -287,7 +287,7 @@ public sealed class ObservabilityValidationShould : IDisposable
 		await processor.AddAsync("error-item", CancellationToken.None).ConfigureAwait(false);
 
 		// Give time for the exception to be processed and logged
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(200).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(200).ConfigureAwait(false);
 
 		// Add another item to see if processor recovers
 		await processor.AddAsync("recovery-item", CancellationToken.None).ConfigureAwait(false);
@@ -335,7 +335,7 @@ public sealed class ObservabilityValidationShould : IDisposable
 		{
 			var startTime = DateTime.UtcNow;
 			// Simulate some processing time
-			global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(10, ct).Wait(ct);
+			global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10, ct).Wait(ct);
 			var endTime = DateTime.UtcNow;
 
 			processingTimes.Add(endTime - startTime);
@@ -519,3 +519,4 @@ internal sealed class ObservabilityMeterProvider : IDisposable
 	{
 	}
 }
+

@@ -77,7 +77,6 @@ public sealed class KeyedLockShould
 
 		// Wait for the second task to start waiting
 		await barrier.WaitAsync(CancellationToken.None).ConfigureAwait(false);
-		await global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(50).ConfigureAwait(false);
 
 		order.Add(1);
 		handle.Dispose(); // Release the lock
