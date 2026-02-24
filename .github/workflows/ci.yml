@@ -622,13 +622,13 @@ jobs:
             }
           }
 
-      - name: Verify XPlat coverage collector availability
+      - name: Verify XPlat coverage collector package
         shell: bash
         run: |
           set -euo pipefail
-          dotnet test tests/integration/Excalibur.Dispatch.Integration.Tests/Excalibur.Dispatch.Integration.Tests.csproj --configuration Release --no-build --list-collectors | tee integration-collectors.log
-          if ! grep -q "XPlat Code Coverage" integration-collectors.log; then
-            echo "::error::XPlat Code Coverage collector is unavailable for integration tests."
+          dotnet list tests/integration/Excalibur.Dispatch.Integration.Tests/Excalibur.Dispatch.Integration.Tests.csproj package --include-transitive | tee integration-packages.log
+          if ! grep -qi "coverlet\\.collector" integration-packages.log; then
+            echo "::error::coverlet.collector package is unavailable for integration tests (XPlat Code Coverage collector)."
             exit 1
           fi
 
