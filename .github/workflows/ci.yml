@@ -581,18 +581,18 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore Excalibur.sln
+        run: dotnet restore eng/ci/shards/IntegrationTests.slnf
 
       - name: Build solution
-        run: dotnet build Excalibur.sln --configuration Release --no-restore
+        run: dotnet build eng/ci/shards/IntegrationTests.slnf --configuration Release --no-restore
 
       - name: Run Integration Tests
         run: |
-          dotnet test \
+          dotnet test eng/ci/shards/IntegrationTests.slnf \
             --configuration Release \
             --no-build \
             --blame-hang-timeout 5m \
-            --logger "trx;LogFileName=integration-tests-${{ matrix.os }}.trx" \
+            --logger "trx;LogFilePrefix=integration-tests-${{ matrix.os }}" \
             --logger "console;verbosity=minimal" \
             --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \

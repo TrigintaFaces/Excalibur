@@ -24,36 +24,41 @@ namespace Excalibur.Dispatch.Compliance;
 /// </remarks>
 public sealed class RegexDataMasker : IDataMasker
 {
+	private static readonly RegexOptions SafeRegexOptions =
+		RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.NonBacktracking;
+
+	private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(2);
+
 	// Pre-compiled regex patterns for performance
 	private static readonly Regex EmailPattern = new(
 		@"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
-		RegexOptions.Compiled,
-		TimeSpan.FromMilliseconds(250));
+		SafeRegexOptions,
+		RegexTimeout);
 
 	private static readonly Regex PhonePattern = new(
 		@"\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b",
-		RegexOptions.Compiled,
-		TimeSpan.FromMilliseconds(250));
+		SafeRegexOptions,
+		RegexTimeout);
 
 	private static readonly Regex SsnPattern = new(
 		@"\b\d{3}-\d{2}-\d{4}\b",
-		RegexOptions.Compiled,
-		TimeSpan.FromMilliseconds(250));
+		SafeRegexOptions,
+		RegexTimeout);
 
 	private static readonly Regex CardPattern = new(
 		@"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b",
-		RegexOptions.Compiled,
-		TimeSpan.FromMilliseconds(250));
+		SafeRegexOptions,
+		RegexTimeout);
 
 	private static readonly Regex IpPattern = new(
 		@"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b",
-		RegexOptions.Compiled,
-		TimeSpan.FromMilliseconds(250));
+		SafeRegexOptions,
+		RegexTimeout);
 
 	private static readonly Regex DobPattern = new(
 		@"\b(0?[1-9]|1[0-2])[-/](0?[1-9]|[12]\d|3[01])[-/](19|20)\d{2}\b",
-		RegexOptions.Compiled,
-		TimeSpan.FromMilliseconds(250));
+		SafeRegexOptions,
+		RegexTimeout);
 
 	private readonly MaskingRules _defaultRules;
 	private readonly JsonSerializerOptions _jsonOptions;
@@ -312,8 +317,8 @@ public sealed class RegexDataMasker : IDataMasker
 			// Create a pattern to find this property in the JSON and mask its value
 			var propPattern = new Regex(
 				$@"""{GetJsonPropertyName(prop)}"":\s*""([^""]+)""",
-				RegexOptions.None,
-				TimeSpan.FromMilliseconds(250));
+				RegexOptions.CultureInvariant | RegexOptions.NonBacktracking,
+				RegexTimeout);
 
 			result = propPattern.Replace(result, match =>
 			{
