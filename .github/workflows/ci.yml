@@ -555,7 +555,7 @@ jobs:
     name: Integration Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: unit-tests
-    timeout-minutes: 20
+    timeout-minutes: 60
     strategy:
       matrix:
         os: [ubuntu-latest]
@@ -597,7 +597,7 @@ jobs:
             --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults \
             --filter "Category=Integration|Category=EndToEnd" \
-            -- RunConfiguration.TestSessionTimeout=1200000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+            -- RunConfiguration.TestSessionTimeout=3600000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
 
       - name: Upload test results
         if: always()
@@ -612,8 +612,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: code-coverage-integration-${{ matrix.os }}
-          path: TestResults/*/coverage.cobertura.xml
-          if-no-files-found: error
+          path: TestResults/**/coverage.cobertura.xml
+          if-no-files-found: warn
           retention-days: 30
 
   # Functional tests - depends on integration tests

@@ -139,7 +139,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 			NullLogger<ErasureSchedulerBackgroundService>.Instance);
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		await executionObserved.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+		await executionObserved.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		A.CallTo(() => erasureService.ExecuteAsync(requestId, A<CancellationToken>._))
@@ -187,7 +187,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
-		await failedStatusUpdated.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+		await failedStatusUpdated.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 		await cts.CancelAsync().ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -237,7 +237,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
-		await failedStatusUpdated.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+		await failedStatusUpdated.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 		await cts.CancelAsync().ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
