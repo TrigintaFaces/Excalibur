@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
+
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Security;
 
@@ -11,17 +13,30 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Auditing;
 /// with partial data, queue-after-close behavior, severity-to-log-level mapping,
 /// and additional data extraction from context items.
 /// </summary>
+/// <remarks>
+/// Capture security events via <c>Invokes</c> into a snapshot collection.
+/// The logger reuses and clears a mutable batch list after storage, so matching
+/// directly against FakeItEasy call arguments is timing-sensitive.
+/// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Security")]
 public sealed class SecurityEventLoggerDepthCoverageShould : IDisposable
 {
 	private readonly ISecurityEventStore _eventStore;
 	private readonly SecurityEventLogger _sut;
+	private readonly ConcurrentBag<SecurityEvent> _capturedEvents = new();
 
 	public SecurityEventLoggerDepthCoverageShould()
 	{
 		_eventStore = A.Fake<ISecurityEventStore>();
 		A.CallTo(() => _eventStore.StoreEventsAsync(A<IEnumerable<SecurityEvent>>._, A<CancellationToken>._))
+			.Invokes((IEnumerable<SecurityEvent> events, CancellationToken _) =>
+			{
+				foreach (var evt in events.ToList())
+				{
+					_capturedEvents.Add(evt);
+				}
+			})
 			.Returns(Task.CompletedTask);
 
 		_sut = new SecurityEventLogger(
@@ -50,16 +65,10 @@ public sealed class SecurityEventLoggerDepthCoverageShould : IDisposable
 			CancellationToken.None,
 			context);
 
-		// Allow background processing
-		await Task.Delay(2000);
 		await _sut.StopAsync(CancellationToken.None);
 
 		// Assert
-		A.CallTo(() => _eventStore.StoreEventsAsync(
-			A<IEnumerable<SecurityEvent>>.That.Matches(events =>
-				events.Any(e => e.CorrelationId == correlationGuid)),
-			A<CancellationToken>._))
-			.MustHaveHappened();
+		_capturedEvents.ShouldContain(e => e.CorrelationId == correlationGuid);
 	}
 
 	[Fact]
@@ -80,16 +89,10 @@ public sealed class SecurityEventLoggerDepthCoverageShould : IDisposable
 			CancellationToken.None,
 			context);
 
-		// Allow background processing
-		await Task.Delay(2000);
 		await _sut.StopAsync(CancellationToken.None);
 
-		// Assert — event stored with null CorrelationId (non-parseable)
-		A.CallTo(() => _eventStore.StoreEventsAsync(
-			A<IEnumerable<SecurityEvent>>.That.Matches(events =>
-				events.Any(e => e.CorrelationId == null)),
-			A<CancellationToken>._))
-			.MustHaveHappened();
+		// Assert
+		_capturedEvents.ShouldContain(e => e.CorrelationId == null);
 	}
 
 	[Fact]
@@ -114,15 +117,10 @@ public sealed class SecurityEventLoggerDepthCoverageShould : IDisposable
 			CancellationToken.None,
 			context);
 
-		await Task.Delay(2000);
 		await _sut.StopAsync(CancellationToken.None);
 
 		// Assert
-		A.CallTo(() => _eventStore.StoreEventsAsync(
-			A<IEnumerable<SecurityEvent>>.That.Matches(events =>
-				events.Any(e => e.UserId == "admin-user")),
-			A<CancellationToken>._))
-			.MustHaveHappened();
+		_capturedEvents.ShouldContain(e => e.UserId == "admin-user");
 	}
 
 	[Fact]
@@ -149,15 +147,13 @@ public sealed class SecurityEventLoggerDepthCoverageShould : IDisposable
 			CancellationToken.None,
 			context);
 
-		await Task.Delay(2000);
 		await _sut.StopAsync(CancellationToken.None);
 
 		// Assert
-		A.CallTo(() => _eventStore.StoreEventsAsync(
-			A<IEnumerable<SecurityEvent>>.That.Matches(events =>
-				events.Any(e => e.SourceIp == "10.0.0.1" && e.UserAgent == "Mozilla/5.0" && e.MessageType == "CreateOrder")),
-			A<CancellationToken>._))
-			.MustHaveHappened();
+		_capturedEvents.ShouldContain(e =>
+			e.SourceIp == "10.0.0.1" &&
+			e.UserAgent == "Mozilla/5.0" &&
+			e.MessageType == "CreateOrder");
 	}
 
 	[Fact]
@@ -173,7 +169,7 @@ public sealed class SecurityEventLoggerDepthCoverageShould : IDisposable
 			["Security:ThreatType"] = "brute-force",
 			["Auth:Method"] = "Bearer",
 			["Validation:FailedRules"] = "InputLength",
-			["Custom:NonSecurity"] = "ignored", // Should NOT be included
+			["Custom:NonSecurity"] = "ignored",
 		};
 		A.CallTo(() => context.Items).Returns(items);
 
@@ -185,19 +181,14 @@ public sealed class SecurityEventLoggerDepthCoverageShould : IDisposable
 			CancellationToken.None,
 			context);
 
-		await Task.Delay(2000);
 		await _sut.StopAsync(CancellationToken.None);
 
 		// Assert
-		A.CallTo(() => _eventStore.StoreEventsAsync(
-			A<IEnumerable<SecurityEvent>>.That.Matches(events =>
-				events.Any(e =>
-					e.AdditionalData.ContainsKey("Security:ThreatType") &&
-					e.AdditionalData.ContainsKey("Auth:Method") &&
-					e.AdditionalData.ContainsKey("Validation:FailedRules") &&
-					!e.AdditionalData.ContainsKey("Custom:NonSecurity"))),
-			A<CancellationToken>._))
-			.MustHaveHappened();
+		var evt = _capturedEvents.First(e => e.EventType == SecurityEventType.RateLimitExceeded);
+		evt.AdditionalData.ShouldContainKey("Security:ThreatType");
+		evt.AdditionalData.ShouldContainKey("Auth:Method");
+		evt.AdditionalData.ShouldContainKey("Validation:FailedRules");
+		evt.AdditionalData.ShouldNotContainKey("Custom:NonSecurity");
 	}
 
 	[Fact]
@@ -213,8 +204,6 @@ public sealed class SecurityEventLoggerDepthCoverageShould : IDisposable
 			"Late event",
 			SecuritySeverity.Low,
 			CancellationToken.None);
-
-		// Assert — no exception thrown
 	}
 
 	[Fact]
@@ -233,14 +222,10 @@ public sealed class SecurityEventLoggerDepthCoverageShould : IDisposable
 		await _sut.LogSecurityEventAsync(
 			SecurityEventType.InjectionAttempt, "Critical sev", SecuritySeverity.Critical, CancellationToken.None);
 
-		await Task.Delay(2000);
 		await _sut.StopAsync(CancellationToken.None);
 
-		// Assert — all 4 events stored
-		A.CallTo(() => _eventStore.StoreEventsAsync(
-			A<IEnumerable<SecurityEvent>>.That.Matches(events => events.Count() >= 4),
-			A<CancellationToken>._))
-			.MustHaveHappened();
+		// Assert
+		_capturedEvents.Count.ShouldBeGreaterThanOrEqualTo(4);
 	}
 
 	[Fact]
@@ -249,7 +234,6 @@ public sealed class SecurityEventLoggerDepthCoverageShould : IDisposable
 		// Arrange
 		await _sut.StartAsync(CancellationToken.None);
 
-		// Queue several events rapidly
 		for (var i = 0; i < 10; i++)
 		{
 			await _sut.LogSecurityEventAsync(
@@ -259,14 +243,11 @@ public sealed class SecurityEventLoggerDepthCoverageShould : IDisposable
 				CancellationToken.None);
 		}
 
-		// Act — stop should process remaining events
+		// Act
 		await _sut.StopAsync(CancellationToken.None);
 
-		// Assert — at least some events were stored
-		A.CallTo(() => _eventStore.StoreEventsAsync(
-			A<IEnumerable<SecurityEvent>>._,
-			A<CancellationToken>._))
-			.MustHaveHappened();
+		// Assert
+		_capturedEvents.Count.ShouldBeGreaterThanOrEqualTo(10);
 	}
 
 	[Fact]
@@ -275,7 +256,14 @@ public sealed class SecurityEventLoggerDepthCoverageShould : IDisposable
 		// Arrange — first batch call fails, individual calls succeed
 		var callCount = 0;
 		A.CallTo(() => _eventStore.StoreEventsAsync(A<IEnumerable<SecurityEvent>>._, A<CancellationToken>._))
-			.ReturnsLazily(call =>
+			.Invokes((IEnumerable<SecurityEvent> events, CancellationToken _) =>
+			{
+				foreach (var evt in events.ToList())
+				{
+					_capturedEvents.Add(evt);
+				}
+			})
+			.ReturnsLazily(() =>
 			{
 				callCount++;
 				if (callCount == 1)
@@ -295,14 +283,11 @@ public sealed class SecurityEventLoggerDepthCoverageShould : IDisposable
 			SecuritySeverity.Low,
 			CancellationToken.None);
 
-		await Task.Delay(2000);
 		await _sut.StopAsync(CancellationToken.None);
 
 		// Assert — store was called (batch + individual fallback)
-		A.CallTo(() => _eventStore.StoreEventsAsync(
-			A<IEnumerable<SecurityEvent>>._,
-			A<CancellationToken>._))
-			.MustHaveHappened();
+		callCount.ShouldBeGreaterThanOrEqualTo(2);
+		_capturedEvents.ShouldNotBeEmpty();
 	}
 
 	[Fact]

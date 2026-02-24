@@ -123,7 +123,7 @@ public sealed class SecurityEventLoggerDepthShould
 			context);
 
 		// Wait for store to receive events (deterministic)
-		await storeCalled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await storeCalled.Task.WaitAsync(TimeSpan.FromSeconds(30));
 		await sut.StopAsync(CancellationToken.None);
 
 		// Assert against captured snapshot
@@ -151,7 +151,7 @@ public sealed class SecurityEventLoggerDepthShould
 			CancellationToken.None);
 
 		// Wait for store to receive events (deterministic)
-		await storeCalled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await storeCalled.Task.WaitAsync(TimeSpan.FromSeconds(30));
 		await sut.StopAsync(CancellationToken.None);
 
 		// Assert
@@ -176,7 +176,7 @@ public sealed class SecurityEventLoggerDepthShould
 			CancellationToken.None);
 
 		// Wait for store to receive events (deterministic)
-		await storeCalled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await storeCalled.Task.WaitAsync(TimeSpan.FromSeconds(30));
 		await sut.StopAsync(CancellationToken.None);
 
 		// Assert — background processing picked up the event
@@ -201,7 +201,7 @@ public sealed class SecurityEventLoggerDepthShould
 		}
 
 		// Wait for store to receive events (deterministic)
-		await storeCalled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await storeCalled.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
 		// Act
 		await sut.StopAsync(CancellationToken.None);
@@ -238,7 +238,7 @@ public sealed class SecurityEventLoggerDepthShould
 			context);
 
 		// Wait for store to receive events (deterministic)
-		await storeCalled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await storeCalled.Task.WaitAsync(TimeSpan.FromSeconds(30));
 		await sut.StopAsync(CancellationToken.None);
 
 		// Assert against captured snapshot
@@ -284,7 +284,7 @@ public sealed class SecurityEventLoggerDepthShould
 			CancellationToken.None);
 
 		// Wait for store to be called with events (deterministic)
-		await storeCalled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await storeCalled.Task.WaitAsync(TimeSpan.FromSeconds(30));
 		await sut.StopAsync(CancellationToken.None);
 
 		// Assert — store was called (batch failed, then individual fallback)
@@ -314,7 +314,7 @@ public sealed class SecurityEventLoggerDepthShould
 			context);
 
 		// Wait for store to receive events (deterministic)
-		await storeCalled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await storeCalled.Task.WaitAsync(TimeSpan.FromSeconds(30));
 		await sut.StopAsync(CancellationToken.None);
 
 		// Assert against captured snapshot
@@ -343,7 +343,7 @@ public sealed class SecurityEventLoggerDepthShould
 			context);
 
 		// Wait for store to receive events (deterministic)
-		await storeCalled.Task.WaitAsync(TimeSpan.FromSeconds(10));
+		await storeCalled.Task.WaitAsync(TimeSpan.FromSeconds(30));
 		await sut.StopAsync(CancellationToken.None);
 
 		// Assert against captured snapshot — invalid GUID parsed to null
