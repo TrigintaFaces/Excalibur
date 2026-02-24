@@ -615,10 +615,10 @@ jobs:
 
           foreach ($name in @('AZURE_KEYVAULT_URI', 'COSMOS_EMULATOR_ENDPOINT')) {
             if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
-              Write-Host "$name: not set"
+              Write-Host ("{0}: not set" -f $name)
             }
             else {
-              Write-Host "$name: set"
+              Write-Host ("{0}: set" -f $name)
             }
           }
 
