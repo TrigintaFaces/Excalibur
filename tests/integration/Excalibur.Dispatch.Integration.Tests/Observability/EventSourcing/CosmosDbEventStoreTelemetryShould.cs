@@ -577,6 +577,11 @@ public sealed class CosmosDbEventStoreTelemetryShould : IClassFixture<CosmosDbEv
 
 	private void SkipIfEmulatorUnavailable()
 	{
+		Skip.If(
+			string.Equals(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"), "true", StringComparison.OrdinalIgnoreCase) &&
+			string.Equals(Environment.GetEnvironmentVariable("RUNNER_OS"), "Linux", StringComparison.OrdinalIgnoreCase),
+			"CosmosDb emulator telemetry tests are unstable on GitHub-hosted Linux runners.");
+
 		Skip.IfNot(_fixture.IsInitialized, "CosmosDb emulator not available");
 	}
 

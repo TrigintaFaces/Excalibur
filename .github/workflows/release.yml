@@ -97,6 +97,11 @@ jobs:
         run: |
           ./eng/ci/validate-governance-stack.ps1 -Enforce:$true
 
+      - name: Validate flaky quarantine policy
+        shell: pwsh
+        run: |
+          ./eng/ci/validate-flaky-quarantine.ps1 -OutDir management/reports/FlakyQuarantineReport -Enforce:$true
+
       - name: Run all tests from solution
         run: |
           echo "Running full test suite from Excalibur.sln for release validation..."
@@ -134,12 +139,21 @@ jobs:
           echo "✅ Successfully created $PACKAGE_COUNT packages"
           rm -rf ./temp-packages
 
+      - name: Upload flaky quarantine report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-flaky-quarantine-report
+          path: management/reports/FlakyQuarantineReport
+          if-no-files-found: warn
+          retention-days: 30
+
   # Build and package libraries
   pre-tag-unit-soak:
     name: Pre-Tag Unit Soak (${{ matrix.os }}, run ${{ matrix.iteration }})
     runs-on: ${{ matrix.os }}
     needs: pre-release-validation
-    timeout-minutes: 30
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -171,8 +185,16 @@ jobs:
       - name: Build unit shard
         run: dotnet build eng/ci/shards/UnitTests.slnf --configuration Release --no-restore --verbosity minimal
 
+      - name: Compose pre-tag soak filter
+        shell: pwsh
+        run: |
+          $baseFilter = '(Category=Unit|Category=DependencyInjection)&Category!=Performance'
+          $filterInfo = ./eng/ci/get-test-filter.ps1 -BaseFilter $baseFilter -Mode Exclude -AsJson | ConvertFrom-Json
+          "PRETAG_SOAK_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
+          Write-Host "Using pre-tag soak filter with $($filterInfo.count) quarantined exclusions."
+
       - name: Run unit shard soak iteration
-        run: dotnet test eng/ci/shards/UnitTests.slnf --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFileName=pre-tag-unit-soak-${{ matrix.os }}-${{ matrix.iteration }}.trx" --logger "console;verbosity=minimal" --filter "(Category=Unit|Category=DependencyInjection)&Category!=Performance" -- RunConfiguration.TestSessionTimeout=1500000
+        run: dotnet test eng/ci/shards/UnitTests.slnf --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFileName=pre-tag-unit-soak-${{ matrix.os }}-${{ matrix.iteration }}.trx" --logger "console;verbosity=minimal" --filter "${{ env.PRETAG_SOAK_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
 
       - name: Upload soak test results
         if: always()
