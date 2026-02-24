@@ -4,6 +4,8 @@
 using Excalibur.Data.Abstractions.Persistence;
 using Excalibur.Data.Abstractions.Resilience;
 
+using System.Diagnostics;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -13,6 +15,25 @@ namespace Excalibur.Data.Tests.Abstractions;
 [Trait("Category", "Unit")]
 public class CircuitBreakerDataProviderFunctionalShould
 {
+	private static async Task WaitForStateAsync(
+		CircuitBreakerDataProvider provider,
+		DataProviderCircuitState expectedState,
+		TimeSpan timeout)
+	{
+		var stopwatch = Stopwatch.StartNew();
+		while (stopwatch.Elapsed < timeout)
+		{
+			if (provider.State == expectedState)
+			{
+				return;
+			}
+
+			await Task.Delay(TimeSpan.FromMilliseconds(10)).ConfigureAwait(false);
+		}
+
+		provider.State.ShouldBe(expectedState);
+	}
+
 	private static CircuitBreakerDataProvider CreateProvider(
 		IPersistenceProvider inner,
 		DataProviderCircuitBreakerOptions? options = null)
@@ -158,12 +179,9 @@ public class CircuitBreakerDataProviderFunctionalShould
 				() => provider.ExecuteAsync(request, CancellationToken.None)).ConfigureAwait(false);
 		}
 
-		provider.State.ShouldBe(DataProviderCircuitState.Open);
-
-		// Wait for break duration to expire
-		await Task.Delay(100).ConfigureAwait(false);
-
-		provider.State.ShouldBe(DataProviderCircuitState.HalfOpen);
+		// Depending on scheduler timing this read may observe either Open or HalfOpen.
+		provider.State.ShouldNotBe(DataProviderCircuitState.Closed);
+		await WaitForStateAsync(provider, DataProviderCircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -199,9 +217,7 @@ public class CircuitBreakerDataProviderFunctionalShould
 				() => provider.ExecuteAsync(request, CancellationToken.None)).ConfigureAwait(false);
 		}
 
-		// Wait for half-open
-		await Task.Delay(100).ConfigureAwait(false);
-		provider.State.ShouldBe(DataProviderCircuitState.HalfOpen);
+		await WaitForStateAsync(provider, DataProviderCircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Successful call should close the circuit
 		var result = await provider.ExecuteAsync(request, CancellationToken.None).ConfigureAwait(false);
@@ -231,9 +247,7 @@ public class CircuitBreakerDataProviderFunctionalShould
 				() => provider.ExecuteAsync(request, CancellationToken.None)).ConfigureAwait(false);
 		}
 
-		// Wait for half-open
-		await Task.Delay(100).ConfigureAwait(false);
-		provider.State.ShouldBe(DataProviderCircuitState.HalfOpen);
+		await WaitForStateAsync(provider, DataProviderCircuitState.HalfOpen, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
 		// Failure in half-open should reopen
 		await Should.ThrowAsync<TimeoutException>(
