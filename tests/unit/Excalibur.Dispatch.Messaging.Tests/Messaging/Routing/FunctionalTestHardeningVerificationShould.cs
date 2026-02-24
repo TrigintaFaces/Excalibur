@@ -95,11 +95,19 @@ public sealed class FunctionalTestHardeningVerificationShould
 						 l.Contains("necessary", StringComparison.OrdinalIgnoreCase) ||
 						 l.Contains("polling", StringComparison.OrdinalIgnoreCase) ||
 						 l.Contains("wait for", StringComparison.OrdinalIgnoreCase)));
-					// Task.Delay with a CancellationToken is the safe pattern;
-					// detect via two-arg call: global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(duration, token)
+					// Delay with a CancellationToken is the safe pattern.
+					// Accept either direct Task.Delay(duration, token) or
+					// global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(duration, token).
 					var delayLine = lines[i].Trim();
-					var usesCancellationToken = delayLine.Contains("global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(", StringComparison.Ordinal) &&
-						delayLine.IndexOf(',', delayLine.IndexOf("global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(", StringComparison.Ordinal)) > 0;
+					var delayStartIndex = delayLine.IndexOf("Task.Delay(", StringComparison.Ordinal);
+					if (delayStartIndex < 0)
+					{
+						delayStartIndex = delayLine.IndexOf("global::Tests.Shared.Infrastructure.TestTiming.DelayAsync(", StringComparison.Ordinal);
+					}
+
+					var usesCancellationToken =
+						delayStartIndex >= 0 &&
+						delayLine.IndexOf(',', delayStartIndex) > 0;
 
 					(hasComment || usesCancellationToken).ShouldBeTrue(
 						$"Task.Delay at {fileName}:{i + 1} should have a comment explaining " +
