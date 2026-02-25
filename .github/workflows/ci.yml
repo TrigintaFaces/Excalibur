@@ -763,6 +763,23 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      - name: Free disk space (Ubuntu)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Disk usage before cleanup:"
+          df -h
+          sudo rm -rf /usr/share/swift || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo rm -rf /home/linuxbrew || true
+          sudo rm -rf /usr/local/.ghcup || true
+          sudo rm -rf /usr/local/share/boost || true
+          sudo apt-get clean || true
+          docker system prune -af || true
+          echo "Disk usage after cleanup:"
+          df -h
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -771,12 +788,18 @@ jobs:
             9.0.x
             10.0.x
       - name: Restore dependencies
-        run: dotnet restore Excalibur.sln
+        run: dotnet restore Excalibur.sln --verbosity quiet
       - name: Build with warnings as errors (SAST-lite)
         shell: bash
         run: |
-          set -o pipefail
-          dotnet build Excalibur.sln --configuration Release --no-restore -warnaserror 2>&1 | tee sast-build.log
+          set -euo pipefail
+          build_exit=0
+          dotnet build Excalibur.sln --configuration Release --no-restore --verbosity quiet -warnaserror -clp:ErrorsOnly\;Summary > sast-build.log 2>&1 || build_exit=$?
+          if [ "$build_exit" -ne 0 ]; then
+            echo "Build failed. Last 200 lines from sast-build.log:"
+            tail -n 200 sast-build.log || true
+            exit "$build_exit"
+          fi
       - name: Upload SAST log
         if: always()
         uses: actions/upload-artifact@v4

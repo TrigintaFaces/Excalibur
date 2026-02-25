@@ -739,13 +739,12 @@ public sealed class BatchProcessorShould : IDisposable
 
 	private static async Task WaitForConditionAsync(Func<bool> condition, TimeSpan timeout)
 	{
-		var stopwatch = Stopwatch.StartNew();
-		while (!condition() && stopwatch.Elapsed < timeout)
-		{
-			await Task.Yield();
-		}
-
-		condition().ShouldBeTrue();
+		var scaledTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(timeout);
+		var conditionSatisfied = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			condition,
+			scaledTimeout,
+			TimeSpan.FromMilliseconds(25)).ConfigureAwait(false);
+		conditionSatisfied.ShouldBeTrue($"Condition was not satisfied within {scaledTimeout}.");
 	}
 
 	[Fact]
