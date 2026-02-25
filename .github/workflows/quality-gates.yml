@@ -300,7 +300,10 @@ jobs:
           echo "Disk usage before cleanup:"
           df -h
           sudo rm -rf /usr/share/swift || true
+          sudo rm -rf /usr/local/lib/android || true
           sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo rm -rf /home/linuxbrew || true
           sudo rm -rf /usr/local/.ghcup || true
           sudo rm -rf /usr/local/share/boost || true
           sudo apt-get clean || true
@@ -317,11 +320,12 @@ jobs:
             10.0.x
 
       - name: Restore dependencies
-        run: dotnet restore
+        run: dotnet restore --verbosity quiet
 
       - name: Build with analyzers
         run: |
           dotnet build --configuration Release --no-restore \
+            --verbosity quiet \
             -warnaserror \
             /p:TreatWarningsAsErrors=true
 

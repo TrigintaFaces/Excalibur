@@ -57,7 +57,10 @@ jobs:
           echo "Disk usage before cleanup:"
           df -h
           sudo rm -rf /usr/share/swift || true
+          sudo rm -rf /usr/local/lib/android || true
           sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo rm -rf /home/linuxbrew || true
           sudo rm -rf /usr/local/.ghcup || true
           sudo rm -rf /usr/local/share/boost || true
           sudo apt-get clean || true
@@ -82,16 +85,16 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore Excalibur.sln
+        run: dotnet restore Excalibur.sln --verbosity quiet
 
       - name: Build solution
-        run: dotnet build Excalibur.sln --configuration Release --no-restore --verbosity minimal
+        run: dotnet build Excalibur.sln --configuration Release --no-restore --verbosity quiet
 
       - name: Deterministic build validation (Ubuntu only)
         if: matrix.os == 'ubuntu-latest'
         run: |
           echo "Validating deterministic builds with CI flag..."
-          dotnet build --configuration Release --no-restore -p:CI=true --verbosity minimal
+          dotnet build --configuration Release --no-restore -p:CI=true --verbosity quiet
           echo "✅ Deterministic build validation successful (Sprint 318 T3.4 AD-318-3)"
 
       - name: Package validation (Ubuntu only)
