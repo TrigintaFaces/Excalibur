@@ -32,7 +32,7 @@ public sealed class EventDrivenWaitPatternShould
 		// Uses SemaphoreSlim.WaitAsync with timeout instead of Task.Delay to avoid flakiness under load
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			consumerReady.Task,
-			TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 
 		// Signal (as MessageOutbox.SignalNewMessage does)
 		_ = semaphore.Release();

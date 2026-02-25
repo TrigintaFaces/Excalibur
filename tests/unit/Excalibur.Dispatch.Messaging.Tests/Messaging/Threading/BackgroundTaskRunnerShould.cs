@@ -29,7 +29,7 @@ public sealed class BackgroundTaskRunnerShould
 
 		var result = await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			executed.Task,
-			TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 		result.ShouldBeTrue();
 	}
 
@@ -49,7 +49,7 @@ public sealed class BackgroundTaskRunnerShould
 
 		var exception = await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			errorReceived.Task,
-			TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 		exception.ShouldBeOfType<InvalidOperationException>();
 		exception.Message.ShouldBe("test error");
 	}
@@ -79,10 +79,10 @@ public sealed class BackgroundTaskRunnerShould
 
 			completed.Task,
 
-			TimeSpan.FromSeconds(120));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(120)));
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			logObserved.Task,
-			TimeSpan.FromSeconds(30));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 	}
 
 	[Fact]
@@ -101,7 +101,7 @@ public sealed class BackgroundTaskRunnerShould
 
 		var token = await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			receivedToken.Task,
-			TimeSpan.FromSeconds(120)).ConfigureAwait(false);
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(120))).ConfigureAwait(false);
 		token.ShouldBe(cts.Token);
 	}
 

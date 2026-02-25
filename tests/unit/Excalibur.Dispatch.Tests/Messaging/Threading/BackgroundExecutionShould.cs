@@ -139,7 +139,7 @@ public sealed class BackgroundExecutionShould
 		// Assert
 		var completed = await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			executed.Task,
-			TimeSpan.FromSeconds(30));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		completed.ShouldBeTrue();
 	}
 
@@ -163,10 +163,10 @@ public sealed class BackgroundExecutionShould
 		// Assert
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			taskStarted.Task,
-			TimeSpan.FromSeconds(30));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		var exception = await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			caughtException.Task,
-			TimeSpan.FromSeconds(30));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		exception.ShouldNotBeNull();
 		exception.ShouldBeOfType<InvalidOperationException>();
 	}

@@ -145,7 +145,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 
 				batchProcessedTcs.Task,
 
-				TimeSpan.FromSeconds(30));
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 			// Wait a bit more for metrics to be emitted
 			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(200).ConfigureAwait(false);
 		}
@@ -341,7 +341,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 
 				allProcessed.Task,
 
-				TimeSpan.FromSeconds(10));
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
 			// Wait for final telemetry to be emitted
 			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(500).ConfigureAwait(false);
 		}

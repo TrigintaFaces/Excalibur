@@ -109,7 +109,7 @@ public sealed class MessagePumpShould
 
         	completion.Task,
 
-        	TimeSpan.FromSeconds(5));
+        	global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
         await pump.StopAsync(CancellationToken.None);
 
         processed.ShouldBe(2);
@@ -145,7 +145,7 @@ public sealed class MessagePumpShould
 
         	completion.Task,
 
-        	TimeSpan.FromSeconds(5));
+        	global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
         await pump.StopAsync(CancellationToken.None);
 
         attempts.ShouldBe(2);
@@ -172,7 +172,7 @@ public sealed class MessagePumpShould
         channel.Writer.TryWrite(new MessageEnvelope()).ShouldBeTrue();
         await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
         	completion.Task,
-        	TimeSpan.FromSeconds(5));
+        	global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
         channel.Writer.TryComplete().ShouldBeTrue();
 
         await pump.StopAsync(CancellationToken.None);

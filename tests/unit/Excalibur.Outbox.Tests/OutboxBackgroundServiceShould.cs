@@ -196,7 +196,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			pendingObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -236,7 +236,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			scheduledObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -277,7 +277,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			retryObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -313,7 +313,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			pendingObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -349,7 +349,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			pendingObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -425,7 +425,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			pendingObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -461,7 +461,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			pendingObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await WaitUntilAsync(() => healthState.TotalProcessed > 0, TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
@@ -503,7 +503,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			pendingObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await WaitUntilAsync(() => durations.Count > 0, TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
@@ -541,7 +541,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			pendingObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -580,7 +580,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			pendingObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -621,7 +621,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			scheduledObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -664,7 +664,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			retryObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -705,7 +705,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			pendingObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -756,7 +756,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			secondCycleObserved.Task,
-			TimeSpan.FromSeconds(10));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 

@@ -129,7 +129,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			firstProcessingCall.Task,
-			TimeSpan.FromSeconds(5));
+			SignalWaitTimeout);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -170,7 +170,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			twoCallsObserved.Task,
-			TimeSpan.FromSeconds(5));
+			SignalWaitTimeout);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -220,7 +220,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			twoCallsObserved.Task,
-			TimeSpan.FromSeconds(5));
+			SignalWaitTimeout);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -258,7 +258,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			firstProcessingCall.Task,
-			TimeSpan.FromSeconds(5));
+			SignalWaitTimeout);
 		await cts.CancelAsync();
 
 		// StopAsync should complete without throwing
@@ -290,7 +290,7 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 		await service.StartAsync(CancellationToken.None);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			firstProcessingCall.Task,
-			TimeSpan.FromSeconds(5));
+			SignalWaitTimeout);
 
 		// StopAsync should complete since the processor is fast
 		await service.StopAsync(CancellationToken.None);
@@ -431,6 +431,8 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 	#endregion
 
 	#region Helper Methods
+
+	private static TimeSpan SignalWaitTimeout => global::Tests.Shared.Infrastructure.TestTimeouts.Integration;
 
 	private static IOptions<CdcProcessingOptions> CreateValidOptions()
 	{

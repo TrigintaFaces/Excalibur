@@ -114,7 +114,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		var executeTask = service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			firstPollObserved.Task,
-			TimeSpan.FromSeconds(15));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(15)));
 		await cts.CancelAsync();
 
 		try
@@ -170,7 +170,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		var executeTask = service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			deliveredObserved.Task,
-			TimeSpan.FromSeconds(15));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(15)));
 		await cts.CancelAsync();
 
 		try
@@ -213,7 +213,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		var executeTask = service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			firstPollObserved.Task,
-			TimeSpan.FromSeconds(15));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(15)));
 		await cts.CancelAsync();
 
 		try
@@ -264,7 +264,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		var executeTask = service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			deliveredObserved.Task,
-			TimeSpan.FromSeconds(15));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(15)));
 		await cts.CancelAsync();
 
 		try
@@ -317,7 +317,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		var executeTask = service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			dispatchAttempted.Task,
-			TimeSpan.FromSeconds(15));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(15)));
 		await cts.CancelAsync();
 
 		try
@@ -388,7 +388,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			secondDispatchObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await cts.CancelAsync();
 
 		try
@@ -440,7 +440,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		var executeTask = service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			dispatchObserved.Task,
-			TimeSpan.FromSeconds(15));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(15)));
 		await cts.CancelAsync();
 
 		try
@@ -494,7 +494,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		var executeTask = service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			deliveredObserved.Task,
-			TimeSpan.FromSeconds(15));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(15)));
 		await cts.CancelAsync();
 
 		try
@@ -543,7 +543,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		var executeTask = service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			observedSecondPoll.Task,
-			TimeSpan.FromSeconds(15));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(15)));
 		await cts.CancelAsync();
 
 		try
@@ -596,7 +596,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			deliveredObserved.Task,
-			TimeSpan.FromSeconds(15));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(15)));
 		await cts.CancelAsync();
 		try
 		{
@@ -648,7 +648,7 @@ public sealed class SagaTimeoutDeliveryServiceShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			deliveredObserved.Task,
-			TimeSpan.FromSeconds(15));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(15)));
 		await cts.CancelAsync();
 		try
 		{

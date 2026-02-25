@@ -51,6 +51,28 @@ public static class TestTimeouts
 	public static TimeSpan ContainerDispose => TimeSpan.FromSeconds(30 * Multiplier);
 
 	/// <summary>
+	/// Scales an arbitrary timeout by the configured test timeout multiplier.
+	/// </summary>
+	/// <param name="timeout">The base timeout value.</param>
+	/// <returns>The scaled timeout value.</returns>
+	public static TimeSpan Scale(TimeSpan timeout)
+	{
+		if (timeout == Timeout.InfiniteTimeSpan)
+		{
+			return timeout;
+		}
+
+		ArgumentOutOfRangeException.ThrowIfLessThan(timeout, TimeSpan.Zero);
+
+		if (timeout == TimeSpan.Zero)
+		{
+			return timeout;
+		}
+
+		return TimeSpan.FromTicks((long)(timeout.Ticks * Multiplier));
+	}
+
+	/// <summary>
 	/// Gets the timeout multiplier from the TEST_TIMEOUT_MULTIPLIER environment variable.
 	/// </summary>
 	private static double Multiplier =>

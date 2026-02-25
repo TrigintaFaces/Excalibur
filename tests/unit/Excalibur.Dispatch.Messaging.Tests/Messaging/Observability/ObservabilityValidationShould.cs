@@ -131,7 +131,7 @@ public sealed class ObservabilityValidationShould : IDisposable
 
 			completionSource.Task,
 
-			TimeSpan.FromSeconds(10));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
 		// Assert - Verify batch processing occurred
 		processedItems.Count.ShouldBe(5);
 		processedBatches.ShouldNotBeEmpty();
@@ -300,7 +300,7 @@ public sealed class ObservabilityValidationShould : IDisposable
 		{
 			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 				itemProcessedAfterError.Task,
-				TimeSpan.FromSeconds(30));
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		}
 		catch (TimeoutException)
 		{

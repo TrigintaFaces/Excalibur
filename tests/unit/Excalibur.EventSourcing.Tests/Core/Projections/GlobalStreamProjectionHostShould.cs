@@ -161,7 +161,7 @@ public sealed class GlobalStreamProjectionHostShould
 	{
 		return global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			signal,
-			TimeSpan.FromSeconds(5),
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)),
 			cancellationToken: CancellationToken.None);
 	}
 }

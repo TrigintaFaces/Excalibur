@@ -73,7 +73,7 @@ public sealed class ClaimCheckCleanupServiceShould
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			cleanupObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await sut.StopAsync(CancellationToken.None);
 
 		// Assert -- cleanup should have been invoked at least once
@@ -118,7 +118,7 @@ public sealed class ClaimCheckCleanupServiceShould
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			cleanupAttemptObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await sut.StopAsync(CancellationToken.None);
 
 		// Assert -- at least one cleanup attempt occurred and the service remained stoppable after the error

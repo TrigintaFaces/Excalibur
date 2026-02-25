@@ -93,7 +93,7 @@ public sealed class ComplianceMonitoringServiceShould
 
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			cycleObserved.Task,
-			TimeSpan.FromSeconds(10),
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
 			cancellationToken: CancellationToken.None).ConfigureAwait(false);
 
 		await cts.CancelAsync().ConfigureAwait(false);
@@ -141,7 +141,7 @@ public sealed class ComplianceMonitoringServiceShould
 
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			secondCycleObserved.Task,
-			TimeSpan.FromSeconds(10),
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
 			cancellationToken: CancellationToken.None).ConfigureAwait(false);
 
 		await cts.CancelAsync().ConfigureAwait(false);
@@ -187,7 +187,7 @@ public sealed class ComplianceMonitoringServiceShould
 
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			alertObserved.Task,
-			TimeSpan.FromSeconds(10),
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
 			cancellationToken: CancellationToken.None).ConfigureAwait(false);
 
 		await cts.CancelAsync().ConfigureAwait(false);
@@ -232,7 +232,7 @@ public sealed class ComplianceMonitoringServiceShould
 
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			cycleObserved.Task,
-			TimeSpan.FromSeconds(10),
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
 			cancellationToken: CancellationToken.None).ConfigureAwait(false);
 
 		await cts.CancelAsync().ConfigureAwait(false);

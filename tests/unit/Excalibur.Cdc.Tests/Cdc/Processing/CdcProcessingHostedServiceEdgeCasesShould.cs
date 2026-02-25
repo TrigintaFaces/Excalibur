@@ -47,7 +47,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			thresholdReached.Task,
-			TimeSpan.FromSeconds(5));
+			SignalWaitTimeout);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -94,7 +94,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			postRecoveryObserved.Task,
-			TimeSpan.FromSeconds(5));
+			SignalWaitTimeout);
 		service.ConsecutiveErrors.ShouldBe(0);
 		service.IsHealthy.ShouldBeTrue();
 		var lastSuccess = service.LastSuccessfulProcessing;
@@ -130,7 +130,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			firstSuccessObserved.Task,
-			TimeSpan.FromSeconds(5));
+			SignalWaitTimeout);
 		service.IsHealthy.ShouldBeTrue();
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
@@ -171,7 +171,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 		await service.StartAsync(CancellationToken.None);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			processingStarted.Task,
-			TimeSpan.FromSeconds(5));
+			SignalWaitTimeout);
 		// Stop should trigger drain timeout because processor is blocked
 		await service.StopAsync(CancellationToken.None);
 
@@ -211,14 +211,14 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 		// Wait for processing to start
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			processingStarted.Task,
-			TimeSpan.FromSeconds(30));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		// Now stop - this should wait for drain timeout
 		var stopTask = service.StopAsync(CancellationToken.None);
 
 		// Wait for the stop to complete (should happen after drain timeout ~1 second)
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			stopTask,
-			TimeSpan.FromSeconds(10));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
 		// Cleanup
 		neverComplete.TrySetResult(0);
 
@@ -268,7 +268,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			multipleCyclesObserved.Task,
-			TimeSpan.FromSeconds(5));
+			SignalWaitTimeout);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -311,7 +311,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			processingObserved.Task,
-			TimeSpan.FromSeconds(5));
+			SignalWaitTimeout);
 		await service.StopAsync(CancellationToken.None);
 	}
 
@@ -347,7 +347,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			firstCallObserved.Task,
-			TimeSpan.FromSeconds(5));
+			SignalWaitTimeout);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -384,7 +384,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 		await service.StartAsync(CancellationToken.None);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			firstCallObserved.Task,
-			TimeSpan.FromSeconds(5));
+			SignalWaitTimeout);
 		using var stopCts = new CancellationTokenSource();
 		await service.StopAsync(stopCts.Token);
 	}
@@ -429,7 +429,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			multipleCyclesObserved.Task,
-			TimeSpan.FromSeconds(5));
+			SignalWaitTimeout);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -467,7 +467,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			firstCallObserved.Task,
-			TimeSpan.FromSeconds(5));
+			SignalWaitTimeout);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -519,7 +519,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			durationObserved.Task,
-			TimeSpan.FromSeconds(5));
+			SignalWaitTimeout);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -570,7 +570,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 		await service.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			firstCallObserved.Task,
-			TimeSpan.FromSeconds(5));
+			SignalWaitTimeout);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -600,5 +600,7 @@ public sealed class CdcProcessingHostedServiceEdgeCasesShould : UnitTestBase
 	{
 		return new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 	}
+
+	private static TimeSpan SignalWaitTimeout => global::Tests.Shared.Infrastructure.TestTimeouts.Integration;
 }
 

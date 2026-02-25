@@ -62,7 +62,7 @@ public sealed class SagaTimeoutCleanupServiceShould
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			updateObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await sut.StopAsync(CancellationToken.None);
 
 		// Assert
@@ -108,7 +108,7 @@ public sealed class SagaTimeoutCleanupServiceShould
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			firstQueryObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await sut.StopAsync(CancellationToken.None);
 
 		// Assert
@@ -151,10 +151,10 @@ public sealed class SagaTimeoutCleanupServiceShould
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			transientFailureObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			secondQueryObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await sut.StopAsync(CancellationToken.None);
 
 		// Assert - should have retried after error

@@ -321,7 +321,7 @@ public sealed class SqsTransportSubscriberShould : IAsyncDisposable
 			cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			secondPollObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		// Assert - should have polled multiple times
 		callCount.ShouldBeGreaterThan(1);
 	}

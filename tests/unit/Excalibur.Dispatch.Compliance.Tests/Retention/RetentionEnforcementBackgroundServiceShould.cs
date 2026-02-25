@@ -96,7 +96,7 @@ public sealed class RetentionEnforcementBackgroundServiceShould
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			cycleObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		A.CallTo(() => enforcementService.EnforceRetentionAsync(A<CancellationToken>._))
@@ -148,7 +148,7 @@ public sealed class RetentionEnforcementBackgroundServiceShould
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			secondCallObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await cts.CancelAsync();
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 

@@ -129,7 +129,7 @@ public sealed class ComplianceMonitoringServiceShould
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			complianceCallObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		cts.Cancel();
 
 		try
@@ -194,7 +194,7 @@ public sealed class ComplianceMonitoringServiceShould
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			secondCallObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		cts.Cancel();
 
 		try
@@ -232,7 +232,7 @@ public sealed class ComplianceMonitoringServiceShould
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			alertObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		cts.Cancel();
 
 		try
@@ -342,7 +342,7 @@ public sealed class ComplianceMonitoringServiceShould
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			validationAlertObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		cts.Cancel();
 
 		try
@@ -393,7 +393,7 @@ public sealed class ComplianceMonitoringServiceShould
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			statusChangeObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		cts.Cancel();
 
 		try
@@ -440,7 +440,7 @@ public sealed class ComplianceMonitoringServiceShould
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			statusChangeObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		cts.Cancel();
 
 		try

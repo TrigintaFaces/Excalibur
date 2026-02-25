@@ -97,7 +97,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			queryObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		A.CallTo(() => queryStore.GetScheduledRequestsAsync(A<int>._, A<CancellationToken>._))
@@ -143,7 +143,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			executionObserved.Task,
-			TimeSpan.FromSeconds(10));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		A.CallTo(() => erasureService.ExecuteAsync(requestId, A<CancellationToken>._))
@@ -193,7 +193,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			failedStatusUpdated.Task,
-			TimeSpan.FromSeconds(10));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
 		await cts.CancelAsync().ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -245,7 +245,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			failedStatusUpdated.Task,
-			TimeSpan.FromSeconds(10));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
 		await cts.CancelAsync().ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -301,7 +301,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			secondQueryObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Should have attempted more than once (continues after error)
@@ -338,7 +338,7 @@ public sealed class ErasureSchedulerBackgroundServiceShould
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			queryStoreLookupObserved.Task,
-			TimeSpan.FromSeconds(5));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Should have tried to get the query store

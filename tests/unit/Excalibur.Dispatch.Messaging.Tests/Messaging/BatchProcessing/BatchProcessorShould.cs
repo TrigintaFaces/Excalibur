@@ -78,7 +78,7 @@ public sealed class BatchProcessorShould : IDisposable
 
 			tcs.Task,
 
-			TimeSpan.FromSeconds(30));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		processedBatches.Count.ShouldBe(1);
 		var batches = processedBatches.ToArray();
 		batches[0].Count.ShouldBe(1);
@@ -121,7 +121,7 @@ public sealed class BatchProcessorShould : IDisposable
 
 			tcs.Task,
 
-			TimeSpan.FromSeconds(30));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		processedBatches.Count.ShouldBe(1);
 		var batches = processedBatches.ToArray();
 		batches[0].Count.ShouldBe(3);
@@ -155,7 +155,7 @@ public sealed class BatchProcessorShould : IDisposable
 
 			tcs.Task,
 
-			TimeSpan.FromSeconds(30));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		processedBatches.Count.ShouldBe(1);
 		var batches = processedBatches.ToArray();
 		batches[0].Count.ShouldBe(2);
@@ -200,7 +200,7 @@ public sealed class BatchProcessorShould : IDisposable
 		// may be severely delayed by thread pool starvation
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			tcs.Task,
-			TimeSpan.FromSeconds(60));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(60)));
 		callCount.ShouldBe(2);
 	}
 
@@ -236,7 +236,7 @@ public sealed class BatchProcessorShould : IDisposable
 		// Wait for batch delay to trigger processing
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			allProcessed.Task,
-			TimeSpan.FromSeconds(30));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		processedBatches.Sum(b => b.Count).ShouldBe(2);
 	}
 
@@ -273,7 +273,7 @@ public sealed class BatchProcessorShould : IDisposable
 		await Task.WhenAll(tasks).ConfigureAwait(false);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			allItemsProcessed.Task,
-			TimeSpan.FromSeconds(30));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		processedItems.Count.ShouldBe(expectedItemCount);
 	}
 
@@ -334,7 +334,7 @@ public sealed class BatchProcessorShould : IDisposable
 
 			itemProcessed.Task,
 
-			TimeSpan.FromSeconds(30));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 	}
 
 	[Fact]
@@ -431,7 +431,7 @@ public sealed class BatchProcessorShould : IDisposable
 
 			expectedBatches.Task,
 
-			TimeSpan.FromSeconds(30));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		batchSizes.All(size => size <= options.MaxBatchSize).ShouldBeTrue();
 		batchSizes.Count(size => size == options.MaxBatchSize).ShouldBeGreaterThanOrEqualTo(2);
 	}
@@ -478,7 +478,7 @@ public sealed class BatchProcessorShould : IDisposable
 
 			allProcessed.Task,
 
-			TimeSpan.FromSeconds(30));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		// First call throws but processor continues; second item should be processed
 		processedItems.Count.ShouldBeGreaterThan(0);
 		callCount.ShouldBeGreaterThan(1); // At least 2 calls (first fails, subsequent succeed)
@@ -731,7 +731,7 @@ public sealed class BatchProcessorShould : IDisposable
 
 			allItemsProcessed.Task,
 
-			TimeSpan.FromSeconds(20));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(20)));
 		batchSizes.Count.ShouldBeGreaterThan(1);
 		batchSizes.All(size => size <= options.MaxBatchSize).ShouldBeTrue();
 		Volatile.Read(ref totalProcessed).ShouldBe(32); // 2 + 5 + 25 = 32 total items
