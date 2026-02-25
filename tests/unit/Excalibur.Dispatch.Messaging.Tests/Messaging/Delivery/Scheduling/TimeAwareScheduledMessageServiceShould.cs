@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Delivery.Registry;
 using Excalibur.Dispatch.Options.Scheduling;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -22,7 +23,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 	[Fact]
 	public async Task ProcessDueActionMessageAndPersistUpdatedSchedule()
 	{
-		var schedule = CreateDueSchedule(typeof(TestActionMessage).Name, interval: TimeSpan.FromMinutes(5));
+		var schedule = CreateDueSchedule(typeof(TestActionMessage), interval: TimeSpan.FromMinutes(5));
 		var store = new SequenceScheduleStore([schedule], []);
 		var serializer = A.Fake<IJsonSerializer>();
 		_ = A.CallTo(() => serializer.DeserializeAsync(A<string>._, A<Type>._))
@@ -43,9 +44,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy(), timeoutMonitor);
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		var processed = await global::Tests.Shared.Infrastructure.WaitHelpers
-			.WaitUntilAsync(() => store.StoreCalls >= 1, TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(25))
-			.ConfigureAwait(false);
+		var processed = await store.WaitForStoreCallAsync(TimeSpan.FromSeconds(10), CancellationToken.None).ConfigureAwait(false);
 		processed.ShouldBeTrue();
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -71,7 +70,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 	[Fact]
 	public async Task DisableOneTimeScheduleAfterSuccessfulDispatch()
 	{
-		var schedule = CreateDueSchedule(typeof(TestActionMessage).Name, interval: null);
+		var schedule = CreateDueSchedule(typeof(TestActionMessage), interval: null);
 		var store = new SequenceScheduleStore([schedule], []);
 		var serializer = A.Fake<IJsonSerializer>();
 		_ = A.CallTo(() => serializer.DeserializeAsync(A<string>._, A<Type>._))
@@ -84,9 +83,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy(), new RecordingTimeoutMonitor());
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		var processed = await global::Tests.Shared.Infrastructure.WaitHelpers
-			.WaitUntilAsync(() => store.StoreCalls >= 1, TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(25))
-			.ConfigureAwait(false);
+		var processed = await store.WaitForStoreCallAsync(TimeSpan.FromSeconds(10), CancellationToken.None).ConfigureAwait(false);
 		processed.ShouldBeTrue();
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -99,7 +96,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 	[Fact]
 	public async Task SkipDispatchAndPersistenceWhenDeserializationFails()
 	{
-		var schedule = CreateDueSchedule(typeof(TestActionMessage).Name, interval: TimeSpan.FromMinutes(1));
+		var schedule = CreateDueSchedule(typeof(TestActionMessage), interval: TimeSpan.FromMinutes(1));
 		var store = new SequenceScheduleStore([schedule], []);
 		var serializer = A.Fake<IJsonSerializer>();
 		_ = A.CallTo(() => serializer.DeserializeAsync(A<string>._, A<Type>._))
@@ -181,6 +178,13 @@ public sealed class TimeAwareScheduledMessageServiceShould
 			}),
 			NullLogger<TimeAwareScheduledMessageService>.Instance);
 
+	private static ScheduledMessage CreateDueSchedule(Type messageType, TimeSpan? interval)
+	{
+		MessageTypeRegistry.RegisterType(messageType);
+		var registeredTypeName = messageType.AssemblyQualifiedName ?? messageType.FullName ?? messageType.Name;
+		return CreateDueSchedule(registeredTypeName, interval);
+	}
+
 	private static ScheduledMessage CreateDueSchedule(string messageTypeName, TimeSpan? interval) =>
 		new()
 		{
@@ -200,6 +204,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 	private sealed class SequenceScheduleStore(params IEnumerable<IScheduledMessage>[] batches) : IScheduleStore, IAsyncDisposable
 	{
 		private readonly ConcurrentQueue<IEnumerable<IScheduledMessage>> _batches = new(batches);
+		private readonly TaskCompletionSource<bool> _storeCallObserved = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		private int _storeCalls;
 		private int _isDisposed;
 
@@ -208,6 +213,22 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		public int StoreCalls => Volatile.Read(ref _storeCalls);
 
 		public bool AsyncDisposed => Volatile.Read(ref _isDisposed) == 1;
+
+		public async Task<bool> WaitForStoreCallAsync(TimeSpan timeout, CancellationToken cancellationToken)
+		{
+			using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+			timeoutCts.CancelAfter(timeout);
+
+			try
+			{
+				_ = await _storeCallObserved.Task.WaitAsync(timeoutCts.Token).ConfigureAwait(false);
+				return true;
+			}
+			catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+			{
+				return false;
+			}
+		}
 
 		public Task<IEnumerable<IScheduledMessage>> GetAllAsync(CancellationToken cancellationToken)
 		{
@@ -224,6 +245,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 			_ = Interlocked.Increment(ref _storeCalls);
+			_ = _storeCallObserved.TrySetResult(true);
 			if (message is ScheduledMessage scheduled)
 			{
 				StoredMessages.Add(CloneScheduledMessage(scheduled));
