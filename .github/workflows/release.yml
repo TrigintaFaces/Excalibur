@@ -31,6 +31,8 @@ jobs:
   pre-release-validation:
     name: Pre-Release Validation
     runs-on: ubuntu-latest
+    env:
+      VSTEST_CONNECTION_TIMEOUT: 300
     outputs:
       version: ${{ steps.version.outputs.version }}
       prerelease: ${{ steps.version.outputs.prerelease }}
@@ -78,6 +80,45 @@ jobs:
             9.0.x
             10.0.x
 
+      - name: Runner disk preflight (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Disk usage before cleanup:"
+          df -h
+
+          for d in \
+            "$RUNNER_TEMP" \
+            "$RUNNER_WORKSPACE/_temp" \
+            "$HOME/actions-runner/_work/_temp" \
+            "$HOME/actions-runner/cached/_work/_temp" \
+            "$HOME/actions-runner/_diag" \
+            "$HOME/actions-runner/cached/_diag" \
+            "/home/runner/actions-runner/_diag" \
+            "/home/runner/actions-runner/cached/_diag"
+          do
+            if [ -d "$d" ]; then
+              echo "Cleaning $d"
+              find "$d" -type f -name '*.log' -mtime +2 -print -delete || true
+              find "$d" -mindepth 1 -maxdepth 1 -type f -size +50M -print -delete || true
+            fi
+          done
+
+          dotnet nuget locals temp --clear || true
+          dotnet nuget locals http-cache --clear || true
+
+          echo "Disk usage after cleanup:"
+          df -h
+
+          available_kb="$(df -Pk . | awk 'NR==2 {print $4}')"
+          minimum_kb=$((8 * 1024 * 1024))
+          if [ "$available_kb" -lt "$minimum_kb" ]; then
+            available_human="$(df -h . | awk 'NR==2 {print $4}')"
+            echo "::error::Insufficient disk space after cleanup (${available_human} available; need >= 8G)."
+            exit 1
+          fi
+
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
@@ -108,7 +149,7 @@ jobs:
           dotnet test Excalibur.sln \
             --configuration Release \
             --no-build \
-            --logger "console;verbosity=minimal" \
+            --logger "console;verbosity=quiet" \
             --blame-hang-timeout 10m \
             -- RunConfiguration.TestSessionTimeout=7200000
 
@@ -170,6 +211,45 @@ jobs:
             8.0.x
             9.0.x
             10.0.x
+
+      - name: Runner disk preflight (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Disk usage before cleanup:"
+          df -h
+
+          for d in \
+            "$RUNNER_TEMP" \
+            "$RUNNER_WORKSPACE/_temp" \
+            "$HOME/actions-runner/_work/_temp" \
+            "$HOME/actions-runner/cached/_work/_temp" \
+            "$HOME/actions-runner/_diag" \
+            "$HOME/actions-runner/cached/_diag" \
+            "/home/runner/actions-runner/_diag" \
+            "/home/runner/actions-runner/cached/_diag"
+          do
+            if [ -d "$d" ]; then
+              echo "Cleaning $d"
+              find "$d" -type f -name '*.log' -mtime +2 -print -delete || true
+              find "$d" -mindepth 1 -maxdepth 1 -type f -size +50M -print -delete || true
+            fi
+          done
+
+          dotnet nuget locals temp --clear || true
+          dotnet nuget locals http-cache --clear || true
+
+          echo "Disk usage after cleanup:"
+          df -h
+
+          available_kb="$(df -Pk . | awk 'NR==2 {print $4}')"
+          minimum_kb=$((8 * 1024 * 1024))
+          if [ "$available_kb" -lt "$minimum_kb" ]; then
+            available_human="$(df -h . | awk 'NR==2 {print $4}')"
+            echo "::error::Insufficient disk space after cleanup (${available_human} available; need >= 8G)."
+            exit 1
+          fi
 
       - name: Cache NuGet packages
         uses: actions/cache@v4
