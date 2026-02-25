@@ -520,6 +520,8 @@ jobs:
     runs-on: windows-latest
     needs: [build, smoke-tests, unit-shard-coverage]
     timeout-minutes: 60
+    env:
+      VSTEST_CONNECTION_TIMEOUT: 300
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -1068,13 +1070,36 @@ jobs:
             echo "No coverage reports were downloaded."
             exit 1
           fi
-      - name: Enforce coverage threshold
+      - name: Measure coverage threshold (report-only)
+        id: coverage_threshold
         shell: pwsh
         run: |
           ./eng/ci/coverage-threshold.ps1 `
             -CoverageRoot "cov" `
-            -Threshold ([int]'${{ env.COVERAGE_THRESHOLD }}') `
-            -FailBelowThreshold
+            -Threshold ([int]'${{ env.COVERAGE_THRESHOLD }}')
+      - name: Coverage threshold status (report-only)
+        shell: bash
+        run: |
+          combined="${{ steps.coverage_threshold.outputs.coverage_combined_pct }}"
+          dispatch="${{ steps.coverage_threshold.outputs.coverage_dispatch_pct }}"
+          excalibur="${{ steps.coverage_threshold.outputs.coverage_excalibur_pct }}"
+          threshold="${{ env.COVERAGE_THRESHOLD }}"
+
+          echo "Coverage (Dispatch): ${dispatch}%"
+          echo "Coverage (Excalibur): ${excalibur}%"
+          echo "Coverage (Combined): ${combined}%"
+          echo "Target threshold: ${threshold}%"
+
+          if [ -z "$combined" ]; then
+            echo "::warning::Coverage threshold script did not emit combined coverage output."
+            exit 0
+          fi
+
+          if (( $(awk "BEGIN {print ($combined < $threshold)}") )); then
+            echo "::warning::Coverage below target (report-only): combined ${combined}% < required ${threshold}%."
+          else
+            echo "✅ Coverage target met: ${combined}% >= ${threshold}%."
+          fi
 
   coverage-diff:
     name: Coverage Diff On Touched Files

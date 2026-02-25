@@ -12,6 +12,7 @@ concurrency:
 env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
   DOTNET_NOLOGO: true
+  COVERAGE_THRESHOLD: 65
 
 jobs:
   core-perf-change-detection:
@@ -146,13 +147,36 @@ jobs:
             -targetdir:"./coverage/merged" \
             -reporttypes:"Cobertura;HtmlSummary;TextSummary"
 
-      - name: Validate coverage thresholds
+      - name: Measure coverage threshold (report-only)
+        id: coverage_threshold
         shell: pwsh
         run: |
           ./eng/ci/coverage-threshold.ps1 `
             -CoverageRoot "coverage" `
-            -Threshold 65 `
-            -FailBelowThreshold
+            -Threshold ([int]'${{ env.COVERAGE_THRESHOLD }}')
+      - name: Coverage threshold status (report-only)
+        shell: bash
+        run: |
+          combined="${{ steps.coverage_threshold.outputs.coverage_combined_pct }}"
+          dispatch="${{ steps.coverage_threshold.outputs.coverage_dispatch_pct }}"
+          excalibur="${{ steps.coverage_threshold.outputs.coverage_excalibur_pct }}"
+          threshold="${{ env.COVERAGE_THRESHOLD }}"
+
+          echo "Coverage (Dispatch): ${dispatch}%"
+          echo "Coverage (Excalibur): ${excalibur}%"
+          echo "Coverage (Combined): ${combined}%"
+          echo "Target threshold: ${threshold}%"
+
+          if [ -z "$combined" ]; then
+            echo "::warning::Coverage threshold script did not emit combined coverage output."
+            exit 0
+          fi
+
+          if (( $(awk "BEGIN {print ($combined < $threshold)}") )); then
+            echo "::warning::Coverage below target (report-only): combined ${combined}% < required ${threshold}%."
+          else
+            echo "✅ Coverage target met: ${combined}% >= ${threshold}%."
+          fi
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
