@@ -373,6 +373,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Free disk space (Ubuntu)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Disk usage before cleanup:"
+          df -h
+          sudo rm -rf /usr/share/swift || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo rm -rf /home/linuxbrew || true
+          sudo rm -rf /usr/local/.ghcup || true
+          sudo rm -rf /usr/local/share/boost || true
+          sudo apt-get clean || true
+          docker system prune -af || true
+          echo "Disk usage after cleanup:"
+          df -h
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -419,10 +437,10 @@ jobs:
           fi
 
       - name: Restore dependencies
-        run: dotnet restore
+        run: dotnet restore --verbosity quiet
 
       - name: Build solution
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build --configuration Release --no-restore --verbosity quiet
 
       - name: Run architecture tests
         run: |
@@ -431,7 +449,7 @@ jobs:
             dotnet test tests/ArchitectureTests \
               --configuration Release --no-build \
               --blame-hang-timeout 5m \
-              --logger "console;verbosity=minimal"
+              --logger "console;verbosity=quiet"
           else
             echo "⚠️ Architecture test project not found, skipping..."
           fi
@@ -442,7 +460,7 @@ jobs:
             dotnet test tests/architecture/Boundary.Tests/ \
               --configuration Release --no-build \
               --blame-hang-timeout 5m \
-              --logger "console;verbosity=minimal"
+              --logger "console;verbosity=quiet"
           else
             echo "⚠️ Boundary.Tests project not yet created, skipping..."
           fi
