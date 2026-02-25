@@ -1317,6 +1317,24 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Free disk space (Ubuntu)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Disk usage before cleanup:"
+          df -h
+          sudo rm -rf /usr/share/swift || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo rm -rf /home/linuxbrew || true
+          sudo rm -rf /usr/local/.ghcup || true
+          sudo rm -rf /usr/local/share/boost || true
+          sudo apt-get clean || true
+          docker system prune -af || true
+          echo "Disk usage after cleanup:"
+          df -h
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -1334,10 +1352,10 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore Excalibur.sln
+        run: dotnet restore Excalibur.sln --verbosity quiet
 
       - name: Build solution
-        run: dotnet build Excalibur.sln --configuration Release --no-restore
+        run: dotnet build Excalibur.sln --configuration Release --no-restore --verbosity quiet
 
       - name: Scan for vulnerable packages (R20.10)
         run: |
