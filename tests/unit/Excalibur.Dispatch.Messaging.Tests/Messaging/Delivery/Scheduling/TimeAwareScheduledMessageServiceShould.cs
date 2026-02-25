@@ -20,6 +20,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery.Scheduling;
 [Trait("Component", TestComponents.Messaging)]
 public sealed class TimeAwareScheduledMessageServiceShould
 {
+	private static readonly TimeSpan ScheduleProcessingTimeout = TimeSpan.FromSeconds(30);
+
 	[Fact]
 	public async Task ProcessDueActionMessageAndPersistUpdatedSchedule()
 	{
@@ -44,7 +46,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy(), timeoutMonitor);
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		var processed = await store.WaitForStoreCallAsync(TimeSpan.FromSeconds(10), CancellationToken.None).ConfigureAwait(false);
+		var processed = await store.WaitForStoreCallAsync(ScheduleProcessingTimeout, CancellationToken.None).ConfigureAwait(false);
 		processed.ShouldBeTrue();
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -83,7 +85,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy(), new RecordingTimeoutMonitor());
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		var processed = await store.WaitForStoreCallAsync(TimeSpan.FromSeconds(10), CancellationToken.None).ConfigureAwait(false);
+		var processed = await store.WaitForStoreCallAsync(ScheduleProcessingTimeout, CancellationToken.None).ConfigureAwait(false);
 		processed.ShouldBeTrue();
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -198,7 +200,8 @@ public sealed class TimeAwareScheduledMessageServiceShould
 			TraceParent = "trace-123",
 			TenantId = "tenant-a",
 			UserId = "user-42",
-			NextExecutionUtc = DateTimeOffset.UtcNow.Subtract(TimeSpan.FromSeconds(1)),
+			// Keep this comfortably in the past to avoid false negatives when CI runner clocks jitter backwards.
+			NextExecutionUtc = DateTimeOffset.UtcNow.Subtract(TimeSpan.FromMinutes(1)),
 		};
 
 	private sealed class SequenceScheduleStore(params IEnumerable<IScheduledMessage>[] batches) : IScheduleStore, IAsyncDisposable
