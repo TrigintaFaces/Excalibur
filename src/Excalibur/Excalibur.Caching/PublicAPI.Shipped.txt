@@ -1,0 +1,253 @@
+#nullable enable
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlCache
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlCache.AdaptiveTtlCache(Microsoft.Extensions.Caching.Distributed.IDistributedCache innerCache, Excalibur.Caching.AdaptiveTtl.IAdaptiveTtlStrategy ttlStrategy, Microsoft.Extensions.Logging.ILogger<Excalibur.Caching.AdaptiveTtl.AdaptiveTtlCache> logger, Excalibur.Caching.AdaptiveTtl.ISystemLoadMonitor loadMonitor, System.TimeProvider timeProvider) -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlCache.Dispose() -> System.Void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlCache.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlCache.Get(System.String key) -> System.Byte[]
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlCache.GetAsync(System.String key, System.Threading.CancellationToken token) -> System.Threading.Tasks.Task<System.Byte[]>
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlCache.GetMetrics() -> Excalibur.Caching.AdaptiveTtl.AdaptiveTtlMetrics
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlCache.Refresh(System.String key) -> System.Void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlCache.RefreshAsync(System.String key, System.Threading.CancellationToken token) -> System.Threading.Tasks.Task
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlCache.Remove(System.String key) -> System.Void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlCache.RemoveAsync(System.String key, System.Threading.CancellationToken token) -> System.Threading.Tasks.Task
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlCache.Set(System.String key, System.Byte[] value, Microsoft.Extensions.Caching.Distributed.DistributedCacheEntryOptions options) -> System.Void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlCache.SetAsync(System.String key, System.Byte[] value, Microsoft.Extensions.Caching.Distributed.DistributedCacheEntryOptions options, System.Threading.CancellationToken token) -> System.Threading.Tasks.Task
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext.AccessFrequency.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext.AccessFrequency.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext.AdaptiveTtlContext() -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext.BaseTtl.get -> System.TimeSpan
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext.BaseTtl.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext.ContentSize.get -> System.Int64
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext.ContentSize.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext.CurrentTime.get -> System.DateTimeOffset
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext.CurrentTime.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext.HitRate.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext.HitRate.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext.Key.get -> System.String
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext.Key.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext.LastUpdate.get -> System.DateTimeOffset
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext.LastUpdate.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext.Metadata.get -> System.Collections.Generic.IDictionary<System.String, System.Object>
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext.MissCost.get -> System.TimeSpan
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext.MissCost.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext.SystemLoad.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext.SystemLoad.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlMetrics
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlMetrics.AdaptiveTtlMetrics() -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlMetrics.AverageAdjustmentFactor.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlMetrics.AverageAdjustmentFactor.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlMetrics.AverageHitRate.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlMetrics.AverageHitRate.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlMetrics.CustomMetrics.get -> System.Collections.Generic.IDictionary<System.String, System.Double>
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlMetrics.TotalCalculations.get -> System.Int64
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlMetrics.TotalCalculations.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlMetrics.TtlDecreases.get -> System.Int64
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlMetrics.TtlDecreases.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlMetrics.TtlIncreases.get -> System.Int64
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlMetrics.TtlIncreases.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlOptions
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlOptions.AdaptiveTtlOptions() -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlOptions.DiscountFactor.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlOptions.DiscountFactor.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlOptions.LearningRate.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlOptions.LearningRate.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlOptions.MaxTtl.get -> System.TimeSpan
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlOptions.MaxTtl.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlOptions.MinTtl.get -> System.TimeSpan
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlOptions.MinTtl.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlOptions.TargetHitRate.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlOptions.TargetHitRate.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlOptions.TargetResponseTime.get -> System.TimeSpan
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlOptions.TargetResponseTime.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlOptions.Thresholds.get -> Excalibur.Caching.AdaptiveTtl.AdaptiveTtlThresholdOptions
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlOptions.Thresholds.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlOptions.Weights.get -> Excalibur.Caching.AdaptiveTtl.AdaptiveTtlWeightOptions
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlOptions.Weights.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlThresholdOptions
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlThresholdOptions.AdaptiveTtlThresholdOptions() -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlThresholdOptions.HighLoadThreshold.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlThresholdOptions.HighLoadThreshold.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlThresholdOptions.LargeContentThresholdMb.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlThresholdOptions.LargeContentThresholdMb.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlThresholdOptions.LowLoadThreshold.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlThresholdOptions.LowLoadThreshold.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlThresholdOptions.MaxExpectedFrequency.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlThresholdOptions.MaxExpectedFrequency.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlThresholdOptions.MaxExpectedMissCostMs.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlThresholdOptions.MaxExpectedMissCostMs.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlWeightOptions
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlWeightOptions.AccessFrequencyWeight.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlWeightOptions.AccessFrequencyWeight.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlWeightOptions.AdaptiveTtlWeightOptions() -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlWeightOptions.CostWeight.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlWeightOptions.CostWeight.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlWeightOptions.HitRateWeight.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlWeightOptions.HitRateWeight.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlWeightOptions.LoadWeight.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlWeightOptions.LoadWeight.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlWeightOptions.TemporalWeight.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlWeightOptions.TemporalWeight.set -> void
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlWeightOptions.VolatilityWeight.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.AdaptiveTtlWeightOptions.VolatilityWeight.set -> void
+Excalibur.Caching.AdaptiveTtl.CachePerformanceFeedback
+Excalibur.Caching.AdaptiveTtl.CachePerformanceFeedback.CachePerformanceFeedback() -> void
+Excalibur.Caching.AdaptiveTtl.CachePerformanceFeedback.CurrentTtl.get -> System.TimeSpan
+Excalibur.Caching.AdaptiveTtl.CachePerformanceFeedback.CurrentTtl.set -> void
+Excalibur.Caching.AdaptiveTtl.CachePerformanceFeedback.IsHit.get -> System.Boolean
+Excalibur.Caching.AdaptiveTtl.CachePerformanceFeedback.IsHit.set -> void
+Excalibur.Caching.AdaptiveTtl.CachePerformanceFeedback.Key.get -> System.String
+Excalibur.Caching.AdaptiveTtl.CachePerformanceFeedback.Key.set -> void
+Excalibur.Caching.AdaptiveTtl.CachePerformanceFeedback.ResponseTime.get -> System.TimeSpan
+Excalibur.Caching.AdaptiveTtl.CachePerformanceFeedback.ResponseTime.set -> void
+Excalibur.Caching.AdaptiveTtl.CachePerformanceFeedback.Timestamp.get -> System.DateTimeOffset
+Excalibur.Caching.AdaptiveTtl.CachePerformanceFeedback.Timestamp.set -> void
+Excalibur.Caching.AdaptiveTtl.CachePerformanceFeedback.WasStale.get -> System.Boolean
+Excalibur.Caching.AdaptiveTtl.CachePerformanceFeedback.WasStale.set -> void
+Excalibur.Caching.AdaptiveTtl.IAdaptiveTtlStrategy
+Excalibur.Caching.AdaptiveTtl.IAdaptiveTtlStrategy.CalculateTtl(Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext context) -> System.TimeSpan
+Excalibur.Caching.AdaptiveTtl.IAdaptiveTtlStrategy.GetMetrics() -> Excalibur.Caching.AdaptiveTtl.AdaptiveTtlMetrics
+Excalibur.Caching.AdaptiveTtl.IAdaptiveTtlStrategy.UpdateStrategy(Excalibur.Caching.AdaptiveTtl.CachePerformanceFeedback feedback) -> System.Void
+Excalibur.Caching.AdaptiveTtl.ISystemLoadMonitor
+Excalibur.Caching.AdaptiveTtl.ISystemLoadMonitor.GetCurrentLoadAsync() -> System.Threading.Tasks.Task<System.Double>
+Excalibur.Caching.AdaptiveTtl.RuleBasedAdaptiveTtlStrategy
+Excalibur.Caching.AdaptiveTtl.RuleBasedAdaptiveTtlStrategy.CalculateTtl(Excalibur.Caching.AdaptiveTtl.AdaptiveTtlContext context) -> System.TimeSpan
+Excalibur.Caching.AdaptiveTtl.RuleBasedAdaptiveTtlStrategy.GetMetrics() -> Excalibur.Caching.AdaptiveTtl.AdaptiveTtlMetrics
+Excalibur.Caching.AdaptiveTtl.RuleBasedAdaptiveTtlStrategy.RuleBasedAdaptiveTtlStrategy(Microsoft.Extensions.Logging.ILogger<Excalibur.Caching.AdaptiveTtl.RuleBasedAdaptiveTtlStrategy> logger, Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions options) -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedAdaptiveTtlStrategy.UpdateStrategy(Excalibur.Caching.AdaptiveTtl.CachePerformanceFeedback feedback) -> System.Void
+Excalibur.Caching.AdaptiveTtl.RuleBasedContentOptions
+Excalibur.Caching.AdaptiveTtl.RuleBasedContentOptions.LargeContentMultiplier.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.RuleBasedContentOptions.LargeContentMultiplier.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedContentOptions.LargeContentThreshold.get -> System.Int64
+Excalibur.Caching.AdaptiveTtl.RuleBasedContentOptions.LargeContentThreshold.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedContentOptions.RuleBasedContentOptions() -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedFrequencyOptions
+Excalibur.Caching.AdaptiveTtl.RuleBasedFrequencyOptions.HighFrequencyMultiplier.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.RuleBasedFrequencyOptions.HighFrequencyMultiplier.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedFrequencyOptions.HighFrequencyThreshold.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.RuleBasedFrequencyOptions.HighFrequencyThreshold.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedFrequencyOptions.LowFrequencyMultiplier.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.RuleBasedFrequencyOptions.LowFrequencyMultiplier.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedFrequencyOptions.LowFrequencyThreshold.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.RuleBasedFrequencyOptions.LowFrequencyThreshold.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedFrequencyOptions.RuleBasedFrequencyOptions() -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedHitRateOptions
+Excalibur.Caching.AdaptiveTtl.RuleBasedHitRateOptions.HighHitRateMultiplier.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.RuleBasedHitRateOptions.HighHitRateMultiplier.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedHitRateOptions.HighHitRateThreshold.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.RuleBasedHitRateOptions.HighHitRateThreshold.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedHitRateOptions.LowHitRateMultiplier.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.RuleBasedHitRateOptions.LowHitRateMultiplier.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedHitRateOptions.LowHitRateThreshold.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.RuleBasedHitRateOptions.LowHitRateThreshold.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedHitRateOptions.RuleBasedHitRateOptions() -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedLoadOptions
+Excalibur.Caching.AdaptiveTtl.RuleBasedLoadOptions.ExpensiveMissMultiplier.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.RuleBasedLoadOptions.ExpensiveMissMultiplier.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedLoadOptions.ExpensiveMissThreshold.get -> System.TimeSpan
+Excalibur.Caching.AdaptiveTtl.RuleBasedLoadOptions.ExpensiveMissThreshold.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedLoadOptions.HighLoadMultiplier.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.RuleBasedLoadOptions.HighLoadMultiplier.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedLoadOptions.LowLoadMultiplier.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.RuleBasedLoadOptions.LowLoadMultiplier.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedLoadOptions.RuleBasedLoadOptions() -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedTimeOfDayOptions
+Excalibur.Caching.AdaptiveTtl.RuleBasedTimeOfDayOptions.OffHoursEnd.get -> System.Int32
+Excalibur.Caching.AdaptiveTtl.RuleBasedTimeOfDayOptions.OffHoursEnd.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedTimeOfDayOptions.OffHoursMultiplier.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.RuleBasedTimeOfDayOptions.OffHoursMultiplier.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedTimeOfDayOptions.OffHoursStart.get -> System.Int32
+Excalibur.Caching.AdaptiveTtl.RuleBasedTimeOfDayOptions.OffHoursStart.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedTimeOfDayOptions.PeakHoursEnd.get -> System.Int32
+Excalibur.Caching.AdaptiveTtl.RuleBasedTimeOfDayOptions.PeakHoursEnd.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedTimeOfDayOptions.PeakHoursMultiplier.get -> System.Double
+Excalibur.Caching.AdaptiveTtl.RuleBasedTimeOfDayOptions.PeakHoursMultiplier.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedTimeOfDayOptions.PeakHoursStart.get -> System.Int32
+Excalibur.Caching.AdaptiveTtl.RuleBasedTimeOfDayOptions.PeakHoursStart.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedTimeOfDayOptions.RuleBasedTimeOfDayOptions() -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions
+Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.Content.get -> Excalibur.Caching.AdaptiveTtl.RuleBasedContentOptions
+Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.Content.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.Frequency.get -> Excalibur.Caching.AdaptiveTtl.RuleBasedFrequencyOptions
+Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.Frequency.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.HitRate.get -> Excalibur.Caching.AdaptiveTtl.RuleBasedHitRateOptions
+Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.HitRate.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.Load.get -> Excalibur.Caching.AdaptiveTtl.RuleBasedLoadOptions
+Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.Load.set -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.RuleBasedTtlOptions() -> void
+Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.TimeOfDay.get -> Excalibur.Caching.AdaptiveTtl.RuleBasedTimeOfDayOptions
+Excalibur.Caching.AdaptiveTtl.RuleBasedTtlOptions.TimeOfDay.set -> void
+Excalibur.Caching.Diagnostics.CachingEventId
+Excalibur.Caching.Diagnostics.CachingTelemetryConstants
+Excalibur.Caching.Projections.IProjectionCacheInvalidator
+Excalibur.Caching.Projections.IProjectionCacheInvalidator.InvalidateCacheAsync(System.Object message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Caching.Projections.IProjectionInvalidationTags
+Excalibur.Caching.Projections.IProjectionInvalidationTags.GetProjectionCacheTags() -> System.Collections.Generic.IEnumerable<System.String>
+Excalibur.Caching.Projections.IProjectionTagResolver`1
+Excalibur.Caching.Projections.IProjectionTagResolver`1.GetTags( message) -> System.Collections.Generic.IEnumerable<System.String>
+Excalibur.Caching.Projections.ProjectionCacheInvalidator
+Excalibur.Caching.Projections.ProjectionCacheInvalidator.InvalidateCacheAsync(System.Object message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Caching.Projections.ProjectionCacheInvalidator.ProjectionCacheInvalidator(Excalibur.Dispatch.Caching.ICacheInvalidationService cache, System.IServiceProvider services, Microsoft.Extensions.Logging.ILogger<Excalibur.Caching.Projections.ProjectionCacheInvalidator> logger) -> void
+Excalibur.Dispatch.Caching.ExcaliburDispatchBuilderExtensions
+Microsoft.Extensions.DependencyInjection.ExcaliburProjectionCachingServiceCollectionExtensions
+static const Excalibur.Caching.Diagnostics.CachingEventId.AdaptiveCacheError -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.AdaptiveCacheOperation -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.AdaptiveTtlCalculated -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.AdaptiveTtlStrategyUpdated -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheCleared -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheEntryEvicted -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheEntryExpired -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheEntryRemoved -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheEntryRetrieved -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheEntrySet -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheHealthReported -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheHit -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheHitRatioCalculated -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheInvalidationCompleted -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheInvalidationTriggered -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheKeyGenerated -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheKeysInvalidated -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheMiss -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CachePatternInvalidated -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CachePerformanceMetricsRecorded -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheRefreshTriggered -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheServiceCreated -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheSizeReported -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheStatisticsCollected -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheSyncCompleted -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheSyncConflictResolved -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheSyncMessageReceived -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheSyncMessageSent -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CacheTagInvalidated -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.CleanupError -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.ConventionPropertyNotFound -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.ConventionPropertyValueEmpty -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.DistributedCacheConnected -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.DistributedCacheCreated -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.DistributedCacheDisconnected -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.DistributedCacheOperationCompleted -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.DistributedCacheOperationFailed -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.InMemoryCacheCreated -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.InvalidatingProjectionCacheTags -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.MemoryCacheCompacted -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.MemoryLimitReached -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.MemoryPressureDetected -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.MetadataCleanup -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.NoInvalidationStrategyMatched -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.NoTagResolverRegistered -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.RedisCacheCreated -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.RedisClusterConfigured -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.RedisCommandExecuted -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.RedisConnectionEstablished -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.RedisPipelineExecuted -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.ResolverInvocationFailed -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.RuleBasedMetricsUpdated -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.RuleBasedTtlCalculated -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingEventId.SetCacheKey -> System.Int32
+static const Excalibur.Caching.Diagnostics.CachingTelemetryConstants.ActivitySourceName -> System.String
+static const Excalibur.Caching.Diagnostics.CachingTelemetryConstants.MeterName -> System.String
+static const Excalibur.Caching.Diagnostics.CachingTelemetryConstants.Version -> System.String
+static Excalibur.Dispatch.Caching.ExcaliburDispatchBuilderExtensions.AddProjectionCaching(Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder
+static Excalibur.Dispatch.Caching.ExcaliburDispatchBuilderExtensions.WithProjectionResolvers(Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder builder, System.Type[] resolverTypes) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder
+static Excalibur.Dispatch.Caching.ExcaliburDispatchBuilderExtensions.WithProjectionResolversFromAssembly(Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder builder, System.Reflection.Assembly assembly) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder
+static Microsoft.Extensions.DependencyInjection.ExcaliburProjectionCachingServiceCollectionExtensions.AddExcaliburProjectionCaching(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

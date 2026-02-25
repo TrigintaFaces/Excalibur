@@ -1,0 +1,7 @@
+<Project>
+
+  <ItemGroup>
+    <Analyzer Include="$(DispatchSourceGeneratorsPath)analyzers\dotnet\cs\Excalibur.Dispatch.SourceGenerators.dll" />
+  </ItemGroup>
+
+</Project>

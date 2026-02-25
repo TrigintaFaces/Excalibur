@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Excalibur.Hosting.Tests</RootNamespace>
+    <AssemblyName>Excalibur.Hosting.Tests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Test framework (Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio) provided by Directory.Build.props -->
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="FakeItEasy" />
+    <PackageReference Include="coverlet.collector" />
+    <!-- Additional packages from Excalibur.Hosting.AwsLambda.Tests -->
+    <PackageReference Include="Amazon.Lambda.Core" />
+    <PackageReference Include="Amazon.Lambda.TestUtilities" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- ProjectReferences from all merged Excalibur hosting test projects -->
+    <!-- From Excalibur.Hosting.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting\Excalibur.Hosting.csproj" />
+    <!-- From Excalibur.Hosting.Web.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.Web\Excalibur.Hosting.Web.csproj" />
+    <!-- From Excalibur.Hosting.Jobs.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.Jobs\Excalibur.Hosting.Jobs.csproj" />
+    <!-- From Excalibur.Hosting.AwsLambda.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.AwsLambda\Excalibur.Hosting.AwsLambda.csproj" />
+    <!-- From Excalibur.Hosting.AzureFunctions.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.AzureFunctions\Excalibur.Hosting.AzureFunctions.csproj" />
+    <!-- From Excalibur.Hosting.GoogleCloudFunctions.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.GoogleCloudFunctions\Excalibur.Hosting.GoogleCloudFunctions.csproj" />
+    <!-- From Excalibur.Hosting.Serverless.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.Serverless\Excalibur.Hosting.Serverless.csproj" />
+    <!-- Dispatch hosting packages (concrete types now live here after S507.3 consolidation) -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Hosting.AzureFunctions\Excalibur.Dispatch.Hosting.AzureFunctions.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Hosting.AwsLambda\Excalibur.Dispatch.Hosting.AwsLambda.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Hosting.GoogleCloudFunctions\Excalibur.Dispatch.Hosting.GoogleCloudFunctions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
+  </ItemGroup>
+</Project>

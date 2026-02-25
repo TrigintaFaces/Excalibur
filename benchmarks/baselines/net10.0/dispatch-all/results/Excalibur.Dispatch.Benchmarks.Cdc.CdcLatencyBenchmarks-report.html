@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Cdc.CdcLatencyBenchmarks-20260202-190546</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.102
+  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  Job-CNUJVU : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>InvocationCount=1  UnrollFactor=1  
+</code></pre>
+
+<table>
+<thead><tr><th>Method          </th><th>BatchSize</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>DequeueBatch</td><td>10</td><td>15.138 &mu;s</td><td>1.0470 &mu;s</td><td>3.0541 &mu;s</td><td>14.850 &mu;s</td><td>1.04</td><td>0.30</td><td>176 B</td><td>1.00</td>
+</tr><tr><td>DequeueAndProcessBatch</td><td>10</td><td>13.828 &mu;s</td><td>0.8037 &mu;s</td><td>2.2403 &mu;s</td><td>13.750 &mu;s</td><td>0.95</td><td>0.25</td><td>176 B</td><td>1.00</td>
+</tr><tr><td>WriteBatch</td><td>10</td><td>8.788 &mu;s</td><td>0.9295 &mu;s</td><td>2.7259 &mu;s</td><td>9.300 &mu;s</td><td>0.60</td><td>0.23</td><td>72 B</td><td>0.41</td>
+</tr><tr><td>ProducerConsumerCycle</td><td>10</td><td>19.546 &mu;s</td><td>1.5348 &mu;s</td><td>4.3789 &mu;s</td><td>18.800 &mu;s</td><td>1.35</td><td>0.41</td><td>176 B</td><td>1.00</td>
+</tr><tr><td>LsnComparison</td><td>10</td><td>1.292 &mu;s</td><td>0.1319 &mu;s</td><td>0.3783 &mu;s</td><td>1.300 &mu;s</td><td>0.09</td><td>0.03</td><td>-</td><td>0.00</td>
+</tr><tr><td>EventDrivenWait</td><td>10</td><td>4.295 &mu;s</td><td>0.3012 &mu;s</td><td>0.8642 &mu;s</td><td>4.100 &mu;s</td><td>0.30</td><td>0.09</td><td>-</td><td>0.00</td>
+</tr><tr><td>DequeueBatch</td><td>100</td><td>15.157 &mu;s</td><td>0.9768 &mu;s</td><td>2.8026 &mu;s</td><td>15.300 &mu;s</td><td>1.04</td><td>0.29</td><td>896 B</td><td>1.00</td>
+</tr><tr><td>DequeueAndProcessBatch</td><td>100</td><td>17.143 &mu;s</td><td>1.0740 &mu;s</td><td>3.1160 &mu;s</td><td>16.800 &mu;s</td><td>1.17</td><td>0.32</td><td>896 B</td><td>1.00</td>
+</tr><tr><td>WriteBatch</td><td>100</td><td>18.448 &mu;s</td><td>1.2188 &mu;s</td><td>3.5166 &mu;s</td><td>18.200 &mu;s</td><td>1.26</td><td>0.36</td><td>72 B</td><td>0.08</td>
+</tr><tr><td>ProducerConsumerCycle</td><td>100</td><td>27.594 &mu;s</td><td>1.5962 &mu;s</td><td>4.5282 &mu;s</td><td>26.300 &mu;s</td><td>1.89</td><td>0.50</td><td>896 B</td><td>1.00</td>
+</tr><tr><td>LsnComparison</td><td>100</td><td>3.819 &mu;s</td><td>0.4398 &mu;s</td><td>1.2618 &mu;s</td><td>3.600 &mu;s</td><td>0.26</td><td>0.10</td><td>-</td><td>0.00</td>
+</tr><tr><td>EventDrivenWait</td><td>100</td><td>7.602 &mu;s</td><td>0.4962 &mu;s</td><td>1.4395 &mu;s</td><td>7.450 &mu;s</td><td>0.52</td><td>0.15</td><td>-</td><td>0.00</td>
+</tr><tr><td>DequeueBatch</td><td>500</td><td>36.855 &mu;s</td><td>3.2401 &mu;s</td><td>9.4000 &mu;s</td><td>34.900 &mu;s</td><td>1.06</td><td>0.37</td><td>4096 B</td><td>1.00</td>
+</tr><tr><td>DequeueAndProcessBatch</td><td>500</td><td>31.490 &mu;s</td><td>1.9304 &mu;s</td><td>5.5077 &mu;s</td><td>29.700 &mu;s</td><td>0.91</td><td>0.27</td><td>4096 B</td><td>1.00</td>
+</tr><tr><td>WriteBatch</td><td>500</td><td>59.009 &mu;s</td><td>8.2396 &mu;s</td><td>24.2947 &mu;s</td><td>45.250 &mu;s</td><td>1.70</td><td>0.82</td><td>72 B</td><td>0.02</td>
+</tr><tr><td>ProducerConsumerCycle</td><td>500</td><td>105.294 &mu;s</td><td>1.2207 &mu;s</td><td>1.1989 &mu;s</td><td>105.050 &mu;s</td><td>3.03</td><td>0.71</td><td>4096 B</td><td>1.00</td>
+</tr><tr><td>LsnComparison</td><td>500</td><td>7.212 &mu;s</td><td>0.6548 &mu;s</td><td>1.9102 &mu;s</td><td>7.300 &mu;s</td><td>0.21</td><td>0.07</td><td>-</td><td>0.00</td>
+</tr><tr><td>EventDrivenWait</td><td>500</td><td>3.771 &mu;s</td><td>0.2147 &mu;s</td><td>0.6159 &mu;s</td><td>3.700 &mu;s</td><td>0.11</td><td>0.03</td><td>-</td><td>0.00</td>
+</tr></tbody></table>
+</body>
+</html>

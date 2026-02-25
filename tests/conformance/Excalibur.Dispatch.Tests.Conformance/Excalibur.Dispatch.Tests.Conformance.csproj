@@ -1,0 +1,48 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Excalibur.Dispatch.Tests.Conformance</RootNamespace>
+    <AssemblyName>Excalibur.Dispatch.Tests.Conformance</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="AutoFixture" />
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="FakeItEasy" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="Testcontainers" />
+    <PackageReference Include="Testcontainers.ServiceBus" />
+    <PackageReference Include="Testcontainers.LocalStack" />
+    <PackageReference Include="Testcontainers.Kafka" />
+    <PackageReference Include="Testcontainers.RabbitMq" />
+    <PackageReference Include="Testcontainers.PubSub" />
+    <PackageReference Include="CloudNative.CloudEvents" />
+    <PackageReference Include="Azure.Messaging.ServiceBus" />
+    <PackageReference Include="AWSSDK.SQS" />
+    <PackageReference Include="Confluent.Kafka" />
+    <PackageReference Include="RabbitMQ.Client" />
+    <PackageReference Include="Google.Cloud.PubSub.V1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.Abstractions\Excalibur.Dispatch.Transport.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.AwsSqs\Excalibur.Dispatch.Transport.AwsSqs.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.AzureServiceBus\Excalibur.Dispatch.Transport.AzureServiceBus.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.GooglePubSub\Excalibur.Dispatch.Transport.GooglePubSub.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.Kafka\Excalibur.Dispatch.Transport.Kafka.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.RabbitMQ\Excalibur.Dispatch.Transport.RabbitMQ.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Domain\Excalibur.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+    <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Jobs.CloudProviders</PackageId>
+    <Description>Consolidated cloud provider integrations for Excalibur job scheduling. Includes AWS EventBridge Scheduler, Azure Logic Apps, and Google Cloud Scheduler.</Description>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-all</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <PublishAot>true</PublishAot>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <IsTrimmable>true</IsTrimmable>
+    <TrimMode>full</TrimMode>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <PackageTags>excalibur;jobs;cloud;aws;azure;google;aot</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Tests.Unit" />
+    <InternalsVisibleTo Include="Excalibur.Tests.Integration" />
+    <InternalsVisibleTo Include="Excalibur.Tests.Functional" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.Scheduler" />
+    <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" />
+    <PackageReference Include="Amazon.Lambda.Core" />
+    <PackageReference Include="Amazon.Lambda.Serialization.SystemTextJson" />
+    <PackageReference Include="Azure.Identity" />
+    <PackageReference Include="Azure.ResourceManager" />
+    <PackageReference Include="Azure.ResourceManager.Logic" />
+    <PackageReference Include="Google.Cloud.Scheduler.V1" />
+    <PackageReference Include="Google.Apis.Auth" />
+  </ItemGroup>
+  <!-- Excalibur internal references (always ProjectReference) -->
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Jobs\Excalibur.Jobs.csproj" />
+  </ItemGroup>
+  <!-- Development mode: Dispatch ProjectReferences -->
+  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <!-- CI mode: PackageReference for Dispatch packages -->
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+    <PackageReference Include="Excalibur.Dispatch" VersionOverride="$(DispatchPackageVersion)" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

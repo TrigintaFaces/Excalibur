@@ -1,0 +1,17 @@
+# Enforce maintainer review for critical repository surfaces.
+* @TrigintaFaces
+
+# CI/CD and automation
+/.github/workflows/** @TrigintaFaces
+/eng/** @TrigintaFaces
+
+# Product source
+/src/Dispatch/** @TrigintaFaces
+/src/Excalibur/** @TrigintaFaces
+
+# Build and dependency governance
+/Directory.Build.props @TrigintaFaces
+/Directory.Build.targets @TrigintaFaces
+/Directory.Packages.props @TrigintaFaces
+/global.json @TrigintaFaces
+/NuGet.Config @TrigintaFaces

@@ -1,0 +1,13 @@
+{
+  "solution": {
+    "path": "..\\..\\..\\Excalibur.sln",
+    "projects": [
+      "tests\\Shared\\Tests.Shared\\Tests.Shared.csproj",
+      "tests\\Shared\\Excalibur.Dispatch.Testing\\Excalibur.Dispatch.Testing.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Middleware.Tests\\Excalibur.Dispatch.Middleware.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Validation.FluentValidation.Tests\\Excalibur.Dispatch.Validation.FluentValidation.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Security.Tests\\Excalibur.Dispatch.Security.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Caching.Tests\\Excalibur.Dispatch.Caching.Tests.csproj"
+    ]
+  }
+}

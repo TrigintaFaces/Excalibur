@@ -1,215 +1,214 @@
-# Excalibur Framework
+<p align="center">
+  <img src="images/Dispatch/png/readme-banner.png" alt="Dispatch - Fast .NET Messaging Framework" width="800">
+</p>
+
+# Excalibur
 <!-- badges -->
-[![github-release-badge]][github-release]
-[![github-release-date-badge]][github-release-date]
-![github-downloads-total-badge](https://img.shields.io/github/downloads/TrigintaFaces/Excalibur/total?logo=github&style=flat-square "Total Downloads")
-[![github-downloads-badge]][github-downloads]
+[![Build Status](https://img.shields.io/github/actions/workflow/status/TrigintaFaces/Excalibur/ci.yml?branch=main)](https://github.com/TrigintaFaces/Excalibur/actions)
+[![Tests](https://img.shields.io/github/actions/workflow/status/TrigintaFaces/Excalibur/ci.yml?label=tests)](https://github.com/TrigintaFaces/Excalibur/actions/workflows/ci.yml)
+[![Documentation](https://img.shields.io/badge/docs-excalibur--dispatch.dev-blue.svg)](https://docs.excalibur-dispatch.dev)
+
+[![Release Date](https://img.shields.io/github/release-date/TrigintaFaces/Excalibur?style=flat-square)](https://github.com/TrigintaFaces/Excalibur/releases/latest)
+[![Latest Release](https://img.shields.io/github/v/release/TrigintaFaces/Excalibur?sort=semver)](https://github.com/TrigintaFaces/Excalibur/releases/latest)
+![Total Downloads](https://img.shields.io/github/downloads/TrigintaFaces/Excalibur/total?logo=github&style=flat-square)
+[![Latest Release](https://img.shields.io/github/downloads/TrigintaFaces/Excalibur/latest/total?logo=github&style=flat-square)](https://github.com/TrigintaFaces/Excalibur/releases/latest)
 <!-- badges -->
 
-**Excalibur** is a modular framework designed to simplify **Domain-Driven Design (DDD)** implementations. It provides tools and abstractions for building robust, scalable, and testable applications. It provides tools, abstractions, and helpers for efficient data integration, multi-database support, and hosting flexibility, whether as web services or background jobs.
+**Dispatch messaging core + Excalibur CQRS/hosting wrapper for .NET**
 
-## Nuget Packages
+---
 
-<!-- nuget packages -->
-| Package ID                           | Latest Version                    | Downloads                           |
-| ------------------------------------ | --------------------------------- | ----------------------------------- |
-| Excalibur.A3                         | [![nuget-p1-version]][nuget-p1]   | [![nuget-p1-downloads]][nuget-p1]   |
-| Excalibur.A3.Postgres                | [![nuget-p2-version]][nuget-p2]   | [![nuget-p2-downloads]][nuget-p2]   |
-| Excalibur.A3.SqlServer               | [![nuget-p3-version]][nuget-p3]   | [![nuget-p3-downloads]][nuget-p3]   |
-| Excalibur.Application                | [![nuget-p4-version]][nuget-p4]   | [![nuget-p4-downloads]][nuget-p4]   |
-| Excalibur.Core                       | [![nuget-p5-version]][nuget-p5]   | [![nuget-p5-downloads]][nuget-p5]   |
-| Excalibur.Data                       | [![nuget-p6-version]][nuget-p6]   | [![nuget-p6-downloads]][nuget-p6]   |
-| Excalibur.DataAccess                 | [![nuget-p7-version]][nuget-p7]   | [![nuget-p7-downloads]][nuget-p7]   |
-| Excalibur.DataAccess.DataProcessing  | [![nuget-p8-version]][nuget-p8]   | [![nuget-p8-downloads]][nuget-p8]   |
-| Excalibur.DataAccess.ElasticSearch   | [![nuget-p9-version]][nuget-p9]   | [![nuget-p9-downloads]][nuget-p9]   |
-| Excalibur.DataAccess.SqlServer       | [![nuget-p10-version]][nuget-p10] | [![nuget-p10-downloads]][nuget-p10] |
-| Excalibur.DataAccess.SqlServer.Cdc   | [![nuget-p11-version]][nuget-p11] | [![nuget-p11-downloads]][nuget-p11] |
-| Excalibur.Domain                     | [![nuget-p12-version]][nuget-p12] | [![nuget-p12-downloads]][nuget-p12] |
-| Excalibur.Hosting                    | [![nuget-p13-version]][nuget-p13] | [![nuget-p13-downloads]][nuget-p13] |
-| Excalibur.Hosting.Jobs               | [![nuget-p14-version]][nuget-p14] | [![nuget-p14-downloads]][nuget-p14] |
-| Excalibur.Hosting.Web                | [![nuget-p15-version]][nuget-p15] | [![nuget-p15-downloads]][nuget-p15] |
-| Excalibur.Jobs                       | [![nuget-p16-version]][nuget-p16] | [![nuget-p16-downloads]][nuget-p16] |
-| Excalibur.Jobs.Quartz.Cdc            | [![nuget-p17-version]][nuget-p17] | [![nuget-p17-downloads]][nuget-p17] |
-| Excalibur.Jobs.Quartz.DataProcessing | [![nuget-p18-version]][nuget-p18] | [![nuget-p18-downloads]][nuget-p18] |
-| Excalibur.Jobs.Quartz.Outbox         | [![nuget-p19-version]][nuget-p19] | [![nuget-p19-downloads]][nuget-p19] |
-<!-- nuget packages -->
+## Overview
 
-## Key Features
+This repository ships **two cooperating frameworks**:
 
-### 1. Domain-Driven Design (DDD)
+| Layer | Responsibilities | Primary Packages |
+|-------|------------------|------------------|
+| **Dispatch (Messaging Core)** | Message contracts, handlers, middleware pipeline, transports, diagnostics hooks, thin ASP.NET Core bridge | `Dispatch`, `Excalibur.Dispatch.Abstractions`, `Excalibur.Dispatch.Hosting.AspNetCore`, `Excalibur.Dispatch.Transport.*`, `Excalibur.Dispatch.Observability` |
+| **Excalibur (CQRS + Hosting)** | Aggregates, repositories, event stores, sagas, leader election, compliance, ASP.NET Core & serverless hosting templates | `Excalibur.Domain`, `Excalibur.EventSourcing.*`, `Excalibur.Application`, `Excalibur.Hosting.*`, `Excalibur.Compliance.*`, `Excalibur.LeaderElection.*` |
 
-- **Aggregates and Repositories**:
-  - Base classes for managing domain aggregates.
-  - Extensible repositories for CRUD and custom operations.
-- **Value Objects**:
-  - Immutability and equality mechanisms to align with DDD principles.
-- **Query Providers**:
-  - Abstractions for encapsulating domain-specific SQL logic into reusable and testable components.
+Start with Dispatch when you need a MediatR-class dispatcher. Layer Excalibur packages on later when you need full CQRS, event sourcing, or production hosting.
 
-### 2. Database Abstractions
+---
 
-- **Data Queries**:
-  - Encapsulation of SQL queries into modular `DataQuery<T>` classes.
-  - Separation of SQL logic from business logic for enhanced testability.
-- **Multi-Database Support**:
-  - Out-of-the-box support for PostgreSQL and SQL Server.
-  - Easily extensible for other databases by implementing query providers.
-- **Query Providers**:
-  - Interfaces and database-specific implementations (e.g., PostgreSQL, SQL Server).
-  - Abstract SQL queries into reusable, testable components.
+## NuGet Quick Links
 
-### 3. Data Integration
+| Package | NuGet |
+|--------|-------|
+| `Excalibur.Dispatch` | https://www.nuget.org/packages/Excalibur.Dispatch/ |
+| `Excalibur.Dispatch.Abstractions` | https://www.nuget.org/packages/Excalibur.Dispatch.Abstractions/ |
+| `Excalibur.Dispatch.Hosting.AspNetCore` | https://www.nuget.org/packages/Excalibur.Dispatch.Hosting.AspNetCore/ |
+| `Excalibur.Dispatch.Transport.AzureServiceBus` | https://www.nuget.org/packages/Excalibur.Dispatch.Transport.AzureServiceBus/ |
+| `Excalibur.Dispatch.Transport.AwsSqs` | https://www.nuget.org/packages/Excalibur.Dispatch.Transport.AwsSqs/ |
+| `Excalibur.Dispatch.Transport.Kafka` | https://www.nuget.org/packages/Excalibur.Dispatch.Transport.Kafka/ |
+| `Excalibur.Dispatch.Transport.RabbitMQ` | https://www.nuget.org/packages/Excalibur.Dispatch.Transport.RabbitMQ/ |
+| `Excalibur.EventSourcing` | https://www.nuget.org/packages/Excalibur.EventSourcing/ |
+| `Excalibur.Hosting.Web` | https://www.nuget.org/packages/Excalibur.Hosting.Web/ |
 
-- Synchronization helpers for integrating external APIs with your database.
-- Structured logging and caching mechanisms for optimized data handling.
+---
 
-### 4. Hosting Flexibility
+## Quick Start
 
-- Helpers for deploying services as:
-  - **Web Services**: Build RESTful APIs or GraphQL endpoints using ASP.NET Core.
-  - **Job Services**: Background job support for tasks such as syncing or processing data.
+### 1. Dispatch-Only Messaging
 
-### 5. Multi-Database Support
+Install the core messaging packages and register handlers:
 
-- Support for multiple database types (PostgreSQL, SQL Server).
-- Plug-and-play query providers for easy extensibility.
+```bash
+dotnet add package Excalibur.Dispatch
+dotnet add package Excalibur.Dispatch.Abstractions
+```
 
-## Installation and Setup
+```csharp
+using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Delivery;
 
-### Prerequisites
+var builder = WebApplication.CreateBuilder(args);
 
-- **.NET SDK 8.0 or higher**: [Download .NET SDK](https://dotnet.microsoft.com/download)
-- **Database**: PostgreSQL or SQL Server.
-- **NuGet Packages**:
-  - [Dapper](https://www.nuget.org/packages/Dapper)
-  - [Microsoft.Extensions.DependencyInjection](https://www.nuget.org/packages/Microsoft.Extensions.DependencyInjection)
-  - [Newtonsoft.Json](https://www.nuget.org/packages/Newtonsoft.Json)
+// Register Dispatch with handler auto-discovery
+builder.Services.AddDispatch(typeof(Program).Assembly);
 
-## Hosting Options
+var app = builder.Build();
+app.MapPost("/orders", async (CreateOrder command, IDispatcher dispatcher, CancellationToken ct) =>
+{
+    var result = await dispatcher.DispatchAsync(command, ct);
+    return result.IsSuccess ? Results.Ok() : Results.BadRequest(result.ErrorMessage);
+});
 
-### Web Services
+app.Run();
 
-1. Configure the framework in an ASP.NET Core application.
+// Define an action (command)
+public record CreateOrder(string CustomerId, List<string> Items) : IDispatchAction;
 
-### Job Services
+// Handle it
+public class CreateOrderHandler : IActionHandler<CreateOrder>
+{
+    public Task HandleAsync(CreateOrder action, CancellationToken cancellationToken)
+    {
+        // Your business logic here
+        return Task.CompletedTask;
+    }
+}
+```
 
-1. Implement background jobs for syncing or processing data.
+### 2. Add Excalibur for CQRS + Hosting
 
-## Testing
+Bring in Excalibur when you need aggregates, event stores, or opinionated hosting:
 
-   1. **Unit Tests**:
-      - Use `xUnit` with `shouldly` for assertions and `FakeItEasy` to mock dependencies in clear well defined tests.
-      - Focus on services and repositories in isolation.
-      
-   2. **Integration Tests**:
-      - Test `DataQuery` classes with real databases (PostgreSQL or SQL Server).
-      - Validate query provider correctness.
-      
-   3. **Functional Tests**:
-      - Simulate end-to-end flows for APIs or job services.
-      
+```bash
+dotnet add package Excalibur.Domain
+dotnet add package Excalibur.EventSourcing
+dotnet add package Excalibur.EventSourcing.InMemory
+dotnet add package Excalibur.Hosting.Web
+```
 
-------
+```csharp
+builder.Services
+    .AddDispatch(typeof(Program).Assembly)
+    .AddInMemoryEventStore()
+    .AddSqlServerOutboxStore(builder.Configuration.GetConnectionString("Default")!);
+```
 
-### 📖 Documentation
+You continue to dispatch messages through `IDispatcher`; Excalibur layers domain modeling, persistence, and compliance features on top.
 
-Full documentation for **Excalibur Framework** is available in our **[GitHub Wiki](https://github.com/TrigintaFaces/Excalibur/wiki)**.
+### 3. Run the Samples
 
-🔹 Learn how to get started, configure modules, and explore advanced features.
+| Sample | Purpose |
+|--------|---------|
+| [`DispatchMinimal`](samples/01-getting-started/DispatchMinimal/README.md) | Pure Dispatch usage with no Excalibur dependencies |
+| [`ExcaliburCqrs`](samples/01-getting-started/ExcaliburCqrs/README.md) | Full CQRS/Event Sourcing stack built on Dispatch + Excalibur |
 
-🔹 Find integration details and best practices.
+---
 
-[📚 View the Documentation →](https://github.com/TrigintaFaces/Excalibur/wiki)
+## Package Families
 
-------
+| Family | Packages | Notes |
+|--------|----------|-------|
+| **Dispatch Core** | `Excalibur.Dispatch`, `Excalibur.Dispatch.Abstractions`, `Excalibur.Dispatch.Hosting.AspNetCore`, `Excalibur.Dispatch.Middleware.*`, `Excalibur.Dispatch.Observability` | Messaging primitives, pipeline, analytics, and the thin hosting bridge. |
+| **Dispatch Transports** | `Excalibur.Dispatch.Transport.AzureServiceBus`, `Excalibur.Dispatch.Transport.AwsSqs`, `Excalibur.Dispatch.Transport.Kafka`, `Excalibur.Dispatch.Transport.RabbitMQ` | Bring only the transports you need; no domain logic included. |
+| **Excalibur Domain/CQRS** | `Excalibur.Domain`, `Excalibur.EventSourcing`, `Excalibur.EventSourcing.*`, `Excalibur.Saga.*` | Aggregates, repositories, snapshots, sagas, and serialization helpers (`EventTypeNameHelper`). |
+| **Excalibur Hosting** | `Excalibur.Hosting.Web`, `Excalibur.Hosting.AzureFunctions`, `Excalibur.Hosting.AwsLambda`, `Excalibur.Hosting.GoogleCloudFunctions` | Opinionated hosting templates that compose Dispatch + Excalibur. |
+| **Compliance & Coordination** | `Excalibur.Dispatch.Compliance.*`, `Excalibur.Dispatch.AuditLogging.*`, `Excalibur.LeaderElection.*` | Audit logging, masking, key escrow, leader election, and cross-cutting governance. |
+
+The [`Directory.Packages.props`](Directory.Packages.props) file lists every published package and version.
+
+---
+
+## Performance
+
+Dispatch is optimized for high-throughput, low-latency messaging with lean local hot paths and transport-aware pipeline profiles.
+
+### Key Metrics
+
+| Metric | Value | Notes |
+|--------|-------|-------|
+| **Dispatch single command** | 118.79 ns | BenchmarkDotNet comparative matrix run on February 19, 2026 |
+| **MediatR single command** | 40.92 ns | Same run, in-process microbenchmark |
+| **Wolverine single command (`InvokeAsync`)** | 209.48 ns | Same run, in-process microbenchmark |
+| **MassTransit single command** | 15.515 ms | Same run, in-memory bus and queued semantics |
+| **Memory allocation (ultra-local single command)** | 48 B | Lowest-overhead local dispatch path in this run |
+
+### Optimizations Included
+
+- **C# 12 Interceptors** - Compile-time dispatch resolution
+- **FrozenDictionary Caches** - Lock-free handler and middleware lookup
+- **Static Pipelines** - Zero-allocation execution for known message types
+- **Auto-Freeze on Startup** - Zero-configuration production optimization
+
+### Quick Configuration
+
+```csharp
+// Default: Optimized automatically
+services.AddDispatch();
+
+// Opt-out for development (if needed)
+services.Configure<PerformanceOptions>(o => o.AutoFreezeOnStart = false);
+```
+
+For detailed benchmarks, methodology caveats, and raw reports, see:
+- [Competitor comparison](docs-site/docs/performance/competitor-comparison.md)
+- `BenchmarkDotNet.Artifacts/results/` (latest local run outputs)
+
+---
+
+## Status & Testing
+
+- **Supported frameworks:** .NET 8.0 LTS, .NET 9.0, .NET 10.0 (shipping graph currently includes 110 packable projects; 111 in shipping filter)
+- **Test coverage:** CI-sharded suite across unit, integration, functional, conformance, architecture, and performance categories
+
+Run the full suite locally:
+
+```bash
+dotnet build Excalibur.sln
+dotnet test Excalibur.sln
+```
+
+---
+
+## Legal Notice
+
+> **Important**: This framework provides **tools and functionality** to assist with building applications, including compliance-assistance features (audit logging, event sourcing, GDPR helpers). However, use of this framework does **NOT** guarantee compliance with any law or regulation.
+
+**You remain solely responsible for**:
+- Ensuring your applications comply with all applicable laws and regulations
+- Conducting independent compliance testing and validation
+- Obtaining required certifications, audits, and approvals
+- Engaging qualified legal and compliance professionals
+
+**The framework is provided "AS IS" without warranty.**
+
+---
+
+## Support
+
+Need help? See [SUPPORT.md](SUPPORT.md) for:
+- Support channels (GitHub Discussions, Issues, Security Advisories)
+- Response time expectations
+- Supported .NET versions and provider tiers
+- Security vulnerability reporting
+
+---
 
 ## Contributing
 
-We welcome contributions! Check out our [Contributing Guidelines](CONTRIBUTING.md) to get started.
-
-<!-- references -->
-[github-release]: https://github.com/TrigintaFaces/Excalibur/releases/latest
-[github-release-badge]: https://img.shields.io/github/v/release/TrigintaFaces/Excalibur?color=brightgreen&logo=github&style=flat-square "Latest Release"
-
-[github-release-date]: https://github.com/TrigintaFaces/Excalibur/releases/latest
-[github-release-date-badge]: https://img.shields.io/github/release-date/TrigintaFaces/Excalibur?style=flat-square "Release Date"
-
-[github-downloads]: https://github.com/TrigintaFaces/Excalibur/releases/latest
-[github-downloads-badge]: https://img.shields.io/github/downloads/TrigintaFaces/Excalibur/latest/total?logo=github&style=flat-square "Latest Release"
-
-[nuget-p1]: https://www.nuget.org/packages/Excalibur.A3/
-[nuget-p1-version]: https://img.shields.io/nuget/v/Excalibur.A3.svg?logo=nuget&style=flat-square "NuGet Version"
-[nuget-p1-downloads]: https://img.shields.io/nuget/dt/Excalibur.A3.svg?logo=nuget&style=flat-square "NuGet Downloads"
-
-[nuget-p2]: https://www.nuget.org/packages/Excalibur.A3.Postgres/
-[nuget-p2-version]: https://img.shields.io/nuget/v/Excalibur.A3.Postgres.svg?logo=nuget&style=flat-square "NuGet Version"
-[nuget-p2-downloads]: https://img.shields.io/nuget/dt/Excalibur.A3.Postgres.svg?logo=nuget&style=flat-square "NuGet Downloads"
-
-[nuget-p3]: https://www.nuget.org/packages/Excalibur.A3.SqlServer/
-[nuget-p3-version]: https://img.shields.io/nuget/v/Excalibur.A3.SqlServer.svg?logo=nuget&style=flat-square "NuGet Version"
-[nuget-p3-downloads]: https://img.shields.io/nuget/dt/Excalibur.A3.SqlServer.svg?logo=nuget&style=flat-square "NuGet Downloads"
-
-[nuget-p4]: https://www.nuget.org/packages/Excalibur.Application/
-[nuget-p4-version]: https://img.shields.io/nuget/v/Excalibur.Application.svg?logo=nuget&style=flat-square "NuGet Version"
-[nuget-p4-downloads]: https://img.shields.io/nuget/dt/Excalibur.Application.svg?logo=nuget&style=flat-square "NuGet Downloads"
-
-[nuget-p5]: https://www.nuget.org/packages/Excalibur.Core/
-[nuget-p5-version]: https://img.shields.io/nuget/v/Excalibur.Core.svg?logo=nuget&style=flat-square "NuGet Version"
-[nuget-p5-downloads]: https://img.shields.io/nuget/dt/Excalibur.Core.svg?logo=nuget&style=flat-square "NuGet Downloads"
-
-[nuget-p6]: https://www.nuget.org/packages/Excalibur.Data/
-[nuget-p6-version]: https://img.shields.io/nuget/v/Excalibur.Data.svg?logo=nuget&style=flat-square "NuGet Version"
-[nuget-p6-downloads]: https://img.shields.io/nuget/dt/Excalibur.Data.svg?logo=nuget&style=flat-square "NuGet Downloads"
-
-[nuget-p7]: https://www.nuget.org/packages/Excalibur.DataAccess/
-[nuget-p7-version]: https://img.shields.io/nuget/v/Excalibur.DataAccess.svg?logo=nuget&style=flat-square "NuGet Version"
-[nuget-p7-downloads]: https://img.shields.io/nuget/dt/Excalibur.DataAccess.svg?logo=nuget&style=flat-square "NuGet Downloads"
-
-[nuget-p8]: https://www.nuget.org/packages/Excalibur.DataAccess.DataProcessing/
-[nuget-p8-version]: https://img.shields.io/nuget/v/Excalibur.DataAccess.DataProcessing.svg?logo=nuget&style=flat-square "NuGet Version"
-[nuget-p8-downloads]: https://img.shields.io/nuget/dt/Excalibur.DataAccess.DataProcessing.svg?logo=nuget&style=flat-square "NuGet Downloads"
-
-[nuget-p9]: https://www.nuget.org/packages/Excalibur.DataAccess.ElasticSearch/
-[nuget-p9-version]: https://img.shields.io/nuget/v/Excalibur.DataAccess.ElasticSearch.svg?logo=nuget&style=flat-square "NuGet Version"
-[nuget-p9-downloads]: https://img.shields.io/nuget/dt/Excalibur.DataAccess.ElasticSearch.svg?logo=nuget&style=flat-square "NuGet Downloads"
-
-[nuget-p10]: https://www.nuget.org/packages/Excalibur.DataAccess.SqlServer/
-[nuget-p10-version]: https://img.shields.io/nuget/v/Excalibur.DataAccess.SqlServer.svg?logo=nuget&style=flat-square "NuGet Version"
-[nuget-p10-downloads]: https://img.shields.io/nuget/dt/Excalibur.DataAccess.SqlServer.svg?logo=nuget&style=flat-square "NuGet Downloads"
-
-[nuget-p11]: https://www.nuget.org/packages/Excalibur.DataAccess.SqlServer.Cdc/
-[nuget-p11-version]: https://img.shields.io/nuget/v/Excalibur.DataAccess.SqlServer.Cdc.svg?logo=nuget&style=flat-square "NuGet Version"
-[nuget-p11-downloads]: https://img.shields.io/nuget/dt/Excalibur.DataAccess.SqlServer.Cdc.svg?logo=nuget&style=flat-square "NuGet Downloads"
-
-[nuget-p12]: https://www.nuget.org/packages/Excalibur.Domain/
-[nuget-p12-version]: https://img.shields.io/nuget/v/Excalibur.Domain.svg?logo=nuget&style=flat-square "NuGet Version"
-[nuget-p12-downloads]: https://img.shields.io/nuget/dt/Excalibur.Domain.svg?logo=nuget&style=flat-square "NuGet Downloads"
-
-[nuget-p13]: https://www.nuget.org/packages/Excalibur.Hosting/
-[nuget-p13-version]: https://img.shields.io/nuget/v/Excalibur.Hosting.svg?logo=nuget&style=flat-square "NuGet Version"
-[nuget-p13-downloads]: https://img.shields.io/nuget/dt/Excalibur.Hosting.svg?logo=nuget&style=flat-square "NuGet Downloads"
-
-[nuget-p14]: https://www.nuget.org/packages/Excalibur.Hosting.Jobs/
-[nuget-p14-version]: https://img.shields.io/nuget/v/Excalibur.Hosting.Jobs.svg?logo=nuget&style=flat-square "NuGet Version"
-[nuget-p14-downloads]: https://img.shields.io/nuget/dt/Excalibur.Hosting.Jobs.svg?logo=nuget&style=flat-square "NuGet Downloads"
-
-[nuget-p15]: https://www.nuget.org/packages/Excalibur.Hosting.Web/
-[nuget-p15-version]: https://img.shields.io/nuget/v/Excalibur.Hosting.Web.svg?logo=nuget&style=flat-square "NuGet Version"
-[nuget-p15-downloads]: https://img.shields.io/nuget/dt/Excalibur.Hosting.Web.svg?logo=nuget&style=flat-square "NuGet Downloads"
-
-[nuget-p16]: https://www.nuget.org/packages/Excalibur.Jobs/
-[nuget-p16-version]: https://img.shields.io/nuget/v/Excalibur.Jobs.svg?logo=nuget&style=flat-square "NuGet Version"
-[nuget-p16-downloads]: https://img.shields.io/nuget/dt/Excalibur.Jobs.svg?logo=nuget&style=flat-square "NuGet Downloads"
-
-[nuget-p17]: https://www.nuget.org/packages/Excalibur.Jobs.Quartz.Cdc/
-[nuget-p17-version]: https://img.shields.io/nuget/v/Excalibur.Jobs.Quartz.Cdc.svg?logo=nuget&style=flat-square "NuGet Version"
-[nuget-p17-downloads]: https://img.shields.io/nuget/dt/Excalibur.Jobs.Quartz.Cdc.svg?logo=nuget&style=flat-square "NuGet Downloads"
-
-[nuget-p18]: https://www.nuget.org/packages/Excalibur.Jobs.Quartz.DataProcessing/
-[nuget-p18-version]: https://img.shields.io/nuget/v/Excalibur.Jobs.Quartz.DataProcessing.svg?logo=nuget&style=flat-square "NuGet Version"
-[nuget-p18-downloads]: https://img.shields.io/nuget/dt/Excalibur.Jobs.Quartz.DataProcessing.svg?logo=nuget&style=flat-square "NuGet Downloads"
-
-[nuget-p19]: https://www.nuget.org/packages/Excalibur.Jobs.Quartz.Outbox/
-[nuget-p19-version]: https://img.shields.io/nuget/v/Excalibur.Jobs.Quartz.Outbox.svg?logo=nuget&style=flat-square "NuGet Version"
-[nuget-p19-downloads]: https://img.shields.io/nuget/dt/Excalibur.Jobs.Quartz.Outbox.svg?logo=nuget&style=flat-square "NuGet Downloads"
-<!-- references -->
+1. Keep documentation in `docs-site/` (consumers) in sync.
+2. See [CONTRIBUTING.md](CONTRIBUTING.md) for coding standards, test expectations, and review gates.

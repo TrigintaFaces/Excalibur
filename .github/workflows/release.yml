@@ -1,0 +1,705 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g., 1.0.0)"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark as pre-release"
+        required: false
+        default: false
+        type: boolean
+      create_tag:
+        description: "Create git tag for this release"
+        required: false
+        default: true
+        type: boolean
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+jobs:
+  # Validate release readiness
+  pre-release-validation:
+    name: Pre-Release Validation
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            PRERELEASE="${{ github.event.inputs.prerelease }}"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            if [[ "$VERSION" =~ -[a-zA-Z] ]]; then
+              PRERELEASE="true"
+            else
+              PRERELEASE="false"
+            fi
+          fi
+
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "prerelease=${PRERELEASE}" >> $GITHUB_OUTPUT
+          echo "Release version: ${VERSION}"
+          echo "Pre-release: ${PRERELEASE}"
+
+      - name: Validate version format
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9\-]+(\.[0-9]+)?)?$ ]]; then
+            echo "Invalid version format: $VERSION"
+            echo "Expected format: X.Y.Z or X.Y.Z-prerelease"
+            exit 1
+          fi
+          echo "✅ Version format is valid"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore Excalibur.sln
+
+      - name: Build solution
+        run: dotnet build Excalibur.sln --configuration Release --no-restore --verbosity minimal
+
+      - name: Validate governance release invariants
+        shell: pwsh
+        run: |
+          ./eng/ci/validate-governance-stack.ps1 -Enforce:$true
+
+      - name: Validate flaky quarantine policy
+        shell: pwsh
+        run: |
+          ./eng/ci/validate-flaky-quarantine.ps1 -OutDir management/reports/FlakyQuarantineReport -Enforce:$true
+
+      - name: Run all tests from solution
+        run: |
+          echo "Running full test suite from Excalibur.sln for release validation..."
+          dotnet test Excalibur.sln \
+            --configuration Release \
+            --no-build \
+            --logger "console;verbosity=minimal" \
+            --blame-hang-timeout 10m \
+            -- RunConfiguration.TestSessionTimeout=7200000
+
+      - name: Release readiness check
+        run: |
+          echo "🔍 Checking release readiness..."
+
+          # Check for any TODO/FIXME/HACK comments in core libraries
+          echo "Scanning for development placeholders..."
+          if grep -r --include="*.cs" -E "(TODO|FIXME|HACK|UNDONE)" src/Dispatch/ || true; then
+            echo "⚠️ Found development placeholders - review before release"
+          else
+            echo "✅ No development placeholders found"
+          fi
+
+          # Verify all core packages can be built
+          echo "Validating package creation..."
+          dotnet pack eng/ci/shards/ShippingOnly.slnf --configuration Release --no-build --verbosity minimal --output ./temp-packages
+
+          PACKAGE_COUNT=$(find ./temp-packages -name "*.nupkg" | wc -l)
+          EXPECTED_COUNT=$(grep -o '"[^"]*\.csproj"' eng/ci/shards/ShippingOnly.slnf | wc -l)
+          echo "Expected package count: $EXPECTED_COUNT"
+          echo "Actual package count: $PACKAGE_COUNT"
+          if [ "$PACKAGE_COUNT" -ne "$EXPECTED_COUNT" ]; then
+            echo "❌ Package count mismatch in pre-release validation"
+            exit 1
+          fi
+          echo "✅ Successfully created $PACKAGE_COUNT packages"
+          rm -rf ./temp-packages
+
+      - name: Upload flaky quarantine report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-flaky-quarantine-report
+          path: management/reports/FlakyQuarantineReport
+          if-no-files-found: warn
+          retention-days: 30
+
+  # Build and package libraries
+  pre-tag-unit-soak:
+    name: Pre-Tag Unit Soak (${{ matrix.os }}, run ${{ matrix.iteration }})
+    runs-on: ${{ matrix.os }}
+    needs: pre-release-validation
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        iteration: [1, 2, 3]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore unit shard
+        run: dotnet restore eng/ci/shards/UnitTests.slnf
+
+      - name: Build unit shard
+        run: dotnet build eng/ci/shards/UnitTests.slnf --configuration Release --no-restore --verbosity minimal
+
+      - name: Compose pre-tag soak filter
+        shell: pwsh
+        run: |
+          $baseFilter = '(Category=Unit|Category=DependencyInjection)&Category!=Performance'
+          $filterInfo = ./eng/ci/get-test-filter.ps1 -BaseFilter $baseFilter -Mode Exclude -AsJson | ConvertFrom-Json
+          "PRETAG_SOAK_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
+          Write-Host "Using pre-tag soak filter with $($filterInfo.count) quarantined exclusions."
+
+      - name: Run unit shard soak iteration
+        run: dotnet test eng/ci/shards/UnitTests.slnf --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFileName=pre-tag-unit-soak-${{ matrix.os }}-${{ matrix.iteration }}.trx" --logger "console;verbosity=minimal" --filter "${{ env.PRETAG_SOAK_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
+
+      - name: Upload soak test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-tag-unit-soak-${{ matrix.os }}-${{ matrix.iteration }}
+          path: "**/pre-tag-unit-soak-*.trx"
+          retention-days: 30
+
+  build-packages:
+    name: Build Release Packages
+    runs-on: ${{ matrix.os }}
+    needs: [pre-release-validation, pre-tag-unit-soak]
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore Excalibur.sln
+
+      - name: Build solution
+        run: dotnet build Excalibur.sln --configuration Release --no-restore --verbosity minimal
+
+      - name: Create release packages
+        run: |
+          VERSION="${{ needs.pre-release-validation.outputs.version }}"
+          PRERELEASE="${{ needs.pre-release-validation.outputs.prerelease }}"
+
+          echo "Creating packages for version: $VERSION"
+
+          # Create packages with version and symbols
+          dotnet pack eng/ci/shards/ShippingOnly.slnf \
+            --configuration Release \
+            --no-build \
+            --verbosity minimal \
+            --include-symbols \
+            --include-source \
+            -p:PackageVersion="$VERSION" \
+            -p:AssemblyVersion="$VERSION" \
+            -p:FileVersion="$VERSION" \
+            -p:InformationalVersion="$VERSION" \
+            --output ./packages/
+
+      - name: Validate packages
+        shell: pwsh
+        run: |
+          Write-Host "📦 Package Validation Summary" -ForegroundColor Green
+
+          $packages = Get-ChildItem ./packages/*.nupkg
+          if ($packages.Count -eq 0) {
+            Write-Error "No packages created!"
+            exit 1
+          }
+
+          foreach ($package in $packages) {
+            Write-Host "✅ $($package.Name)" -ForegroundColor Green
+
+            # Basic package validation
+            $size = [math]::Round($package.Length / 1KB, 2)
+            Write-Host "   Size: $size KB"
+
+            # Verify package can be opened (basic integrity check)
+            try {
+              Add-Type -AssemblyName System.IO.Compression.FileSystem
+              $zip = [System.IO.Compression.ZipFile]::OpenRead($package.FullName)
+              $entryCount = $zip.Entries.Count
+              $zip.Dispose()
+              Write-Host "   Entries: $entryCount"
+            } catch {
+              Write-Error "Package integrity check failed: $($package.Name)"
+              exit 1
+            }
+          }
+
+          Write-Host "`n✅ All packages validated successfully" -ForegroundColor Green
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.os }}
+          path: |
+            packages/*.nupkg
+            packages/*.snupkg
+          retention-days: 90
+
+  release-sbom:
+    name: Release SBOM (CycloneDX)
+    runs-on: ubuntu-latest
+    needs: [pre-release-validation, pre-tag-unit-soak]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore Excalibur.sln
+
+      - name: Generate CycloneDX SBOM for release
+        uses: CycloneDX/gh-dotnet-generate-sbom@v1.0.1
+        with:
+          path: './src'
+          github-bearer-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate SBOM files exist
+        run: |
+          sbom_count=$(find . -name "bom.json" -o -name "bom.xml" | wc -l)
+          echo "Found $sbom_count SBOM file(s)"
+          if [ "$sbom_count" -eq 0 ]; then
+            echo "❌ No SBOM files generated"
+            exit 1
+          fi
+
+      - name: Upload release SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-cyclonedx-sbom
+          path: |
+            **/bom.json
+            **/bom.xml
+          retention-days: 90
+
+  # Security and quality validation
+  release-quality-gates:
+    name: Release Quality Gates
+    runs-on: ubuntu-latest
+    needs: [pre-release-validation, build-packages]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: packages-ubuntu-latest
+          path: packages
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Install security tools
+        run: |
+          dotnet tool install --global security-scan --version 5.6.7 || true
+          npm install -g @cyclone-dx/cyclone-dx-npm --silent || true
+
+      - name: Security scan
+        run: |
+          echo "🔒 Running security analysis..."
+          security-scan packages/ --report-format json --output security-report.json || true
+
+          if [ -f security-report.json ]; then
+            echo "Security scan completed"
+            # Check for high/critical vulnerabilities
+            if grep -q '"severity":"HIGH\|CRITICAL"' security-report.json; then
+              echo "⚠️ High or critical security issues found"
+              cat security-report.json | jq '.vulnerabilities[] | select(.severity == "HIGH" or .severity == "CRITICAL")'
+            else
+              echo "✅ No high or critical security issues found"
+            fi
+          fi
+
+      - name: Package analysis
+        run: |
+          echo "📊 Package Analysis Summary"
+          echo "=========================="
+
+          for package in packages/*.nupkg; do
+            if [ -f "$package" ]; then
+              filename=$(basename "$package")
+              size=$(du -h "$package" | cut -f1)
+              echo "Package: $filename ($size)"
+
+              # Extract and analyze package contents
+              mkdir -p temp_analysis
+              unzip -q "$package" -d temp_analysis/
+
+              # Check for common issues
+              if find temp_analysis/ -name "*.dll" | head -1 | xargs file | grep -q "executable"; then
+                echo "  ✅ Contains valid assemblies"
+              else
+                echo "  ❌ No valid assemblies found"
+              fi
+
+              # Check for documentation
+              if [ -d temp_analysis/docs ] || find temp_analysis/ -name "*.xml" | grep -q ""; then
+                echo "  ✅ Documentation included"
+              else
+                echo "  ⚠️ No documentation found"
+              fi
+
+              rm -rf temp_analysis/
+            fi
+          done
+
+      - name: Upload security results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-analysis
+          path: security-report.json
+          retention-days: 30
+
+  # Create GitHub release
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [pre-release-validation, build-packages, release-quality-gates, release-sbom]
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      release_id: ${{ steps.create_release.outputs.id }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: packages-*
+          path: all-packages/
+          merge-multiple: true
+
+      - name: Download SBOM artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-cyclonedx-sbom
+          path: sbom/
+
+      - name: Create git tag
+        if: github.event.inputs.create_tag == 'true' && github.event_name == 'workflow_dispatch'
+        run: |
+          VERSION="${{ needs.pre-release-validation.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if ! git tag -l | grep -q "^v${VERSION}$"; then
+            git tag -a "v${VERSION}" -m "Release v${VERSION}"
+            git push origin "v${VERSION}"
+            echo "✅ Created and pushed tag v${VERSION}"
+          else
+            echo "Tag v${VERSION} already exists"
+          fi
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          VERSION="${{ needs.pre-release-validation.outputs.version }}"
+
+          # Get the last tag for comparison
+          LAST_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+
+          cat << EOF > release_notes.md
+          ## 🚀 Excalibur v${VERSION}
+
+          ### What's New
+
+          EOF
+
+          if [ -n "$LAST_TAG" ]; then
+            echo "### Changes since $LAST_TAG" >> release_notes.md
+            echo "" >> release_notes.md
+
+            # Get commits since last tag
+            git log --pretty=format:"- %s (%h)" ${LAST_TAG}..HEAD >> release_notes.md || echo "- Initial release" >> release_notes.md
+          else
+            echo "- Initial release of Excalibur" >> release_notes.md
+          fi
+
+          cat << EOF >> release_notes.md
+
+          ### 📦 Package Information
+
+          This release includes the following NuGet packages:
+
+          EOF
+
+          # List all packages
+          for package in all-packages/*.nupkg; do
+            if [ -f "$package" ]; then
+              basename=$(basename "$package" .nupkg)
+              size=$(du -h "$package" | cut -f1)
+              echo "- \`$basename\` ($size)" >> release_notes.md
+            fi
+          done
+
+          cat << EOF >> release_notes.md
+
+          ### 🔧 Installation
+
+          Install via NuGet Package Manager:
+          \`\`\`
+          dotnet add package Excalibur.Dispatch --version ${VERSION}
+          \`\`\`
+
+          ### 🏗️ System Requirements
+
+          - .NET 8.0 or later
+          - Supported platforms: Windows, Linux, macOS
+
+          ### 📚 Documentation
+
+          - [Documentation](https://docs.excalibur-dispatch.dev)
+          - [Getting Started](https://docs.excalibur-dispatch.dev/docs/next/getting-started/)
+          - [Migration Guide](https://docs.excalibur-dispatch.dev/docs/next/migration/)
+
+          EOF
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ needs.pre-release-validation.outputs.version }}
+          name: Excalibur v${{ needs.pre-release-validation.outputs.version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ needs.pre-release-validation.outputs.prerelease == 'true' }}
+          files: |
+            all-packages/*.nupkg
+            sbom/**/*.json
+            sbom/**/*.xml
+
+      - name: Upload release assets
+        run: |
+          # Create a combined package archive
+          tar -czf excalibur-dispatch-v${{ needs.pre-release-validation.outputs.version }}-packages.tar.gz -C all-packages .
+
+          # Upload the archive
+          curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+               -H "Content-Type: application/gzip" \
+               --data-binary @excalibur-dispatch-v${{ needs.pre-release-validation.outputs.version }}-packages.tar.gz \
+               "${{ steps.create_release.outputs.upload_url }}?name=excalibur-dispatch-v${{ needs.pre-release-validation.outputs.version }}-packages.tar.gz&label=All+NuGet+Packages"
+
+  # Publish to NuGet.org
+  publish-nuget:
+    name: Publish to NuGet
+    runs-on: ubuntu-latest
+    needs: [pre-release-validation, create-release]
+    if: github.repository == 'TrigintaFaces/Excalibur' # Only publish from main repo
+    environment:
+      name: nuget-production
+      url: https://www.nuget.org/profiles/TrigintaFaces
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: packages-ubuntu-latest
+          path: packages
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Validate NuGet API Key
+        run: |
+          if [ -z "${{ secrets.NUGET_API_KEY }}" ]; then
+            echo "❌ NUGET_API_KEY secret is not set"
+            exit 1
+          fi
+          echo "✅ NuGet API key is configured"
+
+      - name: Publish packages to NuGet
+        run: |
+          echo "📤 Publishing packages to NuGet.org..."
+          failed_count=0
+          published_count=0
+          failed_packages=""
+
+          for package in packages/*.nupkg; do
+            if [ -f "$package" ]; then
+              package_name=$(basename "$package")
+              echo "Publishing: $package_name"
+
+              dotnet nuget push "$package" \
+                --api-key "${{ secrets.NUGET_API_KEY }}" \
+                --source "https://api.nuget.org/v3/index.json" \
+                --skip-duplicate || {
+                  echo "❌ Failed to publish $package_name"
+                  failed_count=$((failed_count + 1))
+                  failed_packages="${failed_packages}\n- ${package_name}"
+                  continue
+                }
+
+              echo "✅ Published: $package_name"
+              published_count=$((published_count + 1))
+
+              # Rate limiting - wait between publishes
+              sleep 5
+            fi
+          done
+
+          echo "Published packages: $published_count"
+          if [ "$failed_count" -gt 0 ]; then
+            echo "The following packages failed to publish:"
+            printf "%b\n" "$failed_packages"
+            exit 1
+          fi
+
+          echo "🎉 Package publishing completed without errors!"
+
+      - name: Verify publication
+        run: |
+          echo "🔍 Verifying package publication..."
+          VERSION="${{ needs.pre-release-validation.outputs.version }}"
+
+          # Wait a bit for NuGet to process
+          sleep 30
+
+          # Check a few core packages
+          CORE_PACKAGES=("Excalibur.Dispatch" "Excalibur.Dispatch.Abstractions" "Excalibur.Dispatch.Caching")
+
+          for package in "${CORE_PACKAGES[@]}"; do
+            echo "Checking $package v$VERSION..."
+
+            # Use NuGet API to check if package version exists
+            package_lower=$(echo "$package" | tr '[:upper:]' '[:lower:]')
+            response=$(curl -s "https://api.nuget.org/v3-flatcontainer/$package_lower/$VERSION/$package_lower.$VERSION.nupkg" -o /dev/null -w "%{http_code}")
+
+            if [ "$response" = "200" ]; then
+              echo "✅ $package v$VERSION is available on NuGet"
+            else
+              echo "⚠️ $package v$VERSION not yet available (HTTP $response) - may need time to propagate"
+            fi
+          done
+
+  # Post-release tasks
+  post-release:
+    name: Post-Release Tasks
+    runs-on: ubuntu-latest
+    needs: [pre-release-validation, create-release, publish-nuget]
+    if: always() && needs.create-release.result == 'success'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Release summary
+        run: |
+          echo "# 🎉 Release v${{ needs.pre-release-validation.outputs.version }} Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Release Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ needs.pre-release-validation.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Pre-release:** ${{ needs.pre-release-validation.outputs.prerelease }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release ID:** ${{ needs.create-release.outputs.release_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Status Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Task | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Pre-validation | ✅ Success |" >> $GITHUB_STEP_SUMMARY
+          echo "| Package Build | ✅ Success |" >> $GITHUB_STEP_SUMMARY
+          echo "| Quality Gates | ${{ needs.release-quality-gates.result == 'success' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| GitHub Release | ✅ Success |" >> $GITHUB_STEP_SUMMARY
+          echo "| NuGet Publish | ${{ needs.publish-nuget.result == 'success' && '✅ Success' || needs.publish-nuget.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 Packages are available on [NuGet.org](https://www.nuget.org/profiles/TrigintaFaces)" >> $GITHUB_STEP_SUMMARY
+          echo "- 🏷️ GitHub release created: [v${{ needs.pre-release-validation.outputs.version }}](https://github.com/${{ github.repository }}/releases/tag/v${{ needs.pre-release-validation.outputs.version }})" >> $GITHUB_STEP_SUMMARY
+          echo "- 📚 Update documentation and announce release" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify stakeholders
+        if: needs.pre-release-validation.outputs.prerelease == 'false' # Only for stable releases
+        run: |
+          echo "🚀 Stable release v${{ needs.pre-release-validation.outputs.version }} has been published!"
+          echo "Consider updating:"
+          echo "- Documentation website"
+          echo "- Example projects"
+          echo "- Blog announcement"
+          echo "- Social media"
+

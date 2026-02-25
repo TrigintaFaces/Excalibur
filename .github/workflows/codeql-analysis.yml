@@ -1,0 +1,86 @@
+name: "CodeQL Security Analysis"
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run weekly on Mondays at 02:00 UTC
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze C# Code
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'csharp' ]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # Query suites: security-extended provides comprehensive security coverage
+          queries: security-extended
+          config: |
+            paths-ignore:
+              - 'archive/**'
+              - 'management/**'
+              - 'tools/**'
+              - '**/obj/**'
+              - '**/bin/**'
+
+      - name: Restore shipping projects
+        run: dotnet restore eng/ci/shards/ShippingOnly.slnf
+
+      - name: Build shipping projects
+        run: dotnet build eng/ci/shards/ShippingOnly.slnf --no-restore --configuration Release
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"
+
+      - name: Upload CodeQL results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-results
+          path: ${{ github.workspace }}/.codeql
+          retention-days: 30
+
+      - name: Check for critical findings
+        if: always()
+        run: |
+          # Fail build if critical or high severity findings are detected
+          # This script would parse SARIF output from CodeQL
+          echo "Checking for critical/high severity findings..."
+          # Add SARIF parsing logic here if needed

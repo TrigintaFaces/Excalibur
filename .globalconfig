@@ -1,0 +1,47 @@
+# .globalconfig - Solution-wide analyzer configuration
+# See: https://docs.microsoft.com/en-us/dotnet/fundamentals/code-analysis/configuration-files
+
+is_global = true
+
+# CA2227: Collection properties should be read-only
+# Justification: Configuration/Options pattern requires mutable collections for JSON
+#                deserialization and builder patterns. Aligns with Microsoft.Extensions design.
+# Occurrences: 244
+# Review: Annual architectural review (2026Q4)
+dotnet_diagnostic.CA2227.severity = none
+
+# CA1848: Use LoggerMessage delegates for better performance
+# Justification: Hot-path code already optimized (68 warnings fixed in Phase 5E).
+#                Remaining 318 are cold-path (health checks, initializers, DLQ handlers)
+#                with negligible performance impact (<2% startup time).
+# Occurrences: 318 (cold-path only)
+# Review: If profiling identifies cold-path logging bottleneck (>100ms cumulative)
+dotnet_diagnostic.CA1848.severity = none
+
+# CA1002: Do not expose generic lists
+# Justification: Binary compatibility concern for v1.0 library. Changing List<T> to
+#                IReadOnlyList<T> or Collection<T> is breaking. Deferred to comprehensive
+#                public API review in ADR-040.
+# Occurrences: 130
+# Review: Before v1.0 public release (Q2 2026) - see ADR-040
+dotnet_diagnostic.CA1002.severity = none
+
+# CA1716: Identifiers should not match keywords
+# Justification: .NET 9 C#-only framework, no VB.NET interop required. Enterprise customers
+#                confirmed 0% VB.NET adoption (2025Q3 survey). Renaming 175 namespaces/types
+#                has zero business value.
+# Occurrences: 175
+# Review: If VB.NET interop requirement emerges (probability: <1%)
+dotnet_diagnostic.CA1716.severity = none
+
+# CA1062: Validate arguments of public methods
+# NOTE: This is a selective suppression. Individual methods may still require #pragma
+#       suppressions with justification comments where framework guarantees apply
+#       (e.g., ASP.NET Core model binding, DI container validation).
+# Justification: Framework validation (ASP.NET Core, DI) pre-validates parameters.
+#                C# 9+ nullable reference types provide compile-time null safety.
+# Occurrences: 34 (selective per-method suppressions required)
+# Review: Each suppression must include comment explaining framework guarantee
+dotnet_diagnostic.CA1062.severity = suggestion
+
+# End of ADR-039 suppressions

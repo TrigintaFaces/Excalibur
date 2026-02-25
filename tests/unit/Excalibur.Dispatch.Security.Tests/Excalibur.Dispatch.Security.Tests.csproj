@@ -1,0 +1,55 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Excalibur.Dispatch.Security.Tests</RootNamespace>
+    <AssemblyName>Excalibur.Dispatch.Security.Tests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Test framework (Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio) provided by Directory.Build.props -->
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="FakeItEasy" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- ProjectReferences from all merged security/audit/compliance test projects -->
+    <!-- From Excalibur.Dispatch.Security.Tests -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Security\Excalibur.Dispatch.Security.csproj" />
+    <!-- From Excalibur.Dispatch.Security.Azure.Tests -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Security.Azure\Excalibur.Dispatch.Security.Azure.csproj" />
+    <!-- From Excalibur.Dispatch.Security.Aws.Tests -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Security.Aws\Excalibur.Dispatch.Security.Aws.csproj" />
+    <!-- From Excalibur.Dispatch.AuditLogging.Tests -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.AuditLogging\Excalibur.Dispatch.AuditLogging.csproj" />
+    <!-- From Excalibur.Dispatch.AuditLogging.Datadog.Tests -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.AuditLogging.Datadog\Excalibur.Dispatch.AuditLogging.Datadog.csproj" />
+    <!-- From Excalibur.Dispatch.AuditLogging.Sentinel.Tests -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.AuditLogging.Sentinel\Excalibur.Dispatch.AuditLogging.Sentinel.csproj" />
+    <!-- From Excalibur.Dispatch.AuditLogging.Splunk.Tests -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.AuditLogging.Splunk\Excalibur.Dispatch.AuditLogging.Splunk.csproj" />
+    <!-- From Excalibur.Dispatch.Compliance.Tests -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compliance\Excalibur.Dispatch.Compliance.csproj" />
+    <!-- Shared across audit logging and compliance tests -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compliance.Abstractions\Excalibur.Dispatch.Compliance.Abstractions.csproj" />
+    <!-- From Excalibur.Dispatch.Compliance.Vault (S564.52 — VaultOptions ISP split tests) -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compliance.Vault\Excalibur.Dispatch.Compliance.Vault.csproj" />
+    <!-- From Excalibur.Dispatch.Compliance.Abstractions.Tests (already included above) -->
+    <!-- From Excalibur.Dispatch.Compliance.Aws.Tests -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compliance.Aws\Excalibur.Dispatch.Compliance.Aws.csproj" />
+    <!-- From Excalibur.Dispatch.Compliance.Azure.Tests -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compliance.Azure\Excalibur.Dispatch.Compliance.Azure.csproj" />
+    <!-- From Excalibur.Dispatch.Compliance.SqlServer.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Compliance.SqlServer\Excalibur.Compliance.SqlServer.csproj" />
+    <!-- From Excalibur.Dispatch.Compliance.Tests (additional ref) -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+    <!-- From Excalibur.Security.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Security\Excalibur.Security.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Security.Abstractions\Excalibur.Security.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,9 @@
+**/.dockerignore
+**/.git
+**/.gitignore
+**/.vs
+**/bin
+**/obj
+**/Dockerfile
+**/*.user
+**/*.sln

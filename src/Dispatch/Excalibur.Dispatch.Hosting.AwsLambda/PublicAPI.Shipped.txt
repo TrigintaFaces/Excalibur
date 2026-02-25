@@ -1,0 +1,61 @@
+#nullable enable
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaColdStartOptimizer
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaColdStartOptimizer.AwsLambdaColdStartOptimizer(System.IServiceProvider serviceProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaColdStartOptimizer> logger) -> void
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaColdStartOptimizer.IsEnabled.get -> System.Boolean
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaHostProvider
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaHostProvider.AwsLambdaHostProvider(Microsoft.Extensions.Logging.ILogger logger) -> void
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaHostProvider.ConfigureHost(Microsoft.Extensions.Hosting.IHostBuilder hostBuilder, Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions options) -> System.Void
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaHostProvider.ConfigureServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions options) -> System.Void
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaHostProvider.CreateContext(System.Object platformContext) -> Excalibur.Dispatch.Hosting.Serverless.IServerlessContext
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaHostProvider.ExecuteAsync( input, Excalibur.Dispatch.Hosting.Serverless.IServerlessContext context, System.Func<, Excalibur.Dispatch.Hosting.Serverless.IServerlessContext, System.Threading.CancellationToken, System.Threading.Tasks.Task<>> handler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaHostProvider.GetService(System.Type serviceType) -> System.Object
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaHostProvider.IsAvailable.get -> System.Boolean
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaHostProvider.Platform.get -> Excalibur.Dispatch.Hosting.Serverless.ServerlessPlatform
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaServerlessContext
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaServerlessContext.AccountId.get -> System.String
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaServerlessContext.AwsLambdaServerlessContext(System.Object lambdaContext, Microsoft.Extensions.Logging.ILogger logger) -> void
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaServerlessContext.CloudProvider.get -> System.String
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaServerlessContext.ExecutionDeadline.get -> System.DateTimeOffset
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaServerlessContext.FunctionName.get -> System.String
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaServerlessContext.FunctionVersion.get -> System.String
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaServerlessContext.InvokedFunctionArn.get -> System.String
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaServerlessContext.LambdaContext.get -> Amazon.Lambda.Core.ILambdaContext
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaServerlessContext.LogGroupName.get -> System.String
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaServerlessContext.LogStreamName.get -> System.String
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaServerlessContext.MemoryLimitInMB.get -> System.Int32
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaServerlessContext.Region.get -> System.String
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaServerlessContext.RemainingExecutionTime.get -> System.TimeSpan
+Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaServerlessContext.RequestId.get -> System.String
+Microsoft.Extensions.DependencyInjection.AwsLambdaServiceCollectionExtensions
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.AwsSdkWarmupCompleted -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.AwsSdkWarmupFailed -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.AwsSdkWarmupStarting -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ColdInstanceDetected -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ColdStartOptimizationCompleted -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ColdStartOptimizationDisabled -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ColdStartOptimizationStarted -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ConfiguringHost -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ConfiguringMetrics -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ConfiguringServices -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ConfiguringXRayTracing -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ExecutingHandler -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ExecutionCancelled -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ExecutionTimedOut -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.HandlerExecuted -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.HandlerFailed -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.HostConfigured -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.JitWarmupCompleted -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.JitWarmupFailed -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.JitWarmupStarting -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ProvisionedConcurrencyActive -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ServicesConfigured -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.ServicesWarmedUp -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.SingletonWarmupCompleted -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.SingletonWarmupFailed -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.SingletonWarmupStarting -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.WarmingUpServices -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.WarmInstanceDetected -> System.Int32
+static const Excalibur.Dispatch.Hosting.AwsLambda.AwsLambdaEventId.XRayTracingEnabled -> System.Int32
+static Microsoft.Extensions.DependencyInjection.AwsLambdaServiceCollectionExtensions.AddAwsLambdaServerless(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions> configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.AwsLambdaServiceCollectionExtensions.AddAwsLambdaServerless(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

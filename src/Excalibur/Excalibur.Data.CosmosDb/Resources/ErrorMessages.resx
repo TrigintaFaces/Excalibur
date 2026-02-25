@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="ActivityGroupsContainerNameRequired" xml:space="preserve">
+    <value>ActivityGroupsContainerName is required.</value>
+  </data>
+  <data name="AllVersionsAndDeletesModeNotSupported" xml:space="preserve">
+    <value>AllVersionsAndDeletes mode is not supported in the current SDK version. Use LatestVersion mode or upgrade the Microsoft.Azure.Cosmos SDK.</value>
+  </data>
+  <data name="ConnectionStringRequired" xml:space="preserve">
+    <value>ConnectionString is required.</value>
+  </data>
+  <data name="ContainerIdRequired" xml:space="preserve">
+    <value>ContainerId is required.</value>
+  </data>
+  <data name="ContainerNameRequired" xml:space="preserve">
+    <value>ContainerName is required.</value>
+  </data>
+  <data name="CosmosDbUsesTransactionalBatches" xml:space="preserve">
+    <value>Cosmos DB uses transactional batches within a single partition. Use ExecuteBatchAsync instead.</value>
+  </data>
+  <data name="DatabaseIdRequired" xml:space="preserve">
+    <value>DatabaseId is required.</value>
+  </data>
+  <data name="DatabaseNameRequired" xml:space="preserve">
+    <value>DatabaseName is required.</value>
+  </data>
+  <data name="DocumentIdPropertyNull" xml:space="preserve">
+    <value>Document id property is null.</value>
+  </data>
+  <data name="EitherConnectionStringOrAccountEndpointRequired" xml:space="preserve">
+    <value>Either ConnectionString or both AccountEndpoint and AccountKey must be provided.</value>
+  </data>
+  <data name="FailedToParsePositionFromBase64" xml:space="preserve">
+    <value>Failed to parse position from base64</value>
+  </data>
+  <data name="GrantsContainerNameRequired" xml:space="preserve">
+    <value>GrantsContainerName is required.</value>
+  </data>
+  <data name="IndexManagementViaContainerPolicy" xml:space="preserve">
+    <value>Index management in Cosmos DB is done through container indexing policy.</value>
+  </data>
+  <data name="InvalidPositionFormat" xml:space="preserve">
+    <value>Invalid position format</value>
+  </data>
+  <data name="MaxBatchSizeMustBeGreaterThanZero" xml:space="preserve">
+    <value>MaxBatchSize must be greater than zero.</value>
+  </data>
+  <data name="MaxRecoveryAttemptsMustBeAtLeastOne" xml:space="preserve">
+    <value>MaxRecoveryAttempts must be at least 1.</value>
+  </data>
+  <data name="MaxWaitTimeMustBeGreaterThanZero" xml:space="preserve">
+    <value>MaxWaitTime must be greater than zero.</value>
+  </data>
+  <data name="NoContainerNameSpecified" xml:space="preserve">
+    <value>No container name specified.</value>
+  </data>
+  <data name="PollIntervalMustBeGreaterThanZero" xml:space="preserve">
+    <value>PollInterval must be greater than zero.</value>
+  </data>
+  <data name="ProcessorNameRequired" xml:space="preserve">
+    <value>ProcessorName is required.</value>
+  </data>
+  <data name="RecoveryAttemptDelayCannotBeNegative" xml:space="preserve">
+    <value>RecoveryAttemptDelay cannot be negative.</value>
+  </data>
+  <data name="StaleContinuationTokenDetected" xml:space="preserve">
+    <value>The CosmosDB CDC processor detected a stale continuation token position that cannot be recovered.</value>
+  </data>
+  <data name="UseCloudNativeMethodsForCosmosDbOperations" xml:space="preserve">
+    <value>Use cloud-native specific methods (GetByIdAsync, CreateAsync, etc.) for Cosmos DB operations.</value>
+  </data>
+  <data name="UseCloudNativeMethodsInsteadOfExecuteDocument" xml:space="preserve">
+    <value>Use cloud-native specific methods (GetByIdAsync, CreateAsync, etc.) instead of ExecuteDocumentAsync for Cosmos DB.</value>
+  </data>
+  <data name="UseCloudNativeMethodsGeneric" xml:space="preserve">
+    <value>Use cloud-native specific methods for Cosmos DB operations.</value>
+  </data>
+  <data name="UseExecuteBatchAsyncForBatchOperations" xml:space="preserve">
+    <value>Use ExecuteBatchAsync for batch operations in Cosmos DB.</value>
+  </data>
+  <data name="UseExecuteBatchAsyncForTransactionalOperations" xml:space="preserve">
+    <value>Use ExecuteBatchAsync for transactional operations in Cosmos DB.</value>
+  </data>
+  <data name="UseExecuteBatchAsyncOrBulkExecution" xml:space="preserve">
+    <value>Use ExecuteBatchAsync or configure AllowBulkExecution for bulk operations in Cosmos DB.</value>
+  </data>
+  <data name="UseQueryAsyncForAggregations" xml:space="preserve">
+    <value>Use QueryAsync with aggregation SQL for Cosmos DB aggregations.</value>
+  </data>
+  <data name="OnPositionResetCallbackRequired" xml:space="preserve">
+    <value>When using CosmosDbStalePositionRecoveryStrategy.InvokeCallback, the OnPositionReset callback must be configured.</value>
+  </data>
+  <data name="PropertyIsRequired" xml:space="preserve">
+    <value>{0} is required.</value>
+  </data>
+  <data name="PropertyMustBeGreaterThanZero" xml:space="preserve">
+    <value>{0} must be greater than zero.</value>
+  </data>
+  <data name="PropertyMustBeAtLeastOne" xml:space="preserve">
+    <value>{0} must be at least 1.</value>
+  </data>
+  <data name="PropertyCannotBeNegative" xml:space="preserve">
+    <value>{0} cannot be negative.</value>
+  </data>
+</root>

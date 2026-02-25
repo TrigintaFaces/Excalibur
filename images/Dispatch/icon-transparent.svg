@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Three paper airplanes - centered, tight spacing, transparent bg -->
+  <g transform="translate(305, 256)">
+
+    <!-- First plane -->
+    <g opacity="0.35" transform="translate(-100, 0) scale(0.8)">
+      <path d="M 0 0 L -140 -53 L -70 0 Z" fill="#00d4ff"/>
+      <path d="M 0 0 L -140 53 L -70 0 Z" fill="#5de4ff"/>
+      <line x1="0" y1="0" x2="-140" y2="0" stroke="#1a1a2e" stroke-width="6"/>
+    </g>
+
+    <!-- Second plane -->
+    <g opacity="0.65" transform="translate(0, 0) scale(0.8)">
+      <path d="M 0 0 L -140 -53 L -70 0 Z" fill="#00d4ff"/>
+      <path d="M 0 0 L -140 53 L -70 0 Z" fill="#5de4ff"/>
+      <line x1="0" y1="0" x2="-140" y2="0" stroke="#1a1a2e" stroke-width="6"/>
+    </g>
+
+    <!-- Third plane -->
+    <g transform="translate(100, 0) scale(0.8)">
+      <path d="M 0 0 L -140 -53 L -70 0 Z" fill="#00d4ff"/>
+      <path d="M 0 0 L -140 53 L -70 0 Z" fill="#5de4ff"/>
+      <line x1="0" y1="0" x2="-140" y2="0" stroke="#1a1a2e" stroke-width="6"/>
+    </g>
+
+  </g>
+</svg>

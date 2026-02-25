@@ -1,0 +1,94 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+
+// Protobuf service definition for the Dispatch Transport gRPC service.
+// This file serves as a reference for server implementations.
+// The client transport uses manual gRPC channel/call patterns instead of
+// Grpc.Tools code generation to avoid build-time proto compilation complexity.
+
+syntax = "proto3";
+
+package dispatch.transport;
+
+option csharp_namespace = "Excalibur.Dispatch.Transport.Grpc.Proto";
+
+// The Dispatch Transport service provides messaging operations over gRPC.
+service DispatchTransport {
+  // Sends a single message to the transport destination.
+  rpc Send (TransportRequest) returns (TransportResponse);
+
+  // Sends multiple messages as a batch.
+  rpc SendBatch (BatchRequest) returns (BatchResponse);
+
+  // Receives messages from a source (pull-based).
+  rpc Receive (ReceiveRequest) returns (ReceiveResponse);
+
+  // Acknowledges or rejects a received message.
+  rpc Acknowledge (AcknowledgeRequest) returns (AcknowledgeResponse);
+
+  // Subscribes to receive messages via server streaming (push-based).
+  rpc Subscribe (SubscribeRequest) returns (stream ReceivedMessage);
+}
+
+message TransportRequest {
+  string id = 1;
+  bytes body = 2;
+  string content_type = 3;
+  string message_type = 4;
+  string correlation_id = 5;
+  string subject = 6;
+  string destination = 7;
+  map<string, string> properties = 8;
+}
+
+message TransportResponse {
+  bool is_success = 1;
+  string message_id = 2;
+  string error_code = 3;
+  string error_message = 4;
+}
+
+message BatchRequest {
+  repeated TransportRequest messages = 1;
+}
+
+message BatchResponse {
+  repeated TransportResponse results = 1;
+}
+
+message ReceiveRequest {
+  string source = 1;
+  int32 max_messages = 2;
+}
+
+message ReceiveResponse {
+  repeated ReceivedMessage messages = 1;
+}
+
+message AcknowledgeRequest {
+  string message_id = 1;
+  // "acknowledge", "reject", or "requeue"
+  string action = 2;
+  string reason = 3;
+}
+
+message AcknowledgeResponse {
+  bool is_success = 1;
+}
+
+message SubscribeRequest {
+  string source = 1;
+}
+
+message ReceivedMessage {
+  string id = 1;
+  bytes body = 2;
+  string content_type = 3;
+  string message_type = 4;
+  string correlation_id = 5;
+  string subject = 6;
+  int32 delivery_count = 7;
+  string source = 8;
+  map<string, string> properties = 9;
+  map<string, string> provider_data = 10;
+}

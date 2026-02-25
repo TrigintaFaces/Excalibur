@@ -1,0 +1,187 @@
+name: ADR-050 Namespace Depth Validation
+
+# Enforces namespace depth requirements per ADR-050
+# Runs on all pushes and PRs to ensure violations cannot reach main branch
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'src/**/*.cs'
+      - '.github/workflows/namespace-validation.yml'
+      - 'management/architecture/ADR-050-Namespace-Consolidation-Strategy.md'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'src/**/*.cs'
+      - '.github/workflows/namespace-validation.yml'
+  workflow_dispatch: # Allow manual triggering
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+jobs:
+  namespace-depth-validation:
+    name: Validate Namespace Depth (ADR-050)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 📊 Analyze namespace depth violations
+        id: analyze
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "ADR-050 Namespace Depth Validation"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+
+          # Find all C# files and extract namespaces
+          echo "🔍 Scanning C# files for namespace declarations..."
+
+          # Count depth ≥6 violations (CRITICAL - fail build)
+          DEPTH6_COUNT=$(find src -name "*.cs" -type f -exec grep -H "^namespace " {} \; 2>/dev/null | \
+            awk -F'namespace ' '{print $2}' | \
+            awk -F';' '{print $1}' | \
+            awk -F'.' '{if(NF>=6) print}' | \
+            wc -l)
+
+          # Count depth 5 violations (WARNING - allow but report)
+          DEPTH5_COUNT=$(find src -name "*.cs" -type f -exec grep -H "^namespace " {} \; 2>/dev/null | \
+            awk -F'namespace ' '{print $2}' | \
+            awk -F';' '{print $1}' | \
+            awk -F'.' '{if(NF==5) print}' | \
+            wc -l)
+
+          echo ""
+          echo "📈 Validation Results:"
+          echo "  • Depth ≥6 violations (PROHIBITED): $DEPTH6_COUNT"
+          echo "  • Depth 5 violations (ACCEPTABLE):  $DEPTH5_COUNT"
+          echo ""
+
+          # Set outputs for summary
+          echo "depth6_count=$DEPTH6_COUNT" >> $GITHUB_OUTPUT
+          echo "depth5_count=$DEPTH5_COUNT" >> $GITHUB_OUTPUT
+
+          # If depth ≥6 violations exist, collect details
+          if [ "$DEPTH6_COUNT" -gt 0 ]; then
+            echo "❌ CRITICAL VIOLATIONS DETECTED:"
+            echo ""
+            find src -name "*.cs" -type f -exec grep -H "^namespace " {} \; 2>/dev/null | \
+              awk -F'namespace ' '{print $1 "\t" $2}' | \
+              awk -F';' '{print $1}' | \
+              awk -F':' '{file=$1; namespace=$2; depth=split(namespace, parts, "."); if(depth>=6) print "  • " file "\n    Namespace: " namespace " (depth " depth ")"}' | \
+              head -50
+            echo ""
+          fi
+
+      - name: ⚠️  Report depth 5 warnings
+        if: steps.analyze.outputs.depth5_count > 0
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "⚠️  WARNING: Depth 5 Namespaces (Acceptable Maximum)"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "Found ${{ steps.analyze.outputs.depth5_count }} namespace(s) at depth 5."
+          echo ""
+          echo "Per ADR-050 NS-003:"
+          echo "  • Depth 5 is acceptable with architectural justification"
+          echo "  • See: management/reports/2025-11-17_depth5-justification_v1.0.0.md"
+          echo "  • Recommendation: Reduce to depth ≤4 where possible"
+          echo ""
+          echo "Build will continue (depth 5 is within acceptable limits)"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+
+      - name: ❌ Fail build on depth ≥6 violations
+        if: steps.analyze.outputs.depth6_count > 0
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "❌ BUILD FAILED: Namespace Depth Violations"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "Found ${{ steps.analyze.outputs.depth6_count }} namespace(s) with depth ≥6"
+          echo ""
+          echo "Per ADR-050 NS-003:"
+          echo "  ✅ Depth ≤4: Preferred"
+          echo "  ⚠️  Depth 5:  Acceptable with justification"
+          echo "  ❌ Depth ≥6: PROHIBITED"
+          echo ""
+          echo "Required Actions:"
+          echo "  1. Reduce namespace depth to ≤5 segments"
+          echo "  2. Consult ADR-050 for guidance:"
+          echo "     management/architecture/ADR-050-Namespace-Consolidation-Strategy.md"
+          echo "  3. Consider using folders (not namespaces) for architectural layering"
+          echo ""
+          echo "Violations detected above. Please fix and push again."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          exit 1
+
+      - name: ✅ Validation passed
+        if: steps.analyze.outputs.depth6_count == 0
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ Namespace Depth Validation Passed"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          if [ "${{ steps.analyze.outputs.depth5_count }}" -eq 0 ]; then
+            echo "✅ All namespaces comply with preferred depth (≤4)"
+            echo "✅ Zero violations detected"
+          else
+            echo "✅ No critical violations (depth ≥6)"
+            echo "⚠️  ${{ steps.analyze.outputs.depth5_count }} namespace(s) at depth 5 (acceptable)"
+          fi
+          echo ""
+          echo "ADR-050 compliance verified ✓"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      - name: 📊 Create job summary
+        if: always()
+        run: |
+          echo "# ADR-050 Namespace Validation Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Count | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Depth ≥6 violations (PROHIBITED) | ${{ steps.analyze.outputs.depth6_count }} | ${{ steps.analyze.outputs.depth6_count == 0 && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Depth 5 violations (ACCEPTABLE) | ${{ steps.analyze.outputs.depth5_count }} | ⚠️  Warning |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## ADR-050 Compliance Rules" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Per [ADR-050 NS-003](../blob/main/management/architecture/ADR-050-Namespace-Consolidation-Strategy.md#ns-003-depth-limits):" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ **Depth ≤4**: Preferred (recommended)" >> $GITHUB_STEP_SUMMARY
+          echo "- ⚠️  **Depth 5**: Acceptable with architectural justification" >> $GITHUB_STEP_SUMMARY
+          echo "- ❌ **Depth ≥6**: PROHIBITED (fails build)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.analyze.outputs.depth6_count }}" -gt 0 ]; then
+            echo "## ❌ Build Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Critical namespace depth violations detected. See log output above for details." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Required Actions:**" >> $GITHUB_STEP_SUMMARY
+            echo "1. Reduce namespace depth to ≤5 segments" >> $GITHUB_STEP_SUMMARY
+            echo "2. Consult [ADR-050](../blob/main/management/architecture/ADR-050-Namespace-Consolidation-Strategy.md) for guidance" >> $GITHUB_STEP_SUMMARY
+            echo "3. Consider using folders (not namespaces) for architectural layering" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ✅ Validation Passed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "All namespaces comply with ADR-050 depth requirements." >> $GITHUB_STEP_SUMMARY
+            if [ "${{ steps.analyze.outputs.depth5_count }}" -gt 0 ]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Note**: ${{ steps.analyze.outputs.depth5_count }} namespace(s) at depth 5 (acceptable maximum). See [depth-5 justifications](../blob/main/management/reports/2025-11-17_depth5-justification_v1.0.0.md) for details." >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*Automated governance check - enforced at commit (pre-commit hook) and build (CI) layers*" >> $GITHUB_STEP_SUMMARY

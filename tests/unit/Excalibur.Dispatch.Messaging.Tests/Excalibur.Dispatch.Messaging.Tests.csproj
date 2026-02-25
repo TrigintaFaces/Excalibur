@@ -1,0 +1,59 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Excalibur.Dispatch.Tests</RootNamespace>
+    <AssemblyName>Excalibur.Dispatch.Messaging.Tests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="Messaging\ErrorHandling\InMemoryDeadLetterQueueShould.cs" />
+    <Compile Remove="Messaging\Resilience\ProcessorResilienceIntegrationShould.cs" />
+    <Compile Remove="Messaging\Resilience\ResilienceIntegrationShould.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Messaging\ErrorHandling\InMemoryDeadLetterQueueShould.cs" />
+    <None Include="Messaging\Resilience\ProcessorResilienceIntegrationShould.cs" />
+    <None Include="Messaging\Resilience\ResilienceIntegrationShould.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Observability\Excalibur.Dispatch.Observability.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.Abstractions\Excalibur.Dispatch.Transport.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.RabbitMQ\Excalibur.Dispatch.Transport.RabbitMQ.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.Kafka\Excalibur.Dispatch.Transport.Kafka.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.AwsSqs\Excalibur.Dispatch.Transport.AwsSqs.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.AzureServiceBus\Excalibur.Dispatch.Transport.AzureServiceBus.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.GooglePubSub\Excalibur.Dispatch.Transport.GooglePubSub.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compliance\Excalibur.Dispatch.Compliance.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compliance.Aws\Excalibur.Dispatch.Compliance.Aws.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compliance.Azure\Excalibur.Dispatch.Compliance.Azure.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compliance.Vault\Excalibur.Dispatch.Compliance.Vault.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Security\Excalibur.Dispatch.Security.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Caching\Excalibur.Dispatch.Caching.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Hosting.Serverless.Abstractions\Excalibur.Dispatch.Hosting.Serverless.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.AuditLogging.SqlServer\Excalibur.Dispatch.AuditLogging.SqlServer.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Resilience.Polly\Excalibur.Dispatch.Resilience.Polly.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Serialization.MemoryPack\Excalibur.Dispatch.Serialization.MemoryPack.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Serialization.MessagePack\Excalibur.Dispatch.Serialization.MessagePack.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox\Excalibur.Outbox.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.SqlServer\Excalibur.Outbox.SqlServer.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
+    <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
+    <!-- Reference residual project for Shared/Fakes (TestFakes) and PerformanceTestCollection -->
+    <ProjectReference Include="..\Excalibur.Dispatch.Tests\Excalibur.Dispatch.Tests.csproj" />
+  </ItemGroup>
+</Project>

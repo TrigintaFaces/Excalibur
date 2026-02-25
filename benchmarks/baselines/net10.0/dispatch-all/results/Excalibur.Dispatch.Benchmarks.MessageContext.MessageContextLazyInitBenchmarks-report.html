@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.MessageContext.MessageContextLazyInitBenchmarks-20260202-200658</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.102
+  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                                </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;MessageContext: Create (no Items)&#39;</td><td>262.2 ns</td><td>5.02 ns</td><td>4.70 ns</td><td>262.0 ns</td><td>1.00</td><td>0.02</td><td>0.0858</td><td>-</td><td>1.58 KB</td><td>1.00</td>
+</tr><tr><td>&#39;ContainsItem on fresh context (no alloc)&#39;</td><td>228.1 ns</td><td>1.79 ns</td><td>1.59 ns</td><td>228.0 ns</td><td>0.87</td><td>0.02</td><td>0.0641</td><td>-</td><td>1.18 KB</td><td>0.75</td>
+</tr><tr><td>&#39;GetItem on fresh context (no alloc)&#39;</td><td>261.5 ns</td><td>5.04 ns</td><td>6.00 ns</td><td>259.1 ns</td><td>1.00</td><td>0.03</td><td>0.0858</td><td>-</td><td>1.58 KB</td><td>1.00</td>
+</tr><tr><td>&#39;RemoveItem on fresh context (no alloc)&#39;</td><td>241.7 ns</td><td>4.72 ns</td><td>4.63 ns</td><td>240.1 ns</td><td>0.92</td><td>0.02</td><td>0.0639</td><td>-</td><td>1.18 KB</td><td>0.75</td>
+</tr><tr><td>&#39;SetItem on fresh context (allocs dict)&#39;</td><td>432.8 ns</td><td>7.93 ns</td><td>8.81 ns</td><td>432.3 ns</td><td>1.65</td><td>0.04</td><td>0.1726</td><td>0.0010</td><td>3.18 KB</td><td>2.01</td>
+</tr><tr><td>&#39;Items.Count on fresh context (allocs dict)&#39;</td><td>689.1 ns</td><td>13.35 ns</td><td>12.48 ns</td><td>688.9 ns</td><td>2.63</td><td>0.06</td><td>0.1698</td><td>0.0010</td><td>3.13 KB</td><td>1.99</td>
+</tr><tr><td>&#39;Simple dispatch: no Items usage&#39;</td><td>259.2 ns</td><td>5.06 ns</td><td>7.42 ns</td><td>258.6 ns</td><td>0.99</td><td>0.03</td><td>0.0858</td><td>-</td><td>1.58 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Dispatch: middleware writes Items&#39;</td><td>511.0 ns</td><td>10.15 ns</td><td>20.27 ns</td><td>507.1 ns</td><td>1.95</td><td>0.08</td><td>0.1802</td><td>0.0010</td><td>3.33 KB</td><td>2.11</td>
+</tr><tr><td>&#39;CreateChildContext (no Items)&#39;</td><td>583.0 ns</td><td>11.66 ns</td><td>29.05 ns</td><td>571.9 ns</td><td>2.22</td><td>0.12</td><td>0.1774</td><td>-</td><td>3.27 KB</td><td>2.07</td>
+</tr><tr><td>&#39;Multiple reads (no alloc)&#39;</td><td>237.9 ns</td><td>3.63 ns</td><td>3.39 ns</td><td>238.3 ns</td><td>0.91</td><td>0.02</td><td>0.0639</td><td>-</td><td>1.18 KB</td><td>0.75</td>
+</tr><tr><td>&#39;First write allocs, subsequent cheap&#39;</td><td>538.1 ns</td><td>10.57 ns</td><td>15.16 ns</td><td>538.6 ns</td><td>2.05</td><td>0.07</td><td>0.1831</td><td>0.0010</td><td>3.37 KB</td><td>2.13</td>
+</tr></tbody></table>
+</body>
+</html>

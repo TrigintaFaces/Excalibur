@@ -1,0 +1,22 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+
+
+namespace Excalibur.Data.SqlServer.Cdc;
+
+/// <summary>
+/// Defines the interface for processing Change Data Capture (CDC) events into data change events.
+/// </summary>
+public interface IDataChangeEventProcessor : ICdcProcessor
+{
+	/// <summary>
+	/// Processes CDC changes by transforming them into data change events and delegating to appropriate handlers.
+	/// </summary>
+	/// <param name="cancellationToken"> A token to observe while waiting for the task to complete. </param>
+	/// <returns> The total number of data change events processed. </returns>
+	/// <remarks>
+	/// This method retrieves CDC changes, converts them into <see cref="DataChangeEvent" /> instances, and invokes the appropriate
+	/// handler for each event based on the table involved.
+	/// </remarks>
+	Task<int> ProcessCdcChangesAsync(CancellationToken cancellationToken);
+}

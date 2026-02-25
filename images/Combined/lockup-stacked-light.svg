@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Combined Excalibur.Dispatch Lockup - Stacked Light Background -->
+  <!-- Background -->
+  <rect width="512" height="512" fill="#ffffff"/>
+
+  <!-- Excalibur sword icon (top) -->
+  <g transform="translate(140, 100) scale(0.6)">
+    <!-- Middle facets (outer edge) -->
+    <path d="M 0 -75 L -11 -40 L -8 70 L 0 83" fill="#3b82f6" opacity="0.7"/>
+    <path d="M 0 -75 L 11 -40 L 8 70 L 0 83" fill="#3b82f6" opacity="0.7"/>
+
+    <!-- Inner facets -->
+    <path d="M 0 -75 L -5.5 -40 L -4 70 L 0 83" fill="#60a5fa" opacity="0.9"/>
+    <path d="M 0 -75 L 5.5 -40 L 4 70 L 0 83" fill="#60a5fa" opacity="0.9"/>
+
+    <!-- Center highlight -->
+    <path d="M 0 -75 L -2.3 -40 L -1.7 70 L 0 83" fill="#93c5fd"/>
+    <path d="M 0 -75 L 2.3 -40 L 1.7 70 L 0 83" fill="#93c5fd"/>
+
+    <!-- Core light -->
+    <line x1="0" y1="-75" x2="0" y2="83" stroke="#dbeafe" stroke-width="1.3" opacity="0.6"/>
+
+    <!-- Tech-style guard -->
+    <g>
+      <polygon points="-28,70 -14,72 14,72 28,70 27,78 -27,78" fill="#0ea5e9"/>
+      <polygon points="-27,78 -14,80 14,80 27,78" fill="#06b6d4" opacity="0.8"/>
+      <rect x="-25" y="71" width="50" height="2" fill="#67e8f9" opacity="0.5"/>
+    </g>
+
+    <!-- Tech grip -->
+    <rect x="-5.5" y="80" width="11" height="15" fill="#1e293b" rx="0.5"/>
+    <rect x="-4.5" y="81" width="9" height="13" fill="#334155" rx="0.5"/>
+    <line x1="-4.5" y1="85" x2="4.5" y2="85" stroke="#475569" stroke-width="0.5"/>
+    <line x1="-4.5" y1="88" x2="4.5" y2="88" stroke="#475569" stroke-width="0.5"/>
+    <line x1="-4.5" y1="91" x2="4.5" y2="91" stroke="#475569" stroke-width="0.5"/>
+
+    <!-- Tech pommel -->
+    <polygon points="-10,95 0,100 10,95 8.5,105 -8.5,105" fill="#0ea5e9"/>
+    <polygon points="-7.5,97 0,100 7.5,97 6.5,103 -6.5,103" fill="#06b6d4"/>
+    <circle cx="0" cy="99.5" r="3" fill="#67e8f9"/>
+    <circle cx="0" cy="99.5" r="1.6" fill="#e0f2fe" opacity="0.8"/>
+  </g>
+
+  <!-- Dispatch paper airplanes icon (top, beside sword) -->
+  <g transform="translate(372, 100)">
+    <!-- First plane -->
+    <g opacity="0.35" transform="translate(-40, 0) scale(0.35)">
+      <path d="M 0 0 L -140 -53 L -70 0 Z" fill="#0891b2"/>
+      <path d="M 0 0 L -140 53 L -70 0 Z" fill="#22d3ee"/>
+      <line x1="0" y1="0" x2="-140" y2="0" stroke="#ffffff" stroke-width="6"/>
+    </g>
+
+    <!-- Second plane -->
+    <g opacity="0.65" transform="translate(0, 0) scale(0.35)">
+      <path d="M 0 0 L -140 -53 L -70 0 Z" fill="#0891b2"/>
+      <path d="M 0 0 L -140 53 L -70 0 Z" fill="#22d3ee"/>
+      <line x1="0" y1="0" x2="-140" y2="0" stroke="#ffffff" stroke-width="6"/>
+    </g>
+
+    <!-- Third plane -->
+    <g transform="translate(40, 0) scale(0.35)">
+      <path d="M 0 0 L -140 -53 L -70 0 Z" fill="#0891b2"/>
+      <path d="M 0 0 L -140 53 L -70 0 Z" fill="#22d3ee"/>
+      <line x1="0" y1="0" x2="-140" y2="0" stroke="#ffffff" stroke-width="6"/>
+    </g>
+  </g>
+
+  <!-- EXCALIBUR text -->
+  <text x="256" y="280"
+        font-size="56"
+        font-family="Arial, sans-serif"
+        font-weight="bold"
+        fill="#2563eb"
+        text-anchor="middle"
+        letter-spacing="3"
+        dominant-baseline="middle">EXCALIBUR</text>
+
+  <!-- Dot separator -->
+  <circle cx="256" cy="330" r="4" fill="#9ca3af"/>
+
+  <!-- DISPATCH text -->
+  <text x="256" y="380"
+        font-size="56"
+        font-family="Arial, sans-serif"
+        font-weight="bold"
+        fill="#0891b2"
+        text-anchor="middle"
+        letter-spacing="3"
+        dominant-baseline="middle">DISPATCH</text>
+
+  <!-- Tagline -->
+  <text x="256" y="450"
+        font-size="18"
+        font-family="Arial, sans-serif"
+        font-weight="300"
+        fill="#6b7280"
+        text-anchor="middle"
+        letter-spacing="4"
+        dominant-baseline="middle">LEGENDARY .NET FRAMEWORK</text>
+</svg>

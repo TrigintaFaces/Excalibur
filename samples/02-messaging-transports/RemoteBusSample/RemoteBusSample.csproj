@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Version>$(VersionPrefix)</Version>
+    <PackageId>$(AssemblyName)</PackageId>
+  </PropertyGroup>
+  <!-- Sprint 428 S428.3: Updated paths for reorganized sample structure -->
+  <ItemGroup>
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Application\Excalibur.Application.csproj" />
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Transport.RabbitMQ\Excalibur.Dispatch.Transport.RabbitMQ.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Outbox\Excalibur.Outbox.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="RabbitMQ.Client" />
+  </ItemGroup>
+</Project>

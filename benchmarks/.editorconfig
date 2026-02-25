@@ -1,0 +1,55 @@
+# Benchmark Projects: Relaxed Code Analysis (Sprint 345)
+# Benchmarks are non-shipping code where strict style enforcement is not required
+
+[*.cs]
+# Downgrade all analyzer diagnostics to suggestions for benchmarks
+dotnet_analyzer_diagnostic.severity = suggestion
+
+# Specifically disable code style enforcement for benchmarks
+dotnet_diagnostic.IDE0005.severity = none  # Unnecessary using directive
+dotnet_diagnostic.IDE0007.severity = none  # Use var
+dotnet_diagnostic.IDE0011.severity = none  # Add braces
+dotnet_diagnostic.IDE0047.severity = none  # Remove parentheses
+dotnet_diagnostic.IDE0048.severity = none  # Add parentheses
+dotnet_diagnostic.IDE0059.severity = none  # Unnecessary assignment
+
+# Disable style analyzer rules
+dotnet_diagnostic.SA1108.severity = none
+dotnet_diagnostic.SA1116.severity = none
+dotnet_diagnostic.SA1124.severity = none
+dotnet_diagnostic.SA1316.severity = none
+dotnet_diagnostic.SA1407.severity = none
+dotnet_diagnostic.SA1413.severity = none
+dotnet_diagnostic.SA1503.severity = none
+dotnet_diagnostic.SA1513.severity = none
+dotnet_diagnostic.SA1516.severity = none
+dotnet_diagnostic.SA1518.severity = none
+
+# Disable Meziantou analyzer rules that don't apply to benchmarks
+dotnet_diagnostic.MA0002.severity = none
+dotnet_diagnostic.MA0003.severity = none
+dotnet_diagnostic.MA0006.severity = none
+dotnet_diagnostic.MA0007.severity = none
+dotnet_diagnostic.MA0040.severity = none
+dotnet_diagnostic.MA0098.severity = none
+dotnet_diagnostic.MA0159.severity = none
+
+# Disable Roslynator rules that don't apply to benchmarks
+dotnet_diagnostic.RCS1046.severity = none
+dotnet_diagnostic.RCS1077.severity = none
+dotnet_diagnostic.RCS1118.severity = none
+dotnet_diagnostic.RCS1123.severity = none
+dotnet_diagnostic.RCS1189.severity = none
+dotnet_diagnostic.RCS1246.severity = none
+
+# Disable CA rules that don't apply to benchmarks
+dotnet_diagnostic.CA1707.severity = none  # Underscores in member names (test naming)
+dotnet_diagnostic.CA1849.severity = none  # Sync disposal in test cleanup
+dotnet_diagnostic.CA1860.severity = none  # .Any() vs .Count
+dotnet_diagnostic.CA2000.severity = none  # Dispose objects
+dotnet_diagnostic.CA2012.severity = none  # ValueTask usage
+dotnet_diagnostic.CA5394.severity = none  # Random usage
+dotnet_diagnostic.CA1506.severity = none  # Class coupling
+
+# Disable xUnit analyzer rules
+dotnet_diagnostic.xUnit1030.severity = none

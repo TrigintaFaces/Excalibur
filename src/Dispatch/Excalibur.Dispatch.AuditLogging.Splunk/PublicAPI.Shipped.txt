@@ -1,0 +1,49 @@
+#nullable enable
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditExporter
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditExporter.CheckHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditExporterHealthResult>
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditExporter.ExportAsync(Excalibur.Dispatch.Compliance.AuditEvent auditEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditExportResult>
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditExporter.ExportBatchAsync(System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.AuditEvent> auditEvents, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.AuditExportBatchResult>
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditExporter.Name.get -> System.String
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditExporter.SplunkAuditExporter(System.Net.Http.HttpClient httpClient, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditExporter> logger) -> void
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.Channel.get -> System.String
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.Channel.set -> void
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.EnableCompression.get -> System.Boolean
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.EnableCompression.set -> void
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.HecEndpoint.get -> System.Uri
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.HecEndpoint.set -> void
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.HecToken.get -> System.String
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.HecToken.set -> void
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.Host.get -> System.String
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.Host.set -> void
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.Index.get -> System.String
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.Index.set -> void
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.MaxBatchSize.get -> System.Int32
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.MaxBatchSize.set -> void
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.MaxRetryAttempts.get -> System.Int32
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.MaxRetryAttempts.set -> void
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.RequestTimeout.get -> System.TimeSpan
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.RequestTimeout.set -> void
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.RetryBaseDelay.get -> System.TimeSpan
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.RetryBaseDelay.set -> void
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.Source.get -> System.String
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.Source.set -> void
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.SourceType.get -> System.String
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.SourceType.set -> void
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.SplunkExporterOptions() -> void
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.UseAck.get -> System.Boolean
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.UseAck.set -> void
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.ValidateCertificate.get -> System.Boolean
+Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions.ValidateCertificate.set -> void
+Microsoft.Extensions.DependencyInjection.SplunkServiceCollectionExtensions
+static const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.BatchForwarded -> System.Int32
+static const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.EventForwarded -> System.Int32
+static const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardFailedBatchChunk -> System.Int32
+static const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardFailedHttpError -> System.Int32
+static const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardFailedStatus -> System.Int32
+static const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardFailedTimeout -> System.Int32
+static const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.ForwardRetried -> System.Int32
+static const Excalibur.Dispatch.AuditLogging.Splunk.SplunkAuditLoggingEventId.HealthCheckFailed -> System.Int32
+static Microsoft.Extensions.DependencyInjection.SplunkServiceCollectionExtensions.AddSplunkAuditExporter(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Dispatch.AuditLogging.Splunk.SplunkExporterOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.SplunkServiceCollectionExtensions.AddSplunkAuditExporter(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String configurationSection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

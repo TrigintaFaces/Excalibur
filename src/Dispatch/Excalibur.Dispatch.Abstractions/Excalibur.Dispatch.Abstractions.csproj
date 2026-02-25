@@ -1,0 +1,50 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- NuGet Package Metadata -->
+    <PackageId>Excalibur.Dispatch.Abstractions</PackageId>
+    <Description>Core abstractions and contracts for the Excalibur framework. Contains fundamental interfaces, message types, and contracts with zero implementation dependencies.</Description>
+    <PackageTags>messaging;dispatch;abstractions;contracts;interfaces;framework</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+  </PropertyGroup>
+  <!-- Include README.md in NuGet package -->
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <!-- Enhanced AOT Configuration -->
+  <PropertyGroup>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
+    <PublishAot Condition="'$(PublishAot)' == ''">false</PublishAot>
+    <TrimMode>full</TrimMode>
+    <IlcOptimizationPreference>Speed</IlcOptimizationPreference>
+    <IlcGenerateStackTraceData>false</IlcGenerateStackTraceData>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+  <PropertyGroup>
+    <DefineConstants>$(DefineConstants);USE_SOURCE_GENERATION</DefineConstants>
+    <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
+    <TrimmerDefaultAction>link</TrimmerDefaultAction>
+    <TrimMode>full</TrimMode>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(PublishAot)' == 'true'">
+    <DefineConstants>$(DefineConstants);AOT_ENABLED</DefineConstants>
+  </PropertyGroup>
+  <!-- Removed ASP.NET Core FrameworkReference to keep Abstractions pure (R0.9) -->
+  <!-- Minimal dependencies - abstractions only -->
+  <ItemGroup>
+    <PackageReference Include="Medo.Uuid7" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+  </ItemGroup>
+  <!-- PublicAPI baseline files for breaking change detection -->
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

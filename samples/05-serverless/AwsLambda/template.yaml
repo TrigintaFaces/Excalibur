@@ -1,0 +1,202 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  AWS Lambda Serverless Sample for Excalibur framework
+  Sprint 430 S430.2 - Demonstrates Dispatch messaging in AWS Lambda
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: dotnet8
+    Architectures:
+      - x86_64
+    Tracing: Active
+    Environment:
+      Variables:
+        ASPNETCORE_ENVIRONMENT: Production
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+
+Resources:
+  # ============================================================
+  # API Gateway HTTP API
+  # ============================================================
+  OrdersApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Environment
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - GET
+          - POST
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+
+  # ============================================================
+  # API Gateway Lambda Function
+  # ============================================================
+  CreateOrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub dispatch-create-order-${Environment}
+      Handler: AwsLambdaSample::AwsLambdaSample.Functions.ApiGatewayHandler::CreateOrderAsync
+      CodeUri: ./
+      Description: Creates new orders via HTTP POST
+      Events:
+        CreateOrder:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref OrdersApi
+            Path: /orders
+            Method: POST
+      Policies:
+        - CloudWatchLogsFullAccess
+
+  GetOrderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub dispatch-get-order-${Environment}
+      Handler: AwsLambdaSample::AwsLambdaSample.Functions.ApiGatewayHandler::GetOrderAsync
+      CodeUri: ./
+      Description: Gets order details via HTTP GET
+      Events:
+        GetOrder:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref OrdersApi
+            Path: /orders/{orderId}
+            Method: GET
+      Policies:
+        - CloudWatchLogsFullAccess
+
+  # ============================================================
+  # SQS Queue and Lambda Function
+  # ============================================================
+  OrderEventsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub dispatch-order-events-${Environment}
+      VisibilityTimeout: 180  # 6x the function timeout
+      MessageRetentionPeriod: 1209600  # 14 days
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt OrderEventsDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  OrderEventsDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub dispatch-order-events-dlq-${Environment}
+      MessageRetentionPeriod: 1209600  # 14 days
+
+  ProcessOrderEventsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub dispatch-process-order-events-${Environment}
+      Handler: AwsLambdaSample::AwsLambdaSample.Functions.SqsHandler::ProcessOrderEventsAsync
+      CodeUri: ./
+      Description: Processes order events from SQS queue
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt OrderEventsQueue.Arn
+            BatchSize: 10
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+      Policies:
+        - SQSPollerPolicy:
+            QueueName: !GetAtt OrderEventsQueue.QueueName
+        - CloudWatchLogsFullAccess
+
+  # ============================================================
+  # EventBridge Rules and Lambda Functions
+  # ============================================================
+  DailyReportRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub dispatch-daily-report-${Environment}
+      Description: Triggers daily report generation at midnight UTC
+      ScheduleExpression: cron(0 0 * * ? *)
+      State: ENABLED
+      Targets:
+        - Id: DailyReportTarget
+          Arn: !GetAtt DailyReportFunction.Arn
+
+  DailyReportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub dispatch-daily-report-${Environment}
+      Handler: AwsLambdaSample::AwsLambdaSample.Functions.EventBridgeHandler::GenerateDailyReportAsync
+      CodeUri: ./
+      Description: Generates daily sales reports
+      Policies:
+        - CloudWatchLogsFullAccess
+
+  DailyReportPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DailyReportFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DailyReportRule.Arn
+
+  HourlyHealthCheckRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub dispatch-hourly-health-${Environment}
+      Description: Hourly health check
+      ScheduleExpression: rate(1 hour)
+      State: ENABLED
+      Targets:
+        - Id: HealthCheckTarget
+          Arn: !GetAtt HourlyHealthCheckFunction.Arn
+
+  HourlyHealthCheckFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub dispatch-hourly-health-${Environment}
+      Handler: AwsLambdaSample::AwsLambdaSample.Functions.EventBridgeHandler::HourlyHealthCheckAsync
+      CodeUri: ./
+      Description: Hourly health check and cleanup
+      Policies:
+        - CloudWatchLogsFullAccess
+
+  HourlyHealthCheckPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref HourlyHealthCheckFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt HourlyHealthCheckRule.Arn
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway endpoint URL
+    Value: !Sub https://${OrdersApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}
+
+  CreateOrderFunctionArn:
+    Description: Create Order Function ARN
+    Value: !GetAtt CreateOrderFunction.Arn
+
+  OrderEventsQueueUrl:
+    Description: SQS Queue URL for order events
+    Value: !Ref OrderEventsQueue
+
+  OrderEventsQueueArn:
+    Description: SQS Queue ARN for order events
+    Value: !GetAtt OrderEventsQueue.Arn
+
+  DeadLetterQueueUrl:
+    Description: Dead Letter Queue URL
+    Value: !Ref OrderEventsDeadLetterQueue

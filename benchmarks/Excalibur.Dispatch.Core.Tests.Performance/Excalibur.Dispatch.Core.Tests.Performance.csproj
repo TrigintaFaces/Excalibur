@@ -1,0 +1,37 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Excalibur.Dispatch.Core.Tests.Performance</RootNamespace>
+    <AssemblyName>Excalibur.Dispatch.Core.Tests.Performance</AssemblyName>
+    <Nullable>enable</Nullable>
+    <Version>$(VersionPrefix)</Version>
+    <PackageId>$(AssemblyName)</PackageId>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsAotCompatible>true</IsAotCompatible>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.Testing" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.ObjectPool" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="..\..\src\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Excalibur\Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
+    <ProjectReference Include="..\..\tests\Shared\Tests.Shared\Tests.Shared.csproj" />
+    <ProjectReference Include="..\..\tests\unit\Excalibur.Dispatch.Tests\Excalibur.Dispatch.Tests.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Directory.Build.props" Link="Directory.Build.props" />
+    <None Include="..\Directory.Build.targets" Link="Directory.Build.targets" />
+  </ItemGroup>
+</Project>

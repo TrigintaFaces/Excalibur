@@ -1,0 +1,51 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>false</IsTestProject>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Excalibur.Dispatch.Testing</RootNamespace>
+    <AssemblyName>Excalibur.Dispatch.Testing</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Test Frameworks (no runner/SDK - this is a helper library, not a test project) -->
+    <PackageReference Include="xunit" />
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="FakeItEasy" />
+    <PackageReference Include="AutoFixture" />
+    <!-- TestContainers -->
+    <PackageReference Include="Testcontainers" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Testcontainers.Redis" />
+    <PackageReference Include="Testcontainers.Elasticsearch" />
+    <PackageReference Include="Testcontainers.RabbitMq" />
+    <PackageReference Include="Testcontainers.Kafka" />
+    <PackageReference Include="Testcontainers.MsSql" />
+    <PackageReference Include="Testcontainers.MongoDb" />
+    <!-- ASP.NET Testing -->
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <!-- Testing Utilities -->
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Shared Test Infrastructure -->
+    <ProjectReference Include="..\Tests.Shared\Tests.Shared.csproj" />
+    <!-- Core Dispatch Dependencies -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <!-- Core Excalibur Dependencies -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Domain\Excalibur.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Application\Excalibur.Application.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Shouldly" />
+    <Using Include="FakeItEasy" />
+    <Using Include="Microsoft.Extensions.Logging" />
+    <Using Include="Microsoft.Extensions.DependencyInjection" />
+    <Using Include="System.Diagnostics" />
+  </ItemGroup>
+</Project>

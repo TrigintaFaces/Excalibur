@@ -1,0 +1,79 @@
+name: Documentation Issue
+description: Report missing, incorrect, or unclear documentation
+title: "[Docs]: "
+labels: ["documentation", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help us improve the Excalibur documentation!
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Documentation Issue Type
+      description: What kind of documentation issue is this?
+      options:
+        - Missing Documentation
+        - Incorrect Information
+        - Unclear / Confusing
+        - Outdated Content
+        - Typo / Grammar
+        - Missing Code Example
+        - Broken Link
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: location
+    attributes:
+      label: Documentation Location
+      description: Where is the documentation issue?
+      options:
+        - Website (docs.excalibur-dispatch.dev)
+        - README.md
+        - API Reference / XML Docs
+        - Code Comments
+        - Migration Guide
+        - Getting Started Guide
+        - Not Sure / Cannot Find
+    validations:
+      required: true
+
+  - type: input
+    id: url
+    attributes:
+      label: Page URL or File Path
+      description: Link to the page or file path where the issue exists.
+      placeholder: https://docs.excalibur-dispatch.dev/docs/getting-started
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current Documentation
+      description: What does the documentation currently say?
+      placeholder: Quote the relevant section...
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Documentation
+      description: What should the documentation say instead?
+      placeholder: It should explain that...
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other context that would help us fix this issue.
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      description: Are you interested in contributing a fix?
+      options:
+        - label: I would be willing to submit a PR to fix this documentation issue

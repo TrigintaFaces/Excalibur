@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Outbox.OutboxPollingBenchmarks-20260202-201146</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.102
+  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method </th><th>MessageCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>PollBatch10</td><td>0</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>?</td>
+</tr><tr><td>PollBatch100</td><td>0</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>?</td>
+</tr><tr><td>PollBatch500</td><td>0</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>?</td>
+</tr><tr><td>GetStatistics</td><td>0</td><td>667.5 &mu;s</td><td>15.96 &mu;s</td><td>44.76 &mu;s</td><td>?</td><td>?</td><td>8.05 KB</td><td>?</td>
+</tr><tr><td>PollBatch10</td><td>10</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>?</td>
+</tr><tr><td>PollBatch100</td><td>10</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>?</td>
+</tr><tr><td>PollBatch500</td><td>10</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>?</td>
+</tr><tr><td>GetStatistics</td><td>10</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>?</td>
+</tr><tr><td>PollBatch10</td><td>100</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>?</td>
+</tr><tr><td>PollBatch100</td><td>100</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>?</td>
+</tr><tr><td>PollBatch500</td><td>100</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>?</td>
+</tr><tr><td>GetStatistics</td><td>100</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>?</td>
+</tr><tr><td>PollBatch10</td><td>1000</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>?</td>
+</tr><tr><td>PollBatch100</td><td>1000</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>?</td>
+</tr><tr><td>PollBatch500</td><td>1000</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>?</td>
+</tr><tr><td>GetStatistics</td><td>1000</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>?</td>
+</tr></tbody></table>
+</body>
+</html>

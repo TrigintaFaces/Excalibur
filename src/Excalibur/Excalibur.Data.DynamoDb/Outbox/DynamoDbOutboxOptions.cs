@@ -1,0 +1,137 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
+// SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
+
+
+using System.ComponentModel.DataAnnotations;
+
+using Amazon;
+
+namespace Excalibur.Data.DynamoDb.Outbox;
+
+/// <summary>
+/// Configuration options for the DynamoDB outbox store.
+/// </summary>
+public sealed class DynamoDbOutboxOptions
+{
+	/// <summary>
+	/// Gets or sets the AWS service URL (for local development with DynamoDB Local).
+	/// </summary>
+	public string? ServiceUrl { get; set; }
+
+	/// <summary>
+	/// Gets or sets the AWS region.
+	/// </summary>
+	public string? Region { get; set; }
+
+	/// <summary>
+	/// Gets or sets the AWS access key (optional if using IAM roles).
+	/// </summary>
+	public string? AccessKey { get; set; }
+
+	/// <summary>
+	/// Gets or sets the AWS secret key (optional if using IAM roles).
+	/// </summary>
+	public string? SecretKey { get; set; }
+
+	/// <summary>
+	/// Gets or sets the table name for outbox messages.
+	/// </summary>
+	/// <value>Defaults to "outbox_messages".</value>
+	[Required]
+	public string TableName { get; set; } = "outbox_messages";
+
+	/// <summary>
+	/// Gets or sets the name of GSI1 for message lookup by ID.
+	/// </summary>
+	/// <value>Defaults to "GSI1".</value>
+	[Required]
+	public string GSI1IndexName { get; set; } = "GSI1";
+
+	/// <summary>
+	/// Gets or sets the name of GSI2 for scheduled message lookup.
+	/// </summary>
+	/// <value>Defaults to "GSI2".</value>
+	[Required]
+	public string GSI2IndexName { get; set; } = "GSI2";
+
+	/// <summary>
+	/// Gets or sets the maximum retry attempts for DynamoDB operations.
+	/// </summary>
+	/// <value>Defaults to 3.</value>
+	[Range(1, int.MaxValue)]
+	public int MaxRetryAttempts { get; set; } = 3;
+
+	/// <summary>
+	/// Gets or sets the timeout in seconds for DynamoDB operations.
+	/// </summary>
+	/// <value>Defaults to 30 seconds.</value>
+	[Range(1, int.MaxValue)]
+	public int TimeoutInSeconds { get; set; } = 30;
+
+	/// <summary>
+	/// Gets or sets a value indicating whether to use consistent reads.
+	/// </summary>
+	/// <value>Defaults to <see langword="true"/>.</value>
+	public bool UseConsistentReads { get; set; } = true;
+
+	/// <summary>
+	/// Gets or sets the TTL in seconds for sent messages.
+	/// </summary>
+	/// <remarks>
+	/// Set to 0 for no expiration. Defaults to 7 days (604800 seconds).
+	/// Requires TTL to be enabled on the DynamoDB table with the "ttl" attribute.
+	/// </remarks>
+	/// <value>Defaults to 7 days (604800 seconds). Set to -1 to disable TTL.</value>
+	public int SentMessageTtlSeconds { get; set; } = 604800;
+
+	/// <summary>
+	/// Gets or sets the name of the TTL attribute on the table.
+	/// </summary>
+	/// <value>Defaults to "ttl".</value>
+	[Required]
+	public string TtlAttributeName { get; set; } = "ttl";
+
+	/// <summary>
+	/// Gets or sets a value indicating whether to create the table if it doesn't exist.
+	/// </summary>
+	/// <value>Defaults to <see langword="true"/>.</value>
+	public bool CreateTableIfNotExists { get; set; } = true;
+
+	/// <summary>
+	/// Gets the AWS region endpoint.
+	/// </summary>
+	/// <returns>The AWS region endpoint, or null if not configured.</returns>
+	public RegionEndpoint? GetRegionEndpoint() =>
+		string.IsNullOrWhiteSpace(Region) ? null : RegionEndpoint.GetBySystemName(Region);
+
+	/// <summary>
+	/// Validates the options and throws if invalid.
+	/// </summary>
+	/// <exception cref="InvalidOperationException">Thrown when required options are missing.</exception>
+	public void Validate()
+	{
+		var hasLocalConfig = !string.IsNullOrWhiteSpace(ServiceUrl);
+		var hasAwsConfig = !string.IsNullOrWhiteSpace(Region);
+
+		if (!hasLocalConfig && !hasAwsConfig)
+		{
+			throw new InvalidOperationException(
+				"Either ServiceUrl (for local development) or Region (for AWS) must be provided.");
+		}
+
+		if (string.IsNullOrWhiteSpace(TableName))
+		{
+			throw new InvalidOperationException("TableName is required.");
+		}
+
+		if (string.IsNullOrWhiteSpace(GSI1IndexName))
+		{
+			throw new InvalidOperationException("GSI1IndexName is required.");
+		}
+
+		if (string.IsNullOrWhiteSpace(GSI2IndexName))
+		{
+			throw new InvalidOperationException("GSI2IndexName is required.");
+		}
+	}
+}

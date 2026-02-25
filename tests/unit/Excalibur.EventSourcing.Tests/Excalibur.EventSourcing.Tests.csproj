@@ -1,0 +1,50 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Excalibur.EventSourcing.Tests</RootNamespace>
+    <AssemblyName>Excalibur.EventSourcing.Tests</AssemblyName>
+    <!-- Carried from EventSourcing.SqlServer.Tests and DynamoDb.Tests -->
+    <NoWarn>MA0038;CA1707;CA1849;CA2000;CA2201;CA2213;xUnit1030</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Test framework (Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio) provided by Directory.Build.props -->
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="FakeItEasy" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- ProjectReferences from all merged event sourcing test projects -->
+    <!-- From Excalibur.EventSourcing.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.InMemory\Excalibur.EventSourcing.InMemory.csproj" />
+    <!-- From Excalibur.EventSourcing.Abstractions.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
+    <!-- From Excalibur.EventSourcing.SqlServer.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.SqlServer\Excalibur.EventSourcing.SqlServer.csproj" />
+    <!-- From Excalibur.EventSourcing.CosmosDb.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.CosmosDb\Excalibur.EventSourcing.CosmosDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Domain\Excalibur.Domain.csproj" />
+    <!-- From Excalibur.EventSourcing.DynamoDb.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.DynamoDb\Excalibur.EventSourcing.DynamoDb.csproj" />
+    <!-- From Excalibur.EventSourcing.Firestore.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Firestore\Excalibur.EventSourcing.Firestore.csproj" />
+    <!-- Redis event sourcing package -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Redis\Excalibur.EventSourcing.Redis.csproj" />
+    <!-- From Excalibur.EventSourcing.Postgres.Tests (S510.3) -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Postgres\Excalibur.EventSourcing.Postgres.csproj" />
+    <!-- Sprint 518: MongoDB and Elasticsearch MV Provider tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.MongoDB\Excalibur.Data.MongoDB.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.ElasticSearch\Excalibur.Data.ElasticSearch.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Postgres driver for unit tests -->
+    <PackageReference Include="Npgsql" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
+  </ItemGroup>
+</Project>

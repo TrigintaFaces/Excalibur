@@ -1,0 +1,69 @@
+# Article III - Time & Scheduling Policy Enforcement
+# These APIs are banned to enforce proper time abstractions
+
+# Stopwatch instance timing APIs are banned - use ValueStopwatch instead
+M:System.Diagnostics.Stopwatch.StartNew()
+M:System.Diagnostics.Stopwatch.#ctor()
+
+# TimeProvider type is allowed to support .NET-standard time abstraction and DI usage.
+
+# Task.Run banned in libraries - use proper async patterns
+M:System.Threading.Tasks.Task.Run(System.Action)
+M:System.Threading.Tasks.Task.Run(System.Func{System.Threading.Tasks.Task})
+M:System.Threading.Tasks.Task.Run(System.Action,System.Threading.CancellationToken)
+M:System.Threading.Tasks.Task.Run(System.Func{System.Threading.Tasks.Task},System.Threading.CancellationToken)
+M:System.Threading.Tasks.Task.Run``1(System.Func{``0})
+M:System.Threading.Tasks.Task.Run``1(System.Func{``0},System.Threading.CancellationToken)
+M:System.Threading.Tasks.Task.Run``1(System.Func{System.Threading.Tasks.Task{``0}})
+M:System.Threading.Tasks.Task.Run``1(System.Func{System.Threading.Tasks.Task{``0}},System.Threading.CancellationToken)
+
+# Thread.Sleep banned - use async delays instead
+M:System.Threading.Thread.Sleep(System.Int32)
+M:System.Threading.Thread.Sleep(System.TimeSpan)
+
+# Task.Delay without CancellationToken banned
+M:System.Threading.Tasks.Task.Delay(System.Int32)
+M:System.Threading.Tasks.Task.Delay(System.TimeSpan)
+
+# Synchronous blocking banned in async contexts
+M:System.Threading.Tasks.Task.Wait()
+M:System.Threading.Tasks.Task.Wait(System.Int32)
+M:System.Threading.Tasks.Task.Wait(System.TimeSpan)
+M:System.Threading.Tasks.Task.Wait(System.Threading.CancellationToken)
+P:System.Threading.Tasks.Task`1.Result
+
+# Sync-over-async banned (GetAwaiter().GetResult())
+M:System.Runtime.CompilerServices.TaskAwaiter.GetResult()
+M:System.Runtime.CompilerServices.TaskAwaiter`1.GetResult()
+
+# Lock statement banned in hot paths - use lock-free algorithms
+# Note: This is enforced via custom analyzer for hot-path detection
+
+# LINQ banned in hot paths - use for loops instead
+
+# Reflection loading banned - use source generation instead
+M:System.Reflection.Assembly.LoadFrom(System.String)
+M:System.Reflection.Assembly.LoadFile(System.String)
+M:System.Reflection.Assembly.Load(System.String)
+M:System.Reflection.Assembly.LoadWithPartialName(System.String)
+M:System.Type.GetType(System.String)
+M:System.Type.GetType(System.String,System.Boolean)
+M:System.Type.GetType(System.String,System.Boolean,System.Boolean)
+M:System.Activator.CreateInstance(System.Type)
+M:System.Activator.CreateInstance``1()
+
+# String interpolation in logging banned - use structured logging
+# Note: This is enforced via custom analyzer
+
+# Console.WriteLine banned - use structured logging instead
+M:System.Console.WriteLine()
+M:System.Console.WriteLine(System.String)
+M:System.Console.WriteLine(System.Object)
+M:System.Console.Write(System.String)
+M:System.Console.Write(System.Object)
+
+# Environment.TickCount banned - use ValueStopwatch instead
+P:System.Environment.TickCount
+P:System.Environment.TickCount64
+
+# IntPtr/UIntPtr are intentionally allowed for interop and high-performance adapters.

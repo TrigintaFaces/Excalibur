@@ -1,0 +1,59 @@
+#nullable enable
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElection
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElection.BecameLeader.add -> void
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElection.BecameLeader.remove -> void
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElection.CandidateId.get -> System.String
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElection.CurrentLeaderId.get -> System.String
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElection.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElection.GetCandidateHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.LeaderElection.CandidateHealth>>
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElection.IsLeader.get -> System.Boolean
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElection.LeaderChanged.add -> void
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElection.LeaderChanged.remove -> void
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElection.LostLeadership.add -> void
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElection.LostLeadership.remove -> void
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElection.SqlServerHealthBasedLeaderElection(System.String connectionString, System.String lockResource, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions> electionOptions, Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElectionOptions> healthOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElection> logger, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.SqlServer.SqlServerLeaderElection> innerLogger) -> void
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElection.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElection.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElection.UpdateHealthAsync(System.Boolean isHealthy, System.Collections.Generic.IDictionary<System.String, System.String> metadata) -> System.Threading.Tasks.Task
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElectionOptions
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElectionOptions.AutoCreateTable.get -> System.Boolean
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElectionOptions.AutoCreateTable.set -> void
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElectionOptions.CommandTimeoutSeconds.get -> System.Int32
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElectionOptions.CommandTimeoutSeconds.set -> void
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElectionOptions.HealthExpirationSeconds.get -> System.Int32
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElectionOptions.HealthExpirationSeconds.set -> void
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElectionOptions.SchemaName.get -> System.String
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElectionOptions.SchemaName.set -> void
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElectionOptions.SqlServerHealthBasedLeaderElectionOptions() -> void
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElectionOptions.StepDownWhenUnhealthy.get -> System.Boolean
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElectionOptions.StepDownWhenUnhealthy.set -> void
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElectionOptions.TableName.get -> System.String
+Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElectionOptions.TableName.set -> void
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElection
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElection.BecameLeader.add -> void
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElection.BecameLeader.remove -> void
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElection.CandidateId.get -> System.String
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElection.CurrentLeaderId.get -> System.String
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElection.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElection.IsLeader.get -> System.Boolean
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElection.LeaderChanged.add -> void
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElection.LeaderChanged.remove -> void
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElection.LostLeadership.add -> void
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElection.LostLeadership.remove -> void
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElection.SqlServerLeaderElection(System.String connectionString, System.String lockResource, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions> options, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.SqlServer.SqlServerLeaderElection> logger) -> void
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElection.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElection.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionFactory
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionFactory.CreateElection(System.String resourceName, System.String candidateId) -> Excalibur.Dispatch.LeaderElection.ILeaderElection
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionFactory.CreateHealthBasedElection(System.String resourceName, System.String candidateId) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection
+Excalibur.LeaderElection.SqlServer.SqlServerLeaderElectionFactory.SqlServerLeaderElectionFactory(System.String connectionString, Microsoft.Extensions.Logging.ILoggerFactory loggerFactory) -> void
+Microsoft.Extensions.DependencyInjection.SqlServerHealthBasedLeaderElectionExtensions
+Microsoft.Extensions.DependencyInjection.SqlServerLeaderElectionExtensions
+Microsoft.Extensions.DependencyInjection.SqlServerLeaderElectionHealthCheckExtensions
+static Microsoft.Extensions.DependencyInjection.SqlServerHealthBasedLeaderElectionExtensions.AddSqlServerHealthBasedLeaderElection(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String connectionString, System.String lockResource, System.Action<Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElectionOptions> configureHealth, System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions> configureElection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.SqlServerHealthBasedLeaderElectionExtensions.AddSqlServerHealthBasedLeaderElection(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String connectionString, System.String lockResource, System.Action<Excalibur.LeaderElection.SqlServer.SqlServerHealthBasedLeaderElectionOptions> configureHealth) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.SqlServerHealthBasedLeaderElectionExtensions.AddSqlServerHealthBasedLeaderElection(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String connectionString, System.String lockResource) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.SqlServerLeaderElectionExtensions.AddSqlServerLeaderElection(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String connectionString, System.String lockResource, System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.SqlServerLeaderElectionExtensions.AddSqlServerLeaderElection(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String connectionString, System.String lockResource) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.SqlServerLeaderElectionExtensions.AddSqlServerLeaderElectionFactory(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.SqlServerLeaderElectionHealthCheckExtensions.AddSqlServerLeaderElectionHealthCheck(Microsoft.Extensions.Diagnostics.HealthChecks.IHealthChecksBuilder builder, System.String? name = null, System.Nullable<Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus> failureStatus = null, System.Collections.Generic.IEnumerable<System.String>? tags = null) -> Microsoft.Extensions.Diagnostics.HealthChecks.IHealthChecksBuilder

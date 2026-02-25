@@ -1,0 +1,367 @@
+#nullable enable
+Excalibur.Dispatch.Patterns.BusinessDayStatus
+Excalibur.Dispatch.Patterns.BusinessDayStatus.BusinessDayStatus() -> void
+Excalibur.Dispatch.Patterns.BusinessDayStatus.HolidayName.get -> System.String
+Excalibur.Dispatch.Patterns.BusinessDayStatus.HolidayName.set -> void
+Excalibur.Dispatch.Patterns.BusinessDayStatus.IsBusinessDay.get -> System.Boolean
+Excalibur.Dispatch.Patterns.BusinessDayStatus.IsBusinessDay.set -> void
+Excalibur.Dispatch.Patterns.BusinessDayStatus.IsBusinessHours.get -> System.Boolean
+Excalibur.Dispatch.Patterns.BusinessDayStatus.IsBusinessHours.set -> void
+Excalibur.Dispatch.Patterns.BusinessDayStatus.IsHoliday.get -> System.Boolean
+Excalibur.Dispatch.Patterns.BusinessDayStatus.IsHoliday.set -> void
+Excalibur.Dispatch.Patterns.BusinessDayStatus.NextBusinessDay.get -> System.DateOnly
+Excalibur.Dispatch.Patterns.BusinessDayStatus.NextBusinessDay.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCleanupOptions
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCleanupOptions.ClaimCheckCleanupOptions() -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCleanupOptions.CleanupBatchSize.get -> System.Int32
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCleanupOptions.CleanupBatchSize.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCleanupOptions.CleanupInterval.get -> System.TimeSpan
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCleanupOptions.CleanupInterval.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCleanupOptions.DefaultTtl.get -> System.TimeSpan
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCleanupOptions.DefaultTtl.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCleanupOptions.EnableCleanup.get -> System.Boolean
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCleanupOptions.EnableCleanup.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions.ClaimCheckCompressionOptions() -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions.CompressionLevel.get -> System.IO.Compression.CompressionLevel
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions.CompressionLevel.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions.CompressionThreshold.get -> System.Int64
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions.CompressionThreshold.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions.EnableCompression.get -> System.Boolean
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions.EnableCompression.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions.MinCompressionRatio.get -> System.Double
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions.MinCompressionRatio.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckHealthCheck
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckHealthCheck.ClaimCheckHealthCheck(Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider provider) -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.ClaimCheckMessageSerializer(Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider claimCheckProvider, Excalibur.Dispatch.Abstractions.Serialization.IBinaryMessageSerializer baseSerializer, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions options) -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.ClaimCheckMessageSerializer(Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider claimCheckProvider, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions options) -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.ContentType.get -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.Deserialize(System.Byte[] data) ->
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.Deserialize(System.ReadOnlySpan<System.Byte> data) ->
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.DeserializeAsync(System.Byte[] data, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<>
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.Format.get -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.Serialize( message, System.Buffers.IBufferWriter<System.Byte> bufferWriter) -> System.Void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.Serialize( message) -> System.Byte[]
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.SerializeAsync( message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Byte[]>
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.SerializerName.get -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.SerializerVersion.get -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMessageSerializer.SupportsCompression.get -> System.Boolean
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata.ClaimCheckMetadata() -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata.ContentEncoding.get -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata.ContentEncoding.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata.ContentType.get -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata.ContentType.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata.CorrelationId.get -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata.CorrelationId.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata.IsCompressed.get -> System.Boolean
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata.IsCompressed.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata.MessageId.get -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata.MessageId.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata.MessageType.get -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata.MessageType.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata.OriginalSize.get -> System.Nullable<System.Int64>
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata.OriginalSize.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata.Properties.get -> System.Collections.Generic.Dictionary<System.String, System.String>
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.BlobNamePrefix.get -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.BlobNamePrefix.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.ClaimCheckOptions() -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.Cleanup.get -> Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCleanupOptions
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.CleanupInterval.get -> System.TimeSpan
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.CleanupInterval.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.Compression.get -> Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckCompressionOptions
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.CompressionLevel.get -> System.IO.Compression.CompressionLevel
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.CompressionLevel.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.CompressionThreshold.get -> System.Int64
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.CompressionThreshold.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.ConnectionString.get -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.ConnectionString.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.ContainerName.get -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.ContainerName.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.DefaultTtl.get -> System.TimeSpan
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.DefaultTtl.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.EnableCleanup.get -> System.Boolean
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.EnableCleanup.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.EnableCompression.get -> System.Boolean
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.EnableCompression.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.EnableMetrics.get -> System.Boolean
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.EnableMetrics.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.IdPrefix.get -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.IdPrefix.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.MinCompressionRatio.get -> System.Double
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.MinCompressionRatio.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.PayloadThreshold.get -> System.Int64
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.PayloadThreshold.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.RetentionPeriod.get -> System.TimeSpan
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.RetentionPeriod.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.Storage.get -> Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.ValidateChecksum.get -> System.Boolean
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions.ValidateChecksum.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptionsValidator
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptionsValidator.ClaimCheckOptionsValidator() -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptionsValidator.Validate(System.String name, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions options) -> Microsoft.Extensions.Options.ValidateOptionsResult
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference.BlobName.get -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference.BlobName.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference.ClaimCheckReference() -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference.ExpiresAt.get -> System.Nullable<System.DateTimeOffset>
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference.ExpiresAt.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference.Id.get -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference.Id.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference.Location.get -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference.Location.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference.Metadata.get -> Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference.Metadata.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference.Size.get -> System.Int64
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference.Size.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference.StoredAt.get -> System.DateTimeOffset
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference.StoredAt.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.BlobNamePrefix.get -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.BlobNamePrefix.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.BufferPoolSize.get -> System.Int32
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.BufferPoolSize.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.ChunkSize.get -> System.Int32
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.ChunkSize.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.ClaimCheckStorageOptions() -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.ColdStorageThreshold.get -> System.TimeSpan
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.ColdStorageThreshold.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.ConnectionString.get -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.ConnectionString.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.ContainerName.get -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.ContainerName.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.EnableEncryption.get -> System.Boolean
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.EnableEncryption.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.MaxConcurrency.get -> System.Int32
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.MaxConcurrency.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.MaxRetries.get -> System.Int32
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.MaxRetries.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.OperationTimeout.get -> System.TimeSpan
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.OperationTimeout.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.RetryDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.RetryDelay.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.UseHierarchicalStorage.get -> System.Boolean
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckStorageOptions.UseHierarchicalStorage.set -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants+MetricNames
+Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants+Tags
+Excalibur.Dispatch.Patterns.ClaimCheck.DefaultClaimCheckNamingStrategy
+Excalibur.Dispatch.Patterns.ClaimCheck.DefaultClaimCheckNamingStrategy.DefaultClaimCheckNamingStrategy(System.String prefix) -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.DefaultClaimCheckNamingStrategy.GenerateId(Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata metadata) -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.DefaultClaimCheckNamingStrategy.GenerateStoragePath(System.String claimCheckId, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata metadata) -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckCleanupProvider
+Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckCleanupProvider.CleanupExpiredAsync(System.Int32 batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Int32>
+Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckNamingStrategy
+Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckNamingStrategy.GenerateId(Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata metadata) -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckNamingStrategy.GenerateStoragePath(System.String claimCheckId, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata metadata) -> System.String
+Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider
+Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider.DeleteAsync(Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference reference, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Boolean>
+Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider.RetrieveAsync(Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference reference, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Byte[]>
+Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider.ShouldUseClaimCheck(System.Byte[] payload) -> System.Boolean
+Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider.StoreAsync(System.Byte[] payload, System.Threading.CancellationToken cancellationToken, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata metadata) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference>
+Excalibur.Dispatch.Patterns.ClaimCheck.TelemetryClaimCheckProvider
+Excalibur.Dispatch.Patterns.ClaimCheck.TelemetryClaimCheckProvider.DeleteAsync(Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference reference, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Boolean>
+Excalibur.Dispatch.Patterns.ClaimCheck.TelemetryClaimCheckProvider.RetrieveAsync(Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference reference, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Byte[]>
+Excalibur.Dispatch.Patterns.ClaimCheck.TelemetryClaimCheckProvider.ShouldUseClaimCheck(System.Byte[] payload) -> System.Boolean
+Excalibur.Dispatch.Patterns.ClaimCheck.TelemetryClaimCheckProvider.StoreAsync(System.Byte[] payload, System.Threading.CancellationToken cancellationToken, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata metadata) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference>
+Excalibur.Dispatch.Patterns.ClaimCheck.TelemetryClaimCheckProvider.TelemetryClaimCheckProvider(Excalibur.Dispatch.Patterns.ClaimCheck.IClaimCheckProvider inner, System.Diagnostics.Metrics.Meter meter, System.Diagnostics.ActivitySource activitySource) -> void
+Excalibur.Dispatch.Patterns.DateRange
+Excalibur.Dispatch.Patterns.DateRange.Contains(System.DateOnly date) -> System.Boolean
+Excalibur.Dispatch.Patterns.DateRange.DateRange() -> void
+Excalibur.Dispatch.Patterns.DateRange.EndDate.get -> System.DateOnly
+Excalibur.Dispatch.Patterns.DateRange.EndDate.set -> void
+Excalibur.Dispatch.Patterns.DateRange.StartDate.get -> System.DateOnly
+Excalibur.Dispatch.Patterns.DateRange.StartDate.set -> void
+Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId
+Excalibur.Dispatch.Patterns.IRoutingStrategy
+Excalibur.Dispatch.Patterns.IRoutingStrategy.CanHandle(Excalibur.Dispatch.Abstractions.Routing.RoutingContext context) -> System.Boolean
+Excalibur.Dispatch.Patterns.IRoutingStrategy.Name.get -> System.String
+Excalibur.Dispatch.Patterns.IRoutingStrategy.SelectRoutesAsync(System.Collections.Generic.IReadOnlyCollection<Excalibur.Dispatch.Abstractions.Routing.RouteDefinition> availableRoutes, Excalibur.Dispatch.Abstractions.Routing.RoutingContext context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Abstractions.Routing.RouteDefinition>>
+Excalibur.Dispatch.Patterns.RouteEvaluation
+Excalibur.Dispatch.Patterns.RouteEvaluation.MatchingRules.get -> System.Collections.ObjectModel.Collection<Excalibur.Dispatch.Patterns.TimeBasedRoutingRule>
+Excalibur.Dispatch.Patterns.RouteEvaluation.Reason.get -> System.String
+Excalibur.Dispatch.Patterns.RouteEvaluation.Reason.set -> void
+Excalibur.Dispatch.Patterns.RouteEvaluation.Route.get -> Excalibur.Dispatch.Abstractions.Routing.RouteDefinition
+Excalibur.Dispatch.Patterns.RouteEvaluation.Route.set -> void
+Excalibur.Dispatch.Patterns.RouteEvaluation.RouteEvaluation() -> void
+Excalibur.Dispatch.Patterns.RouteEvaluation.Score.get -> System.Double
+Excalibur.Dispatch.Patterns.RouteEvaluation.Score.set -> void
+Excalibur.Dispatch.Patterns.RoutingMetrics
+Excalibur.Dispatch.Patterns.RoutingMetrics.AverageDecisionTime.get -> System.TimeSpan
+Excalibur.Dispatch.Patterns.RoutingMetrics.AverageDecisionTime.set -> void
+Excalibur.Dispatch.Patterns.RoutingMetrics.FailedRoutings.get -> System.Int64
+Excalibur.Dispatch.Patterns.RoutingMetrics.FailedRoutings.set -> void
+Excalibur.Dispatch.Patterns.RoutingMetrics.LastReset.get -> System.DateTimeOffset
+Excalibur.Dispatch.Patterns.RoutingMetrics.LastReset.set -> void
+Excalibur.Dispatch.Patterns.RoutingMetrics.RouteUsage.get -> System.Collections.Generic.Dictionary<System.String, System.Int64>
+Excalibur.Dispatch.Patterns.RoutingMetrics.RoutingMetrics() -> void
+Excalibur.Dispatch.Patterns.RoutingMetrics.RuleMatches.get -> System.Collections.Generic.Dictionary<System.String, System.Int64>
+Excalibur.Dispatch.Patterns.RoutingMetrics.SuccessfulRoutings.get -> System.Int64
+Excalibur.Dispatch.Patterns.RoutingMetrics.SuccessfulRoutings.set -> void
+Excalibur.Dispatch.Patterns.RoutingMetrics.TotalRoutingDecisions.get -> System.Int64
+Excalibur.Dispatch.Patterns.RoutingMetrics.TotalRoutingDecisions.set -> void
+Excalibur.Dispatch.Patterns.RoutingResult
+Excalibur.Dispatch.Patterns.RoutingResult.AlternativeRoutes.get -> System.Collections.ObjectModel.Collection<Excalibur.Dispatch.Abstractions.Routing.RouteDefinition>
+Excalibur.Dispatch.Patterns.RoutingResult.AppliedRule.get -> Excalibur.Dispatch.Patterns.TimeBasedRoutingRule
+Excalibur.Dispatch.Patterns.RoutingResult.AppliedRule.set -> void
+Excalibur.Dispatch.Patterns.RoutingResult.FailureReason.get -> System.String
+Excalibur.Dispatch.Patterns.RoutingResult.FailureReason.set -> void
+Excalibur.Dispatch.Patterns.RoutingResult.IsSuccess.get -> System.Boolean
+Excalibur.Dispatch.Patterns.RoutingResult.IsSuccess.set -> void
+Excalibur.Dispatch.Patterns.RoutingResult.Metadata.get -> System.Collections.Generic.Dictionary<System.String, System.Object>
+Excalibur.Dispatch.Patterns.RoutingResult.RoutingResult() -> void
+Excalibur.Dispatch.Patterns.RoutingResult.SelectedRoute.get -> Excalibur.Dispatch.Abstractions.Routing.RouteDefinition
+Excalibur.Dispatch.Patterns.RoutingResult.SelectedRoute.set -> void
+Excalibur.Dispatch.Patterns.RoutingResult.Timestamp.get -> System.DateTimeOffset
+Excalibur.Dispatch.Patterns.RoutingResult.Timestamp.set -> void
+Excalibur.Dispatch.Patterns.SpecialConditions
+Excalibur.Dispatch.Patterns.SpecialConditions.BusinessDaysOnly.get -> System.Boolean
+Excalibur.Dispatch.Patterns.SpecialConditions.BusinessDaysOnly.set -> void
+Excalibur.Dispatch.Patterns.SpecialConditions.CustomHolidays.get -> System.Collections.ObjectModel.Collection<System.DateOnly>
+Excalibur.Dispatch.Patterns.SpecialConditions.ExcludeHolidays.get -> System.Boolean
+Excalibur.Dispatch.Patterns.SpecialConditions.ExcludeHolidays.set -> void
+Excalibur.Dispatch.Patterns.SpecialConditions.PeakHours.get -> System.Collections.ObjectModel.Collection<Excalibur.Dispatch.Patterns.TimeRange>
+Excalibur.Dispatch.Patterns.SpecialConditions.PeakHoursOnly.get -> System.Boolean
+Excalibur.Dispatch.Patterns.SpecialConditions.PeakHoursOnly.set -> void
+Excalibur.Dispatch.Patterns.SpecialConditions.SpecialConditions() -> void
+Excalibur.Dispatch.Patterns.TimeBasedRoutingRule
+Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Conditions.get -> Excalibur.Dispatch.Patterns.TimeConditions
+Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Conditions.set -> void
+Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Description.get -> System.String
+Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Description.set -> void
+Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Id.get -> System.String
+Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Id.set -> void
+Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.IsEnabled.get -> System.Boolean
+Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.IsEnabled.set -> void
+Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Metadata.get -> System.Collections.Generic.Dictionary<System.String, System.Object>
+Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Name.get -> System.String
+Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Name.set -> void
+Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Priority.get -> System.Int32
+Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Priority.set -> void
+Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.Routes.get -> System.Collections.ObjectModel.Collection<Excalibur.Dispatch.Abstractions.Routing.RouteDefinition>
+Excalibur.Dispatch.Patterns.TimeBasedRoutingRule.TimeBasedRoutingRule() -> void
+Excalibur.Dispatch.Patterns.TimeConditions
+Excalibur.Dispatch.Patterns.TimeConditions.ActiveDates.get -> System.Collections.ObjectModel.Collection<Excalibur.Dispatch.Patterns.DateRange>
+Excalibur.Dispatch.Patterns.TimeConditions.ActiveDaysOfWeek.get -> System.Collections.ObjectModel.Collection<System.DayOfWeek>
+Excalibur.Dispatch.Patterns.TimeConditions.ActiveTimeRanges.get -> System.Collections.ObjectModel.Collection<Excalibur.Dispatch.Patterns.TimeRange>
+Excalibur.Dispatch.Patterns.TimeConditions.SpecialConditions.get -> Excalibur.Dispatch.Patterns.SpecialConditions
+Excalibur.Dispatch.Patterns.TimeConditions.SpecialConditions.set -> void
+Excalibur.Dispatch.Patterns.TimeConditions.TimeConditions() -> void
+Excalibur.Dispatch.Patterns.TimeConditions.TimeZoneId.get -> System.String
+Excalibur.Dispatch.Patterns.TimeConditions.TimeZoneId.set -> void
+Excalibur.Dispatch.Patterns.TimeRange
+Excalibur.Dispatch.Patterns.TimeRange.Contains(System.TimeSpan time) -> System.Boolean
+Excalibur.Dispatch.Patterns.TimeRange.EndTime.get -> System.TimeSpan
+Excalibur.Dispatch.Patterns.TimeRange.EndTime.set -> void
+Excalibur.Dispatch.Patterns.TimeRange.StartTime.get -> System.TimeSpan
+Excalibur.Dispatch.Patterns.TimeRange.StartTime.set -> void
+Excalibur.Dispatch.Patterns.TimeRange.TimeRange() -> void
+Microsoft.Extensions.DependencyInjection.ClaimCheckServiceCollectionExtensions
+static const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants.ActivitySourceName -> System.String
+static const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants.MeterName -> System.String
+static const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants+MetricNames.OperationsFailed -> System.String
+static const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants+MetricNames.PayloadsDeleted -> System.String
+static const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants+MetricNames.PayloadSize -> System.String
+static const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants+MetricNames.PayloadsRetrieved -> System.String
+static const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants+MetricNames.PayloadsStored -> System.String
+static const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants+MetricNames.RetrieveDuration -> System.String
+static const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants+MetricNames.StoreDuration -> System.String
+static const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants+Tags.ErrorType -> System.String
+static const Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckTelemetryConstants+Tags.Operation -> System.String
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.AzureBlobClaimCheckDeleted -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.AzureBlobClaimCheckDeleteError -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.AzureBlobClaimCheckNotFound -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.AzureBlobPayloadRetrieved -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.AzureBlobPayloadStored -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ClaimCheckCleanupCompleted -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ClaimCheckCleanupDisabled -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ClaimCheckCleanupError -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ClaimCheckCleanupExpiredRemoved -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ClaimCheckCleanupNoExpiredEntries -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ClaimCheckCleanupProviderNotAvailable -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ClaimCheckCleanupServiceCreated -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ClaimCheckCleanupServiceStopped -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ClaimCheckCleanupStarted -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ClaimCheckCleanupStartedInterval -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ClaimCheckCleanupTaskRunning -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ClaimDeleted -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ClaimExpired -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ClaimRetrieved -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ClaimStored -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ComplianceDecryptionApplied -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ComplianceEncryptionApplied -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.CompositePoisonDetectorCreated -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ConsistentHashCreated -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ContextValidationExecuting -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ContextValidationFailed -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ContextValidationPassed -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.DeadLetterCleanupCompleted -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.DeadLetterMessageRetrieved -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.DeadLetterMessageStored -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.DefaultContextValidatorCreated -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.DefaultValidationServiceCreated -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.EncryptionDecryptionServiceCreated -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.EndpointSelected -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.EndpointUnavailable -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.InMemoryClaimCheckCleanupCreated -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.InMemoryClaimRetrieved -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.InMemoryClaimStored -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.InMemoryCleanupCompleted -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.InMemoryCleanupDisabled -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.InMemoryCleanupError -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.InMemoryCleanupServiceStopped -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.InMemoryCleanupStartedInterval -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.InMemoryCleanupTaskRunning -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.InMemoryDeadLetterStoreCreated -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.InMemoryExpiredClaimsRemoved -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.LeastConnectionsCreated -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.LoadBalancerRebalancing -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.MessageQuarantined -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.NoRouteMatched -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.NoRoutesInBusinessHoursFallback -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.PerformanceBenchmarkCompleted -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.PerformanceBenchmarkStarted -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.PerformanceMetricsCollected -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.PerformanceThresholdExceeded -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.PoisonMessageCleanupServiceCreated -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.PoisonMessageDetected -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.PoisonMessageHandled -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.PoisonMessageHandlerExecuting -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.PoisonMessageMiddlewareExecuting -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.PoolConfigurationApplied -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.PoolServiceCollectionExtended -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.PoolSizeConfigured -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.PoolTimeoutConfigured -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ProfileSpecificValidationExecuting -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.RandomLoadBalancerCreated -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ReEncryptionCompleted -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ReEncryptionServiceCreated -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.RouteHealthCheckPerformed -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.RouteHealthMonitorCreated -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.RouteHealthStatusChanged -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.RouteInBusinessHours -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.RouteMarkedHealthy -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.RouteMarkedUnhealthy -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.RouteOutsideBusinessHours -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.RouteSelected -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.RoutingPolicyEvaluated -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.RoutingPolicyEvaluatorCreated -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.RoutingRulesEvaluated -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.RuleIsApplicable -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.RuleNotApplicableConditions -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.RuleNotApplicableDateRange -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.RuleNotApplicableDayOfWeek -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.RuleNotApplicableTimeRange -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.TimeZoneAwareRouterCreated -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.TimeZoneAwareRoutingApplied -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.TimezoneNotFoundLocalTime -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.TimezoneNotFoundUtc -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.TraceContextValidatorCreated -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ValidationFailed -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ValidationPassed -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.ValidationRuleApplied -> System.Int32
+static const Excalibur.Dispatch.Patterns.Diagnostics.PatternsEventId.WeightedRoundRobinCreated -> System.Int32
+static Microsoft.Extensions.DependencyInjection.ClaimCheckServiceCollectionExtensions.AddClaimCheck(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions> configureOptions, System.Boolean enableCleanup) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

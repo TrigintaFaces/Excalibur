@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Crystalline blade - without outer edges -->
+  <g transform="translate(16, 16)">
+    <!-- Middle facets (now outer edge) -->
+    <path d="M 0 -14 L -4 -4 L -3 10 L 0 13" fill="#3b82f6" opacity="0.7"/>
+    <path d="M 0 -14 L 4 -4 L 3 10 L 0 13" fill="#3b82f6" opacity="0.7"/>
+
+    <!-- Inner facets -->
+    <path d="M 0 -14 L -2 -4 L -1.5 10 L 0 13" fill="#60a5fa" opacity="0.9"/>
+    <path d="M 0 -14 L 2 -4 L 1.5 10 L 0 13" fill="#60a5fa" opacity="0.9"/>
+
+    <!-- Center highlight -->
+    <line x1="0" y1="-14" x2="0" y2="13" stroke="#93c5fd" stroke-width="1" opacity="0.8"/>
+
+    <!-- Guard (simplified) -->
+    <rect x="-8" y="10" width="16" height="2" fill="#0ea5e9" rx="0.5"/>
+
+    <!-- Grip -->
+    <rect x="-2" y="12" width="4" height="3" fill="#1e293b"/>
+
+    <!-- Pommel -->
+    <circle cx="0" cy="15.5" r="1.5" fill="#06b6d4"/>
+  </g>
+</svg>

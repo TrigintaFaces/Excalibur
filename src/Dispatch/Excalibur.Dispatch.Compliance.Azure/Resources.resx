@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="AzureKeyVaultProvider_Disposed" xml:space="preserve">
+    <value>AzureKeyVaultProvider disposed</value>
+  </data>
+  <data name="AzureKeyVaultProvider_Initialized" xml:space="preserve">
+    <value>AzureKeyVaultProvider initialized for vault {VaultUri}</value>
+  </data>
+  <data name="AzureKeyVaultProvider_KeyCreated" xml:space="preserve">
+    <value>Created new Azure Key Vault key {KeyId}</value>
+  </data>
+  <data name="AzureKeyVaultProvider_KeyNotFound" xml:space="preserve">
+    <value>Key {KeyId} not found in Azure Key Vault</value>
+  </data>
+  <data name="AzureKeyVaultProvider_KeyNotFoundForDeletion" xml:space="preserve">
+    <value>Key {KeyId} not found for deletion</value>
+  </data>
+  <data name="AzureKeyVaultProvider_KeyNotFoundForSuspension" xml:space="preserve">
+    <value>Key {KeyId} not found for suspension</value>
+  </data>
+  <data name="AzureKeyVaultProvider_KeyRotated" xml:space="preserve">
+    <value>Rotated Azure Key Vault key {KeyId} to version {Version}</value>
+  </data>
+  <data name="AzureKeyVaultProvider_KeyRotationFailed" xml:space="preserve">
+    <value>Failed to rotate key {KeyId} in Azure Key Vault</value>
+  </data>
+  <data name="AzureKeyVaultProvider_KeyRotationUnexpectedError" xml:space="preserve">
+    <value>Unexpected error rotating key {KeyId}</value>
+  </data>
+  <data name="AzureKeyVaultProvider_KeyScheduledForDeletion" xml:space="preserve">
+    <value>Scheduled Azure Key Vault key {KeyId} for deletion (crypto-shredding). Recoverable during soft-delete period.</value>
+  </data>
+  <data name="AzureKeyVaultProvider_KeySuspended" xml:space="preserve">
+    <value>Suspended Azure Key Vault key {KeyId}: {Reason}</value>
+  </data>
+  <data name="AzureKeyVaultProvider_KeyVersionNotFound" xml:space="preserve">
+    <value>Key {KeyId} version {Version} not found</value>
+  </data>
+  <data name="AzureKeyVaultProvider_StandardTierWarning" xml:space="preserve">
+    <value>Key {KeyId} is using software-protected keys (Standard tier). Consider using HSM-backed keys (Premium tier) for production compliance workloads.</value>
+  </data>
+  <data name="AzureKeyVaultProvider_VaultUriRequired" xml:space="preserve">
+    <value>VaultUri must be configured.</value>
+  </data>
+</root>

@@ -1,0 +1,33 @@
+<Project>
+  <!-- ============================================================================================
+       Sprint 325 T0.2: Project Classification Metadata (AD-325-2)
+       ============================================================================================
+       All projects under samples/ are classified as "Sample" by default.
+       - IsSampleProject=true (custom marker for CI validation)
+       - IsPackable=false (samples are not packaged)
+       ============================================================================================ -->
+  <PropertyGroup>
+    <IsSampleProject>true</IsSampleProject>
+    <IsPackable>false</IsPackable>
+    <ProjectClassification>Sample</ProjectClassification>
+  </PropertyGroup>
+
+  <!-- ============================================================================================
+       Sprint 428 S428.6: Path Configuration for Reorganized Sample Structure
+       ============================================================================================
+       Samples are now organized in numbered categories (01-getting-started, 02-messaging-transports, etc.)
+       These paths allow samples to reference main source projects regardless of nesting depth.
+       ============================================================================================ -->
+  <PropertyGroup>
+    <!-- RepoRoot points to the repository root (parent of samples/) -->
+    <RepoRoot>$(MSBuildThisFileDirectory)..\</RepoRoot>
+
+    <!-- Source project paths - use these in ProjectReference includes -->
+    <DispatchSourceRoot>$(RepoRoot)src\Dispatch\</DispatchSourceRoot>
+    <ExcaliburSourceRoot>$(RepoRoot)src\Excalibur\</ExcaliburSourceRoot>
+
+    <BaseIntermediateOutputPath>$(MSBuildProjectDirectory)\obj\</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(MSBuildProjectDirectory)\bin\</BaseOutputPath>
+    <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
+  </PropertyGroup>
+</Project>

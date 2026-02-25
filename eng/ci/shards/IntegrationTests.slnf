@@ -1,0 +1,13 @@
+{
+  "solution": {
+    "path": "..\\..\\..\\Excalibur.sln",
+    "projects": [
+      "tests\\Shared\\Tests.Shared\\Tests.Shared.csproj",
+      "tests\\Shared\\Excalibur.Dispatch.Testing\\Excalibur.Dispatch.Testing.csproj",
+      "src\\Excalibur\\Excalibur.Testing\\Excalibur.Testing.csproj",
+      "src\\Excalibur\\Excalibur.Testing.Conformance\\Excalibur.Testing.Conformance.csproj",
+      "tests\\integration\\Excalibur.Dispatch.Integration.Tests\\Excalibur.Dispatch.Integration.Tests.csproj",
+      "tests\\integration\\Excalibur.Integration.Tests\\Excalibur.Integration.Tests.csproj"
+    ]
+  }
+}

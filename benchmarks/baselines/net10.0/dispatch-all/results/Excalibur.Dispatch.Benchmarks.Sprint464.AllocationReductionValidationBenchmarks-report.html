@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Sprint464.AllocationReductionValidationBenchmarks-20260202-211511</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.102
+  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                          </th><th>Mean   </th><th>Error </th><th>StdDev </th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>SingleDispatch</td><td>3,244.49 ns</td><td>93.307 ns</td><td>266.210 ns</td><td>1.006</td><td>0.11</td><td>0.2823</td><td>-</td><td>5368 B</td><td>1.00</td>
+</tr><tr><td>Batch100Dispatches</td><td>328,836.41 ns</td><td>8,305.689 ns</td><td>24,359.149 ns</td><td>102.006</td><td>11.03</td><td>28.3203</td><td>-</td><td>536914 B</td><td>100.02</td>
+</tr><tr><td>CreateContext</td><td>308.11 ns</td><td>7.185 ns</td><td>21.072 ns</td><td>0.096</td><td>0.01</td><td>0.0858</td><td>-</td><td>1616 B</td><td>0.30</td>
+</tr><tr><td>CollectionWithCapacity</td><td>19.31 ns</td><td>0.420 ns</td><td>0.735 ns</td><td>0.006</td><td>0.00</td><td>0.0051</td><td>-</td><td>96 B</td><td>0.02</td>
+</tr><tr><td>CollectionWithoutCapacity</td><td>37.88 ns</td><td>0.864 ns</td><td>2.520 ns</td><td>0.012</td><td>0.00</td><td>0.0114</td><td>-</td><td>216 B</td><td>0.04</td>
+</tr><tr><td>CollectionWithTryGetNonEnumeratedCount</td><td>31.20 ns</td><td>0.655 ns</td><td>1.655 ns</td><td>0.010</td><td>0.00</td><td>0.0072</td><td>-</td><td>136 B</td><td>0.03</td>
+</tr><tr><td>ConcurrentDispatches</td><td>33,021.55 ns</td><td>709.537 ns</td><td>2,047.177 ns</td><td>10.243</td><td>1.03</td><td>2.8687</td><td>0.0305</td><td>54156 B</td><td>10.09</td>
+</tr></tbody></table>
+</body>
+</html>

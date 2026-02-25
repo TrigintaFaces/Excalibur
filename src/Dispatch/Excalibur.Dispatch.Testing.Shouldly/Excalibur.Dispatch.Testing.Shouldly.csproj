@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Dispatch.Testing.Shouldly</PackageId>
+    <Description>Shouldly assertion extensions for the Excalibur testing utilities. Provides fluent assertions for DispatchTestHarness message logs, InMemoryTransportSender, InMemoryTransportReceiver, and InMemoryTransportSubscriber.</Description>
+    <PackageTags>excalibur;dispatch;testing;shouldly;assertions;test-doubles;messaging</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Shouldly" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Dispatch.Testing\Excalibur.Dispatch.Testing.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="DataProtectionMessageEncryptionService_FailedToDecryptInvalidKeyOrCorruptedData" xml:space="preserve">
+    <value>Failed to decrypt message - invalid key or corrupted data</value>
+  </data>
+  <data name="DataProtectionMessageEncryptionService_KeyRotationFailed" xml:space="preserve">
+    <value>Key rotation failed</value>
+  </data>
+  <data name="DataProtectionMessageEncryptionService_MessageDecryptionFailed" xml:space="preserve">
+    <value>Message decryption failed</value>
+  </data>
+  <data name="DataProtectionMessageEncryptionService_MessageEncryptionFailed" xml:space="preserve">
+    <value>Message encryption failed</value>
+  </data>
+  <data name="ElasticsearchSecurityEventStore_ConnectionStringRequired" xml:space="preserve">
+    <value>Elasticsearch connection string is required</value>
+  </data>
+  <data name="ElasticsearchSecurityEventStore_FailedToQueryEvents" xml:space="preserve">
+    <value>Failed to query security events from Elasticsearch</value>
+  </data>
+  <data name="ElasticsearchSecurityEventStore_FailedToStoreEvents" xml:space="preserve">
+    <value>Failed to store security events in Elasticsearch</value>
+  </data>
+  <data name="ElasticsearchSecurityEventStore_MaxResultsCannotExceedLimit" xml:space="preserve">
+    <value>MaxResults cannot exceed 10000 for Elasticsearch queries</value>
+  </data>
+  <data name="ElasticsearchSecurityEventStore_MaxResultsMustBeGreaterThanZero" xml:space="preserve">
+    <value>MaxResults must be greater than 0</value>
+  </data>
+  <data name="ElasticsearchSecurityEventStore_NoValidEventsToIndex" xml:space="preserve">
+    <value>No valid events to index in Elasticsearch</value>
+  </data>
+  <data name="ElasticsearchSecurityEventStore_StartTimeAfterEndTime" xml:space="preserve">
+    <value>StartTime cannot be greater than EndTime</value>
+  </data>
+  <data name="EncryptionMigrationService_MigrationFailedForItemFormat" xml:space="preserve">
+    <value>Migration failed for item {0}</value>
+  </data>
+  <data name="FileSecurityEventStore_FailedToQueryEvents" xml:space="preserve">
+    <value>Failed to query security events from audit log files</value>
+  </data>
+  <data name="FileSecurityEventStore_FailedToStoreEvents" xml:space="preserve">
+    <value>Failed to store security events to audit log files</value>
+  </data>
+  <data name="FileSecurityEventStore_MaxResultsMustBeGreaterThanZero" xml:space="preserve">
+    <value>MaxResults must be greater than zero</value>
+  </data>
+  <data name="FileSecurityEventStore_NoValidEventsToWrite" xml:space="preserve">
+    <value>No valid events to write to audit log file</value>
+  </data>
+  <data name="FileSecurityEventStore_StartTimeAfterEndTime" xml:space="preserve">
+    <value>StartTime cannot be greater than EndTime</value>
+  </data>
+  <data name="HashiCorpVaultCredentialStore_CredentialCannotBeEmpty" xml:space="preserve">
+    <value>Credential cannot be empty</value>
+  </data>
+  <data name="HashiCorpVaultCredentialStore_FailedToRetrieveSecretFormat" xml:space="preserve">
+    <value>Failed to retrieve secret '{0}' from HashiCorp Vault</value>
+  </data>
+  <data name="HashiCorpVaultCredentialStore_FailedToStoreSecretFormat" xml:space="preserve">
+    <value>Failed to store secret '{0}' in HashiCorp Vault</value>
+  </data>
+  <data name="HashiCorpVaultCredentialStore_KeyCannotBeNullOrEmpty" xml:space="preserve">
+    <value>Key cannot be null or empty</value>
+  </data>
+  <data name="HashiCorpVaultCredentialStore_VaultTokenRequired" xml:space="preserve">
+    <value>Vault token is required</value>
+  </data>
+  <data name="HashiCorpVaultCredentialStore_VaultUrlRequired" xml:space="preserve">
+    <value>Vault URL is required</value>
+  </data>
+  <data name="HmacMessageSigningService_MessageSigningFailed" xml:space="preserve">
+    <value>Message signing failed</value>
+  </data>
+  <data name="HmacMessageSigningService_SignatureVerificationFailed" xml:space="preserve">
+    <value>Signature verification failed</value>
+  </data>
+  <data name="HmacMessageSigningService_UnsupportedAlgorithmForVerificationFormat" xml:space="preserve">
+    <value>Algorithm '{0}' is not supported</value>
+  </data>
+  <data name="HmacMessageSigningService_UnsupportedAlgorithmFormat" xml:space="preserve">
+    <value>Algorithm '{0}' is not supported by this implementation</value>
+  </data>
+  <data name="InputValidationException_ValidationFailed" xml:space="preserve">
+    <value>Validation failed</value>
+  </data>
+  <data name="LazyReEncryptionMiddleware_ReEncryptionFailed" xml:space="preserve">
+    <value>Lazy re-encryption failed</value>
+  </data>
+  <data name="LazyReEncryptionMiddleware_ReEncryptionFailedFormat" xml:space="preserve">
+    <value>Lazy re-encryption failed: {0}</value>
+  </data>
+  <data name="LazyReEncryptionMiddleware_UnknownError" xml:space="preserve">
+    <value>Unknown error</value>
+  </data>
+  <data name="MessageEncryptionMiddleware_EncryptedPayloadNotFound" xml:space="preserve">
+    <value>Encrypted payload not found in context</value>
+  </data>
+  <data name="RateLimitingMiddleware_UnsupportedAlgorithmFormat" xml:space="preserve">
+    <value>Rate limit algorithm {0} is not supported</value>
+  </data>
+  <data name="SecureCredentialProvider_NoWritableStoresAvailableFormat" xml:space="preserve">
+    <value>Failed to rotate credential '{0}' - no writable stores available</value>
+  </data>
+  <data name="SqlSecurityEventStore_FailedToQueryEvents" xml:space="preserve">
+    <value>Failed to query security events</value>
+  </data>
+  <data name="SqlSecurityEventStore_FailedToStoreEvents" xml:space="preserve">
+    <value>Failed to store security events</value>
+  </data>
+  <data name="SqlSecurityEventStore_InvalidEventsDetectedFormat" xml:space="preserve">
+    <value>Invalid events detected: {0} out of {1}</value>
+  </data>
+  <data name="SqlSecurityEventStore_MaxResultsMustBeGreaterThanZero" xml:space="preserve">
+    <value>MaxResults must be greater than zero</value>
+  </data>
+  <data name="SqlSecurityEventStore_StartTimeAfterEndTime" xml:space="preserve">
+    <value>StartTime cannot be greater than EndTime</value>
+  </data>
+</root>

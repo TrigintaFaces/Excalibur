@@ -1,0 +1,72 @@
+<!--
+  TrimmerRoots.xml - Preserves critical types for AOT compilation
+  This file tells the trimmer which types and members to preserve even if they appear unused.
+-->
+<linker>
+  <!-- Preserve core message abstractions -->
+  <assembly fullname="Excalibur.Dispatch.Abstractions">
+    <!-- Core messaging interfaces -->
+    <type fullname="Excalibur.Dispatch.Abstractions.IDispatchMessage" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Abstractions.IDispatchEvent" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Abstractions.IDomainEvent" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Abstractions.IIntegrationEvent" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Abstractions.ISagaEvent" preserve="all" />
+
+    <!-- Handler interfaces -->
+    <type fullname="Excalibur.Dispatch.Abstractions.Delivery.IActionHandler`1" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Abstractions.Delivery.IActionHandler`2" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Abstractions.Delivery.IEventHandler`1" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Abstractions.Delivery.IDocumentHandler`1" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Abstractions.IDispatchHandler`1" preserve="all" />
+
+    <!-- Context and delivery types -->
+    <type fullname="Excalibur.Dispatch.Abstractions.IMessageContext" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Abstractions.IMessageResult" preserve="all" />
+  </assembly>
+
+  <!-- Preserve Dispatch implementation types -->
+  <assembly fullname="Excalibur.Dispatch">
+    <!-- Delivery types -->
+    <type fullname="Excalibur.Dispatch.Messaging.MessageResult" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Messaging.MessageContext" preserve="all" />
+
+    <!-- Generated registries -->
+    <type fullname="Excalibur.Dispatch.Delivery.Handlers.PrecompiledHandlerRegistry" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Delivery.Handlers.PrecompiledHandlerInvoker" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Delivery.Handlers.PrecompiledHandlerMetadata" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Delivery.Handlers.PrecompiledHandlerActivator" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Delivery.Handlers.ResultFactoryRegistry" preserve="all" />
+
+    <!-- JSON serialization context -->
+    <type fullname="Excalibur.Dispatch.Serialization.DispatchJsonContext" preserve="all" />
+
+    <!-- Common types that might be dynamically accessed -->
+    <type fullname="Excalibur.Dispatch.TypeResolution.TypeResolverRegistry" preserve="all" />
+    <type fullname="Excalibur.Dispatch.Runtime.AotDetection" preserve="all" />
+
+    <!-- Middleware types -->
+    <namespace fullname="Excalibur.Dispatch.Middleware" preserve="all" />
+  </assembly>
+
+  <!-- System types commonly used in messaging -->
+  <assembly fullname="System.Private.CoreLib">
+    <type fullname="System.Guid" preserve="all" />
+    <type fullname="System.DateTime" preserve="all" />
+    <type fullname="System.DateTimeOffset" preserve="all" />
+    <type fullname="System.TimeSpan" preserve="all" />
+    <type fullname="System.String" preserve="all" />
+    <type fullname="System.Collections.Generic.Dictionary`2" preserve="all" />
+    <type fullname="System.Collections.Generic.List`1" preserve="all" />
+    <type fullname="System.Threading.CancellationToken" preserve="all" />
+    <type fullname="System.Threading.Tasks.Task" preserve="all" />
+    <type fullname="System.Threading.Tasks.Task`1" preserve="all" />
+  </assembly>
+
+  <!-- System.Text.Json types -->
+  <assembly fullname="System.Text.Json">
+    <type fullname="System.Text.Json.JsonSerializer" preserve="all" />
+    <type fullname="System.Text.Json.JsonSerializerOptions" preserve="all" />
+    <type fullname="System.Text.Json.Serialization.JsonSerializerContext" preserve="all" />
+    <type fullname="System.Text.Json.Serialization.Metadata.JsonTypeInfo" preserve="all" />
+  </assembly>
+</linker>

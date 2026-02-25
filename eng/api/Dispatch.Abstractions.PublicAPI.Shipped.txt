@@ -1,0 +1,2 @@
+# Initial baseline - no shipped APIs yet
+# This file will be populated when first version is released

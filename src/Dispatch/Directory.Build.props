@@ -1,0 +1,21 @@
+<Project>
+  <!-- Import parent props first -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!--
+    T2.4: Dependency Direction Enforcement (AD-304-2)
+    Prevents Dispatch packages from referencing Excalibur packages.
+    The allowed direction is: Excalibur → Dispatch (not the reverse).
+
+    To bypass during controlled migrations, set:
+    <SkipDependencyValidation>true</SkipDependencyValidation>
+  -->
+  <Target Name="ValidateDependencyDirection" BeforeTargets="Build" Condition="'$(SkipDependencyValidation)' != 'true'">
+    <ItemGroup>
+      <!-- Flag references to Excalibur packages that are NOT Excalibur.Dispatch (self-references are allowed) -->
+      <_ExcaliburReference Include="@(ProjectReference)" Condition="$([System.String]::new('%(Identity)').Contains('Excalibur')) AND !$([System.String]::new('%(Identity)').Contains('Excalibur.Dispatch'))" />
+    </ItemGroup>
+    <Error Condition="'@(_ExcaliburReference)' != ''"
+           Text="FORBIDDEN: Dispatch projects cannot reference Excalibur packages. Dependency direction must be Excalibur → Excalibur.Dispatch. Found: @(_ExcaliburReference)" />
+  </Target>
+</Project>

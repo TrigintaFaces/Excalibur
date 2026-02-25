@@ -1,0 +1,178 @@
+# Sprint 427 T427.2: Sample Build Validation Workflow
+# Purpose: Build all samples to catch breaking changes early
+# Owner: PlatformDeveloper
+# Beads ID: 0ppk0
+
+name: Samples CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'samples/**'
+      - 'src/**'
+      - 'Directory.Build.props'
+      - 'Directory.Build.targets'
+      - 'Directory.Packages.props'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'samples/**'
+      - 'src/**'
+      - 'Directory.Build.props'
+      - 'Directory.Build.targets'
+      - 'Directory.Packages.props'
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        description: 'Enable debug logging'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+jobs:
+  # Enumerate all sample directories dynamically
+  enumerate-samples:
+    name: Enumerate Samples
+    runs-on: ubuntu-latest
+    outputs:
+      samples: ${{ steps.list.outputs.samples }}
+      sample_count: ${{ steps.list.outputs.sample_count }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: List sample directories
+        id: list
+        run: |
+          echo "🔍 Discovering sample directories..."
+
+          # Find all sample project directories (exclude build output folders)
+          samples=$(find samples -type f -name "*.csproj" \
+                    -not -path "*/obj/*" \
+                    -not -path "*/bin/*" \
+                    -printf '%h\n' | \
+                    sed 's|^samples/||' | \
+                    sort -u | \
+                    jq -R . | \
+                    jq -s -c .)
+
+          sample_count=$(echo "$samples" | jq '. | length')
+
+          echo "samples=$samples" >> $GITHUB_OUTPUT
+          echo "sample_count=$sample_count" >> $GITHUB_OUTPUT
+
+          echo "📋 Found $sample_count samples:"
+          echo "$samples" | jq -r '.[]'
+
+  # Build each sample in parallel
+  build-samples:
+    name: Build ${{ matrix.sample }}
+    runs-on: ubuntu-latest
+    needs: enumerate-samples
+    if: needs.enumerate-samples.outputs.sample_count != '0'
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false  # Continue building other samples even if one fails
+      max-parallel: 8   # Limit parallel jobs to avoid resource exhaustion
+      matrix:
+        sample: ${{ fromJson(needs.enumerate-samples.outputs.samples) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-samples-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-samples-
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: |
+          echo "📦 Restoring ${{ matrix.sample }}..."
+          dotnet restore samples/${{ matrix.sample }}
+
+      - name: Build sample
+        id: build
+        run: |
+          echo "🔨 Building ${{ matrix.sample }}..."
+          if dotnet build samples/${{ matrix.sample }} --configuration Release --no-restore --verbosity minimal; then
+            echo "✅ ${{ matrix.sample }} built successfully"
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "❌ ${{ matrix.sample }} failed to build"
+            echo "status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Report build status
+        if: always()
+        run: |
+          if [ "${{ steps.build.outputs.status }}" = "success" ]; then
+            echo "## ✅ ${{ matrix.sample }}" >> $GITHUB_STEP_SUMMARY
+            echo "Build completed successfully." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ❌ ${{ matrix.sample }}" >> $GITHUB_STEP_SUMMARY
+            echo "Build failed. Check logs for details." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # Summary job that reports overall status
+  summary:
+    name: Samples CI Summary
+    runs-on: ubuntu-latest
+    needs: [enumerate-samples, build-samples]
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "# 📦 Samples CI Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow:** ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Sample Build Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Total Samples:** ${{ needs.enumerate-samples.outputs.sample_count }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.enumerate-samples.outputs.sample_count }}" = "0" ]; then
+            echo "### ⚪ No sample projects found to build" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.build-samples.result }}" = "success" ]; then
+            echo "### ✅ All samples built successfully!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ Some samples failed to build" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Check individual job logs for failure details." >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*Sprint 427 T427.2 - Sample CI Validation*" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check overall status
+        if: needs.enumerate-samples.outputs.sample_count != '0' && needs.build-samples.result != 'success'
+        run: |
+          echo "::warning::Some samples failed to build. Review individual job logs."
+          # Don't fail the workflow - we want to see all failures
+          # The individual build jobs already failed, this is just reporting

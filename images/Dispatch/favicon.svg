@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Single simplified plane for favicon - two triangles with subtle gap -->
+  <g transform="translate(25, 16)">
+    <path d="M 0 -0.5 L -18 -7.5 L -9 -0.5 Z" fill="#00d4ff"/>
+    <path d="M 0 0.5 L -18 7.5 L -9 0.5 Z" fill="#5de4ff"/>
+  </g>
+</svg>

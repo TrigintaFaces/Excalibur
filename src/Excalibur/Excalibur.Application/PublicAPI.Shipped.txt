@@ -1,0 +1,123 @@
+#nullable enable
+Excalibur.Application.ActivityContext
+Excalibur.Application.ActivityContext.ActivityContext(Excalibur.Dispatch.Abstractions.ITenantId tenantId, Excalibur.Dispatch.Abstractions.ICorrelationId correlationId, Excalibur.Domain.Concurrency.IETag eTag, Microsoft.Extensions.Configuration.IConfiguration configuration, Excalibur.Domain.IClientAddress clientAddress, System.IServiceProvider serviceProvider) -> void
+Excalibur.Application.ActivityContext.ContainsKey(System.String key) -> System.Boolean
+Excalibur.Application.ActivityContext.GetValue(System.String key,  defaultValue) ->
+Excalibur.Application.ActivityContext.Remove(System.String key) -> System.Void
+Excalibur.Application.ActivityContext.SetValue(System.String key,  value) -> System.Void
+Excalibur.Application.AssemblyMarker
+Excalibur.Application.IDetermineValidationRuleSetByConfig`1
+Excalibur.Application.IDetermineValidationRuleSetByConfig`1.WhichRuleSets( config) -> System.String[]
+Excalibur.Application.OptionsBuilderExtensions
+Excalibur.Application.Requests.ActivityAttribute
+Excalibur.Application.Requests.ActivityAttribute.ActivityAttribute(System.String displayName, System.String description) -> void
+Excalibur.Application.Requests.ActivityAttribute.ActivityAttribute(System.String displayName) -> void
+Excalibur.Application.Requests.ActivityAttribute.Description.get -> System.String
+Excalibur.Application.Requests.ActivityAttribute.DisplayName.get -> System.String
+Excalibur.Application.Requests.ActivityType
+Excalibur.Application.Requests.ActivityType.Command -> Excalibur.Application.Requests.ActivityType
+Excalibur.Application.Requests.ActivityType.Job -> Excalibur.Application.Requests.ActivityType
+Excalibur.Application.Requests.ActivityType.Notification -> Excalibur.Application.Requests.ActivityType
+Excalibur.Application.Requests.ActivityType.Query -> Excalibur.Application.Requests.ActivityType
+Excalibur.Application.Requests.ActivityType.Unknown -> Excalibur.Application.Requests.ActivityType
+Excalibur.Application.Requests.Commands.CommandBase
+Excalibur.Application.Requests.Commands.CommandBase.ActivityDescription.get -> System.String
+Excalibur.Application.Requests.Commands.CommandBase.ActivityDisplayName.get -> System.String
+Excalibur.Application.Requests.Commands.CommandBase.ActivityName.get -> System.String
+Excalibur.Application.Requests.Commands.CommandBase.Headers.get -> System.Collections.Generic.IReadOnlyDictionary<System.String, System.Object>
+Excalibur.Application.Requests.Commands.CommandBase.Id.get -> System.Guid
+Excalibur.Application.Requests.Commands.CommandBase.Kind.get -> Excalibur.Dispatch.Abstractions.MessageKinds
+Excalibur.Application.Requests.Commands.CommandBase.MessageId.get -> System.String
+Excalibur.Application.Requests.Commands.CommandBase.MessageType.get -> System.String
+Excalibur.Application.Requests.Commands.CommandBase.TenantId.get -> System.String
+Excalibur.Application.Requests.Commands.CommandBase.TransactionBehavior.get -> System.Transactions.TransactionScopeOption
+Excalibur.Application.Requests.Commands.CommandBase.TransactionIsolation.get -> System.Transactions.IsolationLevel
+Excalibur.Application.Requests.Commands.CommandBase.TransactionTimeout.get -> System.TimeSpan
+Excalibur.Application.Requests.Commands.CommandBase`1
+Excalibur.Application.Requests.Commands.ICommand
+Excalibur.Application.Requests.Commands.ICommand`1
+Excalibur.Application.Requests.Commands.ICommandHandler`1
+Excalibur.Application.Requests.Commands.ICommandHandler`2
+Excalibur.Application.Requests.IActivity
+Excalibur.Application.Requests.IActivity.ActivityDescription.get -> System.String
+Excalibur.Application.Requests.IActivity.ActivityDisplayName.get -> System.String
+Excalibur.Application.Requests.IActivity.ActivityName.get -> System.String
+Excalibur.Application.Requests.IActivity.ActivityType.get -> Excalibur.Application.Requests.ActivityType
+Excalibur.Application.Requests.IAmAuditable
+Excalibur.Application.Requests.IAmCorrelatable
+Excalibur.Application.Requests.IAmCorrelatable.CorrelationId.get -> System.Guid
+Excalibur.Application.Requests.IAmMultiTenant
+Excalibur.Application.Requests.IAmMultiTenant.TenantId.get -> System.String
+Excalibur.Application.Requests.Jobs.IJob
+Excalibur.Application.Requests.Jobs.IJob.ActivityDescription.get -> System.String
+Excalibur.Application.Requests.Jobs.IJob.ActivityDisplayName.get -> System.String
+Excalibur.Application.Requests.Jobs.IJob.ActivityName.get -> System.String
+Excalibur.Application.Requests.Jobs.IJob.ActivityType.get -> Excalibur.Application.Requests.ActivityType
+Excalibur.Application.Requests.Jobs.JobBase
+Excalibur.Application.Requests.Jobs.JobBase.ActivityDescription.get -> System.String
+Excalibur.Application.Requests.Jobs.JobBase.ActivityDisplayName.get -> System.String
+Excalibur.Application.Requests.Jobs.JobBase.ActivityName.get -> System.String
+Excalibur.Application.Requests.Jobs.JobBase.ActivityType.get -> Excalibur.Application.Requests.ActivityType
+Excalibur.Application.Requests.Jobs.JobBase.CorrelationId.get -> System.Guid
+Excalibur.Application.Requests.Jobs.JobBase.Headers.get -> System.Collections.Generic.IReadOnlyDictionary<System.String, System.Object>
+Excalibur.Application.Requests.Jobs.JobBase.Id.get -> System.Guid
+Excalibur.Application.Requests.Jobs.JobBase.Kind.get -> Excalibur.Dispatch.Abstractions.MessageKinds
+Excalibur.Application.Requests.Jobs.JobBase.MessageId.get -> System.String
+Excalibur.Application.Requests.Jobs.JobBase.MessageType.get -> System.String
+Excalibur.Application.Requests.Jobs.JobBase.TenantId.get -> System.String
+Excalibur.Application.Requests.Jobs.JobHandlerBase`1
+Excalibur.Application.Requests.Jobs.JobHandlerBase`1.HandleAsync( action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Application.Requests.Jobs.JobResult>
+Excalibur.Application.Requests.Jobs.JobResult
+Excalibur.Application.Requests.Jobs.JobResult.Equals(Excalibur.Application.Requests.Jobs.JobResult other) -> System.Boolean
+Excalibur.Application.Requests.Jobs.JobResult.Equals(System.Object obj) -> System.Boolean
+Excalibur.Application.Requests.Jobs.JobResult.GetHashCode() -> System.Int32
+Excalibur.Application.Requests.Notifications.INotification
+Excalibur.Application.Requests.Notifications.NotificationBase
+Excalibur.Application.Requests.Notifications.NotificationBase.ActivityDescription.get -> System.String
+Excalibur.Application.Requests.Notifications.NotificationBase.ActivityDisplayName.get -> System.String
+Excalibur.Application.Requests.Notifications.NotificationBase.ActivityName.get -> System.String
+Excalibur.Application.Requests.Notifications.NotificationBase.ActivityType.get -> Excalibur.Application.Requests.ActivityType
+Excalibur.Application.Requests.Notifications.NotificationBase.CorrelationId.get -> System.Guid
+Excalibur.Application.Requests.Notifications.NotificationBase.Headers.get -> System.Collections.Generic.IReadOnlyDictionary<System.String, System.Object>
+Excalibur.Application.Requests.Notifications.NotificationBase.Id.get -> System.Guid
+Excalibur.Application.Requests.Notifications.NotificationBase.Kind.get -> Excalibur.Dispatch.Abstractions.MessageKinds
+Excalibur.Application.Requests.Notifications.NotificationBase.MessageId.get -> System.String
+Excalibur.Application.Requests.Notifications.NotificationBase.MessageType.get -> System.String
+Excalibur.Application.Requests.Notifications.NotificationBase.TenantId.get -> System.String
+Excalibur.Application.Requests.Notifications.NotificationBase.TransactionBehavior.get -> System.Transactions.TransactionScopeOption
+Excalibur.Application.Requests.Notifications.NotificationBase.TransactionIsolation.get -> System.Transactions.IsolationLevel
+Excalibur.Application.Requests.Notifications.NotificationBase.TransactionTimeout.get -> System.TimeSpan
+Excalibur.Application.Requests.Queries.IQuery`1
+Excalibur.Application.Requests.Queries.IQueryHandler`2
+Excalibur.Application.Requests.Queries.QueryBase`1
+Excalibur.Application.Requests.Queries.QueryBase`1.ActivityDescription.get -> System.String
+Excalibur.Application.Requests.Queries.QueryBase`1.ActivityDisplayName.get -> System.String
+Excalibur.Application.Requests.Queries.QueryBase`1.ActivityName.get -> System.String
+Excalibur.Application.Requests.Queries.QueryBase`1.Headers.get -> System.Collections.Generic.IReadOnlyDictionary<System.String, System.Object>
+Excalibur.Application.Requests.Queries.QueryBase`1.Id.get -> System.Guid
+Excalibur.Application.Requests.Queries.QueryBase`1.Kind.get -> Excalibur.Dispatch.Abstractions.MessageKinds
+Excalibur.Application.Requests.Queries.QueryBase`1.MessageId.get -> System.String
+Excalibur.Application.Requests.Queries.QueryBase`1.MessageType.get -> System.String
+Excalibur.Application.Requests.Queries.QueryBase`1.TenantId.get -> System.String
+Excalibur.Application.Requests.Queries.QueryBase`1.TransactionBehavior.get -> System.Transactions.TransactionScopeOption
+Excalibur.Application.Requests.Queries.QueryBase`1.TransactionIsolation.get -> System.Transactions.IsolationLevel
+Excalibur.Application.Requests.Queries.QueryBase`1.TransactionTimeout.get -> System.TimeSpan
+Excalibur.Application.Requests.Validation.ActivityValidator`1
+Excalibur.Application.Requests.Validation.ActivityValidator`1.ActivityValidator`1() -> void
+Excalibur.Application.Requests.Validation.CorrelationValidator`1
+Excalibur.Application.Requests.Validation.CorrelationValidator`1.CorrelationValidator`1() -> void
+Excalibur.Application.Requests.Validation.MultiTenantValidator`1
+Excalibur.Application.Requests.Validation.MultiTenantValidator`1.MultiTenantValidator`1() -> void
+Excalibur.Application.Requests.Validation.RequestValidator`1
+Excalibur.Application.Requests.Validation.RulesFor`2
+Excalibur.Application.Requests.Validation.RulesFor`2.Validate( instance) -> FluentValidation.Results.ValidationResult
+Excalibur.Application.Requests.Validation.RulesFor`2.ValidateAsync( instance, System.Threading.CancellationToken cancellation) -> System.Threading.Tasks.Task<FluentValidation.Results.ValidationResult>
+Excalibur.Application.ValidationExtensions
+Microsoft.Extensions.DependencyInjection.ExcaliburApplicationServiceCollectionExtensions
+static Excalibur.Application.OptionsBuilderExtensions.Validate(Microsoft.Extensions.Options.OptionsBuilder<> builder) -> System.Void
+static Excalibur.Application.ValidationExtensions.IsValidCorrelationId(FluentValidation.IRuleBuilder<, System.Guid> ruleBuilder) -> FluentValidation.IRuleBuilderOptions<, System.Guid>
+static Excalibur.Application.ValidationExtensions.IsValidTenantId(FluentValidation.IRuleBuilder<, System.String> ruleBuilder) -> FluentValidation.IRuleBuilderOptions<, System.String>
+static Microsoft.Extensions.DependencyInjection.ExcaliburApplicationServiceCollectionExtensions.AddActivities(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Reflection.Assembly[] assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.ExcaliburApplicationServiceCollectionExtensions.AddExcaliburApplicationServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Reflection.Assembly[] assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static readonly Excalibur.Application.Requests.Jobs.JobResult.NoWorkPerformed -> Excalibur.Application.Requests.Jobs.JobResult
+static readonly Excalibur.Application.Requests.Jobs.JobResult.OperationSucceeded -> Excalibur.Application.Requests.Jobs.JobResult

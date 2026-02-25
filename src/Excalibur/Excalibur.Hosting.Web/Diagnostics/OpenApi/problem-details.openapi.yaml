@@ -1,0 +1,59 @@
+openapi: 3.1.0
+info:
+  title: Problem Details Schema
+  version: 1.0.0
+description: >
+  A reusable schema definition for RFC 7807 ProblemDetails used in HTTP API responses.
+  Intended to support both general error reporting and custom extensions like trace IDs, error codes, validation errors, and stack traces.
+
+components:
+  schemas:
+    ProblemDetails:
+      type: object
+      required:
+        - type
+        - title
+        - status
+        - traceId
+      properties:
+        type:
+          type: string
+          format: uri
+          description: A URI reference that identifies the problem type.
+        title:
+          type: string
+          description: A short, human-readable summary of the problem type.
+        status:
+          type: integer
+          format: int32
+          description: The HTTP status code.
+        detail:
+          type: string
+          description: A human-readable explanation specific to this occurrence of the problem.
+        instance:
+          type: string
+          format: uri
+          description: A URI reference that identifies the specific occurrence of the problem.
+        traceId:
+          type: string
+          description: Unique request trace identifier (from correlation or Activity).
+        exceptionId:
+          type: string
+          format: uuid
+          description: A globally unique identifier for this exception instance.
+        errorCode:
+          type: integer
+          description: Application-specific error code.
+        stack:
+          type: string
+          description: Full stack trace (only included in development environments).
+        validationErrors:
+          type: array
+          description: List of validation failures.
+          items:
+            type: object
+            properties:
+              propertyName:
+                type: string
+              errorMessage:
+                type: string

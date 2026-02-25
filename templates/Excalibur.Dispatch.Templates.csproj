@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageType>Template</PackageType>
+    <PackageVersion>0.1.0</PackageVersion>
+    <PackageId>Excalibur.Dispatch.Templates</PackageId>
+    <Title>Excalibur.Dispatch Project Templates</Title>
+    <Description>dotnet new templates for Dispatch and Excalibur projects</Description>
+    <PackageTags>dotnet-new;templates;dispatch;excalibur;eventsourcing;cqrs;ddd</PackageTags>
+    <IncludeContentInPack>true</IncludeContentInPack>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <ContentTargetFolders>content</ContentTargetFolders>
+    <NoDefaultExcludes>true</NoDefaultExcludes>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Include="dispatch-api\**\*" Exclude="dispatch-api\**\bin\**;dispatch-api\**\obj\**" />
+    <Content Include="dispatch-worker\**\*" Exclude="dispatch-worker\**\bin\**;dispatch-worker\**\obj\**" />
+    <Content Include="excalibur-ddd\**\*" Exclude="excalibur-ddd\**\bin\**;excalibur-ddd\**\obj\**" />
+    <Content Include="excalibur-cqrs\**\*" Exclude="excalibur-cqrs\**\bin\**;excalibur-cqrs\**\obj\**" />
+    <Compile Remove="**\*" />
+  </ItemGroup>
+</Project>

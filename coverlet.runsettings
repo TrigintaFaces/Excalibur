@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Exclude>[*.Tests]*,[*.Tests.Unit]*,[*.Tests.Integration]*,[*.Tests.Functional]*,[*]Microsoft.*,[*]System.*,[xunit.*]*,[Shouldly]*,[FakeItEasy]*</Exclude>
+          <ExcludeByFile>**/obj/**,**/bin/**,**/*.g.cs,**/*.AssemblyInfo.cs,**/Resources.Designer.cs</ExcludeByFile>
+          <Include>[Dispatch.*]*,[Excalibur.*]*</Include>
+          <IncludeDirectory>src/</IncludeDirectory>
+          <SingleHit>false</SingleHit>
+          <UseSourceLink>true</UseSourceLink>
+          <IncludeTestAssembly>false</IncludeTestAssembly>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

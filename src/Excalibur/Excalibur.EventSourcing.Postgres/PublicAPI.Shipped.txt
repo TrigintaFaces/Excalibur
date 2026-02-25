@@ -1,0 +1,144 @@
+#nullable enable
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.ConnectionString.get -> System.String
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.ConnectionString.set -> void
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.EventStoreHealthCheckName.get -> System.String
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.EventStoreHealthCheckName.set -> void
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.EventStoreSchema.get -> System.String
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.EventStoreSchema.set -> void
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.EventStoreTable.get -> System.String
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.EventStoreTable.set -> void
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.OutboxSchema.get -> System.String
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.OutboxSchema.set -> void
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.OutboxStoreHealthCheckName.get -> System.String
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.OutboxStoreHealthCheckName.set -> void
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.OutboxTable.get -> System.String
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.OutboxTable.set -> void
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.PostgresEventSourcingOptions() -> void
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.RegisterHealthChecks.get -> System.Boolean
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.RegisterHealthChecks.set -> void
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.SnapshotStoreHealthCheckName.get -> System.String
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.SnapshotStoreHealthCheckName.set -> void
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.SnapshotStoreSchema.get -> System.String
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.SnapshotStoreSchema.set -> void
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.SnapshotStoreTable.get -> System.String
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions.SnapshotStoreTable.set -> void
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigrationHostedService
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigrationHostedService.PostgresMigrationHostedService(Excalibur.EventSourcing.Abstractions.IMigrator migrator, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigrationHostedService> logger) -> void
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigrationHostedService.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigrationHostedService.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigratorOptions
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigratorOptions.AutoMigrateOnStartup.get -> System.Boolean
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigratorOptions.AutoMigrateOnStartup.set -> void
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigratorOptions.ConnectionString.get -> System.String
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigratorOptions.ConnectionString.set -> void
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigratorOptions.MigrationAssembly.get -> System.Reflection.Assembly
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigratorOptions.MigrationAssembly.set -> void
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigratorOptions.MigrationNamespace.get -> System.String
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigratorOptions.MigrationNamespace.set -> void
+Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigratorOptions.PostgresMigratorOptions() -> void
+Excalibur.EventSourcing.Postgres.PostgresEventSourcedOutboxStore
+Excalibur.EventSourcing.Postgres.PostgresEventSourcedOutboxStore.AddAsync(Excalibur.EventSourcing.Outbox.OutboxMessage message, System.Data.IDbTransaction transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.EventSourcing.Postgres.PostgresEventSourcedOutboxStore.DeletePublishedOlderThanAsync(System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Int32>
+Excalibur.EventSourcing.Postgres.PostgresEventSourcedOutboxStore.GetPendingAsync(System.Int32 batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Outbox.OutboxMessage>>
+Excalibur.EventSourcing.Postgres.PostgresEventSourcedOutboxStore.IncrementRetryCountAsync(System.Guid messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.EventSourcing.Postgres.PostgresEventSourcedOutboxStore.MarkAsPublishedAsync(System.Guid messageId, System.Data.IDbTransaction transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.EventSourcing.Postgres.PostgresEventSourcedOutboxStore.PostgresEventSourcedOutboxStore(Npgsql.NpgsqlDataSource dataSource, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresEventSourcedOutboxStore> logger) -> void
+Excalibur.EventSourcing.Postgres.PostgresEventSourcedOutboxStore.PostgresEventSourcedOutboxStore(System.String connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresEventSourcedOutboxStore> logger) -> void
+Excalibur.EventSourcing.Postgres.PostgresEventStore
+Excalibur.EventSourcing.Postgres.PostgresEventStore.AppendAsync(System.String aggregateId, System.String aggregateType, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent> events, System.Int64 expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.Abstractions.AppendResult>
+Excalibur.EventSourcing.Postgres.PostgresEventStore.GetUndispatchedEventsAsync(System.Int32 batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent>>
+Excalibur.EventSourcing.Postgres.PostgresEventStore.LoadAsync(System.String aggregateId, System.String aggregateType, System.Int64 fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent>>
+Excalibur.EventSourcing.Postgres.PostgresEventStore.LoadAsync(System.String aggregateId, System.String aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent>>
+Excalibur.EventSourcing.Postgres.PostgresEventStore.MarkEventAsDispatchedAsync(System.String eventId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.Postgres.PostgresEventStore.PostgresEventStore(Npgsql.NpgsqlDataSource dataSource, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresEventStore> logger, Excalibur.Dispatch.Abstractions.Serialization.IInternalSerializer internalSerializer, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer payloadSerializer) -> void
+Excalibur.EventSourcing.Postgres.PostgresEventStore.PostgresEventStore(System.String connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresEventStore> logger, Excalibur.Dispatch.Abstractions.Serialization.IInternalSerializer internalSerializer, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer payloadSerializer) -> void
+Excalibur.EventSourcing.Postgres.PostgresEventStore.PostgresEventStore(System.String connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresEventStore> logger, Excalibur.Dispatch.Abstractions.Serialization.IInternalSerializer internalSerializer) -> void
+Excalibur.EventSourcing.Postgres.PostgresEventStore.PostgresEventStore(System.String connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresEventStore> logger) -> void
+Excalibur.EventSourcing.Postgres.PostgresMaterializedViewStore
+Excalibur.EventSourcing.Postgres.PostgresMaterializedViewStore.DeleteAsync(System.String viewName, System.String viewId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.Postgres.PostgresMaterializedViewStore.GetAsync(System.String viewName, System.String viewId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<>
+Excalibur.EventSourcing.Postgres.PostgresMaterializedViewStore.GetPositionAsync(System.String viewName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Nullable<System.Int64>>
+Excalibur.EventSourcing.Postgres.PostgresMaterializedViewStore.PostgresMaterializedViewStore(Npgsql.NpgsqlDataSource dataSource, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresMaterializedViewStore> logger, System.String viewTableName, System.String positionTableName, System.Text.Json.JsonSerializerOptions jsonOptions) -> void
+Excalibur.EventSourcing.Postgres.PostgresMaterializedViewStore.PostgresMaterializedViewStore(System.String connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresMaterializedViewStore> logger, System.String viewTableName, System.String positionTableName, System.Text.Json.JsonSerializerOptions jsonOptions) -> void
+Excalibur.EventSourcing.Postgres.PostgresMaterializedViewStore.SaveAsync(System.String viewName, System.String viewId,  view, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.Postgres.PostgresMaterializedViewStore.SavePositionAsync(System.String viewName, System.Int64 position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.Postgres.PostgresMigrator
+Excalibur.EventSourcing.Postgres.PostgresMigrator.GetAppliedMigrationsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.AppliedMigration>>
+Excalibur.EventSourcing.Postgres.PostgresMigrator.GetPendingMigrationsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<System.String>>
+Excalibur.EventSourcing.Postgres.PostgresMigrator.MigrateAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Abstractions.MigrationResult>
+Excalibur.EventSourcing.Postgres.PostgresMigrator.PostgresMigrator(Npgsql.NpgsqlDataSource dataSource, System.Reflection.Assembly migrationAssembly, System.String migrationNamespace, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresMigrator> logger) -> void
+Excalibur.EventSourcing.Postgres.PostgresMigrator.PostgresMigrator(System.String connectionString, System.Reflection.Assembly migrationAssembly, System.String migrationNamespace, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresMigrator> logger) -> void
+Excalibur.EventSourcing.Postgres.PostgresMigrator.RollbackAsync(System.String targetMigrationId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Abstractions.MigrationResult>
+Excalibur.EventSourcing.Postgres.PostgresProjectionStore`1
+Excalibur.EventSourcing.Postgres.PostgresProjectionStore`1.CountAsync(System.Collections.Generic.IDictionary<System.String, System.Object> filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Int64>
+Excalibur.EventSourcing.Postgres.PostgresProjectionStore`1.DeleteAsync(System.String id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.EventSourcing.Postgres.PostgresProjectionStore`1.GetByIdAsync(System.String id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<>
+Excalibur.EventSourcing.Postgres.PostgresProjectionStore`1.PostgresProjectionStore`1(Npgsql.NpgsqlDataSource dataSource, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresProjectionStore<>> logger, System.String tableName, System.Text.Json.JsonSerializerOptions jsonOptions) -> void
+Excalibur.EventSourcing.Postgres.PostgresProjectionStore`1.PostgresProjectionStore`1(System.String connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresProjectionStore<>> logger, System.String tableName, System.Text.Json.JsonSerializerOptions jsonOptions) -> void
+Excalibur.EventSourcing.Postgres.PostgresProjectionStore`1.QueryAsync(System.Collections.Generic.IDictionary<System.String, System.Object> filters, Excalibur.EventSourcing.Abstractions.QueryOptions options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<>>
+Excalibur.EventSourcing.Postgres.PostgresProjectionStore`1.UpsertAsync(System.String id,  projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.EventSourcing.Postgres.PostgresProjectionStoreOptions
+Excalibur.EventSourcing.Postgres.PostgresProjectionStoreOptions.ConnectionString.get -> System.String
+Excalibur.EventSourcing.Postgres.PostgresProjectionStoreOptions.ConnectionString.set -> void
+Excalibur.EventSourcing.Postgres.PostgresProjectionStoreOptions.JsonSerializerOptions.get -> System.Text.Json.JsonSerializerOptions
+Excalibur.EventSourcing.Postgres.PostgresProjectionStoreOptions.JsonSerializerOptions.set -> void
+Excalibur.EventSourcing.Postgres.PostgresProjectionStoreOptions.PostgresProjectionStoreOptions() -> void
+Excalibur.EventSourcing.Postgres.PostgresProjectionStoreOptions.TableName.get -> System.String
+Excalibur.EventSourcing.Postgres.PostgresProjectionStoreOptions.TableName.set -> void
+Excalibur.EventSourcing.Postgres.PostgresProjectionStoreOptions.Validate() -> System.Void
+Excalibur.EventSourcing.Postgres.PostgresSnapshotStore
+Excalibur.EventSourcing.Postgres.PostgresSnapshotStore.DeleteSnapshotsAsync(System.String aggregateId, System.String aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.Postgres.PostgresSnapshotStore.DeleteSnapshotsOlderThanAsync(System.String aggregateId, System.String aggregateType, System.Int64 olderThanVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.Postgres.PostgresSnapshotStore.GetLatestSnapshotAsync(System.String aggregateId, System.String aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot>
+Excalibur.EventSourcing.Postgres.PostgresSnapshotStore.PostgresSnapshotStore(Npgsql.NpgsqlDataSource dataSource, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresSnapshotStore> logger) -> void
+Excalibur.EventSourcing.Postgres.PostgresSnapshotStore.PostgresSnapshotStore(System.String connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Postgres.PostgresSnapshotStore> logger) -> void
+Excalibur.EventSourcing.Postgres.PostgresSnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.Postgres.Requests.AddOutboxMessageRequest
+Excalibur.EventSourcing.Postgres.Requests.AddOutboxMessageRequest.AddOutboxMessageRequest(Excalibur.EventSourcing.Outbox.OutboxMessage message, System.Data.IDbTransaction transaction, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.Postgres.Requests.DeletePublishedOutboxMessagesRequest
+Excalibur.EventSourcing.Postgres.Requests.DeletePublishedOutboxMessagesRequest.DeletePublishedOutboxMessagesRequest(System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.Postgres.Requests.DeleteSnapshotsOlderThanRequest
+Excalibur.EventSourcing.Postgres.Requests.DeleteSnapshotsOlderThanRequest.DeleteSnapshotsOlderThanRequest(System.String aggregateId, System.String aggregateType, System.Int64 version, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.Postgres.Requests.DeleteSnapshotsRequest
+Excalibur.EventSourcing.Postgres.Requests.DeleteSnapshotsRequest.DeleteSnapshotsRequest(System.String aggregateId, System.String aggregateType, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.Postgres.Requests.GetCurrentVersionRequest
+Excalibur.EventSourcing.Postgres.Requests.GetCurrentVersionRequest.GetCurrentVersionRequest(System.String aggregateId, System.String aggregateType, System.Data.IDbTransaction transaction, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.Postgres.Requests.GetLatestSnapshotRequest
+Excalibur.EventSourcing.Postgres.Requests.GetLatestSnapshotRequest.GetLatestSnapshotRequest(System.String aggregateId, System.String aggregateType, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.Postgres.Requests.GetPendingOutboxMessagesRequest
+Excalibur.EventSourcing.Postgres.Requests.GetPendingOutboxMessagesRequest.GetPendingOutboxMessagesRequest(System.Int32 batchSize, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.Postgres.Requests.GetUndispatchedEventsRequest
+Excalibur.EventSourcing.Postgres.Requests.GetUndispatchedEventsRequest.GetUndispatchedEventsRequest(System.Int32 batchSize, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.Postgres.Requests.IncrementOutboxRetryCountRequest
+Excalibur.EventSourcing.Postgres.Requests.IncrementOutboxRetryCountRequest.IncrementOutboxRetryCountRequest(System.Guid messageId, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.Postgres.Requests.InsertEventRequest
+Excalibur.EventSourcing.Postgres.Requests.InsertEventRequest.InsertEventRequest(System.String eventId, System.String aggregateId, System.String aggregateType, System.String eventType, System.Byte[] eventData, System.Byte[] metadata, System.Int64 version, System.DateTimeOffset timestamp, System.Data.IDbTransaction transaction, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.Postgres.Requests.LoadEventsRequest
+Excalibur.EventSourcing.Postgres.Requests.LoadEventsRequest.LoadEventsRequest(System.String aggregateId, System.String aggregateType, System.Int64 fromVersion, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.Postgres.Requests.MarkEventDispatchedRequest
+Excalibur.EventSourcing.Postgres.Requests.MarkEventDispatchedRequest.MarkEventDispatchedRequest(System.String eventId, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.Postgres.Requests.MarkOutboxMessagePublishedRequest
+Excalibur.EventSourcing.Postgres.Requests.MarkOutboxMessagePublishedRequest.MarkOutboxMessagePublishedRequest(System.Guid messageId, System.Data.IDbTransaction transaction, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.Postgres.Requests.SaveSnapshotRequest
+Excalibur.EventSourcing.Postgres.Requests.SaveSnapshotRequest.SaveSnapshotRequest(Excalibur.Domain.Model.ISnapshot snapshot, System.Threading.CancellationToken cancellationToken) -> void
+Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.PostgresProjectionStoreExtensions
+static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresEventSourcing(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Npgsql.NpgsqlDataSource dataSource) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresEventSourcing(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresEventSourcingOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresEventSourcing(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String connectionString, System.Boolean registerHealthChecks) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresEventStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Npgsql.NpgsqlDataSource dataSource) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresEventStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresMaterializedViewStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Npgsql.NpgsqlDataSource dataSource, System.String viewTableName, System.String positionTableName) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresMaterializedViewStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String connectionString, System.String viewTableName, System.String positionTableName) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresMigrator(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Npgsql.NpgsqlDataSource dataSource, System.Reflection.Assembly migrationAssembly, System.String migrationNamespace) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresMigrator(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.EventSourcing.Postgres.DependencyInjection.PostgresMigratorOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresMigrator(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String connectionString, System.Reflection.Assembly migrationAssembly, System.String migrationNamespace) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresOutboxStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Npgsql.NpgsqlDataSource dataSource) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresOutboxStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresSnapshotStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Npgsql.NpgsqlDataSource dataSource) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.AddPostgresSnapshotStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PostgresEventSourcingServiceCollectionExtensions.UsePostgres(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PostgresProjectionStoreExtensions.AddPostgresProjectionStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.EventSourcing.Postgres.PostgresProjectionStoreOptions> configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PostgresProjectionStoreExtensions.AddPostgresProjectionStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Func<System.IServiceProvider, Npgsql.NpgsqlDataSource> dataSourceFactory, System.Action<Excalibur.EventSourcing.Postgres.PostgresProjectionStoreOptions> configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.PostgresProjectionStoreExtensions.AddPostgresProjectionStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String connectionString, System.Action<Excalibur.EventSourcing.Postgres.PostgresProjectionStoreOptions> configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

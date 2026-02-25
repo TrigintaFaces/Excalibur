@@ -1,0 +1,34 @@
+{
+  "solution": {
+    "path": "..\\..\\..\\Excalibur.sln",
+    "projects": [
+      "src\\Excalibur\\Excalibur.Testing\\Excalibur.Testing.csproj",
+      "src\\Excalibur\\Excalibur.Testing.Conformance\\Excalibur.Testing.Conformance.csproj",
+      "tests\\Shared\\Tests.Shared\\Tests.Shared.csproj",
+      "tests\\Shared\\Excalibur.Dispatch.Testing\\Excalibur.Dispatch.Testing.csproj",
+      "tests\\ArchitectureTests\\ArchitectureTests.csproj",
+      "tests\\architecture\\Boundary.Tests\\Boundary.Tests.csproj",
+      "tests\\conformance\\Excalibur.Dispatch.Tests.Conformance\\Excalibur.Dispatch.Tests.Conformance.csproj",
+      "tests\\functional\\Excalibur.Dispatch.Tests.Functional\\Excalibur.Dispatch.Tests.Functional.csproj",
+      "tests\\integration\\Excalibur.Dispatch.Integration.Tests\\Excalibur.Dispatch.Integration.Tests.csproj",
+      "tests\\integration\\Excalibur.Integration.Tests\\Excalibur.Integration.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Tests\\Excalibur.Dispatch.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Abstractions.Tests\\Excalibur.Dispatch.Abstractions.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Transport.Tests\\Excalibur.Dispatch.Transport.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Hosting.Tests\\Excalibur.Dispatch.Hosting.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Patterns.Tests\\Excalibur.Dispatch.Patterns.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Security.Tests\\Excalibur.Dispatch.Security.Tests.csproj",
+      "tests\\unit\\Excalibur.Data.Tests\\Excalibur.Data.Tests.csproj",
+      "tests\\unit\\Excalibur.EventSourcing.Tests\\Excalibur.EventSourcing.Tests.csproj",
+      "tests\\unit\\Excalibur.LeaderElection.Tests\\Excalibur.LeaderElection.Tests.csproj",
+      "tests\\unit\\Excalibur.Outbox.Tests\\Excalibur.Outbox.Tests.csproj",
+      "tests\\unit\\Excalibur.Hosting.Tests\\Excalibur.Hosting.Tests.csproj",
+      "tests\\unit\\Excalibur.Jobs.Tests\\Excalibur.Jobs.Tests.csproj",
+      "tests\\unit\\Excalibur.Saga.Tests\\Excalibur.Saga.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Middleware.Tests\\Excalibur.Dispatch.Middleware.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.SourceGenerators.Tests\\Excalibur.Dispatch.SourceGenerators.Tests.csproj",
+      "tests\\unit\\Excalibur.Tests\\Excalibur.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Serialization.Tests\\Excalibur.Dispatch.Serialization.Tests.csproj"
+    ]
+  }
+}

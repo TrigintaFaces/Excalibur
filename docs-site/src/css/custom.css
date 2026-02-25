@@ -1,0 +1,464 @@
+/**
+ * Excalibur Documentation Theme
+ *
+ * Brand-aligned color palette combining:
+ * - Dispatch (cyan): Fast messaging - #00d4ff
+ * - Excalibur (blue): Framework foundation - #3b82f6
+ */
+
+/* Import Inter font for clean typography */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  /* Dispatch brand colors (cyan family) */
+  --dispatch-primary: #00d4ff;
+  --dispatch-light: #5de4ff;
+  --dispatch-dark: #00a8cc;
+
+  /* Excalibur brand colors (blue family) */
+  --excalibur-primary: #3b82f6;
+  --excalibur-light: #60a5fa;
+  --excalibur-lighter: #93c5fd;
+  --excalibur-dark: #2563eb;
+  --excalibur-darker: #1d4ed8;
+
+  /* Shared backgrounds */
+  --brand-bg-dark: #1a1a2e;
+  --brand-bg-darker: #0f172a;
+  --brand-bg-surface-light: #f8fafc;
+
+  /* Semantic colors */
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+
+  /* Map to Docusaurus/Infima variables - using Dispatch cyan as primary */
+  --ifm-color-primary: #00d4ff;
+  --ifm-color-primary-dark: #00bfe6;
+  --ifm-color-primary-darker: #00a8cc;
+  --ifm-color-primary-darkest: #0091b3;
+  --ifm-color-primary-light: #33dcff;
+  --ifm-color-primary-lighter: #66e5ff;
+  --ifm-color-primary-lightest: #99edff;
+
+  /* Secondary color - Excalibur blue */
+  --ifm-color-secondary: #3b82f6;
+
+  /* Typography */
+  --ifm-font-family-base: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --ifm-font-family-monospace: 'JetBrains Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --ifm-code-font-size: 90%;
+
+  /* Code highlighting */
+  --docusaurus-highlighted-code-line-bg: rgba(0, 212, 255, 0.1);
+
+  /* Spacing and layout */
+  --ifm-container-width-xl: 1400px;
+  --ifm-spacing-horizontal: 1.5rem;
+}
+
+/* Dark mode colors */
+[data-theme='dark'] {
+  --ifm-color-primary: #5de4ff;
+  --ifm-color-primary-dark: #00d4ff;
+  --ifm-color-primary-darker: #00bfe6;
+  --ifm-color-primary-darkest: #00a8cc;
+  --ifm-color-primary-light: #7aebff;
+  --ifm-color-primary-lighter: #99f0ff;
+  --ifm-color-primary-lightest: #b8f5ff;
+
+  --docusaurus-highlighted-code-line-bg: rgba(93, 228, 255, 0.2);
+
+  /* Dark mode backgrounds */
+  --ifm-background-color: #0f172a;
+  --ifm-background-surface-color: #1e293b;
+}
+
+/* Navbar styling */
+.navbar {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+
+.navbar__title {
+  font-weight: 600;
+}
+
+/* Better code block styling */
+pre code {
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+
+/* Table styling improvements */
+table {
+  display: table;
+  width: 100%;
+}
+
+table th {
+  background-color: rgba(0, 212, 255, 0.1);
+  font-weight: 600;
+}
+
+[data-theme='dark'] table th {
+  background-color: var(--ifm-background-surface-color);
+}
+
+/* Admonition/callout improvements */
+.admonition {
+  border-radius: 8px;
+}
+
+/* Footer styling */
+.footer {
+  background-color: var(--brand-bg-dark);
+}
+
+.footer--dark {
+  --ifm-footer-background-color: #1e293b;
+}
+
+/* Link improvements */
+.markdown a {
+  font-weight: 500;
+}
+
+/* Hero section styles */
+.hero {
+  background: linear-gradient(135deg, var(--brand-bg-dark) 0%, var(--brand-bg-darker) 100%);
+  padding: 6rem 0;
+}
+
+.hero__title {
+  font-size: 3.5rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.hero__subtitle {
+  font-size: 1.5rem;
+  color: var(--dispatch-primary);
+  opacity: 0.95;
+  margin-bottom: 2rem;
+}
+
+/* Feature cards */
+.feature-card {
+  background: var(--ifm-card-background-color);
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+  height: 100%;
+}
+
+.feature-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+.feature-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  background: rgba(0, 212, 255, 0.1);
+  margin-bottom: 1rem;
+}
+
+[data-theme='dark'] .feature-card__icon {
+  background: rgba(93, 228, 255, 0.1);
+}
+
+.feature-card__title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.feature-card__description {
+  color: var(--ifm-font-color-secondary);
+  line-height: 1.6;
+}
+
+/* Quick start code section */
+.quick-start-section {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  padding: 4rem 0;
+}
+
+[data-theme='dark'] .quick-start-section {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+}
+
+/* CTA buttons */
+.cta-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.cta-button--primary {
+  background: var(--dispatch-primary);
+  color: var(--brand-bg-dark);
+}
+
+.cta-button--primary:hover {
+  background: var(--dispatch-light);
+  color: var(--brand-bg-dark);
+  text-decoration: none;
+}
+
+.cta-button--secondary {
+  background: transparent;
+  color: #ffffff;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.cta-button--secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  text-decoration: none;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Search bar improvements */
+.DocSearch-Button {
+  border-radius: 8px !important;
+}
+
+/* Sidebar improvements */
+.menu__link {
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.menu__link--active {
+  font-weight: 600;
+}
+
+/* Comparison section */
+.comparison-section {
+  padding: 4rem 0;
+}
+
+.comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.comparison-table th,
+.comparison-table td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.comparison-table th {
+  font-weight: 600;
+  background: rgba(0, 212, 255, 0.05);
+}
+
+/* Badge styles */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  background-color: rgba(0, 212, 255, 0.1);
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--dispatch-primary);
+}
+
+[data-theme='dark'] .badge {
+  background-color: rgba(93, 228, 255, 0.15);
+}
+
+/* NuGet badge styling */
+.nuget-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  background-color: rgba(59, 130, 246, 0.1);
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--excalibur-primary);
+}
+
+[data-theme='dark'] .nuget-badge {
+  background-color: rgba(96, 165, 250, 0.15);
+  color: var(--excalibur-light);
+}
+
+/* Mobile responsiveness */
+@media (max-width: 996px) {
+  .hero {
+    padding: 4rem 0;
+  }
+
+  .hero__title {
+    font-size: 2.5rem;
+  }
+
+  .hero__subtitle {
+    font-size: 1.125rem;
+  }
+
+  .feature-card {
+    padding: 1.5rem;
+  }
+}
+
+/* Stats section */
+.stats-section {
+  display: flex;
+  justify-content: center;
+  gap: 4rem;
+  padding: 2rem 0;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--dispatch-primary);
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: var(--ifm-font-color-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Code comparison component */
+.code-comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .code-comparison {
+    grid-template-columns: 1fr;
+  }
+}
+
+.code-comparison__panel {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.code-comparison__header {
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.code-comparison__before .code-comparison__header {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.code-comparison__after .code-comparison__header {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+}
+
+/* ==========================================================================
+   Accessibility
+   ========================================================================== */
+
+/* Focus states - WCAG 2.1 AA compliant */
+:focus-visible {
+  outline: 2px solid var(--dispatch-primary);
+  outline-offset: 2px;
+}
+
+/* Remove default focus outline when :focus-visible is supported */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Button and link focus states */
+.cta-button:focus-visible,
+.menu__link:focus-visible,
+.navbar__link:focus-visible {
+  outline: 2px solid var(--dispatch-primary);
+  outline-offset: 2px;
+}
+
+/* Card focus states */
+.feature-card:focus-visible,
+[class*='cardLink']:focus-visible {
+  outline: 2px solid var(--dispatch-primary);
+  outline-offset: 4px;
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .feature-card:hover,
+  .cta-button:hover {
+    transform: none;
+  }
+}
+
+/* Skip link for keyboard navigation */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--dispatch-primary);
+  color: var(--brand-bg-dark);
+  padding: 0.5rem 1rem;
+  z-index: 1000;
+  font-weight: 600;
+  border-radius: 0 0 4px 0;
+  transition: top 0.2s;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .feature-card {
+    border: 2px solid currentColor;
+  }
+
+  .cta-button--secondary {
+    border-width: 3px;
+  }
+
+  .badge {
+    border: 1px solid currentColor;
+  }
+}

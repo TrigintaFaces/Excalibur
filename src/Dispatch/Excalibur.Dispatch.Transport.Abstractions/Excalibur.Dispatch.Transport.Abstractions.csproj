@@ -1,0 +1,50 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <AssemblyName>Excalibur.Dispatch.Transport.Abstractions</AssemblyName>
+    <RootNamespace>Excalibur.Dispatch.Transport.Abstractions</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+    <PackageId>Excalibur.Dispatch.Transport.Abstractions</PackageId>
+    <Description>Cloud provider abstractions for the Excalibur framework. Defines interfaces and contracts for implementing cloud-specific message transports.</Description>
+    <PackageTags>messaging;dispatch;cloud;abstractions;providers;aot</PackageTags>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
+    <PackageReference Include="System.Threading.Channels" />
+    <PackageReference Include="OpenTelemetry.Api" />
+    <!-- Kubernetes (for Infrastructure components) -->
+    <PackageReference Include="KubernetesClient" />
+    <!-- Resilience patterns -->
+    <PackageReference Include="Polly" />
+    <!-- HTTP client extensions -->
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <!-- gRPC (for gRPC abstractions) -->
+    <PackageReference Include="Grpc.Net.Client" />
+    <!-- Consul (for service discovery) -->
+    <PackageReference Include="Consul" />
+    <PackageReference Include="System.Text.Json" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Aws" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Azure" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Google" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Kafka" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.RabbitMQ" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests.Unit" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests.Integration" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

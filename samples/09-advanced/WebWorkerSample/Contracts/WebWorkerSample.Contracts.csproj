@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)\GeneratedFiles</CompilerGeneratedFilesOutputPath>
+    <Version>$(VersionPrefix)</Version>
+    <PackageId>$(AssemblyName)</PackageId>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <!-- Sprint 428 S428.3: Updated paths for reorganized sample structure -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Application\Excalibur.Application.csproj" />
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.SourceGenerators\Excalibur.Dispatch.SourceGenerators.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+  </ItemGroup>
+</Project>

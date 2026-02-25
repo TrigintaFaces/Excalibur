@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Encryption.EncryptionBenchmarks-20260202-192614</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.102
+  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method              </th><th>Mean  </th><th>Error </th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Gen2</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>EncryptSmall</td><td>336.5 ns</td><td>6.49 ns</td><td>9.52 ns</td><td>336.3 ns</td><td>1.00</td><td>0.04</td><td>0.0577</td><td>-</td><td>-</td><td>1.06 KB</td><td>1.00</td>
+</tr><tr><td>DecryptSmall</td><td>NA</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>NA</td><td>NA</td><td>NA</td><td>?</td>
+</tr><tr><td>EncryptMedium</td><td>1,602.7 ns</td><td>31.83 ns</td><td>54.04 ns</td><td>1,602.4 ns</td><td>4.77</td><td>0.21</td><td>0.5455</td><td>-</td><td>-</td><td>10.06 KB</td><td>9.47</td>
+</tr><tr><td>DecryptMedium</td><td>NA</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>NA</td><td>NA</td><td>NA</td><td>?</td>
+</tr><tr><td>EncryptLarge</td><td>15,023.0 ns</td><td>826.77 ns</td><td>2,437.76 ns</td><td>15,346.9 ns</td><td>44.68</td><td>7.32</td><td>28.1677</td><td>28.1372</td><td>28.1372</td><td>100.28 KB</td><td>94.38</td>
+</tr><tr><td>DecryptLarge</td><td>NA</td><td>NA</td><td>NA</td><td>NA</td><td>?</td><td>?</td><td>NA</td><td>NA</td><td>NA</td><td>NA</td><td>?</td>
+</tr><tr><td>EncryptVeryLarge</td><td>157,096.2 ns</td><td>10,223.83 ns</td><td>30,145.21 ns</td><td>160,845.2 ns</td><td>467.21</td><td>90.19</td><td>247.5586</td><td>247.3145</td><td>247.3145</td><td>1026.02 KB</td><td>965.67</td>
+</tr><tr><td>DecryptVeryLarge</td><td>160,786.5 ns</td><td>3,333.46 ns</td><td>9,776.47 ns</td><td>159,871.7 ns</td><td>478.18</td><td>31.85</td><td>248.7793</td><td>248.7793</td><td>248.7793</td><td>1024.1 KB</td><td>963.86</td>
+</tr><tr><td>RoundTripSmall</td><td>721.0 ns</td><td>14.28 ns</td><td>23.06 ns</td><td>722.2 ns</td><td>2.14</td><td>0.09</td><td>0.1135</td><td>-</td><td>-</td><td>2.09 KB</td><td>1.96</td>
+</tr><tr><td>RoundTripMedium</td><td>3,404.4 ns</td><td>66.01 ns</td><td>55.12 ns</td><td>3,430.9 ns</td><td>10.12</td><td>0.32</td><td>1.0910</td><td>0.0191</td><td>-</td><td>20.09 KB</td><td>18.90</td>
+</tr><tr><td>EncryptWithNonceGeneration</td><td>441.9 ns</td><td>15.72 ns</td><td>46.35 ns</td><td>456.1 ns</td><td>1.31</td><td>0.14</td><td>0.0596</td><td>-</td><td>-</td><td>1.1 KB</td><td>1.04</td>
+</tr></tbody></table>
+</body>
+</html>

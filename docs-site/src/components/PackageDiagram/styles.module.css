@@ -1,0 +1,136 @@
+/**
+ * PackageDiagram component styles
+ * Visualizes NuGet package dependency structure
+ */
+
+.container {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background: var(--ifm-card-background-color);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+
+.title {
+  text-align: center;
+  margin: 0 0 1.5rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ifm-font-color-base);
+}
+
+.diagram {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+}
+
+.tier {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.package {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  background: var(--ifm-background-surface-color);
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 8px;
+  min-width: 140px;
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+
+.package:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+.packagePrimary {
+  border-color: var(--ifm-color-primary);
+  background: rgba(0, 212, 255, 0.05);
+}
+
+.packagePrimary:hover {
+  border-color: var(--ifm-color-primary-dark);
+}
+
+.packageLink {
+  text-decoration: none;
+  color: inherit;
+}
+
+.packageLink:hover {
+  text-decoration: none;
+  color: inherit;
+}
+
+.packageName {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--ifm-font-color-base);
+  font-family: var(--ifm-font-family-monospace);
+}
+
+.packageDescription {
+  font-size: 0.75rem;
+  color: var(--ifm-font-color-secondary);
+  line-height: 1.4;
+}
+
+.dependencies {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--ifm-color-emphasis-200);
+}
+
+.dependency {
+  font-size: 0.6875rem;
+  color: var(--ifm-font-color-secondary);
+  font-family: var(--ifm-font-family-monospace);
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.legendArrow {
+  color: var(--ifm-color-primary);
+  font-size: 1rem;
+}
+
+.legendText {
+  font-size: 0.75rem;
+  color: var(--ifm-font-color-secondary);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;
+  }
+
+  .package {
+    min-width: 120px;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .packageName {
+    font-size: 0.8125rem;
+  }
+}

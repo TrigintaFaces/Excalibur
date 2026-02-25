@@ -1,0 +1,22 @@
+version: "3.8"
+services:
+    rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+            - "5672:5672"
+            - "15672:15672"
+    zookeeper:
+        image: confluentinc/cp-zookeeper:7.5.0
+        environment:
+            ZOOKEEPER_CLIENT_PORT: 2181
+    kafka:
+        image: confluentinc/cp-kafka:7.5.0
+        depends_on:
+            - zookeeper
+        ports:
+            - "9092:9092"
+        environment:
+            KAFKA_BROKER_ID: 1
+            KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+            KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+            KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1

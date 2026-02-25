@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Sprint464.HandlerActivatorBenchmarks-20260202-212404</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.102
+  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method             </th><th>Mean   </th><th>Error</th><th>StdDev</th><th>Median </th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>DirectPropertySetter</td><td>0.0235 ns</td><td>0.0169 ns</td><td>0.0288 ns</td><td>0.0161 ns</td><td>?</td><td>?</td><td>-</td><td>-</td><td>?</td>
+</tr><tr><td>PrecompiledDelegateSetter</td><td>3.7188 ns</td><td>0.0959 ns</td><td>0.2333 ns</td><td>3.6750 ns</td><td>?</td><td>?</td><td>0.0013</td><td>24 B</td><td>?</td>
+</tr><tr><td>ActivateHandler_Cached</td><td>11.2328 ns</td><td>0.2814 ns</td><td>0.7938 ns</td><td>11.0668 ns</td><td>?</td><td>?</td><td>0.0013</td><td>24 B</td><td>?</td>
+</tr><tr><td>ReflectionPropertySetter</td><td>23.0244 ns</td><td>0.4771 ns</td><td>1.2981 ns</td><td>22.6791 ns</td><td>?</td><td>?</td><td>0.0013</td><td>24 B</td><td>?</td>
+</tr><tr><td>ActivateHandler_Batch100</td><td>982.6062 ns</td><td>26.3428 ns</td><td>73.8681 ns</td><td>966.2643 ns</td><td>?</td><td>?</td><td>0.1268</td><td>2400 B</td><td>?</td>
+</tr><tr><td>ReflectionSetter_Batch100</td><td>1,250.1932 ns</td><td>32.4622 ns</td><td>93.6610 ns</td><td>1,237.1885 ns</td><td>?</td><td>?</td><td>0.1259</td><td>2400 B</td><td>?</td>
+</tr></tbody></table>
+</body>
+</html>

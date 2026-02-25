@@ -1,0 +1,59 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- Source generators MUST target netstandard2.0 only - override multi-targeting from Directory.Build.props -->
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFrameworks></TargetFrameworks>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <EnableDefaultAnalyzers>false</EnableDefaultAnalyzers>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <IncludeSymbols>false</IncludeSymbols>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <!-- AOT/Trim not applicable for source generators -->
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableAotAnalyzer>false</EnableAotAnalyzer>
+    <IsTrimmable>false</IsTrimmable>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <Description>C# source generators for AOT optimization and compile-time code generation in the Excalibur framework. Eliminates reflection and improves startup performance.</Description>
+    <PackageTags>dispatch;source-generators;aot;roslyn;codegen;performance</PackageTags>
+  </PropertyGroup>
+  <!-- Test accessibility -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Excalibur.Dispatch.SourceGenerators.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Remove="Microsoft.SourceLink.GitHub" />
+    <PackageReference Remove="Microsoft.CodeAnalysis.Analyzers" />
+    <PackageReference Remove="Microsoft.CodeAnalysis.NetAnalyzers" />
+    <PackageReference Remove="Microsoft.CodeAnalysis.PublicApiAnalyzers" />
+    <PackageReference Remove="Microsoft.CodeAnalysis.BannedApiAnalyzers" />
+    <PackageReference Remove="StyleCop.Analyzers" />
+    <PackageReference Remove="Meziantou.Analyzer" />
+    <PackageReference Remove="Roslynator.Analyzers" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.14.0" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
+    <PackageReference Include="System.Collections.Immutable" Version="9.0.9" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="lib/netstandard2.0" Visible="false" />
+    <None Include="build\Dispatch.SourceGenerators.props" Pack="true" PackagePath="build/Excalibur.Dispatch.SourceGenerators.props" />
+    <None Include="build\Dispatch.SourceGenerators.targets" Pack="true" PackagePath="build/Excalibur.Dispatch.SourceGenerators.targets" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,26 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-JobWorkerSample-c1be17f8-29f3-4a9c-b0ac-0b01ec0b1234</UserSecretsId>
+    <Version>$(VersionPrefix)</Version>
+    <PackageId>$(AssemblyName)</PackageId>
+    <IsAotCompatible>true</IsAotCompatible>
+    <!-- Suppress warnings irrelevant for sample code -->
+    <NoWarn>$(NoWarn);CA5394;CS7022;CA1308;CA1052</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Serilog.Extensions.Hosting" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="AspNetCore.HealthChecks.UI" />
+    <PackageReference Include="AspNetCore.HealthChecks.UI.InMemory.Storage" />
+  </ItemGroup>
+  <!-- Sprint 428 S428.3: Updated paths for reorganized sample structure -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Hosting.Jobs\Excalibur.Hosting.Jobs.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Jobs\Excalibur.Jobs.csproj" />
+  </ItemGroup>
+</Project>

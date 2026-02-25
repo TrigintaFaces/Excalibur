@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background -->
+  <rect width="512" height="512" fill="#1a1a2e"/>
+
+  <!-- Crystalline/tech geometric sword -->
+  <g transform="translate(256, 140)">
+    <!-- Crystalline blade with tech aesthetic -->
+
+    <!-- Middle facets (outer edge) -->
+    <path d="M 0 -130 L -20 -70 L -14 120 L 0 145" fill="#3b82f6" opacity="0.7"/>
+    <path d="M 0 -130 L 20 -70 L 14 120 L 0 145" fill="#3b82f6" opacity="0.7"/>
+
+    <!-- Inner facets -->
+    <path d="M 0 -130 L -10 -70 L -7 120 L 0 145" fill="#60a5fa" opacity="0.9"/>
+    <path d="M 0 -130 L 10 -70 L 7 120 L 0 145" fill="#60a5fa" opacity="0.9"/>
+
+    <!-- Center highlight -->
+    <path d="M 0 -130 L -4 -70 L -3 120 L 0 145" fill="#93c5fd"/>
+    <path d="M 0 -130 L 4 -70 L 3 120 L 0 145" fill="#93c5fd"/>
+
+    <!-- Core light -->
+    <line x1="0" y1="-130" x2="0" y2="145" stroke="#e0f2fe" stroke-width="2" opacity="0.6"/>
+
+    <!-- Tech-style guard -->
+    <g>
+      <polygon points="-50,120 -25,124 25,124 50,120 48,136 -48,136" fill="#0ea5e9"/>
+      <polygon points="-48,136 -24,139 24,139 48,136" fill="#06b6d4" opacity="0.8"/>
+      <rect x="-45" y="122" width="90" height="3" fill="#67e8f9" opacity="0.5"/>
+    </g>
+
+    <!-- Tech grip with segments -->
+    <rect x="-10" y="139" width="20" height="28" fill="#0f172a" rx="1"/>
+    <rect x="-8" y="141" width="16" height="24" fill="#1e293b" rx="1"/>
+    <!-- Grip segments -->
+    <line x1="-8" y1="147" x2="8" y2="147" stroke="#334155" stroke-width="1"/>
+    <line x1="-8" y1="153" x2="8" y2="153" stroke="#334155" stroke-width="1"/>
+    <line x1="-8" y1="159" x2="8" y2="159" stroke="#334155" stroke-width="1"/>
+
+    <!-- Tech pommel with energy core -->
+    <polygon points="-18,167 0,176 18,167 15,184 -15,184" fill="#0ea5e9"/>
+    <polygon points="-14,169 0,176 14,169 12,181 -12,181" fill="#06b6d4"/>
+    <circle cx="0" cy="175" r="6" fill="#67e8f9"/>
+    <circle cx="0" cy="175" r="3" fill="#e0f2fe" opacity="0.8"/>
+  </g>
+
+  <!-- Text: EXCALIBUR -->
+  <text x="256" y="380"
+        font-size="56"
+        font-family="Arial, sans-serif"
+        font-weight="bold"
+        fill="#3b82f6"
+        text-anchor="middle"
+        letter-spacing="3"
+        dominant-baseline="middle">EXCALIBUR</text>
+
+  <!-- Tagline -->
+  <text x="256" y="430"
+        font-size="18"
+        font-family="Arial, sans-serif"
+        fill="#60a5fa"
+        text-anchor="middle"
+        letter-spacing="3"
+        dominant-baseline="middle">LEGENDARY .NET FRAMEWORK</text>
+</svg>

@@ -1,0 +1,39 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Excalibur.Data.Tests</RootNamespace>
+    <AssemblyName>Excalibur.Data.Tests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Test framework (Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio) provided by Directory.Build.props -->
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="FakeItEasy" />
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Core data projects -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data\Excalibur.Data.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
+    <!-- Provider projects (needed by Configuration/ cross-cutting tests) -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Postgres\Excalibur.Data.Postgres.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.ElasticSearch\Excalibur.Data.ElasticSearch.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.MongoDB\Excalibur.Data.MongoDB.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Redis\Excalibur.Data.Redis.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Firestore\Excalibur.Data.Firestore.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.CosmosDb\Excalibur.Data.CosmosDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.DynamoDb\Excalibur.Data.DynamoDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.DataProcessing\Excalibur.Data.DataProcessing.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Domain\Excalibur.Domain.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
+  </ItemGroup>
+</Project>

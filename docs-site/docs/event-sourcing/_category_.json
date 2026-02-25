@@ -1,0 +1,10 @@
+{
+  "label": "Event Sourcing",
+  "position": 6,
+  "link": {
+    "type": "doc",
+    "id": "event-sourcing/index"
+  },
+  "collapsible": true,
+  "collapsed": true
+}

@@ -1,0 +1,41 @@
+#nullable enable
+Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerJobProvider
+Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerJobProvider.AwsSchedulerJobProvider(Amazon.Scheduler.AmazonSchedulerClient schedulerClient, Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerOptions options, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerJobProvider> logger) -> void
+Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerJobProvider.DeleteJobAsync(System.String jobName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerJobProvider.Dispose() -> System.Void
+Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerJobProvider.ScheduleJobAsync(System.String jobName, System.String cronExpression, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerOptions
+Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerOptions.AwsSchedulerOptions() -> void
+Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerOptions.ExecutionRoleArn.get -> System.String
+Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerOptions.ExecutionRoleArn.set -> void
+Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerOptions.MaximumEventAgeInSeconds.get -> System.Int32
+Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerOptions.MaximumEventAgeInSeconds.set -> void
+Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerOptions.RetryPolicyMaximumRetryAttempts.get -> System.Int32
+Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerOptions.RetryPolicyMaximumRetryAttempts.set -> void
+Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerOptions.ScheduleGroup.get -> System.String
+Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerOptions.ScheduleGroup.set -> void
+Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerOptions.TargetArn.get -> System.String
+Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerOptions.TargetArn.set -> void
+Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerOptions.TimeZone.get -> System.String
+Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerOptions.TimeZone.set -> void
+Excalibur.Jobs.CloudProviders.Azure.AzureLogicAppsJobProvider
+Excalibur.Jobs.CloudProviders.Azure.AzureLogicAppsJobProvider.AzureLogicAppsJobProvider(Azure.ResourceManager.ArmClient armClient, Excalibur.Jobs.CloudProviders.Azure.AzureLogicAppsOptions options, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.CloudProviders.Azure.AzureLogicAppsJobProvider> logger) -> void
+Excalibur.Jobs.CloudProviders.Azure.AzureLogicAppsJobProvider.DeleteJobAsync(System.String jobName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.CloudProviders.Azure.AzureLogicAppsJobProvider.ScheduleJobAsync(System.String jobName, System.String cronExpressionUnused, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Jobs.CloudProviders.Azure.AzureLogicAppsOptions
+Excalibur.Jobs.CloudProviders.Azure.AzureLogicAppsOptions.AzureLogicAppsOptions() -> void
+Excalibur.Jobs.CloudProviders.Azure.AzureLogicAppsOptions.JobExecutionEndpoint.get -> System.String
+Excalibur.Jobs.CloudProviders.Azure.AzureLogicAppsOptions.JobExecutionEndpoint.set -> void
+Excalibur.Jobs.CloudProviders.Azure.AzureLogicAppsOptions.Location.get -> Azure.Core.AzureLocation
+Excalibur.Jobs.CloudProviders.Azure.AzureLogicAppsOptions.Location.set -> void
+Excalibur.Jobs.CloudProviders.Azure.AzureLogicAppsOptions.ResourceGroupName.get -> System.String
+Excalibur.Jobs.CloudProviders.Azure.AzureLogicAppsOptions.ResourceGroupName.set -> void
+Excalibur.Jobs.CloudProviders.Azure.AzureLogicAppsOptions.SubscriptionId.get -> System.String
+Excalibur.Jobs.CloudProviders.Azure.AzureLogicAppsOptions.SubscriptionId.set -> void
+Excalibur.Jobs.CloudProviders.Azure.AzureLogicAppsOptions.Tags.get -> System.Collections.Generic.Dictionary<System.String, System.String>
+Excalibur.Jobs.CloudProviders.Azure.AzureLogicAppsOptions.Tags.set -> void
+Microsoft.Extensions.DependencyInjection.AwsServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.AzureServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.AwsServiceCollectionExtensions.AddAwsScheduler(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Amazon.Extensions.NETCore.Setup.AWSOptions awsOptions, System.Action<Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.AwsServiceCollectionExtensions.AddAwsScheduler(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Jobs.CloudProviders.Aws.AwsSchedulerOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.AzureServiceCollectionExtensions.AddAzureLogicApps(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Jobs.CloudProviders.Azure.AzureLogicAppsOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

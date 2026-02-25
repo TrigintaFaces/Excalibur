@@ -1,0 +1,344 @@
+#nullable enable
+Excalibur.Hosting.Builders.IExcaliburBuilder
+Excalibur.Hosting.Builders.IExcaliburBuilder.AddCdc(System.Action<Excalibur.Cdc.ICdcBuilder> configure) -> Excalibur.Hosting.Builders.IExcaliburBuilder
+Excalibur.Hosting.Builders.IExcaliburBuilder.AddEventSourcing(System.Action<Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder> configure) -> Excalibur.Hosting.Builders.IExcaliburBuilder
+Excalibur.Hosting.Builders.IExcaliburBuilder.AddLeaderElection(System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions> configure) -> Excalibur.Hosting.Builders.IExcaliburBuilder
+Excalibur.Hosting.Builders.IExcaliburBuilder.AddOutbox(System.Action<Excalibur.Outbox.IOutboxBuilder> configure) -> Excalibur.Hosting.Builders.IExcaliburBuilder
+Excalibur.Hosting.Builders.IExcaliburBuilder.AddSagas(System.Action<Excalibur.Saga.SagaOptions> configure) -> Excalibur.Hosting.Builders.IExcaliburBuilder
+Excalibur.Hosting.Builders.IExcaliburBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+Excalibur.Hosting.Configuration.CdcOptions
+Excalibur.Hosting.Configuration.CdcOptions.CdcOptions() -> void
+Excalibur.Hosting.Configuration.CdcOptions.Enabled.get -> System.Boolean
+Excalibur.Hosting.Configuration.CdcOptions.Enabled.set -> void
+Excalibur.Hosting.Configuration.CdcOptions.MaxBatchSize.get -> System.Int32
+Excalibur.Hosting.Configuration.CdcOptions.MaxBatchSize.set -> void
+Excalibur.Hosting.Configuration.CdcOptions.PollingInterval.get -> System.TimeSpan
+Excalibur.Hosting.Configuration.CdcOptions.PollingInterval.set -> void
+Excalibur.Hosting.Configuration.ConfigurationValidationError
+Excalibur.Hosting.Configuration.ConfigurationValidationError.ConfigurationPath.get -> System.String
+Excalibur.Hosting.Configuration.ConfigurationValidationError.ConfigurationValidationError(System.String message, System.String configurationPath, System.Object value, System.String recommendation) -> void
+Excalibur.Hosting.Configuration.ConfigurationValidationError.Message.get -> System.String
+Excalibur.Hosting.Configuration.ConfigurationValidationError.Recommendation.get -> System.String
+Excalibur.Hosting.Configuration.ConfigurationValidationError.ToString() -> System.String
+Excalibur.Hosting.Configuration.ConfigurationValidationError.Value.get -> System.Object
+Excalibur.Hosting.Configuration.ConfigurationValidationException
+Excalibur.Hosting.Configuration.ConfigurationValidationException.ConfigurationValidationException() -> void
+Excalibur.Hosting.Configuration.ConfigurationValidationException.ConfigurationValidationException(System.String message, System.Collections.Generic.IReadOnlyList<Excalibur.Hosting.Configuration.ConfigurationValidationError> errors, System.Exception innerException) -> void
+Excalibur.Hosting.Configuration.ConfigurationValidationException.ConfigurationValidationException(System.String message, System.Collections.Generic.IReadOnlyList<Excalibur.Hosting.Configuration.ConfigurationValidationError> errors) -> void
+Excalibur.Hosting.Configuration.ConfigurationValidationException.ConfigurationValidationException(System.String message) -> void
+Excalibur.Hosting.Configuration.ConfigurationValidationException.Errors.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Hosting.Configuration.ConfigurationValidationError>
+Excalibur.Hosting.Configuration.ConfigurationValidationExtensions
+Excalibur.Hosting.Configuration.ConfigurationValidationOptions
+Excalibur.Hosting.Configuration.ConfigurationValidationOptions.ConfigurationValidationOptions() -> void
+Excalibur.Hosting.Configuration.ConfigurationValidationOptions.Enabled.get -> System.Boolean
+Excalibur.Hosting.Configuration.ConfigurationValidationOptions.Enabled.set -> void
+Excalibur.Hosting.Configuration.ConfigurationValidationOptions.FailFast.get -> System.Boolean
+Excalibur.Hosting.Configuration.ConfigurationValidationOptions.FailFast.set -> void
+Excalibur.Hosting.Configuration.ConfigurationValidationOptions.TreatValidatorExceptionsAsErrors.get -> System.Boolean
+Excalibur.Hosting.Configuration.ConfigurationValidationOptions.TreatValidatorExceptionsAsErrors.set -> void
+Excalibur.Hosting.Configuration.ConfigurationValidationOptions.ValidationTimeout.get -> System.TimeSpan
+Excalibur.Hosting.Configuration.ConfigurationValidationOptions.ValidationTimeout.set -> void
+Excalibur.Hosting.Configuration.ConfigurationValidationResult
+Excalibur.Hosting.Configuration.ConfigurationValidationResult.ConfigurationValidationResult(System.Boolean isValid, System.Collections.Generic.IReadOnlyList<Excalibur.Hosting.Configuration.ConfigurationValidationError> errors) -> void
+Excalibur.Hosting.Configuration.ConfigurationValidationResult.Errors.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Hosting.Configuration.ConfigurationValidationError>
+Excalibur.Hosting.Configuration.ConfigurationValidationResult.IsValid.get -> System.Boolean
+Excalibur.Hosting.Configuration.ConfigurationValidationService
+Excalibur.Hosting.Configuration.ConfigurationValidationService.ConfigurationValidationService(Microsoft.Extensions.Configuration.IConfiguration configuration, System.Collections.Generic.IEnumerable<Excalibur.Hosting.Configuration.IConfigurationValidator> validators, Microsoft.Extensions.Hosting.IHostApplicationLifetime applicationLifetime, Microsoft.Extensions.Logging.ILogger<Excalibur.Hosting.Configuration.ConfigurationValidationService> logger, Excalibur.Hosting.Configuration.ConfigurationValidationOptions options) -> void
+Excalibur.Hosting.Configuration.ConfigurationValidationService.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Hosting.Configuration.ConfigurationValidationService.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Hosting.Configuration.ConfigurationValidatorBase
+Excalibur.Hosting.Configuration.ConfigurationValidatorBase.ConfigurationName.get -> System.String
+Excalibur.Hosting.Configuration.ConfigurationValidatorBase.Priority.get -> System.Int32
+Excalibur.Hosting.Configuration.ConfigurationValidatorBase.ValidateAsync(Microsoft.Extensions.Configuration.IConfiguration configuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Hosting.Configuration.ConfigurationValidationResult>
+Excalibur.Hosting.Configuration.EventSourcingOptions
+Excalibur.Hosting.Configuration.EventSourcingOptions.DefaultReadBatchSize.get -> System.Int32
+Excalibur.Hosting.Configuration.EventSourcingOptions.DefaultReadBatchSize.set -> void
+Excalibur.Hosting.Configuration.EventSourcingOptions.Enabled.get -> System.Boolean
+Excalibur.Hosting.Configuration.EventSourcingOptions.Enabled.set -> void
+Excalibur.Hosting.Configuration.EventSourcingOptions.EnableSnapshots.get -> System.Boolean
+Excalibur.Hosting.Configuration.EventSourcingOptions.EnableSnapshots.set -> void
+Excalibur.Hosting.Configuration.EventSourcingOptions.EventSourcingOptions() -> void
+Excalibur.Hosting.Configuration.EventSourcingOptions.SnapshotFrequency.get -> System.Int32
+Excalibur.Hosting.Configuration.EventSourcingOptions.SnapshotFrequency.set -> void
+Excalibur.Hosting.Configuration.ExcaliburOptions
+Excalibur.Hosting.Configuration.ExcaliburOptions.Cdc.get -> Excalibur.Hosting.Configuration.CdcOptions
+Excalibur.Hosting.Configuration.ExcaliburOptions.Cdc.set -> void
+Excalibur.Hosting.Configuration.ExcaliburOptions.EventSourcing.get -> Excalibur.Hosting.Configuration.EventSourcingOptions
+Excalibur.Hosting.Configuration.ExcaliburOptions.EventSourcing.set -> void
+Excalibur.Hosting.Configuration.ExcaliburOptions.ExcaliburOptions() -> void
+Excalibur.Hosting.Configuration.ExcaliburOptions.LeaderElection.get -> Excalibur.Hosting.Configuration.LeaderElectionOptions
+Excalibur.Hosting.Configuration.ExcaliburOptions.LeaderElection.set -> void
+Excalibur.Hosting.Configuration.ExcaliburOptions.Outbox.get -> Excalibur.Hosting.Configuration.OutboxOptions
+Excalibur.Hosting.Configuration.ExcaliburOptions.Outbox.set -> void
+Excalibur.Hosting.Configuration.ExcaliburOptions.Saga.get -> Excalibur.Hosting.Configuration.SagaOptions
+Excalibur.Hosting.Configuration.ExcaliburOptions.Saga.set -> void
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.DatabaseConnections.get -> System.Collections.Generic.Dictionary<System.String, Excalibur.Hosting.Configuration.Validators.DatabaseProvider>
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.Enabled.get -> System.Boolean
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.Enabled.set -> void
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.ExcaliburValidationOptions() -> void
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.FailFast.get -> System.Boolean
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.FailFast.set -> void
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.TestDatabaseConnections.get -> System.Boolean
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.TestDatabaseConnections.set -> void
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.UseAws.get -> System.Boolean
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.UseAws.set -> void
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.UseAzure.get -> System.Boolean
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.UseAzure.set -> void
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.UseGoogleCloud.get -> System.Boolean
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.UseGoogleCloud.set -> void
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.UseKafka.get -> System.Boolean
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.UseKafka.set -> void
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.UseRabbitMq.get -> System.Boolean
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.UseRabbitMq.set -> void
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.ValidateCloudProviders.get -> System.Boolean
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.ValidateCloudProviders.set -> void
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.ValidateDatabases.get -> System.Boolean
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.ValidateDatabases.set -> void
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.ValidateMessageBrokers.get -> System.Boolean
+Excalibur.Hosting.Configuration.ExcaliburValidationOptions.ValidateMessageBrokers.set -> void
+Excalibur.Hosting.Configuration.IConfigurationValidator
+Excalibur.Hosting.Configuration.IConfigurationValidator.ConfigurationName.get -> System.String
+Excalibur.Hosting.Configuration.IConfigurationValidator.Priority.get -> System.Int32
+Excalibur.Hosting.Configuration.IConfigurationValidator.ValidateAsync(Microsoft.Extensions.Configuration.IConfiguration configuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Hosting.Configuration.ConfigurationValidationResult>
+Excalibur.Hosting.Configuration.LeaderElectionOptions
+Excalibur.Hosting.Configuration.LeaderElectionOptions.Enabled.get -> System.Boolean
+Excalibur.Hosting.Configuration.LeaderElectionOptions.Enabled.set -> void
+Excalibur.Hosting.Configuration.LeaderElectionOptions.LeaderElectionOptions() -> void
+Excalibur.Hosting.Configuration.LeaderElectionOptions.LeaseDuration.get -> System.TimeSpan
+Excalibur.Hosting.Configuration.LeaderElectionOptions.LeaseDuration.set -> void
+Excalibur.Hosting.Configuration.LeaderElectionOptions.RenewInterval.get -> System.TimeSpan
+Excalibur.Hosting.Configuration.LeaderElectionOptions.RenewInterval.set -> void
+Excalibur.Hosting.Configuration.OutboxOptions
+Excalibur.Hosting.Configuration.OutboxOptions.Enabled.get -> System.Boolean
+Excalibur.Hosting.Configuration.OutboxOptions.Enabled.set -> void
+Excalibur.Hosting.Configuration.OutboxOptions.MaxBatchSize.get -> System.Int32
+Excalibur.Hosting.Configuration.OutboxOptions.MaxBatchSize.set -> void
+Excalibur.Hosting.Configuration.OutboxOptions.MaxRetryAttempts.get -> System.Int32
+Excalibur.Hosting.Configuration.OutboxOptions.MaxRetryAttempts.set -> void
+Excalibur.Hosting.Configuration.OutboxOptions.OutboxOptions() -> void
+Excalibur.Hosting.Configuration.OutboxOptions.PollingInterval.get -> System.TimeSpan
+Excalibur.Hosting.Configuration.OutboxOptions.PollingInterval.set -> void
+Excalibur.Hosting.Configuration.SagaOptions
+Excalibur.Hosting.Configuration.SagaOptions.DefaultTimeout.get -> System.TimeSpan
+Excalibur.Hosting.Configuration.SagaOptions.DefaultTimeout.set -> void
+Excalibur.Hosting.Configuration.SagaOptions.Enabled.get -> System.Boolean
+Excalibur.Hosting.Configuration.SagaOptions.Enabled.set -> void
+Excalibur.Hosting.Configuration.SagaOptions.EnableTimeouts.get -> System.Boolean
+Excalibur.Hosting.Configuration.SagaOptions.EnableTimeouts.set -> void
+Excalibur.Hosting.Configuration.SagaOptions.SagaOptions() -> void
+Excalibur.Hosting.Configuration.Validators.AwsConfigurationValidator
+Excalibur.Hosting.Configuration.Validators.AwsConfigurationValidator.AwsConfigurationValidator(System.String configSection) -> void
+Excalibur.Hosting.Configuration.Validators.AwsConfigurationValidator.ValidateAsync(Microsoft.Extensions.Configuration.IConfiguration configuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Hosting.Configuration.ConfigurationValidationResult>
+Excalibur.Hosting.Configuration.Validators.AzureConfigurationValidator
+Excalibur.Hosting.Configuration.Validators.AzureConfigurationValidator.AzureConfigurationValidator(System.String configSection) -> void
+Excalibur.Hosting.Configuration.Validators.AzureConfigurationValidator.ValidateAsync(Microsoft.Extensions.Configuration.IConfiguration configuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Hosting.Configuration.ConfigurationValidationResult>
+Excalibur.Hosting.Configuration.Validators.CloudProviderValidator
+Excalibur.Hosting.Configuration.Validators.ConnectionStringValidator
+Excalibur.Hosting.Configuration.Validators.ConnectionStringValidator.ConnectionStringValidator(System.String connectionStringKey, Excalibur.Hosting.Configuration.Validators.DatabaseProvider provider, System.Boolean testConnection, System.String configurationName) -> void
+Excalibur.Hosting.Configuration.Validators.ConnectionStringValidator.ValidateAsync(Microsoft.Extensions.Configuration.IConfiguration configuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Hosting.Configuration.ConfigurationValidationResult>
+Excalibur.Hosting.Configuration.Validators.DatabaseProvider
+Excalibur.Hosting.Configuration.Validators.DatabaseProvider.MongoDb -> Excalibur.Hosting.Configuration.Validators.DatabaseProvider
+Excalibur.Hosting.Configuration.Validators.DatabaseProvider.MySql -> Excalibur.Hosting.Configuration.Validators.DatabaseProvider
+Excalibur.Hosting.Configuration.Validators.DatabaseProvider.Postgres -> Excalibur.Hosting.Configuration.Validators.DatabaseProvider
+Excalibur.Hosting.Configuration.Validators.DatabaseProvider.Redis -> Excalibur.Hosting.Configuration.Validators.DatabaseProvider
+Excalibur.Hosting.Configuration.Validators.DatabaseProvider.Sqlite -> Excalibur.Hosting.Configuration.Validators.DatabaseProvider
+Excalibur.Hosting.Configuration.Validators.DatabaseProvider.SqlServer -> Excalibur.Hosting.Configuration.Validators.DatabaseProvider
+Excalibur.Hosting.Configuration.Validators.GoogleCloudConfigurationValidator
+Excalibur.Hosting.Configuration.Validators.GoogleCloudConfigurationValidator.GoogleCloudConfigurationValidator(System.String configSection) -> void
+Excalibur.Hosting.Configuration.Validators.GoogleCloudConfigurationValidator.ValidateAsync(Microsoft.Extensions.Configuration.IConfiguration configuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Hosting.Configuration.ConfigurationValidationResult>
+Excalibur.Hosting.Configuration.Validators.KafkaConfigurationValidator
+Excalibur.Hosting.Configuration.Validators.KafkaConfigurationValidator.KafkaConfigurationValidator(System.String configSection) -> void
+Excalibur.Hosting.Configuration.Validators.KafkaConfigurationValidator.ValidateAsync(Microsoft.Extensions.Configuration.IConfiguration configuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Hosting.Configuration.ConfigurationValidationResult>
+Excalibur.Hosting.Configuration.Validators.MessageBrokerValidator
+Excalibur.Hosting.Configuration.Validators.RabbitMqConfigurationValidator
+Excalibur.Hosting.Configuration.Validators.RabbitMqConfigurationValidator.RabbitMqConfigurationValidator(System.String configSection) -> void
+Excalibur.Hosting.Configuration.Validators.RabbitMqConfigurationValidator.ValidateAsync(Microsoft.Extensions.Configuration.IConfiguration configuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Hosting.Configuration.ConfigurationValidationResult>
+Excalibur.Hosting.ConfigurationBuilderExtensions
+Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId
+Excalibur.Hosting.HealthChecksBuilderExtensions
+Excalibur.Hosting.MemoryHealthCheckOptions
+Excalibur.Hosting.MemoryHealthCheckOptions.AllocatedMemoryThresholdKB.get -> System.Int32
+Excalibur.Hosting.MemoryHealthCheckOptions.AllocatedMemoryThresholdKB.set -> void
+Excalibur.Hosting.MemoryHealthCheckOptions.MemoryHealthCheckOptions() -> void
+Excalibur.Hosting.MemoryHealthCheckOptions.WorkingSetThresholdBytes.get -> System.Int64
+Excalibur.Hosting.MemoryHealthCheckOptions.WorkingSetThresholdBytes.set -> void
+Excalibur.Hosting.Options.DispatchHealthCheckOptions
+Excalibur.Hosting.Options.DispatchHealthCheckOptions.DispatchHealthCheckOptions() -> void
+Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeInbox.get -> System.Boolean
+Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeInbox.set -> void
+Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeLeaderElection.get -> System.Boolean
+Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeLeaderElection.set -> void
+Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeOutbox.get -> System.Boolean
+Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeOutbox.set -> void
+Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeSaga.get -> System.Boolean
+Excalibur.Hosting.Options.DispatchHealthCheckOptions.IncludeSaga.set -> void
+Microsoft.AspNetCore.Builder.ExcaliburHealthChecksApplicationExtensions
+Microsoft.Extensions.DependencyInjection.DispatchHealthCheckExtensions
+Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions
+Microsoft.Extensions.Hosting.HostApplicationBuilderExtensions
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.AzFuncColdStartCompleted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.AzFuncColdStartDisabled -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.AzFuncColdStartStarting -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.AzFuncConfiguringAppInsights -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.AzFuncConfiguringDurable -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.AzFuncConfiguringHost -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.AzFuncConfiguringMetrics -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.AzFuncConfiguringServices -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.AzFuncExecutingHandler -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.AzFuncExecutionCancelled -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.AzFuncExecutionTimedOut -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.AzFuncHandlerExecuted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.AzFuncHandlerFailed -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.AzFuncHostConfigured -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.AzFuncNotAvailable -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.AzFuncServicesConfigured -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.AzFuncServicesWarmedUp -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.AzFuncWarmingUpServices -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.BackgroundTaskCancelled -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.BackgroundTaskCompleted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.BackgroundTaskFailed -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.BackgroundTaskStarted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ConfigAllValidatorsPassed -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ConfigurationChanged -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ConfigurationError -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ConfigurationLoaded -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ConfigurationValidated -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ConfigValidationComplete -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ConfigValidationDisabled -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ConfigValidationErrorDetail -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ConfigValidationErrorsDetected -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ConfigValidationFailedTerminating -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ConfigValidationStarting -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ConfigValidatorErrors -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ConfigValidatorException -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ConfigValidatorExceptionIgnored -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ConfigValidatorPassed -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ConfigValidatorRunning -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ConsulLeaderElectionCreated -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.DependencyCheckExecuted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.EndpointsMapped -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.EnvironmentDetected -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.GcfColdStartCompleted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.GcfColdStartDisabled -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.GcfColdStartStarting -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.GcfConfiguringHost -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.GcfConfiguringMetrics -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.GcfConfiguringServices -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.GcfConfiguringTrace -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.GcfExecutingHandler -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.GcfExecutionCancelled -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.GcfExecutionTimedOut -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.GcfHandlerExecuted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.GcfHandlerFailed -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.GcfHostConfigured -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.GcfServicesConfigured -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.GcfServicesWarmedUp -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.GcfWarmingUpServices -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.GlobalExceptionOccurred -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.HealthCheckExecuted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.HealthCheckFailed -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.HealthCheckPassed -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.HealthCheckServiceCreated -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.HealthStatusChanged -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.HostBuilderCreated -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.HostError -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.HostStarted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.HostStarting -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.HostStopped -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.HostStopping -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.InMemoryLeaderElectionCreated -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.KubernetesLeaderElectionCreated -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LambdaColdStartCompleted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LambdaColdStartDisabled -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LambdaColdStartStarting -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LambdaConfiguringHost -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LambdaConfiguringMetrics -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LambdaConfiguringServices -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LambdaConfiguringXRay -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LambdaExecutingHandler -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LambdaExecutionCancelled -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LambdaExecutionTimedOut -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LambdaHandlerExecuted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LambdaHandlerFailed -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LambdaHostConfigured -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LambdaServicesConfigured -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LambdaServicesWarmedUp -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LambdaWarmingUpServices -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LeaderElectionServiceCreated -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LeaderElectionStarted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LeadershipAcquired -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LeadershipLost -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LeadershipRenewed -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.LivenessCheckExecuted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ReadinessCheckExecuted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.RedisLeaderElectionCreated -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.RequestPipelineConfigured -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.SagaCompensationCompleted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.SagaCompensationFailed -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.SagaCompensationStarted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.SagaCompensationStepExecuting -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.SagaCompensationStepFailed -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.SagaOrchestrationCompleted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.SagaOrchestrationFailed -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.SagaOrchestrationStarted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.SagaRetryDelayApplied -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.SagaRetryExhausted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.SagaStepExecuting -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.SagaStepRetryFailed -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.SagaStepRetryStarting -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.SagaStepRetrySucceeded -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.SagaStepSkipping -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ServerlessPlatformFallback -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ServerlessPlatformSelected -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ServerlessPlatformUndetected -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ServerlessProviderReady -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ServerlessProviderRegistered -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ServerlessProviderUnavailable -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ServerlessServiceStarting -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ServerlessServiceStopping -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ServiceDisposed -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ServiceRegistered -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ServiceResolved -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.ServicesConfigured -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.SqlServerLeaderElectionCreated -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.StartupCheckExecuted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.WebHostCreated -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.WebHostStarted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.WebHostStopped -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.WorkerError -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.WorkerIterationCompleted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.WorkerServiceCreated -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.WorkerServiceStarted -> System.Int32
+static const Excalibur.Hosting.Diagnostics.ExcaliburHostingEventId.WorkerServiceStopped -> System.Int32
+static Excalibur.Hosting.Configuration.ConfigurationValidationExtensions.AddAwsConfigurationValidation(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String configSection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Excalibur.Hosting.Configuration.ConfigurationValidationExtensions.AddAzureConfigurationValidation(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String configSection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Excalibur.Hosting.Configuration.ConfigurationValidationExtensions.AddConfigurationValidation(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Hosting.Configuration.ConfigurationValidationOptions> configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Excalibur.Hosting.Configuration.ConfigurationValidationExtensions.AddConfigurationValidator(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Excalibur.Hosting.Configuration.IConfigurationValidator validator) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Excalibur.Hosting.Configuration.ConfigurationValidationExtensions.AddConfigurationValidator(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Excalibur.Hosting.Configuration.ConfigurationValidationExtensions.AddConnectionStringValidation(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String connectionStringKey, Excalibur.Hosting.Configuration.Validators.DatabaseProvider provider, System.Boolean testConnection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Excalibur.Hosting.Configuration.ConfigurationValidationExtensions.AddExcaliburConfigurationValidation(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Excalibur.Hosting.Configuration.ExcaliburValidationOptions options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Excalibur.Hosting.Configuration.ConfigurationValidationExtensions.AddGoogleCloudConfigurationValidation(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String configSection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Excalibur.Hosting.Configuration.ConfigurationValidationExtensions.AddKafkaConfigurationValidation(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String configSection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Excalibur.Hosting.Configuration.ConfigurationValidationExtensions.AddRabbitMqConfigurationValidation(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.String configSection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Excalibur.Hosting.Configuration.ConfigurationValidationExtensions.UseConfigurationValidation(Microsoft.Extensions.Hosting.HostApplicationBuilder builder, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection> configureValidation) -> Microsoft.Extensions.Hosting.HostApplicationBuilder
+static Excalibur.Hosting.Configuration.ConfigurationValidationExtensions.UseConfigurationValidation(Microsoft.Extensions.Hosting.IHostBuilder hostBuilder, System.Action<Microsoft.Extensions.DependencyInjection.IServiceCollection> configureValidation) -> Microsoft.Extensions.Hosting.IHostBuilder
+static Excalibur.Hosting.Configuration.ConfigurationValidationResult.Combine(Excalibur.Hosting.Configuration.ConfigurationValidationResult[] results) -> Excalibur.Hosting.Configuration.ConfigurationValidationResult
+static Excalibur.Hosting.Configuration.ConfigurationValidationResult.Failure(System.Collections.Generic.IReadOnlyList<Excalibur.Hosting.Configuration.ConfigurationValidationError> errors) -> Excalibur.Hosting.Configuration.ConfigurationValidationResult
+static Excalibur.Hosting.Configuration.ConfigurationValidationResult.Failure(System.String errorMessage, System.String configurationPath) -> Excalibur.Hosting.Configuration.ConfigurationValidationResult
+static Excalibur.Hosting.Configuration.ConfigurationValidationResult.Success() -> Excalibur.Hosting.Configuration.ConfigurationValidationResult
+static Excalibur.Hosting.ConfigurationBuilderExtensions.AddParameterStoreSettings(Microsoft.Extensions.Configuration.IConfigurationBuilder builder, System.String applicationParameterStoreName, System.String localContext) -> Microsoft.Extensions.Configuration.IConfigurationBuilder
+static Excalibur.Hosting.ConfigurationBuilderExtensions.AddParameterStoreSettings(Microsoft.Extensions.Configuration.IConfigurationBuilder builder, System.String applicationParameterStoreName) -> Microsoft.Extensions.Configuration.IConfigurationBuilder
+static Excalibur.Hosting.ConfigurationBuilderExtensions.AddParameterStoreSettings(Microsoft.Extensions.Configuration.IConfigurationBuilder builder) -> Microsoft.Extensions.Configuration.IConfigurationBuilder
+static Excalibur.Hosting.HealthChecksBuilderExtensions.AddMemoryHealthChecks(Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder healthChecks, System.Action<Excalibur.Hosting.MemoryHealthCheckOptions> configure) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder
+static Excalibur.Hosting.HealthChecksBuilderExtensions.AddMemoryHealthChecks(Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder healthChecks) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder
+static Microsoft.AspNetCore.Builder.ExcaliburHealthChecksApplicationExtensions.UseExcaliburHealthChecks(Microsoft.AspNetCore.Builder.IApplicationBuilder app) -> Microsoft.AspNetCore.Builder.IApplicationBuilder
+static Microsoft.Extensions.DependencyInjection.DispatchHealthCheckExtensions.AddDispatchHealthChecks(Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder builder, System.Action<Excalibur.Hosting.Options.DispatchHealthCheckOptions> configure) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder
+static Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions.AddExcalibur(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Hosting.Builders.IExcaliburBuilder> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions.AddExcaliburBaseServices(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Reflection.Assembly[] assemblies, System.Boolean useLocalClientAddress, System.String tenantId) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.ServiceCollectionExtensions.AddExcaliburHealthChecks(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder> withHealthChecks) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.Hosting.HostApplicationBuilderExtensions.AddApplicationContext(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.Hosting.HostApplicationBuilderExtensions.ConfigureApplicationContext(Microsoft.Extensions.Hosting.IHostApplicationBuilder builder) -> Microsoft.Extensions.Hosting.IHostApplicationBuilder
+static Microsoft.Extensions.Hosting.HostApplicationBuilderExtensions.ConfigureExcaliburLogging(Microsoft.Extensions.Hosting.IHostApplicationBuilder builder, Serilog.Core.ILogEventSink[] additionalLogSinks) -> Microsoft.Extensions.Hosting.IHostApplicationBuilder
+static Microsoft.Extensions.Hosting.HostApplicationBuilderExtensions.ConfigureExcaliburMetrics(Microsoft.Extensions.Hosting.IHostApplicationBuilder builder, System.Action<OpenTelemetry.Metrics.MeterProviderBuilder> configureMetrics) -> Microsoft.Extensions.Hosting.IHostApplicationBuilder
+static Microsoft.Extensions.Hosting.HostApplicationBuilderExtensions.ConfigureExcaliburTracing(Microsoft.Extensions.Hosting.IHostApplicationBuilder builder, System.Action<OpenTelemetry.Trace.TracerProviderBuilder> configureTracing) -> Microsoft.Extensions.Hosting.IHostApplicationBuilder

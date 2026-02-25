@@ -1,0 +1,535 @@
+name: Quality Gates
+
+on:
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: true
+  COVERAGE_THRESHOLD: 65
+
+jobs:
+  core-perf-change-detection:
+    name: Detect Core/Perf Changes
+    runs-on: ubuntu-latest
+    outputs:
+      core_perf: ${{ steps.filter.outputs.core_perf }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed paths
+        id: filter
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          else
+            BASE_SHA="$(git rev-parse HEAD^ 2>/dev/null || echo HEAD)"
+            HEAD_SHA="$(git rev-parse HEAD)"
+          fi
+
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "${BASE_SHA}"
+          fi
+          if ! git cat-file -e "${HEAD_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "${HEAD_SHA}"
+          fi
+
+          CHANGED_FILES="$(git diff --name-only "${BASE_SHA}" "${HEAD_SHA}" || true)"
+          if [[ -z "${CHANGED_FILES}" ]]; then
+            echo "core_perf=false" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          PATTERN='^(src/Dispatch/Excalibur\.Dispatch/|src/Dispatch/Excalibur\.Dispatch\.Abstractions/|src/Dispatch/Excalibur\.Dispatch\.Transport\.[^/]+/|src/Dispatch/Excalibur\.Dispatch\.Transport\.Abstractions/|benchmarks/|eng/run-comparative-benchmarks\.ps1$|eng/run-benchmark-matrix\.ps1$|eng/validate-performance-gates\.ps1$|\.github/workflows/performance-tests\.yml$|\.github/workflows/ci\.yml$|\.github/workflows/quality-gates\.yml$)'
+          if printf '%s\n' "${CHANGED_FILES}" | grep -Eq "${PATTERN}"; then
+            echo "core_perf=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "core_perf=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+  # Code coverage quality gate (sharded for runtime stability)
+  coverage-shards:
+    name: "Code Coverage (Shard: ${{ matrix.shard.name }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - { name: core, filter: "eng/ci/shards/UnitTests-Core.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
+          - { name: messaging, filter: "eng/ci/shards/UnitTests-Messaging.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
+          - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
+          - { name: middleware, filter: "eng/ci/shards/UnitTests-Middleware.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
+          - { name: observability, filter: "eng/ci/shards/UnitTests-Observability.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
+          - { name: excalibur, filter: "eng/ci/shards/UnitTests-Excalibur.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ matrix.shard.filter }}
+
+      - name: Build shard
+        run: dotnet build ${{ matrix.shard.filter }} --configuration Release --no-restore
+
+      - name: Run shard tests with coverage
+        run: |
+          dotnet test ${{ matrix.shard.filter }} \
+            --configuration Release \
+            --no-build \
+            --blame-hang-timeout 5m \
+            --logger "console;verbosity=minimal" \
+            --collect:"XPlat Code Coverage" \
+            --settings tests/coverage.runsettings \
+            --results-directory ./coverage \
+            --filter "${{ matrix.shard.test_filter }}" \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+
+      - name: Upload shard coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-shard-${{ matrix.shard.name }}
+          path: ./coverage/**/coverage.cobertura.xml
+          if-no-files-found: error
+          retention-days: 7
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: coverage-shards
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Download shard coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-shard-*
+          path: coverage
+          merge-multiple: true
+
+      - name: Merge coverage reports
+        run: |
+          dotnet tool install -g dotnet-reportgenerator-globaltool || true
+          reportgenerator \
+            -reports:"./coverage/**/coverage.cobertura.xml" \
+            -targetdir:"./coverage/merged" \
+            -reporttypes:"Cobertura;HtmlSummary;TextSummary"
+
+      - name: Measure coverage threshold (report-only)
+        id: coverage_threshold
+        shell: pwsh
+        run: |
+          ./eng/ci/coverage-threshold.ps1 `
+            -CoverageRoot "coverage" `
+            -Threshold ([int]'${{ env.COVERAGE_THRESHOLD }}')
+      - name: Coverage threshold status (report-only)
+        shell: bash
+        run: |
+          combined="${{ steps.coverage_threshold.outputs.coverage_combined_pct }}"
+          dispatch="${{ steps.coverage_threshold.outputs.coverage_dispatch_pct }}"
+          excalibur="${{ steps.coverage_threshold.outputs.coverage_excalibur_pct }}"
+          threshold="${{ env.COVERAGE_THRESHOLD }}"
+
+          echo "Coverage (Dispatch): ${dispatch}%"
+          echo "Coverage (Excalibur): ${excalibur}%"
+          echo "Coverage (Combined): ${combined}%"
+          echo "Target threshold: ${threshold}%"
+
+          if [ -z "$combined" ]; then
+            echo "::warning::Coverage threshold script did not emit combined coverage output."
+            exit 0
+          fi
+
+          if (( $(awk "BEGIN {print ($combined < $threshold)}") )); then
+            echo "::warning::Coverage below target (report-only): combined ${combined}% < required ${threshold}%."
+          else
+            echo "✅ Coverage target met: ${combined}% >= ${threshold}%."
+          fi
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: ./coverage/merged
+          retention-days: 7
+
+  # Test quality gate
+  test-quality:
+    name: Test Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore eng/ci/shards/TestsOnly.slnf
+
+      - name: Build solution
+        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore
+
+      - name: Run unit, functional, and architecture tests
+        run: |
+          dotnet test eng/ci/shards/TestsOnly.slnf --configuration Release --no-build \
+            --blame-hang-timeout 5m \
+            --filter "Category!=Integration&Category!=TransportConformance&Category!=LoadTest&Category!=Performance" \
+            --logger "trx;LogFileName=test-results.trx" \
+            --logger "console;verbosity=minimal" \
+            --results-directory ./test-results
+
+      - name: Validate no test failures
+        run: |
+          # Count test results
+          PASSED=$(find ./test-results -name "*.trx" -exec grep -o 'outcome="Passed"' {} \; | wc -l)
+          FAILED=$(find ./test-results -name "*.trx" -exec grep -o 'outcome="Failed"' {} \; | wc -l)
+
+          echo "Tests passed: $PASSED"
+          echo "Tests failed: $FAILED"
+
+          if [ "$FAILED" -gt 0 ]; then
+            echo "❌ $FAILED test(s) failed"
+            exit 1
+          else
+            echo "✅ All tests passed"
+          fi
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: ./test-results
+          retention-days: 7
+
+  transport-conformance:
+    name: Transport Conformance (Core/Perf Changes)
+    runs-on: ubuntu-latest
+    needs: [core-perf-change-detection]
+    if: github.event_name == 'workflow_dispatch' || needs.core-perf-change-detection.outputs.core_perf == 'true'
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Restore conformance tests
+        run: dotnet restore tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj
+
+      - name: Build conformance tests
+        run: dotnet build tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj --configuration Release --no-restore
+
+      - name: Run transport conformance suite
+        run: |
+          dotnet test tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj \
+            --configuration Release \
+            --no-build \
+            --blame-hang-timeout 10m \
+            --filter "Category=TransportConformance" \
+            --logger "trx;LogFileName=transport-conformance.trx" \
+            --logger "console;verbosity=minimal" \
+            --results-directory ./transport-conformance-results
+
+      - name: Upload transport conformance results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: transport-conformance-results
+          path: ./transport-conformance-results
+          retention-days: 7
+
+  # Code analysis quality gate
+  code-analysis:
+    name: Code Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build with analyzers
+        run: |
+          dotnet build --configuration Release --no-restore \
+            -warnaserror \
+            /p:TreatWarningsAsErrors=true
+
+      - name: Check for analyzer violations
+        run: |
+          echo "✅ Build succeeded with all analyzer rules enforced"
+
+  # Solution governance gate (Sprint 506)
+  governance:
+    name: Solution Governance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Validate solution governance
+        shell: pwsh
+        run: ./eng/validate-solution.ps1
+
+      - name: Warning audit (informational)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          if (Test-Path "eng/ci/shards/ShippingOnly.slnf") {
+            ./eng/audit-warnings.ps1 -Configuration Release
+          } else {
+            Write-Host "eng/ci/shards/ShippingOnly.slnf not found, skipping warning audit"
+          }
+
+  # Architecture validation gate
+  architecture:
+    name: Architecture Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Validate Dispatch→Excalibur Dependency Direction
+        run: |
+          echo "Checking for forbidden Dispatch→Excalibur references..."
+
+          # Check for ProjectReference to Excalibur application-framework packages (FORBIDDEN)
+          # Excalibur.Dispatch.* references are allowed (same framework after rename)
+          # Only flag Excalibur.Domain, Excalibur.EventSourcing, Excalibur.Data, etc.
+          PROJECT_VIOLATIONS=$(grep -rE '<ProjectReference.*Excalibur\.(Domain|EventSourcing|Data|Saga|Application|Outbox|Jobs|LeaderElection[^.]|Hosting\.(Web|Jobs)|Security[^.])' src/Dispatch/**/*.csproj 2>/dev/null || true)
+
+          # Check for PackageReference to Excalibur application-framework packages (FORBIDDEN)
+          PACKAGE_VIOLATIONS=$(grep -rE '<PackageReference.*Include="Excalibur\.(Domain|EventSourcing|Data|Saga|Application|Outbox|Jobs|Security)' src/Dispatch/**/*.csproj 2>/dev/null || true)
+
+          VIOLATIONS=""
+          if [ -n "$PROJECT_VIOLATIONS" ]; then
+            VIOLATIONS="$PROJECT_VIOLATIONS"
+          fi
+          if [ -n "$PACKAGE_VIOLATIONS" ]; then
+            VIOLATIONS="$VIOLATIONS$PACKAGE_VIOLATIONS"
+          fi
+
+          if [ -n "$VIOLATIONS" ]; then
+            echo ""
+            echo "❌ DEPENDENCY DIRECTION VIOLATION DETECTED"
+            echo "============================================"
+            echo "Dispatch packages CANNOT reference Excalibur packages."
+            echo "The allowed direction is: Excalibur → Dispatch"
+            echo ""
+            echo "Violations found:"
+            echo "$VIOLATIONS"
+            echo ""
+            echo "To fix: Move the dependent code to an Excalibur package,"
+            echo "or refactor to use only Excalibur.Dispatch.Abstractions types."
+            exit 1
+          else
+            echo "✅ No Dispatch→Excalibur dependency violations found"
+          fi
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build solution
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Run architecture tests
+        run: |
+          # Architecture tests validate boundary constraints - failures should block PRs
+          if [ -d "tests/ArchitectureTests" ]; then
+            dotnet test tests/ArchitectureTests \
+              --configuration Release --no-build \
+              --blame-hang-timeout 5m \
+              --logger "console;verbosity=minimal"
+          else
+            echo "⚠️ Architecture test project not found, skipping..."
+          fi
+
+      - name: Run boundary tests (Sprint 506)
+        run: |
+          if [ -d "tests/architecture/Boundary.Tests" ]; then
+            dotnet test tests/architecture/Boundary.Tests/ \
+              --configuration Release --no-build \
+              --blame-hang-timeout 5m \
+              --logger "console;verbosity=minimal"
+          else
+            echo "⚠️ Boundary.Tests project not yet created, skipping..."
+          fi
+
+  # API compatibility gate
+  api-compatibility:
+    name: API Compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Run API compatibility report
+        shell: pwsh
+        run: |
+          ./eng/ci/api-compat-run.ps1 -OutputDir management/reports/ApiCompatReport
+
+      - name: Upload API compatibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-compat-report-quality-gates
+          path: management/reports/ApiCompatReport
+          retention-days: 7
+
+  # Summary gate
+  summary:
+    name: Quality Summary
+    runs-on: ubuntu-latest
+    needs: [coverage, test-quality, transport-conformance, code-analysis, governance, architecture, api-compatibility]
+    if: always()
+    steps:
+      - name: Check all gates
+        run: |
+          echo "Quality Gates Summary"
+          echo "===================="
+
+          if [ "${{ needs.coverage.result }}" != "success" ]; then
+            echo "❌ Coverage gate: FAILED"
+            FAILED=true
+          else
+            echo "✅ Coverage gate: PASSED"
+          fi
+
+          if [ "${{ needs.test-quality.result }}" != "success" ]; then
+            echo "❌ Test quality gate: FAILED"
+            FAILED=true
+          else
+            echo "✅ Test quality gate: PASSED"
+          fi
+
+          if [ "${{ needs.transport-conformance.result }}" = "skipped" ]; then
+            echo "⏭️ Transport conformance gate: SKIPPED (no core/perf changes)"
+          elif [ "${{ needs.transport-conformance.result }}" != "success" ]; then
+            echo "❌ Transport conformance gate: FAILED"
+            FAILED=true
+          else
+            echo "✅ Transport conformance gate: PASSED"
+          fi
+
+          if [ "${{ needs.code-analysis.result }}" != "success" ]; then
+            echo "❌ Code analysis gate: FAILED"
+            FAILED=true
+          else
+            echo "✅ Code analysis gate: PASSED"
+          fi
+
+          if [ "${{ needs.governance.result }}" != "success" ]; then
+            echo "❌ Governance gate: FAILED"
+            FAILED=true
+          else
+            echo "✅ Governance gate: PASSED"
+          fi
+
+          if [ "${{ needs.architecture.result }}" != "success" ]; then
+            echo "❌ Architecture gate: FAILED"
+            FAILED=true
+          else
+            echo "✅ Architecture gate: PASSED"
+          fi
+
+          if [ "${{ needs.api-compatibility.result }}" != "success" ]; then
+            echo "❌ API compatibility gate: FAILED"
+            FAILED=true
+          else
+            echo "✅ API compatibility gate: PASSED"
+          fi
+
+          if [ "$FAILED" = true ]; then
+            echo ""
+            echo "❌ QUALITY GATES FAILED - PR cannot be merged"
+            exit 1
+          else
+            echo ""
+            echo "✅ ALL QUALITY GATES PASSED"
+          fi
+
+

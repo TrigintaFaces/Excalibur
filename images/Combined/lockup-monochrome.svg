@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 200" width="1200" height="200">
+  <!-- Combined Excalibur.Dispatch Lockup - Monochrome -->
+  <!-- Background -->
+  <rect width="1200" height="200" fill="transparent"/>
+
+  <!-- Excalibur sword icon (left) - monochrome -->
+  <g transform="translate(80, 85)">
+    <!-- Middle facets (outer edge) -->
+    <path d="M 0 -75 L -11 -40 L -8 70 L 0 83" fill="currentColor" opacity="0.7"/>
+    <path d="M 0 -75 L 11 -40 L 8 70 L 0 83" fill="currentColor" opacity="0.7"/>
+
+    <!-- Inner facets -->
+    <path d="M 0 -75 L -5.5 -40 L -4 70 L 0 83" fill="currentColor" opacity="0.85"/>
+    <path d="M 0 -75 L 5.5 -40 L 4 70 L 0 83" fill="currentColor" opacity="0.85"/>
+
+    <!-- Center highlight -->
+    <path d="M 0 -75 L -2.3 -40 L -1.7 70 L 0 83" fill="currentColor"/>
+    <path d="M 0 -75 L 2.3 -40 L 1.7 70 L 0 83" fill="currentColor"/>
+
+    <!-- Tech-style guard -->
+    <g>
+      <polygon points="-28,70 -14,72 14,72 28,70 27,78 -27,78" fill="currentColor" opacity="0.8"/>
+      <polygon points="-27,78 -14,80 14,80 27,78" fill="currentColor" opacity="0.6"/>
+    </g>
+
+    <!-- Tech grip with segments -->
+    <rect x="-5.5" y="80" width="11" height="15" fill="currentColor" opacity="0.4" rx="0.5"/>
+    <rect x="-4.5" y="81" width="9" height="13" fill="currentColor" opacity="0.6" rx="0.5"/>
+
+    <!-- Tech pommel -->
+    <polygon points="-10,95 0,100 10,95 8.5,105 -8.5,105" fill="currentColor" opacity="0.7"/>
+    <circle cx="0" cy="99.5" r="3" fill="currentColor" opacity="0.9"/>
+  </g>
+
+  <!-- EXCALIBUR text -->
+  <text x="140" y="100"
+        font-size="48"
+        font-family="Arial, sans-serif"
+        font-weight="bold"
+        fill="currentColor"
+        text-anchor="start"
+        letter-spacing="2"
+        dominant-baseline="middle">EXCALIBUR</text>
+
+  <!-- Dot separator -->
+  <circle cx="505" cy="100" r="5" fill="currentColor" opacity="0.5"/>
+
+  <!-- Dispatch paper airplanes icon - monochrome -->
+  <g transform="translate(610, 100)">
+    <!-- First plane -->
+    <g opacity="0.35" transform="translate(-40, 0) scale(0.4)">
+      <path d="M 0 0 L -140 -53 L -70 0 Z" fill="currentColor"/>
+      <path d="M 0 0 L -140 53 L -70 0 Z" fill="currentColor" opacity="0.8"/>
+    </g>
+
+    <!-- Second plane -->
+    <g opacity="0.65" transform="translate(0, 0) scale(0.4)">
+      <path d="M 0 0 L -140 -53 L -70 0 Z" fill="currentColor"/>
+      <path d="M 0 0 L -140 53 L -70 0 Z" fill="currentColor" opacity="0.8"/>
+    </g>
+
+    <!-- Third plane -->
+    <g transform="translate(40, 0) scale(0.4)">
+      <path d="M 0 0 L -140 -53 L -70 0 Z" fill="currentColor"/>
+      <path d="M 0 0 L -140 53 L -70 0 Z" fill="currentColor" opacity="0.8"/>
+    </g>
+  </g>
+
+  <!-- DISPATCH text -->
+  <text x="700" y="100"
+        font-size="48"
+        font-family="Arial, sans-serif"
+        font-weight="bold"
+        fill="currentColor"
+        text-anchor="start"
+        letter-spacing="2"
+        dominant-baseline="middle">DISPATCH</text>
+</svg>

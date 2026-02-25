@@ -1,0 +1,10 @@
+{
+  "label": "Patterns",
+  "position": 5,
+  "link": {
+    "type": "doc",
+    "id": "patterns/index"
+  },
+  "collapsible": true,
+  "collapsed": true
+}

@@ -1,0 +1,10 @@
+{
+  "label": "Middleware",
+  "position": 3,
+  "link": {
+    "type": "doc",
+    "id": "middleware/index"
+  },
+  "collapsible": true,
+  "collapsed": true
+}

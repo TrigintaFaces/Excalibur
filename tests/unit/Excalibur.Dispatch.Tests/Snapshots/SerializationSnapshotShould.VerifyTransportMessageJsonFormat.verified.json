@@ -1,0 +1,15 @@
+﻿{
+  "id": "msg-00000000-0000-0000-0000-000000000001",
+  "body": "eyJvcmRlcklkIjoib3JkZXItNDIiLCJhbW91bnQiOjk5Ljk1fQ==",
+  "contentType": "application/json",
+  "messageType": "OrderPlaced",
+  "correlationId": "corr-00000000-0000-0000-0000-000000000001",
+  "subject": "orders",
+  "timeToLive": "00:30:00",
+  "createdAt": "2026-01-01T00:00:00+00:00",
+  "properties": {
+    "partitionKey": "tenant-001",
+    "orderingKey": "order-42"
+  },
+  "hasProperties": true
+}

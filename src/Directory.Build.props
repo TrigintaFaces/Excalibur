@@ -1,0 +1,130 @@
+<Project>
+	<!-- ============================================================================================
+       Sprint 325 T0.2: Project Classification Metadata (AD-325-2)
+       ============================================================================================
+       All projects under src/ are classified as "Shipping" by default.
+       - IsPackable=true (NuGet package generation enabled)
+       - IsShippingProject=true (custom marker for CI validation)
+       ============================================================================================ -->
+	<PropertyGroup>
+		<IsPackable>true</IsPackable>
+		<IsShippingProject>true</IsShippingProject>
+		<ProjectClassification>Shipping</ProjectClassification>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<!-- Compiler Settings -->
+		<LangVersion>latest</LangVersion>
+		<TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+
+		<!-- ============================================================================================
+         Multi-Targeting Visual Studio Fix (Sprint 376)
+         ============================================================================================
+         VS has race conditions when building multiple TFMs in parallel. These settings:
+         1. DisableFastUpToDateCheck - Prevents VS from using stale references
+         2. ProduceReferenceAssembly - Required for proper multi-TFM dependency resolution
+         3. CompileUsingReferenceAssemblies - DISABLED to fix CS0006 errors in VS
+         4. Standard output paths (NOT UseArtifactsOutput) for VS compatibility
+         ============================================================================================ -->
+		<DisableFastUpToDateCheck Condition="'$(BuildingInsideVisualStudio)' == 'true'">true</DisableFastUpToDateCheck>
+		<ProduceReferenceAssembly>true</ProduceReferenceAssembly>
+		<!-- CRITICAL: Disable reference assembly compilation to fix CS0006 in VS multi-targeting -->
+		<CompileUsingReferenceAssemblies>false</CompileUsingReferenceAssemblies>
+
+		<!-- Code Quality - R0.8 Requirement -->
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+		<WarningLevel>9999</WarningLevel>
+		<EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+		<EnableNETAnalyzers>true</EnableNETAnalyzers>
+		<AnalysisLevel>latest</AnalysisLevel>
+
+		<!-- Documentation -->
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+		<!-- AOT Compatibility -->
+		<IsAotCompatible>true</IsAotCompatible>
+		<IsTrimmable>true</IsTrimmable>
+
+		<!-- Deterministic Builds -->
+		<DeterministicSourcePaths>true</DeterministicSourcePaths>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+		<ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+
+		<!-- Source Link -->
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+		<!-- NuGet Pack Output - Standard paths for VS compatibility -->
+		<PackageOutputPath>$(MSBuildThisFileDirectory)../artifacts/packages</PackageOutputPath>
+
+		<!-- ============================================================================================
+         Sprint 318 T3.1: Multi-License Stack (AD-318-1)
+         ============================================================================================
+         License stack: Excalibur 1.0, AGPL-3.0-or-later, SSPL-1.0, Apache-2.0
+         Using PackageLicenseFile instead of PackageLicenseExpression because:
+         - Excalibur License 1.0 is not a standard SPDX identifier
+         - NuGet PackageLicenseExpression requires valid SPDX expression
+         - PackageLicenseFile includes full LICENSE in package
+         ============================================================================================ -->
+		<PackageLicenseFile>LICENSE</PackageLicenseFile>
+		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+
+		<!-- Package Metadata - R0.4 Requirement -->
+		<!-- Version set via -p:Version=X.Y.Z at build time; fallback for local development -->
+		<Version Condition="'$(Version)' == ''">0.1.0-local</Version>
+		<Authors>The Excalibur Project Contributors</Authors>
+		<Product>Excalibur</Product>
+		<Copyright>Copyright (c) 2026 The Excalibur Project</Copyright>
+		<!-- Banned API analyzer policy -->
+		<EnableBannedApiAnalyzers Condition="'$(EnableBannedApiAnalyzers)' == ''">true</EnableBannedApiAnalyzers>
+		<BannedApiStrict Condition="'$(BannedApiStrict)' == ''">false</BannedApiStrict>
+		<BannedSymbolsFile Condition="'$(BannedSymbolsFile)' == ''">$(MSBuildThisFileDirectory)..\eng\banned\BannedSymbols.txt</BannedSymbolsFile>
+	</PropertyGroup>
+
+	<!-- Include LICENSE file and full license texts in NuGet packages (AD-318-1)
+	     Suppress NU5118 (duplicate file warning) caused by multi-targeting evaluating items per TFM
+	     CA1873 (logging arg evaluation) — Sprint 565: fixed in Compliance/Dispatch core, remaining in transport packages -->
+	<PropertyGroup>
+		<NoWarn>$(NoWarn);NU5118;CA1873</NoWarn>
+	</PropertyGroup>
+	<ItemGroup>
+		<None Include="$(MSBuildThisFileDirectory)../LICENSE" Pack="true" PackagePath="" />
+		<None Include="$(MSBuildThisFileDirectory)../licenses/LICENSE-AGPL-3.0.txt" Pack="true" PackagePath="licenses/" />
+		<None Include="$(MSBuildThisFileDirectory)../licenses/LICENSE-APACHE-2.0.txt" Pack="true" PackagePath="licenses/" />
+		<None Include="$(MSBuildThisFileDirectory)../licenses/LICENSE-EXCALIBUR.txt" Pack="true" PackagePath="licenses/" />
+		<None Include="$(MSBuildThisFileDirectory)../licenses/LICENSE-SSPL-1.0.txt" Pack="true" PackagePath="licenses/" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(IsPackable)' != 'false' And Exists('$(MSBuildProjectDirectory)\README.md')">
+		<None Include="$(MSBuildProjectDirectory)\README.md" Pack="true" PackagePath="/" Visible="false" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(EnableBannedApiAnalyzers)' == 'true'">
+		<PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(EnableBannedApiAnalyzers)' == 'true' And Exists('$(BannedSymbolsFile)')">
+		<AdditionalFiles Include="$(BannedSymbolsFile)" Link="BannedSymbols.txt" Visible="false" />
+	</ItemGroup>
+
+	<PropertyGroup Condition="'$(EnableBannedApiAnalyzers)' == 'true' And '$(BannedApiStrict)' != 'true'">
+		<WarningsNotAsErrors>$(WarningsNotAsErrors);RS0030</WarningsNotAsErrors>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(EnableBannedApiAnalyzers)' == 'true' And '$(BannedApiStrict)' == 'true'">
+		<WarningsAsErrors>$(WarningsAsErrors);RS0030</WarningsAsErrors>
+	</PropertyGroup>
+
+	<!-- Public API baseline files for Microsoft.CodeAnalysis.PublicApiAnalyzers -->
+	<ItemGroup Condition="Exists('$(MSBuildProjectDirectory)\PublicAPI.Shipped.txt')">
+		<AdditionalFiles Include="$(MSBuildProjectDirectory)\PublicAPI.Shipped.txt" />
+	</ItemGroup>
+
+	<ItemGroup Condition="Exists('$(MSBuildProjectDirectory)\PublicAPI.Unshipped.txt')">
+		<AdditionalFiles Include="$(MSBuildProjectDirectory)\PublicAPI.Unshipped.txt" />
+	</ItemGroup>
+</Project>

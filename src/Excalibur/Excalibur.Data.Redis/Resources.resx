@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="RedisInboxOptions_ConnectionStringRequired" xml:space="preserve">
+    <value>ConnectionString is required.</value>
+  </data>
+  <data name="RedisInboxOptions_KeyPrefixRequired" xml:space="preserve">
+    <value>KeyPrefix is required.</value>
+  </data>
+  <data name="RedisInboxStore_EntryAlreadyExistsFormat" xml:space="preserve">
+    <value>Inbox entry already exists for message '{0}' and handler '{1}'.</value>
+  </data>
+  <data name="RedisInboxStore_EntryAlreadyProcessedFormat" xml:space="preserve">
+    <value>Inbox entry already processed for message '{0}' and handler '{1}'.</value>
+  </data>
+  <data name="RedisInboxStore_EntryNotFoundFormat" xml:space="preserve">
+    <value>Inbox entry not found for message '{0}' and handler '{1}'.</value>
+  </data>
+  <data name="RedisInboxStore_FailedToDeserializeEntry" xml:space="preserve">
+    <value>Failed to deserialize inbox entry.</value>
+  </data>
+  <data name="RedisOutboxOptions_ConnectionStringRequired" xml:space="preserve">
+    <value>ConnectionString is required.</value>
+  </data>
+  <data name="RedisOutboxOptions_KeyPrefixRequired" xml:space="preserve">
+    <value>KeyPrefix is required.</value>
+  </data>
+  <data name="RedisOutboxStore_MessageAlreadyExistsFormat" xml:space="preserve">
+    <value>Message with ID '{0}' already exists in the outbox.</value>
+  </data>
+  <data name="RedisOutboxStore_MessageAlreadySentFormat" xml:space="preserve">
+    <value>Message with ID '{0}' is already marked as sent.</value>
+  </data>
+  <data name="RedisOutboxStore_MessageNotFoundFormat" xml:space="preserve">
+    <value>Message with ID '{0}' not found.</value>
+  </data>
+  <data name="RedisPersistenceProvider_ConnectionStringRequired" xml:space="preserve">
+    <value>Connection string is required.</value>
+  </data>
+  <data name="RedisPersistenceProvider_NoEndpointsAvailable" xml:space="preserve">
+    <value>No Redis endpoints available.</value>
+  </data>
+  <data name="RedisRetryPolicy_NoExceptionCapturedDuringRetryAttempts" xml:space="preserve">
+    <value>No exception captured during retry attempts</value>
+  </data>
+  <data name="RedisTransactionScope_CannotCommitTransactionInStateFormat" xml:space="preserve">
+    <value>Cannot commit transaction in {0} state</value>
+  </data>
+  <data name="RedisTransactionScope_CannotRollbackTransactionInStateFormat" xml:space="preserve">
+    <value>Cannot rollback transaction in {0} state</value>
+  </data>
+  <data name="RedisTransactionScope_OnlySupportsCreatingProvider" xml:space="preserve">
+    <value>Redis transaction scope only supports creating provider.</value>
+  </data>
+  <data name="RedisTransactionScope_SavepointsNotSupported" xml:space="preserve">
+    <value>Redis does not support savepoints</value>
+  </data>
+</root>

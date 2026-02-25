@@ -1,0 +1,18 @@
+#nullable enable
+Excalibur.Dispatch.Security.Azure.AzureKeyVaultCredentialStore
+Excalibur.Dispatch.Security.Azure.AzureKeyVaultCredentialStore.AzureKeyVaultCredentialStore(Microsoft.Extensions.Configuration.IConfiguration configuration, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Security.Azure.AzureKeyVaultCredentialStore> logger) -> void
+Excalibur.Dispatch.Security.Azure.AzureKeyVaultCredentialStore.GetCredentialAsync(System.String key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Security.SecureString>
+Excalibur.Dispatch.Security.Azure.AzureKeyVaultCredentialStore.StoreCredentialAsync(System.String key, System.Security.SecureString credential, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
+Excalibur.Dispatch.Security.Azure.AzureSecurityEventId
+Microsoft.Extensions.DependencyInjection.DispatchSecurityAzureServiceCollectionExtensions
+static const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultCredentialStoreCreated -> System.Int32
+static const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultRequestFailed -> System.Int32
+static const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultRetrieved -> System.Int32
+static const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultRetrieveFailed -> System.Int32
+static const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultRetrieving -> System.Int32
+static const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultSecretNotFound -> System.Int32
+static const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultStored -> System.Int32
+static const Excalibur.Dispatch.Security.Azure.AzureSecurityEventId.AzureKeyVaultStoring -> System.Int32
+static Microsoft.Extensions.DependencyInjection.DispatchSecurityAzureServiceCollectionExtensions.AddAzureKeyVaultCredentialStore(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.DispatchSecurityAzureServiceCollectionExtensions.AddAzureServiceBusSecurityValidation(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+static Microsoft.Extensions.DependencyInjection.DispatchSecurityAzureServiceCollectionExtensions.AddDispatchSecurityAzure(Microsoft.Extensions.DependencyInjection.IServiceCollection services, Microsoft.Extensions.Configuration.IConfiguration configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

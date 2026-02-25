@@ -1,0 +1,46 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Dispatch.Transport.AzureServiceBus</PackageId>
+    <Description>Azure integration for the Excalibur framework. Provides Service Bus, Event Hubs, and Event Grid implementations with CloudEvents support.</Description>
+    <PackageTags>messaging;dispatch;azure;servicebus;eventhubs;eventgrid;cloud;aot</PackageTags>
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch.Transport.Abstractions\Excalibur.Dispatch.Transport.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Azure.Messaging.EventGrid" />
+    <PackageReference Include="Azure.Messaging.EventHubs" />
+    <PackageReference Include="Azure.Messaging.EventHubs.Processor" />
+    <PackageReference Include="Azure.Messaging.ServiceBus" />
+    <PackageReference Include="Azure.Storage.Queues" />
+    <PackageReference Include="Azure.Identity" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <PackageReference Include="Polly" />
+    <PackageReference Include="OpenTelemetry.Api" />
+    <PackageReference Include="OpenTelemetry" />
+    <PackageReference Include="CloudNative.CloudEvents" />
+    <PackageReference Include="System.Text.Json" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.AzureServiceBus.Tests.Unit" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.AzureServiceBus.Tests.Integration" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.AzureServiceBus.Tests.Functional" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.AzureServiceBus.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Sprint463.MemoryReductionValidationBenchmarks-20260202-203045</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.102
+  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method               </th><th>Mean  </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>StandardDispatch</td><td>3,433.3 ns</td><td>196.84 ns</td><td>580.39 ns</td><td>1.03</td><td>0.24</td><td>0.2823</td><td>-</td><td>5.23 KB</td><td>1.00</td>
+</tr><tr><td>PooledDispatch</td><td>2,798.3 ns</td><td>53.62 ns</td><td>73.40 ns</td><td>0.84</td><td>0.13</td><td>0.2823</td><td>-</td><td>5.2 KB</td><td>1.00</td>
+</tr><tr><td>CreateContext_Standard</td><td>283.5 ns</td><td>5.63 ns</td><td>6.03 ns</td><td>0.08</td><td>0.01</td><td>0.0858</td><td>-</td><td>1.58 KB</td><td>0.30</td>
+</tr><tr><td>CreateContext_Pooled</td><td>258.9 ns</td><td>5.15 ns</td><td>5.29 ns</td><td>0.08</td><td>0.01</td><td>0.0844</td><td>-</td><td>1.55 KB</td><td>0.30</td>
+</tr><tr><td>StandardDispatch_Batch100</td><td>283,398.0 ns</td><td>3,974.33 ns</td><td>3,717.59 ns</td><td>84.74</td><td>13.28</td><td>28.3203</td><td>-</td><td>522.77 KB</td><td>100.02</td>
+</tr><tr><td>PooledDispatch_Batch100</td><td>281,891.7 ns</td><td>4,734.47 ns</td><td>4,196.99 ns</td><td>84.29</td><td>13.22</td><td>27.8320</td><td>-</td><td>520.42 KB</td><td>99.57</td>
+</tr><tr><td>ConcurrentDispatch_Standard</td><td>28,350.4 ns</td><td>374.47 ns</td><td>350.28 ns</td><td>8.48</td><td>1.33</td><td>2.8687</td><td>0.0305</td><td>52.73 KB</td><td>10.09</td>
+</tr><tr><td>ConcurrentDispatch_Pooled</td><td>28,950.4 ns</td><td>237.61 ns</td><td>222.26 ns</td><td>8.66</td><td>1.35</td><td>2.8381</td><td>0.0305</td><td>52.5 KB</td><td>10.04</td>
+</tr></tbody></table>
+</body>
+</html>

@@ -1,0 +1,34 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Excalibur.Dispatch.Hosting.Tests</RootNamespace>
+    <AssemblyName>Excalibur.Dispatch.Hosting.Tests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Test framework (Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio) provided by Directory.Build.props -->
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="FakeItEasy" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- ProjectReferences from all merged Dispatch hosting test projects -->
+    <!-- From Excalibur.Dispatch.Hosting.AspNetCore.Tests -->
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Hosting.AspNetCore\Excalibur.Dispatch.Hosting.AspNetCore.csproj" />
+    <!-- From Excalibur.Dispatch.Hosting.AwsLambda.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.AwsLambda\Excalibur.Hosting.AwsLambda.csproj" />
+    <!-- From Excalibur.Dispatch.Hosting.AzureFunctions.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.AzureFunctions\Excalibur.Hosting.AzureFunctions.csproj" />
+    <!-- From Excalibur.Dispatch.Hosting.GoogleCloudFunctions.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.GoogleCloudFunctions\Excalibur.Hosting.GoogleCloudFunctions.csproj" />
+    <!-- From Excalibur.Dispatch.Hosting.Serverless.Abstractions.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.Serverless\Excalibur.Hosting.Serverless.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
+  </ItemGroup>
+</Project>

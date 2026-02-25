@@ -1,0 +1,35 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Excalibur.LeaderElection.Tests</RootNamespace>
+    <AssemblyName>Excalibur.LeaderElection.Tests</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Test framework (Microsoft.NET.Test.Sdk, xunit, xunit.runner.visualstudio) provided by Directory.Build.props -->
+    <PackageReference Include="Shouldly" />
+    <PackageReference Include="FakeItEasy" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- ProjectReferences from all merged leader election test projects -->
+    <!-- From Excalibur.LeaderElection.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection\Excalibur.LeaderElection.csproj" />
+    <!-- From Excalibur.LeaderElection.Redis.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.Redis\Excalibur.LeaderElection.Redis.csproj" />
+    <!-- From Excalibur.LeaderElection.SqlServer.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.SqlServer\Excalibur.LeaderElection.SqlServer.csproj" />
+    <!-- From Excalibur.LeaderElection.Consul.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.Consul\Excalibur.LeaderElection.Consul.csproj" />
+    <!-- From Excalibur.LeaderElection.Kubernetes.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.Kubernetes\Excalibur.LeaderElection.Kubernetes.csproj" />
+    <!-- From Excalibur.LeaderElection.InMemory.Tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.InMemory\Excalibur.LeaderElection.InMemory.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
+  </ItemGroup>
+</Project>

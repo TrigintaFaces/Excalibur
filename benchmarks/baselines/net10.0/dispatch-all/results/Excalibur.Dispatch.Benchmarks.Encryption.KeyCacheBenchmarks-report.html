@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Encryption.KeyCacheBenchmarks-20260202-193331</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.102
+  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method   </th><th>Mean </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>CacheHit</td><td>37.28 ns</td><td>1.311 ns</td><td>3.866 ns</td><td>1.01</td><td>0.15</td><td>0.0025</td><td>-</td><td>48 B</td><td>1.00</td>
+</tr><tr><td>CacheMiss</td><td>36.71 ns</td><td>0.767 ns</td><td>0.853 ns</td><td>1.00</td><td>0.11</td><td>0.0034</td><td>-</td><td>64 B</td><td>1.33</td>
+</tr><tr><td>CacheSet</td><td>564.95 ns</td><td>4.707 ns</td><td>4.403 ns</td><td>15.32</td><td>1.59</td><td>0.0353</td><td>-</td><td>678 B</td><td>14.12</td>
+</tr><tr><td>CacheSetWithTtl</td><td>555.07 ns</td><td>3.768 ns</td><td>3.525 ns</td><td>15.05</td><td>1.56</td><td>0.0353</td><td>-</td><td>678 B</td><td>14.12</td>
+</tr><tr><td>GetOrAddHit</td><td>69.86 ns</td><td>1.398 ns</td><td>1.866 ns</td><td>1.89</td><td>0.20</td><td>0.0101</td><td>-</td><td>192 B</td><td>4.00</td>
+</tr><tr><td>GetOrAddMiss</td><td>1,130.42 ns</td><td>26.081 ns</td><td>76.901 ns</td><td>30.65</td><td>3.79</td><td>0.0744</td><td>0.0343</td><td>1391 B</td><td>28.98</td>
+</tr><tr><td>CacheRemove</td><td>674.33 ns</td><td>13.515 ns</td><td>15.564 ns</td><td>18.28</td><td>1.93</td><td>0.0467</td><td>-</td><td>888 B</td><td>18.50</td>
+</tr><tr><td>SequentialReads</td><td>4,562.67 ns</td><td>83.424 ns</td><td>99.310 ns</td><td>123.70</td><td>13.05</td><td>0.2518</td><td>-</td><td>4800 B</td><td>100.00</td>
+</tr></tbody></table>
+</body>
+</html>

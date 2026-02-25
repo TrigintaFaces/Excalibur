@@ -1,0 +1,635 @@
+{
+  "version": "1.0",
+  "canonicalRepository": "https://github.com/TrigintaFaces/Excalibur",
+  "capabilityOwnership": [
+    {
+      "capability": "Message contracts and dispatch pipeline",
+      "owner": "Dispatch",
+      "dispatchPackages": [
+        "Excalibur.Dispatch",
+        "Excalibur.Dispatch.Abstractions"
+      ],
+      "excaliburPackages": [],
+      "rationale": "Core message contract and dispatch execution must remain framework-agnostic."
+    },
+    {
+      "capability": "Middleware and cross-cutting policies",
+      "owner": "Dispatch",
+      "dispatchPackages": [
+        "Excalibur.Dispatch",
+        "Excalibur.Dispatch.Patterns",
+        "Excalibur.Dispatch.Resilience.Polly"
+      ],
+      "excaliburPackages": [],
+      "rationale": "Pipeline middleware is reusable without CQRS/domain concerns."
+    },
+    {
+      "capability": "Transport abstraction and adapters",
+      "owner": "Dispatch",
+      "dispatchPackages": [
+        "Excalibur.Dispatch.Transport.Abstractions",
+        "Excalibur.Dispatch.Transport.AwsSqs",
+        "Excalibur.Dispatch.Transport.AzureServiceBus",
+        "Excalibur.Dispatch.Transport.GooglePubSub",
+        "Excalibur.Dispatch.Transport.Kafka",
+        "Excalibur.Dispatch.Transport.RabbitMQ"
+      ],
+      "excaliburPackages": [],
+      "rationale": "Transport adapters are independent of domain persistence and CQRS."
+    },
+    {
+      "capability": "Serialization diagnostics hooks",
+      "owner": "Dispatch",
+      "dispatchPackages": [
+        "Excalibur.Dispatch.Serialization.MemoryPack",
+        "Excalibur.Dispatch.Serialization.MessagePack",
+        "Excalibur.Dispatch.Serialization.Protobuf",
+        "Excalibur.Dispatch.Observability"
+      ],
+      "excaliburPackages": [],
+      "rationale": "Serialization and observability primitives are messaging concerns."
+    },
+    {
+      "capability": "Minimal hosting bridge",
+      "owner": "Dispatch",
+      "dispatchPackages": [
+        "Excalibur.Dispatch.Hosting.AspNetCore",
+        "Excalibur.Dispatch.Hosting.Serverless.Abstractions"
+      ],
+      "excaliburPackages": [],
+      "rationale": "Thin hosting bridges expose dispatcher capabilities only."
+    },
+    {
+      "capability": "CQRS and domain orchestration",
+      "owner": "Excalibur",
+      "dispatchPackages": [],
+      "excaliburPackages": [
+        "Excalibur.Application",
+        "Excalibur.Domain"
+      ],
+      "rationale": "CQRS composition and domain model behavior are Excalibur concerns."
+    },
+    {
+      "capability": "Event sourcing, outbox, saga orchestration",
+      "owner": "Excalibur",
+      "dispatchPackages": [],
+      "excaliburPackages": [
+        "Excalibur.EventSourcing",
+        "Excalibur.Outbox",
+        "Excalibur.Saga"
+      ],
+      "rationale": "State persistence and orchestration policies are opinionated platform behavior."
+    },
+    {
+      "capability": "Enterprise hosting templates",
+      "owner": "Excalibur",
+      "dispatchPackages": [],
+      "excaliburPackages": [
+        "Excalibur.Hosting",
+        "Excalibur.Hosting.Web",
+        "Excalibur.Hosting.AzureFunctions",
+        "Excalibur.Hosting.AwsLambda",
+        "Excalibur.Hosting.GoogleCloudFunctions"
+      ],
+      "rationale": "Production hosting defaults and templates belong in wrapper framework."
+    },
+    {
+      "capability": "Compliance providers and key management",
+      "owner": "Excalibur",
+      "dispatchPackages": [
+        "Excalibur.Dispatch.Compliance.Abstractions"
+      ],
+      "excaliburPackages": [
+        "Excalibur.Compliance.SqlServer",
+        "Excalibur.Compliance.Postgres"
+      ],
+      "rationale": "Dispatch exposes hooks while Excalibur owns concrete compliance providers."
+    }
+  ],
+  "packageNamingPolicy": {
+    "postgresCanonicalName": "Postgres",
+    "legacyCompatibilityPackage": "n/a",
+    "preferredPackage": "Excalibur.Data.Postgres",
+    "migrationGuidance": "Use Excalibur.Data.Postgres for new integrations.",
+    "deprecationWindow": "2026-12-31"
+  },
+  "criticalPackageTestMatrix": [
+    {
+      "package": "Excalibur.Dispatch",
+      "project": "src/Dispatch/Excalibur.Dispatch/Excalibur.Dispatch.csproj",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Dispatch.Tests/Excalibur.Dispatch.Tests.csproj",
+          "tests/unit/Excalibur.Dispatch.Messaging.Tests/Excalibur.Dispatch.Messaging.Tests.csproj"
+        ],
+        "integration": [
+          "tests/integration/Excalibur.Dispatch.Integration.Tests/Excalibur.Dispatch.Integration.Tests.csproj"
+        ],
+        "contract": [
+          "tests/contract/Excalibur.Dispatch.Contract.Tests/Excalibur.Dispatch.Contract.Tests.csproj"
+        ],
+        "conformance": [
+          "tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj"
+        ]
+      }
+    },
+    {
+      "package": "Excalibur.Dispatch.Abstractions",
+      "project": "src/Dispatch/Excalibur.Dispatch.Abstractions/Excalibur.Dispatch.Abstractions.csproj",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Dispatch.Abstractions.Tests/Excalibur.Dispatch.Abstractions.Tests.csproj"
+        ]
+      }
+    },
+    {
+      "package": "Excalibur.Dispatch.Transport.Abstractions",
+      "project": "src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/Excalibur.Dispatch.Transport.Abstractions.csproj",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Dispatch.Transport.Abstractions.Tests/Excalibur.Dispatch.Transport.Abstractions.Tests.csproj"
+        ],
+        "conformance": [
+          "tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj"
+        ]
+      }
+    },
+    {
+      "package": "Excalibur.Dispatch.Transport.Kafka",
+      "project": "src/Dispatch/Excalibur.Dispatch.Transport.Kafka/Excalibur.Dispatch.Transport.Kafka.csproj",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj"
+        ],
+        "conformance": [
+          "tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj"
+        ]
+      }
+    },
+    {
+      "package": "Excalibur.Dispatch.Transport.RabbitMQ",
+      "project": "src/Dispatch/Excalibur.Dispatch.Transport.RabbitMQ/Excalibur.Dispatch.Transport.RabbitMQ.csproj",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj"
+        ],
+        "conformance": [
+          "tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj"
+        ]
+      }
+    },
+    {
+      "package": "Excalibur.Domain",
+      "project": "src/Excalibur/Excalibur.Domain/Excalibur.Domain.csproj",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Domain.Tests/Excalibur.Domain.Tests.csproj"
+        ],
+        "integration": [
+          "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+        ]
+      }
+    },
+    {
+      "package": "Excalibur.EventSourcing",
+      "project": "src/Excalibur/Excalibur.EventSourcing/Excalibur.EventSourcing.csproj",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.EventSourcing.Tests/Excalibur.EventSourcing.Tests.csproj"
+        ],
+        "integration": [
+          "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+        ]
+      }
+    },
+    {
+      "package": "Excalibur.Outbox",
+      "project": "src/Excalibur/Excalibur.Outbox/Excalibur.Outbox.csproj",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Outbox.Tests/Excalibur.Outbox.Tests.csproj"
+        ],
+        "integration": [
+          "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+        ]
+      }
+    },
+    {
+      "package": "Excalibur.Saga",
+      "project": "src/Excalibur/Excalibur.Saga/Excalibur.Saga.csproj",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Saga.Tests/Excalibur.Saga.Tests.csproj"
+        ],
+        "integration": [
+          "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+        ]
+      }
+    },
+    {
+      "package": "Excalibur.Hosting",
+      "project": "src/Excalibur/Excalibur.Hosting/Excalibur.Hosting.csproj",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Hosting.Tests/Excalibur.Hosting.Tests.csproj"
+        ],
+        "functional": [
+          "tests/functional/Excalibur.Dispatch.Tests.Functional/Excalibur.Dispatch.Tests.Functional.csproj"
+        ]
+      }
+    }
+  ],
+  "transportParityMatrix": [
+    {
+      "transport": "InMemory",
+      "package": "Excalibur.Dispatch.Transport.Abstractions",
+      "conformanceClass": "InMemoryTransportConformanceTests",
+      "providerConformanceClass": "TransportProviderConformanceTests"
+    },
+    {
+      "transport": "AwsSqs",
+      "package": "Excalibur.Dispatch.Transport.AwsSqs",
+      "conformanceClass": "AwsSqsTransportConformanceTests",
+      "providerConformanceClass": "AwsTransportConformanceTests"
+    },
+    {
+      "transport": "AzureServiceBus",
+      "package": "Excalibur.Dispatch.Transport.AzureServiceBus",
+      "conformanceClass": "AzureServiceBusTransportConformanceTests",
+      "providerConformanceClass": "AzureTransportConformanceTests"
+    },
+    {
+      "transport": "GooglePubSub",
+      "package": "Excalibur.Dispatch.Transport.GooglePubSub",
+      "conformanceClass": "GooglePubSubTransportConformanceTests",
+      "providerConformanceClass": "GoogleTransportConformanceTests"
+    },
+    {
+      "transport": "Kafka",
+      "package": "Excalibur.Dispatch.Transport.Kafka",
+      "conformanceClass": "KafkaTransportConformanceTests",
+      "providerConformanceClass": "KafkaTransportConformanceTests"
+    },
+    {
+      "transport": "RabbitMq",
+      "package": "Excalibur.Dispatch.Transport.RabbitMQ",
+      "conformanceClass": "RabbitMqTransportConformanceTests",
+      "providerConformanceClass": "RabbitMqTransportConformanceTests"
+    }
+  ],
+  "sampleFitness": {
+    "rubric": {
+      "certifiedDefinition": "Builds in CI, has current API usage, and demonstrates practical Dispatch/Excalibur scenario.",
+      "quarantinedDefinition": "Known drift or missing dependencies; excluded from certified catalog until remediated."
+    },
+    "certified": [
+      "samples/01-getting-started/DispatchMinimal/Excalibur.DispatchMinimal.csproj",
+      "samples/01-getting-started/ExcaliburCqrs/ExcaliburCqrs.csproj",
+      "samples/01-getting-started/GettingStarted/GettingStarted.csproj",
+      "samples/01-getting-started/MinimalSample/MinimalSample.csproj",
+      "samples/01-getting-started/QuickDemo/QuickDemo.csproj",
+      "samples/02-messaging-transports/MultiBusSample/MultiBusSample.csproj",
+      "samples/02-messaging-transports/RemoteBusSample/RemoteBusSample.csproj",
+      "samples/02-messaging-transports/TransportBindings/TransportBindings.csproj",
+      "samples/04-reliability/OutboxPattern/OutboxPattern.csproj",
+      "samples/04-reliability/SagaOrchestration/SagaOrchestration.csproj",
+      "samples/09-advanced/BackgroundServices/AtLeastOnceWithInbox/AtLeastOnceWithInbox.csproj",
+      "samples/09-advanced/BackgroundServices/MinimizedWindow/MinimizedWindow.csproj",
+      "samples/09-advanced/BackgroundServices/PerformanceComparison/PerformanceComparison.csproj",
+      "samples/09-advanced/BackgroundServices/TransactionalWhenApplicable/TransactionalWhenApplicable.csproj",
+      "samples/09-advanced/MinimalJobSample/MinimalJobSample.csproj",
+      "samples/09-advanced/WebWorkerSample/WebHost/WebHost.csproj",
+      "samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj"
+    ],
+    "quarantined": [
+      "samples/02-messaging-transports/AwsSqs/AwsSqsSample.csproj",
+      "samples/02-messaging-transports/AzureServiceBus/AzureServiceBusSample.csproj",
+      "samples/02-messaging-transports/Kafka/KafkaSample.csproj",
+      "samples/02-messaging-transports/MultiProviderQueueProcessor/MultiProviderQueueProcessor.csproj",
+      "samples/02-messaging-transports/RabbitMQ/RabbitMQSample.csproj",
+      "samples/03-cloud-native/CloudNativePatterns.Examples/ClaimCheck/ClaimCheck.csproj",
+      "samples/04-reliability/RetryAndCircuitBreaker/RetryAndCircuitBreaker.csproj",
+      "samples/05-serverless/AwsLambda/AwsLambda.csproj",
+      "samples/05-serverless/AzureFunctions/AzureFunctions.csproj",
+      "samples/05-serverless/GoogleCloudFunctions/GoogleCloudFunctions.csproj",
+      "samples/06-security/AuditLogging/AuditLogging.csproj",
+      "samples/06-security/AwsSecretsManager/AwsSecretsManager.csproj",
+      "samples/06-security/AzureKeyVault/AzureKeyVault.csproj",
+      "samples/06-security/MessageEncryption/MessageEncryption.csproj",
+      "samples/07-observability/HealthChecks/HealthChecks.csproj",
+      "samples/07-observability/OpenTelemetry/OpenTelemetry.csproj",
+      "samples/08-serialization/MemoryPackSample/MemoryPackSample.csproj",
+      "samples/08-serialization/MessagePackSample/MessagePackSample.csproj",
+      "samples/08-serialization/Protobuf/Protobuf.csproj",
+      "samples/09-advanced/CdcAntiCorruption/CdcAntiCorruption.csproj",
+      "samples/09-advanced/CdcEventStoreElasticsearch/CdcEventStoreElasticsearch.csproj",
+      "samples/09-advanced/CosmosDbEventStore/CosmosDbEventStore.csproj",
+      "samples/09-advanced/EventUpcasting/EventUpcasting.csproj",
+      "samples/09-advanced/FluentValidationSample/FluentValidationSample.csproj",
+      "samples/09-advanced/JobWorkerSample/JobWorkerSample.csproj",
+      "samples/09-advanced/LeaderElection/LeaderElection.csproj",
+      "samples/09-advanced/ProjectionsSample/ProjectionsSample.csproj",
+      "samples/09-advanced/SessionManagement/SessionManagementExample.csproj",
+      "samples/09-advanced/SnapshotStrategies/SnapshotStrategies.csproj",
+      "samples/09-advanced/SqlServerEventStore/SqlServerEventStore.csproj",
+      "samples/09-advanced/StreamingHandlers/StreamingHandlers.csproj",
+      "samples/09-advanced/Versioning.Examples/EcommerceOrderVersioning/EcommerceOrderVersioning.csproj",
+      "samples/09-advanced/Versioning.Examples/IntegrationEventVersioning/IntegrationEventVersioning.csproj",
+      "samples/09-advanced/Versioning.Examples/UserProfileVersioning/UserProfileVersioning.csproj",
+      "samples/09-advanced/WebWorkerSample/Contracts/WebWorkerSample.Contracts.csproj",
+      "samples/13-jobs/CdcJobQuartz/CdcJobQuartz.csproj",
+      "samples/10-real-world/ECommerce/ECommerceSample.csproj",
+      "samples/10-real-world/EnhancedStores/ECommerceSample/ECommerceSample.csproj",
+      "samples/10-real-world/OrderProcessing/OrderProcessing.csproj",
+      "samples/12-vertical-slice-api/HealthcareApi/HealthcareApi.csproj"
+    ],
+    "smokeProfiles": [
+      {
+        "project": "samples/01-getting-started/DispatchMinimal/Excalibur.DispatchMinimal.csproj",
+        "mode": "run",
+        "timeoutSeconds": 20
+      },
+      {
+        "project": "samples/01-getting-started/ExcaliburCqrs/ExcaliburCqrs.csproj",
+        "mode": "run",
+        "timeoutSeconds": 20
+      },
+      {
+        "project": "samples/01-getting-started/GettingStarted/GettingStarted.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/01-getting-started/MinimalSample/MinimalSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/01-getting-started/QuickDemo/QuickDemo.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/02-messaging-transports/MultiBusSample/MultiBusSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/02-messaging-transports/RemoteBusSample/RemoteBusSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/02-messaging-transports/TransportBindings/TransportBindings.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/04-reliability/OutboxPattern/OutboxPattern.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/04-reliability/SagaOrchestration/SagaOrchestration.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/BackgroundServices/AtLeastOnceWithInbox/AtLeastOnceWithInbox.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/BackgroundServices/MinimizedWindow/MinimizedWindow.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/BackgroundServices/PerformanceComparison/PerformanceComparison.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/BackgroundServices/TransactionalWhenApplicable/TransactionalWhenApplicable.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/MinimalJobSample/MinimalJobSample.csproj",
+        "mode": "run",
+        "timeoutSeconds": 20
+      },
+      {
+        "project": "samples/09-advanced/WebWorkerSample/WebHost/WebHost.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj",
+        "mode": "run",
+        "timeoutSeconds": 20
+      }
+    ]
+  },
+  "governance": {
+    "architectureReviewCadence": "Bi-weekly architecture review board with mandatory sign-off for boundary, naming, and lifecycle changes.",
+    "raci": {
+      "accountable": "SoftwareArchitect",
+      "responsible": [
+        "PlatformDeveloper",
+        "DocsEngineer",
+        "TestsDeveloper"
+      ],
+      "consulted": [
+        "ComplianceDeveloper",
+        "ReleaseEngineer"
+      ],
+      "informed": [
+        "All maintainers"
+      ]
+    },
+    "packageLifecycleTiers": [
+      {
+        "tier": "Stable",
+        "support": "Current + previous minor",
+        "deprecationNotice": "Minimum 2 releases before removal"
+      },
+      {
+        "tier": "Preview",
+        "support": "Best effort",
+        "deprecationNotice": "Can change with release notes"
+      },
+      {
+        "tier": "Experimental",
+        "support": "No compatibility guarantee",
+        "deprecationNotice": "May be removed without migration guarantees"
+      },
+      {
+        "tier": "Deprecated",
+        "support": "Security fixes only",
+        "deprecationNotice": "Must publish migration path"
+      }
+    ],
+    "releaseGateChecklist": [
+      "Cross-platform build succeeds (Excalibur.sln).",
+      "All required test suites pass (smoke, unit shards, integration, functional, contract, architecture, conformance).",
+      "Shipping packages pack successfully and dependency graph validation passes.",
+      "Dispatch/Excalibur boundary validation passes.",
+      "Docs/docs-site validation and sample certification checks pass.",
+      "SBOM + security gates pass before release publication."
+    ]
+  },
+  "packageTestMappingRules": [
+    {
+      "name": "Dispatch family",
+      "packagePattern": "^Excalibur\\.Dispatch($|\\.)",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Dispatch.Tests/Excalibur.Dispatch.Tests.csproj",
+          "tests/unit/Excalibur.Dispatch.Messaging.Tests/Excalibur.Dispatch.Messaging.Tests.csproj",
+          "tests/unit/Excalibur.Dispatch.Transport.Tests/Excalibur.Dispatch.Transport.Tests.csproj",
+          "tests/unit/Excalibur.Dispatch.Serialization.Tests/Excalibur.Dispatch.Serialization.Tests.csproj",
+          "tests/unit/Excalibur.Dispatch.Patterns.Tests/Excalibur.Dispatch.Patterns.Tests.csproj",
+          "tests/unit/Excalibur.Dispatch.SourceGenerators.Tests/Excalibur.Dispatch.SourceGenerators.Tests.csproj"
+        ],
+        "integration": [
+          "tests/integration/Excalibur.Dispatch.Integration.Tests/Excalibur.Dispatch.Integration.Tests.csproj"
+        ],
+        "contract": [
+          "tests/contract/Excalibur.Dispatch.Contract.Tests/Excalibur.Dispatch.Contract.Tests.csproj"
+        ],
+        "conformance": [
+          "tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj"
+        ]
+      }
+    },
+    {
+      "name": "Excalibur data family",
+      "packagePattern": "^Excalibur\\.Data($|\\.)",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Data.Tests/Excalibur.Data.Tests.csproj",
+          "tests/unit/Excalibur.Data.Abstractions.Tests/Excalibur.Data.Abstractions.Tests.csproj",
+          "tests/unit/Excalibur.Data.SqlServer.Tests/Excalibur.Data.SqlServer.Tests.csproj",
+          "tests/unit/Excalibur.Data.Postgres.Tests/Excalibur.Data.Postgres.Tests.csproj",
+          "tests/unit/Excalibur.Data.MongoDB.Tests/Excalibur.Data.MongoDB.Tests.csproj",
+          "tests/unit/Excalibur.Data.Redis.Tests/Excalibur.Data.Redis.Tests.csproj",
+          "tests/unit/Excalibur.Data.InMemory.Tests/Excalibur.Data.InMemory.Tests.csproj",
+          "tests/unit/Excalibur.Data.MySql.Tests/Excalibur.Data.MySql.Tests.csproj",
+          "tests/unit/Excalibur.Data.CosmosDb.Tests/Excalibur.Data.CosmosDb.Tests.csproj",
+          "tests/unit/Excalibur.Data.DynamoDb.Tests/Excalibur.Data.DynamoDb.Tests.csproj",
+          "tests/unit/Excalibur.Data.Firestore.Tests/Excalibur.Data.Firestore.Tests.csproj"
+        ],
+        "integration": [
+          "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+        ]
+      }
+    },
+    {
+      "name": "Excalibur event sourcing family",
+      "packagePattern": "^Excalibur\\.EventSourcing($|\\.)",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.EventSourcing.Tests/Excalibur.EventSourcing.Tests.csproj"
+        ],
+        "integration": [
+          "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+        ],
+        "conformance": [
+          "tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj"
+        ]
+      }
+    },
+    {
+      "name": "Excalibur outbox family",
+      "packagePattern": "^Excalibur\\.Outbox($|\\.)",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Outbox.Tests/Excalibur.Outbox.Tests.csproj"
+        ],
+        "integration": [
+          "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+        ]
+      }
+    },
+    {
+      "name": "Excalibur saga family",
+      "packagePattern": "^Excalibur\\.Saga($|\\.)",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Saga.Tests/Excalibur.Saga.Tests.csproj"
+        ],
+        "integration": [
+          "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+        ]
+      }
+    },
+    {
+      "name": "Excalibur hosting family",
+      "packagePattern": "^Excalibur\\.Hosting($|\\.)",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Hosting.Tests/Excalibur.Hosting.Tests.csproj"
+        ],
+        "functional": [
+          "tests/functional/Excalibur.Dispatch.Tests.Functional/Excalibur.Dispatch.Tests.Functional.csproj"
+        ]
+      }
+    },
+    {
+      "name": "Excalibur jobs family",
+      "packagePattern": "^Excalibur\\.Jobs($|\\.)",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Jobs.Tests/Excalibur.Jobs.Tests.csproj"
+        ],
+        "functional": [
+          "tests/functional/Excalibur.Dispatch.Tests.Functional/Excalibur.Dispatch.Tests.Functional.csproj"
+        ]
+      }
+    },
+    {
+      "name": "Excalibur leader election family",
+      "packagePattern": "^Excalibur\\.LeaderElection($|\\.)",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.LeaderElection.Tests/Excalibur.LeaderElection.Tests.csproj"
+        ],
+        "conformance": [
+          "tests/conformance/Excalibur.Dispatch.Tests.Conformance/Excalibur.Dispatch.Tests.Conformance.csproj"
+        ]
+      }
+    },
+    {
+      "name": "Excalibur domain and application family",
+      "packagePattern": "^Excalibur\\.(Domain|Application|Caching|Cdc|A3($|\\.)|Security($|\\.)|Testing($|\\.)|Compliance\\.)",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Tests/Excalibur.Tests.csproj",
+          "tests/unit/Excalibur.Domain.Tests/Excalibur.Domain.Tests.csproj",
+          "tests/unit/Excalibur.Application.Tests/Excalibur.Application.Tests.csproj",
+          "tests/unit/Excalibur.Caching.Tests/Excalibur.Caching.Tests.csproj",
+          "tests/unit/Excalibur.Cdc.Tests/Excalibur.Cdc.Tests.csproj",
+          "tests/unit/Excalibur.A3.Tests/Excalibur.A3.Tests.csproj",
+          "tests/unit/Excalibur.Security.Tests/Excalibur.Security.Tests.csproj",
+          "tests/unit/Excalibur.Testing.Conformance.Tests/Excalibur.Testing.Conformance.Tests.csproj"
+        ],
+        "integration": [
+          "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+        ]
+      }
+    },
+    {
+      "name": "Excalibur migrate tool",
+      "packagePattern": "^Excalibur\\.Migrate\\.Tool$",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.EventSourcing.Tests/Excalibur.EventSourcing.Tests.csproj"
+        ],
+        "integration": [
+          "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+        ]
+      }
+    }
+  ]
+}

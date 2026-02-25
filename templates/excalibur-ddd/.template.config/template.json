@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Excalibur Contributors",
+  "classifications": ["DDD", "Event Sourcing", "Excalibur"],
+  "identity": "Excalibur.Dispatch.Ddd",
+  "name": "Excalibur DDD with Event Sourcing",
+  "shortName": "excalibur-ddd",
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "sourceName": "Company.ExcaliburDdd",
+  "preferNameDirectory": true,
+  "symbols": {
+    "Framework": {
+      "type": "parameter",
+      "description": "The target framework for the project.",
+      "datatype": "choice",
+      "choices": [
+        { "choice": "net8.0", "description": "Target .NET 8.0" },
+        { "choice": "net9.0", "description": "Target .NET 9.0" },
+        { "choice": "net10.0", "description": "Target .NET 10.0" }
+      ],
+      "defaultValue": "net10.0",
+      "replaces": "net8.0"
+    },
+    "Database": {
+      "type": "parameter",
+      "description": "The database provider for event sourcing.",
+      "datatype": "choice",
+      "choices": [
+        { "choice": "sqlserver", "description": "SQL Server" },
+        { "choice": "postgresql", "description": "PostgreSQL" },
+        { "choice": "inmemory", "description": "In-memory (development only)" }
+      ],
+      "defaultValue": "sqlserver"
+    },
+    "UseSqlServer": {
+      "type": "computed",
+      "value": "(Database == \"sqlserver\")"
+    },
+    "UsePostgreSql": {
+      "type": "computed",
+      "value": "(Database == \"postgresql\")"
+    },
+    "UseInMemoryDatabase": {
+      "type": "computed",
+      "value": "(Database == \"inmemory\")"
+    },
+    "FrameworkVersion": {
+      "type": "generated",
+      "generator": "switch",
+      "replaces": "8.0",
+      "parameters": {
+        "evaluator": "C++",
+        "datatype": "string",
+        "cases": [
+          { "condition": "(Framework == 'net10.0')", "value": "10.0" },
+          { "condition": "(Framework == 'net9.0')", "value": "9.0" },
+          { "condition": "", "value": "8.0" }
+        ]
+      }
+    },
+    "IncludeDocker": {
+      "type": "parameter",
+      "datatype": "bool",
+      "description": "Include Dockerfile and .dockerignore.",
+      "defaultValue": "false"
+    },
+    "IncludeTests": {
+      "type": "parameter",
+      "datatype": "bool",
+      "description": "Include a test project.",
+      "defaultValue": "false"
+    }
+  },
+  "sources": [
+    {
+      "modifiers": [
+        { "condition": "(!IncludeDocker)", "exclude": ["Dockerfile", ".dockerignore"] },
+        { "condition": "(!IncludeTests)", "exclude": ["Company.ExcaliburDdd.Tests/**"] }
+      ]
+    }
+  ]
+}

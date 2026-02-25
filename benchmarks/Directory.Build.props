@@ -1,0 +1,41 @@
+<Project>
+	<Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+	<!-- ============================================================================================
+	     Sprint 325 T0.2: Project Classification Metadata (AD-325-2)
+	     ============================================================================================
+	     All projects under benchmarks/ are classified as "Benchmark" by default.
+	     - IsBenchmarkProject=true (custom marker for CI validation)
+	     - IsPackable=false (benchmarks are not packaged)
+	     ============================================================================================ -->
+	<PropertyGroup>
+		<IsBenchmarkProject>true</IsBenchmarkProject>
+		<IsPackable>false</IsPackable>
+		<ProjectClassification>Benchmark</ProjectClassification>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<!-- AOT compatibility -->
+		<IsAotCompatible>false</IsAotCompatible>
+		<PublishAot>false</PublishAot>
+	</PropertyGroup>
+
+	<!-- ============================================================================================
+	     Sprint 345: Benchmark-Specific Analyzer Configuration
+	     ============================================================================================
+	     Benchmarks are non-shipping code with different quality requirements than production code.
+
+	     Approach: Convert analyzer warnings to warnings (not errors) so they can be reviewed
+	     but don't block the build. Production code (src/**) maintains strict TreatWarningsAsErrors.
+
+	     This follows Microsoft's own approach where test/benchmark projects have relaxed
+	     analyzer enforcement while shipping assemblies maintain strict quality gates.
+	     ============================================================================================ -->
+	<PropertyGroup>
+		<!-- Disable TreatWarningsAsErrors for benchmark projects only -->
+		<TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+		<!-- Keep analyzers enabled so warnings are visible, just not blocking -->
+		<RunAnalyzers>true</RunAnalyzers>
+		<RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+	</PropertyGroup>
+</Project>

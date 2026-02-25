@@ -1,0 +1,254 @@
+{
+  "startedUtc": "2026-02-19T16:49:09.8947234+00:00",
+  "endedUtc": "2026-02-19T18:02:16.5383792+00:00",
+  "duration": "01:13:06.6268006",
+  "configuration": "Release",
+  "artifactsPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219",
+  "resultsPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results",
+  "selectedClasses": [
+    "MediatRComparisonBenchmarks",
+    "WolverineComparisonBenchmarks",
+    "MassTransitComparisonBenchmarks",
+    "PipelineComparisonBenchmarks",
+    "StartupComparisonBenchmarks",
+    "RoutingFirstParityBenchmarks",
+    "DispatchThroughputBenchmarks",
+    "DispatchHotPathBreakdownBenchmarks",
+    "MiddlewareCostCurveBenchmarks",
+    "HandlerResolutionBenchmarks",
+    "HandlerFanOutBenchmarks",
+    "TransportAdapterPhaseBenchmarks",
+    "FailurePathBenchmarks",
+    "LongRunAllocationGcBenchmarks",
+    "CancellationCostBenchmarks",
+    "RetryPolicyMicroBenchmarks",
+    "DispatchContextCostBenchmarks",
+    "AllocationHotspotBenchmarks",
+    "ConcurrencyContentionBenchmarks",
+    "FanOutColdDecompositionBenchmarks",
+    "FanOutBehaviorMatrixBenchmarks",
+    "TransportConcurrencyBreakdownBenchmarks",
+    "ActivationStrategyBenchmarks",
+    "HandlerInvokerPathBenchmarks"
+  ],
+  "totalBenchmarks": 317.0,
+  "failures": [],
+  "classResults": [
+    {
+      "ClassName": "MediatRComparisonBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 314.8,
+      "BenchmarkRows": 16,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Comparative.MediatRComparisonBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-MediatRComparisonBenchmarks-20260219-104909.log"
+    },
+    {
+      "ClassName": "WolverineComparisonBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 299.1,
+      "BenchmarkRows": 13,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Comparative.WolverineComparisonBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-WolverineComparisonBenchmarks-20260219-105424.log"
+    },
+    {
+      "ClassName": "MassTransitComparisonBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 221.5,
+      "BenchmarkRows": 10,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Comparative.MassTransitComparisonBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-MassTransitComparisonBenchmarks-20260219-105923.log"
+    },
+    {
+      "ClassName": "PipelineComparisonBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 145.5,
+      "BenchmarkRows": 4,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Comparative.PipelineComparisonBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-PipelineComparisonBenchmarks-20260219-110305.log"
+    },
+    {
+      "ClassName": "StartupComparisonBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 24.6,
+      "BenchmarkRows": 4,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Comparative.StartupComparisonBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-StartupComparisonBenchmarks-20260219-110530.log"
+    },
+    {
+      "ClassName": "RoutingFirstParityBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 479.9,
+      "BenchmarkRows": 22,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Comparative.RoutingFirstParityBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-RoutingFirstParityBenchmarks-20260219-110555.log"
+    },
+    {
+      "ClassName": "DispatchThroughputBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 318.1,
+      "BenchmarkRows": 7,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Core.DispatchThroughputBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-DispatchThroughputBenchmarks-20260219-111355.log"
+    },
+    {
+      "ClassName": "DispatchHotPathBreakdownBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 100.2,
+      "BenchmarkRows": 9,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Diagnostics.DispatchHotPathBreakdownBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-DispatchHotPathBreakdownBenchmarks-20260219-111913.log"
+    },
+    {
+      "ClassName": "MiddlewareCostCurveBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 297.7,
+      "BenchmarkRows": 30,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Diagnostics.MiddlewareCostCurveBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-MiddlewareCostCurveBenchmarks-20260219-112053.log"
+    },
+    {
+      "ClassName": "HandlerResolutionBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 148.9,
+      "BenchmarkRows": 12,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Diagnostics.HandlerResolutionBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-HandlerResolutionBenchmarks-20260219-112551.log"
+    },
+    {
+      "ClassName": "HandlerFanOutBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 89.4,
+      "BenchmarkRows": 8,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Diagnostics.HandlerFanOutBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-HandlerFanOutBenchmarks-20260219-112820.log"
+    },
+    {
+      "ClassName": "TransportAdapterPhaseBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 357.6,
+      "BenchmarkRows": 36,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Diagnostics.TransportAdapterPhaseBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-TransportAdapterPhaseBenchmarks-20260219-112949.log"
+    },
+    {
+      "ClassName": "FailurePathBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 114.7,
+      "BenchmarkRows": 9,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Diagnostics.FailurePathBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-FailurePathBenchmarks-20260219-113547.log"
+    },
+    {
+      "ClassName": "LongRunAllocationGcBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 224.3,
+      "BenchmarkRows": 21,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Diagnostics.LongRunAllocationGcBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-LongRunAllocationGcBenchmarks-20260219-113741.log"
+    },
+    {
+      "ClassName": "CancellationCostBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 118.2,
+      "BenchmarkRows": 12,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Diagnostics.CancellationCostBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-CancellationCostBenchmarks-20260219-114126.log"
+    },
+    {
+      "ClassName": "RetryPolicyMicroBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 338.7,
+      "BenchmarkRows": 24,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Diagnostics.RetryPolicyMicroBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-RetryPolicyMicroBenchmarks-20260219-114324.log"
+    },
+    {
+      "ClassName": "DispatchContextCostBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 55.2,
+      "BenchmarkRows": 4,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Diagnostics.DispatchContextCostBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-DispatchContextCostBenchmarks-20260219-114903.log"
+    },
+    {
+      "ClassName": "AllocationHotspotBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 69.3,
+      "BenchmarkRows": 6,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Diagnostics.AllocationHotspotBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-AllocationHotspotBenchmarks-20260219-114958.log"
+    },
+    {
+      "ClassName": "ConcurrencyContentionBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 128.6,
+      "BenchmarkRows": 12,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Diagnostics.ConcurrencyContentionBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-ConcurrencyContentionBenchmarks-20260219-115107.log"
+    },
+    {
+      "ClassName": "FanOutColdDecompositionBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 5.3,
+      "BenchmarkRows": 12,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Diagnostics.FanOutColdDecompositionBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-FanOutColdDecompositionBenchmarks-20260219-115316.log"
+    },
+    {
+      "ClassName": "FanOutBehaviorMatrixBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 115.0,
+      "BenchmarkRows": 9,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Diagnostics.FanOutBehaviorMatrixBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-FanOutBehaviorMatrixBenchmarks-20260219-115321.log"
+    },
+    {
+      "ClassName": "TransportConcurrencyBreakdownBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 341.3,
+      "BenchmarkRows": 30,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Diagnostics.TransportConcurrencyBreakdownBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-TransportConcurrencyBreakdownBenchmarks-20260219-115516.log"
+    },
+    {
+      "ClassName": "ActivationStrategyBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 54.7,
+      "BenchmarkRows": 5,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Diagnostics.ActivationStrategyBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-ActivationStrategyBenchmarks-20260219-120058.log"
+    },
+    {
+      "ClassName": "HandlerInvokerPathBenchmarks",
+      "ExitCode": 0,
+      "DurationSeconds": 23.8,
+      "BenchmarkRows": 2,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\Excalibur.Dispatch.Benchmarks.Diagnostics.HandlerInvokerPathBenchmarks-report-github.md",
+      "LogPath": "D:\\Excalibur.Dispatch\\BenchmarkDotNet.Artifacts.FullRefresh-20260219\\results\\run-HandlerInvokerPathBenchmarks-20260219-120152.log"
+    }
+  ]
+}

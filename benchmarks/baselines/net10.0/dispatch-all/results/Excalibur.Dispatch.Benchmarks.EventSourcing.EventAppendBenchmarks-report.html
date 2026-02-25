@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.EventSourcing.EventAppendBenchmarks-20260202-194247</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.102
+  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code></code></pre>
+
+<table>
+<thead><tr><th>Method                 </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>AppendSingleEvent</td><td>7.609 ms</td><td>0.2163 ms</td><td>0.6206 ms</td><td>7.552 ms</td><td>1.01</td><td>0.11</td><td>20 KB</td><td>1.00</td>
+</tr><tr><td>AppendTenEvents</td><td>15.503 ms</td><td>0.3086 ms</td><td>0.8238 ms</td><td>15.396 ms</td><td>2.05</td><td>0.19</td><td>121.38 KB</td><td>6.07</td>
+</tr><tr><td>AppendHundredEvents</td><td>99.714 ms</td><td>8.5906 ms</td><td>23.6611 ms</td><td>90.993 ms</td><td>13.19</td><td>3.29</td><td>1133.94 KB</td><td>56.69</td>
+</tr><tr><td>AppendThousandEvents</td><td>788.519 ms</td><td>19.2952 ms</td><td>55.0504 ms</td><td>778.862 ms</td><td>104.29</td><td>10.95</td><td>11259.21 KB</td><td>562.85</td>
+</tr><tr><td>ConcurrentAppendTenAggregates</td><td>98.483 ms</td><td>32.8665 ms</td><td>96.9075 ms</td><td>23.264 ms</td><td>13.03</td><td>12.83</td><td>199.3 KB</td><td>9.96</td>
+</tr><tr><td>AppendToExistingAggregate</td><td>13.543 ms</td><td>0.3048 ms</td><td>0.8941 ms</td><td>13.444 ms</td><td>1.79</td><td>0.18</td><td>73.98 KB</td><td>3.70</td>
+</tr></tbody></table>
+</body>
+</html>
