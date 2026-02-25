@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="images/Dispatch/png/readme-banner.png" alt="Dispatch - Fast .NET Messaging Framework" width="800">
+  <img src="images/Combined/readme-banner.svg" alt="Excalibur + Dispatch" width="900">
 </p>
 
 # Excalibur
