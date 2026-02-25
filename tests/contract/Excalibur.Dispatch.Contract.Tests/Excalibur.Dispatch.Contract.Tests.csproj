@@ -10,6 +10,7 @@
     <AssemblyName>Excalibur.Dispatch.Contract.Tests</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
     <PackageReference Include="PactNet" />
     <PackageReference Include="Shouldly" />
   </ItemGroup>
