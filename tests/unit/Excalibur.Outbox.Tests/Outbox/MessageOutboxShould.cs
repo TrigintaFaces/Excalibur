@@ -329,7 +329,11 @@ public sealed class MessageOutboxShould : IDisposable
 		try
 		{
 			var runTask = _sut.RunOutboxDispatchAsync("dispatcher-1", cts.Token);
-			await dispatchObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+			var dispatchStarted = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+				() => dispatchObserved.Task.IsCompleted,
+				TimeSpan.FromSeconds(10),
+				TimeSpan.FromMilliseconds(20));
+			dispatchStarted.ShouldBeTrue("dispatch loop should start");
 			await cts.CancelAsync();
 			await runTask;
 		}

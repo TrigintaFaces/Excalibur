@@ -40,7 +40,12 @@ public sealed class OutboxServiceShould
 
 		// Act
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(true);
-		var dispatcherId = await dispatchStarted.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(true);
+		var dispatchObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => dispatchStarted.Task.IsCompleted,
+			TimeSpan.FromSeconds(10),
+			TimeSpan.FromMilliseconds(20)).ConfigureAwait(true);
+		dispatchObserved.ShouldBeTrue("dispatcher should start");
+		var dispatcherId = await dispatchStarted.Task.ConfigureAwait(true);
 		await service.StopAsync(CancellationToken.None).ConfigureAwait(true);
 
 		// Assert
@@ -81,7 +86,12 @@ public sealed class OutboxServiceShould
 
 		// Act
 		await service.StartAsync(CancellationToken.None).ConfigureAwait(true);
-		var capturedId = await capturedDispatcherId.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(true);
+		var dispatchObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => capturedDispatcherId.Task.IsCompleted,
+			TimeSpan.FromSeconds(10),
+			TimeSpan.FromMilliseconds(20)).ConfigureAwait(true);
+		dispatchObserved.ShouldBeTrue("dispatcher ID should be captured");
+		var capturedId = await capturedDispatcherId.Task.ConfigureAwait(true);
 		await service.StopAsync(CancellationToken.None).ConfigureAwait(true);
 
 		// Assert

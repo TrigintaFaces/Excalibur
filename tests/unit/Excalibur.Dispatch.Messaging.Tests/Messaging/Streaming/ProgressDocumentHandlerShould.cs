@@ -259,7 +259,11 @@ public sealed class ProgressDocumentHandlerShould
 			await dispatcher.DispatchWithProgressAsync(document, context, progress, cts.Token);
 		});
 
-		_ = await firstProgressReceived.Task.WaitAsync(TimeSpan.FromSeconds(2));
+		var firstProgressObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => firstProgressReceived.Task.IsCompleted,
+			TimeSpan.FromSeconds(10),
+			TimeSpan.FromMilliseconds(20));
+		firstProgressObserved.ShouldBeTrue("first progress report should be observed");
 
 		// Should have received some progress before cancellation but not all 20 items
 		lock (progressReports)

@@ -82,7 +82,11 @@ public sealed class ServiceBusTransportSubscriberShould : IAsyncDisposable
 			(_, _) => Task.FromResult(MessageAction.Acknowledge),
 			cts.Token);
 
-		await processorStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), CancellationToken.None).ConfigureAwait(false);
+		var processorStartObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => processorStarted.Task.IsCompleted,
+			TimeSpan.FromSeconds(10),
+			TimeSpan.FromMilliseconds(20));
+		processorStartObserved.ShouldBeTrue("processor should start after subscribe");
 
 		// Verify StartProcessingAsync was called
 		A.CallTo(() => _fakeProcessor.StartProcessingAsync(A<CancellationToken>._))

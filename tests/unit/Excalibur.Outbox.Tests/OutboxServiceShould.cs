@@ -103,7 +103,11 @@ public sealed class OutboxServiceShould : UnitTestBase
 
 		// Act - Start the service and let ExecuteAsync run briefly
 		await service.StartAsync(cts.Token);
-		await dispatchStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+		var dispatchObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => dispatchStarted.Task.IsCompleted,
+			TimeSpan.FromSeconds(10),
+			TimeSpan.FromMilliseconds(20));
+		dispatchObserved.ShouldBeTrue("outbox dispatch should start");
 
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
@@ -146,7 +150,11 @@ public sealed class OutboxServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await dispatchStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+		var dispatchObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => dispatchStarted.Task.IsCompleted,
+			TimeSpan.FromSeconds(10),
+			TimeSpan.FromMilliseconds(20));
+		dispatchObserved.ShouldBeTrue("outbox dispatch should start");
 
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);

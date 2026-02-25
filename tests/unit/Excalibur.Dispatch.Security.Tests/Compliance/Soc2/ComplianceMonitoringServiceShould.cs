@@ -127,7 +127,9 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await complianceCallObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			complianceCallObserved.Task,
+			TimeSpan.FromSeconds(5));
 		cts.Cancel();
 
 		try
@@ -190,7 +192,9 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await secondCallObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			secondCallObserved.Task,
+			TimeSpan.FromSeconds(5));
 		cts.Cancel();
 
 		try
@@ -226,7 +230,9 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await alertObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			alertObserved.Task,
+			TimeSpan.FromSeconds(5));
 		cts.Cancel();
 
 		try
@@ -334,7 +340,9 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await validationAlertObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			validationAlertObserved.Task,
+			TimeSpan.FromSeconds(5));
 		cts.Cancel();
 
 		try
@@ -383,7 +391,9 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await statusChangeObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			statusChangeObserved.Task,
+			TimeSpan.FromSeconds(5));
 		cts.Cancel();
 
 		try
@@ -428,7 +438,9 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await statusChangeObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			statusChangeObserved.Task,
+			TimeSpan.FromSeconds(5));
 		cts.Cancel();
 
 		try

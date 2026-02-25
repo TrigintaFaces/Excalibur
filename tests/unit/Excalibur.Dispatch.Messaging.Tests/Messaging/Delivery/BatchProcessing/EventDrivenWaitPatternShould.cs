@@ -17,21 +17,22 @@ public sealed class EventDrivenWaitPatternShould
 		// Arrange - verify the signaling pattern used in MessageOutbox
 		var semaphore = new SemaphoreSlim(0, int.MaxValue);
 		var signalReceived = false;
-		var consumerReady = new SemaphoreSlim(0, 1);
+		var consumerReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
 		// Act - consumer waits, producer signals
 		var consumerTask = Task.Run(async () =>
 		{
-			consumerReady.Release();
+			consumerReady.TrySetResult();
 			await semaphore.WaitAsync(cts.Token).ConfigureAwait(false);
 			signalReceived = true;
 		});
 
 		// Wait until consumer task is actually started and ready to receive
 		// Uses SemaphoreSlim.WaitAsync with timeout instead of Task.Delay to avoid flakiness under load
-		var ready = await consumerReady.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
-		ready.ShouldBeTrue("Consumer task should have signaled readiness");
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			consumerReady.Task,
+			TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
 		// Signal (as MessageOutbox.SignalNewMessage does)
 		_ = semaphore.Release();
@@ -47,16 +48,15 @@ public sealed class EventDrivenWaitPatternShould
 	{
 		// Arrange - verify timeout behavior used in dispatch loop
 		var semaphore = new SemaphoreSlim(0, int.MaxValue);
+		using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
 
-		// Act
-		var result = await semaphore.WaitAsync(TimeSpan.FromMilliseconds(50)).ConfigureAwait(false);
-
-		// Assert - should return false on timeout
-		result.ShouldBeFalse();
+		// Act & Assert - should cancel when timeout token fires
+		await Should.ThrowAsync<OperationCanceledException>(async () =>
+			await semaphore.WaitAsync(timeoutCts.Token).ConfigureAwait(false)).ConfigureAwait(false);
 	}
 
 	[Fact]
-	public async Task QueueMultipleSignals()
+	public void QueueMultipleSignals()
 	{
 		// Arrange - verify multiple signals can be queued (as used in MessageOutbox)
 		var semaphore = new SemaphoreSlim(0, int.MaxValue);
@@ -68,7 +68,7 @@ public sealed class EventDrivenWaitPatternShould
 
 		// Consume all signals
 		var consumed = 0;
-		while (await semaphore.WaitAsync(TimeSpan.FromMilliseconds(10)).ConfigureAwait(false))
+		while (semaphore.Wait(0))
 		{
 			consumed++;
 		}

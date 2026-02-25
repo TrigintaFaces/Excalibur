@@ -141,8 +141,11 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 			await processor.AddAsync("item2", CancellationToken.None).ConfigureAwait(false);
 			await processor.AddAsync("item3", CancellationToken.None).ConfigureAwait(false);
 
-			_ = await batchProcessedTcs.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 
+				batchProcessedTcs.Task,
+
+				TimeSpan.FromSeconds(30));
 			// Wait a bit more for metrics to be emitted
 			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(200).ConfigureAwait(false);
 		}
@@ -334,8 +337,11 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 				Task.WhenAll(middlewareTasks)
 			);
 
-			_ = await allProcessed.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 
+				allProcessed.Task,
+
+				TimeSpan.FromSeconds(10));
 			// Wait for final telemetry to be emitted
 			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(500).ConfigureAwait(false);
 		}

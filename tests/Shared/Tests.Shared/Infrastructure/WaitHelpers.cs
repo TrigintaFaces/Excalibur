@@ -24,6 +24,74 @@ public static class WaitHelpers
 	public static readonly TimeSpan DefaultPollInterval = TimeSpan.FromMilliseconds(100);
 
 	/// <summary>
+	/// Waits for a signal task to complete by polling for completion.
+	/// </summary>
+	/// <param name="signal">Signal task that indicates an asynchronous event has occurred.</param>
+	/// <param name="timeout">Maximum time to wait for the signal.</param>
+	/// <param name="pollInterval">Time between completion checks. Defaults to 20ms.</param>
+	/// <param name="cancellationToken">Cancellation token for external cancellation.</param>
+	/// <exception cref="TimeoutException">Thrown when the signal task does not complete within timeout.</exception>
+	public static async Task AwaitSignalAsync(
+		Task signal,
+		TimeSpan timeout,
+		TimeSpan? pollInterval = null,
+		CancellationToken cancellationToken = default)
+	{
+		ArgumentNullException.ThrowIfNull(signal);
+
+		if (!signal.IsCompleted)
+		{
+			var observed = await WaitUntilAsync(
+				() => signal.IsCompleted,
+				timeout,
+				pollInterval ?? TimeSpan.FromMilliseconds(20),
+				cancellationToken).ConfigureAwait(false);
+
+			if (!observed)
+			{
+				throw new TimeoutException($"Timed out waiting for signal after {timeout}.");
+			}
+		}
+
+		await signal.ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Waits for a signal task to complete and returns its result.
+	/// </summary>
+	/// <typeparam name="T">Signal task result type.</typeparam>
+	/// <param name="signal">Signal task that indicates an asynchronous event has occurred.</param>
+	/// <param name="timeout">Maximum time to wait for the signal.</param>
+	/// <param name="pollInterval">Time between completion checks. Defaults to 20ms.</param>
+	/// <param name="cancellationToken">Cancellation token for external cancellation.</param>
+	/// <returns>The completed signal task result.</returns>
+	/// <exception cref="TimeoutException">Thrown when the signal task does not complete within timeout.</exception>
+	public static async Task<T> AwaitSignalAsync<T>(
+		Task<T> signal,
+		TimeSpan timeout,
+		TimeSpan? pollInterval = null,
+		CancellationToken cancellationToken = default)
+	{
+		ArgumentNullException.ThrowIfNull(signal);
+
+		if (!signal.IsCompleted)
+		{
+			var observed = await WaitUntilAsync(
+				() => signal.IsCompleted,
+				timeout,
+				pollInterval ?? TimeSpan.FromMilliseconds(20),
+				cancellationToken).ConfigureAwait(false);
+
+			if (!observed)
+			{
+				throw new TimeoutException($"Timed out waiting for signal after {timeout}.");
+			}
+		}
+
+		return await signal.ConfigureAwait(false);
+	}
+
+	/// <summary>
 	/// Waits until the specified condition returns true, or until timeout/cancellation.
 	/// </summary>
 	/// <param name="condition">The condition to poll. Should return true when the wait should stop.</param>

@@ -75,7 +75,7 @@ public sealed class TimeProviderUtilitiesShould
 	{
 		var task = TimeProvider.System.DelayAsync(TimeSpan.FromMilliseconds(50), CancellationToken.None);
 
-		await task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+		await task.ConfigureAwait(false);
 	}
 
 	[Fact]

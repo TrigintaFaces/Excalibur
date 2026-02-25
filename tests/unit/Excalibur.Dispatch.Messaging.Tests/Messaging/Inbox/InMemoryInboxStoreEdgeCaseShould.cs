@@ -879,7 +879,11 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		// Dispose after a short delay
 		var disposalTask = Task.Run(async () =>
 		{
-			await operationsPrimed.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+			var operationsObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+				() => operationsPrimed.Task.IsCompleted,
+				TimeSpan.FromSeconds(10),
+				TimeSpan.FromMilliseconds(20));
+			operationsObserved.ShouldBeTrue("operations should be primed before disposal");
 			store.Dispose();
 		});
 

@@ -58,8 +58,11 @@ public sealed class EventStoreLiveSubscriptionShould : IAsyncDisposable
 			return Task.CompletedTask;
 		}, CancellationToken.None);
 
-		await loadObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 
+			loadObserved.Task,
+
+			TimeSpan.FromSeconds(5));
 		// Assert - should have attempted to load events
 		A.CallTo(() => _eventStore.LoadAsync("stream-1", "stream-1", A<long>._, A<CancellationToken>._))
 			.MustHaveHappened();
@@ -99,8 +102,11 @@ public sealed class EventStoreLiveSubscriptionShould : IAsyncDisposable
 			return Task.CompletedTask;
 		}, CancellationToken.None);
 
-		await eventObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 
+			eventObserved.Task,
+
+			TimeSpan.FromSeconds(5));
 		// Assert
 		received.ShouldNotBeEmpty();
 	}
@@ -117,8 +123,9 @@ public sealed class EventStoreLiveSubscriptionShould : IAsyncDisposable
 #pragma warning restore CA2012
 
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, CancellationToken.None);
-		await loadObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
-
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			loadObserved.Task,
+			TimeSpan.FromSeconds(5));
 		// Act
 		await _sut.UnsubscribeAsync(CancellationToken.None);
 
@@ -198,8 +205,9 @@ public sealed class EventStoreLiveSubscriptionShould : IAsyncDisposable
 
 		// Act
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, CancellationToken.None);
-		await secondCallObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
-
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			secondCallObserved.Task,
+			TimeSpan.FromSeconds(5));
 		// Assert - should have retried after error
 		callCount.ShouldBeGreaterThan(1);
 	}

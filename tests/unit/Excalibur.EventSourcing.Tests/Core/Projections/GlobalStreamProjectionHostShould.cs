@@ -148,13 +148,21 @@ public sealed class GlobalStreamProjectionHostShould
 
 		// Act
 		await host.StartAsync(cts.Token);
-		await applyObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
+		await AwaitApplyObservedAsync(applyObserved.Task);
 		await cts.CancelAsync().ConfigureAwait(false);
 		await host.StopAsync(CancellationToken.None);
 
 		// Assert
 		A.CallTo(() => _projection.ApplyAsync(domainEvent, A<GlobalStreamTestState>._, A<CancellationToken>._))
 			.MustHaveHappened();
+	}
+
+	private static Task AwaitApplyObservedAsync(Task signal)
+	{
+		return global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			signal,
+			TimeSpan.FromSeconds(5),
+			cancellationToken: CancellationToken.None);
 	}
 }
 

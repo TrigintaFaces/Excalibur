@@ -82,7 +82,11 @@ public sealed class PubSubTransportSubscriberShould : IAsyncDisposable
 			(_, _) => Task.FromResult(MessageAction.Acknowledge),
 			cts.Token);
 
-		await subscriberStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), CancellationToken.None).ConfigureAwait(false);
+		var subscriberStartObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => subscriberStarted.Task.IsCompleted,
+			TimeSpan.FromSeconds(10),
+			TimeSpan.FromMilliseconds(20));
+		subscriberStartObserved.ShouldBeTrue("subscriber should start after subscribe");
 
 		// Verify StartAsync was called
 		A.CallTo(() => _fakeSubscriber.StartAsync(A<Func<PubsubMessage, CancellationToken, Task<SubscriberClient.Reply>>>._))
@@ -164,7 +168,11 @@ public sealed class PubSubTransportSubscriberShould : IAsyncDisposable
 			(_, _) => Task.FromResult(MessageAction.Acknowledge),
 			cts.Token);
 
-		await subscriberStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), CancellationToken.None).ConfigureAwait(false);
+		var subscriberStartObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => subscriberStarted.Task.IsCompleted,
+			TimeSpan.FromSeconds(10),
+			TimeSpan.FromMilliseconds(20));
+		subscriberStartObserved.ShouldBeTrue("subscriber should start before cancellation");
 
 		// Cancel the subscription - should not throw despite StopAsync throwing
 		await cts.CancelAsync();

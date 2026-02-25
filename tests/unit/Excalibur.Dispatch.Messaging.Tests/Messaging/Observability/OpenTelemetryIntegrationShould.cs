@@ -181,8 +181,9 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		await processor.AddAsync("item4", CancellationToken.None).ConfigureAwait(false); // 4th item triggers second batch flush
 
 		// Wait for processing to complete BEFORE disposing to avoid race condition
-		_ = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
-
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			tcs.Task,
+			TimeSpan.FromSeconds(30));
 		// Dispose the processor to complete the channel and flush remaining items
 		processor.Dispose();
 		_ = _disposables.Remove(processor); // Remove to avoid double disposal in test cleanup
@@ -220,8 +221,11 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		await processor.AddAsync("item1", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("item2", CancellationToken.None).ConfigureAwait(false); // Should trigger batch size limit
 
-		_ = await batchProcessed.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 
+			batchProcessed.Task,
+
+			TimeSpan.FromSeconds(30));
 		// Assert
 		processedBatches.Count.ShouldBe(1);
 		processedBatches.First().Count.ShouldBe(2);
@@ -255,7 +259,9 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 
 		// Act
 		var resultTask = middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
-		_ = await processingCompleted.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			processingCompleted.Task,
+			TimeSpan.FromSeconds(30));
 		var result = await resultTask.ConfigureAwait(false);
 
 		// Assert
@@ -377,8 +383,11 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		using var activity3 = _testActivitySource.StartActivity("Context3");
 		await processor.AddAsync("item3", CancellationToken.None).ConfigureAwait(false);
 
-		_ = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 
+			tcs.Task,
+
+			TimeSpan.FromSeconds(30));
 		// Assert
 		processedItems.Count.ShouldBe(3);
 
@@ -487,8 +496,11 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		await processor.AddAsync("test-item-1", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("test-item-2", CancellationToken.None).ConfigureAwait(false); // Should trigger batch
 
-		_ = await batchProcessed.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 
+			batchProcessed.Task,
+
+			TimeSpan.FromSeconds(30));
 		_ = await WaitForConditionAsync(() => !metricsCollected.IsEmpty, TimeSpan.FromSeconds(2));
 
 		// Assert - verify batch processing completed and metrics infrastructure works
@@ -724,7 +736,11 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		await processor.AddAsync("perf-test-2", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("perf-test-3", CancellationToken.None).ConfigureAwait(false); // Should trigger batch
 
-		_ = await completionSignal.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+
+			completionSignal.Task,
+
+			TimeSpan.FromSeconds(30));
 		var processingEnd = DateTime.UtcNow;
 
 		_ = await WaitForConditionAsync(() => !performanceMetrics.IsEmpty, TimeSpan.FromSeconds(2));
@@ -947,8 +963,9 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 
 		// Act
 		await processor.AddAsync("async-boundary-test", CancellationToken.None).ConfigureAwait(false);
-		_ = await completionSignal.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
-
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			completionSignal.Task,
+			TimeSpan.FromSeconds(30));
 		// Assert
 		var traceIds = observedTraceIds.Distinct().ToList();
 		var spanIds = observedSpanIds.Distinct().ToList();
@@ -1036,8 +1053,9 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 			.ShouldBeTrue("second batch should be processed");
 
 		await processor.AddAsync("batch3-item1", CancellationToken.None).ConfigureAwait(false);
-		_ = await allBatchesCompleted.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
-
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			allBatchesCompleted.Task,
+			TimeSpan.FromSeconds(10));
 		_ = await WaitForConditionAsync(() => !batchMetrics.IsEmpty, TimeSpan.FromSeconds(2));
 
 		// Assert - Primary assertions: batch processing completed correctly

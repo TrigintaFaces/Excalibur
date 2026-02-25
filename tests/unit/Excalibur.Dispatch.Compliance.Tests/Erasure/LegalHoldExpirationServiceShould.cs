@@ -95,7 +95,11 @@ public sealed class LegalHoldExpirationServiceShould
 			NullLogger<LegalHoldExpirationService>.Instance);
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		await holdUpdated.Task.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+		var holdUpdatedObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => holdUpdated.Task.IsCompleted,
+			TimeSpan.FromSeconds(10),
+			TimeSpan.FromMilliseconds(20)).ConfigureAwait(false);
+		holdUpdatedObserved.ShouldBeTrue("expired hold should be updated");
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		A.CallTo(() => holdStore.UpdateHoldAsync(

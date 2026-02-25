@@ -27,7 +27,9 @@ public sealed class BackgroundTaskRunnerShould
 			},
 			CancellationToken.None);
 
-		var result = await executed.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+		var result = await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			executed.Task,
+			TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 		result.ShouldBeTrue();
 	}
 
@@ -45,7 +47,9 @@ public sealed class BackgroundTaskRunnerShould
 				return Task.CompletedTask;
 			});
 
-		var exception = await errorReceived.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+		var exception = await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			errorReceived.Task,
+			TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 		exception.ShouldBeOfType<InvalidOperationException>();
 		exception.Message.ShouldBe("test error");
 	}
@@ -71,8 +75,14 @@ public sealed class BackgroundTaskRunnerShould
 			CancellationToken.None,
 			logger: logger);
 
-		await completed.Task.WaitAsync(TimeSpan.FromSeconds(120)).ConfigureAwait(false);
-		await logObserved.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+
+			completed.Task,
+
+			TimeSpan.FromSeconds(120));
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			logObserved.Task,
+			TimeSpan.FromSeconds(30));
 	}
 
 	[Fact]
@@ -89,7 +99,9 @@ public sealed class BackgroundTaskRunnerShould
 			},
 			cts.Token);
 
-		var token = await receivedToken.Task.WaitAsync(TimeSpan.FromSeconds(120)).ConfigureAwait(false);
+		var token = await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			receivedToken.Task,
+			TimeSpan.FromSeconds(120)).ConfigureAwait(false);
 		token.ShouldBe(cts.Token);
 	}
 

@@ -173,8 +173,9 @@ public sealed class MetricAggregatorShould : UnitTestBase
 		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(30), callback);
 
 		// Act - wait until callback is observed at least twice
-		await multipleCallbacksObserved.Task.WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None).ConfigureAwait(false);
-
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			multipleCallbacksObserved.Task,
+			TimeSpan.FromSeconds(15));
 		// Assert - Should have been called multiple times
 		Volatile.Read(ref callbackCount).ShouldBeGreaterThan(1);
 	}
@@ -249,8 +250,9 @@ public sealed class MetricAggregatorShould : UnitTestBase
 		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(30), callback);
 
 		// Act - ensure the callback continues being invoked after a thrown exception.
-		await completionObserved.Task.WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None).ConfigureAwait(false);
-
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			completionObserved.Task,
+			TimeSpan.FromSeconds(15));
 		// Assert
 		exceptionCount.ShouldBe(1);
 		callCount.ShouldBeGreaterThanOrEqualTo(2);

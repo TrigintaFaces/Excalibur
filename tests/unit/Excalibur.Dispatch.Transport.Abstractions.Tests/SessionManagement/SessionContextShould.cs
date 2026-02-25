@@ -187,11 +187,19 @@ public sealed class SessionContextShould
         sut.Dispose();
 
         // Assert
-        await callbackStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        var callbackStartedObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+            () => callbackStarted.Task.IsCompleted,
+            TimeSpan.FromSeconds(10),
+            TimeSpan.FromMilliseconds(20));
+        callbackStartedObserved.ShouldBeTrue("callback should start when disposing synchronously");
         callbackCompleted.Task.IsCompleted.ShouldBeFalse();
 
         allowCallbackCompletion.TrySetResult();
-        await callbackCompleted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        var callbackCompletedObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+            () => callbackCompleted.Task.IsCompleted,
+            TimeSpan.FromSeconds(10),
+            TimeSpan.FromMilliseconds(20));
+        callbackCompletedObserved.ShouldBeTrue("callback should complete after being released");
     }
 
     [Fact]
@@ -211,7 +219,11 @@ public sealed class SessionContextShould
 
         // Act
         var disposeTask = sut.DisposeAsync().AsTask();
-        await callbackStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        var callbackStartedObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+            () => callbackStarted.Task.IsCompleted,
+            TimeSpan.FromSeconds(10),
+            TimeSpan.FromMilliseconds(20));
+        callbackStartedObserved.ShouldBeTrue("callback should start before dispose async completes");
 
         // Assert
         disposeTask.IsCompleted.ShouldBeFalse();
@@ -238,7 +250,11 @@ public sealed class SessionContextShould
 
         // Act
         sut.Dispose();
-        await callbackStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        var callbackStartedObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+            () => callbackStarted.Task.IsCompleted,
+            TimeSpan.FromSeconds(10),
+            TimeSpan.FromMilliseconds(20));
+        callbackStartedObserved.ShouldBeTrue("callback should start on synchronous dispose");
         await sut.DisposeAsync();
 
         // Assert

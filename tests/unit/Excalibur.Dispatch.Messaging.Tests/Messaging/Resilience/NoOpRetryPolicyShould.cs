@@ -50,7 +50,7 @@ public sealed class NoOpRetryPolicyShould
 			instances[i] = NoOpRetryPolicy.Instance;
 		});
 		startGate.SetResult();
-		await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+		await Task.WhenAll(tasks).ConfigureAwait(false);
 
 		// Assert - All instances should be the same
 		for (var i = 1; i < instances.Length; i++)

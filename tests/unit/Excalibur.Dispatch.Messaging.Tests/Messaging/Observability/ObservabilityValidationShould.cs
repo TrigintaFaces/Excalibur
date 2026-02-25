@@ -127,8 +127,11 @@ public sealed class ObservabilityValidationShould : IDisposable
 			await processor.AddAsync($"item-{i}", CancellationToken.None).ConfigureAwait(false);
 		}
 
-		_ = await completionSource.Task.WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 
+			completionSource.Task,
+
+			TimeSpan.FromSeconds(10));
 		// Assert - Verify batch processing occurred
 		processedItems.Count.ShouldBe(5);
 		processedBatches.ShouldNotBeEmpty();
@@ -295,7 +298,9 @@ public sealed class ObservabilityValidationShould : IDisposable
 		// Wait for recovery processing with a short timeout - it's okay if it doesn't recover
 		try
 		{
-			_ = await itemProcessedAfterError.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+				itemProcessedAfterError.Task,
+				TimeSpan.FromSeconds(30));
 		}
 		catch (TimeoutException)
 		{

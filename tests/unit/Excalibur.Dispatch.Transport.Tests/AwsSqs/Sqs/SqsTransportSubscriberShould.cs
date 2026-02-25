@@ -319,8 +319,9 @@ public sealed class SqsTransportSubscriberShould : IAsyncDisposable
 		await _subscriber.SubscribeAsync(
 			(_, _) => Task.FromResult(MessageAction.Acknowledge),
 			cts.Token);
-		await secondPollObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
-
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			secondPollObserved.Task,
+			TimeSpan.FromSeconds(5));
 		// Assert - should have polled multiple times
 		callCount.ShouldBeGreaterThan(1);
 	}

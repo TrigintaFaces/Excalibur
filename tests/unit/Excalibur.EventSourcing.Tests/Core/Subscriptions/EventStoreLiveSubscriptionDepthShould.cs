@@ -117,8 +117,9 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 
 		// Act
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, cts.Token);
-		await firstPollObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
-
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			firstPollObserved.Task,
+			TimeSpan.FromSeconds(5));
 		// Assert - polling should call LoadAsync at least once
 		A.CallTo(() => _eventStore.LoadAsync("stream-1", "stream-1", A<long>._, A<CancellationToken>._))
 			.MustHaveHappened();
@@ -146,8 +147,9 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, cts.Token);
-		await firstPollObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None).ConfigureAwait(false);
-
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			firstPollObserved.Task,
+			TimeSpan.FromSeconds(5));
 		// Act
 		await _sut.UnsubscribeAsync(CancellationToken.None);
 		var callsAfterUnsubscribe = Volatile.Read(ref loadCalls);
@@ -193,7 +195,9 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 			}
 			return Task.CompletedTask;
 		}, cts.Token);
-		await deliveredObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			deliveredObserved.Task,
+			TimeSpan.FromSeconds(5));
 		await _sut.UnsubscribeAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
@@ -234,7 +238,9 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 			deliveredEvents.AddRange(events);
 			return Task.CompletedTask;
 		}, cts.Token);
-		await secondPollObserved.Task.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			secondPollObserved.Task,
+			TimeSpan.FromSeconds(5));
 		await _sut.UnsubscribeAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - no events should be delivered (they were all bad)
@@ -264,7 +270,9 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 
 		// Act
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, cts.Token);
-		await observedBeginningPosition.Task.WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			observedBeginningPosition.Task,
+			TimeSpan.FromSeconds(15));
 		await cts.CancelAsync().ConfigureAwait(false);
 
 		// Assert - polling should eventually query from beginning
@@ -299,7 +307,9 @@ public sealed class EventStoreLiveSubscriptionDepthShould : IAsyncDisposable
 
 		// Act
 		await _sut.SubscribeAsync("stream-1", _ => Task.CompletedTask, cts.Token);
-		await observedConfiguredPosition.Task.WaitAsync(TimeSpan.FromSeconds(15), CancellationToken.None);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			observedConfiguredPosition.Task,
+			TimeSpan.FromSeconds(15));
 		await cts.CancelAsync().ConfigureAwait(false);
 
 		// Assert - polling should eventually use configured start position

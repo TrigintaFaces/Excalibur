@@ -127,7 +127,9 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await firstProcessingCall.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			firstProcessingCall.Task,
+			TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -166,7 +168,9 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await twoCallsObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			twoCallsObserved.Task,
+			TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -214,7 +218,9 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await twoCallsObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			twoCallsObserved.Task,
+			TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -250,7 +256,9 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await firstProcessingCall.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			firstProcessingCall.Task,
+			TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 
 		// StopAsync should complete without throwing
@@ -280,7 +288,9 @@ public sealed class CdcProcessingHostedServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(CancellationToken.None);
-		await firstProcessingCall.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			firstProcessingCall.Task,
+			TimeSpan.FromSeconds(5));
 
 		// StopAsync should complete since the processor is fast
 		await service.StopAsync(CancellationToken.None);

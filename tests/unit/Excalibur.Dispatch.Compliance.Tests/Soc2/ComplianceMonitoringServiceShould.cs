@@ -91,9 +91,10 @@ public sealed class ComplianceMonitoringServiceShould
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
 
-		await cycleObserved.Task
-			.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None)
-			.ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			cycleObserved.Task,
+			TimeSpan.FromSeconds(10),
+			cancellationToken: CancellationToken.None).ConfigureAwait(false);
 
 		await cts.CancelAsync().ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
@@ -138,9 +139,10 @@ public sealed class ComplianceMonitoringServiceShould
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
 
-		await secondCycleObserved.Task
-			.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None)
-			.ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			secondCycleObserved.Task,
+			TimeSpan.FromSeconds(10),
+			cancellationToken: CancellationToken.None).ConfigureAwait(false);
 
 		await cts.CancelAsync().ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
@@ -183,9 +185,10 @@ public sealed class ComplianceMonitoringServiceShould
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
 
-		await alertObserved.Task
-			.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None)
-			.ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			alertObserved.Task,
+			TimeSpan.FromSeconds(10),
+			cancellationToken: CancellationToken.None).ConfigureAwait(false);
 
 		await cts.CancelAsync().ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
@@ -227,9 +230,10 @@ public sealed class ComplianceMonitoringServiceShould
 		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
 
-		await cycleObserved.Task
-			.WaitAsync(TimeSpan.FromSeconds(10), CancellationToken.None)
-			.ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			cycleObserved.Task,
+			TimeSpan.FromSeconds(10),
+			cancellationToken: CancellationToken.None).ConfigureAwait(false);
 
 		await cts.CancelAsync().ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);

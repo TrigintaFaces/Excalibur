@@ -137,7 +137,10 @@ public sealed class BackgroundExecutionShould
 		BackgroundTaskRunner.RunDetachedInBackground(taskFactory, CancellationToken.None);
 
 		// Assert
-		(await executed.Task.WaitAsync(TimeSpan.FromSeconds(30))).ShouldBeTrue();
+		var completed = await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			executed.Task,
+			TimeSpan.FromSeconds(30));
+		completed.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -158,8 +161,12 @@ public sealed class BackgroundExecutionShould
 		BackgroundTaskRunner.RunDetachedInBackground(taskFactory, CancellationToken.None, onError);
 
 		// Assert
-		await taskStarted.Task.WaitAsync(TimeSpan.FromSeconds(30));
-		var exception = await caughtException.Task.WaitAsync(TimeSpan.FromSeconds(30));
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			taskStarted.Task,
+			TimeSpan.FromSeconds(30));
+		var exception = await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			caughtException.Task,
+			TimeSpan.FromSeconds(30));
 		exception.ShouldNotBeNull();
 		exception.ShouldBeOfType<InvalidOperationException>();
 	}

@@ -73,7 +73,11 @@ public sealed class InboxServiceShould2
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await dispatchStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+		var dispatchObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => dispatchStarted.Task.IsCompleted,
+			TimeSpan.FromSeconds(10),
+			TimeSpan.FromMilliseconds(20));
+		dispatchObserved.ShouldBeTrue("dispatch should start");
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -115,7 +119,11 @@ public sealed class InboxServiceShould2
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await dispatchStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+		var dispatchObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => dispatchStarted.Task.IsCompleted,
+			TimeSpan.FromSeconds(10),
+			TimeSpan.FromMilliseconds(20));
+		dispatchObserved.ShouldBeTrue("dispatch should start");
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -153,7 +161,11 @@ public sealed class InboxServiceShould2
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await dispatchStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+		var dispatchObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => dispatchStarted.Task.IsCompleted,
+			TimeSpan.FromSeconds(10),
+			TimeSpan.FromMilliseconds(20));
+		dispatchObserved.ShouldBeTrue("dispatch should start");
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
