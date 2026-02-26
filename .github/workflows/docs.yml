@@ -31,8 +31,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      DOCS_ANNOUNCEMENT_TEXT: "v3.0.0-alpha.16 is now available."
-      DOCS_ANNOUNCEMENT_ID: "release-3-0-0-alpha-16"
+      DOCS_ANNOUNCEMENT_TEXT: "v3.0.0-alpha.17 is now available."
+      DOCS_ANNOUNCEMENT_ID: "release-3-0-0-alpha-17"
     defaults:
       run:
         working-directory: docs-site

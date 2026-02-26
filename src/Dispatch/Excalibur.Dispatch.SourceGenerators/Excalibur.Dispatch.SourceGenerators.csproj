@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -8,7 +8,8 @@
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
     <EnableDefaultAnalyzers>false</EnableDefaultAnalyzers>
     <IsRoslynComponent>true</IsRoslynComponent>
-    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <!-- Required so include-symbols can produce a non-empty snupkg in CI -->
+    <IncludeBuildOutput>true</IncludeBuildOutput>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <IncludeSymbols>false</IncludeSymbols>
