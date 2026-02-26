@@ -204,6 +204,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs: pre-release-validation
     timeout-minutes: 120
+    env:
+      VSTEST_CONNECTION_TIMEOUT: 300
     strategy:
       fail-fast: false
       matrix:
@@ -283,7 +285,7 @@ jobs:
           Write-Host "Using pre-tag soak filter with $($filterInfo.count) quarantined exclusions."
 
       - name: Run unit shard soak iteration
-        run: dotnet test eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFileName=pre-tag-unit-soak-${{ matrix.os }}-${{ matrix.iteration }}.trx" --logger "console;verbosity=minimal" --filter "${{ env.PRETAG_SOAK_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
+        run: dotnet test eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFilePrefix=pre-tag-unit-soak-${{ matrix.os }}-${{ matrix.iteration }}" --logger "console;verbosity=minimal" --filter "${{ env.PRETAG_SOAK_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
 
       - name: Upload soak test results
         if: always()
