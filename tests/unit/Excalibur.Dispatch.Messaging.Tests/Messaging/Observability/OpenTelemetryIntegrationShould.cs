@@ -228,7 +228,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		// Assert
 		processedBatches.Count.ShouldBe(1);
-		processedBatches.First().Count.ShouldBe(2);
+		processedBatches.ShouldContain(batch => batch.Count == 2);
 
 		// Verify metrics infrastructure captured the batch processing
 		var intMetrics = _otelFixture.GetRecordedIntMetrics();

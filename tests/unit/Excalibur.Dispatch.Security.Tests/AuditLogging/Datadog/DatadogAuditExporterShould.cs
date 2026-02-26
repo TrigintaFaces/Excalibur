@@ -99,14 +99,17 @@ public sealed class DatadogAuditExporterShould : IDisposable
 		// Arrange
 		var auditEvent = CreateTestAuditEvent();
 		_mockHandler.SetResponse(HttpStatusCode.Accepted, "{}");
+		var lowerBound = DateTimeOffset.UtcNow;
 
 		// Act
 		var result = await _sut.ExportAsync(auditEvent, CancellationToken.None);
+		var upperBound = DateTimeOffset.UtcNow;
 
 		// Assert
 		result.Success.ShouldBeTrue();
 		result.EventId.ShouldBe(auditEvent.EventId);
-		result.ExportedAt.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddMinutes(-1));
+		result.ExportedAt.ShouldBeGreaterThanOrEqualTo(lowerBound);
+		result.ExportedAt.ShouldBeLessThanOrEqualTo(upperBound);
 	}
 
 	[Fact]

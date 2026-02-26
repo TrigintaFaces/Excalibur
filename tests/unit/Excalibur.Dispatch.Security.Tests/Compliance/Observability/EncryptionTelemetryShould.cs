@@ -19,7 +19,7 @@ public sealed class EncryptionTelemetryShould : IDisposable
 
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == EncryptionTelemetry.MeterName)
+			if (ReferenceEquals(instrument.Meter, _sut.Meter))
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}

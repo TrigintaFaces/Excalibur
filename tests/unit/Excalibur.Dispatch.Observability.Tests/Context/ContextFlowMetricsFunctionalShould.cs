@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Diagnostics.Metrics;
+using System.Collections.Concurrent;
 
 using Excalibur.Dispatch.Observability.Context;
 
@@ -22,30 +23,32 @@ namespace Excalibur.Dispatch.Observability.Tests.Context;
 public sealed class ContextFlowMetricsFunctionalShould : IDisposable
 {
 	private readonly MeterListener _listener;
-	private readonly List<(string Name, object Value, KeyValuePair<string, object?>[] Tags)> _measurements = [];
+	private readonly ConcurrentQueue<(string Name, object Value, KeyValuePair<string, object?>[] Tags)> _measurements = [];
 	private readonly ContextFlowMetrics _metrics;
+	private readonly object _metricsMeterIdentity;
 
 	public ContextFlowMetricsFunctionalShould()
 	{
+		_metrics = new ContextFlowMetrics(MsOptions.Create(new ContextObservabilityOptions()));
+		_metricsMeterIdentity = GetMetricsMeterIdentity(_metrics);
+
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == "Excalibur.Dispatch.Observability.Context")
+			if (ReferenceEquals(instrument.Meter, _metricsMeterIdentity))
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
 		};
 		_listener.SetMeasurementEventCallback<long>((instrument, measurement, tags, _) =>
 		{
-			_measurements.Add((instrument.Name, measurement, tags.ToArray()));
+			_measurements.Enqueue((instrument.Name, measurement, tags.ToArray()));
 		});
 		_listener.SetMeasurementEventCallback<double>((instrument, measurement, tags, _) =>
 		{
-			_measurements.Add((instrument.Name, measurement, tags.ToArray()));
+			_measurements.Enqueue((instrument.Name, measurement, tags.ToArray()));
 		});
 		_listener.Start();
-
-		_metrics = new ContextFlowMetrics(MsOptions.Create(new ContextObservabilityOptions()));
 	}
 
 	public void Dispose()
@@ -71,138 +74,169 @@ public sealed class ContextFlowMetricsFunctionalShould : IDisposable
 	[Fact]
 	public void RecordContextSnapshot()
 	{
-		_metrics.RecordContextSnapshot("PreProcessing", 15, 2048);
+		var stage = $"PreProcessing-{Guid.NewGuid():N}";
+		_metrics.RecordContextSnapshot(stage, 15, 2048);
 
 		_listener.RecordObservableInstruments();
 
-		var snapshot = _measurements.FirstOrDefault(m => m.Name == "dispatch.context.flow.snapshots");
-		snapshot.Name.ShouldNotBeNull();
-		((long)snapshot.Value).ShouldBe(1);
+		_measurements.ShouldContain(m =>
+			m.Name == "dispatch.context.flow.snapshots" &&
+			(long)m.Value == 1 &&
+			HasTag(m.Tags, "stage", stage));
 
-		var fieldCount = _measurements.FirstOrDefault(m => m.Name == "dispatch.context.flow.field_count");
-		fieldCount.Name.ShouldNotBeNull();
-		((double)fieldCount.Value).ShouldBe(15);
+		_measurements.ShouldContain(m =>
+			m.Name == "dispatch.context.flow.field_count" &&
+			(double)m.Value == 15 &&
+			HasTag(m.Tags, "stage", stage));
 
-		var size = _measurements.FirstOrDefault(m => m.Name == "dispatch.context.flow.size_bytes");
-		size.Name.ShouldNotBeNull();
-		((double)size.Value).ShouldBe(2048);
+		_measurements.ShouldContain(m =>
+			m.Name == "dispatch.context.flow.size_bytes" &&
+			(double)m.Value == 2048 &&
+			HasTag(m.Tags, "stage", stage));
 	}
 
 	[Fact]
 	public void RecordContextMutation()
 	{
-		_metrics.RecordContextMutation(ContextChangeType.Modified, "CorrelationId", "PreProcessing");
+		var field = $"CorrelationId-{Guid.NewGuid():N}";
+		var stage = $"PreProcessing-{Guid.NewGuid():N}";
+		_metrics.RecordContextMutation(ContextChangeType.Modified, field, stage);
 
-		var mutation = _measurements.FirstOrDefault(m => m.Name == "dispatch.context.flow.mutations");
-		mutation.Name.ShouldNotBeNull();
-		((long)mutation.Value).ShouldBe(1);
-
-		mutation.Tags.ShouldContain(t => t.Key == "change_type" && (string)t.Value! == "Modified");
+		_measurements.ShouldContain(m =>
+			m.Name == "dispatch.context.flow.mutations" &&
+			(long)m.Value == 1 &&
+			HasTag(m.Tags, "change_type", "Modified") &&
+			HasTag(m.Tags, "field", field) &&
+			HasTag(m.Tags, "stage", stage));
 	}
 
 	[Fact]
 	public void RecordFieldLoss_OnRemoval()
 	{
-		_metrics.RecordContextMutation(ContextChangeType.Removed, "TenantId", "Middleware");
+		var field = $"TenantId-{Guid.NewGuid():N}";
+		var stage = $"Middleware-{Guid.NewGuid():N}";
+		_metrics.RecordContextMutation(ContextChangeType.Removed, field, stage);
 
-		var fieldLoss = _measurements.FirstOrDefault(m => m.Name == "dispatch.context.flow.field_loss");
-		fieldLoss.Name.ShouldNotBeNull();
-		((long)fieldLoss.Value).ShouldBe(1);
+		_measurements.ShouldContain(m =>
+			m.Name == "dispatch.context.flow.field_loss" &&
+			(long)m.Value == 1 &&
+			HasTag(m.Tags, "change_type", "Removed") &&
+			HasTag(m.Tags, "field", field) &&
+			HasTag(m.Tags, "stage", stage));
 	}
 
 	[Fact]
 	public void NotRecordFieldLoss_OnAdded()
 	{
 		_measurements.Clear();
-		_metrics.RecordContextMutation(ContextChangeType.Added, "NewField", "Middleware");
+		var field = $"NewField-{Guid.NewGuid():N}";
+		var stage = $"Middleware-{Guid.NewGuid():N}";
+		_metrics.RecordContextMutation(ContextChangeType.Added, field, stage);
 
 		var addedFieldLoss = _measurements.Any(m =>
 			m.Name == "dispatch.context.flow.field_loss" &&
 			m.Tags.Any(t => t.Key == "change_type" && string.Equals((string?)t.Value, "Added", StringComparison.Ordinal)) &&
-			m.Tags.Any(t => t.Key == "field" && string.Equals((string?)t.Value, "NewField", StringComparison.Ordinal)) &&
-			m.Tags.Any(t => t.Key == "stage" && string.Equals((string?)t.Value, "Middleware", StringComparison.Ordinal)));
+			m.Tags.Any(t => t.Key == "field" && string.Equals((string?)t.Value, field, StringComparison.Ordinal)) &&
+			m.Tags.Any(t => t.Key == "stage" && string.Equals((string?)t.Value, stage, StringComparison.Ordinal)));
 		addedFieldLoss.ShouldBeFalse();
 	}
 
 	[Fact]
 	public void RecordContextError()
 	{
-		_metrics.RecordContextError("serialization_failure", "PostProcessing");
+		var errorType = $"serialization_failure_{Guid.NewGuid():N}";
+		var stage = $"PostProcessing-{Guid.NewGuid():N}";
+		_metrics.RecordContextError(errorType, stage);
 
-		var error = _measurements.FirstOrDefault(m => m.Name == "dispatch.context.flow.errors");
-		error.Name.ShouldNotBeNull();
-		error.Tags.ShouldContain(t => t.Key == "error_type" && (string)t.Value! == "serialization_failure");
+		_measurements.ShouldContain(m =>
+			m.Name == "dispatch.context.flow.errors" &&
+			HasTag(m.Tags, "error_type", errorType) &&
+			HasTag(m.Tags, "stage", stage));
 	}
 
 	[Fact]
-	public void RecordContextValidationFailure()
+	public async Task RecordContextValidationFailure()
 	{
 		var expectedReason = $"missing_corr_{Guid.NewGuid():N}"[..21];
 		_metrics.RecordContextValidationFailure(expectedReason);
 
-		_measurements.ShouldContain(m =>
-			m.Name == "dispatch.context.flow.validation_failures" &&
-			m.Tags.Any(t => t.Key == "reason" && string.Equals((string?)t.Value, expectedReason, StringComparison.Ordinal)));
+		var observed = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => _measurements.Any(m =>
+				m.Name == "dispatch.context.flow.validation_failures" &&
+				m.Tags.Any(t => t.Key == "reason" && string.Equals((string?)t.Value, expectedReason, StringComparison.Ordinal))),
+			TimeSpan.FromSeconds(2),
+			TimeSpan.FromMilliseconds(10)).ConfigureAwait(false);
+		observed.ShouldBeTrue();
 	}
 
 	[Fact]
 	public void RecordCrossBoundaryTransition_Preserved()
 	{
-		_metrics.RecordCrossBoundaryTransition("OrderService", true);
+		var service = $"OrderService-{Guid.NewGuid():N}";
+		_metrics.RecordCrossBoundaryTransition(service, true);
 
-		var transition = _measurements.FirstOrDefault(m => m.Name == "dispatch.context.flow.cross_boundary_transitions");
-		transition.Name.ShouldNotBeNull();
-		transition.Tags.ShouldContain(t => t.Key == "service" && (string)t.Value! == "OrderService");
-		transition.Tags.ShouldContain(t => t.Key == "preserved" && (string)t.Value! == "True");
+		_measurements.ShouldContain(m =>
+			m.Name == "dispatch.context.flow.cross_boundary_transitions" &&
+			HasTag(m.Tags, "service", service) &&
+			HasTag(m.Tags, "preserved", "True"));
 	}
 
 	[Fact]
 	public void RecordContextPreservationSuccess()
 	{
-		_metrics.RecordContextPreservationSuccess("Handler");
+		var stage = $"Handler-{Guid.NewGuid():N}";
+		_metrics.RecordContextPreservationSuccess(stage);
 
-		var success = _measurements.FirstOrDefault(m => m.Name == "dispatch.context.flow.preservation_success");
-		success.Name.ShouldNotBeNull();
-		success.Tags.ShouldContain(t => t.Key == "stage" && (string)t.Value! == "Handler");
+		_measurements.ShouldContain(m =>
+			m.Name == "dispatch.context.flow.preservation_success" &&
+			HasTag(m.Tags, "stage", stage));
 	}
 
 	[Fact]
 	public void RecordContextSizeThresholdExceeded()
 	{
-		_metrics.RecordContextSizeThresholdExceeded("PostProcessing", 150_000);
+		var stage = $"PostProcessing-{Guid.NewGuid():N}";
+		_metrics.RecordContextSizeThresholdExceeded(stage, 150_000);
 
-		var exceeded = _measurements.FirstOrDefault(m => m.Name == "dispatch.context.flow.size_threshold_exceeded");
-		exceeded.Name.ShouldNotBeNull();
+		_measurements.ShouldContain(m =>
+			m.Name == "dispatch.context.flow.size_threshold_exceeded" &&
+			HasTag(m.Tags, "stage", stage));
 	}
 
 	[Fact]
 	public void RecordPipelineStageLatency()
 	{
-		_metrics.RecordPipelineStageLatency("Validation", 42);
+		var stage = $"Validation-{Guid.NewGuid():N}";
+		_metrics.RecordPipelineStageLatency(stage, 42);
 
-		var latency = _measurements.FirstOrDefault(m => m.Name == "dispatch.context.flow.stage_latency_ms");
-		latency.Name.ShouldNotBeNull();
-		((double)latency.Value).ShouldBe(42);
+		_measurements.ShouldContain(m =>
+			m.Name == "dispatch.context.flow.stage_latency_ms" &&
+			(double)m.Value == 42 &&
+			HasTag(m.Tags, "stage", stage));
 	}
 
 	[Fact]
 	public void RecordSerializationLatency()
 	{
-		_metrics.RecordSerializationLatency("json", 5);
+		var operation = $"json-{Guid.NewGuid():N}";
+		_metrics.RecordSerializationLatency(operation, 5);
 
-		var latency = _measurements.FirstOrDefault(m => m.Name == "dispatch.context.flow.serialization_latency_ms");
-		latency.Name.ShouldNotBeNull();
-		((double)latency.Value).ShouldBe(5);
+		_measurements.ShouldContain(m =>
+			m.Name == "dispatch.context.flow.serialization_latency_ms" &&
+			(double)m.Value == 5 &&
+			HasTag(m.Tags, "operation", operation));
 	}
 
 	[Fact]
 	public void RecordDeserializationLatency()
 	{
-		_metrics.RecordDeserializationLatency("json", 3);
+		var operation = $"json-{Guid.NewGuid():N}";
+		_metrics.RecordDeserializationLatency(operation, 3);
 
-		var latency = _measurements.FirstOrDefault(m => m.Name == "dispatch.context.flow.deserialization_latency_ms");
-		latency.Name.ShouldNotBeNull();
-		((double)latency.Value).ShouldBe(3);
+		_measurements.ShouldContain(m =>
+			m.Name == "dispatch.context.flow.deserialization_latency_ms" &&
+			(double)m.Value == 3 &&
+			HasTag(m.Tags, "operation", operation));
 	}
 
 	[Fact]
@@ -260,11 +294,14 @@ public sealed class ContextFlowMetricsFunctionalShould : IDisposable
 	public void TruncateLongFieldNames()
 	{
 		var longFieldName = new string('x', 100);
-		_metrics.RecordContextMutation(ContextChangeType.Modified, longFieldName, "Stage");
+		var stage = $"Stage-{Guid.NewGuid():N}";
+		_metrics.RecordContextMutation(ContextChangeType.Modified, longFieldName, stage);
 
 		// Should not throw - field name should be truncated
-		var mutation = _measurements.FirstOrDefault(m => m.Name == "dispatch.context.flow.mutations");
-		mutation.Name.ShouldNotBeNull();
+		_measurements.ShouldContain(m =>
+			m.Name == "dispatch.context.flow.mutations" &&
+			HasTag(m.Tags, "change_type", "Modified") &&
+			HasTag(m.Tags, "stage", stage));
 	}
 
 	[Fact]
@@ -295,5 +332,21 @@ public sealed class ContextFlowMetricsFunctionalShould : IDisposable
 
 		var summary = metrics.GetMetricsSummary();
 		summary.TotalContextsProcessed.ShouldBe(1);
+	}
+
+	private static bool HasTag(KeyValuePair<string, object?>[] tags, string key, string value) =>
+		tags.Any(t =>
+			string.Equals(t.Key, key, StringComparison.Ordinal) &&
+			string.Equals(t.Value as string, value, StringComparison.Ordinal));
+
+	private static object GetMetricsMeterIdentity(ContextFlowMetrics metrics)
+	{
+		var meterField = typeof(ContextFlowMetrics).GetField("_meter",
+			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+		meterField.ShouldNotBeNull();
+
+		var meterIdentity = meterField.GetValue(metrics);
+		meterIdentity.ShouldNotBeNull();
+		return meterIdentity;
 	}
 }

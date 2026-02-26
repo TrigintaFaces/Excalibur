@@ -17,9 +17,11 @@ public sealed class SnapshotDepthShould
 	{
 		// Arrange
 		var data = new byte[] { 1, 2, 3 };
+		var lowerBound = DateTimeOffset.UtcNow;
 
 		// Act
 		var snapshot = Snapshot.Create("agg-1", 5, data, "OrderAggregate");
+		var upperBound = DateTimeOffset.UtcNow;
 
 		// Assert
 		snapshot.SnapshotId.ShouldNotBeNullOrEmpty();
@@ -27,7 +29,8 @@ public sealed class SnapshotDepthShould
 		snapshot.Version.ShouldBe(5);
 		snapshot.Data.ShouldBe(data);
 		snapshot.AggregateType.ShouldBe("OrderAggregate");
-		snapshot.CreatedAt.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddMinutes(-1));
+		snapshot.CreatedAt.ShouldBeGreaterThanOrEqualTo(lowerBound);
+		snapshot.CreatedAt.ShouldBeLessThanOrEqualTo(upperBound);
 		snapshot.Metadata.ShouldBeNull();
 	}
 

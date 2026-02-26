@@ -66,7 +66,8 @@ public sealed class SagaFaultGeneratorShould
 
 		// Assert
 		result.OccurredAt.ShouldBeGreaterThanOrEqualTo(before);
-		result.OccurredAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+		var assertionUpperBound1 = DateTimeOffset.UtcNow;
+		result.OccurredAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	[Fact]

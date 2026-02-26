@@ -756,7 +756,6 @@ public sealed class BatchProcessorShould : IDisposable
 
 		var processedItems = new ConcurrentBag<string>();
 		var totalProcessed = 0;
-		var allItemsProcessed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var options = new MicroBatchOptions { MaxBatchSize = 10, MaxBatchDelay = TimeSpan.FromMilliseconds(25) };
 
 		var processor = new BatchProcessor<string>(
@@ -767,11 +766,7 @@ public sealed class BatchProcessorShould : IDisposable
 					processedItems.Add(item);
 				}
 
-				var currentTotal = Interlocked.Add(ref totalProcessed, batch.Count);
-				if (currentTotal >= expectedProcessedItemCount)
-				{
-					_ = allItemsProcessed.TrySetResult();
-				}
+				Interlocked.Add(ref totalProcessed, batch.Count);
 
 				return ValueTask.CompletedTask;
 			},
@@ -789,9 +784,9 @@ public sealed class BatchProcessorShould : IDisposable
 			await Task.WhenAll(burstTasks).ConfigureAwait(false);
 		}
 
-		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-			allItemsProcessed.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
+		await WaitForConditionAsync(
+			() => Volatile.Read(ref totalProcessed) >= expectedProcessedItemCount,
+			TimeSpan.FromSeconds(60)).ConfigureAwait(false);
 
 		Volatile.Read(ref totalProcessed).ShouldBe(expectedProcessedItemCount);
 		processedItems.Count.ShouldBe(expectedProcessedItemCount); // 5 bursts * 15 items each

@@ -31,7 +31,7 @@ public sealed class DeadLetterTransportReceiverShould : IDisposable
 		_meterListener = new MeterListener();
 		_meterListener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == "Excalibur.Dispatch.Transport.ReceiverDlqTest")
+			if (ReferenceEquals(instrument.Meter, _meter))
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}

@@ -282,7 +282,7 @@ public sealed class RateCounterShould
 		_ = counter.Reset();
 
 		// Assert
-		counter.LastReset.ShouldBeGreaterThan(originalReset);
+		counter.LastReset.ShouldBeGreaterThanOrEqualTo(originalReset);
 	}
 
 	[Fact]

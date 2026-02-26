@@ -1343,6 +1343,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		});
 
 		// Act - second start should use AddOrUpdate's update factory
+		var lowerBound = DateTimeOffset.UtcNow;
 		await election.StartAsync(CancellationToken.None);
 
 		// Assert
@@ -1350,10 +1351,12 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		var candidates = await election.GetCandidateHealthAsync(CancellationToken.None);
 		var candidate = candidates.FirstOrDefault(c => c.CandidateId == "update-existing-test");
 		_ = candidate.ShouldNotBeNull();
+		var upperBound = DateTimeOffset.UtcNow;
 
 		// The update factory preserves the existing health status but updates timestamp
 		candidate.IsHealthy.ShouldBeFalse();
-		candidate.LastUpdated.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddMinutes(-1));
+		candidate.LastUpdated.ShouldBeGreaterThanOrEqualTo(lowerBound);
+		candidate.LastUpdated.ShouldBeLessThanOrEqualTo(upperBound);
 	}
 
 	[Fact]

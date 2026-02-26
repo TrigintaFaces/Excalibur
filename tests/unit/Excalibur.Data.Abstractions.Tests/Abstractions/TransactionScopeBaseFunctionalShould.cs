@@ -90,7 +90,8 @@ public class TransactionScopeBaseFunctionalShould
         scope.TransactionId.ShouldNotBeNullOrWhiteSpace();
         scope.IsolationLevel.ShouldBe(IsolationLevel.ReadCommitted);
         scope.Status.ShouldBe(TransactionStatus.Active);
-        scope.StartTime.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+        var assertionUpperBound1 = DateTimeOffset.UtcNow;
+        scope.StartTime.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
         scope.Timeout.ShouldBe(TimeSpan.FromSeconds(30));
     }
 

@@ -31,7 +31,8 @@ public sealed class InMemoryClaimCheckProviderTests
 		reference.Size.ShouldBe(payload.Length);
 		reference.Location.ShouldStartWith("inmemory://");
 		reference.BlobName.ShouldContain(reference.Id);
-		reference.StoredAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+		var assertionUpperBound1 = DateTimeOffset.UtcNow;
+		reference.StoredAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 		_ = reference.ExpiresAt.ShouldNotBeNull();
 		reference.ExpiresAt.Value.ShouldBeGreaterThan(reference.StoredAt);
 	}

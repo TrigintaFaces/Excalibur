@@ -112,7 +112,6 @@ public sealed class ComplianceMonitoringServiceShould
 	{
 		var complianceService = A.Fake<ISoc2ComplianceService>();
 		var callCount = 0;
-		var secondCycleObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		A.CallTo(() => complianceService.GetComplianceStatusAsync(A<string?>._, A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
@@ -121,8 +120,6 @@ public sealed class ComplianceMonitoringServiceShould
 				{
 					throw new InvalidOperationException("First cycle fails");
 				}
-
-				secondCycleObserved.TrySetResult();
 				return Task.FromResult(CreateCompliantStatus());
 			});
 
@@ -144,10 +141,12 @@ public sealed class ComplianceMonitoringServiceShould
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
 		try
 		{
-			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-				secondCycleObserved.Task,
-				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
-				cancellationToken: CancellationToken.None).ConfigureAwait(false);
+			var observed = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+				() => Volatile.Read(ref callCount) >= 2,
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)),
+				TimeSpan.FromMilliseconds(20),
+				CancellationToken.None).ConfigureAwait(false);
+			observed.ShouldBeTrue();
 		}
 		finally
 		{

@@ -649,13 +649,15 @@ public sealed class MessageContextShould : IDisposable
 		// Arrange
 		var context = new MessageContext();
 		var provider = A.Fake<IServiceProvider>();
+		var before = DateTimeOffset.UtcNow;
 
 		// Act
 		context.Initialize(provider);
+		var after = DateTimeOffset.UtcNow;
 
 		// Assert
 		context.RequestServices.ShouldBe(provider);
-		context.ReceivedTimestampUtc.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddSeconds(-5));
+		context.ReceivedTimestampUtc.ShouldBeInRange(before, after);
 	}
 
 	[Fact]

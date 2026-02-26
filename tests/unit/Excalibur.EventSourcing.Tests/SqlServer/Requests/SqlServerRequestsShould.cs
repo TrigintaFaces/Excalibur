@@ -1226,7 +1226,8 @@ public sealed class SqlServerRequestsShould
 		var request = new LoadEventsRequest("agg-1", "OrderAggregate", -1, Ct);
 
 		request.CreatedAt.ShouldBeGreaterThanOrEqualTo(before);
-		request.CreatedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+		var assertionUpperBound1 = DateTimeOffset.UtcNow;
+		request.CreatedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	[Fact]

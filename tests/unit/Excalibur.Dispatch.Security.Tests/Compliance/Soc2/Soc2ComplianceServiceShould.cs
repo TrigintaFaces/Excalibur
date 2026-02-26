@@ -45,7 +45,8 @@ public sealed class Soc2ComplianceServiceShould
 
 		// Assert
 		result.EvaluatedAt.ShouldBeGreaterThanOrEqualTo(beforeTime);
-		result.EvaluatedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+		var assertionUpperBound1 = DateTimeOffset.UtcNow;
+		result.EvaluatedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	[Fact]

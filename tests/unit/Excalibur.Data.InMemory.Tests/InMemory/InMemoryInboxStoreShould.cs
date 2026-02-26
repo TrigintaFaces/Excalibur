@@ -226,9 +226,13 @@ public sealed class InMemoryInboxStoreShould : IAsyncDisposable
 		await _store.CreateEntryAsync("msg-1", "handler", "type", [], new Dictionary<string, object>(), CancellationToken.None);
 		await _store.MarkProcessedAsync("msg-1", "handler", CancellationToken.None);
 
-		// Cleanup with zero retention - should remove all processed entries
-		var count = await _store.CleanupAsync(TimeSpan.Zero, CancellationToken.None);
-		count.ShouldBe(1);
+		// Zero retention removes all processed entries at or before the cleanup instant.
+		// Poll until the entry ages past the provider's cleanup cutoff to avoid same-tick flakiness.
+		var removed = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			async () => await _store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false) > 0,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)),
+			TimeSpan.FromMilliseconds(20));
+		removed.ShouldBeTrue();
 
 		var entry = await _store.GetEntryAsync("msg-1", "handler", CancellationToken.None);
 		entry.ShouldBeNull();

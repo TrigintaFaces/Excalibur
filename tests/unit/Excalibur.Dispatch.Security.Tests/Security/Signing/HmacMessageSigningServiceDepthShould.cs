@@ -229,7 +229,8 @@ public sealed class HmacMessageSigningServiceDepthShould : IDisposable
 		signedMsg.Signature.ShouldNotBeNullOrWhiteSpace();
 		signedMsg.Algorithm.ShouldBe(SigningAlgorithm.HMACSHA256);
 		signedMsg.KeyId.ShouldBe("my-key");
-		signedMsg.SignedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+		var assertionUpperBound1 = DateTimeOffset.UtcNow;
+		signedMsg.SignedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	[Fact]

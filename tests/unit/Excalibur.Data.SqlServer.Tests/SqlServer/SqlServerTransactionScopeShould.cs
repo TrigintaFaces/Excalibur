@@ -37,7 +37,8 @@ public sealed class SqlServerTransactionScopeShould
 		sut.IsolationLevel.ShouldBe(IsolationLevel.ReadCommitted);
 		sut.Status.ShouldBe(TransactionStatus.Active);
 		sut.Timeout.ShouldBe(TimeSpan.FromMinutes(1));
-		sut.StartTime.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+		var assertionUpperBound1 = DateTimeOffset.UtcNow;
+		sut.StartTime.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	[Fact]

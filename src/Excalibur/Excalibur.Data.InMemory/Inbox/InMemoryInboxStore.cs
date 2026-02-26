@@ -311,7 +311,7 @@ public sealed class InMemoryInboxStore : IInboxStore, IAsyncDisposable, IDisposa
 		{
 			var entry = kvp.Value;
 			if (entry is { Status: InboxStatus.Processed, ProcessedAt: not null } &&
-				entry.ProcessedAt.Value < cutoffDate && _entries.TryRemove(kvp.Key, out _))
+				entry.ProcessedAt.Value <= cutoffDate && _entries.TryRemove(kvp.Key, out _))
 			{
 				count++;
 			}

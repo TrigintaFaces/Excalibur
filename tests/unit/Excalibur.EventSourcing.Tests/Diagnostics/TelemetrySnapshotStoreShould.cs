@@ -154,11 +154,11 @@ public sealed class TelemetrySnapshotStoreShould : IDisposable
 			.Where(r => r.Name == EventSourcingMetricNames.SnapshotStoreOperations)
 			.ToList();
 		ops.ShouldNotBeEmpty();
-		ops[0].Value.ShouldBe(1);
-		ops[0].Tags.ShouldContain(t => t.Key == EventSourcingTags.Operation && (string)t.Value! == "get_snapshot");
-		ops[0].Tags.ShouldContain(t => t.Key == EventSourcingTags.Provider && (string)t.Value! == ProviderName);
-		ops[0].Tags.ShouldContain(t => t.Key == EventSourcingTags.OperationResult && (string)t.Value! == EventSourcingTagValues.Success);
-		ops[0].Tags.ShouldContain(t => t.Key == EventSourcingTags.AggregateType && (string)t.Value! == AggregateType);
+		ops[^1].Value.ShouldBe(1);
+		ops[^1].Tags.ShouldContain(t => t.Key == EventSourcingTags.Operation && (string)t.Value! == "get_snapshot");
+		ops[^1].Tags.ShouldContain(t => t.Key == EventSourcingTags.Provider && (string)t.Value! == ProviderName);
+		ops[^1].Tags.ShouldContain(t => t.Key == EventSourcingTags.OperationResult && (string)t.Value! == EventSourcingTagValues.Success);
+		ops[^1].Tags.ShouldContain(t => t.Key == EventSourcingTags.AggregateType && (string)t.Value! == AggregateType);
 	}
 
 	[Fact]
@@ -177,8 +177,8 @@ public sealed class TelemetrySnapshotStoreShould : IDisposable
 			.Where(r => r.Name == EventSourcingMetricNames.SnapshotStoreDuration)
 			.ToList();
 		durations.ShouldNotBeEmpty();
-		durations[0].Value.ShouldBeGreaterThanOrEqualTo(0);
-		durations[0].Tags.ShouldContain(t => t.Key == EventSourcingTags.Operation && (string)t.Value! == "get_snapshot");
+		durations[^1].Value.ShouldBeGreaterThanOrEqualTo(0);
+		durations[^1].Tags.ShouldContain(t => t.Key == EventSourcingTags.Operation && (string)t.Value! == "get_snapshot");
 	}
 
 	[Fact]
@@ -234,7 +234,7 @@ public sealed class TelemetrySnapshotStoreShould : IDisposable
 			.Where(r => r.Name == EventSourcingMetricNames.SnapshotStoreOperations)
 			.ToList();
 		ops.ShouldNotBeEmpty();
-		ops[0].Tags.ShouldContain(t => t.Key == EventSourcingTags.OperationResult && (string)t.Value! == EventSourcingTagValues.Failure);
+		ops[^1].Tags.ShouldContain(t => t.Key == EventSourcingTags.OperationResult && (string)t.Value! == EventSourcingTagValues.Failure);
 	}
 
 	[Fact]
@@ -301,10 +301,10 @@ public sealed class TelemetrySnapshotStoreShould : IDisposable
 			.Where(r => r.Name == EventSourcingMetricNames.SnapshotStoreOperations)
 			.ToList();
 		ops.ShouldNotBeEmpty();
-		ops[0].Value.ShouldBe(1);
-		ops[0].Tags.ShouldContain(t => t.Key == EventSourcingTags.Operation && (string)t.Value! == "save_snapshot");
-		ops[0].Tags.ShouldContain(t => t.Key == EventSourcingTags.Provider && (string)t.Value! == ProviderName);
-		ops[0].Tags.ShouldContain(t => t.Key == EventSourcingTags.OperationResult && (string)t.Value! == EventSourcingTagValues.Success);
+		ops[^1].Value.ShouldBe(1);
+		ops[^1].Tags.ShouldContain(t => t.Key == EventSourcingTags.Operation && (string)t.Value! == "save_snapshot");
+		ops[^1].Tags.ShouldContain(t => t.Key == EventSourcingTags.Provider && (string)t.Value! == ProviderName);
+		ops[^1].Tags.ShouldContain(t => t.Key == EventSourcingTags.OperationResult && (string)t.Value! == EventSourcingTagValues.Success);
 	}
 
 	[Fact]
@@ -324,8 +324,8 @@ public sealed class TelemetrySnapshotStoreShould : IDisposable
 			.Where(r => r.Name == EventSourcingMetricNames.SnapshotStoreDuration)
 			.ToList();
 		durations.ShouldNotBeEmpty();
-		durations[0].Value.ShouldBeGreaterThanOrEqualTo(0);
-		durations[0].Tags.ShouldContain(t => t.Key == EventSourcingTags.Operation && (string)t.Value! == "save_snapshot");
+		durations[^1].Value.ShouldBeGreaterThanOrEqualTo(0);
+		durations[^1].Tags.ShouldContain(t => t.Key == EventSourcingTags.Operation && (string)t.Value! == "save_snapshot");
 	}
 
 	[Fact]
@@ -368,7 +368,7 @@ public sealed class TelemetrySnapshotStoreShould : IDisposable
 			.Where(r => r.Name == EventSourcingMetricNames.SnapshotStoreOperations)
 			.ToList();
 		ops.ShouldNotBeEmpty();
-		ops[0].Tags.ShouldContain(t => t.Key == EventSourcingTags.OperationResult && (string)t.Value! == EventSourcingTagValues.Failure);
+		ops[^1].Tags.ShouldContain(t => t.Key == EventSourcingTags.OperationResult && (string)t.Value! == EventSourcingTagValues.Failure);
 	}
 
 	[Fact]
@@ -426,10 +426,10 @@ public sealed class TelemetrySnapshotStoreShould : IDisposable
 			.Where(r => r.Name == EventSourcingMetricNames.SnapshotStoreOperations)
 			.ToList();
 		ops.ShouldNotBeEmpty();
-		ops[0].Value.ShouldBe(1);
-		ops[0].Tags.ShouldContain(t => t.Key == EventSourcingTags.Operation && (string)t.Value! == "delete_snapshots");
-		ops[0].Tags.ShouldContain(t => t.Key == EventSourcingTags.Provider && (string)t.Value! == ProviderName);
-		ops[0].Tags.ShouldContain(t => t.Key == EventSourcingTags.OperationResult && (string)t.Value! == EventSourcingTagValues.Success);
+		ops[^1].Value.ShouldBe(1);
+		ops[^1].Tags.ShouldContain(t => t.Key == EventSourcingTags.Operation && (string)t.Value! == "delete_snapshots");
+		ops[^1].Tags.ShouldContain(t => t.Key == EventSourcingTags.Provider && (string)t.Value! == ProviderName);
+		ops[^1].Tags.ShouldContain(t => t.Key == EventSourcingTags.OperationResult && (string)t.Value! == EventSourcingTagValues.Success);
 	}
 
 	[Fact]
@@ -448,7 +448,7 @@ public sealed class TelemetrySnapshotStoreShould : IDisposable
 			.Where(r => r.Name == EventSourcingMetricNames.SnapshotStoreDuration)
 			.ToList();
 		durations.ShouldNotBeEmpty();
-		durations[0].Value.ShouldBeGreaterThanOrEqualTo(0);
+		durations[^1].Value.ShouldBeGreaterThanOrEqualTo(0);
 	}
 
 	[Fact]
@@ -489,7 +489,7 @@ public sealed class TelemetrySnapshotStoreShould : IDisposable
 			.Where(r => r.Name == EventSourcingMetricNames.SnapshotStoreOperations)
 			.ToList();
 		ops.ShouldNotBeEmpty();
-		ops[0].Tags.ShouldContain(t => t.Key == EventSourcingTags.OperationResult && (string)t.Value! == EventSourcingTagValues.Failure);
+		ops[^1].Tags.ShouldContain(t => t.Key == EventSourcingTags.OperationResult && (string)t.Value! == EventSourcingTagValues.Failure);
 	}
 
 	[Fact]
@@ -545,10 +545,10 @@ public sealed class TelemetrySnapshotStoreShould : IDisposable
 			.Where(r => r.Name == EventSourcingMetricNames.SnapshotStoreOperations)
 			.ToList();
 		ops.ShouldNotBeEmpty();
-		ops[0].Value.ShouldBe(1);
-		ops[0].Tags.ShouldContain(t => t.Key == EventSourcingTags.Operation && (string)t.Value! == "delete_snapshots_older");
-		ops[0].Tags.ShouldContain(t => t.Key == EventSourcingTags.Provider && (string)t.Value! == ProviderName);
-		ops[0].Tags.ShouldContain(t => t.Key == EventSourcingTags.OperationResult && (string)t.Value! == EventSourcingTagValues.Success);
+		ops[^1].Value.ShouldBe(1);
+		ops[^1].Tags.ShouldContain(t => t.Key == EventSourcingTags.Operation && (string)t.Value! == "delete_snapshots_older");
+		ops[^1].Tags.ShouldContain(t => t.Key == EventSourcingTags.Provider && (string)t.Value! == ProviderName);
+		ops[^1].Tags.ShouldContain(t => t.Key == EventSourcingTags.OperationResult && (string)t.Value! == EventSourcingTagValues.Success);
 	}
 
 	[Fact]
@@ -567,7 +567,7 @@ public sealed class TelemetrySnapshotStoreShould : IDisposable
 			.Where(r => r.Name == EventSourcingMetricNames.SnapshotStoreDuration)
 			.ToList();
 		durations.ShouldNotBeEmpty();
-		durations[0].Value.ShouldBeGreaterThanOrEqualTo(0);
+		durations[^1].Value.ShouldBeGreaterThanOrEqualTo(0);
 	}
 
 	[Fact]
@@ -609,7 +609,7 @@ public sealed class TelemetrySnapshotStoreShould : IDisposable
 			.Where(r => r.Name == EventSourcingMetricNames.SnapshotStoreOperations)
 			.ToList();
 		ops.ShouldNotBeEmpty();
-		ops[0].Tags.ShouldContain(t => t.Key == EventSourcingTags.OperationResult && (string)t.Value! == EventSourcingTagValues.Failure);
+		ops[^1].Tags.ShouldContain(t => t.Key == EventSourcingTags.OperationResult && (string)t.Value! == EventSourcingTagValues.Failure);
 	}
 
 	[Fact]

@@ -137,6 +137,8 @@ public sealed class SessionManagerShould
 	[Fact]
 	public async Task AcquireLockViLockCoordinator()
 	{
+		var beforeAcquire = DateTimeOffset.UtcNow;
+
 		// Act — test the ISessionLockCoordinator explicit interface implementation
 		ISessionLockCoordinator coordinator = _sut;
 		var token = await coordinator.AcquireLockAsync("session-1", TimeSpan.FromMinutes(5), CancellationToken.None);
@@ -145,7 +147,7 @@ public sealed class SessionManagerShould
 		token.ShouldNotBeNull();
 		token.SessionId.ShouldBe("session-1");
 		token.Token.ShouldNotBeNullOrWhiteSpace();
-		token.ExpiresAt.ShouldBeGreaterThan(DateTimeOffset.UtcNow);
+		token.ExpiresAt.ShouldBeGreaterThan(beforeAcquire);
 	}
 
 	[Fact]

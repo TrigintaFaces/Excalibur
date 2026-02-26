@@ -46,7 +46,7 @@ public sealed class TelemetryTransportSubscriberShould : IDisposable
 		_meterListener = new MeterListener();
 		_meterListener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == "Excalibur.Dispatch.Transport.SubscriberTest")
+			if (ReferenceEquals(instrument.Meter, _meter))
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}

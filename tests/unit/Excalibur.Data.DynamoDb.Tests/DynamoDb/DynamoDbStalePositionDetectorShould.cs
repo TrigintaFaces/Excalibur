@@ -445,7 +445,8 @@ public sealed class DynamoDbStalePositionDetectorShould
 
 		// Assert
 		result.DetectedAt.ShouldBeGreaterThanOrEqualTo(before);
-		result.DetectedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+		var assertionUpperBound1 = DateTimeOffset.UtcNow;
+		result.DetectedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	[Fact]

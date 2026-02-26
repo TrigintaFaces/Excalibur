@@ -147,14 +147,17 @@ public sealed class PersistenceOptionsMonitorDepthShould : IDisposable
 	public void GetLastChangeTimeReturnValueAfterSubscription()
 	{
 		// Arrange
+		var lowerBound = DateTimeOffset.UtcNow;
 		_ = _monitor.OnProviderChange("tracked", (_, _) => { });
 
 		// Act
 		var time = _monitor.GetLastChangeTime("tracked");
+		var upperBound = DateTimeOffset.UtcNow;
 
 		// Assert
 		time.ShouldNotBeNull();
-		time.Value.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddMinutes(-1));
+		time.Value.ShouldBeGreaterThanOrEqualTo(lowerBound);
+		time.Value.ShouldBeLessThanOrEqualTo(upperBound);
 	}
 
 	[Fact]
