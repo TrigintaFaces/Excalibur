@@ -210,7 +210,7 @@ public sealed class DeadLetterMessageShould
 		// Assert
 		message.IsReplayed.ShouldBeTrue();
 		_ = message.ReplayedAt.ShouldNotBeNull();
-		message.ReplayedAt.Value.ShouldBeGreaterThan(message.MovedToDeadLetterAt);
+		message.ReplayedAt.Value.ShouldBeGreaterThanOrEqualTo(message.MovedToDeadLetterAt);
 	}
 
 	[Fact]

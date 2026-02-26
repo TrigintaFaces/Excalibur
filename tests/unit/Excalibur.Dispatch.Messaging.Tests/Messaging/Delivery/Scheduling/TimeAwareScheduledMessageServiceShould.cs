@@ -109,9 +109,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy(), timeoutMonitor);
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		var observed = await global::Tests.Shared.Infrastructure.WaitHelpers
-			.WaitUntilAsync(() => timeoutMonitor.CompletedOperations.Count >= 1, TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(25))
-			.ConfigureAwait(false);
+		var observed = await timeoutMonitor.WaitForCompletionAsync(TimeSpan.FromSeconds(10), CancellationToken.None).ConfigureAwait(false);
 		observed.ShouldBeTrue();
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -133,9 +131,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy(), timeoutMonitor);
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		var observed = await global::Tests.Shared.Infrastructure.WaitHelpers
-			.WaitUntilAsync(() => timeoutMonitor.CompletedOperations.Count >= 1, TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(25))
-			.ConfigureAwait(false);
+		var observed = await timeoutMonitor.WaitForCompletionAsync(TimeSpan.FromSeconds(10), CancellationToken.None).ConfigureAwait(false);
 		observed.ShouldBeTrue();
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -313,6 +309,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 	private sealed class RecordingTimeoutMonitor : ITimeoutMonitor
 	{
 		private readonly ConcurrentQueue<CompletionRecord> _completed = [];
+		private readonly TaskCompletionSource<bool> _completionObserved = new(TaskCreationOptions.RunContinuationsAsynchronously);
 		private int _startedOperationCount;
 
 		public int StartedOperationCount => Volatile.Read(ref _startedOperationCount);
@@ -326,7 +323,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		}
 
 		public void CompleteOperation(ITimeoutOperationToken token, bool success, bool timedOut) =>
-			_completed.Enqueue(new CompletionRecord(token is null, success, timedOut));
+			CompleteOperationInternal(token, success, timedOut);
 
 		public TimeoutStatistics GetStatistics(TimeoutOperationType operationType) =>
 			new()
@@ -346,6 +343,28 @@ public sealed class TimeAwareScheduledMessageServiceShould
 
 		public bool HasSufficientSamples(TimeoutOperationType operationType, int minimumSamples = 100) =>
 			_completed.Count >= minimumSamples;
+
+		public async Task<bool> WaitForCompletionAsync(TimeSpan timeout, CancellationToken cancellationToken)
+		{
+			using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+			timeoutCts.CancelAfter(timeout);
+
+			try
+			{
+				_ = await _completionObserved.Task.WaitAsync(timeoutCts.Token).ConfigureAwait(false);
+				return true;
+			}
+			catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+			{
+				return false;
+			}
+		}
+
+		private void CompleteOperationInternal(ITimeoutOperationToken token, bool success, bool timedOut)
+		{
+			_completed.Enqueue(new CompletionRecord(token is null, success, timedOut));
+			_ = _completionObserved.TrySetResult(true);
+		}
 	}
 
 	private readonly record struct CompletionRecord(bool TokenWasNull, bool Success, bool TimedOut);
