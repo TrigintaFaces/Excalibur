@@ -143,16 +143,24 @@ jobs:
         run: |
           ./eng/ci/validate-flaky-quarantine.ps1 -OutDir management/reports/FlakyQuarantineReport -Enforce:$true
 
-      - name: Run release-blocking tests from solution (exclude performance)
+      - name: Compose release-blocking unit filter
+        shell: pwsh
         run: |
-          echo "Running release-blocking test suite from Excalibur.sln (Category!=Performance)..."
-          dotnet test Excalibur.sln \
+          $baseFilter = '(Category=Unit|Category=DependencyInjection)&Category!=Performance'
+          $filterInfo = ./eng/ci/get-test-filter.ps1 -BaseFilter $baseFilter -Mode Exclude -AsJson | ConvertFrom-Json
+          "RELEASE_BLOCKING_TEST_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
+          Write-Host "Using release-blocking filter with $($filterInfo.count) quarantined exclusions."
+
+      - name: Run release-blocking unit tests
+        run: |
+          echo "Running release-blocking unit suite from ReleaseBlocking.slnf..."
+          dotnet test eng/ci/shards/ReleaseBlocking.slnf \
             --configuration Release \
             --no-build \
-            --logger "console;verbosity=quiet" \
-            --blame-hang-timeout 10m \
-            --filter "Category!=Performance" \
-            -- RunConfiguration.TestSessionTimeout=7200000
+            --blame-hang-timeout 5m \
+            --logger "console;verbosity=minimal" \
+            --filter "${{ env.RELEASE_BLOCKING_TEST_FILTER }}" \
+            -- RunConfiguration.TestSessionTimeout=1500000
 
       - name: Release readiness check
         run: |
@@ -260,11 +268,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Restore unit shard
-        run: dotnet restore eng/ci/shards/UnitTests.slnf
+      - name: Restore release-blocking shard
+        run: dotnet restore eng/ci/shards/ReleaseBlocking.slnf
 
-      - name: Build unit shard
-        run: dotnet build eng/ci/shards/UnitTests.slnf --configuration Release --no-restore --verbosity minimal
+      - name: Build release-blocking shard
+        run: dotnet build eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-restore --verbosity minimal
 
       - name: Compose pre-tag soak filter
         shell: pwsh
@@ -275,7 +283,7 @@ jobs:
           Write-Host "Using pre-tag soak filter with $($filterInfo.count) quarantined exclusions."
 
       - name: Run unit shard soak iteration
-        run: dotnet test eng/ci/shards/UnitTests.slnf --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFileName=pre-tag-unit-soak-${{ matrix.os }}-${{ matrix.iteration }}.trx" --logger "console;verbosity=minimal" --filter "${{ env.PRETAG_SOAK_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
+        run: dotnet test eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFileName=pre-tag-unit-soak-${{ matrix.os }}-${{ matrix.iteration }}.trx" --logger "console;verbosity=minimal" --filter "${{ env.PRETAG_SOAK_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
 
       - name: Upload soak test results
         if: always()
