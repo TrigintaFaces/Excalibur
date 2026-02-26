@@ -436,12 +436,12 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 
 		// Deterministic guardrails:
 		// 1) distribution should be monotonic and tightly clustered
-		// 2) keep a broad hard cap to catch true regressions while avoiding CI jitter flakes
+		// 2) use absolute percentile budgets that remain stable under CI scheduler jitter
 		p50Latency.ShouldBeGreaterThan(0);
 		p95Latency.ShouldBeGreaterThanOrEqualTo(p50Latency);
 		p99Latency.ShouldBeGreaterThanOrEqualTo(p95Latency);
+		p95Latency.ShouldBeLessThan(50.0);
 		p99Latency.ShouldBeLessThan(200.0);
-		p99Latency.ShouldBeLessThan((p50Latency * 8.0) + 5.0);
 		averageLatency.ShouldBeLessThan(50.0);
 
 		// Assert - Verify all telemetry was captured
