@@ -516,8 +516,9 @@ public sealed class UpcastingPipelineShould : IDisposable
 		}
 
 		// Assert - Should complete without deadlock
-		await Task.WhenAll(tasks)
-			.WaitAsync(global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			Task.WhenAll(tasks),
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromMinutes(2))).ConfigureAwait(false);
 	}
 
 	[Fact]

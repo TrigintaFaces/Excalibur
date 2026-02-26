@@ -167,13 +167,17 @@ public sealed class ElasticsearchPerformanceDiagnosticsShould
 	[Fact]
 	public void PerformanceMetricsHasLastUpdatedTimestamp()
 	{
+		var lowerBound = DateTimeOffset.UtcNow;
+
 		using (_sut.StartOperation("search"))
 		{
 			// Dispose auto-completes
 		}
 
 		var metrics = _sut.GetPerformanceMetrics();
-		metrics["search"].LastUpdated.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddMinutes(-1));
+		var upperBound = DateTimeOffset.UtcNow;
+		metrics["search"].LastUpdated.ShouldBeGreaterThanOrEqualTo(lowerBound);
+		metrics["search"].LastUpdated.ShouldBeLessThanOrEqualTo(upperBound);
 	}
 
 	[Fact]

@@ -141,16 +141,19 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 		await _deduplicator.MarkProcessedAsync("msg-2", TimeSpan.FromHours(1), CancellationToken.None);
 		_ = await _deduplicator.IsDuplicateAsync("msg-1", TimeSpan.FromHours(1), CancellationToken.None);
 		_ = await _deduplicator.IsDuplicateAsync("msg-3", TimeSpan.FromHours(1), CancellationToken.None);
+		var lowerBound = DateTimeOffset.UtcNow;
 
 		// Act
 		var stats = _deduplicator.GetStatistics();
+		var upperBound = DateTimeOffset.UtcNow;
 
 		// Assert
 		stats.TrackedMessageCount.ShouldBe(2);
 		stats.TotalChecks.ShouldBeGreaterThanOrEqualTo(2);
 		stats.DuplicatesDetected.ShouldBeGreaterThanOrEqualTo(1);
 		stats.EstimatedMemoryUsageBytes.ShouldBeGreaterThan(0);
-		stats.CapturedAt.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddMinutes(-1));
+		stats.CapturedAt.ShouldBeGreaterThanOrEqualTo(lowerBound);
+		stats.CapturedAt.ShouldBeLessThanOrEqualTo(upperBound);
 	}
 
 	[Fact]

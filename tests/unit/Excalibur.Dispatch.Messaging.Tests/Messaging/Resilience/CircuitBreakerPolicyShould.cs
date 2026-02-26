@@ -172,7 +172,8 @@ public sealed class CircuitBreakerPolicyShould
 		// Assert
 		_ = policy.LastOpenedAt.ShouldNotBeNull();
 		policy.LastOpenedAt.Value.ShouldBeGreaterThanOrEqualTo(beforeOpen);
-		policy.LastOpenedAt.Value.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+		var assertionUpperBound1 = DateTimeOffset.UtcNow;
+		policy.LastOpenedAt.Value.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	[Fact]

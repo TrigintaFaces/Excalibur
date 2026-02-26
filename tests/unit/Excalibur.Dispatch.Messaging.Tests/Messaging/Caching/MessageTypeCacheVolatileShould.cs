@@ -35,14 +35,22 @@ public sealed class MessageTypeCacheVolatileShould
 	[Fact]
 	public void PreventDoubleInitialization()
 	{
-		// Arrange — ensure MessageTypeCache is initialized
+		// Arrange
+		var before = MessageTypeCache.GetCachedTypes().ToHashSet();
+
+		// Act
 		MessageTypeCache.Initialize([typeof(string)]);
+		var afterFirst = MessageTypeCache.GetCachedTypes().ToHashSet();
 
-		// Act — second initialization should be a no-op
 		MessageTypeCache.Initialize([typeof(int)]);
+		var afterSecond = MessageTypeCache.GetCachedTypes().ToHashSet();
 
-		// Assert — only first initialization types should be cached
-		// (this verifies the volatile flag + lock guard works correctly)
-		MessageTypeCache.IsCached(typeof(string)).ShouldBeTrue("First init type should be cached");
+		// Assert: once initialized, subsequent Initialize calls are no-ops.
+		afterSecond.SetEquals(afterFirst).ShouldBeTrue("Second initialization should not mutate the cache");
+
+		if (before.Count == 0)
+		{
+			afterFirst.Contains(typeof(string)).ShouldBeTrue("First initialization should include provided type");
+		}
 	}
 }

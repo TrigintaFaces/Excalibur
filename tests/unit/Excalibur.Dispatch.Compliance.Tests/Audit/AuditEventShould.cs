@@ -183,14 +183,17 @@ public sealed class AuditIntegrityResultShould
 	{
 		var start = DateTimeOffset.UtcNow.AddDays(-7);
 		var end = DateTimeOffset.UtcNow;
+		var lowerBound = DateTimeOffset.UtcNow;
 
 		var result = AuditIntegrityResult.Valid(1000, start, end);
+		var upperBound = DateTimeOffset.UtcNow;
 
 		result.IsValid.ShouldBeTrue();
 		result.EventsVerified.ShouldBe(1000);
 		result.StartDate.ShouldBe(start);
 		result.EndDate.ShouldBe(end);
-		result.VerifiedAt.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddSeconds(-5));
+		result.VerifiedAt.ShouldBeGreaterThanOrEqualTo(lowerBound);
+		result.VerifiedAt.ShouldBeLessThanOrEqualTo(upperBound);
 		result.FirstViolationEventId.ShouldBeNull();
 		result.ViolationDescription.ShouldBeNull();
 		result.ViolationCount.ShouldBe(0);

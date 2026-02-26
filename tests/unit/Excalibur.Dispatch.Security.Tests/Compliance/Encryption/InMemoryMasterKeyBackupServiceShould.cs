@@ -99,9 +99,11 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 		const string keyId = "test-key-1";
 		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08 };
 		RegisterKey(keyId, keyMaterial);
+		var lowerBound = DateTimeOffset.UtcNow;
 
 		// Act
 		var backup = await _sut.ExportMasterKeyAsync(keyId, null, CancellationToken.None);
+		var upperBound = DateTimeOffset.UtcNow;
 
 		// Assert
 		_ = backup.ShouldNotBeNull();
@@ -111,7 +113,8 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 		backup.KeyVersion.ShouldBeGreaterThan(0);
 		backup.EncryptedKeyMaterial.ShouldNotBeEmpty();
 		backup.KeyHash.ShouldNotBeNullOrEmpty();
-		backup.CreatedAt.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddMinutes(-1));
+		backup.CreatedAt.ShouldBeGreaterThanOrEqualTo(lowerBound);
+		backup.CreatedAt.ShouldBeLessThanOrEqualTo(upperBound);
 	}
 
 	[Fact]
@@ -140,13 +143,16 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 		var keyMaterial = new byte[] { 0x01, 0x02, 0x03, 0x04 };
 		RegisterKey(keyId, keyMaterial);
 		var options = new MasterKeyExportOptions { ExpiresIn = TimeSpan.FromDays(30) };
+		var minExpectedExpiry = DateTimeOffset.UtcNow.AddDays(29);
 
 		// Act
 		var backup = await _sut.ExportMasterKeyAsync(keyId, options, CancellationToken.None);
+		var maxExpectedExpiry = DateTimeOffset.UtcNow.AddDays(31);
 
 		// Assert
 		_ = backup.ExpiresAt.ShouldNotBeNull();
-		backup.ExpiresAt.Value.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddDays(29));
+		backup.ExpiresAt.Value.ShouldBeGreaterThanOrEqualTo(minExpectedExpiry);
+		backup.ExpiresAt.Value.ShouldBeLessThanOrEqualTo(maxExpectedExpiry);
 	}
 
 	[Fact]
@@ -181,15 +187,18 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 
 		// Simulate disaster recovery - key is lost
 		UnregisterKey(keyId);
+		var lowerBound = DateTimeOffset.UtcNow;
 
 		// Act
 		var result = await _sut.ImportMasterKeyAsync(backup, null, CancellationToken.None);
+		var upperBound = DateTimeOffset.UtcNow;
 
 		// Assert
 		_ = result.ShouldNotBeNull();
 		result.Success.ShouldBeTrue();
 		result.KeyId.ShouldBe(keyId);
-		result.ImportedAt.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddMinutes(-1));
+		result.ImportedAt.ShouldBeGreaterThanOrEqualTo(lowerBound);
+		result.ImportedAt.ShouldBeLessThanOrEqualTo(upperBound);
 	}
 
 	[Fact]

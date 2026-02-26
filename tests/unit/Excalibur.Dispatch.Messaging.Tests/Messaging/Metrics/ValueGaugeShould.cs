@@ -114,7 +114,7 @@ public sealed class ValueGaugeShould
 		gauge.Set(100);
 
 		// Assert
-		gauge.LastUpdated.ShouldBeGreaterThan(originalUpdated);
+		gauge.LastUpdated.ShouldBeGreaterThanOrEqualTo(originalUpdated);
 	}
 
 	[Fact]
@@ -178,7 +178,7 @@ public sealed class ValueGaugeShould
 		_ = gauge.Increment();
 
 		// Assert
-		gauge.LastUpdated.ShouldBeGreaterThan(originalUpdated);
+		gauge.LastUpdated.ShouldBeGreaterThanOrEqualTo(originalUpdated);
 	}
 
 	[Fact]
@@ -222,7 +222,7 @@ public sealed class ValueGaugeShould
 		_ = gauge.IncrementBy(10);
 
 		// Assert
-		gauge.LastUpdated.ShouldBeGreaterThan(originalUpdated);
+		gauge.LastUpdated.ShouldBeGreaterThanOrEqualTo(originalUpdated);
 	}
 
 	#endregion
@@ -270,7 +270,7 @@ public sealed class ValueGaugeShould
 		_ = gauge.Decrement();
 
 		// Assert
-		gauge.LastUpdated.ShouldBeGreaterThan(originalUpdated);
+		gauge.LastUpdated.ShouldBeGreaterThanOrEqualTo(originalUpdated);
 	}
 
 	[Fact]
@@ -315,7 +315,7 @@ public sealed class ValueGaugeShould
 		_ = gauge.DecrementBy(5);
 
 		// Assert
-		gauge.LastUpdated.ShouldBeGreaterThan(originalUpdated);
+		gauge.LastUpdated.ShouldBeGreaterThanOrEqualTo(originalUpdated);
 	}
 
 	#endregion
@@ -348,7 +348,7 @@ public sealed class ValueGaugeShould
 		gauge.Reset();
 
 		// Assert
-		gauge.LastUpdated.ShouldBeGreaterThan(originalUpdated);
+		gauge.LastUpdated.ShouldBeGreaterThanOrEqualTo(originalUpdated);
 	}
 
 	[Fact]

@@ -19,15 +19,19 @@ public sealed class InMemoryCdcChangeShould : UnitTestBase
 	[Fact]
 	public void HasCorrectDefaults()
 	{
-		// Arrange & Act
+		// Arrange
+		var before = DateTimeOffset.UtcNow;
+
+		// Act
 		var change = new InMemoryCdcChange();
+		var after = DateTimeOffset.UtcNow;
 
 		// Assert
 		change.TableName.ShouldBe(string.Empty);
 		change.ChangeType.ShouldBe(CdcChangeType.None);
 		change.Changes.ShouldBeEmpty();
 		change.Metadata.ShouldBeNull();
-		change.Timestamp.ShouldBeInRange(DateTimeOffset.UtcNow.AddSeconds(-1), DateTimeOffset.UtcNow.AddSeconds(1));
+		change.Timestamp.ShouldBeInRange(before, after);
 	}
 
 	#endregion

@@ -104,7 +104,8 @@ public sealed class Soc2ReportExporterPdfShould
 
 		// Assert
 		result.GeneratedAt.ShouldBeGreaterThanOrEqualTo(beforeExport);
-		result.GeneratedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+		var assertionUpperBound1 = DateTimeOffset.UtcNow;
+		result.GeneratedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	#endregion

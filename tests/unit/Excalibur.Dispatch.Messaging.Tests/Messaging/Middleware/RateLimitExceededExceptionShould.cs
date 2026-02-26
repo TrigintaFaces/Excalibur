@@ -317,12 +317,13 @@ public sealed class RateLimitExceededExceptionShould
 		{
 			RetryAfter = TimeSpan.FromSeconds(30),
 		};
+		var before = DateTimeOffset.UtcNow;
 
 		// Act
-		var retryAt = DateTimeOffset.UtcNow.Add(exception.RetryAfter.Value);
+		var retryAt = before.Add(exception.RetryAfter.Value);
 
 		// Assert
-		retryAt.ShouldBeGreaterThan(DateTimeOffset.UtcNow);
+		retryAt.ShouldBe(before.AddSeconds(30));
 	}
 
 	[Fact]

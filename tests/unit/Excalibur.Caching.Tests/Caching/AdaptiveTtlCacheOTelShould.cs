@@ -353,3 +353,4 @@ public sealed class AdaptiveTtlCacheOTelShould : IAsyncDisposable
 			cache.SetAsync("key", data, null!, CancellationToken.None));
 	}
 }
+

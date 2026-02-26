@@ -33,7 +33,7 @@ public sealed class TelemetryTransportReceiverShould : IDisposable
 		_meterListener = new MeterListener();
 		_meterListener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == "Excalibur.Dispatch.Transport.ReceiverTest")
+			if (ReferenceEquals(instrument.Meter, _meter))
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}

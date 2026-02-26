@@ -19,6 +19,7 @@ public sealed class DispatchMetricsFunctionalShould : IDisposable
 {
 	private readonly DispatchMetrics _metrics = new();
 	private readonly MeterListener _listener = new();
+	private readonly object _recordingGate = new();
 	private readonly Dictionary<string, List<(object Value, KeyValuePair<string, object?>[] Tags)>> _recorded = new(StringComparer.Ordinal);
 
 	public DispatchMetricsFunctionalShould()
@@ -64,26 +65,33 @@ public sealed class DispatchMetricsFunctionalShould : IDisposable
 	[Fact]
 	public void RecordMessageProcessed_EmitsCounterWithTags()
 	{
-		_metrics.RecordMessageProcessed("TestCommand", "TestHandler");
+		var messageType = $"TestCommand-{Guid.NewGuid():N}";
+		var handlerType = $"TestHandler-{Guid.NewGuid():N}";
+		_metrics.RecordMessageProcessed(messageType, handlerType);
 
 		var entries = GetRecorded("dispatch.messages.processed");
 		entries.ShouldNotBeEmpty();
-		var (value, tags) = entries[0];
+		var (value, tags) = entries.First(e =>
+			e.Tags.Any(t => t.Key == "message_type" && string.Equals(t.Value as string, messageType, StringComparison.Ordinal)) &&
+			e.Tags.Any(t => t.Key == "handler_type" && string.Equals(t.Value as string, handlerType, StringComparison.Ordinal)));
 		((long)value).ShouldBe(1);
-		tags.ShouldContain(t => t.Key == "message_type" && (string)t.Value! == "TestCommand");
-		tags.ShouldContain(t => t.Key == "handler_type" && (string)t.Value! == "TestHandler");
+		tags.ShouldContain(t => t.Key == "message_type" && string.Equals(t.Value as string, messageType, StringComparison.Ordinal));
+		tags.ShouldContain(t => t.Key == "handler_type" && string.Equals(t.Value as string, handlerType, StringComparison.Ordinal));
 	}
 
 	[Fact]
 	public void RecordProcessingDuration_EmitsHistogramWithSuccessTag()
 	{
-		_metrics.RecordProcessingDuration(42.5, "MyMessage", success: true);
+		var messageType = $"MyMessage-{Guid.NewGuid():N}";
+		_metrics.RecordProcessingDuration(42.5, messageType, success: true);
 
 		var entries = GetRecorded("dispatch.messages.duration");
 		entries.ShouldNotBeEmpty();
-		var (value, tags) = entries[0];
+		var (value, tags) = entries.First(e =>
+			e.Tags.Any(t => t.Key == "message_type" && string.Equals(t.Value as string, messageType, StringComparison.Ordinal)) &&
+			e.Tags.Any(t => t.Key == "success" && (bool)t.Value!));
 		((double)value).ShouldBe(42.5);
-		tags.ShouldContain(t => t.Key == "message_type" && (string)t.Value! == "MyMessage");
+		tags.ShouldContain(t => t.Key == "message_type" && string.Equals(t.Value as string, messageType, StringComparison.Ordinal));
 		tags.ShouldContain(t => t.Key == "success" && (bool)t.Value! == true);
 	}
 
@@ -102,25 +110,34 @@ public sealed class DispatchMetricsFunctionalShould : IDisposable
 	[Fact]
 	public void RecordMessagePublished_EmitsCounterWithDestination()
 	{
-		_metrics.RecordMessagePublished("OrderCreated", "orders-queue");
+		var messageType = $"OrderCreated-{Guid.NewGuid():N}";
+		var destination = $"orders-queue-{Guid.NewGuid():N}";
+		_metrics.RecordMessagePublished(messageType, destination);
 
 		var entries = GetRecorded("dispatch.messages.published");
 		entries.ShouldNotBeEmpty();
-		var (value, tags) = entries[0];
+		var (value, tags) = entries.First(e =>
+			e.Tags.Any(t => t.Key == "message_type" && string.Equals(t.Value as string, messageType, StringComparison.Ordinal)) &&
+			e.Tags.Any(t => t.Key == "destination" && string.Equals(t.Value as string, destination, StringComparison.Ordinal)));
 		((long)value).ShouldBe(1);
-		tags.ShouldContain(t => t.Key == "destination" && (string)t.Value! == "orders-queue");
+		tags.ShouldContain(t => t.Key == "destination" && string.Equals(t.Value as string, destination, StringComparison.Ordinal));
 	}
 
 	[Fact]
 	public void RecordMessageFailed_EmitsCounterWithErrorTypeAndRetry()
 	{
-		_metrics.RecordMessageFailed("TestMessage", "TimeoutException", retryAttempt: 3);
+		var messageType = $"TestMessage-{Guid.NewGuid():N}";
+		var errorType = $"TimeoutException-{Guid.NewGuid():N}";
+		_metrics.RecordMessageFailed(messageType, errorType, retryAttempt: 3);
 
 		var entries = GetRecorded("dispatch.messages.failed");
 		entries.ShouldNotBeEmpty();
-		var (value, tags) = entries[0];
+		var (value, tags) = entries.First(e =>
+			e.Tags.Any(t => t.Key == "message_type" && string.Equals(t.Value as string, messageType, StringComparison.Ordinal)) &&
+			e.Tags.Any(t => t.Key == "error_type" && string.Equals(t.Value as string, errorType, StringComparison.Ordinal)) &&
+			e.Tags.Any(t => t.Key == "retry_attempt" && (int)t.Value! == 3));
 		((long)value).ShouldBe(1);
-		tags.ShouldContain(t => t.Key == "error_type" && (string)t.Value! == "TimeoutException");
+		tags.ShouldContain(t => t.Key == "error_type" && string.Equals(t.Value as string, errorType, StringComparison.Ordinal));
 		tags.ShouldContain(t => t.Key == "retry_attempt" && (int)t.Value! == 3);
 	}
 
@@ -131,7 +148,7 @@ public sealed class DispatchMetricsFunctionalShould : IDisposable
 		_metrics.UpdateActiveSessions(1);
 		_metrics.UpdateActiveSessions(-1);
 
-		var entries = GetRecorded("dispatch.sessions.active");
+		var entries = GetRecorded("dispatch.sessions.active", minimumCount: 3);
 		entries.Count.ShouldBe(3);
 	}
 
@@ -142,19 +159,24 @@ public sealed class DispatchMetricsFunctionalShould : IDisposable
 		_metrics.RecordMessageProcessed("B", "HandlerB");
 		_metrics.RecordMessageProcessed("A", "HandlerA");
 
-		var entries = GetRecorded("dispatch.messages.processed");
+		var entries = GetRecorded("dispatch.messages.processed", minimumCount: 3);
 		entries.Count.ShouldBe(3);
 	}
 
 	[Fact]
 	public void AcceptAdditionalTags_OnRecordMessageProcessed()
 	{
-		_metrics.RecordMessageProcessed("TestMsg", "TestHandler", ("region", "us-east-1"));
+		var messageType = $"TestMsg-{Guid.NewGuid():N}";
+		var handlerType = $"TestHandler-{Guid.NewGuid():N}";
+		var region = $"us-east-{Random.Shared.Next(1, 10)}";
+		_metrics.RecordMessageProcessed(messageType, handlerType, ("region", region));
 
 		var entries = GetRecorded("dispatch.messages.processed");
 		entries.ShouldNotBeEmpty();
-		var (_, tags) = entries[0];
-		tags.ShouldContain(t => t.Key == "region" && (string)t.Value! == "us-east-1");
+		var (_, tags) = entries.First(e =>
+			e.Tags.Any(t => t.Key == "message_type" && string.Equals(t.Value as string, messageType, StringComparison.Ordinal)) &&
+			e.Tags.Any(t => t.Key == "handler_type" && string.Equals(t.Value as string, handlerType, StringComparison.Ordinal)));
+		tags.ShouldContain(t => t.Key == "region" && string.Equals(t.Value as string, region, StringComparison.Ordinal));
 	}
 
 	[Fact]
@@ -194,18 +216,36 @@ public sealed class DispatchMetricsFunctionalShould : IDisposable
 
 	private void RecordMeasurement(string instrumentName, object value, ReadOnlySpan<KeyValuePair<string, object?>> tags)
 	{
-		if (!_recorded.TryGetValue(instrumentName, out var list))
+		lock (_recordingGate)
 		{
-			list = [];
-			_recorded[instrumentName] = list;
-		}
+			if (!_recorded.TryGetValue(instrumentName, out var list))
+			{
+				list = [];
+				_recorded[instrumentName] = list;
+			}
 
-		list.Add((value, tags.ToArray()));
+			list.Add((value, tags.ToArray()));
+		}
 	}
 
-	private List<(object Value, KeyValuePair<string, object?>[] Tags)> GetRecorded(string instrumentName)
+	private List<(object Value, KeyValuePair<string, object?>[] Tags)> GetRecorded(string instrumentName, int minimumCount = 1)
 	{
-		_listener.RecordObservableInstruments();
-		return _recorded.GetValueOrDefault(instrumentName) ?? [];
+		var observed = global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() =>
+			{
+				_listener.RecordObservableInstruments();
+				lock (_recordingGate)
+				{
+					return _recorded.TryGetValue(instrumentName, out var list) && list.Count >= minimumCount;
+				}
+			},
+			TimeSpan.FromSeconds(2),
+			TimeSpan.FromMilliseconds(10)).GetAwaiter().GetResult();
+
+		observed.ShouldBeTrue($"Expected at least {minimumCount} metric samples for '{instrumentName}'.");
+		lock (_recordingGate)
+		{
+			return (_recorded.GetValueOrDefault(instrumentName) ?? []).ToList();
+		}
 	}
 }

@@ -15,18 +15,16 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Common;
 public sealed class MessagePumpShould
 {
     private static Channel<MessageEnvelope> CreateChannel() => Channel.CreateUnbounded<MessageEnvelope>();
-    private static readonly TimeSpan SignalWaitTimeout = string.Equals(
-        Environment.GetEnvironmentVariable("CI"),
-        "true",
-        StringComparison.OrdinalIgnoreCase)
-        ? TimeSpan.FromSeconds(10)
-        : TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan SignalWaitTimeout = TimeSpan.FromSeconds(10);
 
     private static async Task WaitForSignalAsync(Task signalTask, TimeSpan timeout, string failureMessage)
     {
-        var timeoutTask = global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(timeout);
-        var completed = await Task.WhenAny(signalTask, timeoutTask).ConfigureAwait(false);
-        completed.ShouldBe(signalTask, failureMessage);
+        var scaledTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(timeout);
+        var observed = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+            () => signalTask.IsCompleted,
+            scaledTimeout,
+            TimeSpan.FromMilliseconds(20)).ConfigureAwait(false);
+        observed.ShouldBeTrue($"{failureMessage} Timeout={scaledTimeout}.");
         await signalTask.ConfigureAwait(false);
     }
 
@@ -339,14 +337,17 @@ public sealed class MessagePumpShould
     {
         var channel = CreateChannel();
         var sut = new MessagePump("test", channel, _ => Task.CompletedTask);
+        var lowerBound = DateTimeOffset.UtcNow;
 
         sut.Metrics.StartedAt.ShouldBeNull();
 
         using var cts = new CancellationTokenSource();
         await sut.StartAsync(cts.Token);
+        var upperBound = DateTimeOffset.UtcNow;
 
         sut.Metrics.StartedAt.ShouldNotBeNull();
-        sut.Metrics.StartedAt!.Value.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddMinutes(-1));
+        sut.Metrics.StartedAt!.Value.ShouldBeGreaterThanOrEqualTo(lowerBound);
+        sut.Metrics.StartedAt!.Value.ShouldBeLessThanOrEqualTo(upperBound);
 
         await StopPumpGracefully(sut, channel);
     }

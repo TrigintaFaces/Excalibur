@@ -307,6 +307,8 @@ public sealed class PoisonMessageTypesShould
 	[Fact]
 	public void DeadLetterMessage_DefaultMovedToDeadLetterAt_IsRecent()
 	{
+		var lowerBound = DateTimeOffset.UtcNow;
+
 		// Act
 		var msg = new DeadLetterMessage
 		{
@@ -316,9 +318,11 @@ public sealed class PoisonMessageTypesShould
 			MessageMetadata = "{}",
 			Reason = "test",
 		};
+		var upperBound = DateTimeOffset.UtcNow;
 
 		// Assert
-		msg.MovedToDeadLetterAt.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddMinutes(-1));
+		msg.MovedToDeadLetterAt.ShouldBeGreaterThanOrEqualTo(lowerBound);
+		msg.MovedToDeadLetterAt.ShouldBeLessThanOrEqualTo(upperBound);
 	}
 
 	[Fact]

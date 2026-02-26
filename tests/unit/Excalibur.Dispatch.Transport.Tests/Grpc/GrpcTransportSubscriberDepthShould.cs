@@ -146,7 +146,8 @@ public sealed class GrpcTransportSubscriberDepthShould : IAsyncDisposable
 
 		// Assert
 		result.EnqueuedAt.ShouldBeGreaterThanOrEqualTo(before);
-		result.EnqueuedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow.AddSeconds(1));
+		var assertionUpperBound1 = DateTimeOffset.UtcNow.AddSeconds(1);
+		result.EnqueuedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	[Fact]

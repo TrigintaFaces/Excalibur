@@ -265,7 +265,8 @@ public sealed class HmacMessageSigningServiceCoverageShould : IDisposable
         signedMessage.Signature.ShouldNotBeNullOrEmpty();
         signedMessage.Algorithm.ShouldBe(SigningAlgorithm.HMACSHA256);
         signedMessage.KeyId.ShouldBe("my-key");
-        signedMessage.SignedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+        var assertionUpperBound1 = DateTimeOffset.UtcNow;
+        signedMessage.SignedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
         signedMessage.Metadata.ShouldContainKeyAndValue("purpose", "test");
     }
 

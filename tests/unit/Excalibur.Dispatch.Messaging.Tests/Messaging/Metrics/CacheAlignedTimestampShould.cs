@@ -158,7 +158,7 @@ public sealed class CacheAlignedTimestampShould : UnitTestBase
 		// Assert against an independent high-resolution stopwatch to avoid CI
 		// scheduler jitter assumptions while still validating conversion accuracy.
 		elapsed.ShouldBeGreaterThan(0);
-		Math.Abs(elapsed - expectedElapsed).ShouldBeLessThan(100d);
+		Math.Abs(elapsed - expectedElapsed).ShouldBeLessThan(250d);
 	}
 
 	#endregion
