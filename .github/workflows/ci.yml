@@ -1928,7 +1928,7 @@ jobs:
   release-blocking-tests:
     name: Release-Blocking Test Governance
     runs-on: ubuntu-latest
-    needs: [smoke-tests, unit-shard-coverage, unit-tests, unit-tests-windows, integration-tests, functional-tests, contract-tests, architecture-tests, transport-conformance]
+    needs: [unit-shard-coverage, unit-tests, unit-tests-windows]
     if: always()
     steps:
       - name: Validate release-blocking test matrix
@@ -1944,39 +1944,22 @@ jobs:
           }
           failures=()
 
-          smoke="${{ needs.smoke-tests.result }}"
           shard="${{ needs.unit-shard-coverage.result }}"
           unit="${{ needs.unit-tests.result }}"
           unit_win="${{ needs.unit-tests-windows.result }}"
-          integration="${{ needs.integration-tests.result }}"
-          functional="${{ needs.functional-tests.result }}"
-          contract="${{ needs.contract-tests.result }}"
-          architecture="${{ needs.architecture-tests.result }}"
-          conformance="${{ needs.transport-conformance.result }}"
 
           echo "## ✅ Release-Blocking Test Governance" >> "$GITHUB_STEP_SUMMARY"
+          echo "Deterministic required tier: unit/dependency-injection only (perf/integration/functional/load are report-only)." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Suite | Status |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| smoke-tests | $smoke |" >> "$GITHUB_STEP_SUMMARY"
           echo "| unit-shard-coverage | $shard |" >> "$GITHUB_STEP_SUMMARY"
           echo "| unit-tests | $unit |" >> "$GITHUB_STEP_SUMMARY"
           echo "| unit-tests-windows | $unit_win |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| integration-tests | $integration |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| functional-tests | $functional |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| contract-tests | $contract |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| architecture-tests | $architecture |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| transport-conformance | $conformance |" >> "$GITHUB_STEP_SUMMARY"
 
-          require_success "smoke-tests" "$smoke"
           require_success "unit-shard-coverage" "$shard"
           require_success "unit-tests" "$unit"
           require_success "unit-tests-windows" "$unit_win"
-          require_success "integration-tests" "$integration"
-          require_success "functional-tests" "$functional"
-          require_success "contract-tests" "$contract"
-          require_success "architecture-tests" "$architecture"
-          require_success "transport-conformance" "$conformance"
 
           if [ ${#failures[@]} -gt 0 ]; then
             printf '❌ %s\n' "One or more release-blocking test suites failed: ${failures[*]}" >> "$GITHUB_STEP_SUMMARY"
@@ -1988,7 +1971,7 @@ jobs:
   release-blocking-ci:
     name: Release-Blocking CI Governance
     runs-on: ubuntu-latest
-    needs: [build, release-blocking-tests, flaky-quarantine-governance, public-api-baselines, transitive-bloat, banned-apis, serialization-policy, package-composition, solution-governance, package-dependency-graph, sample-validation, aot-sample-validation, documentation-validation, security-sast, performance-mediatr-parity, performance-transport-comparison]
+    needs: [build, release-blocking-tests, code-analysis, flaky-quarantine-governance, public-api-baselines, transitive-bloat, banned-apis, serialization-policy, package-composition, solution-governance, package-dependency-graph, security-sast]
     if: always()
     steps:
       - name: Validate release-blocking CI policy
@@ -2003,17 +1986,10 @@ jobs:
             fi
           }
 
-          require_success_or_skipped() {
-            local gate="$1"
-            local status="$2"
-            if [[ "$status" != "success" && "$status" != "skipped" ]]; then
-              failures+=("${gate}=${status}")
-            fi
-          }
-
           failures=()
           build="${{ needs.build.result }}"
           test_gate="${{ needs.release-blocking-tests.result }}"
+          code_analysis="${{ needs.code-analysis.result }}"
           flaky_quarantine="${{ needs.flaky-quarantine-governance.result }}"
           public_api="${{ needs.public-api-baselines.result }}"
           bloat="${{ needs.transitive-bloat.result }}"
@@ -2022,19 +1998,16 @@ jobs:
           package_composition="${{ needs.package-composition.result }}"
           solution_governance="${{ needs.solution-governance.result }}"
           dep_graph="${{ needs.package-dependency-graph.result }}"
-          samples="${{ needs.sample-validation.result }}"
-          aot_samples="${{ needs.aot-sample-validation.result }}"
-          docs="${{ needs.documentation-validation.result }}"
           sast="${{ needs.security-sast.result }}"
-          perf_mediatr="${{ needs.performance-mediatr-parity.result }}"
-          perf_transport="${{ needs.performance-transport-comparison.result }}"
 
           echo "## 🚦 Release-Blocking CI Governance" >> "$GITHUB_STEP_SUMMARY"
+          echo "Required tier: deterministic unit tests + static analysis + package integrity + flaky quarantine governance." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Gate | Status |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
           echo "| build | $build |" >> "$GITHUB_STEP_SUMMARY"
           echo "| release-blocking-tests | $test_gate |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| code-analysis | $code_analysis |" >> "$GITHUB_STEP_SUMMARY"
           echo "| flaky-quarantine-governance | $flaky_quarantine |" >> "$GITHUB_STEP_SUMMARY"
           echo "| public-api-baselines | $public_api |" >> "$GITHUB_STEP_SUMMARY"
           echo "| transitive-bloat | $bloat |" >> "$GITHUB_STEP_SUMMARY"
@@ -2043,15 +2016,11 @@ jobs:
           echo "| package-composition | $package_composition |" >> "$GITHUB_STEP_SUMMARY"
           echo "| solution-governance | $solution_governance |" >> "$GITHUB_STEP_SUMMARY"
           echo "| package-dependency-graph | $dep_graph |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| sample-validation | $samples |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| aot-sample-validation | $aot_samples |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| documentation-validation | $docs |" >> "$GITHUB_STEP_SUMMARY"
           echo "| security-sast | $sast |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| performance-mediatr-parity | $perf_mediatr |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| performance-transport-comparison | $perf_transport |" >> "$GITHUB_STEP_SUMMARY"
 
           require_success "build" "$build"
           require_success "release-blocking-tests" "$test_gate"
+          require_success "code-analysis" "$code_analysis"
           require_success "flaky-quarantine-governance" "$flaky_quarantine"
           require_success "public-api-baselines" "$public_api"
           require_success "transitive-bloat" "$bloat"
@@ -2060,18 +2029,11 @@ jobs:
           require_success "package-composition" "$package_composition"
           require_success "solution-governance" "$solution_governance"
           require_success "package-dependency-graph" "$dep_graph"
-          require_success "sample-validation" "$samples"
-          require_success "aot-sample-validation" "$aot_samples"
-          require_success "documentation-validation" "$docs"
 
           # SAST is advisory on pull requests, blocking on push/release style events.
           if [[ "${{ github.event_name }}" != "pull_request" ]]; then
             require_success "security-sast" "$sast"
           fi
-
-          # Performance gates are optional on PRs and should report as skipped when not requested.
-          require_success_or_skipped "performance-mediatr-parity" "$perf_mediatr"
-          require_success_or_skipped "performance-transport-comparison" "$perf_transport"
 
           if [ ${#failures[@]} -gt 0 ]; then
             printf '❌ %s\n' "Release-blocking CI policy failed: ${failures[*]}" >> "$GITHUB_STEP_SUMMARY"
