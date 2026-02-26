@@ -337,6 +337,7 @@ jobs:
         run: dotnet build Excalibur.sln --configuration Release --no-restore --verbosity minimal
 
       - name: Create release packages
+        shell: bash
         run: |
           VERSION="${{ needs.pre-release-validation.outputs.version }}"
           PRERELEASE="${{ needs.pre-release-validation.outputs.prerelease }}"
