@@ -165,6 +165,7 @@ jobs:
       - name: Release readiness check
         run: |
           echo "🔍 Checking release readiness..."
+          VERSION="${{ steps.version.outputs.version }}"
 
           # Check for any TODO/FIXME/HACK comments in core libraries
           echo "Scanning for development placeholders..."
@@ -175,8 +176,13 @@ jobs:
           fi
 
           # Verify all core packages can be built
-          echo "Validating package creation..."
-          dotnet pack eng/ci/shards/ShippingOnly.slnf --configuration Release --no-build --verbosity minimal --output ./temp-packages
+          echo "Validating package creation for version: $VERSION..."
+          dotnet pack eng/ci/shards/ShippingOnly.slnf \
+            --configuration Release \
+            --no-build \
+            --verbosity minimal \
+            -p:PackageVersion="$VERSION" \
+            --output ./temp-packages
 
           PACKAGE_COUNT=$(find ./temp-packages -name "*.nupkg" | wc -l)
           EXPECTED_COUNT=$(grep -o '"[^"]*\.csproj"' eng/ci/shards/ShippingOnly.slnf | wc -l)
