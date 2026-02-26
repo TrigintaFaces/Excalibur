@@ -88,16 +88,20 @@ public sealed class ComplianceMonitoringServiceShould
 			Microsoft.Extensions.Options.Options.Create(options),
 			NullLogger<ComplianceMonitoringService>.Instance);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+		using var cts = new CancellationTokenSource();
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
-
-		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-			cycleObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
-			cancellationToken: CancellationToken.None).ConfigureAwait(false);
-
-		await cts.CancelAsync().ConfigureAwait(false);
-		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
+		try
+		{
+			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+				cycleObserved.Task,
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
+				cancellationToken: CancellationToken.None).ConfigureAwait(false);
+		}
+		finally
+		{
+			await cts.CancelAsync().ConfigureAwait(false);
+			await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
+		}
 
 		A.CallTo(() => complianceService.GetComplianceStatusAsync(A<string?>._, A<CancellationToken>._))
 			.MustHaveHappened();
@@ -136,16 +140,20 @@ public sealed class ComplianceMonitoringServiceShould
 			Microsoft.Extensions.Options.Options.Create(options),
 			NullLogger<ComplianceMonitoringService>.Instance);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+		using var cts = new CancellationTokenSource();
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
-
-		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-			secondCycleObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
-			cancellationToken: CancellationToken.None).ConfigureAwait(false);
-
-		await cts.CancelAsync().ConfigureAwait(false);
-		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
+		try
+		{
+			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+				secondCycleObserved.Task,
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
+				cancellationToken: CancellationToken.None).ConfigureAwait(false);
+		}
+		finally
+		{
+			await cts.CancelAsync().ConfigureAwait(false);
+			await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
+		}
 
 		callCount.ShouldBeGreaterThanOrEqualTo(2);
 	}
@@ -182,16 +190,20 @@ public sealed class ComplianceMonitoringServiceShould
 			Microsoft.Extensions.Options.Options.Create(options),
 			NullLogger<ComplianceMonitoringService>.Instance);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+		using var cts = new CancellationTokenSource();
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
-
-		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-			alertObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
-			cancellationToken: CancellationToken.None).ConfigureAwait(false);
-
-		await cts.CancelAsync().ConfigureAwait(false);
-		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
+		try
+		{
+			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+				alertObserved.Task,
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
+				cancellationToken: CancellationToken.None).ConfigureAwait(false);
+		}
+		finally
+		{
+			await cts.CancelAsync().ConfigureAwait(false);
+			await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
+		}
 
 		A.CallTo(() => alertHandler.HandleComplianceGapAsync(
 				A<ComplianceGapAlert>._, A<CancellationToken>._))
@@ -227,16 +239,20 @@ public sealed class ComplianceMonitoringServiceShould
 			Microsoft.Extensions.Options.Options.Create(options),
 			NullLogger<ComplianceMonitoringService>.Instance);
 
-		using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+		using var cts = new CancellationTokenSource();
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
-
-		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-			cycleObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
-			cancellationToken: CancellationToken.None).ConfigureAwait(false);
-
-		await cts.CancelAsync().ConfigureAwait(false);
-		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
+		try
+		{
+			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+				cycleObserved.Task,
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
+				cancellationToken: CancellationToken.None).ConfigureAwait(false);
+		}
+		finally
+		{
+			await cts.CancelAsync().ConfigureAwait(false);
+			await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
+		}
 
 		// Gap alert below threshold should not be sent
 		A.CallTo(() => alertHandler.HandleComplianceGapAsync(
