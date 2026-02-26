@@ -137,11 +137,12 @@ public sealed class ContextFlowMetricsFunctionalShould : IDisposable
 	[Fact]
 	public void RecordContextValidationFailure()
 	{
-		_metrics.RecordContextValidationFailure("missing_correlation_id");
+		var expectedReason = $"missing_corr_{Guid.NewGuid():N}"[..21];
+		_metrics.RecordContextValidationFailure(expectedReason);
 
-		var failure = _measurements.FirstOrDefault(m => m.Name == "dispatch.context.flow.validation_failures");
-		failure.Name.ShouldNotBeNull();
-		failure.Tags.ShouldContain(t => t.Key == "reason" && (string)t.Value! == "missing_correlation_id");
+		_measurements.ShouldContain(m =>
+			m.Name == "dispatch.context.flow.validation_failures" &&
+			m.Tags.Any(t => t.Key == "reason" && string.Equals((string?)t.Value, expectedReason, StringComparison.Ordinal)));
 	}
 
 	[Fact]
