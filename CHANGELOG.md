@@ -9,9 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Post-`3.0.0-alpha.18` stabilization and release-candidate hardening.
+- Post-`3.0.0-alpha.19` stabilization and release-candidate hardening.
 
-## [3.0.0-alpha.18] - 2026-02-25
+## [3.0.0-alpha.19] - 2026-02-25
 
 First pre-release of the `3.0.0` line with major architecture, packaging, governance, API, and documentation updates.
 
@@ -73,5 +73,5 @@ First pre-release of the `3.0.0` line with major architecture, packaging, govern
 
 Releases prior to the `3.0.0` line (including `2.2.x`) are tracked in GitHub releases/history for the previous public baseline.
 
-[Unreleased]: https://github.com/TrigintaFaces/Excalibur/compare/v3.0.0-alpha.18...HEAD
-[3.0.0-alpha.18]: https://github.com/TrigintaFaces/Excalibur/releases/tag/v3.0.0-alpha.18
+[Unreleased]: https://github.com/TrigintaFaces/Excalibur/compare/v3.0.0-alpha.19...HEAD
+[3.0.0-alpha.19]: https://github.com/TrigintaFaces/Excalibur/releases/tag/v3.0.0-alpha.19

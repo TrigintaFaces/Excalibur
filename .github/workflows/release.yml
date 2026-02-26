@@ -500,8 +500,9 @@ jobs:
               echo "Package: $filename ($size)"
 
               # Extract and analyze package contents
+              rm -rf temp_analysis/
               mkdir -p temp_analysis
-              unzip -q "$package" -d temp_analysis/
+              unzip -oq "$package" -d temp_analysis/
 
               # Check for common issues
               if find temp_analysis/ -name "*.dll" | head -1 | xargs file | grep -q "executable"; then
