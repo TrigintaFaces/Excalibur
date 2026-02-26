@@ -1971,7 +1971,7 @@ jobs:
   release-blocking-ci:
     name: Release-Blocking CI Governance
     runs-on: ubuntu-latest
-    needs: [build, release-blocking-tests, code-analysis, flaky-quarantine-governance, public-api-baselines, transitive-bloat, banned-apis, serialization-policy, package-composition, solution-governance, package-dependency-graph, security-sast]
+    needs: [build, release-blocking-tests, quality, flaky-quarantine-governance, public-api-baselines, transitive-bloat, banned-apis, serialization-policy, package-composition, solution-governance, package-dependency-graph, security-sast]
     if: always()
     steps:
       - name: Validate release-blocking CI policy
@@ -1989,7 +1989,7 @@ jobs:
           failures=()
           build="${{ needs.build.result }}"
           test_gate="${{ needs.release-blocking-tests.result }}"
-          code_analysis="${{ needs.code-analysis.result }}"
+          quality="${{ needs.quality.result }}"
           flaky_quarantine="${{ needs.flaky-quarantine-governance.result }}"
           public_api="${{ needs.public-api-baselines.result }}"
           bloat="${{ needs.transitive-bloat.result }}"
@@ -2007,7 +2007,7 @@ jobs:
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
           echo "| build | $build |" >> "$GITHUB_STEP_SUMMARY"
           echo "| release-blocking-tests | $test_gate |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| code-analysis | $code_analysis |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| quality | $quality |" >> "$GITHUB_STEP_SUMMARY"
           echo "| flaky-quarantine-governance | $flaky_quarantine |" >> "$GITHUB_STEP_SUMMARY"
           echo "| public-api-baselines | $public_api |" >> "$GITHUB_STEP_SUMMARY"
           echo "| transitive-bloat | $bloat |" >> "$GITHUB_STEP_SUMMARY"
@@ -2020,7 +2020,7 @@ jobs:
 
           require_success "build" "$build"
           require_success "release-blocking-tests" "$test_gate"
-          require_success "code-analysis" "$code_analysis"
+          require_success "quality" "$quality"
           require_success "flaky-quarantine-governance" "$flaky_quarantine"
           require_success "public-api-baselines" "$public_api"
           require_success "transitive-bloat" "$bloat"
