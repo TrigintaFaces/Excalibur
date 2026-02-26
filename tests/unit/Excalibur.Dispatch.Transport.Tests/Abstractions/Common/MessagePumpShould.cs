@@ -15,6 +15,12 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Common;
 public sealed class MessagePumpShould
 {
     private static Channel<MessageEnvelope> CreateChannel() => Channel.CreateUnbounded<MessageEnvelope>();
+    private static readonly TimeSpan SignalWaitTimeout = string.Equals(
+        Environment.GetEnvironmentVariable("CI"),
+        "true",
+        StringComparison.OrdinalIgnoreCase)
+        ? TimeSpan.FromSeconds(10)
+        : TimeSpan.FromSeconds(2);
 
     private static async Task WaitForSignalAsync(Task signalTask, TimeSpan timeout, string failureMessage)
     {
@@ -193,7 +199,7 @@ public sealed class MessagePumpShould
         var envelope = new MessageEnvelope { MessageId = "msg-1" };
         await channel.Writer.WriteAsync(envelope);
 
-        await WaitForSignalAsync(messageProcessed.Task, TimeSpan.FromSeconds(2), "Message pump did not process the message in time.").ConfigureAwait(false);
+        await WaitForSignalAsync(messageProcessed.Task, SignalWaitTimeout, "Message pump did not process the message in time.").ConfigureAwait(false);
 
         await StopPumpGracefully(sut, channel);
     }
@@ -316,11 +322,11 @@ public sealed class MessagePumpShould
 
         // Send a message that throws
         await channel.Writer.WriteAsync(new MessageEnvelope { MessageId = "fail" });
-        await WaitForSignalAsync(failMessageObserved.Task, TimeSpan.FromSeconds(2), "Failing message was not observed by the handler.").ConfigureAwait(false);
+        await WaitForSignalAsync(failMessageObserved.Task, SignalWaitTimeout, "Failing message was not observed by the handler.").ConfigureAwait(false);
 
         // Send a second message to verify the pump is still running
         await channel.Writer.WriteAsync(new MessageEnvelope { MessageId = "ok" });
-        await WaitForSignalAsync(successMessageProcessed.Task, TimeSpan.FromSeconds(2), "Message pump did not continue processing after handler exception.").ConfigureAwait(false);
+        await WaitForSignalAsync(successMessageProcessed.Task, SignalWaitTimeout, "Message pump did not continue processing after handler exception.").ConfigureAwait(false);
 
         Volatile.Read(ref processedAfterErrorCount).ShouldBeGreaterThan(0);
         sut.IsRunning.ShouldBeTrue();
