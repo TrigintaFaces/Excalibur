@@ -610,15 +610,26 @@ public abstract class InboxStoreConformanceTestBase : IAsyncLifetime
 		await Store.MarkProcessedAsync(messageId, "Handler.A", CancellationToken.None)
 			.ConfigureAwait(false);
 
-		// Act - Cleanup with 0 retention period should remove everything processed
-		var removed = await Store.CleanupAsync(TimeSpan.Zero, CancellationToken.None)
-			.ConfigureAwait(false);
+		// Act - Cleanup with 0 retention period should remove processed entries.
+		// Retry briefly to avoid timestamp boundary races when ProcessedAt ~= cutoff.
+		var removed = 0;
+		InboxEntry? entry = null;
+		var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
+		do
+		{
+			removed += await Store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false);
+			entry = await Store.GetEntryAsync(messageId, "Handler.A", CancellationToken.None).ConfigureAwait(false);
+			if (entry is null || removed > 0)
+			{
+				break;
+			}
+
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10).ConfigureAwait(false);
+		}
+		while (DateTimeOffset.UtcNow < deadline);
 
 		// Assert
 		removed.ShouldBeGreaterThanOrEqualTo(1);
-
-		var entry = await Store.GetEntryAsync(messageId, "Handler.A", CancellationToken.None)
-			.ConfigureAwait(false);
 		entry.ShouldBeNull("Entry should have been cleaned up");
 	}
 
