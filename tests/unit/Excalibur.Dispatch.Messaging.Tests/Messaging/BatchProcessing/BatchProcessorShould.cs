@@ -750,7 +750,13 @@ public sealed class BatchProcessorShould : IDisposable
 	[Fact]
 	public async Task HandleRapidAddRemovePatterns()
 	{
+		const int burstCount = 5;
+		const int itemsPerBurst = 15;
+		const int expectedProcessedItemCount = burstCount * itemsPerBurst;
+
 		var processedItems = new ConcurrentBag<string>();
+		var totalProcessed = 0;
+		var allItemsProcessed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var options = new MicroBatchOptions { MaxBatchSize = 10, MaxBatchDelay = TimeSpan.FromMilliseconds(25) };
 
 		var processor = new BatchProcessor<string>(
@@ -761,6 +767,12 @@ public sealed class BatchProcessorShould : IDisposable
 					processedItems.Add(item);
 				}
 
+				var currentTotal = Interlocked.Add(ref totalProcessed, batch.Count);
+				if (currentTotal >= expectedProcessedItemCount)
+				{
+					_ = allItemsProcessed.TrySetResult();
+				}
+
 				return ValueTask.CompletedTask;
 			},
 			_logger,
@@ -769,22 +781,20 @@ public sealed class BatchProcessorShould : IDisposable
 		_disposables.Add(processor);
 
 		// Rapid bursts followed by pauses
-		for (var burst = 0; burst < 5; burst++)
+		for (var burst = 0; burst < burstCount; burst++)
 		{
-			var burstTasks = Enumerable.Range(0, 15)
-				.Select(async i => await processor.AddAsync($"burst{burst}-item{i}", CancellationToken.None).ConfigureAwait(false));
+			var burstTasks = Enumerable.Range(0, itemsPerBurst)
+				.Select(i => processor.AddAsync($"burst{burst}-item{i}", CancellationToken.None).AsTask());
 
 			await Task.WhenAll(burstTasks).ConfigureAwait(false);
-			var expectedProcessed = (burst + 1) * 15;
-			await WaitForConditionAsync(
-				() => processedItems.Count >= expectedProcessed,
-				TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 		}
 
-		// Wait for all processing to complete (generous for full-suite parallel load)
-		await WaitForConditionAsync(() => processedItems.Count == 75, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			allItemsProcessed.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 
-		processedItems.Count.ShouldBe(75); // 5 bursts * 15 items each
+		Volatile.Read(ref totalProcessed).ShouldBe(expectedProcessedItemCount);
+		processedItems.Count.ShouldBe(expectedProcessedItemCount); // 5 bursts * 15 items each
 	}
 
 	[Fact]
