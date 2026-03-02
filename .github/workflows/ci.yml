@@ -1233,7 +1233,7 @@ jobs:
           path: head-cov
           merge-multiple: true
       - name: List changed files
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const files = await github.paginate(github.rest.pulls.listFiles, { owner: context.repo.owner, repo: context.repo.repo, pull_number: context.issue.number });
@@ -2313,7 +2313,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Ensure CI triage labels exist
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const labels = [
@@ -2338,7 +2338,7 @@ jobs:
             }
 
       - name: Apply labels based on CI job results
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const labels = [];
