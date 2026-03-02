@@ -45,7 +45,7 @@ jobs:
             10.0.x
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           # Query suites: security-extended provides comprehensive security coverage
@@ -65,7 +65,7 @@ jobs:
         run: dotnet build eng/ci/shards/ShippingOnly.slnf --no-restore --configuration Release
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{matrix.language}}"
 
