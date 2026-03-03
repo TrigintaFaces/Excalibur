@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Diagnostics;
@@ -28,6 +30,7 @@ public sealed partial class DispatchCacheManager : IDispatchCacheManager
 	private static readonly TimeSpan DefaultFreezeLockTimeout = TimeSpan.FromSeconds(30);
 
 	private readonly ILogger<DispatchCacheManager> _logger;
+	private readonly PipelineProfileRegistry? _profileRegistry;
 	private readonly TimeSpan _freezeLockTimeout;
 	private readonly object _freezeLock = new();
 	private DateTimeOffset? _frozenAt;
@@ -40,10 +43,15 @@ public sealed partial class DispatchCacheManager : IDispatchCacheManager
 	/// Maximum time to wait for the freeze lock. If exceeded, a warning is logged and the operation
 	/// is skipped without throwing. Defaults to 30 seconds.
 	/// </param>
-	public DispatchCacheManager(ILogger<DispatchCacheManager>? logger = null, TimeSpan? freezeLockTimeout = null)
+	/// <param name="profileRegistry">Optional pipeline profile registry for freezing profile selection cache.</param>
+	public DispatchCacheManager(
+		ILogger<DispatchCacheManager>? logger = null,
+		TimeSpan? freezeLockTimeout = null,
+		IPipelineProfileRegistry? profileRegistry = null)
 	{
 		_logger = logger ?? NullLogger<DispatchCacheManager>.Instance;
 		_freezeLockTimeout = freezeLockTimeout ?? DefaultFreezeLockTimeout;
+		_profileRegistry = profileRegistry as PipelineProfileRegistry;
 	}
 
 	/// <inheritdoc />
@@ -58,6 +66,7 @@ public sealed partial class DispatchCacheManager : IDispatchCacheManager
 			HandlerActivatorFrozen: HandlerActivator.IsCacheFrozen,
 			ResultFactoryFrozen: FinalDispatchHandler.IsResultFactoryCacheFrozen,
 			MiddlewareEvaluatorFrozen: MiddlewareApplicabilityEvaluator.IsCacheFrozen,
+			ProfileSelectionFrozen: _profileRegistry?.IsProfileSelectionCacheFrozen ?? true,
 			FrozenAt: _frozenAt);
 	}
 
@@ -122,6 +131,13 @@ public sealed partial class DispatchCacheManager : IDispatchCacheManager
 			{
 				MiddlewareApplicabilityEvaluator.FreezeCache();
 				LogCacheFrozen("MiddlewareApplicabilityEvaluator");
+			}
+
+			// Freeze pipeline profile selection cache
+			if (!status.ProfileSelectionFrozen && _profileRegistry is not null)
+			{
+				_profileRegistry.FreezeProfileSelectionCache();
+				LogCacheFrozen("ProfileSelection");
 			}
 
 			_frozenAt = DateTimeOffset.UtcNow;

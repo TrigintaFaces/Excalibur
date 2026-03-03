@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
 // AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Globalization;
 
 using Excalibur.Dispatch.Abstractions;
@@ -14,7 +14,9 @@ namespace Excalibur.Dispatch.Bus;
 /// </summary>
 public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter
 {
-	private readonly ConcurrentDictionary<string, IMessageBusAdapter> _adapters = new(StringComparer.Ordinal);
+	private const string AdapterQualifierDelimiter = "://";
+	private readonly FrozenDictionary<string, IMessageBusAdapter> _adapters;
+	private readonly IMessageBusAdapter[] _adapterArray;
 	private readonly IMessageBusAdapter? _defaultAdapter;
 
 	/// <summary>
@@ -26,34 +28,103 @@ public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter
 	{
 		ArgumentNullException.ThrowIfNull(adapters);
 
+		var adapterMap = new Dictionary<string, IMessageBusAdapter>(StringComparer.Ordinal);
 		foreach (var adapter in adapters)
 		{
-			_adapters[adapter.Name] = adapter;
+			adapterMap[adapter.Name] = adapter;
 		}
 
-		_defaultAdapter = defaultAdapter ?? _adapters.Values.FirstOrDefault();
+		_adapters = adapterMap.ToFrozenDictionary(StringComparer.Ordinal);
+		_adapterArray = [.. _adapters.Values];
+		_defaultAdapter = defaultAdapter ?? (_adapterArray.Length > 0 ? _adapterArray[0] : null);
 	}
 
 	/// <inheritdoc />
 	public string Name => "MultiTransport";
 
 	/// <inheritdoc />
-	public bool SupportsPublishing => _adapters.Values.Any(static a => a.SupportsPublishing);
-
-	/// <inheritdoc />
-	public bool SupportsSubscription => _adapters.Values.Any(static a => a.SupportsSubscription);
-
-	/// <inheritdoc />
-	public bool SupportsTransactions => _adapters.Values.Any(static a => a.SupportsTransactions);
-
-	/// <inheritdoc />
-	public bool IsConnected => _adapters.Values.Any(static a => a.IsConnected);
-
-	/// <inheritdoc />
-	public async Task InitializeAsync(IMessageBusOptions options, CancellationToken cancellationToken)
+	public bool SupportsPublishing
 	{
-		var tasks = _adapters.Values.Select(a => a.InitializeAsync(options, cancellationToken));
-		await Task.WhenAll(tasks).ConfigureAwait(false);
+		get
+		{
+			for (var i = 0; i < _adapterArray.Length; i++)
+			{
+				if (_adapterArray[i].SupportsPublishing)
+				{
+					return true;
+				}
+			}
+
+			return false;
+		}
+	}
+
+	/// <inheritdoc />
+	public bool SupportsSubscription
+	{
+		get
+		{
+			for (var i = 0; i < _adapterArray.Length; i++)
+			{
+				if (_adapterArray[i].SupportsSubscription)
+				{
+					return true;
+				}
+			}
+
+			return false;
+		}
+	}
+
+	/// <inheritdoc />
+	public bool SupportsTransactions
+	{
+		get
+		{
+			for (var i = 0; i < _adapterArray.Length; i++)
+			{
+				if (_adapterArray[i].SupportsTransactions)
+				{
+					return true;
+				}
+			}
+
+			return false;
+		}
+	}
+
+	/// <inheritdoc />
+	public bool IsConnected
+	{
+		get
+		{
+			for (var i = 0; i < _adapterArray.Length; i++)
+			{
+				if (_adapterArray[i].IsConnected)
+				{
+					return true;
+				}
+			}
+
+			return false;
+		}
+	}
+
+	/// <inheritdoc />
+	public Task InitializeAsync(IMessageBusOptions options, CancellationToken cancellationToken)
+	{
+		if (_adapterArray.Length == 0)
+		{
+			return Task.CompletedTask;
+		}
+
+		var tasks = new Task[_adapterArray.Length];
+		for (var i = 0; i < _adapterArray.Length; i++)
+		{
+			tasks[i] = _adapterArray[i].InitializeAsync(options, cancellationToken);
+		}
+
+		return Task.WhenAll(tasks);
 	}
 
 	/// <inheritdoc />
@@ -89,24 +160,20 @@ public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter
 		ArgumentNullException.ThrowIfNull(subscriptionName);
 		ArgumentNullException.ThrowIfNull(messageHandler);
 
-		// Parse subscription name to determine which adapter to use
-		// Format: "adapter://subscription" or just "subscription" for default
-		var parts = subscriptionName.Split("://", 2);
 		IMessageBusAdapter? adapter;
-
-		if (parts.Length == 2)
+		if (TrySplitQualifiedSubscriptionName(subscriptionName, out var adapterName, out var parsedSubscriptionName))
 		{
-			if (!_adapters.TryGetValue(parts[0], out adapter))
+			if (!_adapters.TryGetValue(adapterName, out adapter))
 			{
 				throw new ArgumentException(
 					string.Format(
 						CultureInfo.CurrentCulture,
 						Resources.MultiTransportMessageBusAdapter_AdapterNotRegistered,
-						parts[0]),
+						adapterName),
 					nameof(subscriptionName));
 			}
 
-			subscriptionName = parts[1];
+			subscriptionName = parsedSubscriptionName;
 		}
 		else
 		{
@@ -125,18 +192,15 @@ public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter
 	{
 		ArgumentNullException.ThrowIfNull(subscriptionName);
 
-		// Parse subscription name to determine which adapter to use
-		var parts = subscriptionName.Split("://", 2);
 		IMessageBusAdapter? adapter;
-
-		if (parts.Length == 2)
+		if (TrySplitQualifiedSubscriptionName(subscriptionName, out var adapterName, out var parsedSubscriptionName))
 		{
-			if (!_adapters.TryGetValue(parts[0], out adapter))
+			if (!_adapters.TryGetValue(adapterName, out adapter))
 			{
 				return; // Silently ignore unknown adapters on unsubscribe
 			}
 
-			subscriptionName = parts[1];
+			subscriptionName = parsedSubscriptionName;
 		}
 		else
 		{
@@ -153,19 +217,29 @@ public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter
 	/// <inheritdoc />
 	public async Task<HealthCheckResult> CheckHealthAsync(CancellationToken cancellationToken)
 	{
-		var tasks = _adapters.Values.Select(async a =>
-			new { Adapter = a.Name, Result = await a.CheckHealthAsync(cancellationToken).ConfigureAwait(false) });
+		var healthChecks = new Task<HealthCheckResult>[_adapterArray.Length];
+		for (var i = 0; i < _adapterArray.Length; i++)
+		{
+			healthChecks[i] = _adapterArray[i].CheckHealthAsync(cancellationToken);
+		}
 
-		var results = await Task.WhenAll(tasks).ConfigureAwait(false);
-		var allHealthy = results.All(r => r.Result.IsHealthy);
+		var results = await Task.WhenAll(healthChecks).ConfigureAwait(false);
+		var allHealthy = true;
 		var data = new Dictionary<string, object>(StringComparer.Ordinal);
 
-		foreach (var result in results)
+		for (var i = 0; i < results.Length; i++)
 		{
-			data[$"{result.Adapter}_healthy"] = result.Result.IsHealthy;
-			if (!string.IsNullOrEmpty(result.Result.Description))
+			var adapterName = _adapterArray[i].Name;
+			var result = results[i];
+			if (!result.IsHealthy)
 			{
-				data[$"{result.Adapter}_description"] = result.Result.Description;
+				allHealthy = false;
+			}
+
+			data[$"{adapterName}_healthy"] = result.IsHealthy;
+			if (!string.IsNullOrEmpty(result.Description))
+			{
+				data[$"{adapterName}_description"] = result.Description;
 			}
 		}
 
@@ -176,27 +250,63 @@ public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter
 	}
 
 	/// <inheritdoc />
-	public async Task StartAsync(CancellationToken cancellationToken)
+	public Task StartAsync(CancellationToken cancellationToken)
 	{
-		var tasks = _adapters.Values.Select(a => a.StartAsync(cancellationToken));
-		await Task.WhenAll(tasks).ConfigureAwait(false);
+		if (_adapterArray.Length == 0)
+		{
+			return Task.CompletedTask;
+		}
+
+		var tasks = new Task[_adapterArray.Length];
+		for (var i = 0; i < _adapterArray.Length; i++)
+		{
+			tasks[i] = _adapterArray[i].StartAsync(cancellationToken);
+		}
+
+		return Task.WhenAll(tasks);
 	}
 
 	/// <inheritdoc />
-	public async Task StopAsync(CancellationToken cancellationToken)
+	public Task StopAsync(CancellationToken cancellationToken)
 	{
-		var tasks = _adapters.Values.Select(a => a.StopAsync(cancellationToken));
-		await Task.WhenAll(tasks).ConfigureAwait(false);
+		if (_adapterArray.Length == 0)
+		{
+			return Task.CompletedTask;
+		}
+
+		var tasks = new Task[_adapterArray.Length];
+		for (var i = 0; i < _adapterArray.Length; i++)
+		{
+			tasks[i] = _adapterArray[i].StopAsync(cancellationToken);
+		}
+
+		return Task.WhenAll(tasks);
 	}
 
 	/// <inheritdoc />
 	public void Dispose()
 	{
-		foreach (var adapter in _adapters.Values)
+		for (var i = 0; i < _adapterArray.Length; i++)
 		{
-			adapter.Dispose();
+			_adapterArray[i].Dispose();
+		}
+	}
+
+	private static bool TrySplitQualifiedSubscriptionName(
+		string subscriptionName,
+		out string adapterName,
+		out string parsedSubscriptionName)
+	{
+		var delimiterIndex = subscriptionName.IndexOf(AdapterQualifierDelimiter, StringComparison.Ordinal);
+		if (delimiterIndex < 0)
+		{
+			adapterName = string.Empty;
+			parsedSubscriptionName = subscriptionName;
+			return false;
 		}
 
-		_adapters.Clear();
+		adapterName = subscriptionName[..delimiterIndex];
+		parsedSubscriptionName = subscriptionName[(delimiterIndex + AdapterQualifierDelimiter.Length)..];
+		return true;
 	}
 }

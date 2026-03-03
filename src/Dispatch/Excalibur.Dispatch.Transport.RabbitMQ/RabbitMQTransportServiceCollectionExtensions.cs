@@ -360,10 +360,18 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		{
 			var channel = sp.GetRequiredService<IChannel>();
 			var logger = sp.GetRequiredService<ILogger<RabbitMqTransportSubscriber>>();
-			var queueName = transportOptions.Topology.Queues.Count > 0
-				? transportOptions.Topology.Queues[0].Name
-				: name;
-			var nativeSubscriber = new RabbitMqTransportSubscriber(channel, queueName, queueName, logger);
+			var queueOptions = transportOptions.Topology.Queues.Count > 0
+				? transportOptions.Topology.Queues[0]
+				: null;
+			var queueName = queueOptions?.Name ?? name;
+			var prefetchCount = queueOptions?.PrefetchCount ?? 0;
+			var nativeSubscriber = new RabbitMqTransportSubscriber(
+				channel,
+				queueName,
+				queueName,
+				logger,
+				prefetchCount,
+				prefetchGlobal: false);
 
 			var meterFactory = sp.GetService<IMeterFactory>();
 			var meter = meterFactory?.Create(TransportTelemetryConstants.MeterName(name)) ?? new Meter(TransportTelemetryConstants.MeterName(name));

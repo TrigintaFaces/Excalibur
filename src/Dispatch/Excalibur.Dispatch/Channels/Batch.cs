@@ -8,6 +8,7 @@ namespace Excalibur.Dispatch.Channels;
 /// Represents a batch of items.
 /// </summary>
 /// <typeparam name="T"> The item type contained in the batch. </typeparam>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1724:Type names should not match namespaces", Justification = "Batch<T> is in Channels namespace, not related to Middleware.Batch namespace")]
 public readonly struct Batch<T>(IReadOnlyList<T> items) : IEquatable<Batch<T>>
 {
 	/// <summary>

@@ -36,7 +36,7 @@ internal sealed class DefaultDispatchRouter : IDispatchRouter
 	}
 
 	/// <inheritdoc/>
-	public async ValueTask<RoutingDecision> RouteAsync(
+	public ValueTask<RoutingDecision> RouteAsync(
 		IDispatchMessage message,
 		IMessageContext context,
 		CancellationToken cancellationToken)
@@ -44,32 +44,57 @@ internal sealed class DefaultDispatchRouter : IDispatchRouter
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentNullException.ThrowIfNull(context);
 
-		var matchedRules = new List<string>();
-
-		// Select transport
-		var transport = await _transportSelector
-			.SelectTransportAsync(message, context, cancellationToken)
-			.ConfigureAwait(false);
-
-		if (!string.IsNullOrEmpty(transport))
+		var transportTask = _transportSelector.SelectTransportAsync(message, context, cancellationToken);
+		if (!transportTask.IsCompletedSuccessfully)
 		{
-			matchedRules.Add($"transport:{transport}");
+			return AwaitRouteAsync(transportTask, message, context, cancellationToken);
 		}
 
-		// Route to endpoints
+		var transport = transportTask.Result;
+		var endpointsTask = _endpointRouter.RouteToEndpointsAsync(message, context, cancellationToken);
+		if (!endpointsTask.IsCompletedSuccessfully)
+		{
+			return AwaitEndpointsAsync(transport, endpointsTask);
+		}
+
+		return ValueTask.FromResult(CreateDecision(transport, endpointsTask.Result));
+	}
+
+	private async ValueTask<RoutingDecision> AwaitRouteAsync(
+		ValueTask<string> transportTask,
+		IDispatchMessage message,
+		IMessageContext context,
+		CancellationToken cancellationToken)
+	{
+		var transport = await transportTask.ConfigureAwait(false);
 		var endpoints = await _endpointRouter
 			.RouteToEndpointsAsync(message, context, cancellationToken)
 			.ConfigureAwait(false);
+		return CreateDecision(transport, endpoints);
+	}
 
-		foreach (var endpoint in endpoints)
-		{
-			matchedRules.Add($"endpoint:{endpoint}");
-		}
+	private static async ValueTask<RoutingDecision> AwaitEndpointsAsync(
+		string transport,
+		ValueTask<IReadOnlyList<string>> endpointsTask)
+	{
+		var endpoints = await endpointsTask.ConfigureAwait(false);
+		return CreateDecision(transport, endpoints);
+	}
 
-		// Build the routing decision
+	private static RoutingDecision CreateDecision(string transport, IReadOnlyList<string> endpoints)
+	{
 		if (string.IsNullOrEmpty(transport))
 		{
 			return RoutingDecision.Failure("No transport could be selected for the message");
+		}
+
+		var matchedRules = new List<string>(endpoints.Count + 1)
+		{
+			"transport:" + transport
+		};
+		for (var i = 0; i < endpoints.Count; i++)
+		{
+			matchedRules.Add("endpoint:" + endpoints[i]);
 		}
 
 		return RoutingDecision.Success(transport, endpoints, matchedRules);

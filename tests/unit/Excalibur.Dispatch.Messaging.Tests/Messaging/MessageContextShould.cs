@@ -419,6 +419,20 @@ public sealed class MessageContextShould
 	}
 
 	[Fact]
+	public void ReceivedTimestampUtc_Should_Be_Stable_Across_Repeated_Reads_When_Not_Explicitly_Set()
+	{
+		// Arrange
+		var context = new MessageContext();
+
+		// Act
+		var first = context.ReceivedTimestampUtc;
+		var second = context.ReceivedTimestampUtc;
+
+		// Assert
+		second.ShouldBe(first);
+	}
+
+	[Fact]
 	public void SentTimestampUtc_Should_Support_Get_And_Set()
 	{
 		// Arrange
@@ -992,6 +1006,26 @@ public sealed class MessageContextShould
 		context.CorrelationId.ShouldBeNull();
 		context.CausationId.ShouldBeNull();
 		context.TenantId.ShouldBeNull();
+	}
+
+	[Fact]
+	public void Reset_Should_Reinitialize_ReceivedTimestampUtc_On_Next_Access()
+	{
+		// Arrange
+		var context = new MessageContext
+		{
+			ReceivedTimestampUtc = new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero),
+		};
+		var before = DateTimeOffset.UtcNow;
+
+		// Act
+		context.Reset();
+		var valueAfterReset = context.ReceivedTimestampUtc;
+		var after = DateTimeOffset.UtcNow;
+
+		// Assert
+		valueAfterReset.ShouldBeGreaterThanOrEqualTo(before);
+		valueAfterReset.ShouldBeLessThanOrEqualTo(after);
 	}
 
 	[Fact]

@@ -18,7 +18,6 @@
   </ItemGroup>
   <!-- AWS Lambda Dependencies -->
   <ItemGroup>
-    <PackageReference Include="Amazon.Lambda.Core" />
     <PackageReference Include="Amazon.Lambda.RuntimeSupport" />
     <PackageReference Include="Amazon.Lambda.Serialization.SystemTextJson" />
     <PackageReference Include="Amazon.Lambda.APIGatewayEvents" />

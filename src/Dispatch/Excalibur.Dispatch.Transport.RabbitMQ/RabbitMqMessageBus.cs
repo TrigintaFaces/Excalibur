@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Buffers;
 using System.Collections.Concurrent;
 using System.Text;
 
@@ -82,10 +81,7 @@ public sealed partial class RabbitMqMessageBus(
 		if (!string.IsNullOrEmpty(traceParent))
 		{
 			props.Headers ??= new Dictionary<string, object?>(StringComparer.Ordinal);
-			var traceParentByteCount = Encoding.UTF8.GetByteCount(traceParent);
-			var traceParentBytes = ArrayPool<byte>.Shared.Rent(traceParentByteCount);
-			var actualTraceParentBytes = Encoding.UTF8.GetBytes(traceParent, traceParentBytes);
-			props.Headers["trace-parent"] = traceParentBytes.AsSpan(0, actualTraceParentBytes).ToArray();
+			props.Headers["trace-parent"] = Encoding.UTF8.GetBytes(traceParent);
 		}
 
 		ApplyPersistence(props);
@@ -122,10 +118,7 @@ public sealed partial class RabbitMqMessageBus(
 		if (!string.IsNullOrEmpty(traceParent))
 		{
 			props.Headers ??= new Dictionary<string, object?>(StringComparer.Ordinal);
-			var traceParentByteCount = Encoding.UTF8.GetByteCount(traceParent);
-			var traceParentBytes = ArrayPool<byte>.Shared.Rent(traceParentByteCount);
-			var actualTraceParentBytes = Encoding.UTF8.GetBytes(traceParent, traceParentBytes);
-			props.Headers["trace-parent"] = traceParentBytes.AsSpan(0, actualTraceParentBytes).ToArray();
+			props.Headers["trace-parent"] = Encoding.UTF8.GetBytes(traceParent);
 		}
 
 		ApplyPersistence(props);
@@ -162,10 +155,7 @@ public sealed partial class RabbitMqMessageBus(
 		if (!string.IsNullOrEmpty(traceParent))
 		{
 			props.Headers ??= new Dictionary<string, object?>(StringComparer.Ordinal);
-			var traceParentByteCount = Encoding.UTF8.GetByteCount(traceParent);
-			var traceParentBytes = ArrayPool<byte>.Shared.Rent(traceParentByteCount);
-			var actualTraceParentBytes = Encoding.UTF8.GetBytes(traceParent, traceParentBytes);
-			props.Headers["trace-parent"] = traceParentBytes.AsSpan(0, actualTraceParentBytes).ToArray();
+			props.Headers["trace-parent"] = Encoding.UTF8.GetBytes(traceParent);
 		}
 
 		ApplyPersistence(props);

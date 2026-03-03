@@ -132,7 +132,7 @@ public class RabbitMqTransportConnection : TransportConnectionBase
 	}
 
 	/// <inheritdoc/>
-	protected override async ValueTask DisposeAsyncCore()
+	protected override async ValueTask DisposeCoreAsync()
 	{
 		if (_connection is not null)
 		{
@@ -141,6 +141,6 @@ public class RabbitMqTransportConnection : TransportConnectionBase
 			_connection = null;
 		}
 
-		await base.DisposeAsyncCore().ConfigureAwait(false);
+		await base.DisposeCoreAsync().ConfigureAwait(false);
 	}
 }

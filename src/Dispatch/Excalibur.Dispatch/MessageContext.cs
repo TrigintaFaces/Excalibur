@@ -117,10 +117,12 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 	private volatile IServiceProvider _requestServices = requestServices ?? throw new ArgumentNullException(nameof(requestServices));
 
 	// DateTimeOffset is 16 bytes - not atomic. Store as ticks (long) for lock-free access.
-	private long _receivedTimestampUtcTicks = DateTimeOffset.UtcNow.UtcTicks;
+	// PERF-7: Keep default as 0 and initialize lazily on first read when not explicitly set.
+	private long _receivedTimestampUtcTicks;
 
 	private volatile IServiceProvider? _defaultServiceProvider;
 	private object? _pipelineFinalHandler;
+	private object? _pipelineTypedFinalHandler;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="MessageContext" /> class. Parameterless constructor for object pooling.
@@ -528,7 +530,18 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 	public DateTimeOffset ReceivedTimestampUtc
 	{
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		get => new(Volatile.Read(ref _receivedTimestampUtcTicks), TimeSpan.Zero);
+		get
+		{
+			var ticks = Volatile.Read(ref _receivedTimestampUtcTicks);
+			if (ticks != 0)
+			{
+				return new DateTimeOffset(ticks, TimeSpan.Zero);
+			}
+
+			ticks = DateTimeOffset.UtcNow.UtcTicks;
+			Volatile.Write(ref _receivedTimestampUtcTicks, ticks);
+			return new DateTimeOffset(ticks, TimeSpan.Zero);
+		}
 		set => Volatile.Write(ref _receivedTimestampUtcTicks, value.UtcTicks);
 	}
 
@@ -790,6 +803,16 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 		return handler is not null;
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal void SetPipelineTypedFinalHandler(object? handler) => _pipelineTypedFinalHandler = handler;
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal bool TryGetPipelineTypedFinalHandler(out object? handler)
+	{
+		handler = _pipelineTypedFinalHandler;
+		return handler is not null;
+	}
+
 	/// <summary>
 	/// Gets a value indicating whether all processing steps (validation, authorization, routing) were successful.
 	/// </summary>
@@ -937,7 +960,7 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 		_validationResult = DefaultValidationResult;
 		_authorizationResult = DefaultAuthorizationResult;
 		_routingDecision = null;
-		_receivedTimestampUtcTicks = DateTimeOffset.UtcNow.UtcTicks;
+		_receivedTimestampUtcTicks = 0;
 
 		// Reset hot-path properties (Sprint 71)
 		ProcessingAttempts = 0;
@@ -959,6 +982,7 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 		}
 
 		_pipelineFinalHandler = null;
+		_pipelineTypedFinalHandler = null;
 	}
 
 	/// <summary>

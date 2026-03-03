@@ -125,6 +125,23 @@ public sealed class MiddlewareChainBuilderShould : IDisposable
 	}
 
 	[Fact]
+	public void GetChain_AfterFreeze_ForUnknownType_UsesCachedFallbackChain()
+	{
+		// Arrange
+		var middleware = new TestMiddleware("Test", []);
+		var builder = new MiddlewareChainBuilder(new[] { middleware });
+		builder.Freeze(new[] { typeof(TestMessage) });
+
+		// Act
+		var first = builder.GetChain(typeof(UnknownMessage));
+		var second = builder.GetChain(typeof(UnknownMessage));
+
+		// Assert
+		first.HasMiddleware.ShouldBeTrue();
+		first.ShouldBe(second);
+	}
+
+	[Fact]
 	public void Freeze_CalledMultipleTimes_DoesNotThrow()
 	{
 		// Arrange
@@ -214,6 +231,128 @@ public sealed class MiddlewareChainBuilderShould : IDisposable
 		// Assert
 		_ = result.ShouldBeAssignableTo<IMessageResult>();
 		result.Succeeded.ShouldBeTrue();
+	}
+
+	[Fact]
+	public async Task ChainExecutor_InvokeTyped_WithSyncFinalHandler_ReturnsTypedResult()
+	{
+		// Arrange
+		var middleware = new TestMiddleware("Test", []);
+		var builder = new MiddlewareChainBuilder(new[] { middleware });
+		var chain = builder.GetChain(typeof(TestMessage));
+		var message = new TestMessage();
+		var context = CreateContext();
+
+		// Act
+		var result = await chain.InvokeAsync(
+			message,
+			context,
+			static (_, _, _) => ValueTask.FromResult(new TypedTestResult("sync")),
+			CancellationToken.None);
+
+		// Assert
+		result.Succeeded.ShouldBeTrue();
+		result.Marker.ShouldBe("sync");
+	}
+
+	[Fact]
+	public async Task ChainExecutor_InvokeTyped_WithAsyncFinalHandler_ReturnsTypedResult()
+	{
+		// Arrange
+		var middleware = new TestMiddleware("Test", []);
+		var builder = new MiddlewareChainBuilder(new[] { middleware });
+		var chain = builder.GetChain(typeof(TestMessage));
+		var message = new TestMessage();
+		var context = CreateContext();
+
+		static async ValueTask<TypedTestResult> AsyncHandler()
+		{
+			await Task.Yield();
+			return new TypedTestResult("async");
+		}
+
+		// Act
+		var result = await chain.InvokeAsync(
+			message,
+			context,
+			static (_, _, _) => AsyncHandler(),
+			CancellationToken.None);
+
+		// Assert
+		result.Succeeded.ShouldBeTrue();
+		result.Marker.ShouldBe("async");
+	}
+
+	[Fact]
+	public async Task ChainExecutor_InvokeTyped_WithSuppressedExecutionContextFlow_UsesContextFallback()
+	{
+		// Arrange
+		var builder = new MiddlewareChainBuilder(new IDispatchMiddleware[] { new SuppressFlowMiddleware() });
+		var chain = builder.GetChain(typeof(TestMessage));
+		var message = new TestMessage();
+		var context = new Excalibur.Dispatch.Messaging.MessageContext(message, _serviceProvider);
+
+		// Act
+		var result = await chain.InvokeAsync(
+			message,
+			context,
+			static (_, _, _) => ValueTask.FromResult(new TypedTestResult("suppressed-flow")),
+			CancellationToken.None);
+
+		// Assert
+		result.Succeeded.ShouldBeTrue();
+		result.Marker.ShouldBe("suppressed-flow");
+	}
+
+	[Fact]
+	public async Task ChainExecutor_Invoke_WithSuppressedExecutionContextFlow_UsesContextFallback()
+	{
+		// Arrange
+		var builder = new MiddlewareChainBuilder(new IDispatchMiddleware[] { new SuppressFlowMiddleware() });
+		var chain = builder.GetChain(typeof(TestMessage));
+		var message = new TestMessage();
+		var context = new Excalibur.Dispatch.Messaging.MessageContext(message, _serviceProvider);
+		DispatchRequestDelegate finalHandler = static (_, _, _) => new ValueTask<IMessageResult>(MessageResult.Success());
+
+		// Act
+		var result = await chain.InvokeAsync(
+			message,
+			context,
+			finalHandler,
+			CancellationToken.None);
+
+		// Assert
+		result.Succeeded.ShouldBeTrue();
+	}
+
+	[Fact]
+	public async Task ChainExecutor_InvokeTyped_SupportsNestedTypedDispatches()
+	{
+		// Arrange
+		var builder = new MiddlewareChainBuilder(new[] { new TestMiddleware("Outer", []) });
+		var chain = builder.GetChain(typeof(TestMessage));
+		var message = new TestMessage();
+		var context = CreateContext();
+
+		static async ValueTask<TypedTestResult> OuterHandler(IDispatchMessage outerMessage, IMessageContext outerContext, CancellationToken token)
+		{
+			var innerBuilder = new MiddlewareChainBuilder(new[] { new TestMiddleware("Inner", []) });
+			var innerChain = innerBuilder.GetChain(typeof(TestMessage));
+			var innerResult = await innerChain.InvokeAsync(
+				outerMessage,
+				outerContext,
+				static (_, _, _) => ValueTask.FromResult(new TypedTestResult("inner")),
+				token);
+
+			return new TypedTestResult($"outer:{innerResult.Marker}");
+		}
+
+		// Act
+		var result = await chain.InvokeAsync(message, context, OuterHandler, CancellationToken.None);
+
+		// Assert
+		result.Succeeded.ShouldBeTrue();
+		result.Marker.ShouldBe("outer:inner");
 	}
 
 	[Fact]
@@ -366,6 +505,19 @@ public sealed class MiddlewareChainBuilderShould : IDisposable
 		public Guid Id { get; init; }
 	}
 
+	private sealed record UnknownMessage : IDispatchMessage;
+
+	private sealed class TypedTestResult(string marker) : IMessageResult
+	{
+		public string Marker { get; } = marker;
+		public bool Succeeded => true;
+		public string? ErrorMessage => null;
+		public bool CacheHit => false;
+		public object? ValidationResult => null;
+		public object? AuthorizationResult => null;
+		public IMessageProblemDetails? ProblemDetails => null;
+	}
+
 	private sealed class TestMiddleware(string name, List<string> executionOrder) : IDispatchMiddleware
 	{
 		public DispatchMiddlewareStage? Stage => null;
@@ -410,6 +562,25 @@ public sealed class MiddlewareChainBuilderShould : IDisposable
 			CancellationToken cancellationToken)
 		{
 			throw new InvalidOperationException("Test exception");
+		}
+	}
+
+	private sealed class SuppressFlowMiddleware : IDispatchMiddleware
+	{
+		public DispatchMiddlewareStage? Stage => null;
+		public MessageKinds ApplicableMessageKinds => MessageKinds.All;
+
+		public ValueTask<IMessageResult> InvokeAsync(
+			IDispatchMessage message,
+			IMessageContext context,
+			DispatchRequestDelegate nextDelegate,
+			CancellationToken cancellationToken)
+		{
+			using (ExecutionContext.SuppressFlow())
+			{
+				return new ValueTask<IMessageResult>(
+					Task.Run(async () => await nextDelegate(message, context, cancellationToken).ConfigureAwait(false), cancellationToken));
+			}
 		}
 	}
 

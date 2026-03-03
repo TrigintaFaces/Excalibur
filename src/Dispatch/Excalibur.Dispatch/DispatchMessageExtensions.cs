@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
@@ -13,6 +14,8 @@ namespace Excalibur.Dispatch.Messaging;
 /// </summary>
 public static class DispatchMessageExtensions
 {
+	private static readonly ConcurrentDictionary<Type, bool> GenericActionInterfaceCache = new();
+
 	/// <summary>
 	/// Determines whether the message represents an action command.
 	/// </summary>
@@ -25,8 +28,7 @@ public static class DispatchMessageExtensions
 
 		var type = message.GetType();
 		return message is IDispatchAction ||
-			   type.GetInterfaces()
-				   .Any(static i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDispatchAction<>));
+			   HasGenericActionInterface(type);
 	}
 
 	/// <summary>
@@ -64,8 +66,27 @@ public static class DispatchMessageExtensions
 		ArgumentNullException.ThrowIfNull(message);
 
 		var type = message.GetType();
-		return type
-			.GetInterfaces()
-			.Any(static i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDispatchAction<>));
+		return HasGenericActionInterface(type);
+	}
+
+	private static bool HasGenericActionInterface(Type messageType)
+	{
+		return GenericActionInterfaceCache.GetOrAdd(
+			messageType,
+			static type =>
+			{
+				var interfaces = type.GetInterfaces();
+				for (var i = 0; i < interfaces.Length; i++)
+				{
+					var iface = interfaces[i];
+					if (iface.IsGenericType &&
+						iface.GetGenericTypeDefinition() == typeof(IDispatchAction<>))
+					{
+						return true;
+					}
+				}
+
+				return false;
+			});
 	}
 }

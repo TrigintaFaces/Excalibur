@@ -164,10 +164,7 @@ public sealed partial class ContextValidationMiddleware(
 			details[kvp.Key] = kvp.Value;
 		}
 
-		var failureReason = string.Join(
-			"; ",
-			new[] { first.FailureReason, second.FailureReason }
-				.Where(static r => !string.IsNullOrWhiteSpace(r)));
+		var failureReason = MergeFailureReasons(first.FailureReason, second.FailureReason);
 
 		return new ContextValidationResult
 		{
@@ -177,6 +174,24 @@ public sealed partial class ContextValidationMiddleware(
 			CorruptedFields = [.. corruptedFields],
 			Details = details,
 		};
+	}
+
+	private static string MergeFailureReasons(string? firstReason, string? secondReason)
+	{
+		var hasFirstReason = !string.IsNullOrWhiteSpace(firstReason);
+		var hasSecondReason = !string.IsNullOrWhiteSpace(secondReason);
+
+		if (!hasFirstReason)
+		{
+			return hasSecondReason ? secondReason! : string.Empty;
+		}
+
+		if (!hasSecondReason)
+		{
+			return firstReason!;
+		}
+
+		return string.Concat(firstReason, "; ", secondReason);
 	}
 
 	/// <summary>
@@ -195,23 +210,44 @@ public sealed partial class ContextValidationMiddleware(
 		{
 			ValidationFailureCounter.Add(
 				1,
-				new KeyValuePair<string, object?>("reason", result.FailureReason));
+				new KeyValuePair<string, object?>("reason", NormalizeFailureReason(result.FailureReason)));
 
 			// Record field-level metrics
 			if (result.MissingFields.Count > 0)
 			{
 				FieldsMissingCounter.Add(
 					result.MissingFields.Count,
-					new KeyValuePair<string, object?>("fields", string.Join(',', result.MissingFields)));
+					new KeyValuePair<string, object?>(
+						"field_count_bucket",
+						GetFieldCountBucket(result.MissingFields.Count)));
 			}
 
 			if (result.CorruptedFields.Count > 0)
 			{
 				FieldsCorruptedCounter.Add(
 					result.CorruptedFields.Count,
-					new KeyValuePair<string, object?>("fields", string.Join(',', result.CorruptedFields)));
+					new KeyValuePair<string, object?>(
+						"field_count_bucket",
+						GetFieldCountBucket(result.CorruptedFields.Count)));
 			}
 		}
+	}
+
+	private static string NormalizeFailureReason(string? reason)
+	{
+		return string.IsNullOrWhiteSpace(reason) ? "unknown" : reason;
+	}
+
+	private static string GetFieldCountBucket(int count)
+	{
+		return count switch
+		{
+			<= 1 => "1",
+			2 => "2",
+			<= 4 => "3-4",
+			<= 8 => "5-8",
+			_ => "9+",
+		};
 	}
 
 	/// <summary>

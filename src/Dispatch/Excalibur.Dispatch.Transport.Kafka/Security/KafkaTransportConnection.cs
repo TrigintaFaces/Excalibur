@@ -173,9 +173,9 @@ public class KafkaTransportConnection : TransportConnectionBase
 	}
 
 	/// <inheritdoc/>
-	protected override async ValueTask DisposeAsyncCore()
+	protected override async ValueTask DisposeCoreAsync()
 	{
 		_connected = false;
-		await base.DisposeAsyncCore().ConfigureAwait(false);
+		await base.DisposeCoreAsync().ConfigureAwait(false);
 	}
 }

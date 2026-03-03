@@ -274,6 +274,8 @@ See [Configuration](configuration.md) for full builder pattern reference.
 
 The unified `AddExcalibur()` entry point registers Dispatch primitives with sensible defaults:
 
+Feature methods are package-owned: `.AddEventSourcing(...)` comes from `Excalibur.EventSourcing`, `.AddOutbox(...)` from `Excalibur.Outbox`, and `.AddSagas(...)` from `Excalibur.Saga`.
+
 ```csharp
 // Simple — Dispatch defaults are sufficient
 builder.Services.AddExcalibur(excalibur =>

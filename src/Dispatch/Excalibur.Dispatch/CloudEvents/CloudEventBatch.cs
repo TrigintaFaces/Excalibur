@@ -49,13 +49,18 @@ public sealed class CloudEventBatch : IReadOnlyList<CloudEvent>
 	{
 		ArgumentNullException.ThrowIfNull(events);
 
-		if (events.Any(evt => !TryAdd(evt)))
+		foreach (var evt in events)
 		{
+			if (TryAdd(evt))
+			{
+				continue;
+			}
+
 			throw new InvalidOperationException(
-					string.Concat(
-							ErrorConstants.BatchSizeLimitExceededAtEvent,
-							" ",
-							(_events.Count + 1).ToString(CultureInfo.InvariantCulture)));
+				string.Concat(
+					ErrorConstants.BatchSizeLimitExceededAtEvent,
+					" ",
+					(_events.Count + 1).ToString(CultureInfo.InvariantCulture)));
 		}
 	}
 
@@ -154,8 +159,14 @@ public sealed class CloudEventBatch : IReadOnlyList<CloudEvent>
 		var batches = new List<CloudEventBatch>();
 		var currentBatch = new CloudEventBatch(_options);
 
-		foreach (var evt in _events.Where(evt => !currentBatch.TryAdd(evt)))
+		for (var i = 0; i < _events.Count; i++)
 		{
+			var evt = _events[i];
+			if (currentBatch.TryAdd(evt))
+			{
+				continue;
+			}
+
 			if (currentBatch.Count > 0)
 			{
 				batches.Add(currentBatch);

@@ -14,9 +14,13 @@ namespace Excalibur.Dispatch.Messaging;
 /// </summary>
 public sealed class MemoryMessage : IMemoryMessage, IDisposable
 {
+	private static readonly IReadOnlyDictionary<string, object> EmptyHeaders =
+		new ReadOnlyDictionary<string, object>(new Dictionary<string, object>(0, StringComparer.Ordinal));
+
 	private readonly IMemoryOwner<byte>? _memoryOwner;
-	private readonly Dictionary<string, object> _headers = [];
-	private readonly DefaultMessageFeatures _features = new();
+	private DefaultMessageFeatures? _features;
+	private Guid _id;
+	private string? _messageId;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -25,16 +29,28 @@ public sealed class MemoryMessage : IMemoryMessage, IDisposable
 	/// <param name="memoryOwner"> The memory owner that manages the message body. </param>
 	/// <param name="contentType"> The content type of the message body. </param>
 	public MemoryMessage(IMemoryOwner<byte> memoryOwner, string contentType = "application/octet-stream")
+		: this(memoryOwner, memoryOwner?.Memory.Length ?? throw new ArgumentNullException(nameof(memoryOwner)), contentType)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="MemoryMessage" /> class with owned memory and explicit payload length.
+	/// </summary>
+	/// <param name="memoryOwner"> The memory owner that manages the message body. </param>
+	/// <param name="payloadLength"> The valid payload length within <paramref name="memoryOwner" /> memory. </param>
+	/// <param name="contentType"> The content type of the message body. </param>
+	public MemoryMessage(IMemoryOwner<byte> memoryOwner, int payloadLength, string contentType = "application/octet-stream")
 	{
 		_memoryOwner = memoryOwner ?? throw new ArgumentNullException(nameof(memoryOwner));
-		Body = _memoryOwner.Memory;
+		if ((uint)payloadLength > (uint)_memoryOwner.Memory.Length)
+		{
+			throw new ArgumentOutOfRangeException(nameof(payloadLength));
+		}
+
+		Body = _memoryOwner.Memory.Slice(0, payloadLength);
 		ContentType = contentType ?? throw new ArgumentNullException(nameof(contentType));
 		OwnsMemory = true;
-		MessageId = Guid.NewGuid().ToString();
 		Timestamp = DateTimeOffset.UtcNow;
-		Headers = new ReadOnlyDictionary<string, object>(_headers);
-		MessageType = GetType().Name;
-		Features = _features;
 	}
 
 	/// <summary>
@@ -48,30 +64,27 @@ public sealed class MemoryMessage : IMemoryMessage, IDisposable
 		ContentType = contentType ?? throw new ArgumentNullException(nameof(contentType));
 		OwnsMemory = false;
 		_memoryOwner = null;
-		MessageId = Guid.NewGuid().ToString();
 		Timestamp = DateTimeOffset.UtcNow;
-		Headers = new ReadOnlyDictionary<string, object>(_headers);
-		MessageType = GetType().Name;
-		Features = _features;
 	}
 
 	/// <inheritdoc />
-	public string MessageId { get; }
+	public string MessageId => _messageId ??= EnsureId().ToString();
 
 	/// <inheritdoc />
 	public DateTimeOffset Timestamp { get; }
 
 	/// <inheritdoc />
-	public IReadOnlyDictionary<string, object> Headers { get; }
+	public IReadOnlyDictionary<string, object> Headers => EmptyHeaders;
 
 	/// <inheritdoc />
 	public Memory<byte> Body { get; }
 
 	/// <inheritdoc />
-	public string MessageType { get; }
+	public string MessageType => nameof(MemoryMessage);
 
 	/// <inheritdoc />
-	public IMessageFeatures Features { get; }
+	public IMessageFeatures Features => _features ??=
+		new DefaultMessageFeatures();
 
 	/// <inheritdoc />
 	public string ContentType { get; }
@@ -80,7 +93,7 @@ public sealed class MemoryMessage : IMemoryMessage, IDisposable
 	public bool OwnsMemory { get; }
 
 	/// <inheritdoc />
-	public Guid Id => Guid.TryParse(MessageId, out var guid) ? guid : Guid.Empty;
+	public Guid Id => EnsureId();
 
 	/// <inheritdoc />
 	public MessageKinds Kind => MessageKinds.Action;
@@ -107,5 +120,23 @@ public sealed class MemoryMessage : IMemoryMessage, IDisposable
 		}
 
 		_disposed = true;
+	}
+
+	private Guid EnsureId()
+	{
+		if (_id != Guid.Empty)
+		{
+			return _id;
+		}
+
+		if (_messageId is not null &&
+			Guid.TryParse(_messageId, out var parsedId))
+		{
+			_id = parsedId;
+			return parsedId;
+		}
+
+		_id = Guid.NewGuid();
+		return _id;
 	}
 }

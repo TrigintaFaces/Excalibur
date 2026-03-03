@@ -86,45 +86,21 @@ public static class ChannelMeter
 		// Create observable gauges for queue depth
 		_ = Meter.CreateObservableGauge(
 			"dispatch.channel.queue.depth",
-			observeValues: static () =>
-			{
-				lock (StateLock)
-				{
-					return ChannelStates.Select(static kvp => new Measurement<int>(
-						kvp.Value.CurrentQueueDepth,
-						new KeyValuePair<string, object?>("channel", kvp.Key)));
-				}
-			},
+			observeValues: static () => ObserveQueueDepth(),
 			unit: "messages",
 			description: "Current number of messages in the channel");
 
 		// Create observable gauge for max queue depth
 		_ = Meter.CreateObservableGauge(
 			"dispatch.channel.queue.depth.max",
-			observeValues: static () =>
-			{
-				lock (StateLock)
-				{
-					return ChannelStates.Select(static kvp => new Measurement<int>(
-						kvp.Value.MaxQueueDepth,
-						new KeyValuePair<string, object?>("channel", kvp.Key)));
-				}
-			},
+			observeValues: static () => ObserveMaxQueueDepth(),
 			unit: "messages",
 			description: "Maximum queue depth reached");
 
 		// Create observable gauge for processing rate
 		_ = Meter.CreateObservableGauge(
 			"dispatch.channel.processing.rate",
-			observeValues: static () =>
-			{
-				lock (StateLock)
-				{
-					return ChannelStates.Select(static kvp => new Measurement<double>(
-						kvp.Value.ProcessingRate,
-						new KeyValuePair<string, object?>("channel", kvp.Key)));
-				}
-			},
+			observeValues: static () => ObserveProcessingRate(),
 			unit: "messages/second",
 			description: "Current message processing rate");
 	}
@@ -170,19 +146,38 @@ public static class ChannelMeter
 	/// </summary>
 	public static void RecordMessageFailed(string channelName, string? messageType = null, string? errorType = null)
 	{
-		var tags = new List<KeyValuePair<string, object?>> { new("channel", channelName) };
-
-		if (!string.IsNullOrEmpty(messageType))
+		if (string.IsNullOrEmpty(messageType))
 		{
-			tags.Add(new("message_type", messageType));
+			if (string.IsNullOrEmpty(errorType))
+			{
+				MessagesFailedCounter.Add(1, new KeyValuePair<string, object?>("channel", channelName));
+				return;
+			}
+
+			MessagesFailedCounter.Add(1,
+			[
+				new KeyValuePair<string, object?>("channel", channelName),
+				new KeyValuePair<string, object?>("error_type", errorType),
+			]);
+			return;
 		}
 
-		if (!string.IsNullOrEmpty(errorType))
+		if (string.IsNullOrEmpty(errorType))
 		{
-			tags.Add(new("error_type", errorType));
+			MessagesFailedCounter.Add(1,
+			[
+				new KeyValuePair<string, object?>("channel", channelName),
+				new KeyValuePair<string, object?>("message_type", messageType),
+			]);
+			return;
 		}
 
-		MessagesFailedCounter.Add(1, [.. tags]);
+		MessagesFailedCounter.Add(1,
+		[
+			new KeyValuePair<string, object?>("channel", channelName),
+			new KeyValuePair<string, object?>("message_type", messageType),
+			new KeyValuePair<string, object?>("error_type", errorType),
+		]);
 	}
 
 	/// <summary>
@@ -235,14 +230,79 @@ public static class ChannelMeter
 
 	private static KeyValuePair<string, object?>[] CreateTags(string channelName, string? messageType)
 	{
-		var tags = new List<KeyValuePair<string, object?>> { new("channel", channelName) };
+		return string.IsNullOrEmpty(messageType)
+			? [new KeyValuePair<string, object?>("channel", channelName)]
+			:
+			[
+				new KeyValuePair<string, object?>("channel", channelName),
+				new KeyValuePair<string, object?>("message_type", messageType),
+			];
+	}
 
-		if (!string.IsNullOrEmpty(messageType))
+	private static IEnumerable<Measurement<int>> ObserveQueueDepth()
+	{
+		lock (StateLock)
 		{
-			tags.Add(new("message_type", messageType));
-		}
+			if (ChannelStates.Count == 0)
+			{
+				return [];
+			}
 
-		return [.. tags];
+			var measurements = new Measurement<int>[ChannelStates.Count];
+			var index = 0;
+			foreach (var channelState in ChannelStates)
+			{
+				measurements[index++] = new Measurement<int>(
+					channelState.Value.CurrentQueueDepth,
+					new KeyValuePair<string, object?>("channel", channelState.Key));
+			}
+
+			return measurements;
+		}
+	}
+
+	private static IEnumerable<Measurement<int>> ObserveMaxQueueDepth()
+	{
+		lock (StateLock)
+		{
+			if (ChannelStates.Count == 0)
+			{
+				return [];
+			}
+
+			var measurements = new Measurement<int>[ChannelStates.Count];
+			var index = 0;
+			foreach (var channelState in ChannelStates)
+			{
+				measurements[index++] = new Measurement<int>(
+					channelState.Value.MaxQueueDepth,
+					new KeyValuePair<string, object?>("channel", channelState.Key));
+			}
+
+			return measurements;
+		}
+	}
+
+	private static IEnumerable<Measurement<double>> ObserveProcessingRate()
+	{
+		lock (StateLock)
+		{
+			if (ChannelStates.Count == 0)
+			{
+				return [];
+			}
+
+			var measurements = new Measurement<double>[ChannelStates.Count];
+			var index = 0;
+			foreach (var channelState in ChannelStates)
+			{
+				measurements[index++] = new Measurement<double>(
+					channelState.Value.ProcessingRate,
+					new KeyValuePair<string, object?>("channel", channelState.Key));
+			}
+
+			return measurements;
+		}
 	}
 
 	private sealed class ChannelMetricsState

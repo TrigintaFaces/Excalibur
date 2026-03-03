@@ -21,6 +21,17 @@ Thank you for your contribution! Please complete all sections.
 - [ ] Integration/Functional tests considered
 - [ ] Performance impact assessed (if hot path)
 
+### Performance evidence (required for perf-impacting changes)
+- [ ] Before/after benchmark evidence included (same classes/config)
+- [ ] 5+ repeated runs with variance reported
+- [ ] Allocation deltas reported (`B/op`, Gen0/Gen1)
+- [ ] p95/p99 deltas reported (or explicit N/A with reason)
+
+Benchmark evidence links:
+- Baseline:
+- Candidate:
+- Summary artifacts:
+
 ## CI & Gates
 - [ ] CI passes (build, tests, requirements, quality)
 - [ ] API compat report reviewed
@@ -33,4 +44,3 @@ Thank you for your contribution! Please complete all sections.
 
 ## Notes
 - Additional context, migration notes, or deprecations
-

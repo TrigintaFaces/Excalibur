@@ -26,8 +26,45 @@ public sealed class HandlerRegistry : IHandlerRegistry
 	/// Gets all registered handler entries.
 	/// </summary>
 	/// <returns> A read-only list of all registered handler entries. </returns>
-	public IReadOnlyList<HandlerRegistryEntry> GetAll() =>
-		_handlers.Values.SelectMany(static list => list).ToList().AsReadOnly();
+	public IReadOnlyList<HandlerRegistryEntry> GetAll()
+	{
+		if (!_handlerSnapshots.IsEmpty)
+		{
+			var totalEntries = 0;
+			foreach (var snapshot in _handlerSnapshots.Values)
+			{
+				totalEntries += snapshot.Length;
+			}
+
+			var entries = new List<HandlerRegistryEntry>(Math.Max(totalEntries, 0));
+			foreach (var snapshot in _handlerSnapshots.Values)
+			{
+				entries.AddRange(snapshot);
+			}
+
+			return entries.AsReadOnly();
+		}
+
+		lock (_updateLock)
+		{
+			var totalEntries = 0;
+			foreach (var handlers in _handlers.Values)
+			{
+				totalEntries += handlers.Count;
+			}
+
+			var entries = new List<HandlerRegistryEntry>(Math.Max(totalEntries, 0));
+			foreach (var handlers in _handlers.Values)
+			{
+				for (var i = 0; i < handlers.Count; i++)
+				{
+					entries.Add(handlers[i]);
+				}
+			}
+
+			return entries.AsReadOnly();
+		}
+	}
 
 	/// <summary>
 	/// Registers a handler for the specified message type. For events (IDispatchEvent),

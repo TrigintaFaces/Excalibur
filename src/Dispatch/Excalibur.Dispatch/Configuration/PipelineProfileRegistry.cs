@@ -3,6 +3,7 @@
 
 
 using System.Collections.Concurrent;
+using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
@@ -19,6 +20,14 @@ public sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 	private readonly IMiddlewareApplicabilityStrategy? _applicabilityStrategy;
 
 	/// <summary>
+	/// Per-message-type profile selection cache. Avoids re-iterating all profiles on every dispatch.
+	/// Uses three-phase freeze pattern: ConcurrentDictionary during warmup → FrozenDictionary after freeze.
+	/// </summary>
+	private ConcurrentDictionary<Type, IPipelineProfile?>? _profileSelectionCache = new();
+	private FrozenDictionary<Type, IPipelineProfile?>? _frozenProfileSelectionCache;
+	private volatile bool _profileSelectionFrozen;
+
+	/// <summary>
 	/// Initializes a new instance of the <see cref="PipelineProfileRegistry"/> class.
 	/// Creates a new pipeline profile registry.
 	/// </summary>
@@ -29,6 +38,11 @@ public sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 		// Register default profiles
 		RegisterDefaultProfiles();
 	}
+
+	/// <summary>
+	/// Gets a value indicating whether the profile selection cache has been frozen.
+	/// </summary>
+	public bool IsProfileSelectionCacheFrozen => _profileSelectionFrozen;
 
 	/// <inheritdoc />
 	public void RegisterProfile(IPipelineProfile profile)
@@ -69,40 +83,103 @@ public sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
+		var messageType = message.GetType();
+
+		// Fast path: check frozen cache first (O(1), zero synchronization)
+		if (_profileSelectionFrozen && _frozenProfileSelectionCache!.TryGetValue(messageType, out var cachedProfile))
+		{
+			return cachedProfile;
+		}
+
+		// Warm path: check mutable cache
+		if (_profileSelectionCache is { } cache && cache.TryGetValue(messageType, out cachedProfile))
+		{
+			return cachedProfile;
+		}
+
+		// Cold path: compute profile selection and cache result
+		var selected = SelectProfileCore(message);
+
+		// Cache the result (including null for message types with no matching profile)
+		_profileSelectionCache?.TryAdd(messageType, selected);
+
+		return selected;
+	}
+
+	/// <summary>
+	/// Core profile selection logic. Called once per message type, then cached.
+	/// </summary>
+	[RequiresUnreferencedCode("Selects profiles using compatibility checks that rely on reflection.")]
+	private IPipelineProfile? SelectProfileCore(IDispatchMessage message)
+	{
 		// Determine message kinds
 		var messageKinds = _applicabilityStrategy?.DetermineMessageKinds(message) ?? MessageKinds.All;
 
-		// Find the most specific compatible profile Prioritize strict profiles for Actions, lightweight for Events
+		// Snapshot values to avoid repeated dictionary enumeration
+		var profileValues = _profiles.Values;
+
+		// Find the most specific compatible profile. Prioritize strict profiles for Actions, lightweight for Events.
 		if ((messageKinds & MessageKinds.Action) != MessageKinds.None)
 		{
-			// Try to find strict profile for actions
-			var strictProfile = _profiles.Values
-				.FirstOrDefault(p => p.IsStrict && p.IsCompatible(message));
-
-			if (strictProfile != null)
+			foreach (var p in profileValues)
 			{
-				return strictProfile;
+				if (p.IsStrict && p.IsCompatible(message))
+				{
+					return p;
+				}
 			}
 		}
 
 		if ((messageKinds & MessageKinds.Event) != MessageKinds.None)
 		{
-			// Try to find event-specific profile
-			var eventProfile = _profiles.Values
-				.FirstOrDefault(p => p is { IsStrict: false, SupportedMessageKinds: MessageKinds.Event } &&
-									 p.IsCompatible(message));
-
-			if (eventProfile != null)
+			foreach (var p in profileValues)
 			{
-				return eventProfile;
+				if (!p.IsStrict && p.SupportedMessageKinds == MessageKinds.Event && p.IsCompatible(message))
+				{
+					return p;
+				}
 			}
 		}
 
-		// Fall back to any compatible profile
-		return _profiles.Values
-			.Where(p => p.IsCompatible(message))
-			.OrderByDescending(p => p.IsStrict) // Prefer strict profiles
-			.FirstOrDefault();
+		// Fall back to any compatible profile, preferring strict
+		IPipelineProfile? bestFallback = null;
+		foreach (var p in profileValues)
+		{
+			if (p.IsCompatible(message))
+			{
+				if (p.IsStrict)
+				{
+					return p; // Strict profiles have highest priority
+				}
+
+				bestFallback ??= p;
+			}
+		}
+
+		return bestFallback;
+	}
+
+	/// <summary>
+	/// Freezes the profile selection cache for maximum hot-path performance.
+	/// After freezing, profile lookups use a <see cref="FrozenDictionary{TKey, TValue}"/>
+	/// for O(1) zero-synchronization reads.
+	/// </summary>
+	public void FreezeProfileSelectionCache()
+	{
+		if (_profileSelectionFrozen)
+		{
+			return;
+		}
+
+		var cache = _profileSelectionCache;
+		if (cache is null)
+		{
+			return;
+		}
+
+		_frozenProfileSelectionCache = cache.ToFrozenDictionary();
+		_profileSelectionFrozen = true;
+		_profileSelectionCache = null; // Allow GC of mutable dictionary
 	}
 
 	/// <inheritdoc />

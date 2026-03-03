@@ -1,10 +1,5 @@
 #nullable enable
 Excalibur.Hosting.Builders.IExcaliburBuilder
-Excalibur.Hosting.Builders.IExcaliburBuilder.AddCdc(System.Action<Excalibur.Cdc.ICdcBuilder> configure) -> Excalibur.Hosting.Builders.IExcaliburBuilder
-Excalibur.Hosting.Builders.IExcaliburBuilder.AddEventSourcing(System.Action<Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder> configure) -> Excalibur.Hosting.Builders.IExcaliburBuilder
-Excalibur.Hosting.Builders.IExcaliburBuilder.AddLeaderElection(System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions> configure) -> Excalibur.Hosting.Builders.IExcaliburBuilder
-Excalibur.Hosting.Builders.IExcaliburBuilder.AddOutbox(System.Action<Excalibur.Outbox.IOutboxBuilder> configure) -> Excalibur.Hosting.Builders.IExcaliburBuilder
-Excalibur.Hosting.Builders.IExcaliburBuilder.AddSagas(System.Action<Excalibur.Saga.SagaOptions> configure) -> Excalibur.Hosting.Builders.IExcaliburBuilder
 Excalibur.Hosting.Builders.IExcaliburBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection
 Excalibur.Hosting.Configuration.CdcOptions
 Excalibur.Hosting.Configuration.CdcOptions.CdcOptions() -> void

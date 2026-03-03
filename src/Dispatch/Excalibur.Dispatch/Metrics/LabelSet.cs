@@ -62,7 +62,15 @@ public readonly struct LabelSet : IEquatable<LabelSet>
 			return false;
 		}
 
-		return !_values.Where((t, i) => !string.Equals(t, other._values[i], StringComparison.Ordinal)).Any();
+		for (var i = 0; i < _values.Length; i++)
+		{
+			if (!string.Equals(_values[i], other._values[i], StringComparison.Ordinal))
+			{
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/// <summary>

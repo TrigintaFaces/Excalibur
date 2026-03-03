@@ -5,6 +5,7 @@ using System.Reflection;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Timeout;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 
@@ -271,7 +272,7 @@ public sealed class TimeoutProblemDetailsShould
 	private static object CreateTimeoutProblemDetails(MessageTimeoutException exception)
 	{
 		var type = typeof(MessageTimeoutException).Assembly
-			.GetType("Excalibur.Dispatch.Middleware.TimeoutProblemDetails");
+			.GetType("Excalibur.Dispatch.Middleware.Timeout.TimeoutProblemDetails");
 		_ = type.ShouldNotBeNull();
 
 		var instance = Activator.CreateInstance(type, exception);

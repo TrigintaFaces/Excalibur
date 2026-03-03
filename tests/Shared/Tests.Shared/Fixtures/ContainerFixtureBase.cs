@@ -96,17 +96,33 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 	/// </remarks>
 	public async Task InitializeAsync()
 	{
-		try
+		const int maxAttempts = 3;
+		for (var attempt = 1; attempt <= maxAttempts; attempt++)
 		{
-			using var cts = new CancellationTokenSource(ContainerStartTimeout);
-			await InitializeContainerAsync(cts.Token).ConfigureAwait(false);
+			try
+			{
+				using var cts = new CancellationTokenSource(ContainerStartTimeout);
+				await InitializeContainerAsync(cts.Token).ConfigureAwait(false);
+				DockerAvailable = true;
+				InitializationError = null;
+				return;
+			}
+			catch (Exception ex) when (attempt < maxAttempts && IsRetriableDockerException(ex))
+			{
+				// Retry transient Docker startup issues (daemon hiccups, named pipe timeouts, etc.).
+				await Task.Delay(TimeSpan.FromSeconds(5 * attempt)).ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				DockerAvailable = false;
+				InitializationError = ex.Message;
+				throw;
+			}
 		}
-		catch (Exception ex)
-		{
-			DockerAvailable = false;
-			InitializationError = ex.Message;
-			throw;
-		}
+
+		DockerAvailable = false;
+		InitializationError ??= "Container initialization failed after retries.";
+		throw new InvalidOperationException(InitializationError);
 	}
 
 	/// <summary>
@@ -163,5 +179,21 @@ public abstract class ContainerFixtureBase : IAsyncLifetime
 	{
 		return ex.Message.Contains("Docker", StringComparison.OrdinalIgnoreCase) ||
 				 ex.Message.Contains("container", StringComparison.OrdinalIgnoreCase);
+	}
+
+	private static bool IsRetriableDockerException(Exception ex)
+	{
+		Exception? current = ex;
+		while (current is not null)
+		{
+			if (current is TimeoutException || current is TaskCanceledException || IsDockerException(current))
+			{
+				return true;
+			}
+
+			current = current.InnerException;
+		}
+
+		return false;
 	}
 }

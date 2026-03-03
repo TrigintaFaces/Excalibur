@@ -175,15 +175,15 @@ internal sealed partial class CdcChangeApplier
 
 				EventsProcessedCounter.Add(1, new TagList
 				{
-					{ CdcTelemetryConstants.Tags.CaptureInstance, changeEvent.TableName },
+					{ CdcTelemetryConstants.TagNames.CaptureInstance, changeEvent.TableName },
 				});
 			}
 			catch (Exception ex)
 			{
 				EventsFailedCounter.Add(1, new TagList
 				{
-					{ CdcTelemetryConstants.Tags.CaptureInstance, changeEvent.TableName },
-					{ CdcTelemetryConstants.Tags.ErrorType, ex.GetType().Name },
+					{ CdcTelemetryConstants.TagNames.CaptureInstance, changeEvent.TableName },
+					{ CdcTelemetryConstants.TagNames.ErrorType, ex.GetType().Name },
 				});
 
 				LogUnhandledException(changeEvent.TableName, CdcChangeDetector.ByteArrayToHex(changeEvent.Lsn), CdcChangeDetector.ByteArrayToHex(changeEvent.SeqVal),

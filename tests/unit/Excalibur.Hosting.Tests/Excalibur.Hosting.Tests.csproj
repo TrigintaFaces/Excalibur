@@ -21,6 +21,11 @@
     <!-- ProjectReferences from all merged Excalibur hosting test projects -->
     <!-- From Excalibur.Hosting.Tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting\Excalibur.Hosting.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox\Excalibur.Outbox.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Cdc\Excalibur.Cdc.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga\Excalibur.Saga.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection\Excalibur.LeaderElection.csproj" />
     <!-- From Excalibur.Hosting.Web.Tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.Web\Excalibur.Hosting.Web.csproj" />
     <!-- From Excalibur.Hosting.Jobs.Tests -->

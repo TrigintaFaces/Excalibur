@@ -27,10 +27,10 @@ public sealed class TransportConnectionBaseFunctionalShould
 
 		protected override bool IsConnectionSecure() => true;
 
-		protected override async ValueTask DisposeAsyncCore()
+		protected override async ValueTask DisposeCoreAsync()
 		{
 			DisposeCalled = true;
-			await base.DisposeAsyncCore().ConfigureAwait(false);
+			await base.DisposeCoreAsync().ConfigureAwait(false);
 		}
 	}
 

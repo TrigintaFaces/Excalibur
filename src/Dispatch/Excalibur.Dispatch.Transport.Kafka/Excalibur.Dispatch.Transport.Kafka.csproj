@@ -14,7 +14,6 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Kafka packages -->
-    <PackageReference Include="Confluent.Kafka" />
     <PackageReference Include="Confluent.SchemaRegistry" />
     <!-- CloudEvents support -->
     <PackageReference Include="CloudNative.CloudEvents" />

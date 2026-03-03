@@ -13,6 +13,8 @@ public sealed class SqlServerContainerFixture : ContainerFixtureBase, IDatabaseC
 {
 	private MsSqlContainer? _container;
 
+	protected override TimeSpan ContainerStartTimeout => TimeSpan.FromMinutes(6);
+
 	/// <inheritdoc/>
 	public string ConnectionString => _container?.GetConnectionString()
 		?? throw new InvalidOperationException("Container not initialized");

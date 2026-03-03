@@ -69,10 +69,16 @@ public sealed class InMemoryCronJobStore : ICronJobStore
 	/// <inheritdoc />
 	public Task<IEnumerable<RecurringCronJob>> GetActiveJobsAsync(CancellationToken cancellationToken)
 	{
-		var activeJobs = _jobs.Values
-			.Where(static j => j.IsEnabled)
-			.OrderBy(static j => j.NextRunUtc)
-			.ToList();
+		var activeJobs = new List<RecurringCronJob>(_jobs.Count);
+		foreach (var job in _jobs.Values)
+		{
+			if (job.IsEnabled)
+			{
+				activeJobs.Add(job);
+			}
+		}
+
+		activeJobs.Sort(static (left, right) => Nullable.Compare(left.NextRunUtc, right.NextRunUtc));
 
 		return Task.FromResult<IEnumerable<RecurringCronJob>>(activeJobs);
 	}
@@ -80,12 +86,23 @@ public sealed class InMemoryCronJobStore : ICronJobStore
 	/// <inheritdoc />
 	public Task<IEnumerable<RecurringCronJob>> GetDueJobsAsync(DateTimeOffset cutoffTime, CancellationToken cancellationToken)
 	{
-		var dueJobs = _jobs.Values
-			.Where(j => j is { IsEnabled: true, NextRunUtc: not null } && j.NextRunUtc.Value <= cutoffTime &&
-						j.ShouldRunAt(cutoffTime))
-			.OrderBy(j => j.Priority)
-			.ThenBy(j => j.NextRunUtc)
-			.ToList();
+		var dueJobs = new List<RecurringCronJob>(_jobs.Count);
+		foreach (var job in _jobs.Values)
+		{
+			var nextRunUtc = job.NextRunUtc;
+			if (!job.IsEnabled || !nextRunUtc.HasValue || nextRunUtc.Value > cutoffTime || !job.ShouldRunAt(cutoffTime))
+			{
+				continue;
+			}
+
+			dueJobs.Add(job);
+		}
+
+		dueJobs.Sort(static (left, right) =>
+		{
+			var priorityComparison = left.Priority.CompareTo(right.Priority);
+			return priorityComparison != 0 ? priorityComparison : Nullable.Compare(left.NextRunUtc, right.NextRunUtc);
+		});
 
 		return Task.FromResult<IEnumerable<RecurringCronJob>>(dueJobs);
 	}
@@ -93,10 +110,16 @@ public sealed class InMemoryCronJobStore : ICronJobStore
 	/// <inheritdoc />
 	public Task<IEnumerable<RecurringCronJob>> GetJobsByTagAsync(string tag, CancellationToken cancellationToken)
 	{
-		var taggedJobs = _jobs.Values
-			.Where(j => j.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase))
-			.OrderBy(j => j.Name, StringComparer.Ordinal)
-			.ToList();
+		var taggedJobs = new List<RecurringCronJob>();
+		foreach (var job in _jobs.Values)
+		{
+			if (ContainsTagIgnoreCase(job.Tags, tag))
+			{
+				taggedJobs.Add(job);
+			}
+		}
+
+		taggedJobs.Sort(static (left, right) => string.Compare(left.Name, right.Name, StringComparison.Ordinal));
 
 		return Task.FromResult<IEnumerable<RecurringCronJob>>(taggedJobs);
 	}
@@ -167,16 +190,16 @@ public sealed class InMemoryCronJobStore : ICronJobStore
 	public Task<IEnumerable<JobExecutionHistory>> GetJobHistoryAsync(string jobId, CancellationToken cancellationToken,
 		int limit = 100)
 	{
+		if (limit <= 0)
+		{
+			return Task.FromResult<IEnumerable<JobExecutionHistory>>([]);
+		}
+
 		lock (_historyLock)
 		{
 			if (_history.TryGetValue(jobId, out var history))
 			{
-				var recent = history
-					.OrderByDescending(static h => h.StartedUtc)
-					.Take(limit)
-					.ToList();
-
-				return Task.FromResult<IEnumerable<JobExecutionHistory>>(recent);
+				return Task.FromResult<IEnumerable<JobExecutionHistory>>(GetMostRecentHistory(history, limit));
 			}
 		}
 
@@ -190,5 +213,55 @@ public sealed class InMemoryCronJobStore : ICronJobStore
 	{
 		_jobs.Clear();
 		_history.Clear();
+	}
+
+	private static bool ContainsTagIgnoreCase(IEnumerable<string> tags, string tag)
+	{
+		foreach (var candidate in tags)
+		{
+			if (string.Equals(candidate, tag, StringComparison.OrdinalIgnoreCase))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private static List<JobExecutionHistory> GetMostRecentHistory(List<JobExecutionHistory> history, int limit)
+	{
+		if (history.Count <= limit)
+		{
+			var all = new List<JobExecutionHistory>(history);
+			all.Sort(static (left, right) => right.StartedUtc.CompareTo(left.StartedUtc));
+			return all;
+		}
+
+		var recent = new List<JobExecutionHistory>(limit);
+		for (var i = 0; i < history.Count; i++)
+		{
+			var entry = history[i];
+			var position = recent.Count;
+			while (position > 0 && recent[position - 1].StartedUtc < entry.StartedUtc)
+			{
+				position--;
+			}
+
+			if (recent.Count < limit)
+			{
+				recent.Insert(position, entry);
+				continue;
+			}
+
+			if (position >= limit)
+			{
+				continue;
+			}
+
+			recent.Insert(position, entry);
+			recent.RemoveAt(limit);
+		}
+
+		return recent;
 	}
 }

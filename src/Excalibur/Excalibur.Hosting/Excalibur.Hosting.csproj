@@ -47,11 +47,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Application\Excalibur.Application.csproj" />
-    <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
-    <ProjectReference Include="..\Excalibur.Outbox\Excalibur.Outbox.csproj" />
-    <ProjectReference Include="..\Excalibur.Cdc\Excalibur.Cdc.csproj" />
-    <ProjectReference Include="..\Excalibur.Saga\Excalibur.Saga.csproj" />
-    <ProjectReference Include="..\Excalibur.LeaderElection\Excalibur.LeaderElection.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />

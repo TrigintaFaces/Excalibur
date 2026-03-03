@@ -118,6 +118,8 @@ public sealed class MiddlewareAdapter(IDispatchMiddleware middleware) : IZeroAll
 
 		public string Title { get; set; } = "Error";
 
+		public int? Status { get; set; }
+
 		public int ErrorCode { get; set; } = 500;
 
 		public string Detail { get; set; } = error;

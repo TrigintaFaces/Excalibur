@@ -1,10 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.LeaderElection;
+using System.Reflection;
+
 using Excalibur.Hosting.Options;
-using Excalibur.Saga.Abstractions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -33,6 +32,19 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </remarks>
 public static class DispatchHealthCheckExtensions
 {
+	private const string OutboxPublisherTypeName = "Excalibur.Dispatch.Abstractions.IOutboxPublisher";
+	private const string InboxStoreTypeName = "Excalibur.Dispatch.Abstractions.IInboxStore";
+	private const string SagaMonitoringServiceTypeName = "Excalibur.Saga.Abstractions.ISagaMonitoringService";
+	private const string LeaderElectionTypeName = "Excalibur.Dispatch.LeaderElection.ILeaderElection";
+
+	private static readonly (string AssemblyName, string TypeName, string MethodName)[] HealthCheckExtensionTargets =
+	[
+		("Excalibur.Outbox", "Microsoft.Extensions.DependencyInjection.BackgroundProcessorHealthChecksExtensions", "AddOutboxHealthCheck"),
+		("Excalibur.Outbox", "Microsoft.Extensions.DependencyInjection.BackgroundProcessorHealthChecksExtensions", "AddInboxHealthCheck"),
+		("Excalibur.Saga", "Microsoft.Extensions.DependencyInjection.SagaHealthCheckExtensions", "AddSagaHealthCheck"),
+		("Excalibur.LeaderElection", "Microsoft.Extensions.DependencyInjection.LeaderElectionHealthCheckExtensions", "AddLeaderElectionHealthCheck"),
+	];
+
 	/// <summary>
 	/// Adds all available Dispatch health checks (outbox, inbox, saga, leader election)
 	/// based on which services are registered in the DI container.
@@ -51,39 +63,118 @@ public static class DispatchHealthCheckExtensions
 
 		var services = builder.Services;
 
-		if (options.IncludeOutbox && HasService<IOutboxPublisher>(services))
+		if (options.IncludeOutbox && HasService(services, OutboxPublisherTypeName))
 		{
-			builder.AddOutboxHealthCheck();
+			_ = TryInvokeHealthCheckExtension(builder, "AddOutboxHealthCheck");
 		}
 
-		if (options.IncludeInbox && HasService<IInboxStore>(services))
+		if (options.IncludeInbox && HasService(services, InboxStoreTypeName))
 		{
-			builder.AddInboxHealthCheck();
+			_ = TryInvokeHealthCheckExtension(builder, "AddInboxHealthCheck");
 		}
 
-		if (options.IncludeSaga && HasService<ISagaMonitoringService>(services))
+		if (options.IncludeSaga && HasService(services, SagaMonitoringServiceTypeName))
 		{
-			builder.AddSagaHealthCheck();
+			_ = TryInvokeHealthCheckExtension(builder, "AddSagaHealthCheck");
 		}
 
-		if (options.IncludeLeaderElection && HasService<ILeaderElection>(services))
+		if (options.IncludeLeaderElection && HasService(services, LeaderElectionTypeName))
 		{
-			builder.AddLeaderElectionHealthCheck();
+			_ = TryInvokeHealthCheckExtension(builder, "AddLeaderElectionHealthCheck");
 		}
 
 		return builder;
 	}
 
-	private static bool HasService<T>(IServiceCollection services)
+	private static bool HasService(IServiceCollection services, string serviceTypeFullName)
 	{
 		foreach (var descriptor in services)
 		{
-			if (descriptor.ServiceType == typeof(T))
+			if (string.Equals(descriptor.ServiceType.FullName, serviceTypeFullName, StringComparison.Ordinal))
 			{
 				return true;
 			}
 		}
 
 		return false;
+	}
+
+	private static bool TryInvokeHealthCheckExtension(IHealthChecksBuilder builder, string methodName)
+	{
+		foreach (var target in HealthCheckExtensionTargets)
+		{
+			if (!string.Equals(target.MethodName, methodName, StringComparison.Ordinal))
+			{
+				continue;
+			}
+
+			var type = ResolveType(target.AssemblyName, target.TypeName);
+			if (type is null)
+			{
+				continue;
+			}
+
+			foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Static))
+			{
+				if (!string.Equals(method.Name, methodName, StringComparison.Ordinal))
+				{
+					continue;
+				}
+
+				var parameters = method.GetParameters();
+				if (parameters.Length == 0 || parameters[0].ParameterType != typeof(IHealthChecksBuilder))
+				{
+					continue;
+				}
+
+				var args = new object?[parameters.Length];
+				args[0] = builder;
+
+				var allOptional = true;
+				for (var i = 1; i < parameters.Length; i++)
+				{
+					if (!parameters[i].IsOptional)
+					{
+						allOptional = false;
+						break;
+					}
+
+					args[i] = parameters[i].DefaultValue;
+				}
+
+				if (!allOptional)
+				{
+					continue;
+				}
+
+				_ = method.Invoke(null, args);
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private static Type? ResolveType(string assemblyName, string typeName)
+	{
+		foreach (var loadedAssembly in AppDomain.CurrentDomain.GetAssemblies())
+		{
+			if (!string.Equals(loadedAssembly.GetName().Name, assemblyName, StringComparison.Ordinal))
+			{
+				continue;
+			}
+
+			return loadedAssembly.GetType(typeName, throwOnError: false, ignoreCase: false);
+		}
+
+		try
+		{
+			var assembly = Assembly.Load(new AssemblyName(assemblyName));
+			return assembly.GetType(typeName, throwOnError: false, ignoreCase: false);
+		}
+		catch
+		{
+			return null;
+		}
 	}
 }

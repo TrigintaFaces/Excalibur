@@ -950,6 +950,8 @@ Excalibur.Dispatch.Abstractions.IMessageProblemDetails.ErrorCode.set -> void
 Excalibur.Dispatch.Abstractions.IMessageProblemDetails.Extensions.get -> System.Collections.Generic.IDictionary<System.String, System.Object>
 Excalibur.Dispatch.Abstractions.IMessageProblemDetails.Instance.get -> System.String
 Excalibur.Dispatch.Abstractions.IMessageProblemDetails.Instance.set -> void
+Excalibur.Dispatch.Abstractions.IMessageProblemDetails.Status.get -> System.Int32?
+Excalibur.Dispatch.Abstractions.IMessageProblemDetails.Status.set -> void
 Excalibur.Dispatch.Abstractions.IMessageProblemDetails.Title.get -> System.String
 Excalibur.Dispatch.Abstractions.IMessageProblemDetails.Title.set -> void
 Excalibur.Dispatch.Abstractions.IMessageProblemDetails.Type.get -> System.String

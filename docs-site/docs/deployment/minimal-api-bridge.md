@@ -132,15 +132,18 @@ public sealed class GetPatientRequest
 
 ## HTTP Response Mapping
 
-The bridge automatically converts `IMessageResult` to HTTP responses:
+The bridge automatically converts `IMessageResult` to HTTP responses using ProblemDetails-aware failure mapping:
 
 | Condition | Minimal API Result | Status Code |
 |-----------|-------------------|-------------|
 | Authorization failed | `Results.Forbid()` | 403 |
 | Validation failed | `Results.BadRequest(validationResult)` | 400 |
+| ProblemDetails with Status | `Results.Problem(...)` | ProblemDetails.Status |
 | Other failure | `Results.Problem("Failed to process the request")` | 500 |
 | Success (no return value) | `Results.Accepted()` | 202 |
 | Success (with return value) | `Results.Ok(returnValue)` | 200 |
+
+When a handler returns a failure with `IMessageProblemDetails.Status` set (e.g., via `MessageProblemDetails.NotFound(...)` which sets Status = 404), the bridge produces an RFC 7807 Problem response with that status code, title, detail, type, and instance. This enables handlers to communicate precise HTTP semantics without coupling to ASP.NET Core.
 
 ### Custom Response Handler
 
@@ -155,6 +158,70 @@ endpoints.DispatchPostAction<CreateOrderRequest, CreateOrderCommand, OrderResult
             ? Results.Created($"/orders/{result.ReturnValue!.OrderId}", result.ReturnValue)
             : Results.Problem("Order creation failed"));
 ```
+
+## Fluent ROP Terminal Operators
+
+In addition to the endpoint routing extensions above, the package provides terminal operators for converting `IMessageResult` to `IResult` at the end of a [functional composition](../core-concepts/results-and-errors.md#functional-composition) chain. These are useful when writing manual Minimal API endpoints (not using the bridge) and want fluent ROP chaining:
+
+```csharp
+using Excalibur.Dispatch.Hosting.AspNetCore;
+
+// Query — 200 OK with value (async, chains from Task<IMessageResult<T>>)
+app.MapGet("/orders/{id}", (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+    dispatcher
+        .DispatchAsync<GetOrderAction, Order>(new GetOrderAction(id), ct)
+        .Map(order => new OrderResponse(order))
+        .ToApiResult());
+
+// Command — 201 Created with dynamic location
+app.MapPost("/orders", (CreateOrderRequest request, IDispatcher dispatcher, CancellationToken ct) =>
+    dispatcher
+        .DispatchAsync<CreateOrderAction, Order>(
+            new CreateOrderAction(request.CustomerId, request.Items), ct)
+        .ToCreatedResult(order => $"/orders/{order.Id}"));
+
+// Command — 204 No Content
+app.MapDelete("/orders/{id}", (Guid id, IDispatcher dispatcher, CancellationToken ct) =>
+    dispatcher
+        .DispatchAsync(new DeleteOrderAction(id), ct)
+        .ToNoContentResult());
+```
+
+### Available Terminal Operators
+
+| Method | Input | HTTP Response |
+|--------|-------|---------------|
+| `ToApiResult()` | `Task<IMessageResult>` | 202 Accepted |
+| `ToApiResult<T>()` | `Task<IMessageResult<T>>` | 200 OK with value |
+| `ToNoContentResult()` | `IMessageResult` or `Task<IMessageResult>` | 204 No Content |
+| `ToCreatedResult<T>(location)` | `IMessageResult<T>` or `Task<IMessageResult<T>>` | 201 Created |
+| `ToCreatedResult<T>(factory)` | `Task<IMessageResult<T>>` | 201 Created (dynamic) |
+| `ToHttpResult()` | `IMessageResult` or `IMessageResult<T>` | 202 or 200 (sync) |
+
+All terminal operators use the same ProblemDetails-aware failure mapping described above.
+
+### Custom Response Mapping with Match
+
+When convention-based status codes aren't enough, use `.Match()` from the [ROP extensions](../core-concepts/results-and-errors.md#functional-composition) as a terminal operator instead. Since `Match<TIn, IResult>` returns `Task<IResult>`, Minimal APIs handle it natively:
+
+```csharp
+app.MapGet("/orders/{id}", (Guid id, IDispatcher dispatcher, ILogger<Program> logger, CancellationToken ct) =>
+    dispatcher
+        .DispatchAsync<GetOrderAction, Order>(new GetOrderAction(id), ct)
+        .Map(order => new OrderDto(order))
+        .Tap(dto => logger.LogInformation("Retrieved order {OrderId}", dto.Id))
+        .Match(
+            onSuccess: dto => Results.Ok(dto),
+            onFailure: problem => problem?.Status switch
+            {
+                404 => Results.NotFound(),
+                400 => Results.BadRequest(problem),
+                409 => Results.Conflict(problem),
+                _ => Results.Problem(detail: problem?.Detail)
+            }));
+```
+
+Use `.ToApiResult()` for convention-based mapping, `.Match()` when you need per-status control.
 
 ## Route Groups
 

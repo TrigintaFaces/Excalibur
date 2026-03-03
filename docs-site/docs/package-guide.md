@@ -230,7 +230,11 @@ Add sagas, hosting templates, and compliance as needed:
 dotnet add package Excalibur.Hosting.Web
 dotnet add package Excalibur.Saga
 dotnet add package Excalibur.Saga.SqlServer
+dotnet add package Excalibur.Outbox
+dotnet add package Excalibur.LeaderElection
 ```
+
+`AddExcalibur()` remains the unified entry point, but each feature method comes from its feature package (for example, `.AddOutbox(...)` requires `Excalibur.Outbox`).
 
 ```csharp
 services.AddDispatch(dispatch =>

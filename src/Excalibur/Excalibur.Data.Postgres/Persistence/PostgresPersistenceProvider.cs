@@ -858,7 +858,7 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 	/// <inheritdoc />
 	public async ValueTask DisposeAsync()
 	{
-		await DisposeAsyncCore().ConfigureAwait(false);
+		await DisposeCoreAsync().ConfigureAwait(false);
 		Dispose(disposing: false);
 		GC.SuppressFinalize(this);
 	}
@@ -899,7 +899,7 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 	/// <summary>
 	/// Asynchronously disposes the provider.
 	/// </summary>
-	protected virtual async ValueTask DisposeAsyncCore()
+	protected virtual async ValueTask DisposeCoreAsync()
 	{
 		if (_disposed)
 		{

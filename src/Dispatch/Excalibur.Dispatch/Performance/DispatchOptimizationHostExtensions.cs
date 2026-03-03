@@ -2,8 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
+
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -33,6 +37,7 @@ public static class DispatchOptimizationHostExtensions
 	/// <item><see cref="HandlerActivator"/> - Handler activation plans</item>
 	/// <item><see cref="FinalDispatchHandler"/> - Result factory delegates</item>
 	/// <item><see cref="MiddlewareApplicabilityEvaluator"/> - Middleware metadata</item>
+	/// <item><see cref="PipelineProfileRegistry"/> - Pipeline profile selection per message type</item>
 	/// </list>
 	/// <para>
 	/// Once frozen, caches use <see cref="System.Collections.Frozen.FrozenDictionary{TKey, TValue}"/>
@@ -68,6 +73,12 @@ public static class DispatchOptimizationHostExtensions
 		// Freeze middleware metadata cache
 		MiddlewareApplicabilityEvaluator.FreezeCache();
 
+		// Freeze pipeline profile selection cache
+		if (host.Services.GetService<IPipelineProfileRegistry>() is PipelineProfileRegistry profileRegistry)
+		{
+			profileRegistry.FreezeProfileSelectionCache();
+		}
+
 		return host;
 	}
 
@@ -84,10 +95,14 @@ public static class DispatchOptimizationHostExtensions
 	{
 		ArgumentNullException.ThrowIfNull(host);
 
+		var profileFrozen = host.Services.GetService<IPipelineProfileRegistry>() is not PipelineProfileRegistry pr
+			|| pr.IsProfileSelectionCacheFrozen;
+
 		return HandlerInvoker.IsCacheFrozen
 			&& HandlerInvokerRegistry.IsCacheFrozen
 			&& HandlerActivator.IsCacheFrozen
 			&& FinalDispatchHandler.IsResultFactoryCacheFrozen
-			&& MiddlewareApplicabilityEvaluator.IsCacheFrozen;
+			&& MiddlewareApplicabilityEvaluator.IsCacheFrozen
+			&& profileFrozen;
 	}
 }

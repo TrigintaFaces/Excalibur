@@ -10,9 +10,16 @@ using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
 
+using MassTransit;
+
 using MediatR;
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
+using Wolverine;
+
+using IMessageContext = Excalibur.Dispatch.Abstractions.IMessageContext;
 
 namespace Excalibur.Dispatch.Benchmarks.Comparative;
 
@@ -20,17 +27,18 @@ namespace Excalibur.Dispatch.Benchmarks.Comparative;
 #pragma warning disable SA1402 // File may only contain a single type - benchmarks with supporting types
 
 /// <summary>
-/// Comparative benchmarks for pipeline behavior overhead.
-/// Measures Dispatch middleware vs MediatR IPipelineBehavior performance.
+/// 4-way pipeline overhead comparison: Dispatch vs MediatR vs Wolverine vs MassTransit.
+/// All frameworks configured with 3 passthrough middleware/behaviors/filters.
 /// </summary>
 /// <remarks>
-/// Sprint 204 - Competitor Comparison Benchmarks Epic.
-/// Fills gaps identified in existing MediatRComparisonBenchmarks:
-/// - Pipeline behavior overhead (3 behaviors)
-/// - Concurrent execution with behaviors
+/// Measures the pure overhead of pipeline middleware infrastructure when all
+/// behaviors are no-op passthroughs. This isolates framework pipeline cost
+/// from actual business logic.
 ///
-/// Performance Targets:
-/// - Pipeline vs MediatR: 5x faster
+/// Dispatch: 3 IDispatchMiddleware implementations (logging, validation, timing stages)
+/// MediatR: 3 IPipelineBehavior implementations (logging, validation, timing)
+/// Wolverine: 3 convention-based middleware classes (Before/After methods)
+/// MassTransit: Mediator with 3 IFilter&lt;ConsumeContext&gt; implementations
 /// </remarks>
 [MemoryDiagnoser]
 [Config(typeof(ComparativeBenchmarkConfig))]
@@ -45,11 +53,20 @@ public class PipelineComparisonBenchmarks
 	private IServiceProvider? _mediatrPipelineProvider;
 	private IMediator? _mediatrPipelineMediator;
 
+	// Wolverine infrastructure with middleware
+	private IHost? _wolverineHost;
+	private IMessageBus? _wolverineBus;
+
+	// MassTransit Mediator infrastructure with filters
+	private IServiceProvider? _massTransitMediatorProvider;
+	private IServiceScope? _massTransitMediatorScope;
+	private MassTransit.Mediator.IScopedMediator? _massTransitMediator;
+
 	/// <summary>
-	/// Initialize both frameworks with 3 pipeline behaviors.
+	/// Initialize all four frameworks with 3 pipeline behaviors/middleware/filters.
 	/// </summary>
 	[GlobalSetup]
-	public void GlobalSetup()
+	public async Task GlobalSetup()
 	{
 		// Setup Excalibur with 3 middleware behaviors
 		var dispatchServices = new ServiceCollection();
@@ -87,15 +104,50 @@ public class PipelineComparisonBenchmarks
 		_mediatrPipelineProvider = mediatrServices.BuildServiceProvider();
 		_mediatrPipelineMediator = _mediatrPipelineProvider.GetRequiredService<IMediator>();
 
+		// Setup Wolverine with 3 convention-based middleware
+		_wolverineHost = await Host.CreateDefaultBuilder()
+			.UseWolverine(opts =>
+			{
+				opts.Discovery.IncludeAssembly(typeof(PipelineComparisonBenchmarks).Assembly);
+				opts.Discovery.IncludeType(typeof(WolverinePipelineCommandHandler));
+
+				// Register 3 passthrough middleware
+				opts.Policies.AddMiddleware<WolverinePipelineMiddleware1>();
+				opts.Policies.AddMiddleware<WolverinePipelineMiddleware2>();
+				opts.Policies.AddMiddleware<WolverinePipelineMiddleware3>();
+			})
+			.StartAsync()
+			.ConfigureAwait(false);
+
+		_wolverineBus = _wolverineHost.Services.GetRequiredService<IMessageBus>();
+
+		// Setup MassTransit Mediator with 3 consume filters
+		var massTransitServices = new ServiceCollection();
+		_ = massTransitServices.AddMediator(cfg =>
+		{
+			_ = cfg.AddConsumer<MassTransitPipelineCommandConsumer>();
+
+			cfg.ConfigureMediator((context, mcfg) =>
+			{
+				mcfg.UseConsumeFilter(typeof(MassTransitPipelineFilter1<>), context);
+				mcfg.UseConsumeFilter(typeof(MassTransitPipelineFilter2<>), context);
+				mcfg.UseConsumeFilter(typeof(MassTransitPipelineFilter3<>), context);
+			});
+		});
+
+		_massTransitMediatorProvider = massTransitServices.BuildServiceProvider();
+		_massTransitMediatorScope = _massTransitMediatorProvider.CreateScope();
+		_massTransitMediator = _massTransitMediatorScope.ServiceProvider.GetRequiredService<MassTransit.Mediator.IScopedMediator>();
+
 		// Warm and freeze Dispatch caches so benchmark reflects optimized production mode.
 		WarmupAndFreezeDispatchCaches();
 	}
 
 	/// <summary>
-	/// Cleanup service providers.
+	/// Cleanup all service providers.
 	/// </summary>
 	[GlobalCleanup]
-	public void GlobalCleanup()
+	public async Task GlobalCleanup()
 	{
 		if (_dispatchPipelineProvider is IDisposable dispatchDisposable)
 		{
@@ -106,7 +158,35 @@ public class PipelineComparisonBenchmarks
 		{
 			mediatrDisposable.Dispose();
 		}
+
+		if (_wolverineHost is not null)
+		{
+			await _wolverineHost.StopAsync().ConfigureAwait(false);
+			_wolverineHost.Dispose();
+		}
+
+		if (_massTransitMediatorScope is IAsyncDisposable massTransitAsyncScope)
+		{
+			await massTransitAsyncScope.DisposeAsync().ConfigureAwait(false);
+		}
+		else
+		{
+			_massTransitMediatorScope?.Dispose();
+		}
+
+		if (_massTransitMediatorProvider is IAsyncDisposable massTransitAsyncProvider)
+		{
+			await massTransitAsyncProvider.DisposeAsync().ConfigureAwait(false);
+		}
+		else if (_massTransitMediatorProvider is IDisposable massTransitDisposable)
+		{
+			massTransitDisposable.Dispose();
+		}
 	}
+
+	// ============================================================================
+	// Single Command with Pipeline
+	// ============================================================================
 
 	/// <summary>
 	/// Baseline: Excalibur with 3 middleware behaviors.
@@ -127,6 +207,30 @@ public class PipelineComparisonBenchmarks
 		var command = new MediatRPipelineTestCommand { Value = 42 };
 		return await _mediatrPipelineMediator.Send(command, CancellationToken.None).ConfigureAwait(false);
 	}
+
+	/// <summary>
+	/// Wolverine: With 3 convention-based middleware.
+	/// </summary>
+	[Benchmark(Description = "Wolverine: 3 middleware")]
+	public async Task Wolverine_WithMiddleware()
+	{
+		var command = new WolverinePipelineCommand { Value = 42 };
+		await _wolverineBus.InvokeAsync(command, CancellationToken.None).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// MassTransit Mediator: With 3 consume filters.
+	/// </summary>
+	[Benchmark(Description = "MassTransit: 3 consume filters")]
+	public async Task MassTransit_WithFilters()
+	{
+		var command = new MassTransitPipelineCommand { Value = 42 };
+		await _massTransitMediator.Publish(command, CancellationToken.None).ConfigureAwait(false);
+	}
+
+	// ============================================================================
+	// Concurrent Commands with Pipeline
+	// ============================================================================
 
 	/// <summary>
 	/// Dispatch: 10 concurrent commands with 3 behaviors.
@@ -159,6 +263,42 @@ public class PipelineComparisonBenchmarks
 
 		_ = await Task.WhenAll(tasks).ConfigureAwait(false);
 	}
+
+	/// <summary>
+	/// Wolverine: 10 concurrent commands with 3 middleware.
+	/// </summary>
+	[Benchmark(Description = "Wolverine: 10 concurrent + 3 middleware")]
+	public async Task Wolverine_ConcurrentWithMiddleware()
+	{
+		var tasks = new List<Task>(10);
+		for (int i = 0; i < 10; i++)
+		{
+			var command = new WolverinePipelineCommand { Value = i };
+			tasks.Add(_wolverineBus.InvokeAsync(command, CancellationToken.None));
+		}
+
+		await Task.WhenAll(tasks).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// MassTransit Mediator: 10 concurrent commands with 3 filters.
+	/// </summary>
+	[Benchmark(Description = "MassTransit: 10 concurrent + 3 filters")]
+	public async Task MassTransit_ConcurrentWithFilters()
+	{
+		var tasks = new List<Task>(10);
+		for (int i = 0; i < 10; i++)
+		{
+			var command = new MassTransitPipelineCommand { Value = i };
+			tasks.Add(_massTransitMediator.Publish(command, CancellationToken.None));
+		}
+
+		await Task.WhenAll(tasks).ConfigureAwait(false);
+	}
+
+	// ============================================================================
+	// Helper Methods
+	// ============================================================================
 
 	private void WarmupAndFreezeDispatchCaches()
 	{
@@ -350,6 +490,146 @@ public sealed class MediatRTimingBehavior : IPipelineBehavior<MediatRPipelineTes
 		CancellationToken cancellationToken)
 	{
 		return await next().ConfigureAwait(false);
+	}
+}
+
+// ============================================================================
+// Pipeline Test Messages and Handlers (Wolverine)
+// ============================================================================
+
+/// <summary>
+/// Test command for Wolverine pipeline benchmarks.
+/// </summary>
+public record WolverinePipelineCommand
+{
+	/// <summary>Gets or sets the test value.</summary>
+	public int Value { get; set; }
+}
+
+/// <summary>
+/// Wolverine handler for WolverinePipelineCommand.
+/// </summary>
+public static class WolverinePipelineCommandHandler
+{
+	/// <summary>Handle the pipeline test command.</summary>
+	public static Task Handle(WolverinePipelineCommand command, CancellationToken cancellationToken)
+	{
+		_ = command.Value * 2;
+		return Task.CompletedTask;
+	}
+}
+
+/// <summary>
+/// Wolverine passthrough middleware 1 (logging stage equivalent).
+/// Uses Wolverine convention: BeforeAsync/AfterAsync methods.
+/// </summary>
+public class WolverinePipelineMiddleware1
+{
+	/// <summary>No-op before handler execution.</summary>
+	public static Task BeforeAsync() => Task.CompletedTask;
+}
+
+/// <summary>
+/// Wolverine passthrough middleware 2 (validation stage equivalent).
+/// </summary>
+public class WolverinePipelineMiddleware2
+{
+	/// <summary>No-op before handler execution.</summary>
+	public static Task BeforeAsync() => Task.CompletedTask;
+}
+
+/// <summary>
+/// Wolverine passthrough middleware 3 (timing stage equivalent).
+/// </summary>
+public class WolverinePipelineMiddleware3
+{
+	/// <summary>No-op before handler execution.</summary>
+	public static Task BeforeAsync() => Task.CompletedTask;
+}
+
+// ============================================================================
+// Pipeline Test Messages and Consumers (MassTransit Mediator)
+// ============================================================================
+
+/// <summary>
+/// Test command for MassTransit Mediator pipeline benchmarks.
+/// </summary>
+public record MassTransitPipelineCommand
+{
+	/// <summary>Gets or sets the test value.</summary>
+	public int Value { get; set; }
+}
+
+/// <summary>
+/// MassTransit consumer for MassTransitPipelineCommand.
+/// </summary>
+public sealed class MassTransitPipelineCommandConsumer : IConsumer<MassTransitPipelineCommand>
+{
+	/// <inheritdoc />
+	public Task Consume(ConsumeContext<MassTransitPipelineCommand> context)
+	{
+		_ = context.Message.Value * 2;
+		return Task.CompletedTask;
+	}
+}
+
+/// <summary>
+/// MassTransit passthrough consume filter 1 (logging stage equivalent).
+/// </summary>
+public sealed class MassTransitPipelineFilter1<T> : IFilter<ConsumeContext<T>>
+	where T : class
+{
+	/// <inheritdoc />
+	public void Probe(ProbeContext context)
+	{
+		context.CreateFilterScope("pipelineFilter1");
+	}
+
+	/// <inheritdoc />
+	public async Task Send(ConsumeContext<T> context, IPipe<ConsumeContext<T>> next)
+	{
+		// Minimal overhead - just call next
+		await next.Send(context).ConfigureAwait(false);
+	}
+}
+
+/// <summary>
+/// MassTransit passthrough consume filter 2 (validation stage equivalent).
+/// </summary>
+public sealed class MassTransitPipelineFilter2<T> : IFilter<ConsumeContext<T>>
+	where T : class
+{
+	/// <inheritdoc />
+	public void Probe(ProbeContext context)
+	{
+		context.CreateFilterScope("pipelineFilter2");
+	}
+
+	/// <inheritdoc />
+	public async Task Send(ConsumeContext<T> context, IPipe<ConsumeContext<T>> next)
+	{
+		// Minimal overhead - just call next
+		await next.Send(context).ConfigureAwait(false);
+	}
+}
+
+/// <summary>
+/// MassTransit passthrough consume filter 3 (timing stage equivalent).
+/// </summary>
+public sealed class MassTransitPipelineFilter3<T> : IFilter<ConsumeContext<T>>
+	where T : class
+{
+	/// <inheritdoc />
+	public void Probe(ProbeContext context)
+	{
+		context.CreateFilterScope("pipelineFilter3");
+	}
+
+	/// <inheritdoc />
+	public async Task Send(ConsumeContext<T> context, IPipe<ConsumeContext<T>> next)
+	{
+		// Minimal overhead - just call next
+		await next.Send(context).ConfigureAwait(false);
 	}
 }
 

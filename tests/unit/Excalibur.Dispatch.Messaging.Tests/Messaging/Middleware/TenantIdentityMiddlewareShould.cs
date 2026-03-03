@@ -4,6 +4,7 @@
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Auth;
 using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Tests.TestFakes;
 

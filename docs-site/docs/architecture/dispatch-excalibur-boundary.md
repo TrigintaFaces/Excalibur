@@ -51,6 +51,7 @@ Use when you need aggregates, event sourcing, sagas, or hosting templates.
 dotnet add package Excalibur.Domain
 dotnet add package Excalibur.EventSourcing
 dotnet add package Excalibur.Hosting
+dotnet add package Excalibur.Outbox
 ```
 
 **Simple** — `AddExcalibur()` registers messaging defaults automatically:
@@ -63,6 +64,8 @@ builder.Services.AddExcalibur(excalibur =>
         .AddOutbox(outbox => outbox.UseSqlServer(connectionString));
 });
 ```
+
+`AddExcalibur()` comes from `Excalibur.Hosting`; subsystem extension methods come from feature packages (for example, `.AddOutbox(...)` from `Excalibur.Outbox`).
 
 **With custom messaging** — call `AddDispatch` when you need transports, pipelines, or middleware:
 

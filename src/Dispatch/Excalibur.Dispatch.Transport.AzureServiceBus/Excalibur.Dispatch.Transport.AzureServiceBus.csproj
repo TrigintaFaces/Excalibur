@@ -14,7 +14,6 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Azure.Messaging.EventGrid" />
-    <PackageReference Include="Azure.Messaging.EventHubs" />
     <PackageReference Include="Azure.Messaging.EventHubs.Processor" />
     <PackageReference Include="Azure.Messaging.ServiceBus" />
     <PackageReference Include="Azure.Storage.Queues" />

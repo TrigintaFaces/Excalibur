@@ -7,6 +7,7 @@ using System.Security.Claims;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Middleware.Auth;
 using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Middleware;

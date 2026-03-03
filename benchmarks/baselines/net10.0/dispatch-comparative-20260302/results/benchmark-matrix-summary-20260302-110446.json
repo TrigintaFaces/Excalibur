@@ -1,0 +1,51 @@
+{
+  "startedUtc": "2026-03-02T17:01:19.1813420+00:00",
+  "endedUtc": "2026-03-02T17:04:46.3775025+00:00",
+  "duration": "00:03:27.1814020",
+  "configuration": "Release",
+  "repeatCount": 1,
+  "artifactsPath": "D:\\Excalibur.Dispatch\\.\\BenchmarkDotNet.Artifacts.CompetitorRefresh-20260302",
+  "resultsPath": "D:\\Excalibur.Dispatch\\.\\BenchmarkDotNet.Artifacts.CompetitorRefresh-20260302\\results",
+  "environment": {
+    "machineName": "DESKTOP-5OUKF4A",
+    "osDescription": "Microsoft Windows 10.0.26200",
+    "osArchitecture": "X64",
+    "processArchitecture": "X64",
+    "frameworkDescription": ".NET 9.0.10",
+    "processorCount": 32,
+    "isServerGc": false,
+    "gcLatencyMode": "Interactive",
+    "dotnetVersion": "10.0.103",
+    "commitSha": "9bf43c6c823444552c3a593686779ce053d12106",
+    "branch": "main",
+    "isCi": false,
+    "dotnetTieredPgo": null,
+    "dotnetReadyToRun": null,
+    "dotnetGcServer": null,
+    "dotnetTcQuickJit": null,
+    "dotnetTcQuickJitForLoops": null,
+    "comPlusTieredPgo": null,
+    "comPlusReadyToRun": null,
+    "comPlusGcServer": null,
+    "runtimeProfile": "none",
+    "runtimeProfileVariables": {}
+  },
+  "selectedClasses": [
+    "WolverineInProcessComparisonBenchmarks"
+  ],
+  "totalBenchmarks": 11.0,
+  "failures": [],
+  "classResults": [
+    {
+      "ClassName": "WolverineInProcessComparisonBenchmarks",
+      "Run": 1,
+      "ExitCode": 0,
+      "DurationSeconds": 206.9,
+      "BenchmarkRows": 11,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\.\\BenchmarkDotNet.Artifacts.CompetitorRefresh-20260302\\results\\Excalibur.Dispatch.Benchmarks.Comparative.WolverineInProcessComparisonBenchmarks-report-github.run1.20260302-110119.md",
+      "CsvReportPath": "D:\\Excalibur.Dispatch\\.\\BenchmarkDotNet.Artifacts.CompetitorRefresh-20260302\\results\\Excalibur.Dispatch.Benchmarks.Comparative.WolverineInProcessComparisonBenchmarks-report.run1.20260302-110119.csv",
+      "LogPath": "D:\\Excalibur.Dispatch\\.\\BenchmarkDotNet.Artifacts.CompetitorRefresh-20260302\\results\\run-WolverineInProcessComparisonBenchmarks-r1-20260302-110119.log"
+    }
+  ]
+}

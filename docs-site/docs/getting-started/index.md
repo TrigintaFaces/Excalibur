@@ -252,9 +252,14 @@ If you're coming from MediatR, here's how concepts map:
 
 | Need | Package |
 |------|---------|
+| Unified Excalibur builder (`AddExcalibur`) | `Excalibur.Hosting` |
 | Domain modeling (aggregates, entities) | `Excalibur.Domain` |
 | Event sourcing with persistence | `Excalibur.EventSourcing` |
 | SQL Server event store | `Excalibur.EventSourcing.SqlServer` |
+| Outbox pattern | `Excalibur.Outbox` |
+| Change data capture | `Excalibur.Cdc` |
+| Sagas/process managers | `Excalibur.Saga` |
+| Leader election | `Excalibur.LeaderElection` |
 | ASP.NET Core hosting integration | `Excalibur.Hosting` |
 
 ```bash
@@ -267,11 +272,24 @@ dotnet add package Excalibur.Domain
 # Add event sourcing
 dotnet add package Excalibur.EventSourcing
 dotnet add package Excalibur.EventSourcing.SqlServer
+
+# Optional subsystems used by AddExcalibur(...).AddXxx(...)
+dotnet add package Excalibur.Outbox
+dotnet add package Excalibur.Cdc
+dotnet add package Excalibur.Saga
+dotnet add package Excalibur.LeaderElection
 ```
 
 ### Unified Registration
 
 Use `AddExcalibur()` as the single entry point for domain, event sourcing, and saga subsystems. It registers messaging primitives with sensible defaults:
+
+Feature methods are provided by their feature packages:
+- `.AddEventSourcing(...)` => `Excalibur.EventSourcing`
+- `.AddOutbox(...)` => `Excalibur.Outbox`
+- `.AddCdc(...)` => `Excalibur.Cdc`
+- `.AddSagas(...)` => `Excalibur.Saga`
+- `.AddLeaderElection(...)` => `Excalibur.LeaderElection`
 
 ```csharp
 builder.Services.AddExcalibur(excalibur =>

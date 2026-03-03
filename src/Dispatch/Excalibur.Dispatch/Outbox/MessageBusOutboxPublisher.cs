@@ -134,7 +134,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 				Resources.MessageBusOutboxPublisher_MultiTransportRequiresStore);
 		}
 
-		var transportList = transports.ToList();
+		var transportList = AsReadOnlyList(transports);
 		if (transportList.Count == 0)
 		{
 			throw new ArgumentException(
@@ -143,14 +143,15 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		}
 
 		// Use SerializeObject with runtime type to ensure proper concrete type serialization
-		var payload = _serializer.SerializeObject(message, message.GetType());
-		var messageType = message.GetType().FullName ?? message.GetType().Name;
+		var runtimeType = message.GetType();
+		var payload = _serializer.SerializeObject(message, runtimeType);
+		var messageType = runtimeType.FullName ?? runtimeType.Name;
 
 		var outboundMessage = new OutboundMessage(messageType, payload, transportList[0].Destination ?? string.Empty)
 		{
 			ScheduledAt = scheduledAt,
 			IsMultiTransport = true,
-			TargetTransports = string.Join(",", transportList.Select(t => t.TransportName))
+			TargetTransports = BuildTargetTransportsCsv(transportList)
 		};
 
 		// Initialize transport deliveries with the message ID
@@ -176,7 +177,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	public async Task<PublishingResult> PublishPendingMessagesAsync(CancellationToken cancellationToken)
 	{
 		var messages = await _outboxStore.GetUnsentMessagesAsync(100, cancellationToken).ConfigureAwait(false);
-		return await PublishMessagesAsync(messages.ToList(), cancellationToken).ConfigureAwait(false);
+		return await PublishMessagesAsync(AsReadOnlyList(messages), cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -188,7 +189,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		}
 
 		var messages = await _outboxStoreAdmin.GetScheduledMessagesAsync(DateTimeOffset.UtcNow, 100, cancellationToken).ConfigureAwait(false);
-		return await PublishMessagesAsync(messages.ToList(), cancellationToken).ConfigureAwait(false);
+		return await PublishMessagesAsync(AsReadOnlyList(messages), cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -209,7 +210,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		}
 
 		var messages = await _outboxStoreAdmin.GetFailedMessagesAsync(maxRetries, null, 100, cancellationToken).ConfigureAwait(false);
-		return await PublishMessagesAsync(messages.ToList(), cancellationToken).ConfigureAwait(false);
+		return await PublishMessagesAsync(AsReadOnlyList(messages), cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -269,26 +270,39 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		var deliveries = await _multiTransportStore.GetPendingTransportDeliveriesAsync(transportName, batchSize, cancellationToken)
 			.ConfigureAwait(false);
 
-		var deliveryList = deliveries.ToList();
-		if (deliveryList.Count == 0)
+		var tasks = deliveries switch
+		{
+			ICollection<(OutboundMessage Message, OutboundMessageTransport Transport)> collection =>
+				new List<Task<TransportPublishResult>>(collection.Count),
+			_ => new List<Task<TransportPublishResult>>()
+		};
+
+		foreach (var delivery in deliveries)
+		{
+			tasks.Add(PublishToTransportAsync(delivery.Message, delivery.Transport, adapter, cancellationToken));
+		}
+
+		if (tasks.Count == 0)
 		{
 			return PublishingResult.Success(0, 0, _operationStopwatch.Elapsed);
 		}
 
-		// Publish all deliveries in parallel
-		var tasks = deliveryList.Select(d =>
-			PublishToTransportAsync(d.Message, d.Transport, adapter, cancellationToken));
-
 		var results = await Task.WhenAll(tasks).ConfigureAwait(false);
 
-		var successCount = results.Count(r => r.IsSuccess);
-		var failureCount = results.Count(r => !r.IsSuccess);
-		var errors = results.Where(r => !r.IsSuccess)
-			.Select(r => new PublishingError(
-				r.MessageId,
-				r.ErrorMessage ?? Resources.MessageBusOutboxPublisher_UnknownError,
-				r.Exception))
-			.ToList();
+		var successCount = 0;
+		var failureCount = 0;
+		for (var i = 0; i < results.Length; i++)
+		{
+			var result = results[i];
+			if (result.IsSuccess)
+			{
+				successCount++;
+			}
+			else
+			{
+				failureCount++;
+			}
+		}
 
 		_ = Interlocked.Add(ref _totalPublished, successCount);
 		_ = Interlocked.Add(ref _totalFailed, failureCount);
@@ -299,9 +313,31 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 			failureCount,
 			(long)_operationStopwatch.ElapsedMilliseconds);
 
-		return failureCount > 0
-			? PublishingResult.WithFailures(successCount, failureCount, errors, _operationStopwatch.Elapsed)
-			: PublishingResult.Success(successCount, 0, _operationStopwatch.Elapsed);
+		if (failureCount == 0)
+		{
+			return PublishingResult.Success(successCount, 0, _operationStopwatch.Elapsed);
+		}
+
+		var errors = new List<PublishingError>(failureCount);
+		for (var i = 0; i < results.Length; i++)
+		{
+			var result = results[i];
+			if (result.IsSuccess)
+			{
+				continue;
+			}
+
+			errors.Add(new PublishingError(
+				result.MessageId,
+				result.ErrorMessage ?? Resources.MessageBusOutboxPublisher_UnknownError,
+				result.Exception));
+		}
+
+		return PublishingResult.WithFailures(
+			successCount,
+			failureCount,
+			errors,
+			_operationStopwatch.Elapsed);
 	}
 
 	[LoggerMessage(LogLevel.Debug,
@@ -402,6 +438,8 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		var successCount = 0;
 		var failureCount = 0;
 		var errors = new List<PublishingError>();
+		var publishedDelta = 0L;
+		var failedDelta = 0L;
 
 		foreach (var message in messages)
 		{
@@ -417,19 +455,19 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 					if (result.FailureCount == 0)
 					{
 						successCount++;
-						_ = Interlocked.Increment(ref _totalPublished);
+						publishedDelta++;
 					}
 					else if (result.SuccessCount == 0)
 					{
 						failureCount++;
-						_ = Interlocked.Increment(ref _totalFailed);
+						failedDelta++;
 						errors.AddRange(result.Errors);
 					}
 					else
 					{
 						// Partial success - count as success but record errors
 						successCount++;
-						_ = Interlocked.Increment(ref _totalPublished);
+						publishedDelta++;
 						LogMessagePartiallyDelivered(
 							message.Id,
 							result.SuccessCount,
@@ -441,7 +479,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 					// Single-transport publishing (legacy mode)
 					await PublishSingleTransportMessageAsync(message, cancellationToken).ConfigureAwait(false);
 					successCount++;
-					_ = Interlocked.Increment(ref _totalPublished);
+					publishedDelta++;
 				}
 
 				LogPublishedMessageToDestination(message.Id, message.Destination);
@@ -451,11 +489,21 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 				await _outboxStore.MarkFailedAsync(message.Id, ex.Message, message.RetryCount + 1, cancellationToken).ConfigureAwait(false);
 
 				failureCount++;
-				_ = Interlocked.Increment(ref _totalFailed);
+				failedDelta++;
 				errors.Add(new PublishingError(message.Id, ex.Message, ex));
 
 				LogFailedToPublishToDestination(message.Id, message.Destination, ex);
 			}
+		}
+
+		if (publishedDelta != 0)
+		{
+			_ = Interlocked.Add(ref _totalPublished, publishedDelta);
+		}
+
+		if (failedDelta != 0)
+		{
+			_ = Interlocked.Add(ref _totalFailed, failedDelta);
 		}
 
 		return failureCount > 0
@@ -497,12 +545,10 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 
 		// Get transport deliveries for this message
 		var deliveries = message.TransportDeliveries.Count > 0
-			? message.TransportDeliveries
-			:
-			[
-				.. await _multiTransportStore.GetTransportDeliveriesAsync(message.Id, cancellationToken)
-					.ConfigureAwait(false)
-			];
+			? AsReadOnlyList(message.TransportDeliveries)
+			: AsReadOnlyList(
+				await _multiTransportStore.GetTransportDeliveriesAsync(message.Id, cancellationToken)
+					.ConfigureAwait(false));
 
 		if (deliveries.Count == 0)
 		{
@@ -510,11 +556,16 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 			return PublishingResult.Success(0, 0, TimeSpan.Zero);
 		}
 
-		// Publish to all transports in parallel
-		var tasks = new List<Task<TransportPublishResult>>();
+		// Publish to all pending transports in parallel
+		var tasks = new List<Task<TransportPublishResult>>(deliveries.Count);
 
-		foreach (var delivery in deliveries.Where(d => d.Status == TransportDeliveryStatus.Pending))
+		foreach (var delivery in deliveries)
 		{
+			if (delivery.Status != TransportDeliveryStatus.Pending)
+			{
+				continue;
+			}
+
 			var adapter = _transportRegistry.GetTransportAdapter(delivery.TransportName);
 			if (adapter is null)
 			{
@@ -538,21 +589,105 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 
 		var results = await Task.WhenAll(tasks).ConfigureAwait(false);
 
-		var successCount = results.Count(r => r.IsSuccess);
-		var failureCount = results.Count(r => !r.IsSuccess);
-		var errors = results.Where(r => !r.IsSuccess)
-			.Select(r => new PublishingError(
-				r.MessageId,
-				r.ErrorMessage ?? Resources.MessageBusOutboxPublisher_UnknownError,
-				r.Exception))
-			.ToList();
+		var successCount = 0;
+		var failureCount = 0;
+		for (var i = 0; i < results.Length; i++)
+		{
+			var result = results[i];
+			if (result.IsSuccess)
+			{
+				successCount++;
+			}
+			else
+			{
+				failureCount++;
+			}
+		}
 
 		// Update aggregate message status
 		await _multiTransportStore.UpdateAggregateStatusAsync(message.Id, cancellationToken).ConfigureAwait(false);
 
-		return failureCount > 0
-			? PublishingResult.WithFailures(successCount, failureCount, errors, TimeSpan.Zero)
-			: PublishingResult.Success(successCount, 0, TimeSpan.Zero);
+		if (failureCount == 0)
+		{
+			return PublishingResult.Success(successCount, 0, TimeSpan.Zero);
+		}
+
+		var errors = new List<PublishingError>(failureCount);
+		for (var i = 0; i < results.Length; i++)
+		{
+			var result = results[i];
+			if (result.IsSuccess)
+			{
+				continue;
+			}
+
+			errors.Add(new PublishingError(
+				result.MessageId,
+				result.ErrorMessage ?? Resources.MessageBusOutboxPublisher_UnknownError,
+				result.Exception));
+		}
+
+		return PublishingResult.WithFailures(
+			successCount,
+			failureCount,
+			errors,
+			TimeSpan.Zero);
+	}
+
+	private static IReadOnlyList<OutboundMessage> AsReadOnlyList(IEnumerable<OutboundMessage> messages)
+	{
+		return MaterializeReadOnlyList(messages);
+	}
+
+	private static IReadOnlyList<OutboundMessageTransport> AsReadOnlyList(IEnumerable<OutboundMessageTransport> transports)
+	{
+		return MaterializeReadOnlyList(transports);
+	}
+
+	private static IReadOnlyList<T> MaterializeReadOnlyList<T>(IEnumerable<T> source)
+	{
+		if (source is IReadOnlyList<T> readOnlyList)
+		{
+			return readOnlyList;
+		}
+
+		return new List<T>(source);
+	}
+
+	private static string BuildTargetTransportsCsv(IReadOnlyList<OutboundMessageTransport> transports)
+	{
+		var count = transports.Count;
+		if (count == 0)
+		{
+			return string.Empty;
+		}
+
+		if (count == 1)
+		{
+			return transports[0].TransportName;
+		}
+
+		var totalLength = count - 1;
+		for (var i = 0; i < count; i++)
+		{
+			totalLength += transports[i].TransportName.Length;
+		}
+
+		return string.Create(totalLength, transports, static (buffer, state) =>
+		{
+			var offset = 0;
+			for (var i = 0; i < state.Count; i++)
+			{
+				if (i > 0)
+				{
+					buffer[offset++] = ',';
+				}
+
+				var transportName = state[i].TransportName;
+				transportName.AsSpan().CopyTo(buffer[offset..]);
+				offset += transportName.Length;
+			}
+		});
 	}
 
 	/// <summary>

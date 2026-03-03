@@ -1,0 +1,39 @@
+{
+  "profiles": {
+    "ci": {
+      "DOTNET_TieredPGO": "1",
+      "DOTNET_ReadyToRun": "0",
+      "DOTNET_gcServer": "1",
+      "DOTNET_TC_QuickJit": "1",
+      "DOTNET_TC_QuickJitForLoops": "1"
+    },
+    "throughput": {
+      "DOTNET_TieredPGO": "1",
+      "DOTNET_ReadyToRun": "0",
+      "DOTNET_gcServer": "1",
+      "DOTNET_TC_QuickJit": "0",
+      "DOTNET_TC_QuickJitForLoops": "0"
+    },
+    "latency": {
+      "DOTNET_TieredPGO": "1",
+      "DOTNET_ReadyToRun": "0",
+      "DOTNET_gcServer": "1",
+      "DOTNET_TC_QuickJit": "1",
+      "DOTNET_TC_QuickJitForLoops": "1"
+    },
+    "startup": {
+      "DOTNET_TieredPGO": "0",
+      "DOTNET_ReadyToRun": "1",
+      "DOTNET_gcServer": "1",
+      "DOTNET_TC_QuickJit": "1",
+      "DOTNET_TC_QuickJitForLoops": "1"
+    },
+    "serverless": {
+      "DOTNET_TieredPGO": "0",
+      "DOTNET_ReadyToRun": "1",
+      "DOTNET_gcServer": "0",
+      "DOTNET_TC_QuickJit": "1",
+      "DOTNET_TC_QuickJitForLoops": "1"
+    }
+  }
+}

@@ -171,7 +171,7 @@ public sealed partial class DefaultValidationService(IOptions<ValidationOptions>
 		{
 			foreach (var validationResult in validationResults)
 			{
-				var propertyName = validationResult.MemberNames.FirstOrDefault();
+				var propertyName = GetFirstMemberName(validationResult.MemberNames);
 				var errorMessage = validationResult.ErrorMessage ?? "Validation failed";
 
 				errors.Add(new ValidationError(propertyName ?? string.Empty, errorMessage));
@@ -182,6 +182,17 @@ public sealed partial class DefaultValidationService(IOptions<ValidationOptions>
 				}
 			}
 		}
+	}
+
+	private static string? GetFirstMemberName(IEnumerable<string> memberNames)
+	{
+		if (memberNames is IList<string> list)
+		{
+			return list.Count > 0 ? list[0] : null;
+		}
+
+		using var enumerator = memberNames.GetEnumerator();
+		return enumerator.MoveNext() ? enumerator.Current : null;
 	}
 
 	// Source-generated logging methods

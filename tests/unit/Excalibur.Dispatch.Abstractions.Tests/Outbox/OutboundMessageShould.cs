@@ -222,6 +222,21 @@ public sealed class OutboundMessageShould
 	}
 
 	[Fact]
+	public void AddTransport_Should_KeepTargetTransportsDistinct()
+	{
+		// Arrange
+		var msg = new OutboundMessage("Type", [1], "dest");
+
+		// Act
+		msg.AddTransport("kafka");
+		msg.AddTransport("rabbitmq");
+		msg.AddTransport("kafka");
+
+		// Assert
+		msg.TargetTransports.ShouldBe("kafka,rabbitmq");
+	}
+
+	[Fact]
 	public void GetTransportDelivery_Should_FindByName()
 	{
 		// Arrange
@@ -309,6 +324,40 @@ public sealed class OutboundMessageShould
 
 		// Assert
 		msg.Status.ShouldBe(OutboxStatus.Failed);
+	}
+
+	[Fact]
+	public void UpdateAggregateStatus_Should_SetPartiallyFailed_WithFailedCountMessage()
+	{
+		// Arrange
+		var msg = new OutboundMessage("Type", [1], "dest");
+		var t1 = msg.AddTransport("kafka");
+		msg.AddTransport("rabbitmq");
+		t1.MarkFailed("error1");
+
+		// Act
+		msg.UpdateAggregateStatus();
+
+		// Assert
+		msg.Status.ShouldBe(OutboxStatus.PartiallyFailed);
+		msg.LastError.ShouldBe("1 of 2 transports failed");
+	}
+
+	[Fact]
+	public void UpdateAggregateStatus_Should_PrioritizeSending_OverPartialFailure()
+	{
+		// Arrange
+		var msg = new OutboundMessage("Type", [1], "dest");
+		var sending = msg.AddTransport("kafka");
+		var failed = msg.AddTransport("rabbitmq");
+		sending.MarkSending();
+		failed.MarkFailed("error1");
+
+		// Act
+		msg.UpdateAggregateStatus();
+
+		// Assert
+		msg.Status.ShouldBe(OutboxStatus.Sending);
 	}
 
 	[Fact]

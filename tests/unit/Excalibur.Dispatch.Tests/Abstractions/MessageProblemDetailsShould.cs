@@ -454,8 +454,7 @@ public sealed class MessageProblemDetailsShould
 		problemDetails.Title.ShouldBe("Test Title");
 		problemDetails.Detail.ShouldBe("I'm a teapot");
 		problemDetails.Instance.ShouldBe("/api/teapot");
-		// Status is not on the interface, verify via concrete type
-		concreteDetails.Status.ShouldBe(418);
+		problemDetails.Status.ShouldBe(418);
 	}
 
 	#endregion

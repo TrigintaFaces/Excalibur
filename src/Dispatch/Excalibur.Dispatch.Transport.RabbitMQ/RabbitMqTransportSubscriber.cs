@@ -39,6 +39,8 @@ internal sealed partial class RabbitMqTransportSubscriber : ITransportSubscriber
 	private readonly IChannel _channel;
 
 	private readonly string _queueName;
+	private readonly ushort _prefetchCount;
+	private readonly bool _prefetchGlobal;
 	private readonly ILogger _logger;
 	private volatile bool _disposed;
 
@@ -54,11 +56,33 @@ internal sealed partial class RabbitMqTransportSubscriber : ITransportSubscriber
 		string source,
 		string queueName,
 		ILogger<RabbitMqTransportSubscriber> logger)
+		: this(channel, source, queueName, logger, prefetchCount: 0, prefetchGlobal: false)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="RabbitMqTransportSubscriber"/> class.
+	/// </summary>
+	/// <param name="channel">The RabbitMQ channel.</param>
+	/// <param name="source">The source identifier (queue name).</param>
+	/// <param name="queueName">The queue name to consume from.</param>
+	/// <param name="logger">The logger instance.</param>
+	/// <param name="prefetchCount">Optional QoS prefetch count applied before subscription.</param>
+	/// <param name="prefetchGlobal">Whether QoS is applied globally to the channel.</param>
+	public RabbitMqTransportSubscriber(
+		IChannel channel,
+		string source,
+		string queueName,
+		ILogger<RabbitMqTransportSubscriber> logger,
+		ushort prefetchCount,
+		bool prefetchGlobal)
 	{
 		_channel = channel ?? throw new ArgumentNullException(nameof(channel));
 		Source = source ?? throw new ArgumentNullException(nameof(source));
 		_queueName = queueName ?? throw new ArgumentNullException(nameof(queueName));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_prefetchCount = prefetchCount;
+		_prefetchGlobal = prefetchGlobal;
 	}
 
 	/// <inheritdoc />
@@ -70,6 +94,15 @@ internal sealed partial class RabbitMqTransportSubscriber : ITransportSubscriber
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(handler);
+
+		if (_prefetchCount > 0)
+		{
+			await _channel.BasicQosAsync(
+				prefetchSize: 0,
+				prefetchCount: _prefetchCount,
+				global: _prefetchGlobal,
+				cancellationToken: cancellationToken).ConfigureAwait(false);
+		}
 
 		var consumer = new AsyncEventingBasicConsumer(_channel);
 

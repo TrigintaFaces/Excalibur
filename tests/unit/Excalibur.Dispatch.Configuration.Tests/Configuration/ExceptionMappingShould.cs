@@ -375,6 +375,7 @@ public sealed class ExceptionMappingShould
 		public required string Type { get; set; }
 		public string Title { get; set; } = "Test Error";
 		public int ErrorCode { get; set; }
+		public int? Status { get; set; }
 		public required string Detail { get; set; }
 		public string Instance { get; set; } = string.Empty;
 		public IDictionary<string, object?> Extensions { get; } = new Dictionary<string, object?>();

@@ -18,10 +18,15 @@ namespace Excalibur.Dispatch.Messaging;
 public sealed class MemoryMessageOfT<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T> : IMemoryMessage<T>, IDisposable
 	where T : class
 {
+	private static readonly string MessageTypeName = typeof(T).Name;
+	private static readonly IReadOnlyDictionary<string, object> EmptyHeaders =
+		new ReadOnlyDictionary<string, object>(new Dictionary<string, object>(0, StringComparer.Ordinal));
+
 	private readonly IMemoryOwner<byte>? _memoryOwner;
 	private readonly IUtf8JsonSerializer? _serializer;
-	private readonly Dictionary<string, object> _headers = [];
-	private readonly DefaultMessageFeatures _features = new();
+	private DefaultMessageFeatures? _features;
+	private Guid _id;
+	private string? _messageId;
 	private T? _content;
 	private volatile bool _disposed;
 
@@ -35,17 +40,34 @@ public sealed class MemoryMessageOfT<[DynamicallyAccessedMembers(DynamicallyAcce
 		IMemoryOwner<byte> memoryOwner,
 		IUtf8JsonSerializer serializer,
 		string contentType = "application/json")
+		: this(memoryOwner, serializer, memoryOwner?.Memory.Length ?? throw new ArgumentNullException(nameof(memoryOwner)), contentType)
+	{
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="MemoryMessageOfT{T}" /> class with owned memory and explicit payload length.
+	/// </summary>
+	/// <param name="memoryOwner"> The memory owner that manages the message body. </param>
+	/// <param name="serializer"> The serializer for deserializing content. </param>
+	/// <param name="payloadLength"> The valid payload length within <paramref name="memoryOwner" /> memory. </param>
+	/// <param name="contentType"> The content type of the message body. </param>
+	public MemoryMessageOfT(
+		IMemoryOwner<byte> memoryOwner,
+		IUtf8JsonSerializer serializer,
+		int payloadLength,
+		string contentType = "application/json")
 	{
 		_memoryOwner = memoryOwner ?? throw new ArgumentNullException(nameof(memoryOwner));
 		_serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
-		Body = _memoryOwner.Memory;
+		if ((uint)payloadLength > (uint)_memoryOwner.Memory.Length)
+		{
+			throw new ArgumentOutOfRangeException(nameof(payloadLength));
+		}
+
+		Body = _memoryOwner.Memory.Slice(0, payloadLength);
 		ContentType = contentType ?? throw new ArgumentNullException(nameof(contentType));
 		OwnsMemory = true;
-		MessageId = Guid.NewGuid().ToString();
 		Timestamp = DateTimeOffset.UtcNow;
-		Headers = new ReadOnlyDictionary<string, object>(_headers);
-		MessageType = typeof(T).Name;
-		Features = _features;
 	}
 
 	/// <summary>
@@ -64,11 +86,7 @@ public sealed class MemoryMessageOfT<[DynamicallyAccessedMembers(DynamicallyAcce
 		ContentType = contentType ?? throw new ArgumentNullException(nameof(contentType));
 		OwnsMemory = false;
 		_memoryOwner = null;
-		MessageId = Guid.NewGuid().ToString();
 		Timestamp = DateTimeOffset.UtcNow;
-		Headers = new ReadOnlyDictionary<string, object>(_headers);
-		MessageType = typeof(T).Name;
-		Features = _features;
 	}
 
 	/// <summary>
@@ -86,30 +104,51 @@ public sealed class MemoryMessageOfT<[DynamicallyAccessedMembers(DynamicallyAcce
 		IsDeserialized = true;
 		_memoryOwner = null;
 		_serializer = null;
-		MessageId = Guid.NewGuid().ToString();
 		Timestamp = DateTimeOffset.UtcNow;
-		Headers = new ReadOnlyDictionary<string, object>(_headers);
-		MessageType = typeof(T).Name;
-		Features = _features;
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="MemoryMessageOfT{T}" /> class with pre-deserialized content and owned memory.
+	/// </summary>
+	/// <param name="content">The pre-deserialized content.</param>
+	/// <param name="memoryOwner">The memory owner that manages the message body.</param>
+	/// <param name="payloadLength">The valid payload length within <paramref name="memoryOwner" /> memory.</param>
+	/// <param name="contentType">The content type of the message body.</param>
+	public MemoryMessageOfT(T content, IMemoryOwner<byte> memoryOwner, int payloadLength, string contentType = "application/json")
+	{
+		_content = content ?? throw new ArgumentNullException(nameof(content));
+		_memoryOwner = memoryOwner ?? throw new ArgumentNullException(nameof(memoryOwner));
+		if ((uint)payloadLength > (uint)_memoryOwner.Memory.Length)
+		{
+			throw new ArgumentOutOfRangeException(nameof(payloadLength));
+		}
+
+		Body = _memoryOwner.Memory.Slice(0, payloadLength);
+		ContentType = contentType ?? throw new ArgumentNullException(nameof(contentType));
+		OwnsMemory = true;
+		IsDeserialized = true;
+		_serializer = null;
+		Timestamp = DateTimeOffset.UtcNow;
 	}
 
 	/// <inheritdoc />
-	public string MessageId { get; }
+	public string MessageId => _messageId ??= EnsureId().ToString();
 
 	/// <inheritdoc />
 	public DateTimeOffset Timestamp { get; }
 
 	/// <inheritdoc />
-	public IReadOnlyDictionary<string, object> Headers { get; }
+	public IReadOnlyDictionary<string, object> Headers => EmptyHeaders;
 
 	/// <inheritdoc />
 	public Memory<byte> Body { get; }
 
 	/// <inheritdoc />
-	public string MessageType { get; }
+	public string MessageType => MessageTypeName;
 
 	/// <inheritdoc />
-	public IMessageFeatures Features { get; }
+	public IMessageFeatures Features => _features ??=
+		new DefaultMessageFeatures();
 
 	/// <inheritdoc />
 	public string ContentType { get; }
@@ -141,7 +180,7 @@ public sealed class MemoryMessageOfT<[DynamicallyAccessedMembers(DynamicallyAcce
 	public bool IsDeserialized { get; private set; }
 
 	/// <inheritdoc />
-	public Guid Id => Guid.TryParse(MessageId, out var guid) ? guid : Guid.Empty;
+	public Guid Id => EnsureId();
 
 	/// <inheritdoc />
 	public MessageKinds Kind => MessageKinds.Action;
@@ -168,5 +207,23 @@ public sealed class MemoryMessageOfT<[DynamicallyAccessedMembers(DynamicallyAcce
 		}
 
 		_disposed = true;
+	}
+
+	private Guid EnsureId()
+	{
+		if (_id != Guid.Empty)
+		{
+			return _id;
+		}
+
+		if (_messageId is not null &&
+			Guid.TryParse(_messageId, out var parsedId))
+		{
+			_id = parsedId;
+			return parsedId;
+		}
+
+		_id = Guid.NewGuid();
+		return _id;
 	}
 }

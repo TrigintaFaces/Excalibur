@@ -216,3 +216,6 @@ static Excalibur.Cdc.InMemory.InMemoryCdcChange.Update(System.String tableName, 
 static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.AddCdcProcessor(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Cdc.ICdcBuilder> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
 static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.AddCdcProcessor(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
 static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.HasCdcProcessor(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> System.Boolean
+
+Microsoft.Extensions.DependencyInjection.CdcExcaliburBuilderExtensions
+static Microsoft.Extensions.DependencyInjection.CdcExcaliburBuilderExtensions.AddCdc(Excalibur.Hosting.Builders.IExcaliburBuilder builder, System.Action<Excalibur.Cdc.ICdcBuilder> configure) -> Excalibur.Hosting.Builders.IExcaliburBuilder

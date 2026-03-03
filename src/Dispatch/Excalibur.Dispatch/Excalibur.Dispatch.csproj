@@ -74,7 +74,6 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <!-- From Excalibur.Dispatch.Messaging -->
-    <PackageReference Include="CloudNative.CloudEvents" />
     <PackageReference Include="CloudNative.CloudEvents.SystemTextJson" />
     <PackageReference Include="Cronos" />
     <PackageReference Include="MemoryPack" />

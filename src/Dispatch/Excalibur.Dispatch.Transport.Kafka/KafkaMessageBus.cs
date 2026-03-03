@@ -1,7 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Buffers;
 using System.Collections.Concurrent;
 using System.Text;
 
@@ -179,12 +178,7 @@ public sealed partial class KafkaMessageBus(
 
 		if (!string.IsNullOrEmpty(traceParent))
 		{
-			var traceParentByteCount = Encoding.UTF8.GetByteCount(traceParent);
-			var traceParentBytes = ArrayPool<byte>.Shared.Rent(traceParentByteCount);
-			var actualTraceParentBytes = Encoding.UTF8.GetBytes(traceParent, traceParentBytes);
-			message.Headers.Add(
-					"trace-parent",
-					traceParentBytes.AsSpan(0, actualTraceParentBytes).ToArray());
+			message.Headers.Add("trace-parent", Encoding.UTF8.GetBytes(traceParent));
 		}
 
 		await EnsureTopicExistsAsync(_topic, cancellationToken).ConfigureAwait(false);

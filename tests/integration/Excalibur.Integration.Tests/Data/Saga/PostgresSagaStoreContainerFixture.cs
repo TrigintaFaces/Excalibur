@@ -4,6 +4,7 @@
 using Npgsql;
 
 using Testcontainers.PostgreSql;
+using Tests.Shared.Fixtures;
 
 #pragma warning disable CA2100 // SQL strings are safe - table name is a constant in test fixture
 
@@ -17,11 +18,10 @@ namespace Excalibur.Integration.Tests.Data.Saga;
 /// Uses postgres:16-alpine for fast container startup.
 /// Enables Npgsql legacy timestamp behavior to map TIMESTAMPTZ to DateTimeOffset.
 /// </remarks>
-public sealed class PostgresSagaStoreContainerFixture : IAsyncLifetime, IDisposable
+public sealed class PostgresSagaStoreContainerFixture : ContainerFixtureBase
 {
-	private readonly PostgreSqlContainer _container;
+	private PostgreSqlContainer? _container;
 	private bool _initialized;
-	private bool _disposed;
 
 	/// <summary>
 	/// Static constructor to enable Npgsql legacy timestamp behavior.
@@ -37,7 +37,8 @@ public sealed class PostgresSagaStoreContainerFixture : IAsyncLifetime, IDisposa
 	/// <summary>
 	/// Gets the connection string for the Postgres container.
 	/// </summary>
-	public string ConnectionString => _container.GetConnectionString();
+	public string ConnectionString => _container?.GetConnectionString()
+		?? throw new InvalidOperationException("Container not initialized");
 
 	/// <summary>
 	/// Gets the schema name for the saga store.
@@ -49,10 +50,10 @@ public sealed class PostgresSagaStoreContainerFixture : IAsyncLifetime, IDisposa
 	/// </summary>
 	public string TableName { get; } = "sagas";
 
-	/// <summary>
-	/// Initializes a new instance of the <see cref="PostgresSagaStoreContainerFixture"/> class.
-	/// </summary>
-	public PostgresSagaStoreContainerFixture()
+	protected override TimeSpan ContainerStartTimeout => TimeSpan.FromMinutes(4);
+
+	/// <inheritdoc/>
+	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new PostgreSqlBuilder()
 			.WithImage("postgres:16-alpine")
@@ -62,12 +63,8 @@ public sealed class PostgresSagaStoreContainerFixture : IAsyncLifetime, IDisposa
 			.WithPassword("postgres_password")
 			.WithCleanUp(true)
 			.Build();
-	}
 
-	/// <inheritdoc/>
-	public async Task InitializeAsync()
-	{
-		await _container.StartAsync().ConfigureAwait(false);
+		await _container.StartAsync(cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -132,20 +129,12 @@ public sealed class PostgresSagaStoreContainerFixture : IAsyncLifetime, IDisposa
 	}
 
 	/// <inheritdoc/>
-	public void Dispose()
+	protected override async Task DisposeContainerAsync(CancellationToken cancellationToken)
 	{
-		if (_disposed)
+		if (_container is not null)
 		{
-			return;
+			await _container.DisposeAsync().ConfigureAwait(false);
 		}
-
-		_disposed = true;
-	}
-
-	/// <inheritdoc/>
-	public async Task DisposeAsync()
-	{
-		await _container.DisposeAsync().ConfigureAwait(false);
 	}
 }
 

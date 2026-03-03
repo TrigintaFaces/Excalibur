@@ -5,7 +5,7 @@
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Validation;
 
-using ValidationMiddleware = Excalibur.Dispatch.Middleware.ValidationMiddleware;
+using ValidationMiddleware = Excalibur.Dispatch.Middleware.Validation.ValidationMiddleware;
 
 namespace Microsoft.Extensions.DependencyInjection;
 

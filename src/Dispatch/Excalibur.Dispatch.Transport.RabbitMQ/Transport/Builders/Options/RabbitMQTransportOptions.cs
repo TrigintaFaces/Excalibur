@@ -274,8 +274,8 @@ public class RabbitMQQueueOptions
 	/// <summary>
 	/// Gets or sets the prefetch count for this queue.
 	/// </summary>
-	/// <value>The prefetch count. Default is 10.</value>
-	public ushort PrefetchCount { get; set; } = 10;
+	/// <value>The prefetch count. Default is 100.</value>
+	public ushort PrefetchCount { get; set; } = 100;
 
 	/// <summary>
 	/// Gets or sets a value indicating whether messages are auto-acknowledged.

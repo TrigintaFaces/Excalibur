@@ -125,7 +125,7 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 	/// </summary>
 	public async ValueTask DisposeAsync()
 	{
-		await DisposeAsyncCoreAsync().ConfigureAwait(false);
+		await DisposeCoreAsync().ConfigureAwait(false);
 		GC.SuppressFinalize(this);
 	}
 
@@ -141,7 +141,7 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 	/// <summary>
 	/// Disposes of resources used by the DataProcessor.
 	/// </summary>
-	protected virtual async ValueTask DisposeAsyncCoreAsync()
+	protected virtual async ValueTask DisposeCoreAsync()
 	{
 		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
 		{

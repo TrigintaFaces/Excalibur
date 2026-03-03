@@ -41,7 +41,7 @@ public partial class TimeAwareScheduledMessageService(
 	IOptions<SchedulerOptions> options,
 	ILogger<TimeAwareScheduledMessageService> logger) : BackgroundService
 {
-	private readonly TimeSpan _pollInterval = options.Value.PollInterval;
+	private readonly SchedulerOptions _schedulerOptions = options.Value;
 
 	/// <summary>
 	/// Stops the time-aware scheduled message service with graceful shutdown, ensuring proper resource cleanup and pending operation completion.
@@ -75,9 +75,16 @@ public partial class TimeAwareScheduledMessageService(
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
 		LogServiceStarted(logger);
+		var scheduleSignal = scheduleStore as IScheduleStoreSignal;
+		var currentPollInterval = PollingIntervalCalculator.GetInitialInterval(
+			_schedulerOptions.EnableAdaptivePolling,
+			_schedulerOptions.MinPollingInterval,
+			_schedulerOptions.PollInterval);
 
 		while (!stoppingToken.IsCancellationRequested)
 		{
+			var hadWork = false;
+
 			try
 			{
 				// Apply timeout to schedule retrieval operation
@@ -91,6 +98,7 @@ public partial class TimeAwareScheduledMessageService(
 						continue;
 					}
 
+					hadWork = true;
 					await ProcessScheduledMessageAsync((ScheduledMessage)item, stoppingToken).ConfigureAwait(false);
 				}
 			}
@@ -108,7 +116,25 @@ public partial class TimeAwareScheduledMessageService(
 				LogErrorProcessingMessages(logger, ex);
 			}
 
-			await Task.Delay(_pollInterval, stoppingToken).ConfigureAwait(false);
+			currentPollInterval = PollingIntervalCalculator.GetNextInterval(
+				currentPollInterval,
+				hadWork,
+				_schedulerOptions.EnableAdaptivePolling,
+				_schedulerOptions.MinPollingInterval,
+				_schedulerOptions.PollInterval,
+				_schedulerOptions.AdaptivePollingBackoffMultiplier);
+
+			var delay = PollingIntervalCalculator.ApplyJitter(
+				currentPollInterval,
+				_schedulerOptions.PollingJitterRatio);
+			if (!hadWork && scheduleSignal is not null)
+			{
+				await scheduleSignal.WaitForChangeAsync(delay, stoppingToken).ConfigureAwait(false);
+			}
+			else
+			{
+				await Task.Delay(delay, stoppingToken).ConfigureAwait(false);
+			}
 		}
 
 		LogServiceStopped(logger);

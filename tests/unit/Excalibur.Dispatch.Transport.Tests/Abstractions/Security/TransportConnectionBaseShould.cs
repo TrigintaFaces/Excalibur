@@ -75,11 +75,11 @@ public sealed class TransportConnectionBaseShould
     }
 
     [Fact]
-    public async Task Call_DisposeAsyncCore()
+    public async Task Call_DisposeCoreAsync()
     {
         var sut = new TestConnection(null, isSecure: true);
         await sut.DisposeAsync();
-        sut.DisposeAsyncCoreCalled.ShouldBeTrue();
+        sut.DisposeCoreAsyncCalled.ShouldBeTrue();
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public sealed class TransportConnectionBaseShould
     {
         private readonly bool _isSecure;
         public bool EstablishConnectionCalled { get; private set; }
-        public bool DisposeAsyncCoreCalled { get; private set; }
+        public bool DisposeCoreAsyncCalled { get; private set; }
 
         public TestConnection(TransportSecurityOptions? securityOptions, bool isSecure)
             : base(securityOptions)
@@ -111,10 +111,10 @@ public sealed class TransportConnectionBaseShould
 
         protected override bool IsConnectionSecure() => _isSecure;
 
-        protected override async ValueTask DisposeAsyncCore()
+        protected override async ValueTask DisposeCoreAsync()
         {
-            DisposeAsyncCoreCalled = true;
-            await base.DisposeAsyncCore().ConfigureAwait(false);
+            DisposeCoreAsyncCalled = true;
+            await base.DisposeCoreAsync().ConfigureAwait(false);
         }
     }
 }

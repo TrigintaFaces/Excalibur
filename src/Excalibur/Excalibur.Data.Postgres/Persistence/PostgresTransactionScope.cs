@@ -406,7 +406,7 @@ public class PostgresTransactionScope : ITransactionScope, ITransactionScopeCall
 	/// <inheritdoc />
 	public async ValueTask DisposeAsync()
 	{
-		await DisposeAsyncCore().ConfigureAwait(false);
+		await DisposeCoreAsync().ConfigureAwait(false);
 		Dispose(disposing: false);
 		GC.SuppressFinalize(this);
 	}
@@ -472,7 +472,7 @@ public class PostgresTransactionScope : ITransactionScope, ITransactionScopeCall
 	/// <summary>
 	/// Asynchronously disposes the transaction scope.
 	/// </summary>
-	protected virtual async ValueTask DisposeAsyncCore()
+	protected virtual async ValueTask DisposeCoreAsync()
 	{
 		if (_disposed)
 		{

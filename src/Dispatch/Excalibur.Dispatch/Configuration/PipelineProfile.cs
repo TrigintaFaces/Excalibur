@@ -17,6 +17,8 @@ namespace Excalibur.Dispatch.Configuration;
 /// </summary>
 public sealed class PipelineProfile : IPipelineProfile
 {
+	private static readonly ConcurrentDictionary<Type, MessageKinds> MessageKindCache = new();
+
 	/// <summary>
 	/// Cached composite format for performance.
 	/// </summary>
@@ -25,6 +27,10 @@ public sealed class PipelineProfile : IPipelineProfile
 
 	private readonly ConcurrentDictionary<Type, MiddlewareRegistration> _middleware = new();
 	private readonly List<MiddlewareRegistration> _orderedMiddleware = [];
+	private readonly ConcurrentDictionary<MessageKinds, IReadOnlyList<Type>> _applicableMiddlewareWithoutFeaturesCache = new();
+	private IReadOnlyList<Type>? _orderedMiddlewareTypesSnapshot;
+	private MiddlewareRegistration[]? _orderedMiddlewareSnapshot;
+	private long _registrationSequence;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PipelineProfile" /> class.
@@ -123,28 +129,20 @@ public sealed class PipelineProfile : IPipelineProfile
 	/// <inheritdoc />
 	public IReadOnlyList<Type> GetMiddleware()
 	{
-		lock (_orderedMiddleware)
+		var snapshot = System.Threading.Volatile.Read(ref _orderedMiddlewareTypesSnapshot);
+		if (snapshot != null)
 		{
-			return _orderedMiddleware
-				.OrderBy(static m => m.Order)
-				.ThenBy(static m => m.RegistrationTime)
-				.Select(static m => m.MiddlewareType)
-				.ToList();
+			return snapshot;
 		}
+
+		_ = GetOrderedMiddlewareSnapshot();
+		return _orderedMiddlewareTypesSnapshot ?? [];
 	}
 
 	/// <inheritdoc />
 	public IReadOnlyList<Type> GetApplicableMiddleware(MessageKinds messageKind)
 	{
-		lock (_orderedMiddleware)
-		{
-			return _orderedMiddleware
-				.Where(m => IsApplicable(m, messageKind))
-				.OrderBy(m => m.Order)
-				.ThenBy(m => m.RegistrationTime)
-				.Select(m => m.MiddlewareType)
-				.ToList();
-		}
+		return _applicableMiddlewareWithoutFeaturesCache.GetOrAdd(messageKind, CreateNoFeatureApplicableMiddleware);
 	}
 
 	/// <summary>
@@ -157,15 +155,12 @@ public sealed class PipelineProfile : IPipelineProfile
 	{
 		ArgumentNullException.ThrowIfNull(enabledFeatures);
 
-		lock (_orderedMiddleware)
+		if (enabledFeatures.Count == 0)
 		{
-			return _orderedMiddleware
-				.Where(m => IsApplicable(m, messageKind) && HasRequiredFeatures(m, enabledFeatures))
-				.OrderBy(m => m.Order)
-				.ThenBy(m => m.RegistrationTime)
-				.Select(m => m.MiddlewareType)
-				.ToList();
+			return _applicableMiddlewareWithoutFeaturesCache.GetOrAdd(messageKind, CreateNoFeatureApplicableMiddleware);
 		}
+
+		return FilterApplicableMiddleware(messageKind, enabledFeatures);
 	}
 
 	/// <summary>
@@ -195,18 +190,14 @@ public sealed class PipelineProfile : IPipelineProfile
 				nameof(middlewareType));
 		}
 
-		var registration = new MiddlewareRegistration
-		{
-			MiddlewareType = middlewareType,
-			Order = order,
-			RegistrationTime = DateTimeOffset.UtcNow,
-		};
+		var registration = CreateMiddlewareRegistration(middlewareType, order);
 
 		if (_middleware.TryAdd(middlewareType, registration))
 		{
 			lock (_orderedMiddleware)
 			{
-				_orderedMiddleware.Add(registration);
+				InsertOrderedMiddleware(registration);
+				InvalidateMiddlewareSnapshots();
 			}
 		}
 	}
@@ -230,6 +221,7 @@ public sealed class PipelineProfile : IPipelineProfile
 			lock (_orderedMiddleware)
 			{
 				_ = _orderedMiddleware.Remove(registration);
+				InvalidateMiddlewareSnapshots();
 			}
 		}
 	}
@@ -243,6 +235,7 @@ public sealed class PipelineProfile : IPipelineProfile
 		lock (_orderedMiddleware)
 		{
 			_orderedMiddleware.Clear();
+			InvalidateMiddlewareSnapshots();
 		}
 	}
 
@@ -266,19 +259,23 @@ public sealed class PipelineProfile : IPipelineProfile
 	private static MessageKinds GetMessageKind(IDispatchMessage message)
 	{
 		var messageType = message.GetType();
+		return MessageKindCache.GetOrAdd(messageType, static type => DetermineMessageKind(type));
+	}
 
-		// Check for explicit interface implementations
-		if (messageType.GetInterfaces().Any(static i => i.Name.Contains("Action", StringComparison.Ordinal)))
+	[RequiresUnreferencedCode("Uses reflection to check message interfaces")]
+	private static MessageKinds DetermineMessageKind(Type messageType)
+	{
+		if (typeof(IDispatchAction).IsAssignableFrom(messageType) || ImplementsGenericActionInterface(messageType))
 		{
 			return MessageKinds.Action;
 		}
 
-		if (messageType.GetInterfaces().Any(static i => i.Name.Contains("Event", StringComparison.Ordinal)))
+		if (typeof(IDispatchEvent).IsAssignableFrom(messageType))
 		{
 			return MessageKinds.Event;
 		}
 
-		if (messageType.GetInterfaces().Any(static i => i.Name.Contains("Document", StringComparison.Ordinal)))
+		if (typeof(IDispatchDocument).IsAssignableFrom(messageType))
 		{
 			return MessageKinds.Document;
 		}
@@ -303,30 +300,14 @@ public sealed class PipelineProfile : IPipelineProfile
 		return MessageKinds.Action; // Default to Action for unknown types
 	}
 
-	private static bool IsApplicable(MiddlewareRegistration registration, MessageKinds messageKind)
+	private static bool IsApplicableToMessageKind(MiddlewareRegistration registration, MessageKinds messageKind)
 	{
-		// Check if middleware has applicability attributes
-		var middlewareType = registration.MiddlewareType;
-
-		// Check for ExcludeKinds attribute (R2.5 - Exclude overrides include)
-		if (middlewareType
-				.GetCustomAttributes(typeof(ExcludeKindsAttribute), inherit: true)
-				.FirstOrDefault() is ExcludeKindsAttribute excludeAttr &&
-			(excludeAttr.ExcludedKinds & messageKind) != MessageKinds.None)
+		if ((registration.ExcludedKinds & messageKind) != MessageKinds.None)
 		{
 			return false;
 		}
 
-		// Check for AppliesTo attribute
-		if (middlewareType
-				.GetCustomAttributes(typeof(AppliesToAttribute), inherit: true)
-				.FirstOrDefault() is AppliesToAttribute appliesToAttr)
-		{
-			return (appliesToAttr.MessageKinds & messageKind) != MessageKinds.None;
-		}
-
-		// If no attributes are present, default to applicable for all message kinds Per R2.4, middleware without attributes applies to all kinds
-		return true;
+		return (registration.IncludedKinds & messageKind) != MessageKinds.None;
 	}
 
 	/// <summary>
@@ -337,21 +318,15 @@ public sealed class PipelineProfile : IPipelineProfile
 	/// <returns> true if all required features are enabled; otherwise, false. </returns>
 	private static bool HasRequiredFeatures(MiddlewareRegistration registration, IReadOnlySet<DispatchFeatures> enabledFeatures)
 	{
-		var middlewareType = registration.MiddlewareType;
-
-		// Check for RequiresFeatures attribute
-		if (middlewareType
-				.GetCustomAttributes(typeof(RequiresFeaturesAttribute), inherit: true)
-				.FirstOrDefault() is not RequiresFeaturesAttribute requiresFeaturesAttr)
+		var requiredFeatures = registration.RequiredFeatures;
+		if (requiredFeatures.Length == 0)
 		{
-			// No feature requirements, middleware is available
 			return true;
 		}
 
-		// Check if all required features are enabled
-		foreach (var requiredFeature in requiresFeaturesAttr.Features)
+		for (var i = 0; i < requiredFeatures.Length; i++)
 		{
-			if (!enabledFeatures.Contains(requiredFeature))
+			if (!enabledFeatures.Contains(requiredFeatures[i]))
 			{
 				return false;
 			}
@@ -360,12 +335,180 @@ public sealed class PipelineProfile : IPipelineProfile
 		return true;
 	}
 
+	private static bool ImplementsGenericActionInterface(Type messageType)
+	{
+		var interfaces = messageType.GetInterfaces();
+		for (var i = 0; i < interfaces.Length; i++)
+		{
+			var iface = interfaces[i];
+			if (iface.IsGenericType && iface.GetGenericTypeDefinition() == typeof(IDispatchAction<>))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private IReadOnlyList<Type> CreateNoFeatureApplicableMiddleware(MessageKinds messageKind)
+	{
+		var snapshot = GetOrderedMiddlewareSnapshot();
+		if (snapshot.Length == 0)
+		{
+			return [];
+		}
+
+		var applicable = new List<Type>(snapshot.Length);
+		for (var i = 0; i < snapshot.Length; i++)
+		{
+			ref readonly var registration = ref snapshot[i];
+			if (IsApplicableToMessageKind(registration, messageKind) && registration.RequiredFeatures.Length == 0)
+			{
+				applicable.Add(registration.MiddlewareType);
+			}
+		}
+
+		return applicable.Count == 0 ? [] : applicable;
+	}
+
+	private IReadOnlyList<Type> FilterApplicableMiddleware(
+		MessageKinds messageKind,
+		IReadOnlySet<DispatchFeatures> enabledFeatures)
+	{
+		var snapshot = GetOrderedMiddlewareSnapshot();
+		if (snapshot.Length == 0)
+		{
+			return [];
+		}
+
+		var applicable = new List<Type>(snapshot.Length);
+		for (var i = 0; i < snapshot.Length; i++)
+		{
+			ref readonly var registration = ref snapshot[i];
+			if (IsApplicableToMessageKind(registration, messageKind) &&
+				HasRequiredFeatures(registration, enabledFeatures))
+			{
+				applicable.Add(registration.MiddlewareType);
+			}
+		}
+
+		return applicable.Count == 0 ? [] : applicable;
+	}
+
+	private MiddlewareRegistration[] GetOrderedMiddlewareSnapshot()
+	{
+		var snapshot = System.Threading.Volatile.Read(ref _orderedMiddlewareSnapshot);
+		if (snapshot != null)
+		{
+			return snapshot;
+		}
+
+		lock (_orderedMiddleware)
+		{
+			snapshot = _orderedMiddlewareSnapshot;
+			if (snapshot != null)
+			{
+				return snapshot;
+			}
+
+			snapshot = _orderedMiddleware.ToArray();
+			_orderedMiddlewareSnapshot = snapshot;
+
+			if (snapshot.Length == 0)
+			{
+				_orderedMiddlewareTypesSnapshot = [];
+				return snapshot;
+			}
+
+			var middlewareTypes = new Type[snapshot.Length];
+			for (var i = 0; i < snapshot.Length; i++)
+			{
+				middlewareTypes[i] = snapshot[i].MiddlewareType;
+			}
+
+			_orderedMiddlewareTypesSnapshot = Array.AsReadOnly(middlewareTypes);
+			return snapshot;
+		}
+	}
+
+	private MiddlewareRegistration CreateMiddlewareRegistration(Type middlewareType, int order)
+	{
+		var appliesToAttribute = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<AppliesToAttribute>(middlewareType, inherit: true);
+		var excludeKindsAttribute = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<ExcludeKindsAttribute>(middlewareType, inherit: true);
+		var requiresFeaturesAttribute = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<RequiresFeaturesAttribute>(
+			middlewareType,
+			inherit: true);
+
+		var requiredFeatures = requiresFeaturesAttribute?.Features;
+		DispatchFeatures[] requiredFeatureArray;
+		if (requiredFeatures is null || requiredFeatures.Count == 0)
+		{
+			requiredFeatureArray = [];
+		}
+		else
+		{
+			requiredFeatureArray = new DispatchFeatures[requiredFeatures.Count];
+			for (var i = 0; i < requiredFeatures.Count; i++)
+			{
+				requiredFeatureArray[i] = requiredFeatures[i];
+			}
+		}
+
+		return new MiddlewareRegistration
+		{
+			MiddlewareType = middlewareType,
+			Order = order,
+			RegistrationSequence = System.Threading.Interlocked.Increment(ref _registrationSequence),
+			IncludedKinds = appliesToAttribute?.MessageKinds ?? MessageKinds.All,
+			ExcludedKinds = excludeKindsAttribute?.ExcludedKinds ?? MessageKinds.None,
+			RequiredFeatures = requiredFeatureArray,
+		};
+	}
+
+	private void InsertOrderedMiddleware(MiddlewareRegistration registration)
+	{
+		var insertIndex = _orderedMiddleware.Count;
+		for (var i = 0; i < _orderedMiddleware.Count; i++)
+		{
+			var existing = _orderedMiddleware[i];
+			if (registration.Order < existing.Order ||
+				(registration.Order == existing.Order &&
+				 registration.RegistrationSequence < existing.RegistrationSequence))
+			{
+				insertIndex = i;
+				break;
+			}
+		}
+
+		if (insertIndex == _orderedMiddleware.Count)
+		{
+			_orderedMiddleware.Add(registration);
+		}
+		else
+		{
+			_orderedMiddleware.Insert(insertIndex, registration);
+		}
+	}
+
+	private void InvalidateMiddlewareSnapshots()
+	{
+		_orderedMiddlewareSnapshot = null;
+		_orderedMiddlewareTypesSnapshot = null;
+		_applicableMiddlewareWithoutFeaturesCache.Clear();
+	}
+
 	private sealed class MiddlewareRegistration
 	{
 		public required Type MiddlewareType { get; init; }
 
 		public required int Order { get; init; }
 
-		public DateTimeOffset RegistrationTime { get; init; }
+		public required long RegistrationSequence { get; init; }
+
+		public required MessageKinds IncludedKinds { get; init; }
+
+		public required MessageKinds ExcludedKinds { get; init; }
+
+		public required DispatchFeatures[] RequiredFeatures { get; init; }
 	}
 }

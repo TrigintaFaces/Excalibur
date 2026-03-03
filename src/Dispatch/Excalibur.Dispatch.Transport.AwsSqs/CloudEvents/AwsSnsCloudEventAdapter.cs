@@ -291,7 +291,7 @@ public sealed class AwsSnsCloudEventAdapter : ICloudEventMapper<PublishRequest>
 		null => string.Empty,
 		string text => text,
 		byte[] bytes => Encoding.UTF8.GetString(bytes),
-		ReadOnlyMemory<byte> memory => Encoding.UTF8.GetString(memory.ToArray()),
+		ReadOnlyMemory<byte> memory => Encoding.UTF8.GetString(memory.Span),
 		_ => JsonSerializer.Serialize(cloudEvent.Data),
 	};
 

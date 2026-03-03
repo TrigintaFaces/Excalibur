@@ -104,4 +104,16 @@ public sealed class InMemoryScheduleStoreShould
 		await Should.ThrowAsync<ArgumentNullException>(
 			() => _store.AddOrUpdateAsync(null!, _ct));
 	}
+
+	[Fact]
+	public async Task WaitForChangeAsync_UnblocksWhenStoreChanges()
+	{
+		var signal = _store.ShouldBeAssignableTo<IScheduleStoreSignal>();
+		var waitTask = signal.WaitForChangeAsync(TimeSpan.FromSeconds(2), _ct).AsTask();
+
+		await _store.StoreAsync(new ScheduledMessage { MessageName = "signal-test" }, _ct);
+
+		await waitTask.WaitAsync(TimeSpan.FromSeconds(2), _ct);
+		waitTask.IsCompletedSuccessfully.ShouldBeTrue();
+	}
 }

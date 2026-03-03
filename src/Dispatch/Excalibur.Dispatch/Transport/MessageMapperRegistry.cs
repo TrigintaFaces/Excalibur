@@ -44,17 +44,25 @@ public sealed class MessageMapperRegistry : IMessageMapperRegistry
 		ArgumentException.ThrowIfNullOrWhiteSpace(targetTransport);
 
 		// First, look for an exact match
-		var exactMapper = _mappers.Values.FirstOrDefault(m =>
-			string.Equals(m.SourceTransport, sourceTransport, StringComparison.OrdinalIgnoreCase) &&
-			string.Equals(m.TargetTransport, targetTransport, StringComparison.OrdinalIgnoreCase));
-
-		if (exactMapper is not null)
+		foreach (var mapper in _mappers.Values)
 		{
-			return exactMapper;
+			if (string.Equals(mapper.SourceTransport, sourceTransport, StringComparison.OrdinalIgnoreCase) &&
+			    string.Equals(mapper.TargetTransport, targetTransport, StringComparison.OrdinalIgnoreCase))
+			{
+				return mapper;
+			}
 		}
 
 		// Then, look for a mapper with wildcards
-		return _mappers.Values.FirstOrDefault(m => m.CanMap(sourceTransport, targetTransport));
+		foreach (var mapper in _mappers.Values)
+		{
+			if (mapper.CanMap(sourceTransport, targetTransport))
+			{
+				return mapper;
+			}
+		}
+
+		return null;
 	}
 
 	/// <inheritdoc/>

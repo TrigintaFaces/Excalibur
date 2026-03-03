@@ -278,11 +278,24 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 
 	/// <inheritdoc />
 	[JsonIgnore]
-	public IDictionary<string, object?> Properties =>
-		_items as IDictionary<string, object?> ??
-		new Dictionary<string, object?>(
-			_items.Select(static kv => new KeyValuePair<string, object?>(kv.Key, kv.Value)),
-			StringComparer.Ordinal);
+	public IDictionary<string, object?> Properties
+	{
+		get
+		{
+			if (_items is IDictionary<string, object?> typedItems)
+			{
+				return typedItems;
+			}
+
+			var copy = new Dictionary<string, object?>(_items.Count, StringComparer.Ordinal);
+			foreach (var item in _items)
+			{
+				copy[item.Key] = item.Value;
+			}
+
+			return copy;
+		}
+	}
 
 	/// <summary>
 	/// Gets a value indicating whether the message processing was successful.

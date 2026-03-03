@@ -120,49 +120,53 @@ public sealed partial class TraceContextValidator(ILogger<TraceContextValidator>
 		List<string> issues,
 		Dictionary<string, object?> details)
 	{
-		var activityBaggage = activity.Baggage.ToList();
+		string? correlationBaggage = null;
+		string? tenantBaggage = null;
+		string? userBaggage = null;
 
-		// Check for expected baggage items
-		var expectedBaggage = new[] { "correlation-id", "tenant-id", "user-id" };
-
-		foreach (var expected in expectedBaggage)
+		foreach (var baggageItem in activity.Baggage)
 		{
-			var baggageValue = activityBaggage.FirstOrDefault(b => string.Equals(b.Key, expected, StringComparison.Ordinal)).Value;
-
-			switch (expected)
+			if (string.Equals(baggageItem.Key, "correlation-id", StringComparison.Ordinal))
 			{
-				case "correlation-id" when context.CorrelationId != null:
-					if (!string.Equals(baggageValue, context.CorrelationId, StringComparison.Ordinal))
-					{
-						issues.Add($"Baggage mismatch for {expected}");
-						details[$"Baggage_{expected}"] = baggageValue;
-						details[$"Context_{expected}"] = context.CorrelationId;
-					}
-
-					break;
-
-				case "tenant-id" when context.TenantId != null:
-					if (!string.Equals(baggageValue, context.TenantId, StringComparison.Ordinal))
-					{
-						issues.Add($"Baggage mismatch for {expected}");
-						details[$"Baggage_{expected}"] = baggageValue;
-						details[$"Context_{expected}"] = context.TenantId;
-					}
-
-					break;
-
-				case "user-id" when !string.IsNullOrWhiteSpace(context.UserId):
-					if (!string.Equals(baggageValue, context.UserId, StringComparison.Ordinal))
-					{
-						issues.Add($"Baggage mismatch for {expected}");
-						details[$"Baggage_{expected}"] = baggageValue;
-						details[$"Context_{expected}"] = context.UserId;
-					}
-
-					break;
-				default:
-					break;
+				correlationBaggage = baggageItem.Value;
 			}
+			else if (string.Equals(baggageItem.Key, "tenant-id", StringComparison.Ordinal))
+			{
+				tenantBaggage = baggageItem.Value;
+			}
+			else if (string.Equals(baggageItem.Key, "user-id", StringComparison.Ordinal))
+			{
+				userBaggage = baggageItem.Value;
+			}
+
+			if (correlationBaggage != null && tenantBaggage != null && userBaggage != null)
+			{
+				break;
+			}
+		}
+
+		if (context.CorrelationId != null &&
+			!string.Equals(correlationBaggage, context.CorrelationId, StringComparison.Ordinal))
+		{
+			issues.Add("Baggage mismatch for correlation-id");
+			details["Baggage_correlation-id"] = correlationBaggage;
+			details["Context_correlation-id"] = context.CorrelationId;
+		}
+
+		if (context.TenantId != null &&
+			!string.Equals(tenantBaggage, context.TenantId, StringComparison.Ordinal))
+		{
+			issues.Add("Baggage mismatch for tenant-id");
+			details["Baggage_tenant-id"] = tenantBaggage;
+			details["Context_tenant-id"] = context.TenantId;
+		}
+
+		if (!string.IsNullOrWhiteSpace(context.UserId) &&
+			!string.Equals(userBaggage, context.UserId, StringComparison.Ordinal))
+		{
+			issues.Add("Baggage mismatch for user-id");
+			details["Baggage_user-id"] = userBaggage;
+			details["Context_user-id"] = context.UserId;
 		}
 	}
 

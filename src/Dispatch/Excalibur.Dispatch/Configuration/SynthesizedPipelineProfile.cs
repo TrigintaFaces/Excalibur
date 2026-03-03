@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
@@ -15,6 +16,12 @@ namespace Excalibur.Dispatch.Configuration;
 /// </summary>
 internal sealed class SynthesizedPipelineProfile : IPipelineProfile
 {
+	private static readonly IReadOnlySet<DispatchFeatures> NoEnabledFeatures = new HashSet<DispatchFeatures>();
+
+	private readonly ConcurrentDictionary<Type, bool> _compatibilityCache = new();
+	private readonly MiddlewareRule[] _middlewareRules;
+	private readonly ConcurrentDictionary<MessageKinds, IReadOnlyList<Type>> _noFeatureApplicableMiddlewareCache = new();
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SynthesizedPipelineProfile"/> class.
 	/// Creates a new synthesized pipeline profile.
@@ -33,6 +40,7 @@ internal sealed class SynthesizedPipelineProfile : IPipelineProfile
 		MiddlewareTypes = middlewareTypes ?? throw new ArgumentNullException(nameof(middlewareTypes));
 		IsStrict = isStrict;
 		SupportedMessageKinds = supportedMessageKinds;
+		_middlewareRules = BuildMiddlewareRules(middlewareTypes);
 
 		// Store synthesis metadata
 		Metadata = new Dictionary<string, object>
@@ -81,10 +89,24 @@ internal sealed class SynthesizedPipelineProfile : IPipelineProfile
 
 		// Check if the message kind is supported
 		var messageType = message.GetType();
+		if (_compatibilityCache.TryGetValue(messageType, out var cached))
+		{
+			return cached;
+		}
+
+		var isCompatible = IsCompatibleForType(messageType);
+		_compatibilityCache.TryAdd(messageType, isCompatible);
+		return isCompatible;
+	}
+
+	[UnconditionalSuppressMessage("Trimming", "IL2075:'this' argument does not satisfy 'DynamicallyAccessedMemberTypes.PublicInterfaces'",
+			Justification = "Message types are preserved through handler registration and DI container")]
+	private bool IsCompatibleForType(Type messageType)
+	{
+		// Check if the message kind is supported
 
 		// Check for IDispatchAction interface
-		if (messageType.GetInterfaces().Any(static i =>
-				i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDispatchAction<>)))
+		if (typeof(IDispatchAction).IsAssignableFrom(messageType) || ImplementsGenericActionInterface(messageType))
 		{
 			return (SupportedMessageKinds & MessageKinds.Action) != MessageKinds.None;
 		}
@@ -107,51 +129,148 @@ internal sealed class SynthesizedPipelineProfile : IPipelineProfile
 
 	/// <inheritdoc />
 	public IReadOnlyList<Type> GetApplicableMiddleware(MessageKinds messageKind) =>
-		GetApplicableMiddleware(messageKind, new HashSet<DispatchFeatures>());
+		_noFeatureApplicableMiddlewareCache.GetOrAdd(messageKind, CreateNoFeatureApplicableMiddleware);
 
 	/// <inheritdoc />
-	public IReadOnlyList<Type> GetApplicableMiddleware(MessageKinds messageKind, IReadOnlySet<DispatchFeatures> enabledFeatures) =>
-		MiddlewareTypes
-			.Where(m => IsApplicableToMessageKind(m, messageKind) && HasRequiredFeatures(m, enabledFeatures))
-			.ToList();
-
-	/// <summary>
-	/// Determines if middleware is applicable to a specific message kind using attributes.
-	/// </summary>
-	private static bool IsApplicableToMessageKind(Type middlewareType, MessageKinds messageKind)
+	public IReadOnlyList<Type> GetApplicableMiddleware(MessageKinds messageKind, IReadOnlySet<DispatchFeatures> enabledFeatures)
 	{
-		var appliesToAttribute = middlewareType.GetCustomAttribute<AppliesToAttribute>();
-		var excludeKindsAttribute = middlewareType.GetCustomAttribute<ExcludeKindsAttribute>();
+		ArgumentNullException.ThrowIfNull(enabledFeatures);
 
-		// Check for exclusion first (R2.5 - exclusion overrides inclusion)
-		if (excludeKindsAttribute?.ExcludedKinds.HasFlag(messageKind) == true)
+		if (ReferenceEquals(enabledFeatures, NoEnabledFeatures) || enabledFeatures.Count == 0)
 		{
-			return false;
+			return _noFeatureApplicableMiddlewareCache.GetOrAdd(messageKind, CreateNoFeatureApplicableMiddleware);
 		}
 
-		// Check for inclusion
-		if (appliesToAttribute != null)
-		{
-			return appliesToAttribute.MessageKinds.HasFlag(messageKind);
-		}
-
-		// Default to All if no attributes (R2.4)
-		return true;
+		return FilterApplicableMiddleware(messageKind, enabledFeatures);
 	}
 
-	/// <summary>
-	/// Determines if middleware has all required features enabled.
-	/// </summary>
-	private static bool HasRequiredFeatures(Type middlewareType, IReadOnlySet<DispatchFeatures> enabledFeatures)
+	private IReadOnlyList<Type> CreateNoFeatureApplicableMiddleware(MessageKinds messageKind)
 	{
-		var requiresFeaturesAttribute = middlewareType.GetCustomAttribute<RequiresFeaturesAttribute>();
+		return FilterApplicableMiddleware(messageKind, NoEnabledFeatures);
+	}
 
-		if (requiresFeaturesAttribute == null)
+	private IReadOnlyList<Type> FilterApplicableMiddleware(
+		MessageKinds messageKind,
+		IReadOnlySet<DispatchFeatures> enabledFeatures)
+	{
+		if (_middlewareRules.Length == 0)
 		{
-			return true; // No feature requirements
+			return [];
 		}
 
-		// All required features must be enabled (R2.6)
-		return requiresFeaturesAttribute.Features.All(enabledFeatures.Contains);
+		var applicable = new List<Type>(_middlewareRules.Length);
+		for (var i = 0; i < _middlewareRules.Length; i++)
+		{
+			ref readonly var rule = ref _middlewareRules[i];
+			if (rule.IsApplicable(messageKind, enabledFeatures))
+			{
+				applicable.Add(rule.MiddlewareType);
+			}
+		}
+
+		return applicable.Count == 0 ? [] : applicable;
+	}
+
+	private static MiddlewareRule[] BuildMiddlewareRules(IReadOnlyList<Type> middlewareTypes)
+	{
+		if (middlewareTypes.Count == 0)
+		{
+			return [];
+		}
+
+		var rules = new MiddlewareRule[middlewareTypes.Count];
+		for (var i = 0; i < middlewareTypes.Count; i++)
+		{
+			rules[i] = MiddlewareRule.Create(middlewareTypes[i]);
+		}
+
+		return rules;
+	}
+
+	private static bool ImplementsGenericActionInterface(Type messageType)
+	{
+		var interfaces = messageType.GetInterfaces();
+		for (var i = 0; i < interfaces.Length; i++)
+		{
+			var iface = interfaces[i];
+			if (iface.IsGenericType && iface.GetGenericTypeDefinition() == typeof(IDispatchAction<>))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private readonly struct MiddlewareRule
+	{
+		private readonly MessageKinds _includedKinds;
+		private readonly MessageKinds _excludedKinds;
+		private readonly DispatchFeatures[] _requiredFeatures;
+
+		private MiddlewareRule(
+			Type middlewareType,
+			MessageKinds includedKinds,
+			MessageKinds excludedKinds,
+			DispatchFeatures[] requiredFeatures)
+		{
+			MiddlewareType = middlewareType;
+			_includedKinds = includedKinds;
+			_excludedKinds = excludedKinds;
+			_requiredFeatures = requiredFeatures;
+		}
+
+		public Type MiddlewareType { get; }
+
+		public static MiddlewareRule Create(Type middlewareType)
+		{
+			var appliesToAttribute = middlewareType.GetCustomAttribute<AppliesToAttribute>();
+			var excludeKindsAttribute = middlewareType.GetCustomAttribute<ExcludeKindsAttribute>();
+			var requiresFeaturesAttribute = middlewareType.GetCustomAttribute<RequiresFeaturesAttribute>();
+
+			var requiredFeatures = requiresFeaturesAttribute?.Features;
+			DispatchFeatures[] requiredFeatureArray;
+			if (requiredFeatures is null || requiredFeatures.Count == 0)
+			{
+				requiredFeatureArray = [];
+			}
+			else
+			{
+				requiredFeatureArray = new DispatchFeatures[requiredFeatures.Count];
+				for (var i = 0; i < requiredFeatures.Count; i++)
+				{
+					requiredFeatureArray[i] = requiredFeatures[i];
+				}
+			}
+
+			return new MiddlewareRule(
+				middlewareType,
+				appliesToAttribute?.MessageKinds ?? MessageKinds.All,
+				excludeKindsAttribute?.ExcludedKinds ?? MessageKinds.None,
+				requiredFeatureArray);
+		}
+
+		public bool IsApplicable(MessageKinds messageKind, IReadOnlySet<DispatchFeatures> enabledFeatures)
+		{
+			if ((_excludedKinds & messageKind) != MessageKinds.None)
+			{
+				return false;
+			}
+
+			if ((_includedKinds & messageKind) == MessageKinds.None)
+			{
+				return false;
+			}
+
+			for (var i = 0; i < _requiredFeatures.Length; i++)
+			{
+				if (!enabledFeatures.Contains(_requiredFeatures[i]))
+				{
+					return false;
+				}
+			}
+
+			return true;
+		}
 	}
 }

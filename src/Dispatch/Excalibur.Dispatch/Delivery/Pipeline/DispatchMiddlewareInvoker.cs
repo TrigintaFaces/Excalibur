@@ -26,15 +26,27 @@ namespace Excalibur.Dispatch.Delivery.Pipeline;
 /// <item>Fast path bypasses chain execution when no middleware applies</item>
 /// </list>
 /// </remarks>
-/// <param name="middlewares">The middleware components to invoke.</param>
-/// <param name="applicabilityStrategy">Optional strategy for determining middleware applicability.</param>
-public sealed class DispatchMiddlewareInvoker(
-	IEnumerable<IDispatchMiddleware> middlewares,
-	IMiddlewareApplicabilityStrategy? applicabilityStrategy = null) : IDispatchMiddlewareInvoker
+public sealed class DispatchMiddlewareInvoker : IDispatchMiddlewareInvoker
 {
-	private readonly MiddlewareChainBuilder _chainBuilder = new(middlewares, applicabilityStrategy);
-	private readonly int _middlewareCount = middlewares?.Count() ?? 0;
+	private readonly MiddlewareChainBuilder _chainBuilder;
+	private readonly int _pipelineSignature;
+	private readonly int _middlewareCount;
 	private volatile bool _autoFrozen;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="DispatchMiddlewareInvoker"/> class.
+	/// </summary>
+	/// <param name="middlewares">The middleware components to invoke.</param>
+	/// <param name="applicabilityStrategy">Optional strategy for determining middleware applicability.</param>
+	public DispatchMiddlewareInvoker(
+		IEnumerable<IDispatchMiddleware> middlewares,
+		IMiddlewareApplicabilityStrategy? applicabilityStrategy = null)
+	{
+		var middlewareArray = middlewares?.ToArray() ?? [];
+		_chainBuilder = new MiddlewareChainBuilder(middlewareArray, applicabilityStrategy);
+		_pipelineSignature = _chainBuilder.PipelineSignature;
+		_middlewareCount = middlewareArray.Length;
+	}
 
 	/// <summary>
 	/// Gets a value indicating whether any middleware is configured.
@@ -64,7 +76,7 @@ public sealed class DispatchMiddlewareInvoker(
 			_autoFrozen = true;
 		}
 
-		var chain = _chainBuilder.GetChain(messageType);
+		var chain = _chainBuilder.GetChain(messageType, _pipelineSignature);
 		return !chain.HasMiddleware || chain.HasOnlyRoutingMiddleware;
 	}
 
@@ -110,7 +122,7 @@ public sealed class DispatchMiddlewareInvoker(
 		}
 
 		// Get pre-compiled chain for this message type
-		var chain = _chainBuilder.GetChain(message.GetType());
+		var chain = _chainBuilder.GetChain(message.GetType(), _pipelineSignature);
 
 		// Fast path for no applicable middleware - returns ValueTask directly (no Task allocation)
 		if (!chain.HasMiddleware)
