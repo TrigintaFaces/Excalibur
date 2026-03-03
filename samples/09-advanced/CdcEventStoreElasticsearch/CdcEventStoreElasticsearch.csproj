@@ -9,7 +9,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>CdcEventStoreElasticsearch</RootNamespace>
     <!-- Suppress warnings for samples (demo code intentionally couples many types and uses inline arrays) -->
-    <NoWarn>$(NoWarn);CA1506;CA1303;CA1505;CA1861;CA2213</NoWarn>
+    <NoWarn>$(NoWarn);CA1506;CA1303;CA1505;CA1861;CA2213;MSB3277</NoWarn>
   </PropertyGroup>
   <!-- Dispatch core (messaging, dispatching) -->
   <ItemGroup>
