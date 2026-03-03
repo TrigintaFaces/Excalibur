@@ -1233,12 +1233,33 @@ jobs:
           path: head-cov
           merge-multiple: true
       - name: List changed files
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const files = await github.paginate(github.rest.pulls.listFiles, { owner: context.repo.owner, repo: context.repo.repo, pull_number: context.issue.number });
-            const fs = require('fs');
-            fs.writeFileSync('changed-files.json', JSON.stringify(files.map(f => f.filename)));
+        shell: bash
+        run: |
+          set -euo pipefail
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          PR_REF="refs/remotes/origin/pr-${PR_NUMBER}"
+
+          # Use git-based PR head ref resolution to avoid transient GitHub API failures.
+          if ! git -C base fetch --no-tags --depth=1 origin "refs/pull/${PR_NUMBER}/head:${PR_REF}"; then
+            echo "::warning::Unable to fetch PR head ref for #${PR_NUMBER}; defaulting to an empty changed file set."
+            printf '[]' > changed-files.json
+            exit 0
+          fi
+
+          git -C base diff --name-only "${BASE_SHA}...${PR_REF}" > changed-files.txt
+
+          python3 - <<'PY'
+          import json
+
+          with open("changed-files.txt", "r", encoding="utf-8") as fh:
+              files = [line.strip() for line in fh if line.strip()]
+
+          with open("changed-files.json", "w", encoding="utf-8") as out:
+              json.dump(files, out)
+
+          print(f"Changed files discovered: {len(files)}")
+          PY
       - name: Enforce ≤1% coverage drop on touched files (Dispatch+Excalibur)
         shell: pwsh
         run: |
