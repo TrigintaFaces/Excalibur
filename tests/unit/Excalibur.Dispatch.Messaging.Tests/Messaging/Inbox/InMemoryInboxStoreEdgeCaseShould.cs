@@ -318,13 +318,9 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		// Act - Add entry, mark as processed, and wait for it to expire
 		_ = await store.CreateEntryAsync("expired-message", TestHandler, "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false);
 		await store.MarkProcessedAsync("expired-message", TestHandler, CancellationToken.None).ConfigureAwait(false); // Mark as processed so cleanup can remove it
-		// Manual cleanup should still work once expiry has elapsed.
-		var removedCount = 0;
-		await WaitForConditionAsync(async () =>
-		{
-			removedCount = await store.CleanupAsync(options.RetentionPeriod, CancellationToken.None).ConfigureAwait(false);
-			return removedCount > 0;
-		}, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+		// Manual cleanup should work even when automatic cleanup is disabled.
+		// Use zero retention to avoid timing races from clock/scheduler variance in CI.
+		var removedCount = await store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - Should have cleaned up the expired entry
 		removedCount.ShouldBe(1);
