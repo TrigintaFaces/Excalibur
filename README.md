@@ -35,15 +35,15 @@ Start with Dispatch when you need a MediatR-class dispatcher. Layer Excalibur pa
 
 | Package | NuGet |
 |--------|-------|
-| `Excalibur.Dispatch` | https://www.nuget.org/packages/Excalibur.Dispatch/ |
-| `Excalibur.Dispatch.Abstractions` | https://www.nuget.org/packages/Excalibur.Dispatch.Abstractions/ |
-| `Excalibur.Dispatch.Hosting.AspNetCore` | https://www.nuget.org/packages/Excalibur.Dispatch.Hosting.AspNetCore/ |
-| `Excalibur.Dispatch.Transport.AzureServiceBus` | https://www.nuget.org/packages/Excalibur.Dispatch.Transport.AzureServiceBus/ |
-| `Excalibur.Dispatch.Transport.AwsSqs` | https://www.nuget.org/packages/Excalibur.Dispatch.Transport.AwsSqs/ |
-| `Excalibur.Dispatch.Transport.Kafka` | https://www.nuget.org/packages/Excalibur.Dispatch.Transport.Kafka/ |
-| `Excalibur.Dispatch.Transport.RabbitMQ` | https://www.nuget.org/packages/Excalibur.Dispatch.Transport.RabbitMQ/ |
-| `Excalibur.EventSourcing` | https://www.nuget.org/packages/Excalibur.EventSourcing/ |
-| `Excalibur.Hosting.Web` | https://www.nuget.org/packages/Excalibur.Hosting.Web/ |
+| `Excalibur.Dispatch` | <https://www.nuget.org/packages/Excalibur.Dispatch/> |
+| `Excalibur.Dispatch.Abstractions` | <https://www.nuget.org/packages/Excalibur.Dispatch.Abstractions/> |
+| `Excalibur.Dispatch.Hosting.AspNetCore` | <https://www.nuget.org/packages/Excalibur.Dispatch.Hosting.AspNetCore/> |
+| `Excalibur.Dispatch.Transport.AzureServiceBus` | <https://www.nuget.org/packages/Excalibur.Dispatch.Transport.AzureServiceBus/> |
+| `Excalibur.Dispatch.Transport.AwsSqs` | <https://www.nuget.org/packages/Excalibur.Dispatch.Transport.AwsSqs/> |
+| `Excalibur.Dispatch.Transport.Kafka` | <https://www.nuget.org/packages/Excalibur.Dispatch.Transport.Kafka/> |
+| `Excalibur.Dispatch.Transport.RabbitMQ` | <https://www.nuget.org/packages/Excalibur.Dispatch.Transport.RabbitMQ/> |
+| `Excalibur.EventSourcing` | <https://www.nuget.org/packages/Excalibur.EventSourcing/> |
+| `Excalibur.Hosting.Web` | <https://www.nuget.org/packages/Excalibur.Hosting.Web/> |
 
 ---
 
@@ -165,6 +165,7 @@ services.Configure<PerformanceOptions>(o => o.AutoFreezeOnStart = false);
 ```
 
 For detailed benchmarks, methodology caveats, and raw reports, see:
+
 - [Competitor comparison](docs-site/docs/performance/competitor-comparison.md)
 - `BenchmarkDotNet.Artifacts/results/` (latest local run outputs)
 
@@ -189,6 +190,7 @@ dotnet test Excalibur.sln
 > **Important**: This framework provides **tools and functionality** to assist with building applications, including compliance-assistance features (audit logging, event sourcing, GDPR helpers). However, use of this framework does **NOT** guarantee compliance with any law or regulation.
 
 **You remain solely responsible for**:
+
 - Ensuring your applications comply with all applicable laws and regulations
 - Conducting independent compliance testing and validation
 - Obtaining required certifications, audits, and approvals
@@ -201,6 +203,7 @@ dotnet test Excalibur.sln
 ## Support
 
 Need help? See [SUPPORT.md](SUPPORT.md) for:
+
 - Support channels (GitHub Discussions, Issues, Security Advisories)
 - Response time expectations
 - Supported .NET versions and provider tiers
