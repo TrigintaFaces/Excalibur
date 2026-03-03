@@ -1247,7 +1247,31 @@ jobs:
             exit 0
           fi
 
-          git -C base diff --name-only "${BASE_SHA}...${PR_REF}" > changed-files.txt
+          # Ensure the target base commit exists in the shallow checkout.
+          if ! git -C base cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            if ! git -C base fetch --no-tags --depth=1 origin "${BASE_SHA}"; then
+              echo "::warning::Unable to fetch base SHA ${BASE_SHA}; defaulting to an empty changed file set."
+              printf '[]' > changed-files.json
+              exit 0
+            fi
+          fi
+
+          # With shallow PR fetches, merge-base may be missing; deepen only when necessary.
+          if ! git -C base merge-base "${BASE_SHA}" "${PR_REF}" >/dev/null 2>&1; then
+            for depth in 64 256 1024 4096; do
+              if git -C base fetch --no-tags --depth="${depth}" origin "refs/pull/${PR_NUMBER}/head:${PR_REF}" && \
+                 git -C base merge-base "${BASE_SHA}" "${PR_REF}" >/dev/null 2>&1; then
+                break
+              fi
+            done
+          fi
+
+          if git -C base merge-base "${BASE_SHA}" "${PR_REF}" >/dev/null 2>&1; then
+            git -C base diff --name-only "${BASE_SHA}...${PR_REF}" > changed-files.txt
+          else
+            echo "::warning::No merge base between ${BASE_SHA} and ${PR_REF}; using two-dot diff fallback."
+            git -C base diff --name-only "${BASE_SHA}..${PR_REF}" > changed-files.txt
+          fi
 
           python3 - <<'PY'
           import json
