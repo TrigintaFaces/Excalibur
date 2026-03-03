@@ -278,24 +278,9 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 
 	/// <inheritdoc />
 	[JsonIgnore]
-	public IDictionary<string, object?> Properties
-	{
-		get
-		{
-			if (_items is IDictionary<string, object?> typedItems)
-			{
-				return typedItems;
-			}
-
-			var copy = new Dictionary<string, object?>(_items.Count, StringComparer.Ordinal);
-			foreach (var item in _items)
-			{
-				copy[item.Key] = item.Value;
-			}
-
-			return copy;
-		}
-	}
+#pragma warning disable IDE0004 // Required to satisfy nullability contract without allocating a copy.
+	public IDictionary<string, object?> Properties => (IDictionary<string, object?>)_items;
+#pragma warning restore IDE0004
 
 	/// <summary>
 	/// Gets a value indicating whether the message processing was successful.

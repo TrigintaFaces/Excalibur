@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Reflection;
+
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.LeaderElection;
 using Excalibur.Hosting.Options;
@@ -144,6 +146,45 @@ public sealed class DispatchHealthCheckExtensionsShould
 		options.IncludeLeaderElection.ShouldBeTrue();
 	}
 
+	[Fact]
+	public void ResolveType_ReturnNull_WhenAssemblyDoesNotExist()
+	{
+		// Act
+		var resolved = InvokeResolveType("Excalibur.Missing.Assembly", "Missing.Type");
+
+		// Assert
+		resolved.ShouldBeNull();
+	}
+
+	[Fact]
+	public void ResolveType_ReturnType_WhenAssemblyAndTypeAreLoaded()
+	{
+		// Arrange
+		var assemblyName = typeof(DispatchHealthCheckExtensions).Assembly.GetName().Name!;
+		var typeName = typeof(DispatchHealthCheckExtensions).FullName!;
+
+		// Act
+		var resolved = InvokeResolveType(assemblyName, typeName);
+
+		// Assert
+		resolved.ShouldBe(typeof(DispatchHealthCheckExtensions));
+	}
+
+	[Fact]
+	public void TryInvokeHealthCheckExtension_ReturnFalse_WhenMethodNameIsUnknown()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		services.AddLogging();
+		var builder = services.AddHealthChecks();
+
+		// Act
+		var invoked = InvokeTryInvokeHealthCheckExtension(builder, "UnknownHealthCheckMethod");
+
+		// Assert
+		invoked.ShouldBeFalse();
+	}
+
 	private static IReadOnlyList<HealthCheckRegistration> GetHealthCheckRegistrations(IServiceCollection services)
 	{
 		var registrations = new List<HealthCheckRegistration>();
@@ -172,5 +213,25 @@ public sealed class DispatchHealthCheckExtensionsShould
 		}
 
 		return registrations;
+	}
+
+	private static bool InvokeTryInvokeHealthCheckExtension(IHealthChecksBuilder builder, string methodName)
+	{
+		var method = typeof(DispatchHealthCheckExtensions).GetMethod(
+			"TryInvokeHealthCheckExtension",
+			BindingFlags.NonPublic | BindingFlags.Static);
+		method.ShouldNotBeNull();
+
+		return (bool)method!.Invoke(null, [builder, methodName])!;
+	}
+
+	private static Type? InvokeResolveType(string assemblyName, string typeName)
+	{
+		var method = typeof(DispatchHealthCheckExtensions).GetMethod(
+			"ResolveType",
+			BindingFlags.NonPublic | BindingFlags.Static);
+		method.ShouldNotBeNull();
+
+		return (Type?)method!.Invoke(null, [assemblyName, typeName]);
 	}
 }

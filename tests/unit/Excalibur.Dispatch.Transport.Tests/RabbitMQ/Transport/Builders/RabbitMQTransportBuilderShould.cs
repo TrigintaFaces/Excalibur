@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Transport.RabbitMQ;
+using Excalibur.Dispatch.Transport;
 
 using Microsoft.Extensions.DependencyInjection;
 
 using Tests.Shared.Categories;
+
+using RabbitMQ.Client;
 
 namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ.Transport.Builders;
 
@@ -77,6 +80,86 @@ public sealed class RabbitMQTransportBuilderShould : UnitTestBase
 
 		// Assert
 		callbackInvoked.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void AddRabbitMQTransport_ResolveConnectionFactory_UsesConnectionString_WhenConfigured()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		services.AddLogging();
+
+		// Act
+		_ = services.AddRabbitMQTransport("test", rmq =>
+		{
+			_ = rmq.ConnectionString("amqp://guest:guest@localhost:5672/");
+		});
+		using var provider = services.BuildServiceProvider();
+		var factory = provider.GetRequiredService<IConnectionFactory>();
+
+		// Assert
+		var rabbitFactory = factory.ShouldBeOfType<ConnectionFactory>();
+		rabbitFactory.Uri.ShouldNotBeNull();
+		rabbitFactory.Uri.ToString().ShouldContain("amqp://guest:guest@localhost:5672/");
+	}
+
+	[Fact]
+	public void AddRabbitMQTransport_ResolveConnectionFactory_UsesHostPortAndSsl_WhenConfigured()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		services.AddLogging();
+
+		// Act
+		_ = services.AddRabbitMQTransport("test", rmq =>
+		{
+			_ = rmq.HostName("rabbitmq.example")
+				.Port(5673)
+				.VirtualHost("/prod")
+				.Credentials("user", "pass")
+				.UseSsl(ssl =>
+				{
+					ssl.ServerName = "rabbitmq.example";
+					ssl.CertificatePath = "/tmp/cert.pem";
+					ssl.CertificatePassphrase = "secret";
+				});
+		});
+		using var provider = services.BuildServiceProvider();
+		var factory = provider.GetRequiredService<IConnectionFactory>();
+
+		// Assert
+		var rabbitFactory = factory.ShouldBeOfType<ConnectionFactory>();
+		rabbitFactory.HostName.ShouldBe("rabbitmq.example");
+		rabbitFactory.Port.ShouldBe(5673);
+		rabbitFactory.VirtualHost.ShouldBe("/prod");
+		rabbitFactory.UserName.ShouldBe("user");
+		rabbitFactory.Password.ShouldBe("pass");
+		rabbitFactory.Ssl.ShouldNotBeNull();
+		rabbitFactory.Ssl.Enabled.ShouldBeTrue();
+		rabbitFactory.Ssl.ServerName.ShouldBe("rabbitmq.example");
+	}
+
+	[Fact]
+	public async Task AddRabbitMQTransport_ResolveKeyedSubscriber_WithConfiguredQueueAndPrefetch()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		services.AddLogging();
+		services.AddSingleton(A.Fake<IChannel>());
+
+		// Act
+		_ = services.AddRabbitMQTransport("test", rmq =>
+		{
+			_ = rmq.ConfigureQueue(queue =>
+			{
+				_ = queue.Name("queue-a").PrefetchCount(42);
+			});
+		});
+		await using var provider = services.BuildServiceProvider();
+		var subscriber = provider.GetRequiredKeyedService<ITransportSubscriber>("test");
+
+		// Assert
+		subscriber.ShouldNotBeNull();
 	}
 
 	#endregion

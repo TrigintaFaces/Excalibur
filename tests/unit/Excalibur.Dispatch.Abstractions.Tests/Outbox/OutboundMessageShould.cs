@@ -266,6 +266,56 @@ public sealed class OutboundMessageShould
 	}
 
 	[Fact]
+	public void GetPendingTransportDeliveries_Should_ReturnOnlyPending()
+	{
+		// Arrange
+		var msg = new OutboundMessage("Type", [1], "dest");
+		var pending = msg.AddTransport("kafka");
+		var failed = msg.AddTransport("rabbitmq");
+		var sent = msg.AddTransport("sns");
+		failed.MarkFailed("error");
+		sent.MarkSent();
+
+		// Act
+		var pendingDeliveries = msg.GetPendingTransportDeliveries().ToArray();
+
+		// Assert
+		pendingDeliveries.Length.ShouldBe(1);
+		pendingDeliveries[0].ShouldBe(pending);
+	}
+
+	[Fact]
+	public void GetFailedTransportDeliveries_Should_ReturnOnlyFailed()
+	{
+		// Arrange
+		var msg = new OutboundMessage("Type", [1], "dest");
+		var pending = msg.AddTransport("kafka");
+		var failed = msg.AddTransport("rabbitmq");
+		pending.MarkSending();
+		failed.MarkFailed("error");
+
+		// Act
+		var failedDeliveries = msg.GetFailedTransportDeliveries().ToArray();
+
+		// Assert
+		failedDeliveries.Length.ShouldBe(1);
+		failedDeliveries[0].ShouldBe(failed);
+	}
+
+	[Fact]
+	public void AddTransport_Should_UseExplicitDestination_WhenProvided()
+	{
+		// Arrange
+		var msg = new OutboundMessage("Type", [1], "default-dest");
+
+		// Act
+		var delivery = msg.AddTransport("kafka", "transport-specific-dest");
+
+		// Assert
+		delivery.Destination.ShouldBe("transport-specific-dest");
+	}
+
+	[Fact]
 	public void AreAllTransportsComplete_Should_ReturnTrue_WhenAllSent()
 	{
 		// Arrange
@@ -287,6 +337,26 @@ public sealed class OutboundMessageShould
 		var t1 = msg.AddTransport("kafka");
 		msg.AddTransport("rabbitmq");
 		t1.MarkSent();
+
+		// Act & Assert
+		msg.AreAllTransportsComplete().ShouldBeFalse();
+	}
+
+	[Fact]
+	public void AreAllTransportsComplete_Should_ReturnTrue_WhenNotMultiTransportAndSent()
+	{
+		// Arrange
+		var msg = new OutboundMessage { Status = OutboxStatus.Sent, IsMultiTransport = false };
+
+		// Act & Assert
+		msg.AreAllTransportsComplete().ShouldBeTrue();
+	}
+
+	[Fact]
+	public void AreAllTransportsComplete_Should_ReturnFalse_WhenNotMultiTransportAndNotSent()
+	{
+		// Arrange
+		var msg = new OutboundMessage { Status = OutboxStatus.Staged, IsMultiTransport = false };
 
 		// Act & Assert
 		msg.AreAllTransportsComplete().ShouldBeFalse();
@@ -358,6 +428,19 @@ public sealed class OutboundMessageShould
 
 		// Assert
 		msg.Status.ShouldBe(OutboxStatus.Sending);
+	}
+
+	[Fact]
+	public void UpdateAggregateStatus_Should_NoOp_WhenNotMultiTransport()
+	{
+		// Arrange
+		var msg = new OutboundMessage { Status = OutboxStatus.Staged, IsMultiTransport = false };
+
+		// Act
+		msg.UpdateAggregateStatus();
+
+		// Assert
+		msg.Status.ShouldBe(OutboxStatus.Staged);
 	}
 
 	[Fact]
