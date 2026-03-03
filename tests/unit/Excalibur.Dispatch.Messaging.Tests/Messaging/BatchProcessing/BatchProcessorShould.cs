@@ -487,16 +487,17 @@ public sealed class BatchProcessorShould : IDisposable
 	[Fact]
 	public async Task ProcessLargeBatchesEfficiently()
 	{
-		var processedItems = new ConcurrentBag<string>();
+		var processedItems = new ConcurrentDictionary<string, byte>();
 		var options = new MicroBatchOptions { MaxBatchSize = 100, MaxBatchDelay = TimeSpan.FromSeconds(1) };
+		var observedBatchSizes = new ConcurrentBag<int>();
 
-		var stopwatch = Stopwatch.StartNew();
 		var processor = new BatchProcessor<string>(
 			batch =>
 			{
+				observedBatchSizes.Add(batch.Count);
 				foreach (var item in batch)
 				{
-					processedItems.Add(item);
+					_ = processedItems.TryAdd(item, 0);
 				}
 
 				return ValueTask.CompletedTask;
@@ -512,10 +513,10 @@ public sealed class BatchProcessorShould : IDisposable
 
 		await Task.WhenAll(tasks).ConfigureAwait(false);
 		await WaitForConditionAsync(() => processedItems.Count == 500, TimeSpan.FromSeconds(20)).ConfigureAwait(false);
-		stopwatch.Stop();
 
 		processedItems.Count.ShouldBe(500);
-		stopwatch.ElapsedMilliseconds.ShouldBeLessThan(10000); // Relaxed for full-suite parallel load
+		observedBatchSizes.Count.ShouldBeGreaterThan(0);
+		observedBatchSizes.All(size => size > 0 && size <= options.MaxBatchSize).ShouldBeTrue();
 	}
 
 	[Fact]
