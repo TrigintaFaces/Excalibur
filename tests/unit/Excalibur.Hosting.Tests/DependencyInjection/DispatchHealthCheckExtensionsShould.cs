@@ -284,6 +284,75 @@ public sealed class DispatchHealthCheckExtensionsShould
 		invoked.ShouldBeTrue();
 	}
 
+	[Fact]
+	public void TryInvokeHealthCheckExtension_ReturnFalse_WhenResolvedTypeCannotBeLoaded()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		services.AddLogging();
+		var builder = services.AddHealthChecks();
+		var target = (
+			"Excalibur.Missing.Assembly",
+			"Excalibur.Missing.Type",
+			"MissingMethod");
+
+		// Act
+		var invoked = false;
+		WithTemporaryHealthCheckTarget(target, () =>
+		{
+			invoked = InvokeTryInvokeHealthCheckExtension(builder, target.Item3);
+		});
+
+		// Assert
+		invoked.ShouldBeFalse();
+	}
+
+	[Fact]
+	public void TryInvokeHealthCheckExtension_ReturnFalse_WhenResolvedTypeHasNoMatchingMethod()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		services.AddLogging();
+		var builder = services.AddHealthChecks();
+		var target = (
+			typeof(DispatchHealthCheckExtensionsShould).Assembly.GetName().Name!,
+			typeof(HealthCheckExtensionTestTargets).FullName!,
+			"DoesNotExistOnTargetType");
+
+		// Act
+		var invoked = false;
+		WithTemporaryHealthCheckTarget(target, () =>
+		{
+			invoked = InvokeTryInvokeHealthCheckExtension(builder, target.Item3);
+		});
+
+		// Assert
+		invoked.ShouldBeFalse();
+	}
+
+	[Fact]
+	public void TryInvokeHealthCheckExtension_ReturnFalse_WhenFirstParameterIsNotHealthChecksBuilder()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		services.AddLogging();
+		var builder = services.AddHealthChecks();
+		var target = (
+			typeof(DispatchHealthCheckExtensionsShould).Assembly.GetName().Name!,
+			typeof(HealthCheckExtensionTestTargets).FullName!,
+			nameof(HealthCheckExtensionTestTargets.WrongFirstParameterMethod));
+
+		// Act
+		var invoked = false;
+		WithTemporaryHealthCheckTarget(target, () =>
+		{
+			invoked = InvokeTryInvokeHealthCheckExtension(builder, target.Item3);
+		});
+
+		// Assert
+		invoked.ShouldBeFalse();
+	}
+
 	private static IReadOnlyList<HealthCheckRegistration> GetHealthCheckRegistrations(IServiceCollection services)
 	{
 		var registrations = new List<HealthCheckRegistration>();
@@ -384,6 +453,12 @@ public sealed class DispatchHealthCheckExtensionsShould
 		{
 			_ = optionalValue;
 			return builder;
+		}
+
+		public static void WrongFirstParameterMethod(string invalidFirstParameter, string optionalValue = "default")
+		{
+			_ = invalidFirstParameter;
+			_ = optionalValue;
 		}
 	}
 }
