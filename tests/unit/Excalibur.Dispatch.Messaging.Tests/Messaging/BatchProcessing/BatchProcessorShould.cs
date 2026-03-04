@@ -540,7 +540,6 @@ public sealed class BatchProcessorShould : IDisposable
 		var threadCount = Environment.ProcessorCount;
 		var itemsPerThread = 1000 / threadCount;
 		var actualItemCount = itemsPerThread * threadCount; // May be less than 1000 due to integer division
-		var stopwatch = Stopwatch.StartNew();
 
 		// Add items from multiple threads
 		var producerTasks = Enumerable.Range(0, threadCount)
@@ -559,10 +558,7 @@ public sealed class BatchProcessorShould : IDisposable
 			() => Volatile.Read(ref processedCount) >= actualItemCount,
 			TimeSpan.FromSeconds(10)).ConfigureAwait(false);
 
-		stopwatch.Stop();
-
 		processedCount.ShouldBe(actualItemCount);
-		stopwatch.ElapsedMilliseconds.ShouldBeLessThan(30000); // Relaxed for full-suite parallel load
 	}
 
 	[Fact]

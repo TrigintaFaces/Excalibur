@@ -141,7 +141,11 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 
 		await leader.StartAsync(TestCancellationToken).ConfigureAwait(true);
 		await follower.StartAsync(TestCancellationToken).ConfigureAwait(true);
-		await Task.Delay(400, TestCancellationToken).ConfigureAwait(true);
+		await WaitForConditionAsync(
+				() => leader.IsLeader && !follower.IsLeader,
+				TimeSpan.FromSeconds(5),
+				TestCancellationToken)
+			.ConfigureAwait(true);
 
 		leader.IsLeader.ShouldBeTrue();
 		follower.IsLeader.ShouldBeFalse();
@@ -159,7 +163,11 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 
 		await leader.StartAsync(TestCancellationToken).ConfigureAwait(true);
 		await follower.StartAsync(TestCancellationToken).ConfigureAwait(true);
-		await Task.Delay(300, TestCancellationToken).ConfigureAwait(true);
+		await WaitForConditionAsync(
+				() => leader.IsLeader && !follower.IsLeader,
+				TimeSpan.FromSeconds(5),
+				TestCancellationToken)
+			.ConfigureAwait(true);
 
 		leader.IsLeader.ShouldBeTrue();
 		follower.IsLeader.ShouldBeFalse();
@@ -251,18 +259,13 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 		TimeSpan timeout,
 		CancellationToken cancellationToken)
 	{
-		var deadline = DateTimeOffset.UtcNow.Add(timeout);
-		while (DateTimeOffset.UtcNow < deadline)
-		{
-			if (condition())
-			{
-				return;
-			}
-
-			await Task.Delay(50, cancellationToken).ConfigureAwait(true);
-		}
-
-		condition().ShouldBeTrue();
+		var conditionMet = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+				condition,
+				timeout,
+				TimeSpan.FromMilliseconds(100),
+				cancellationToken)
+			.ConfigureAwait(true);
+		conditionMet.ShouldBeTrue();
 	}
 
 	private async Task InitializeAuditTableAsync()

@@ -11,6 +11,7 @@ using Excalibur.Dispatch.Transport.Kafka;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Infrastructure;
 
 namespace Excalibur.Dispatch.Integration.Tests.Transport.Kafka;
 
@@ -28,7 +29,7 @@ public sealed class KafkaTransportReceiverIntegrationShould
 	/// <summary>
 	/// Maximum time to wait for partition assignment and message delivery.
 	/// </summary>
-	private static readonly TimeSpan ReceiveTimeout = TimeSpan.FromSeconds(30);
+	private static readonly TimeSpan ReceiveTimeout = TestTimeouts.Scale(TimeSpan.FromSeconds(30));
 
 	private readonly KafkaContainerFixture _fixture;
 
@@ -308,23 +309,26 @@ public sealed class KafkaTransportReceiverIntegrationShould
 		TimeSpan timeout)
 	{
 		var allMessages = new List<TransportReceivedMessage>();
-		var deadline = DateTime.UtcNow + timeout;
-
-		while (allMessages.Count < expectedCount && DateTime.UtcNow < deadline)
-		{
-			var batch = await receiver.ReceiveAsync(expectedCount - allMessages.Count, CancellationToken.None)
-				.ConfigureAwait(false);
-
-			if (batch.Count > 0)
+		await WaitHelpers.WaitUntilAsync(
+			async () =>
 			{
-				allMessages.AddRange(batch);
-			}
-			else
-			{
-				// Wait briefly before retrying (partition assignment may be pending)
-				await Task.Delay(200).ConfigureAwait(false);
-			}
-		}
+				if (allMessages.Count >= expectedCount)
+				{
+					return true;
+				}
+
+				var batch = await receiver.ReceiveAsync(expectedCount - allMessages.Count, CancellationToken.None)
+					.ConfigureAwait(false);
+
+				if (batch.Count > 0)
+				{
+					allMessages.AddRange(batch);
+				}
+
+				return allMessages.Count >= expectedCount;
+			},
+			timeout,
+			TimeSpan.FromMilliseconds(100)).ConfigureAwait(false);
 
 		return allMessages;
 	}

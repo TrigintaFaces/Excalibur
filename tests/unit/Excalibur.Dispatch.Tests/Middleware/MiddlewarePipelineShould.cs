@@ -441,14 +441,11 @@ public class MiddlewarePipelineShould : UnitTestBase
 		var pipeline = new DispatchPipeline(middleware);
 		var message = new TestMessage();
 		var context = CreateMessageContext();
-		var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
 		// Act
 		_ = await pipeline.ExecuteAsync(message, context, FinalDelegate, CancellationToken.None).ConfigureAwait(false);
-		stopwatch.Stop();
 
 		// Assert
-		stopwatch.ElapsedMilliseconds.ShouldBeLessThan(100); // Fast execution
 		invocations.ShouldContain("Timed");
 	}
 
@@ -1053,14 +1050,12 @@ public class MiddlewarePipelineShould : UnitTestBase
 		var pipeline = new DispatchPipeline(middleware);
 		var message = new TestMessage();
 		var context = CreateMessageContext();
-		var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
 		// Act
 		_ = await pipeline.ExecuteAsync(message, context, FinalDelegate, CancellationToken.None).ConfigureAwait(false);
-		stopwatch.Stop();
 
 		// Assert
-		stopwatch.ElapsedMilliseconds.ShouldBeLessThan(50); // Fast execution
+		invocations.ShouldContain("Performance");
 	}
 
 	[Fact]

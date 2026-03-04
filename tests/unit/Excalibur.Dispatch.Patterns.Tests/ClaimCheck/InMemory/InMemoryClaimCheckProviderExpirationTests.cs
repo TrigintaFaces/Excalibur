@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics;
-
 using Excalibur.Dispatch.Patterns.ClaimCheck;
 using Shouldly;
 
@@ -18,23 +16,13 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 {
 	private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
 	{
-		var stopwatch = Stopwatch.StartNew();
-		while (true)
-		{
-			if (condition())
-			{
-				return;
-			}
-
-			if (stopwatch.Elapsed >= timeout)
-			{
-				break;
-			}
-
-			await Task.Yield();
-		}
-
-		throw new TimeoutException($"Condition not met within {timeout}.");
+		var scaledTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(timeout);
+		var conditionMet = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+				condition,
+				scaledTimeout,
+				TimeSpan.FromMilliseconds(100))
+			.ConfigureAwait(false);
+		conditionMet.ShouldBeTrue($"Condition not met within {scaledTimeout}.");
 	}
 
 	private static async Task WaitUntilExpiredAsync(ClaimCheckReference reference, TimeSpan timeout)

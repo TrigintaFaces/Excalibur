@@ -6,6 +6,7 @@ using System.Text;
 using RabbitMQ.Client;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Infrastructure;
 
 using Testcontainers.RabbitMq;
 
@@ -22,6 +23,8 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.RabbitMQ;
 [Trait("Component", "Transport")]
 public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
 {
+    private static readonly TimeSpan MessageWaitTimeout = TestTimeouts.Scale(TimeSpan.FromSeconds(20));
+
     private RabbitMqContainer? _container;
     private IConnection? _connection;
     private IChannel? _channel;
@@ -118,15 +121,12 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
             basicProperties: new BasicProperties { MessageId = "order-msg" },
             body: Encoding.UTF8.GetBytes("order data")).ConfigureAwait(false);
 
-        await Task.Delay(500).ConfigureAwait(false);
-
         // Assert - message should be in orders queue, not payments
-        var orderResult = await _channel.BasicGetAsync(queueOrders, autoAck: true).ConfigureAwait(false);
+        var orderResult = await WaitForBasicGetAsync(_channel, queueOrders, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
         orderResult.ShouldNotBeNull();
         orderResult.BasicProperties.MessageId.ShouldBe("order-msg");
 
-        var paymentResult = await _channel.BasicGetAsync(queuePayments, autoAck: true).ConfigureAwait(false);
-        paymentResult.ShouldBeNull();
+        await AssertQueueRemainsEmptyAsync(_channel, queuePayments, MessageWaitTimeout).ConfigureAwait(false);
     }
 
     [SkippableFact]
@@ -150,11 +150,8 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
             basicProperties: new BasicProperties { MessageId = "lost-msg" },
             body: Encoding.UTF8.GetBytes("lost")).ConfigureAwait(false);
 
-        await Task.Delay(500).ConfigureAwait(false);
-
         // Assert - queue should be empty
-        var result = await _channel.BasicGetAsync(queueName, autoAck: true).ConfigureAwait(false);
-        result.ShouldBeNull();
+        await AssertQueueRemainsEmptyAsync(_channel, queueName, MessageWaitTimeout).ConfigureAwait(false);
     }
 
     #endregion
@@ -190,15 +187,12 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
             basicProperties: new BasicProperties { MessageId = "star-nomatch" },
             body: Encoding.UTF8.GetBytes("no match")).ConfigureAwait(false);
 
-        await Task.Delay(500).ConfigureAwait(false);
-
         // Assert - only the matching message should arrive
-        var result = await _channel.BasicGetAsync(queueName, autoAck: true).ConfigureAwait(false);
+        var result = await WaitForBasicGetAsync(_channel, queueName, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
         result.ShouldNotBeNull();
         result.BasicProperties.MessageId.ShouldBe("star-match");
 
-        var noMore = await _channel.BasicGetAsync(queueName, autoAck: true).ConfigureAwait(false);
-        noMore.ShouldBeNull();
+        await AssertQueueRemainsEmptyAsync(_channel, queueName, MessageWaitTimeout).ConfigureAwait(false);
     }
 
     [SkippableFact]
@@ -241,20 +235,16 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
             mandatory: false, basicProperties: new BasicProperties { MessageId = "nomatch" },
             body: Encoding.UTF8.GetBytes("no")).ConfigureAwait(false);
 
-        await Task.Delay(1000).ConfigureAwait(false);
-
         // Assert - 4 messages should match
         var receivedIds = new List<string>();
-        for (var i = 0; i < 5; i++)
+        for (var i = 0; i < 4; i++)
         {
-            var result = await _channel.BasicGetAsync(queueName, autoAck: true).ConfigureAwait(false);
-            if (result is null)
-            {
-                break;
-            }
-
+            var result = await WaitForBasicGetAsync(_channel, queueName, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
+            result.ShouldNotBeNull();
             receivedIds.Add(result.BasicProperties.MessageId!);
         }
+
+        await AssertQueueRemainsEmptyAsync(_channel, queueName, MessageWaitTimeout).ConfigureAwait(false);
 
         receivedIds.Count.ShouldBe(4);
         receivedIds.ShouldContain("h1");
@@ -289,14 +279,12 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
             basicProperties: new BasicProperties { MessageId = "multi-msg" },
             body: Encoding.UTF8.GetBytes("order created")).ConfigureAwait(false);
 
-        await Task.Delay(500).ConfigureAwait(false);
-
         // Assert - both queues should receive the message
-        var allResult = await _channel.BasicGetAsync(queueAll, autoAck: true).ConfigureAwait(false);
+        var allResult = await WaitForBasicGetAsync(_channel, queueAll, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
         allResult.ShouldNotBeNull();
         allResult.BasicProperties.MessageId.ShouldBe("multi-msg");
 
-        var ordersResult = await _channel.BasicGetAsync(queueOrders, autoAck: true).ConfigureAwait(false);
+        var ordersResult = await WaitForBasicGetAsync(_channel, queueOrders, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
         ordersResult.ShouldNotBeNull();
         ordersResult.BasicProperties.MessageId.ShouldBe("multi-msg");
     }
@@ -333,12 +321,10 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
             basicProperties: new BasicProperties { MessageId = "fanout-msg" },
             body: Encoding.UTF8.GetBytes("broadcast")).ConfigureAwait(false);
 
-        await Task.Delay(500).ConfigureAwait(false);
-
         // Assert - all 3 queues should get the message
-        var r1 = await _channel.BasicGetAsync(queue1, autoAck: true).ConfigureAwait(false);
-        var r2 = await _channel.BasicGetAsync(queue2, autoAck: true).ConfigureAwait(false);
-        var r3 = await _channel.BasicGetAsync(queue3, autoAck: true).ConfigureAwait(false);
+        var r1 = await WaitForBasicGetAsync(_channel, queue1, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
+        var r2 = await WaitForBasicGetAsync(_channel, queue2, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
+        var r3 = await WaitForBasicGetAsync(_channel, queue3, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
 
         r1.ShouldNotBeNull();
         r2.ShouldNotBeNull();
@@ -374,14 +360,11 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
             basicProperties: new BasicProperties { MessageId = "fanout-bound-only" },
             body: Encoding.UTF8.GetBytes("bound only")).ConfigureAwait(false);
 
-        await Task.Delay(500).ConfigureAwait(false);
-
         // Assert
-        var boundResult = await _channel.BasicGetAsync(boundQueue, autoAck: true).ConfigureAwait(false);
+        var boundResult = await WaitForBasicGetAsync(_channel, boundQueue, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
         boundResult.ShouldNotBeNull();
 
-        var unboundResult = await _channel.BasicGetAsync(unboundQueue, autoAck: true).ConfigureAwait(false);
-        unboundResult.ShouldBeNull();
+        await AssertQueueRemainsEmptyAsync(_channel, unboundQueue, MessageWaitTimeout).ConfigureAwait(false);
     }
 
     #endregion
@@ -444,15 +427,12 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
             },
             body: Encoding.UTF8.GetBytes("not matching")).ConfigureAwait(false);
 
-        await Task.Delay(500).ConfigureAwait(false);
-
         // Assert - only matching message should arrive
-        var result = await _channel.BasicGetAsync(matchQueue, autoAck: true).ConfigureAwait(false);
+        var result = await WaitForBasicGetAsync(_channel, matchQueue, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
         result.ShouldNotBeNull();
         result.BasicProperties.MessageId.ShouldBe("headers-match");
 
-        var noMore = await _channel.BasicGetAsync(matchQueue, autoAck: true).ConfigureAwait(false);
-        noMore.ShouldBeNull();
+        await AssertQueueRemainsEmptyAsync(_channel, matchQueue, MessageWaitTimeout).ConfigureAwait(false);
     }
 
     [SkippableFact]
@@ -495,10 +475,8 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
             },
             body: Encoding.UTF8.GetBytes("any match")).ConfigureAwait(false);
 
-        await Task.Delay(500).ConfigureAwait(false);
-
         // Assert - should match because "region" matches
-        var result = await _channel.BasicGetAsync(matchQueue, autoAck: true).ConfigureAwait(false);
+        var result = await WaitForBasicGetAsync(_channel, matchQueue, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
         result.ShouldNotBeNull();
         result.BasicProperties.MessageId.ShouldBe("any-match");
     }
@@ -524,13 +502,41 @@ public sealed class RabbitMqExchangeRoutingIntegrationShould : IAsyncLifetime
             basicProperties: new BasicProperties { MessageId = "default-ex-msg" },
             body: Encoding.UTF8.GetBytes("default exchange")).ConfigureAwait(false);
 
-        await Task.Delay(500).ConfigureAwait(false);
-
         // Assert
-        var result = await _channel.BasicGetAsync(queueName, autoAck: true).ConfigureAwait(false);
+        var result = await WaitForBasicGetAsync(_channel, queueName, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
         result.ShouldNotBeNull();
         result.BasicProperties.MessageId.ShouldBe("default-ex-msg");
     }
 
     #endregion
+
+    private static Task<BasicGetResult?> WaitForBasicGetAsync(
+        IChannel channel,
+        string queueName,
+        bool autoAck,
+        TimeSpan timeout)
+    {
+        return WaitHelpers.WaitForValueAsync(
+            () => channel.BasicGetAsync(queueName, autoAck),
+            timeout,
+            TimeSpan.FromMilliseconds(100));
+    }
+
+    private static async Task AssertQueueRemainsEmptyAsync(
+        IChannel channel,
+        string queueName,
+        TimeSpan observationWindow)
+    {
+        var observedMessage = await WaitHelpers.WaitUntilAsync(
+                async () =>
+                {
+                    var result = await channel.BasicGetAsync(queueName, autoAck: true).ConfigureAwait(false);
+                    return result is not null;
+                },
+                observationWindow,
+                TimeSpan.FromMilliseconds(100))
+            .ConfigureAwait(false);
+
+        observedMessage.ShouldBeFalse($"Expected queue '{queueName}' to remain empty.");
+    }
 }

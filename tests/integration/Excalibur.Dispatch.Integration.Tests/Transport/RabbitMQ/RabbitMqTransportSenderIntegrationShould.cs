@@ -6,6 +6,7 @@ using System.Text;
 using RabbitMQ.Client;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Infrastructure;
 
 using Testcontainers.RabbitMq;
 
@@ -22,6 +23,8 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.RabbitMQ;
 [Trait("Component", "Transport")]
 public sealed class RabbitMqTransportSenderIntegrationShould : IAsyncLifetime
 {
+    private static readonly TimeSpan MessageWaitTimeout = TestTimeouts.Scale(TimeSpan.FromSeconds(15));
+
     private RabbitMqContainer? _container;
     private IConnection? _connection;
     private IChannel? _channel;
@@ -121,11 +124,8 @@ public sealed class RabbitMqTransportSenderIntegrationShould : IAsyncLifetime
             basicProperties: properties,
             body: messageBody).ConfigureAwait(false);
 
-        // Allow message to be routed
-        await Task.Delay(500).ConfigureAwait(false);
-
         // Assert - consume the message and verify
-        var result = await _channel.BasicGetAsync(queueName, autoAck: true).ConfigureAwait(false);
+        var result = await WaitForBasicGetAsync(_channel, queueName, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
 
         result.ShouldNotBeNull();
         Encoding.UTF8.GetString(result.Body.ToArray()).ShouldBe("Hello, RabbitMQ!");
@@ -177,10 +177,8 @@ public sealed class RabbitMqTransportSenderIntegrationShould : IAsyncLifetime
             basicProperties: properties,
             body: messageBody).ConfigureAwait(false);
 
-        await Task.Delay(500).ConfigureAwait(false);
-
         // Assert
-        var result = await _channel.BasicGetAsync(queueName, autoAck: true).ConfigureAwait(false);
+        var result = await WaitForBasicGetAsync(_channel, queueName, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
 
         result.ShouldNotBeNull();
         result.RoutingKey.ShouldBe(routingKey);
@@ -221,13 +219,11 @@ public sealed class RabbitMqTransportSenderIntegrationShould : IAsyncLifetime
                 body: Encoding.UTF8.GetBytes($"Message {i}")).ConfigureAwait(false);
         }
 
-        await Task.Delay(1000).ConfigureAwait(false);
-
         // Assert - all messages should be in the queue
         var receivedCount = 0;
         for (var i = 0; i < batchSize; i++)
         {
-            var result = await _channel.BasicGetAsync(queueName, autoAck: true).ConfigureAwait(false);
+            var result = await WaitForBasicGetAsync(_channel, queueName, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
             if (result is not null)
             {
                 receivedCount++;
@@ -270,10 +266,8 @@ public sealed class RabbitMqTransportSenderIntegrationShould : IAsyncLifetime
             basicProperties: properties,
             body: Encoding.UTF8.GetBytes("{}")).ConfigureAwait(false);
 
-        await Task.Delay(500).ConfigureAwait(false);
-
         // Assert
-        var result = await _channel.BasicGetAsync(queueName, autoAck: true).ConfigureAwait(false);
+        var result = await WaitForBasicGetAsync(_channel, queueName, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
 
         result.ShouldNotBeNull();
         result.BasicProperties.CorrelationId.ShouldBe("corr-123");
@@ -313,10 +307,8 @@ public sealed class RabbitMqTransportSenderIntegrationShould : IAsyncLifetime
             basicProperties: properties,
             body: Encoding.UTF8.GetBytes("priority message")).ConfigureAwait(false);
 
-        await Task.Delay(500).ConfigureAwait(false);
-
         // Assert
-        var result = await _channel.BasicGetAsync(queueName, autoAck: true).ConfigureAwait(false);
+        var result = await WaitForBasicGetAsync(_channel, queueName, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
 
         result.ShouldNotBeNull();
         result.BasicProperties.Priority.ShouldBe((byte)5);
@@ -349,10 +341,8 @@ public sealed class RabbitMqTransportSenderIntegrationShould : IAsyncLifetime
             basicProperties: properties,
             body: Encoding.UTF8.GetBytes("ttl message")).ConfigureAwait(false);
 
-        await Task.Delay(500).ConfigureAwait(false);
-
         // Assert
-        var result = await _channel.BasicGetAsync(queueName, autoAck: true).ConfigureAwait(false);
+        var result = await WaitForBasicGetAsync(_channel, queueName, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
 
         result.ShouldNotBeNull();
         result.BasicProperties.Expiration.ShouldBe("60000");
@@ -420,12 +410,22 @@ public sealed class RabbitMqTransportSenderIntegrationShould : IAsyncLifetime
             basicProperties: properties,
             body: Encoding.UTF8.GetBytes("{\"type\":\"OrderCreated\"}")).ConfigureAwait(false);
 
-        await Task.Delay(500).ConfigureAwait(false);
-
         // Assert
-        var result = await _channel.BasicGetAsync(queueName, autoAck: true).ConfigureAwait(false);
+        var result = await WaitForBasicGetAsync(_channel, queueName, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
 
         result.ShouldNotBeNull();
         result.BasicProperties.Type.ShouldBe("Excalibur.Dispatch.Tests.OrderCreatedEvent");
+    }
+
+    private static Task<BasicGetResult?> WaitForBasicGetAsync(
+        IChannel channel,
+        string queueName,
+        bool autoAck,
+        TimeSpan timeout)
+    {
+        return WaitHelpers.WaitForValueAsync(
+            () => channel.BasicGetAsync(queueName, autoAck),
+            timeout,
+            TimeSpan.FromMilliseconds(100));
     }
 }

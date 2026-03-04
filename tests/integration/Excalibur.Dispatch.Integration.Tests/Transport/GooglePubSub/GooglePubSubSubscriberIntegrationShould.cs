@@ -8,6 +8,7 @@ using Google.Protobuf;
 using Grpc.Core;
 
 using Testcontainers.PubSub;
+using Tests.Shared.Infrastructure;
 
 namespace Excalibur.Dispatch.Integration.Tests.Transport.GooglePubSub;
 
@@ -23,6 +24,7 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.GooglePubSub;
 public sealed class GooglePubSubSubscriberIntegrationShould : IAsyncLifetime
 {
 	private const string ProjectId = "test-project";
+	private static readonly TimeSpan MessageWaitTimeout = TestTimeouts.Scale(TimeSpan.FromSeconds(10));
 
 	private PubSubContainer? _container;
 	private PublisherServiceApiClient? _publisherApi;
@@ -34,27 +36,42 @@ public sealed class GooglePubSubSubscriberIntegrationShould : IAsyncLifetime
 		try
 		{
 			_container = new PubSubBuilder().Build();
-			await _container.StartAsync().ConfigureAwait(false);
+			await TestTimeouts.WithTimeout(
+				_container.StartAsync(),
+				TestTimeouts.ContainerStart,
+				"PubSub emulator container start").ConfigureAwait(false);
 
 			var endpoint = _container.GetEmulatorEndpoint();
 			Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", endpoint);
 
-			_publisherApi = await new PublisherServiceApiClientBuilder
-			{
-				EmulatorDetection = EmulatorDetection.EmulatorOnly,
-			}.BuildAsync().ConfigureAwait(false);
+			_publisherApi = await TestTimeouts.WithTimeout(
+				new PublisherServiceApiClientBuilder
+				{
+					EmulatorDetection = EmulatorDetection.EmulatorOnly,
+				}.BuildAsync(),
+				TestTimeouts.ContainerStart,
+				"PubSub publisher client initialization").ConfigureAwait(false);
 
-			_subscriberApi = await new SubscriberServiceApiClientBuilder
-			{
-				EmulatorDetection = EmulatorDetection.EmulatorOnly,
-			}.BuildAsync().ConfigureAwait(false);
+			_subscriberApi = await TestTimeouts.WithTimeout(
+				new SubscriberServiceApiClientBuilder
+				{
+					EmulatorDetection = EmulatorDetection.EmulatorOnly,
+				}.BuildAsync(),
+				TestTimeouts.ContainerStart,
+				"PubSub subscriber client initialization").ConfigureAwait(false);
 
 			// Verify the emulator is actually responding to gRPC calls.
 			// The container may start but the emulator might not support the HTTP/2 handshake
 			// required by the current gRPC client version.
 			var probeTopic = TopicName.FromProjectTopic(ProjectId, $"probe-{Guid.NewGuid():N}");
-			await _publisherApi.CreateTopicAsync(probeTopic).ConfigureAwait(false);
-			await _publisherApi.DeleteTopicAsync(probeTopic).ConfigureAwait(false);
+			await TestTimeouts.WithTimeout(
+				_publisherApi.CreateTopicAsync(probeTopic),
+				TestTimeouts.HealthCheck,
+				"PubSub probe topic create").ConfigureAwait(false);
+			await TestTimeouts.WithTimeout(
+				_publisherApi.DeleteTopicAsync(probeTopic),
+				TestTimeouts.HealthCheck,
+				"PubSub probe topic delete").ConfigureAwait(false);
 
 			_dockerAvailable = true;
 		}
@@ -73,7 +90,10 @@ public sealed class GooglePubSubSubscriberIntegrationShould : IAsyncLifetime
 		{
 			if (_container is not null)
 			{
-				await _container.DisposeAsync().ConfigureAwait(false);
+				await TestTimeouts.WithTimeout(
+					_container.DisposeAsync().AsTask(),
+					TestTimeouts.ContainerDispose,
+					"PubSub emulator container dispose").ConfigureAwait(false);
 			}
 		}
 		catch
@@ -175,19 +195,17 @@ public sealed class GooglePubSubSubscriberIntegrationShould : IAsyncLifetime
 		await _subscriberApi.ModifyAckDeadlineAsync(subscriptionName, [ackId], 0).ConfigureAwait(false);
 
 		// Assert — message should reappear (eventual redelivery in emulator can vary under CI load)
-		var deadline = DateTime.UtcNow.AddSeconds(10);
 		PullResponse? secondPull = null;
-		while (DateTime.UtcNow < deadline)
-		{
-			secondPull = await PullWithTransientRetryAsync(subscriptionName, maxMessages: 10).ConfigureAwait(false);
-			if (secondPull.ReceivedMessages.Count > 0)
+		var redelivered = await WaitHelpers.WaitUntilAsync(
+			async () =>
 			{
-				break;
-			}
+				secondPull = await PullWithTransientRetryAsync(subscriptionName, maxMessages: 10).ConfigureAwait(false);
+				return secondPull.ReceivedMessages.Count > 0;
+			},
+			MessageWaitTimeout,
+			TimeSpan.FromMilliseconds(100)).ConfigureAwait(false);
 
-			await Task.Delay(200).ConfigureAwait(false);
-		}
-
+		redelivered.ShouldBeTrue();
 		secondPull.ShouldNotBeNull();
 		secondPull.ReceivedMessages.Count.ShouldBe(1);
 		secondPull.ReceivedMessages[0].Message.Data.ToStringUtf8().ShouldBe("nack-test-message");
