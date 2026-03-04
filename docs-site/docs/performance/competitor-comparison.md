@@ -62,6 +62,10 @@ Validation class results:
 The numeric scenario tables below are sourced from the committed `dispatch-comparative-20260302` baseline.
 :::
 
+:::note Allocation normalization
+Some committed `*-report-github.md` files in that baseline include anomalous allocation values (`0 B` or unusually high spikes) that do not match the paired `report.run1.*.csv` artifacts. For those affected rows, allocation values below are normalized to the stable run1 median for the same method.
+:::
+
 :::info Scope
 These are microbenchmarks for framework overhead and path cost. They are not end-to-end production latency claims.
 :::
@@ -95,8 +99,8 @@ Source: `benchmarks/baselines/net10.0/dispatch-comparative-20260302/results/Exca
 | Notification to 3 handlers | 118.65 ns / 240 B | 119.24 ns / 616 B | Near parity; Dispatch allocates ~2.6x less |
 | Query with return value | 83.57 ns / 336 B | 62.38 ns / 296 B | MediatR ~1.3x faster |
 | Query ultra-local | 58.27 ns / 165 B | 62.38 ns / 296 B | **Dispatch ~1.1x faster**; Dispatch allocates ~1.8x less |
-| Query singleton-promoted | 58.23 ns / - | 62.38 ns / 296 B | **Dispatch ~1.1x faster** |
-| 10 concurrent commands | 879.24 ns / 361,864 B | 544.39 ns / 1,856 B | MediatR ~1.6x faster |
+| Query singleton-promoted | 58.23 ns / 192 B | 62.38 ns / 296 B | **Dispatch ~1.1x faster** |
+| 10 concurrent commands | 879.24 ns / 2,080 B | 544.39 ns / 1,856 B | MediatR ~1.6x faster |
 | 100 concurrent commands | 7,539.10 ns / 19,360 B | 5,160.23 ns / 17,064 B | MediatR ~1.5x faster |
 
 ### Dispatch vs Wolverine (InvokeAsync parity)
@@ -105,11 +109,11 @@ Source: `benchmarks/baselines/net10.0/dispatch-comparative-20260302/results/Exca
 
 | Scenario | Dispatch | Wolverine (InvokeAsync) | Relative Result |
 |----------|----------|--------------------------|-----------------|
-| Single command (local) | 132.26 ns / 264 B | 368.19 ns / - | **Dispatch 2.8x faster** |
-| Single command (ultra-local) | 61.27 ns / 48 B | 368.19 ns / - | **Dispatch 6.0x faster** |
+| Single command (local) | 132.26 ns / 264 B | 368.19 ns / 672 B | **Dispatch 2.8x faster** |
+| Single command (ultra-local) | 61.27 ns / 48 B | 368.19 ns / 672 B | **Dispatch 6.0x faster** |
 | Notification to 2 handlers | 219.40 ns / 288 B | 3,954.40 ns / 4,512 B | **Dispatch 18.0x faster** |
-| Query with return | 96.88 ns / 102,289 B | 289.44 ns / 936 B | **Dispatch 3.0x faster** |
-| 10 concurrent commands | 940.32 ns / - | 2,192.44 ns / 6,928 B | **Dispatch 2.3x faster** |
+| Query with return | 96.88 ns / 480 B | 289.44 ns / 936 B | **Dispatch 3.0x faster** |
+| 10 concurrent commands | 940.32 ns / 2,320 B | 2,192.44 ns / 6,928 B | **Dispatch 2.3x faster** |
 | 100 concurrent commands | 8,249.13 ns / 21,760 B | 22,060.96 ns / 68,128 B | **Dispatch 2.7x faster** |
 
 ### Dispatch vs Wolverine (Full: InvokeAsync + SendAsync)
@@ -118,11 +122,11 @@ Source: `benchmarks/baselines/net10.0/dispatch-comparative-20260302/results/Exca
 
 | Scenario | Dispatch | Wolverine InvokeAsync | Wolverine SendAsync | Relative Result |
 |----------|----------|----------------------|---------------------|-----------------|
-| Single command | 80.86 ns / 264 B | 214.48 ns / 76,178 B | 3,900.31 ns / 4,512 B | Dispatch 2.7x faster (invoke), 48.2x faster (send) |
-| Single command (ultra-local) | 39.43 ns / 48 B | 214.48 ns / 76,178 B | - | Dispatch 5.4x faster (invoke) |
+| Single command | 80.86 ns / 264 B | 214.48 ns / 688 B | 3,900.31 ns / 4,512 B | Dispatch 2.7x faster (invoke), 48.2x faster (send) |
+| Single command (ultra-local) | 39.43 ns / 48 B | 214.48 ns / 688 B | - | Dispatch 5.4x faster (invoke) |
 | Event to 2 handlers | 119.37 ns / 288 B | - | 7,849.49 ns / 4,512 B | Dispatch 65.8x faster (publish) |
 | Query with return | 171.76 ns / 456 B | 482.56 ns / 936 B | - | Dispatch 2.8x faster |
-| 10 concurrent commands | 1,468.21 ns / 2,320 B | 3,833.38 ns / - | - | Dispatch 2.6x faster |
+| 10 concurrent commands | 1,468.21 ns / 2,320 B | 3,833.38 ns / 7,088 B | - | Dispatch 2.6x faster |
 | 100 concurrent commands | 13,780.10 ns / 21,760 B | 37,536.13 ns / 69,729 B | - | Dispatch 2.7x faster |
 | Batch queries (10) | 1,853.82 ns / 3,880 B | 4,844.69 ns / 8,312 B | - | Dispatch 2.6x faster |
 
@@ -134,7 +138,7 @@ Source: `benchmarks/baselines/net10.0/dispatch-comparative-20260302/results/Exca
 |----------|----------|----------------------|-----------------|
 | Single command | 178.2 ns / 352 B | 4,120.8 ns / 3,544 B | Dispatch ~23.1x faster |
 | Notification to 2 consumers | 261.5 ns / 376 B | 5,742.8 ns / 4,176 B | Dispatch ~22.0x faster |
-| Query with return | 117.7 ns / 544 B | 6,553.7 ns / 472,995 B | Dispatch ~55.7x faster |
+| Query with return | 117.7 ns / 544 B | 6,553.7 ns / 11,600 B | Dispatch ~55.7x faster |
 | 10 concurrent commands | 1,196.9 ns / 3,200 B | 14,750.7 ns / 35,648 B | Dispatch ~12.3x faster |
 | 100 concurrent commands | 10,905.2 ns / 30,560 B | 147,353.3 ns / 355,330 B | Dispatch ~13.5x faster |
 
