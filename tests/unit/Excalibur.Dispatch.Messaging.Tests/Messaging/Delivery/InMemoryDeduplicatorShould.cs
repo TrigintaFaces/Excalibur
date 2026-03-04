@@ -93,17 +93,19 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 		await _sut.MarkProcessedAsync("msg-3", TimeSpan.FromHours(1), CancellationToken.None).ConfigureAwait(false);
 
 		var removed = 0;
+		var totalRemoved = 0;
 		var cleaned = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
 				async () =>
 				{
 					removed = await _sut.CleanupExpiredEntriesAsync(CancellationToken.None).ConfigureAwait(false);
-					return removed >= 2;
+					totalRemoved += removed;
+					return totalRemoved >= 2;
 				},
 				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(20)),
 				TimeSpan.FromMilliseconds(50))
 			.ConfigureAwait(false);
 		cleaned.ShouldBeTrue("Expected cleanup to remove expired entries within timeout.");
-		removed.ShouldBeGreaterThanOrEqualTo(2);
+		totalRemoved.ShouldBeGreaterThanOrEqualTo(2);
 	}
 
 	[Fact]
