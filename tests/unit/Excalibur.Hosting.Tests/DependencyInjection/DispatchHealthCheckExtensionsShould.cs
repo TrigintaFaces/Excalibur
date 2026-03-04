@@ -186,6 +186,44 @@ public sealed class DispatchHealthCheckExtensionsShould
 	}
 
 	[Fact]
+	public void ResolveType_ReturnType_WhenAssemblyLoadsOnDemand()
+	{
+		// Arrange
+		var candidate = FindOnDemandLoadCandidate();
+		if (candidate is null)
+		{
+			// Fallback keeps this deterministic across runtime variations.
+			var fallbackAssembly = typeof(string).Assembly.GetName().Name!;
+			var fallbackType = typeof(string).FullName!;
+			var fallbackResolved = InvokeResolveType(fallbackAssembly, fallbackType);
+			fallbackResolved.ShouldBe(typeof(string));
+			return;
+		}
+
+		// Act
+		var resolved = InvokeResolveType(candidate.Value.AssemblyName, candidate.Value.TypeName);
+
+		// Assert
+		resolved.ShouldNotBeNull();
+		resolved!.FullName.ShouldBe(candidate.Value.TypeName);
+	}
+
+	[Fact]
+	public void ResolveType_ReturnType_WhenAssemblyDisplayNameForcesLoadPath()
+	{
+		// Arrange
+		var assembly = typeof(DispatchHealthCheckExtensions).Assembly.GetName();
+		var displayName = assembly.FullName!;
+		displayName.ShouldNotBe(assembly.Name);
+
+		// Act
+		var resolved = InvokeResolveType(displayName, typeof(DispatchHealthCheckExtensions).FullName!);
+
+		// Assert
+		resolved.ShouldBe(typeof(DispatchHealthCheckExtensions));
+	}
+
+	[Fact]
 	public void TryInvokeHealthCheckExtension_ReturnFalse_WhenMethodNameIsUnknown()
 	{
 		// Arrange
@@ -435,6 +473,47 @@ public sealed class DispatchHealthCheckExtensionsShould
 				Array.Copy(snapshot, targets, snapshot.Length);
 			}
 		}
+	}
+
+	private static (string AssemblyName, string TypeName)? FindOnDemandLoadCandidate()
+	{
+		var loadedAssemblyNames = AppDomain.CurrentDomain.GetAssemblies()
+			.Select(static assembly => assembly.GetName().Name)
+			.Where(static name => !string.IsNullOrWhiteSpace(name))
+			.ToHashSet(StringComparer.Ordinal);
+
+		var runtimeDirectory = Path.GetDirectoryName(typeof(object).Assembly.Location);
+		if (string.IsNullOrWhiteSpace(runtimeDirectory))
+		{
+			return null;
+		}
+
+		var candidates = new (string AssemblyName, string TypeName)[]
+		{
+			("System.ComponentModel.TypeConverter", "System.ComponentModel.TypeConverter"),
+			("System.Runtime.Numerics", "System.Numerics.BigInteger"),
+			("System.Text.Encodings.Web", "System.Text.Encodings.Web.TextEncoder"),
+			("System.IO.Pipes", "System.IO.Pipes.PipeStream"),
+		};
+
+		for (var i = 0; i < candidates.Length; i++)
+		{
+			var candidate = candidates[i];
+			if (loadedAssemblyNames.Contains(candidate.AssemblyName))
+			{
+				continue;
+			}
+
+			var candidatePath = Path.Combine(runtimeDirectory, $"{candidate.AssemblyName}.dll");
+			if (!File.Exists(candidatePath))
+			{
+				continue;
+			}
+
+			return candidate;
+		}
+
+		return null;
 	}
 
 	private static class HealthCheckExtensionTestTargets
