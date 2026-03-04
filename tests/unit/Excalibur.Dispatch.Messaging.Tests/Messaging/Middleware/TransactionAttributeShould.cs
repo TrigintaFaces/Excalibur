@@ -4,6 +4,7 @@
 using System.Transactions;
 
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Transaction;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 

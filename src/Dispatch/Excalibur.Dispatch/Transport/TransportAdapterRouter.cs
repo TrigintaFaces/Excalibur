@@ -106,20 +106,20 @@ public sealed partial class TransportAdapterRouter(IDispatcher dispatcher, ILogg
 			throw new ArgumentException(ErrorMessages.MessagesAndContextsMustHaveSameCount, nameof(contexts));
 		}
 
-		if (!messages.Any())
+		if (messages.Count == 0)
 		{
 			return Array.Empty<IMessageResult>();
 		}
 
 		LogRoutingBatch(messages.Count, adapterId);
 
-		var results = new List<IMessageResult>(messages.Count);
+		var results = new IMessageResult[messages.Count];
 
 		// Process messages individually to ensure each has proper error handling
 		for (var i = 0; i < messages.Count; i++)
 		{
 			var result = await RouteAsync(messages[i], contexts[i], adapterId, cancellationToken).ConfigureAwait(false);
-			results.Add(result);
+			results[i] = result;
 		}
 
 		return results;
@@ -230,7 +230,6 @@ public sealed partial class TransportAdapterRouter(IDispatcher dispatcher, ILogg
 					description = "Health checking not supported, assuming healthy";
 				}
 
-				var data = new Dictionary<string, object>(StringComparer.Ordinal) { ["CheckTimestamp"] = DateTimeOffset.UtcNow };
 				healthResults[adapterId] = isHealthy
 					? Abstractions.Transport.HealthCheckResult.Healthy(description)
 					: Abstractions.Transport.HealthCheckResult.Unhealthy(description);
@@ -241,13 +240,6 @@ public sealed partial class TransportAdapterRouter(IDispatcher dispatcher, ILogg
 			{
 				LogHealthCheckFailed(adapterId, ex);
 
-				_ = new Dictionary<string, object>
-					(StringComparer.Ordinal)
-				{
-					["CheckTimestamp"] = DateTimeOffset.UtcNow,
-					["Exception"] = ex.GetType().Name,
-					["ExceptionMessage"] = ex.Message,
-				};
 				healthResults[adapterId] = Abstractions.Transport.HealthCheckResult.Unhealthy(
 					string.Format(
 						CultureInfo.InvariantCulture,

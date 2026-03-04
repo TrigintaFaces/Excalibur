@@ -3,7 +3,6 @@
 
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
-using System.Text;
 using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions;
@@ -157,8 +156,8 @@ public sealed partial class ProfileSpecificValidationMiddleware(
 		// Simple size estimation based on serialization
 		try
 		{
-			var json = JsonSerializer.Serialize(message);
-			return Encoding.UTF8.GetByteCount(json);
+			var bytes = JsonSerializer.SerializeToUtf8Bytes(message, message.GetType());
+			return bytes.Length;
 		}
 		catch
 		{
@@ -359,7 +358,10 @@ public sealed partial class ProfileSpecificValidationMiddleware(
 		if (!Validator.TryValidateObject(
 			message, context, results, validateAllProperties: true))
 		{
-			errors.AddRange(results.Select(static r => r.ErrorMessage ?? "Unknown validation error"));
+			for (var i = 0; i < results.Count; i++)
+			{
+				errors.Add(results[i].ErrorMessage ?? "Unknown validation error");
+			}
 		}
 
 		return errors.Count > 0

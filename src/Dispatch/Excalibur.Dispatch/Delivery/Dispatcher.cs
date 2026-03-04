@@ -70,8 +70,20 @@ public sealed class Dispatcher(
 	private static readonly Task<IMessageResult> DirectLocalSuccessResultTask =
 		Task.FromResult(SimpleMessageResult.SuccessResult);
 
-	private static readonly ConcurrentDictionary<Type, bool> ActionResponseTypeCache = new();
+	private static readonly Task<IMessageResult> DirectLocalSuccessCacheHitResultTask =
+		Task.FromResult(SimpleMessageResult.SuccessCacheHitResult);
+	[ThreadStatic] private static Dispatcher? s_cachedDispatchInfoDispatcher;
+	[ThreadStatic] private static Type? s_cachedDispatchInfoType;
+	[ThreadStatic] private static MessageDispatchInfo s_cachedDispatchInfo;
+	[ThreadStatic] private static bool s_cachedDispatchInfoInitialized;
+
 	private readonly ConcurrentDictionary<Type, bool> _middlewareBypassCache = new();
+
+	/// <summary>
+	/// Combined per-type dispatch info cache used across dispatch paths to avoid repeated type checks
+	/// and per-dispatch applicability lookups.
+	/// </summary>
+	private readonly ConcurrentDictionary<Type, MessageDispatchInfo> _messageDispatchInfoCache = new();
 	private readonly DispatchMiddlewareInvoker? _concreteMiddlewareInvoker = middlewareInvoker as DispatchMiddlewareInvoker;
 	private readonly bool _canBypassAllMiddleware = middlewareInvoker is DispatchMiddlewareInvoker { HasMiddleware: false };
 	private readonly bool _directLocalActionPathEnabled = IsDirectLocalActionPathEnabled(middlewareInvoker, busOptionsMap);
@@ -90,6 +102,10 @@ public sealed class Dispatcher(
 	// Use non-generic GetService + safe cast to avoid InvalidCastException with faked IServiceProvider in tests.
 	private readonly IMessageContextFactory? _cachedContextFactory =
 		serviceProvider?.GetService(typeof(IMessageContextFactory)) as IMessageContextFactory;
+
+	// PERF: Cache terminal handler delegate once to avoid method-group conversion on every dispatch.
+	private readonly Func<IDispatchMessage, IMessageContext, CancellationToken, ValueTask<IMessageResult>>? _finalHandlerDelegate =
+		finalHandler is null ? null : finalHandler.HandleAsync;
 
 	/// <summary>
 	/// Dispatches a message through the pipeline with high-performance optimizations.
@@ -119,35 +135,63 @@ public sealed class Dispatcher(
 			return CancelledResultTask;
 		}
 
+		var messageType = message.GetType();
+
+		// PERF: Single combined cache lookup replaces separate CanBypassMiddleware + ExpectsResponse +
+		// type-check calls. Saves ~15-20ns by avoiding two ConcurrentDictionary accesses.
+		var dispatchInfo = GetMessageDispatchInfo(messageType);
+
 		if (_directLocalActionPathEnabled &&
 		    localMessageBus is not null &&
-		    CanBypassMiddlewareForMessage(message) &&
+		    dispatchInfo.CanBypassMiddleware &&
 		    dispatchRouter is null &&
-		    context.RoutingDecision is null &&
-		    message is IDispatchAction fastPathAction)
+		    context.RoutingDecision is null)
 		{
-			if (ExpectsResponse(fastPathAction.GetType()))
+			if (dispatchInfo.IsAction)
 			{
-				return DispatchDirectLocalActionUntypedWithResponseAsync(message, fastPathAction, context, cancellationToken);
+				var action = (IDispatchAction)message;
+				if (dispatchInfo.DirectLocalNoResponseEligible &&
+				    TryDispatchUltraLocalNoResponseFast(
+					    message,
+					    action,
+					    context,
+					    dispatchInfo.DirectLocalNoResponseInvoker!,
+					    out var promotedTask,
+					    cancellationToken))
+				{
+					return promotedTask;
+				}
+
+				if (dispatchInfo.DirectLocalTypedEligible &&
+				    TryDispatchUltraLocalUntypedResponseFast(
+					    message,
+					    action,
+					    context,
+					    dispatchInfo.DirectLocalWithResponseInvoker!,
+					    out promotedTask,
+					    cancellationToken))
+				{
+					return promotedTask;
+				}
+
+				if (dispatchInfo.ExpectsResponse)
+				{
+					return DispatchDirectLocalActionUntypedWithResponseAsync(message, action, context, cancellationToken);
+				}
+
+				return DispatchDirectLocalActionAsync(message, action, context, cancellationToken);
 			}
 
-			return DispatchDirectLocalActionAsync(message, fastPathAction, context, cancellationToken);
-		}
-
-		if (_directLocalActionPathEnabled &&
-		    localMessageBus is not null &&
-		    CanBypassMiddlewareForMessage(message) &&
-		    dispatchRouter is null &&
-		    context.RoutingDecision is null &&
-		    message is IDispatchEvent fastPathEvent)
-		{
-			return DispatchDirectLocalEventAsync(message, fastPathEvent, context, cancellationToken);
+			if (dispatchInfo.IsEvent)
+			{
+				return DispatchDirectLocalEventAsync(message, (IDispatchEvent)message, context, cancellationToken);
+			}
 		}
 
 		var routingTask = EnsureRoutingDecisionAsync(message, context, cancellationToken);
 		if (!routingTask.IsCompletedSuccessfully)
 		{
-			return DispatchWithPreRoutingAsync(message, context, routingTask, cancellationToken);
+			return DispatchWithPreRoutingAsync(message, context, routingTask, dispatchInfo, cancellationToken);
 		}
 
 		var routingDecision = routingTask.Result;
@@ -158,28 +202,51 @@ public sealed class Dispatcher(
 
 		if (_directLocalActionPathEnabled &&
 		    localMessageBus is not null &&
-		    CanBypassMiddlewareForMessage(message) &&
-		    message is IDispatchAction action &&
+		    dispatchInfo.CanBypassMiddleware &&
 		    IsLocalRoute(context))
 		{
-			if (ExpectsResponse(action.GetType()))
+			if (dispatchInfo.IsAction)
 			{
-				return DispatchDirectLocalActionUntypedWithResponseAsync(message, action, context, cancellationToken);
+				var action = (IDispatchAction)message;
+				if (dispatchInfo.DirectLocalNoResponseEligible &&
+				    TryDispatchUltraLocalNoResponseFast(
+					    message,
+					    action,
+					    context,
+					    dispatchInfo.DirectLocalNoResponseInvoker!,
+					    out var promotedTask,
+					    cancellationToken))
+				{
+					return promotedTask;
+				}
+
+				if (dispatchInfo.DirectLocalTypedEligible &&
+				    TryDispatchUltraLocalUntypedResponseFast(
+					    message,
+					    action,
+					    context,
+					    dispatchInfo.DirectLocalWithResponseInvoker!,
+					    out promotedTask,
+					    cancellationToken))
+				{
+					return promotedTask;
+				}
+
+				if (dispatchInfo.ExpectsResponse)
+				{
+					return DispatchDirectLocalActionUntypedWithResponseAsync(message, action, context, cancellationToken);
+				}
+
+				return DispatchDirectLocalActionAsync(message, action, context, cancellationToken);
 			}
 
-			return DispatchDirectLocalActionAsync(message, action, context, cancellationToken);
+			if (dispatchInfo.IsEvent)
+			{
+				return DispatchDirectLocalEventAsync(message, (IDispatchEvent)message, context, cancellationToken);
+			}
 		}
 
-		if (_directLocalActionPathEnabled &&
-		    localMessageBus is not null &&
-		    CanBypassMiddlewareForMessage(message) &&
-		    message is IDispatchEvent evt &&
-		    IsLocalRoute(context))
-		{
-			return DispatchDirectLocalEventAsync(message, evt, context, cancellationToken);
-		}
-
-		return DispatchOptimizedAsync(message, context, cancellationToken);
+		return DispatchOptimizedAsync(message, context, dispatchInfo.CanBypassMiddleware, cancellationToken);
 	}
 
 	/// <summary>
@@ -211,19 +278,34 @@ public sealed class Dispatcher(
 			return CancelledResultTaskCache<TResponse>.Task;
 		}
 
+		var messageType = message.GetType();
+		var dispatchInfo = GetMessageDispatchInfo(messageType);
+		var canBypass = dispatchInfo.CanBypassMiddleware;
+
 		if (_directLocalActionPathEnabled &&
 		    localMessageBus is not null &&
-		    CanBypassMiddlewareForMessage(message) &&
+		    canBypass &&
 		    dispatchRouter is null &&
 		    context.RoutingDecision is null)
 		{
+			if (dispatchInfo.DirectLocalTypedEligible &&
+			    TryDispatchUltraLocalTypedFast<TMessage, TResponse>(
+				    message,
+				    context,
+				    dispatchInfo.DirectLocalWithResponseInvoker!,
+				    out var promotedTask,
+				    cancellationToken))
+			{
+				return promotedTask;
+			}
+
 			return DispatchDirectLocalActionWithResponseAsync<TMessage, TResponse>(message, context, cancellationToken);
 		}
 
 		var routingTask = EnsureRoutingDecisionAsync(message, context, cancellationToken);
 		if (!routingTask.IsCompletedSuccessfully)
 		{
-			return DispatchWithPreRoutingAsync<TMessage, TResponse>(message, context, routingTask, cancellationToken);
+			return DispatchWithPreRoutingAsync<TMessage, TResponse>(message, context, routingTask, dispatchInfo, cancellationToken);
 		}
 
 		var routingDecision = routingTask.Result;
@@ -234,15 +316,26 @@ public sealed class Dispatcher(
 
 		if (_directLocalActionPathEnabled && localMessageBus is not null && IsLocalRoute(context))
 		{
-			if (!CanBypassMiddlewareForMessage(message))
+			if (!canBypass)
 			{
-				return DispatchOptimizedWithResponseAsync<TMessage, TResponse>(message, context, cancellationToken);
+				return DispatchOptimizedWithResponseAsync<TMessage, TResponse>(message, context, canBypassMiddleware: false, cancellationToken);
+			}
+
+			if (dispatchInfo.DirectLocalTypedEligible &&
+			    TryDispatchUltraLocalTypedFast<TMessage, TResponse>(
+				    message,
+				    context,
+				    dispatchInfo.DirectLocalWithResponseInvoker!,
+				    out var promotedTask,
+				    cancellationToken))
+			{
+				return promotedTask;
 			}
 
 			return DispatchDirectLocalActionWithResponseAsync<TMessage, TResponse>(message, context, cancellationToken);
 		}
 
-		return DispatchOptimizedWithResponseAsync<TMessage, TResponse>(message, context, cancellationToken);
+		return DispatchOptimizedWithResponseAsync<TMessage, TResponse>(message, context, canBypass, cancellationToken);
 	}
 
 	/// <inheritdoc />
@@ -364,6 +457,7 @@ public sealed class Dispatcher(
 		TMessage message,
 		IMessageContext context,
 		ValueTask<RoutingDecision?> routingTask,
+		MessageDispatchInfo dispatchInfo,
 		CancellationToken cancellationToken)
 		where TMessage : IDispatchMessage
 	{
@@ -373,13 +467,41 @@ public sealed class Dispatcher(
 			return CreateRoutingFailureResult(context, failedDecision);
 		}
 
+		// PERF: Reuse dispatch metadata resolved by the caller.
+		var canBypass = dispatchInfo.CanBypassMiddleware;
+
 		if (_directLocalActionPathEnabled &&
 		    localMessageBus is not null &&
-		    CanBypassMiddlewareForMessage(message) &&
+		    canBypass &&
+		    dispatchInfo.IsAction &&
 		    message is IDispatchAction action &&
 		    IsLocalRoute(context))
 		{
-			if (ExpectsResponse(action.GetType()))
+			if (dispatchInfo.DirectLocalNoResponseEligible &&
+			    TryDispatchUltraLocalNoResponseFast(
+				    message,
+				    action,
+				    context,
+				    dispatchInfo.DirectLocalNoResponseInvoker!,
+				    out var promotedTask,
+				    cancellationToken))
+			{
+				return await promotedTask.ConfigureAwait(false);
+			}
+
+			if (dispatchInfo.DirectLocalTypedEligible &&
+			    TryDispatchUltraLocalUntypedResponseFast(
+				    message,
+				    action,
+				    context,
+				    dispatchInfo.DirectLocalWithResponseInvoker!,
+				    out promotedTask,
+				    cancellationToken))
+			{
+				return await promotedTask.ConfigureAwait(false);
+			}
+
+			if (dispatchInfo.ExpectsResponse)
 			{
 				return await DispatchDirectLocalActionUntypedWithResponseAsync(message, action, context, cancellationToken)
 					.ConfigureAwait(false);
@@ -390,20 +512,22 @@ public sealed class Dispatcher(
 
 		if (_directLocalActionPathEnabled &&
 		    localMessageBus is not null &&
-		    CanBypassMiddlewareForMessage(message) &&
+		    canBypass &&
+		    dispatchInfo.IsEvent &&
 		    message is IDispatchEvent evt &&
 		    IsLocalRoute(context))
 		{
 			return await DispatchDirectLocalEventAsync(message, evt, context, cancellationToken).ConfigureAwait(false);
 		}
 
-		return await DispatchOptimizedAsync(message, context, cancellationToken).ConfigureAwait(false);
+		return await DispatchOptimizedAsync(message, context, canBypass, cancellationToken).ConfigureAwait(false);
 	}
 
 	private async Task<IMessageResult<TResponse>> DispatchWithPreRoutingAsync<TMessage, TResponse>(
 		TMessage message,
 		IMessageContext context,
 		ValueTask<RoutingDecision?> routingTask,
+		MessageDispatchInfo dispatchInfo,
 		CancellationToken cancellationToken)
 		where TMessage : IDispatchAction<TResponse>
 	{
@@ -415,17 +539,32 @@ public sealed class Dispatcher(
 
 		if (_directLocalActionPathEnabled && localMessageBus is not null && IsLocalRoute(context))
 		{
-			if (!CanBypassMiddlewareForMessage(message))
+			if (!dispatchInfo.CanBypassMiddleware)
 			{
-				return await DispatchOptimizedWithResponseAsync<TMessage, TResponse>(message, context, cancellationToken)
+				return await DispatchOptimizedWithResponseAsync<TMessage, TResponse>(message, context, canBypassMiddleware: false, cancellationToken)
 					.ConfigureAwait(false);
+			}
+
+			if (dispatchInfo.DirectLocalTypedEligible &&
+			    TryDispatchUltraLocalTypedFast<TMessage, TResponse>(
+				    message,
+				    context,
+				    dispatchInfo.DirectLocalWithResponseInvoker!,
+				    out var promotedTask,
+				    cancellationToken))
+			{
+				return await promotedTask.ConfigureAwait(false);
 			}
 
 			return await DispatchDirectLocalActionWithResponseAsync<TMessage, TResponse>(message, context, cancellationToken)
 				.ConfigureAwait(false);
 		}
 
-		return await DispatchOptimizedWithResponseAsync<TMessage, TResponse>(message, context, cancellationToken)
+		return await DispatchOptimizedWithResponseAsync<TMessage, TResponse>(
+				message,
+				context,
+				dispatchInfo.CanBypassMiddleware,
+				cancellationToken)
 			.ConfigureAwait(false);
 	}
 
@@ -602,6 +741,177 @@ public sealed class Dispatcher(
 		throw new InvalidOperationException(result.ErrorMessage ?? "Direct local dispatch failed.");
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private bool TryDispatchUltraLocalNoResponseFast<TMessage>(
+		TMessage message,
+		IDispatchAction action,
+		IMessageContext context,
+		Func<IDispatchAction, CancellationToken, ValueTask> noResponseInvoker,
+		out Task<IMessageResult> task,
+		CancellationToken cancellationToken)
+		where TMessage : IDispatchMessage
+	{
+		if (cancellationToken.IsCancellationRequested)
+		{
+			if (ShouldReturnCancelledResult(context))
+			{
+				task = CancelledResultTask;
+				return true;
+			}
+
+			cancellationToken.ThrowIfCancellationRequested();
+		}
+
+		var previous = MessageContextHolder.Current;
+		var useAmbientFlow = _ambientContextFlowEnabled;
+		if (useAmbientFlow)
+		{
+			MessageContextHolder.Current = context;
+		}
+		try
+		{
+			InitializeDirectLocalContext(message, context);
+			var invocation = noResponseInvoker(action, cancellationToken);
+
+			task = invocation.IsCompletedSuccessfully
+				? DirectLocalSuccessResultTask
+				: AwaitDirectLocalNoResponseAsync(invocation, context);
+			return true;
+		}
+		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
+		{
+			task = CancelledResultTask;
+			return true;
+		}
+		catch (Exception ex)
+		{
+			task = Task.FromResult(CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed"));
+			return true;
+		}
+		finally
+		{
+			if (useAmbientFlow)
+			{
+				MessageContextHolder.Current = previous;
+			}
+		}
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private bool TryDispatchUltraLocalUntypedResponseFast<TMessage>(
+		TMessage message,
+		IDispatchAction action,
+		IMessageContext context,
+		Func<IDispatchAction, CancellationToken, ValueTask<object?>> withResponseInvoker,
+		out Task<IMessageResult> task,
+		CancellationToken cancellationToken)
+		where TMessage : IDispatchMessage
+	{
+		if (cancellationToken.IsCancellationRequested)
+		{
+			if (ShouldReturnCancelledResult(context))
+			{
+				task = CancelledResultTask;
+				return true;
+			}
+
+			cancellationToken.ThrowIfCancellationRequested();
+		}
+
+		var previous = MessageContextHolder.Current;
+		var useAmbientFlow = _ambientContextFlowEnabled;
+		if (useAmbientFlow)
+		{
+			MessageContextHolder.Current = context;
+		}
+		try
+		{
+			InitializeDirectLocalContext(message, context);
+			var invocation = withResponseInvoker(action, cancellationToken);
+
+			if (invocation.IsCompletedSuccessfully)
+			{
+				TrySetContextResult(context, invocation.Result);
+				task = DirectLocalSuccessResultTask;
+				return true;
+			}
+
+			task = AwaitDirectLocalUntypedWithResponseAsync(invocation, context);
+			return true;
+		}
+		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
+		{
+			task = CancelledResultTask;
+			return true;
+		}
+		catch (Exception ex)
+		{
+			task = Task.FromResult(CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed"));
+			return true;
+		}
+		finally
+		{
+			if (useAmbientFlow)
+			{
+				MessageContextHolder.Current = previous;
+			}
+		}
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private bool TryDispatchUltraLocalTypedFast<TMessage, TResponse>(
+		TMessage message,
+		IMessageContext context,
+		Func<IDispatchAction, CancellationToken, ValueTask<object?>> withResponseInvoker,
+		out Task<IMessageResult<TResponse>> task,
+		CancellationToken cancellationToken)
+		where TMessage : IDispatchAction<TResponse>
+	{
+		if (cancellationToken.IsCancellationRequested)
+		{
+			if (ShouldReturnCancelledResult(context))
+			{
+				task = CancelledResultTaskCache<TResponse>.Task;
+				return true;
+			}
+
+			cancellationToken.ThrowIfCancellationRequested();
+		}
+
+		var previous = MessageContextHolder.Current;
+		var useAmbientFlow = _ambientContextFlowEnabled;
+		if (useAmbientFlow)
+		{
+			MessageContextHolder.Current = context;
+		}
+		try
+		{
+			InitializeDirectLocalContext(message, context);
+			var invocation = withResponseInvoker(message, cancellationToken);
+			task = invocation.IsCompletedSuccessfully
+				? Task.FromResult(CreateDirectLocalTypedSuccessResult<TResponse>(invocation.Result, context))
+				: AwaitDirectLocalWithResponseAsync<TResponse>(invocation, context);
+			return true;
+		}
+		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
+		{
+			task = CancelledResultTaskCache<TResponse>.Task;
+			return true;
+		}
+		catch (Exception ex)
+		{
+			task = Task.FromResult(CreateDirectLocalFailureResult<TResponse>(ex, context, "Direct local dispatch failed"));
+			return true;
+		}
+		finally
+		{
+			if (useAmbientFlow)
+			{
+				MessageContextHolder.Current = previous;
+			}
+		}
+	}
+
 	private static InvalidOperationException CreateMissingLocalHandlerException(Type actionType)
 	{
 		return new InvalidOperationException($"No handler registered for action {actionType.Name}");
@@ -617,21 +927,26 @@ public sealed class Dispatcher(
 	/// Transport binding resolution happens FIRST, before any middleware execution.
 	/// This ensures pipeline profile resolution can consider the transport source.
 	/// </para>
+	/// <para>
+	/// <strong>Performance note:</strong> This method avoids the <c>async</c> keyword to
+	/// prevent state machine allocation on synchronous completion paths. When the middleware
+	/// chain and handler complete synchronously (the common case for in-process handlers),
+	/// no <see cref="Task"/> allocation occurs beyond the cached result.
+	/// </para>
 	/// </remarks>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private async Task<IMessageResult> DispatchOptimizedAsync<TMessage>(
+	private Task<IMessageResult> DispatchOptimizedAsync<TMessage>(
 		TMessage message,
 		IMessageContext context,
+		bool canBypassMiddleware,
 		CancellationToken cancellationToken)
 		where TMessage : IDispatchMessage
 	{
-		ArgumentNullException.ThrowIfNull(message);
-		ArgumentNullException.ThrowIfNull(context);
 		if (cancellationToken.IsCancellationRequested)
 		{
 			if (ShouldReturnCancelledResult(context))
 			{
-				return Messaging.MessageResult.Cancelled();
+				return CancelledResultTask;
 			}
 
 			cancellationToken.ThrowIfCancellationRequested();
@@ -642,23 +957,55 @@ public sealed class Dispatcher(
 		try
 		{
 			InitializeDispatchContext(message, context);
-			var invocation = CanBypassMiddlewareForMessage(message)
-				? finalHandler.HandleAsync(message, context, cancellationToken)
-				: middlewareInvoker.InvokeAsync(message, context, finalHandler.HandleAsync, cancellationToken);
+			var finalHandlerDelegate = _finalHandlerDelegate ?? throw new InvalidOperationException(Resources.Dispatcher_NotConfigured);
+			var invocation = canBypassMiddleware
+				? finalHandlerDelegate(message, context, cancellationToken)
+				: middlewareInvoker!.InvokeAsync(message, context, finalHandlerDelegate, cancellationToken);
+
 			if (invocation.IsCompletedSuccessfully)
 			{
-				return invocation.Result;
+				PopAmbientContext(previous);
+				return GetCachedResultTask(invocation.Result);
 			}
 
+			// IMPORTANT: Pop ambient context HERE (same execution context where Push happened)
+			// before entering the async continuation. AsyncLocal writes in async methods only
+			// affect the child EC copy — they don't propagate back to the caller's EC.
+			PopAmbientContext(previous);
+			return AwaitDispatchOptimizedAsync(invocation, context);
+		}
+		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
+		{
+			PopAmbientContext(previous);
+			return CancelledResultTask;
+		}
+		catch
+		{
+			PopAmbientContext(previous);
+			throw;
+		}
+	}
+
+	/// <summary>
+	/// Async continuation for <see cref="DispatchOptimizedAsync{TMessage}"/> when the invocation
+	/// does not complete synchronously. Separated to avoid state machine allocation on the fast path.
+	/// </summary>
+	/// <remarks>
+	/// The ambient context is already popped by the caller (non-async method) before this method
+	/// is entered. The middleware continuation still has the correct ambient context in its captured
+	/// <see cref="System.Threading.ExecutionContext"/>.
+	/// </remarks>
+	private async Task<IMessageResult> AwaitDispatchOptimizedAsync(
+		ValueTask<IMessageResult> invocation,
+		IMessageContext context)
+	{
+		try
+		{
 			return await invocation.ConfigureAwait(false);
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
 			return Messaging.MessageResult.Cancelled();
-		}
-		finally
-		{
-			PopAmbientContext(previous);
 		}
 	}
 
@@ -672,22 +1019,25 @@ public sealed class Dispatcher(
 	/// Transport binding resolution happens FIRST, before any middleware execution.
 	/// This ensures pipeline profile resolution can consider the transport source.
 	/// </para>
+	/// <para>
+	/// <strong>Performance note:</strong> This method avoids the <c>async</c> keyword to
+	/// prevent state machine allocation on synchronous completion paths.
+	/// </para>
 	/// </remarks>
 	/// <exception cref="InvalidOperationException"> </exception>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	private async Task<IMessageResult<TResponse>> DispatchOptimizedWithResponseAsync<TMessage, TResponse>(
+	private Task<IMessageResult<TResponse>> DispatchOptimizedWithResponseAsync<TMessage, TResponse>(
 		TMessage message,
 		IMessageContext context,
+		bool canBypassMiddleware,
 		CancellationToken cancellationToken)
 		where TMessage : IDispatchAction<TResponse>
 	{
-		ArgumentNullException.ThrowIfNull(message);
-		ArgumentNullException.ThrowIfNull(context);
 		if (cancellationToken.IsCancellationRequested)
 		{
 			if (ShouldReturnCancelledResult(context))
 			{
-				return MessageResultOfT<TResponse>.Cancelled();
+				return CancelledResultTaskCache<TResponse>.Task;
 			}
 
 			cancellationToken.ThrowIfCancellationRequested();
@@ -698,24 +1048,49 @@ public sealed class Dispatcher(
 		try
 		{
 			InitializeDispatchContext(message, context);
-			var invocation = CanBypassMiddlewareForMessage(message)
-				? finalHandler.HandleAsync(message, context, cancellationToken)
-				: middlewareInvoker.InvokeAsync(message, context, finalHandler.HandleAsync, cancellationToken);
+			var finalHandlerDelegate = _finalHandlerDelegate ?? throw new InvalidOperationException(Resources.Dispatcher_NotConfigured);
+			var invocation = canBypassMiddleware
+				? finalHandlerDelegate(message, context, cancellationToken)
+				: middlewareInvoker!.InvokeAsync(message, context, finalHandlerDelegate, cancellationToken);
+
 			if (invocation.IsCompletedSuccessfully)
 			{
-				return ConvertResult<TResponse>(invocation.Result, context);
+				PopAmbientContext(previous);
+				return Task.FromResult(ConvertResult<TResponse>(invocation.Result, context));
 			}
 
+			// IMPORTANT: Pop ambient context HERE (same EC where Push happened).
+			PopAmbientContext(previous);
+			return AwaitDispatchOptimizedWithResponseAsync<TResponse>(invocation, context);
+		}
+		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
+		{
+			PopAmbientContext(previous);
+			return CancelledResultTaskCache<TResponse>.Task;
+		}
+		catch
+		{
+			PopAmbientContext(previous);
+			throw;
+		}
+	}
+
+	/// <summary>
+	/// Async continuation for <see cref="DispatchOptimizedWithResponseAsync{TMessage,TResponse}"/> when the invocation
+	/// does not complete synchronously.
+	/// </summary>
+	private async Task<IMessageResult<TResponse>> AwaitDispatchOptimizedWithResponseAsync<TResponse>(
+		ValueTask<IMessageResult> invocation,
+		IMessageContext context)
+	{
+		try
+		{
 			var result = await invocation.ConfigureAwait(false);
 			return ConvertResult<TResponse>(result, context);
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
 			return MessageResultOfT<TResponse>.Cancelled();
-		}
-		finally
-		{
-			PopAmbientContext(previous);
 		}
 	}
 
@@ -764,17 +1139,13 @@ public sealed class Dispatcher(
 	private void InitializeDirectLocalContext<TMessage>(TMessage message, IMessageContext context)
 		where TMessage : IDispatchMessage
 	{
-		// Always hydrate current message for handler/context consumers.
 		context.Message = message;
-
-		// PERF-6: Use lazy generation for CorrelationId and CausationId on the direct-local hot path.
-		// String allocation is deferred until first property access (Microsoft HttpContext.TraceIdentifier pattern).
 		if (_correlationEnabled)
 		{
-			if (context is MessageContext mc)
+			if (context is MessageContext messageContext)
 			{
-				mc.MarkForLazyCorrelation();
-				mc.MarkForLazyCausation();
+				messageContext.MarkForLazyCorrelation();
+				messageContext.MarkForLazyCausation();
 			}
 			else
 			{
@@ -786,7 +1157,6 @@ public sealed class Dispatcher(
 			}
 		}
 
-		// Lean profile avoids eager message-type initialization on pure local hot paths.
 		if (_directLocalContextInitializationProfile == DirectLocalContextInitializationProfile.Lean)
 		{
 			return;
@@ -892,9 +1262,7 @@ public sealed class Dispatcher(
 		CancellationToken cancellationToken)
 		where TMessage : IDispatchMessage
 	{
-		ArgumentNullException.ThrowIfNull(message);
-		ArgumentNullException.ThrowIfNull(action);
-		ArgumentNullException.ThrowIfNull(context);
+		// PERF: Null checks removed — already validated by DispatchAsync caller.
 
 		if (cancellationToken.IsCancellationRequested)
 		{
@@ -911,7 +1279,7 @@ public sealed class Dispatcher(
 		{
 			try
 			{
-				var hasUltraLocal = localMessageBus.TryInvokeUltraLocalNoResponse(
+				var hasUltraLocal = localMessageBus!.TryInvokeUltraLocalNoResponse(
 					action,
 					cancellationToken,
 					out var ultraLocalInvocation,
@@ -981,8 +1349,7 @@ public sealed class Dispatcher(
 		CancellationToken cancellationToken)
 		where TMessage : IDispatchAction<TResponse>
 	{
-		ArgumentNullException.ThrowIfNull(message);
-		ArgumentNullException.ThrowIfNull(context);
+		// PERF: Null checks removed — already validated by DispatchAsync caller.
 
 		if (cancellationToken.IsCancellationRequested)
 		{
@@ -1090,9 +1457,7 @@ public sealed class Dispatcher(
 		CancellationToken cancellationToken)
 		where TMessage : IDispatchMessage
 	{
-		ArgumentNullException.ThrowIfNull(message);
-		ArgumentNullException.ThrowIfNull(action);
-		ArgumentNullException.ThrowIfNull(context);
+		// PERF: Null checks removed — already validated by DispatchAsync caller.
 
 		if (cancellationToken.IsCancellationRequested)
 		{
@@ -1182,9 +1547,7 @@ public sealed class Dispatcher(
 		CancellationToken cancellationToken)
 		where TMessage : IDispatchMessage
 	{
-		ArgumentNullException.ThrowIfNull(message);
-		ArgumentNullException.ThrowIfNull(evt);
-		ArgumentNullException.ThrowIfNull(context);
+		// PERF: Null checks removed — already validated by DispatchAsync caller.
 
 		if (cancellationToken.IsCancellationRequested)
 		{
@@ -1202,7 +1565,7 @@ public sealed class Dispatcher(
 			try
 			{
 				InitializeDirectLocalContext(message, context);
-				var invocation = localMessageBus.PublishAsync(evt, context, cancellationToken);
+				var invocation = localMessageBus!.PublishAsync(evt, context, cancellationToken);
 				if (invocation.IsCompletedSuccessfully)
 				{
 					return DirectLocalSuccessResultTask;
@@ -1375,10 +1738,19 @@ public sealed class Dispatcher(
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static void TrySetContextResult(IMessageContext context, object? result)
 	{
-		if (result is not null)
+		if (result is null)
 		{
-			context.Result = result;
+			// Preserve hot-path behavior for non-null results while ensuring reused contexts
+			// do not leak stale values when a handler intentionally returns null.
+			if (context.Result is not null)
+			{
+				context.Result = null;
+			}
+
+			return;
 		}
+
+		context.Result = result;
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1389,26 +1761,43 @@ public sealed class Dispatcher(
 			return context.Result;
 		}
 
-		if (context is MessageContext messageContext &&
-		    messageContext.TryGetItemFast(ResultContextKey, out var fastCachedValue))
+		if (context is MessageContext messageContext)
 		{
-			return fastCachedValue;
+			return messageContext.TryGetItemFast(ResultContextKey, out var fastCachedValue)
+				? fastCachedValue
+				: null;
 		}
 
 		return context.GetItem<object?>(ResultContextKey);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static Task<IMessageResult> GetCachedResultTask(IMessageResult result)
+	{
+		if (ReferenceEquals(result, SimpleMessageResult.SuccessResult))
+		{
+			return DirectLocalSuccessResultTask;
+		}
+
+		if (ReferenceEquals(result, SimpleMessageResult.SuccessCacheHitResult))
+		{
+			return DirectLocalSuccessCacheHitResultTask;
+		}
+
+		return Task.FromResult(result);
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private IMessageResult<TResponse> CreateDirectLocalTypedSuccessResult<TResponse>(TResponse? directResult, IMessageContext context)
 	{
-		if (directResult is not null)
+		if (ResponseTypeTraits<TResponse>.AlwaysHasValue || directResult is not null)
 		{
 			context.Result = directResult;
 		}
 
 		if (!_emitDirectLocalResultMetadata)
 		{
-			return new SimpleMessageResultOfT<TResponse>(directResult, cacheHit: false);
+			return new SimpleSuccessMessageResultOfT<TResponse>(directResult, cacheHit: false);
 		}
 
 		return new SimpleMessageResultOfT<TResponse>(
@@ -1425,7 +1814,34 @@ public sealed class Dispatcher(
 	{
 		if (directResult is TResponse typed)
 		{
-			return CreateDirectLocalTypedSuccessResult<TResponse>(typed, context);
+			// Reuse the existing object box when possible (value types) to avoid a second boxing
+			// via context.Result = typed in the generic overload.
+			context.Result = directResult;
+
+			if (!_emitDirectLocalResultMetadata)
+			{
+				return new SimpleSuccessMessageResultOfT<TResponse>(typed, cacheHit: false);
+			}
+
+			return new SimpleMessageResultOfT<TResponse>(
+				value: typed,
+				succeeded: true,
+				cacheHit: false,
+				routingDecision: context.RoutingDecision,
+				validationResult: context.ValidationResult(),
+				authorizationResult: context.AuthorizationResult());
+		}
+
+		if (directResult is null)
+		{
+			// Reused contexts may carry stale values from prior dispatches.
+			// A null direct result must clear any prior context result before projection.
+			if (context.Result is not null)
+			{
+				context.Result = null;
+			}
+
+			return CreateDirectLocalTypedSuccessResult<TResponse>(default, context);
 		}
 
 		return CreateDirectLocalTypedSuccessResult(ResolveResponseValue<TResponse>(context), context);
@@ -1479,6 +1895,17 @@ public sealed class Dispatcher(
 			return typedResult;
 		}
 
+		// Common path: non-generic success singleton from final handler.
+		if (ReferenceEquals(result, SimpleMessageResult.SuccessResult))
+		{
+			return new SimpleSuccessMessageResultOfT<TResponse>(ResolveResponseValue<TResponse>(context), cacheHit: false);
+		}
+
+		if (ReferenceEquals(result, SimpleMessageResult.SuccessCacheHitResult))
+		{
+			return new SimpleSuccessMessageResultOfT<TResponse>(ResolveResponseValue<TResponse>(context), cacheHit: true);
+		}
+
 		var value = ResolveResponseValue<TResponse>(context);
 		if (result.Succeeded &&
 		    result.ErrorMessage is null &&
@@ -1486,7 +1913,7 @@ public sealed class Dispatcher(
 		    result.ValidationResult is null &&
 		    result.AuthorizationResult is null)
 		{
-			return new SimpleMessageResultOfT<TResponse>(value, cacheHit: result.CacheHit);
+			return new SimpleSuccessMessageResultOfT<TResponse>(value, cacheHit: result.CacheHit);
 		}
 
 		return new SimpleMessageResultOfT<TResponse>(
@@ -1507,11 +1934,14 @@ public sealed class Dispatcher(
 			return typedValue;
 		}
 
-		if (context is MessageContext messageContext &&
-		    messageContext.TryGetItemFast(ResultContextKey, out var fastCachedValue) &&
-		    fastCachedValue is TResponse fastTypedCachedValue)
+		if (context is MessageContext messageContext)
 		{
-			return fastTypedCachedValue;
+			if (messageContext.TryGetItemFast(ResultContextKey, out var fastCachedValue))
+			{
+				return fastCachedValue is TResponse fastTypedCachedValue ? fastTypedCachedValue : default;
+			}
+
+			return default;
 		}
 
 		return context.GetItem<object?>(ResultContextKey) is TResponse cachedValue
@@ -1523,6 +1953,12 @@ public sealed class Dispatcher(
 	{
 		internal static readonly Task<IMessageResult<TResponse>> Task =
 			System.Threading.Tasks.Task.FromResult<IMessageResult<TResponse>>(MessageResultOfT<TResponse>.Cancelled());
+	}
+
+	private static class ResponseTypeTraits<TResponse>
+	{
+		internal static readonly bool AlwaysHasValue =
+			typeof(TResponse).IsValueType && Nullable.GetUnderlyingType(typeof(TResponse)) is null;
 	}
 
 	private static bool IsDirectLocalActionPathEnabled(
@@ -1551,23 +1987,164 @@ public sealed class Dispatcher(
 		}
 
 		var messageType = message.GetType();
-		return _middlewareBypassCache.GetOrAdd(messageType, _concreteMiddlewareInvoker.CanBypassFor);
+		return _middlewareBypassCache.GetOrAdd(
+			messageType,
+			static (type, invoker) => invoker.CanBypassFor(type),
+			_concreteMiddlewareInvoker);
 	}
 
-	private static bool ExpectsResponse(Type messageType) =>
-		ActionResponseTypeCache.GetOrAdd(messageType, static type =>
+	/// <summary>
+	/// Gets combined dispatch info for a message type in a single cache lookup, replacing
+	/// repeated type checks and middleware applicability queries with one
+	/// <see cref="ConcurrentDictionary{TKey,TValue}"/> access.
+	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private MessageDispatchInfo GetMessageDispatchInfo(Type messageType)
+	{
+		if (ReferenceEquals(s_cachedDispatchInfoDispatcher, this) &&
+		    ReferenceEquals(s_cachedDispatchInfoType, messageType) &&
+		    s_cachedDispatchInfoInitialized)
 		{
-			foreach (var iface in type.GetInterfaces())
+			return s_cachedDispatchInfo;
+		}
+
+		var info = _messageDispatchInfoCache.GetOrAdd(
+			messageType,
+			static (type, state) =>
 			{
-				if (iface.IsGenericType && iface.GetGenericTypeDefinition() == typeof(IDispatchAction<>))
+				var canBypass = state._canBypassAllMiddleware ||
+				                (state._concreteMiddlewareInvoker?.CanBypassFor(type) ?? false);
+
+				var isAction = typeof(IDispatchAction).IsAssignableFrom(type);
+				var isEvent = typeof(IDispatchEvent).IsAssignableFrom(type);
+				var expectsResponse = false;
+				var directLocalNoResponseEligible = false;
+				var directLocalTypedEligible = false;
+				Func<IDispatchAction, CancellationToken, ValueTask>? directLocalNoResponseInvoker = null;
+				Func<IDispatchAction, CancellationToken, ValueTask<object?>>? directLocalWithResponseInvoker = null;
+
+				if (isAction &&
+				    state._directLocalActionPathEnabled &&
+				    state.TryGetDirectLocalFastPath(
+					    type,
+					    out var directExpectsResponse,
+					    out var directRequiresContext,
+					    out var resolvedNoResponseInvoker,
+					    out var resolvedWithResponseInvoker))
 				{
-					return true;
+					expectsResponse = directExpectsResponse;
+					if (!directRequiresContext)
+					{
+						directLocalNoResponseInvoker = resolvedNoResponseInvoker;
+						directLocalWithResponseInvoker = resolvedWithResponseInvoker;
+						directLocalTypedEligible = directExpectsResponse && resolvedWithResponseInvoker is not null;
+						directLocalNoResponseEligible = !directExpectsResponse && resolvedNoResponseInvoker is not null;
+					}
 				}
-			}
+				else
+				{
+					foreach (var iface in type.GetInterfaces())
+					{
+						if (iface.IsGenericType && iface.GetGenericTypeDefinition() == typeof(IDispatchAction<>))
+						{
+							expectsResponse = true;
+							break;
+						}
+					}
+				}
 
+				return new MessageDispatchInfo(
+					canBypass,
+					expectsResponse,
+					isAction,
+					isEvent,
+					directLocalNoResponseEligible,
+					directLocalTypedEligible,
+					directLocalNoResponseInvoker,
+					directLocalWithResponseInvoker);
+			},
+			this);
+
+		s_cachedDispatchInfoDispatcher = this;
+		s_cachedDispatchInfoType = messageType;
+		s_cachedDispatchInfo = info;
+		s_cachedDispatchInfoInitialized = true;
+		return info;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private bool TryGetDirectLocalFastPath(
+		Type messageType,
+		out bool expectsResponse,
+		out bool requiresContext,
+		out Func<IDispatchAction, CancellationToken, ValueTask>? noResponseInvoker,
+		out Func<IDispatchAction, CancellationToken, ValueTask<object?>>? withResponseInvoker)
+	{
+		if (localMessageBus is null)
+		{
+			expectsResponse = false;
+			requiresContext = false;
+			noResponseInvoker = null;
+			withResponseInvoker = null;
 			return false;
-		});
+		}
 
+		return localMessageBus.TryGetUltraLocalFastInvokers(
+			messageType,
+			out expectsResponse,
+			out requiresContext,
+			out noResponseInvoker,
+			out withResponseInvoker);
+	}
+
+	/// <summary>
+	/// Cached per-type dispatch metadata computed once and reused for all subsequent dispatches.
+	/// Eliminates multiple dictionary lookups and type checks on the hot path.
+	/// </summary>
+	private readonly struct MessageDispatchInfo(
+		bool canBypassMiddleware,
+		bool expectsResponse,
+		bool isAction,
+		bool isEvent,
+		bool directLocalNoResponseEligible,
+		bool directLocalTypedEligible,
+		Func<IDispatchAction, CancellationToken, ValueTask>? directLocalNoResponseInvoker,
+		Func<IDispatchAction, CancellationToken, ValueTask<object?>>? directLocalWithResponseInvoker)
+	{
+		/// <summary>Gets a value indicating whether middleware can be bypassed for this message type.</summary>
+		public bool CanBypassMiddleware { get; } = canBypassMiddleware;
+
+		/// <summary>Gets a value indicating whether this message type expects a typed response.</summary>
+		public bool ExpectsResponse { get; } = expectsResponse;
+
+		/// <summary>Gets a value indicating whether this message type implements <see cref="IDispatchAction"/>.</summary>
+		public bool IsAction { get; } = isAction;
+
+		/// <summary>Gets a value indicating whether this message type implements <see cref="IDispatchEvent"/>.</summary>
+		public bool IsEvent { get; } = isEvent;
+
+		/// <summary>
+		/// Gets a value indicating whether the message type can use the pre-validated direct-local no-response path.
+		/// </summary>
+		public bool DirectLocalNoResponseEligible { get; } = directLocalNoResponseEligible;
+
+		/// <summary>
+		/// Gets a value indicating whether the message type can use the pre-validated direct-local typed path.
+		/// </summary>
+		public bool DirectLocalTypedEligible { get; } = directLocalTypedEligible;
+
+		/// <summary>
+		/// Gets the prevalidated no-response direct-local invoker.
+		/// </summary>
+		public Func<IDispatchAction, CancellationToken, ValueTask>? DirectLocalNoResponseInvoker { get; } =
+			directLocalNoResponseInvoker;
+
+		/// <summary>
+		/// Gets the prevalidated with-response direct-local invoker.
+		/// </summary>
+		public Func<IDispatchAction, CancellationToken, ValueTask<object?>>? DirectLocalWithResponseInvoker { get; } =
+			directLocalWithResponseInvoker;
+	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static bool IsLocalRoute(IMessageContext context)
@@ -1584,11 +2161,16 @@ public sealed class Dispatcher(
 	private static bool ShouldReturnCancelledResult(IMessageContext context)
 	{
 		ArgumentNullException.ThrowIfNull(context);
-		if (context is MessageContext messageContext &&
-		    messageContext.TryGetItemFast(ReturnCancelledResultContextKey, out var value) &&
-		    value is bool fastFlag)
+		if (context is MessageContext messageContext)
 		{
-			return fastFlag;
+			if (messageContext.TryGetItemFast(ReturnCancelledResultContextKey, out var value))
+			{
+				return value is bool fastFlag
+					? fastFlag
+					: context.GetItem(ReturnCancelledResultContextKey, false);
+			}
+
+			return false;
 		}
 
 		return context.GetItem(ReturnCancelledResultContextKey, false);

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Performance;
@@ -71,6 +72,7 @@ public sealed class DispatchCacheManagerShould : IDisposable
 		status.HandlerActivatorFrozen.ShouldBeFalse();
 		status.ResultFactoryFrozen.ShouldBeFalse();
 		status.MiddlewareEvaluatorFrozen.ShouldBeFalse();
+		status.ProfileSelectionFrozen.ShouldBeTrue(); // True when no registry injected (vacuously true)
 		status.FrozenAt.ShouldBeNull();
 		status.AllFrozen.ShouldBeFalse();
 	}
@@ -92,6 +94,7 @@ public sealed class DispatchCacheManagerShould : IDisposable
 		status.HandlerActivatorFrozen.ShouldBeTrue();
 		status.ResultFactoryFrozen.ShouldBeTrue();
 		status.MiddlewareEvaluatorFrozen.ShouldBeTrue();
+		status.ProfileSelectionFrozen.ShouldBeTrue();
 		status.AllFrozen.ShouldBeTrue();
 	}
 
@@ -207,6 +210,7 @@ public sealed class DispatchCacheManagerShould : IDisposable
 		unfrozen.HandlerActivatorFrozen.ShouldBeFalse();
 		unfrozen.ResultFactoryFrozen.ShouldBeFalse();
 		unfrozen.MiddlewareEvaluatorFrozen.ShouldBeFalse();
+		unfrozen.ProfileSelectionFrozen.ShouldBeFalse();
 		unfrozen.FrozenAt.ShouldBeNull();
 		unfrozen.AllFrozen.ShouldBeFalse();
 	}
@@ -263,6 +267,50 @@ public sealed class DispatchCacheManagerShould : IDisposable
 		_ = A.CallTo(_logger)
 			.Where(call => call.Method.Name == "Log")
 			.MustHaveHappened();
+	}
+
+	#endregion
+
+	#region Profile Selection Cache Integration (3 tests)
+
+	[Fact]
+	public void FreezeAll_FreezesProfileSelectionCache_WhenRegistryInjected()
+	{
+		// Arrange
+		var registry = new PipelineProfileRegistry();
+		var cacheManagerWithRegistry = new DispatchCacheManager(_logger, profileRegistry: registry);
+
+		// Act
+		cacheManagerWithRegistry.FreezeAll();
+
+		// Assert
+		var status = cacheManagerWithRegistry.GetStatus();
+		status.ProfileSelectionFrozen.ShouldBeTrue();
+		registry.IsProfileSelectionCacheFrozen.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void GetStatus_ReportsProfileSelectionUnfrozen_WhenRegistryInjected()
+	{
+		// Arrange
+		var registry = new PipelineProfileRegistry();
+		var cacheManagerWithRegistry = new DispatchCacheManager(_logger, profileRegistry: registry);
+
+		// Act
+		var status = cacheManagerWithRegistry.GetStatus();
+
+		// Assert — profile cache not yet frozen
+		status.ProfileSelectionFrozen.ShouldBeFalse();
+	}
+
+	[Fact]
+	public void GetStatus_ReportsProfileSelectionTrueByDefault_WhenNoRegistryInjected()
+	{
+		// Act — default constructor, no registry
+		var status = _cacheManager.GetStatus();
+
+		// Assert — vacuously true when no registry to freeze
+		status.ProfileSelectionFrozen.ShouldBeTrue();
 	}
 
 	#endregion

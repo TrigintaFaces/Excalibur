@@ -38,46 +38,77 @@ public static class Batching
 
 		// Producer
 		var producerTask = Task.Factory.StartNew(
-			async () =>
-			{
-				foreach (var item in items)
-				{
-					await channel.Writer.WriteAsync(item, cts.Token).ConfigureAwait(false);
-				}
-
-				channel.Writer.Complete();
-			}, cts.Token, TaskCreationOptions.None, TaskScheduler.Default).Unwrap();
+			() => ProduceItemsAsync(items, channel.Writer, cts.Token),
+			cts.Token,
+			TaskCreationOptions.None,
+			TaskScheduler.Default).Unwrap();
 
 		// Consumers
-		var consumerTasks = Enumerable.Range(0, parallelDegree)
-			.Select(_ => Task.Factory.StartNew(
-				async () =>
-				{
-					await foreach (var item in channel.Reader.ReadAllAsync(cts.Token).ConfigureAwait(false))
-					{
-						try
-						{
-							await processor(item, cts.Token).ConfigureAwait(false);
-							lock (successful)
-							{
-								successful.Add(item);
-							}
-						}
-						catch (Exception ex)
-						{
-							lock (failed)
-							{
-								failed.Add((item, ex));
-							}
-						}
-					}
-				}, cts.Token, TaskCreationOptions.None, TaskScheduler.Default).Unwrap())
-			.ToArray();
+		var consumerTasks = new Task[parallelDegree];
+		for (var i = 0; i < parallelDegree; i++)
+		{
+			consumerTasks[i] = Task.Factory.StartNew(
+				() => ConsumeItemsAsync(channel.Reader, processor, successful, failed, cts.Token),
+				cts.Token,
+				TaskCreationOptions.None,
+				TaskScheduler.Default).Unwrap();
+		}
 
 		await producerTask.ConfigureAwait(false);
 		await Task.WhenAll(consumerTasks).ConfigureAwait(false);
 
 		return (successful, failed);
+	}
+
+	private static async Task ProduceItemsAsync<T>(
+		IEnumerable<T> items,
+		ChannelWriter<T> writer,
+		CancellationToken cancellationToken)
+	{
+		Exception? completionException = null;
+		try
+		{
+			foreach (var item in items)
+			{
+				await writer.WriteAsync(item, cancellationToken).ConfigureAwait(false);
+			}
+		}
+		catch (Exception ex)
+		{
+			completionException = ex;
+			throw;
+		}
+		finally
+		{
+			writer.TryComplete(completionException);
+		}
+	}
+
+	private static async Task ConsumeItemsAsync<T>(
+		ChannelReader<T> reader,
+		Func<T, CancellationToken, Task> processor,
+		List<T> successful,
+		List<(T Item, Exception Exception)> failed,
+		CancellationToken cancellationToken)
+	{
+		await foreach (var item in reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+		{
+			try
+			{
+				await processor(item, cancellationToken).ConfigureAwait(false);
+				lock (successful)
+				{
+					successful.Add(item);
+				}
+			}
+			catch (Exception ex)
+			{
+				lock (failed)
+				{
+					failed.Add((item, ex));
+				}
+			}
+		}
 	}
 
 	/// <summary>

@@ -38,6 +38,17 @@
 - [ ] Manual testing performed
 - [ ] No tests required (documentation only, etc.)
 
+### Performance Evidence (required if "Performance improvement" is checked)
+- [ ] Before/after benchmark evidence attached (same benchmark classes and config)
+- [ ] Minimum 5-run evidence included, with variance summary
+- [ ] Allocation deltas included (`B/op`, Gen0/Gen1 where relevant)
+- [ ] p95/p99 latency deltas included (or noted as not applicable)
+
+Benchmark artifacts / commands:
+- Baseline run command:
+- Candidate run command:
+- Summary artifact path(s):
+
 ## Checklist
 <!-- All items must be checked before merging -->
 

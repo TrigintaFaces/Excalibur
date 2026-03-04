@@ -84,22 +84,28 @@ public sealed class MessageBusProvider : IMessageBusProvider
 	/// Gets all registered message buses from both local and remote collections.
 	/// </summary>
 	/// <returns> An enumerable collection of all registered message bus instances. </returns>
-	public IEnumerable<IMessageBus> GetAllMessageBuses() =>
-			_buses.Values.Select(static lazy => lazy.Value)
-					.Concat(_remoteBuses.Values.Select(static lazy => lazy.Value));
+	public IEnumerable<IMessageBus> GetAllMessageBuses()
+	{
+		return EnumerateAllMessageBuses();
+	}
 
 	/// <summary>
 	/// Gets all registered remote message buses.
 	/// </summary>
 	/// <returns> An enumerable collection of all registered remote message bus instances. </returns>
-	public IEnumerable<IMessageBus> GetAllRemoteMessageBuses() =>
-			_remoteBuses.Values.Select(static lazy => lazy.Value);
+	public IEnumerable<IMessageBus> GetAllRemoteMessageBuses()
+	{
+		return EnumerateRemoteMessageBuses();
+	}
 
 	/// <summary>
 	/// Gets the names of all registered message buses from both local and remote collections.
 	/// </summary>
 	/// <returns> An enumerable collection of all registered message bus names. </returns>
-	public IEnumerable<string> GetAllMessageBusNames() => _buses.Keys.Concat(_remoteBuses.Keys);
+	public IEnumerable<string> GetAllMessageBusNames()
+	{
+		return EnumerateAllMessageBusNames();
+	}
 
 	/// <summary>
 	/// Gets the names of all registered remote message buses.
@@ -154,6 +160,40 @@ public sealed class MessageBusProvider : IMessageBusProvider
 			string name)
 	{
 		return source.TryGetValue(name, out var lazy) ? lazy.Value : null;
+	}
+
+	private IEnumerable<IMessageBus> EnumerateAllMessageBuses()
+	{
+		foreach (var lazy in _buses.Values)
+		{
+			yield return lazy.Value;
+		}
+
+		foreach (var lazy in _remoteBuses.Values)
+		{
+			yield return lazy.Value;
+		}
+	}
+
+	private IEnumerable<IMessageBus> EnumerateRemoteMessageBuses()
+	{
+		foreach (var lazy in _remoteBuses.Values)
+		{
+			yield return lazy.Value;
+		}
+	}
+
+	private IEnumerable<string> EnumerateAllMessageBusNames()
+	{
+		foreach (var name in _buses.Keys)
+		{
+			yield return name;
+		}
+
+		foreach (var name in _remoteBuses.Keys)
+		{
+			yield return name;
+		}
 	}
 
 	private static Lazy<IMessageBus> CreateLazy(IServiceProvider serviceProvider, string name) =>

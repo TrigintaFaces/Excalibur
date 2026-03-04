@@ -1,4 +1,5 @@
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Auth;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 

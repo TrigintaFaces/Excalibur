@@ -225,7 +225,13 @@ public static class MessagingCollectionExtensions
 			ICollection<T> collection => collection.Count == 0,
 			IReadOnlyCollection<T> readOnlyCollection => readOnlyCollection.Count == 0,
 			string str => str.Length == 0,
-			_ => !source.Any(),
+			_ => SequenceIsEmpty(source),
 		};
+	}
+
+	private static bool SequenceIsEmpty<T>(IEnumerable<T> source)
+	{
+		using var enumerator = source.GetEnumerator();
+		return !enumerator.MoveNext();
 	}
 }

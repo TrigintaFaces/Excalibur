@@ -664,6 +664,69 @@ public sealed class InMemoryOutboxStoreAdminShould : IDisposable
 
 	#endregion
 
+	#region Capacity Eviction Tests
+
+	[Fact]
+	public async Task StageMessage_WhenCapacityReached_EvictsOldestSentMessageFirst()
+	{
+		var options = Options.Create(new InMemoryOutboxOptions
+		{
+			MaxMessages = 2,
+			DefaultRetentionPeriod = TimeSpan.FromHours(24)
+		});
+		using var store = new InMemoryOutboxStore(options, NullLogger<InMemoryOutboxStore>.Instance);
+		var admin = (IOutboxStoreAdmin)store;
+
+		var sentMessage = CreateTestMessage("sent-oldest");
+		var stagedMessage = CreateTestMessage("staged-keep");
+		var newestMessage = CreateTestMessage("newest");
+
+		await store.StageMessageAsync(sentMessage, CancellationToken.None).ConfigureAwait(false);
+		await store.MarkSentAsync(sentMessage.Id, CancellationToken.None).ConfigureAwait(false);
+		await store.StageMessageAsync(stagedMessage, CancellationToken.None).ConfigureAwait(false);
+		await store.StageMessageAsync(newestMessage, CancellationToken.None).ConfigureAwait(false);
+
+		var stats = await admin.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		stats.TotalMessageCount.ShouldBe(2);
+		stats.SentMessageCount.ShouldBe(0);
+		stats.StagedMessageCount.ShouldBe(2);
+
+		var unsent = (await store.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(false)).ToList();
+		unsent.ShouldContain(m => m.Id == stagedMessage.Id);
+		unsent.ShouldContain(m => m.Id == newestMessage.Id);
+	}
+
+	[Fact]
+	public async Task StageMessage_WhenCapacityReachedWithoutSentMessages_EvictsOldestCreatedMessage()
+	{
+		var options = Options.Create(new InMemoryOutboxOptions
+		{
+			MaxMessages = 2,
+			DefaultRetentionPeriod = TimeSpan.FromHours(24)
+		});
+		using var store = new InMemoryOutboxStore(options, NullLogger<InMemoryOutboxStore>.Instance);
+
+		var oldest = CreateTestMessage("oldest");
+		var middle = CreateTestMessage("middle");
+		var newest = CreateTestMessage("newest");
+
+		var now = DateTimeOffset.UtcNow;
+		oldest.CreatedAt = now.AddMinutes(-3);
+		middle.CreatedAt = now.AddMinutes(-2);
+		newest.CreatedAt = now.AddMinutes(-1);
+
+		await store.StageMessageAsync(oldest, CancellationToken.None).ConfigureAwait(false);
+		await store.StageMessageAsync(middle, CancellationToken.None).ConfigureAwait(false);
+		await store.StageMessageAsync(newest, CancellationToken.None).ConfigureAwait(false);
+
+		var unsent = (await store.GetUnsentMessagesAsync(10, CancellationToken.None).ConfigureAwait(false)).ToList();
+		unsent.ShouldNotContain(m => m.Id == oldest.Id);
+		unsent.ShouldContain(m => m.Id == middle.Id);
+		unsent.ShouldContain(m => m.Id == newest.Id);
+	}
+
+	#endregion
+
 	#region Disposed State Tests
 
 	[Fact]

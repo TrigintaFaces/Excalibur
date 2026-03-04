@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Logging;
 using Excalibur.Dispatch.Options.Middleware;
 
 using Microsoft.Extensions.Logging;

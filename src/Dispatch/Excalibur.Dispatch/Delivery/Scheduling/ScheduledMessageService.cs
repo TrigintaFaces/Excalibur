@@ -30,7 +30,7 @@ public partial class ScheduledMessageService(
 	IOptions<CronScheduleOptions> cronOptions,
 	ILogger<ScheduledMessageService> logger) : BackgroundService
 {
-	private readonly TimeSpan _pollInterval = options.Value.PollInterval;
+	private readonly SchedulerOptions _schedulerOptions = options.Value;
 	private readonly CronScheduleOptions _cronOptions = cronOptions.Value;
 
 	/// <inheritdoc />
@@ -56,9 +56,16 @@ public partial class ScheduledMessageService(
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
 		LogServiceStarted();
+		var scheduleSignal = scheduleStore as IScheduleStoreSignal;
+		var currentPollInterval = PollingIntervalCalculator.GetInitialInterval(
+			_schedulerOptions.EnableAdaptivePolling,
+			_schedulerOptions.MinPollingInterval,
+			_schedulerOptions.PollInterval);
 
 		while (!stoppingToken.IsCancellationRequested)
 		{
+			var hadWork = false;
+
 			try
 			{
 				var schedules = await scheduleStore.GetAllAsync(stoppingToken).ConfigureAwait(false);
@@ -68,6 +75,8 @@ public partial class ScheduledMessageService(
 					{
 						continue;
 					}
+
+					hadWork = true;
 
 					// Check for missed executions
 					if (ShouldHandleMissedExecution(item))
@@ -87,7 +96,25 @@ public partial class ScheduledMessageService(
 				LogErrorProcessingMessages(ex);
 			}
 
-			await Task.Delay(_pollInterval, stoppingToken).ConfigureAwait(false);
+			currentPollInterval = PollingIntervalCalculator.GetNextInterval(
+				currentPollInterval,
+				hadWork,
+				_schedulerOptions.EnableAdaptivePolling,
+				_schedulerOptions.MinPollingInterval,
+				_schedulerOptions.PollInterval,
+				_schedulerOptions.AdaptivePollingBackoffMultiplier);
+
+			var delay = PollingIntervalCalculator.ApplyJitter(
+				currentPollInterval,
+				_schedulerOptions.PollingJitterRatio);
+			if (!hadWork && scheduleSignal is not null)
+			{
+				await scheduleSignal.WaitForChangeAsync(delay, stoppingToken).ConfigureAwait(false);
+			}
+			else
+			{
+				await Task.Delay(delay, stoppingToken).ConfigureAwait(false);
+			}
 		}
 
 		LogServiceStopped();
@@ -98,7 +125,7 @@ public partial class ScheduledMessageService(
 		var behavior = item.MissedExecutionBehavior ?? _cronOptions.MissedExecutionBehavior;
 		return behavior != MissedExecutionBehavior.SkipMissed &&
 			   item is { LastExecutionUtc: not null, NextExecutionUtc: not null } &&
-			   item.NextExecutionUtc.Value < DateTimeOffset.UtcNow.Subtract(_pollInterval);
+			   item.NextExecutionUtc.Value < DateTimeOffset.UtcNow.Subtract(_schedulerOptions.PollInterval);
 	}
 
 	[RequiresUnreferencedCode("Uses dynamic type loading")]
@@ -122,38 +149,50 @@ public partial class ScheduledMessageService(
 
 			if (cronScheduler is CronScheduler scheduler)
 			{
-				var missedExecutions = scheduler.GetMissedExecutions(cronExpr, item.LastExecutionUtc.Value, DateTimeOffset.UtcNow).ToList();
-
-				if (missedExecutions.Count != 0)
+				switch (behavior)
 				{
-					LogFoundMissedExecutions(missedExecutions.Count, item.Id);
-
-					switch (behavior)
+					case MissedExecutionBehavior.ExecuteLatestMissed:
 					{
-						case MissedExecutionBehavior.ExecuteLatestMissed:
-							// Execute only the most recent missed execution
-							_ = missedExecutions[^1];
+						var missedExecutionCount = 0;
+						foreach (var _ in scheduler.GetMissedExecutions(cronExpr, item.LastExecutionUtc.Value, DateTimeOffset.UtcNow))
+						{
+							missedExecutionCount++;
+						}
+
+						if (missedExecutionCount > 0)
+						{
+							LogFoundMissedExecutions(missedExecutionCount, item.Id);
 							await ProcessScheduledMessageAsync(item, cancellationToken).ConfigureAwait(false);
-							break;
+						}
 
-						case MissedExecutionBehavior.ExecuteAllMissed:
-							// Execute all missed executions
-							foreach (var _ in missedExecutions)
-							{
-								await ProcessScheduledMessageAsync(item, cancellationToken).ConfigureAwait(false);
-							}
-
-							break;
-
-						case MissedExecutionBehavior.SkipMissed:
-						case MissedExecutionBehavior.DisableSchedule:
-							break;
-
-						default:
-							// Unknown behavior, skip missed executions
-							LogUnknownBehavior(behavior, item.Id);
-							break;
+						break;
 					}
+
+					case MissedExecutionBehavior.ExecuteAllMissed:
+					{
+						var missedExecutionCount = 0;
+						foreach (var _ in scheduler.GetMissedExecutions(cronExpr, item.LastExecutionUtc.Value, DateTimeOffset.UtcNow))
+						{
+							missedExecutionCount++;
+							await ProcessScheduledMessageAsync(item, cancellationToken).ConfigureAwait(false);
+						}
+
+						if (missedExecutionCount > 0)
+						{
+							LogFoundMissedExecutions(missedExecutionCount, item.Id);
+						}
+
+						break;
+					}
+
+					case MissedExecutionBehavior.SkipMissed:
+					case MissedExecutionBehavior.DisableSchedule:
+						break;
+
+					default:
+						// Unknown behavior, skip missed executions
+						LogUnknownBehavior(behavior, item.Id);
+						break;
 				}
 			}
 		}

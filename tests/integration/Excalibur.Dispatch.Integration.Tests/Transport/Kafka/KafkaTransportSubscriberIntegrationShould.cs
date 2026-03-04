@@ -11,7 +11,7 @@ using Excalibur.Dispatch.Transport.Kafka;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
-using Testcontainers.Kafka;
+using Tests.Shared.Fixtures;
 
 namespace Excalibur.Dispatch.Integration.Tests.Transport.Kafka;
 
@@ -19,31 +19,19 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.Kafka;
 /// Integration tests for <see cref="KafkaTransportSubscriber"/> with a real Kafka container.
 /// Tests push-based subscription, message acknowledgment, rejection, and requeue.
 /// </summary>
+[Collection(ContainerCollections.Kafka)]
 [Trait("Category", "Integration")]
 [Trait("Provider", "Kafka")]
 [Trait("Component", "Transport")]
-public sealed class KafkaTransportSubscriberIntegrationShould : IAsyncLifetime
+public sealed class KafkaTransportSubscriberIntegrationShould
 {
-	private KafkaContainer? _container;
-	private string? _bootstrapServers;
+	private static readonly TimeSpan SubscriptionTimeout = TimeSpan.FromSeconds(30);
 
-	public async Task InitializeAsync()
+	private readonly KafkaContainerFixture _fixture;
+
+	public KafkaTransportSubscriberIntegrationShould(KafkaContainerFixture fixture)
 	{
-		_container = new KafkaBuilder()
-			.WithImage("confluentinc/cp-kafka:7.5.0")
-			.WithName($"kafka-subscriber-test-{Guid.NewGuid():N}")
-			.Build();
-
-		await _container.StartAsync().ConfigureAwait(false);
-		_bootstrapServers = _container.GetBootstrapAddress();
-	}
-
-	public async Task DisposeAsync()
-	{
-		if (_container is not null)
-		{
-			await _container.DisposeAsync().ConfigureAwait(false);
-		}
+		_fixture = fixture;
 	}
 
 	[Fact]
@@ -61,6 +49,7 @@ public sealed class KafkaTransportSubscriberIntegrationShould : IAsyncLifetime
 
 		var receivedMessages = new ConcurrentBag<TransportReceivedMessage>();
 		using var cts = new CancellationTokenSource();
+		cts.CancelAfter(SubscriptionTimeout);
 
 		// Act - subscribe and collect messages, then cancel after receiving expected count
 		var subscribeTask = subscriber.SubscribeAsync(
@@ -109,6 +98,7 @@ public sealed class KafkaTransportSubscriberIntegrationShould : IAsyncLifetime
 
 		var rejected = false;
 		using var cts = new CancellationTokenSource();
+		cts.CancelAfter(SubscriptionTimeout);
 
 		// Act - reject the message
 		var subscribeTask = subscriber.SubscribeAsync(
@@ -169,6 +159,7 @@ public sealed class KafkaTransportSubscriberIntegrationShould : IAsyncLifetime
 
 		var callCount = 0;
 		using var cts = new CancellationTokenSource();
+		cts.CancelAfter(SubscriptionTimeout);
 
 		// Act - first call throws, but subscription should continue processing
 		var subscribeTask = subscriber.SubscribeAsync(
@@ -228,6 +219,7 @@ public sealed class KafkaTransportSubscriberIntegrationShould : IAsyncLifetime
 
 		TransportReceivedMessage? receivedMsg = null;
 		using var cts = new CancellationTokenSource();
+		cts.CancelAfter(SubscriptionTimeout);
 
 		var subscribeTask = subscriber.SubscribeAsync(
 			(msg, ct) =>
@@ -296,7 +288,7 @@ public sealed class KafkaTransportSubscriberIntegrationShould : IAsyncLifetime
 	{
 		var config = new ProducerConfig
 		{
-			BootstrapServers = _bootstrapServers,
+			BootstrapServers = _fixture.BootstrapServers,
 			AllowAutoCreateTopics = true,
 		};
 
@@ -307,7 +299,7 @@ public sealed class KafkaTransportSubscriberIntegrationShould : IAsyncLifetime
 	{
 		var config = new ConsumerConfig
 		{
-			BootstrapServers = _bootstrapServers,
+			BootstrapServers = _fixture.BootstrapServers,
 			GroupId = groupId,
 			AutoOffsetReset = AutoOffsetReset.Earliest,
 			EnableAutoCommit = false,

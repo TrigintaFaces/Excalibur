@@ -5,6 +5,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Resilience;
 using Excalibur.Dispatch.Options.Resilience;
 
 using FakeItEasy;

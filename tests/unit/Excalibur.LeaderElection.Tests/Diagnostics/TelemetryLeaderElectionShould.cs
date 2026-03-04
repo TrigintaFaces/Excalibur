@@ -158,10 +158,10 @@ public sealed class TelemetryLeaderElectionShould : UnitTestBase
 		var acq = _counterRecordings.Where(r => r.Name == LeaderElectionTelemetryConstants.MetricNames.Acquisitions).ToList();
 		acq.ShouldNotBeEmpty();
 		var acquired = acq.Last(r =>
-			r.Tags.Any(t => t.Key == LeaderElectionTelemetryConstants.Tags.Result && (string)t.Value! == "acquired"));
+			r.Tags.Any(t => t.Key == LeaderElectionTelemetryConstants.TagNames.Result && (string)t.Value! == "acquired"));
 		acquired.Value.ShouldBe(1);
-		acquired.Tags.ShouldContain(t => t.Key == LeaderElectionTelemetryConstants.Tags.Provider && (string)t.Value! == "sqlserver");
-		acquired.Tags.ShouldContain(t => t.Key == LeaderElectionTelemetryConstants.Tags.Instance && (string)t.Value! == "node-1");
+		acquired.Tags.ShouldContain(t => t.Key == LeaderElectionTelemetryConstants.TagNames.Provider && (string)t.Value! == "sqlserver");
+		acquired.Tags.ShouldContain(t => t.Key == LeaderElectionTelemetryConstants.TagNames.Instance && (string)t.Value! == "node-1");
 	}
 
 	[Fact]
@@ -174,7 +174,7 @@ public sealed class TelemetryLeaderElectionShould : UnitTestBase
 		_meterListener.RecordObservableInstruments();
 		var lost = _counterRecordings.Where(r =>
 			r.Name == LeaderElectionTelemetryConstants.MetricNames.Acquisitions &&
-			r.Tags.Any(t => t.Key == LeaderElectionTelemetryConstants.Tags.Result && (string)t.Value! == "lost")).ToList();
+			r.Tags.Any(t => t.Key == LeaderElectionTelemetryConstants.TagNames.Result && (string)t.Value! == "lost")).ToList();
 		lost.ShouldNotBeEmpty();
 		lost.ShouldContain(entry => entry.Value == 1);
 	}
@@ -199,8 +199,8 @@ public sealed class TelemetryLeaderElectionShould : UnitTestBase
 		durations.ShouldNotBeEmpty();
 		durations.ShouldContain(duration =>
 			duration.Value > 0 &&
-			duration.Tags.Any(t => t.Key == LeaderElectionTelemetryConstants.Tags.Instance) &&
-			duration.Tags.Any(t => t.Key == LeaderElectionTelemetryConstants.Tags.Provider && (string)t.Value! == "sqlserver"));
+			duration.Tags.Any(t => t.Key == LeaderElectionTelemetryConstants.TagNames.Instance) &&
+			duration.Tags.Any(t => t.Key == LeaderElectionTelemetryConstants.TagNames.Provider && (string)t.Value! == "sqlserver"));
 	}
 
 	[Fact]
@@ -326,7 +326,7 @@ public sealed class TelemetryLeaderElectionShould : UnitTestBase
 		acquisitions.Count.ShouldBeGreaterThanOrEqualTo(105);
 
 		var otherTags = acquisitions
-			.Where(r => r.Tags.Any(t => t.Key == LeaderElectionTelemetryConstants.Tags.Instance && (string)t.Value! == "__other__"))
+			.Where(r => r.Tags.Any(t => t.Key == LeaderElectionTelemetryConstants.TagNames.Instance && (string)t.Value! == "__other__"))
 			.ToList();
 
 		otherTags.ShouldNotBeEmpty();

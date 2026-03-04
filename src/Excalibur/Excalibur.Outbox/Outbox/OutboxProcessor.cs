@@ -233,7 +233,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// <inheritdoc />
 	public async ValueTask DisposeAsync()
 	{
-		await DisposeAsyncCoreAsync().ConfigureAwait(false);
+		await DisposeCoreAsync().ConfigureAwait(false);
 		GC.SuppressFinalize(this);
 	}
 
@@ -334,7 +334,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	/// <summary>
 	/// Disposes of resources used by the <see cref="OutboxProcessor" />.
 	/// </summary>
-	private async ValueTask DisposeAsyncCoreAsync()
+	private async ValueTask DisposeCoreAsync()
 	{
 		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
 		{

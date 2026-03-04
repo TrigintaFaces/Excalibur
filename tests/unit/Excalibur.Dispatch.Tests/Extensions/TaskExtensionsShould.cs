@@ -29,7 +29,7 @@ public sealed class TaskExtensionsShould
 	public async Task TimeoutAfterAsync_CompletesWhenTaskFinishesInTime()
 	{
 		// Arrange
-		var task = global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10);
+		var task = Task.CompletedTask;
 
 		// Act & Assert — should not throw
 		await task.TimeoutAfterAsync(TimeSpan.FromSeconds(5));
@@ -39,11 +39,12 @@ public sealed class TaskExtensionsShould
 	public async Task TimeoutAfterAsync_ThrowsTimeoutExceptionWhenTaskExceedsTimeout()
 	{
 		// Arrange
-		var task = global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromSeconds(10));
+		var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var task = tcs.Task; // Never completes
 
 		// Act & Assert
 		await Should.ThrowAsync<TimeoutException>(async () =>
-			await task.TimeoutAfterAsync(TimeSpan.FromMilliseconds(50)));
+			await task.TimeoutAfterAsync(TimeSpan.Zero));
 	}
 
 	// --- TimeoutAfterAsync<T> ---
@@ -74,12 +75,12 @@ public sealed class TaskExtensionsShould
 	public async Task TimeoutAfterAsync_Typed_ThrowsTimeoutExceptionWhenExceedsTimeout()
 	{
 		// Arrange
-		var tcs = new TaskCompletionSource<int>();
+		var tcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var task = tcs.Task; // Never completes
 
 		// Act & Assert
 		await Should.ThrowAsync<TimeoutException>(async () =>
-			await task.TimeoutAfterAsync(TimeSpan.FromMilliseconds(50)));
+			await task.TimeoutAfterAsync(TimeSpan.Zero));
 	}
 
 	// --- WithCancellationAsync ---

@@ -2,6 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Versioning;
+using Excalibur.Dispatch.Middleware.Validation;
+using Excalibur.Dispatch.Middleware.Transaction;
+using Excalibur.Dispatch.Middleware.Resilience;
+using Excalibur.Dispatch.Middleware.Outbox;
+using Excalibur.Dispatch.Middleware.Auth;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 

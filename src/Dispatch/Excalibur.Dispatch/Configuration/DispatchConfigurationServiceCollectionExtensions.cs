@@ -9,7 +9,8 @@ using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Messaging;
-using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Inbox;
+using Excalibur.Dispatch.Middleware.Outbox;
 using Excalibur.Dispatch.Options.Configuration;
 using Excalibur.Dispatch.Transport;
 

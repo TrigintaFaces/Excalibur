@@ -4,6 +4,7 @@
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Inbox;
 using Excalibur.Dispatch.Tests.TestFakes;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -435,9 +436,14 @@ public sealed class InboxMiddlewareShould
 		var context = new FakeMessageContext();
 		context.SetItem<object>("MessageId", "processed-msg-301");
 
-		_ = A.CallTo(() => _inboxStore.IsProcessedAsync(
+		var processedEntry = new InboxEntry
+		{
+			MessageId = "processed-msg-301",
+			Status = InboxStatus.Processed
+		};
+		_ = A.CallTo(() => _inboxStore.GetEntryAsync(
 			"processed-msg-301", A<string>._, A<CancellationToken>._))
-			.Returns(new ValueTask<bool>(true));
+			.Returns(new ValueTask<InboxEntry?>(processedEntry));
 
 		var wasCalled = new[] { false };
 
@@ -458,10 +464,6 @@ public sealed class InboxMiddlewareShould
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext();
 		context.SetItem<object>("MessageId", "in-progress-msg-302");
-
-		_ = A.CallTo(() => _inboxStore.IsProcessedAsync(
-			"in-progress-msg-302", A<string>._, A<CancellationToken>._))
-			.Returns(new ValueTask<bool>(false));
 
 		var existingEntry = new InboxEntry
 		{
@@ -492,10 +494,6 @@ public sealed class InboxMiddlewareShould
 		var context = new FakeMessageContext();
 		context.SetItem<object>("MessageId", "failed-msg-303");
 
-		_ = A.CallTo(() => _inboxStore.IsProcessedAsync(
-			"failed-msg-303", A<string>._, A<CancellationToken>._))
-			.Returns(new ValueTask<bool>(false));
-
 		var failedEntry = new InboxEntry
 		{
 			MessageId = "failed-msg-303",
@@ -524,10 +522,6 @@ public sealed class InboxMiddlewareShould
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext();
 		context.SetItem<object>("MessageId", "new-msg-304");
-
-		_ = A.CallTo(() => _inboxStore.IsProcessedAsync(
-			"new-msg-304", A<string>._, A<CancellationToken>._))
-			.Returns(new ValueTask<bool>(false));
 
 		_ = A.CallTo(() => _inboxStore.GetEntryAsync(
 			"new-msg-304", A<string>._, A<CancellationToken>._))
@@ -568,10 +562,6 @@ public sealed class InboxMiddlewareShould
 		var context = new FakeMessageContext();
 		context.SetItem<object>("MessageId", "success-msg-305");
 
-		_ = A.CallTo(() => _inboxStore.IsProcessedAsync(
-			"success-msg-305", A<string>._, A<CancellationToken>._))
-			.Returns(new ValueTask<bool>(false));
-
 		_ = A.CallTo(() => _inboxStore.GetEntryAsync(
 			"success-msg-305", A<string>._, A<CancellationToken>._))
 			.Returns(new ValueTask<InboxEntry?>((InboxEntry?)null));
@@ -606,10 +596,6 @@ public sealed class InboxMiddlewareShould
 		var context = new FakeMessageContext();
 		context.SetItem<object>("MessageId", "fail-msg-306");
 
-		_ = A.CallTo(() => _inboxStore.IsProcessedAsync(
-			"fail-msg-306", A<string>._, A<CancellationToken>._))
-			.Returns(new ValueTask<bool>(false));
-
 		_ = A.CallTo(() => _inboxStore.GetEntryAsync(
 			"fail-msg-306", A<string>._, A<CancellationToken>._))
 			.Returns(new ValueTask<InboxEntry?>((InboxEntry?)null));
@@ -643,10 +629,6 @@ public sealed class InboxMiddlewareShould
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext();
 		context.SetItem<object>("MessageId", "throw-msg-307");
-
-		_ = A.CallTo(() => _inboxStore.IsProcessedAsync(
-			"throw-msg-307", A<string>._, A<CancellationToken>._))
-			.Returns(new ValueTask<bool>(false));
 
 		_ = A.CallTo(() => _inboxStore.GetEntryAsync(
 			"throw-msg-307", A<string>._, A<CancellationToken>._))
@@ -687,9 +669,14 @@ public sealed class InboxMiddlewareShould
 		var context = new FakeMessageContext();
 		context.SetItem<object>("MessageId", "priority-msg-401");
 
-		_ = A.CallTo(() => _inboxStore.IsProcessedAsync(
+		var processedEntry = new InboxEntry
+		{
+			MessageId = "priority-msg-401",
+			Status = InboxStatus.Processed
+		};
+		_ = A.CallTo(() => _inboxStore.GetEntryAsync(
 			"priority-msg-401", A<string>._, A<CancellationToken>._))
-			.Returns(new ValueTask<bool>(true));
+			.Returns(new ValueTask<InboxEntry?>(processedEntry));
 
 		var wasCalled = new[] { false };
 
@@ -697,9 +684,9 @@ public sealed class InboxMiddlewareShould
 		var result = await middleware.InvokeAsync(
 			message, context, TrackingSuccessDelegate(wasCalled), CancellationToken.None);
 
-		// Assert - full inbox mode was used (IsProcessedAsync was called)
+		// Assert - full inbox mode was used (GetEntryAsync was called)
 		result.Succeeded.ShouldBeTrue();
-		_ = A.CallTo(() => _inboxStore.IsProcessedAsync(
+		_ = A.CallTo(() => _inboxStore.GetEntryAsync(
 			"priority-msg-401", A<string>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 

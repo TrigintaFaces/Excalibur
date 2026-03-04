@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Resilience;
 
 namespace Excalibur.Dispatch.Tests.Pipeline;
 

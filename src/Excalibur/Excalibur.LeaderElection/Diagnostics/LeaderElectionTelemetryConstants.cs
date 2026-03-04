@@ -47,7 +47,7 @@ public static class LeaderElectionTelemetryConstants
 	/// Standard tag names for leader election telemetry.
 	/// </summary>
 	[SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "Logical grouping of telemetry constants")]
-	public static class Tags
+	public static class TagNames
 	{
 		/// <summary>
 		/// The leader election instance identifier.

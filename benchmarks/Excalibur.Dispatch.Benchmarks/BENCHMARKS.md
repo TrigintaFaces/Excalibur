@@ -183,7 +183,7 @@ Baseline measurements for regression testing:
 To establish baselines for regression testing:
 
 1. Run the full benchmark suite in Release mode
-2. Save the results from `BenchmarkDotNet.Artifacts/`
+2. Save the results from `benchmarks/runs/BenchmarkDotNet.Artifacts/`
 3. Compare future runs using the CSV exports
 4. Alert on performance degradation > 10%
 

@@ -5,6 +5,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Inbox;
 using Excalibur.Dispatch.Tests.TestFakes;
 
 using Microsoft.Extensions.Logging.Abstractions;

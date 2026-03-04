@@ -16,18 +16,13 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 {
 	private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
 	{
-		var deadline = DateTimeOffset.UtcNow + timeout;
-		while (DateTimeOffset.UtcNow < deadline)
-		{
-			if (condition())
-			{
-				return;
-			}
-
-			await Task.Yield();
-		}
-
-		throw new TimeoutException($"Condition not met within {timeout}.");
+		var scaledTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(timeout);
+		var conditionMet = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+				condition,
+				scaledTimeout,
+				TimeSpan.FromMilliseconds(100))
+			.ConfigureAwait(false);
+		conditionMet.ShouldBeTrue($"Condition not met within {scaledTimeout}.");
 	}
 
 	private static async Task WaitUntilExpiredAsync(ClaimCheckReference reference, TimeSpan timeout)

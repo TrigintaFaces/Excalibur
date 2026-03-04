@@ -6,7 +6,10 @@ using System.Collections.Concurrent;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Delivery.Handlers;
+using Excalibur.Dispatch.Delivery.Pipeline;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -22,16 +25,27 @@ namespace Excalibur.Dispatch.Benchmarks.Comparative;
 /// <summary>
 /// In-process parity benchmarks: Dispatch vs Wolverine (InvokeAsync/local in-process only).
 /// </summary>
+/// <remarks>
+/// Dispatch uses lean AddDispatch() (no cache/dedupe/outbox middleware) for fair
+/// comparison against Wolverine's InvokeAsync (bare in-process handler call).
+/// Fresh context per iteration, warmup + freeze for production-representative numbers.
+/// </remarks>
 [MemoryDiagnoser]
 [Config(typeof(ComparativeBenchmarkConfig))]
 public class WolverineInProcessComparisonBenchmarks
 {
 	private static readonly TimeSpan CompletionTimeout = TimeSpan.FromSeconds(5);
 
+	// Excalibur infrastructure — standard (lean) path
 	private IServiceProvider? _dispatchServiceProvider;
 	private IDispatcher? _dispatcher;
-	private DispatchContext? _dispatchContext;
+	private IMessageContextFactory? _dispatchContextFactory;
 
+	// Excalibur infrastructure — direct-local path (no middleware)
+	private IServiceProvider? _dispatchDirectServiceProvider;
+	private IDirectLocalDispatcher? _directLocalDispatcher;
+
+	// Wolverine infrastructure
 	private IHost? _wolverineHost;
 	private IMessageBus? _wolverineBus;
 
@@ -40,9 +54,10 @@ public class WolverineInProcessComparisonBenchmarks
 	{
 		WolverineInProcessCompletionTracker.Reset();
 
+		// Setup Excalibur — lean default (no cache/dedupe/outbox)
 		var dispatchServices = new ServiceCollection();
 		_ = dispatchServices.AddLogging();
-		_ = dispatchServices.AddBenchmarkDispatch();
+		_ = dispatchServices.AddDispatch();
 		_ = dispatchServices.AddTransient<IActionHandler<WolverineInProcessDispatchCommand>, WolverineInProcessDispatchCommandHandler>();
 		_ = dispatchServices.AddTransient<IEventHandler<WolverineInProcessDispatchEvent>, WolverineInProcessDispatchEventHandler1>();
 		_ = dispatchServices.AddTransient<IEventHandler<WolverineInProcessDispatchEvent>, WolverineInProcessDispatchEventHandler2>();
@@ -50,8 +65,34 @@ public class WolverineInProcessComparisonBenchmarks
 
 		_dispatchServiceProvider = dispatchServices.BuildServiceProvider();
 		_dispatcher = _dispatchServiceProvider.GetRequiredService<IDispatcher>();
-		var contextFactory = _dispatchServiceProvider.GetRequiredService<IMessageContextFactory>();
-		_dispatchContext = contextFactory.CreateContext();
+		_dispatchContextFactory = _dispatchServiceProvider.GetRequiredService<IMessageContextFactory>();
+
+		// Setup Excalibur — strict direct-local (no middleware, for ultra-local comparison)
+		var directDispatchServices = new ServiceCollection();
+		_ = directDispatchServices.AddLogging();
+		_ = directDispatchServices.AddDispatch(builder =>
+		{
+			_ = builder.ConfigurePipeline("DirectLocal", pipeline => pipeline.UseProfile(DefaultPipelineProfiles.Direct));
+			_ = builder.WithOptions(options =>
+			{
+				options.UseLightMode = true;
+				options.EnablePipelineSynthesis = false;
+				options.Features.EnableCacheMiddleware = false;
+				options.Features.EnableMetrics = false;
+				options.Features.EnableAuthorization = false;
+				options.Features.ValidateMessageSchemas = false;
+				options.Features.EnableVersioning = false;
+				options.Features.EnableMultiTenancy = false;
+				options.Features.EnableTransactions = false;
+			});
+		});
+		_ = directDispatchServices.AddTransient<IActionHandler<WolverineInProcessDispatchCommand>, WolverineInProcessDispatchCommandHandler>();
+		_ = directDispatchServices.AddTransient<IEventHandler<WolverineInProcessDispatchEvent>, WolverineInProcessDispatchEventHandler1>();
+		_ = directDispatchServices.AddTransient<IEventHandler<WolverineInProcessDispatchEvent>, WolverineInProcessDispatchEventHandler2>();
+		_ = directDispatchServices.AddTransient<IActionHandler<WolverineInProcessDispatchQuery, int>, WolverineInProcessDispatchQueryHandler>();
+
+		_dispatchDirectServiceProvider = directDispatchServices.BuildServiceProvider();
+		_directLocalDispatcher = _dispatchDirectServiceProvider.GetRequiredService<IDispatcher>() as IDirectLocalDispatcher;
 
 		_wolverineHost = await Host.CreateDefaultBuilder()
 			.UseWolverine(opts =>
@@ -66,6 +107,9 @@ public class WolverineInProcessComparisonBenchmarks
 			.ConfigureAwait(false);
 
 		_wolverineBus = _wolverineHost.Services.GetRequiredService<IMessageBus>();
+
+		// Warm and freeze Dispatch caches so benchmark reflects optimized production mode.
+		WarmupAndFreezeDispatchCaches();
 	}
 
 	[GlobalCleanup]
@@ -74,6 +118,11 @@ public class WolverineInProcessComparisonBenchmarks
 		if (_dispatchServiceProvider is IDisposable dispatchDisposable)
 		{
 			dispatchDisposable.Dispose();
+		}
+
+		if (_dispatchDirectServiceProvider is IDisposable directDisposable)
+		{
+			directDisposable.Dispose();
 		}
 
 		if (_wolverineHost is not null)
@@ -85,11 +134,22 @@ public class WolverineInProcessComparisonBenchmarks
 		WolverineInProcessCompletionTracker.Reset();
 	}
 
+	// ============================================================================
+	// Single Command
+	// ============================================================================
+
 	[Benchmark(Baseline = true, Description = "Dispatch (local): Single command")]
 	public async Task<IMessageResult> Dispatch_SingleCommand()
 	{
 		var command = new WolverineInProcessDispatchCommand { Value = 42 };
-		return await _dispatcher.DispatchAsync(command, _dispatchContext, CancellationToken.None);
+		return await DispatchWithFreshContextAsync(command).ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch (ultra-local): Single command")]
+	public async Task Dispatch_SingleCommand_UltraLocal()
+	{
+		var command = new WolverineInProcessDispatchCommand { Value = 42 };
+		await _directLocalDispatcher!.DispatchLocalAsync(command, CancellationToken.None).ConfigureAwait(false);
 	}
 
 	[Benchmark(Description = "Wolverine (in-process): Single command InvokeAsync")]
@@ -99,11 +159,15 @@ public class WolverineInProcessComparisonBenchmarks
 		await _wolverineBus.InvokeAsync(command, CancellationToken.None);
 	}
 
+	// ============================================================================
+	// Notification / Event Fan-Out
+	// ============================================================================
+
 	[Benchmark(Description = "Dispatch (local): Notification to 2 handlers")]
 	public async Task<IMessageResult> Dispatch_NotificationTwoHandlers()
 	{
 		var evt = new WolverineInProcessDispatchEvent { Message = "test" };
-		return await _dispatcher.DispatchAsync(evt, _dispatchContext, CancellationToken.None);
+		return await DispatchWithFreshContextAsync(evt).ConfigureAwait(false);
 	}
 
 	[Benchmark(Description = "Wolverine (in-process): Notification to 2 handlers")]
@@ -121,11 +185,15 @@ public class WolverineInProcessComparisonBenchmarks
 		await completion.WaitAsync(CompletionTimeout).ConfigureAwait(false);
 	}
 
+	// ============================================================================
+	// Query with Return Value
+	// ============================================================================
+
 	[Benchmark(Description = "Dispatch (local): Query with return")]
 	public async Task<IMessageResult<int>> Dispatch_QueryWithReturn()
 	{
 		var query = new WolverineInProcessDispatchQuery { Id = 123 };
-		return await _dispatcher.DispatchAsync<WolverineInProcessDispatchQuery, int>(query, _dispatchContext, CancellationToken.None);
+		return await DispatchWithFreshContextTypedAsync<WolverineInProcessDispatchQuery, int>(query).ConfigureAwait(false);
 	}
 
 	[Benchmark(Description = "Wolverine (in-process): Query with return InvokeAsync")]
@@ -135,16 +203,18 @@ public class WolverineInProcessComparisonBenchmarks
 		return await _wolverineBus.InvokeAsync<int>(query, CancellationToken.None);
 	}
 
+	// ============================================================================
+	// Concurrent Commands
+	// ============================================================================
+
 	[Benchmark(Description = "Dispatch (local): 10 concurrent commands")]
 	public async Task Dispatch_ConcurrentCommands10()
 	{
-		var tasks = new List<Task<IMessageResult>>(10);
+		var tasks = new Task<IMessageResult>[10];
 		for (int i = 0; i < 10; i++)
 		{
-			tasks.Add(_dispatcher.DispatchAsync(
-				new WolverineInProcessDispatchCommand { Value = i },
-				_dispatchContext,
-				CancellationToken.None));
+			tasks[i] = DispatchWithFreshContextAsync(
+				new WolverineInProcessDispatchCommand { Value = i });
 		}
 
 		_ = await Task.WhenAll(tasks).ConfigureAwait(false);
@@ -165,13 +235,11 @@ public class WolverineInProcessComparisonBenchmarks
 	[Benchmark(Description = "Dispatch (local): 100 concurrent commands")]
 	public async Task Dispatch_ConcurrentCommands100()
 	{
-		var tasks = new List<Task<IMessageResult>>(100);
+		var tasks = new Task<IMessageResult>[100];
 		for (int i = 0; i < 100; i++)
 		{
-			tasks.Add(_dispatcher.DispatchAsync(
-				new WolverineInProcessDispatchCommand { Value = i },
-				_dispatchContext,
-				CancellationToken.None));
+			tasks[i] = DispatchWithFreshContextAsync(
+				new WolverineInProcessDispatchCommand { Value = i });
 		}
 
 		_ = await Task.WhenAll(tasks).ConfigureAwait(false);
@@ -187,6 +255,90 @@ public class WolverineInProcessComparisonBenchmarks
 		}
 
 		await Task.WhenAll(tasks).ConfigureAwait(false);
+	}
+
+	// ============================================================================
+	// Helper Methods
+	// ============================================================================
+
+	private void WarmupAndFreezeDispatchCaches()
+	{
+		_ = DispatchWithFreshContextAsync(new WolverineInProcessDispatchCommand { Value = 1 })
+			.GetAwaiter().GetResult();
+		_ = DispatchWithFreshContextAsync(new WolverineInProcessDispatchEvent { Message = "warmup" })
+			.GetAwaiter().GetResult();
+
+		if (_directLocalDispatcher is not null)
+		{
+			_directLocalDispatcher.DispatchLocalAsync(new WolverineInProcessDispatchCommand { Value = 1 }, CancellationToken.None)
+				.AsTask().GetAwaiter().GetResult();
+		}
+
+		HandlerInvoker.FreezeCache();
+		HandlerInvokerRegistry.FreezeCache();
+		HandlerActivator.FreezeCache();
+		FinalDispatchHandler.FreezeResultFactoryCache();
+		MiddlewareApplicabilityEvaluator.FreezeCache();
+	}
+
+	private async Task<IMessageResult> DispatchWithFreshContextAsync<TMessage>(TMessage message)
+		where TMessage : IDispatchMessage
+	{
+		ArgumentNullException.ThrowIfNull(_dispatcher);
+		ArgumentNullException.ThrowIfNull(_dispatchContextFactory);
+
+		var context = _dispatchContextFactory.CreateContext();
+		var dispatchTask = _dispatcher.DispatchAsync(message, context, CancellationToken.None);
+		if (dispatchTask.IsCompletedSuccessfully)
+		{
+			try
+			{
+				return dispatchTask.Result;
+			}
+			finally
+			{
+				_dispatchContextFactory.Return(context);
+			}
+		}
+
+		try
+		{
+			return await dispatchTask.ConfigureAwait(false);
+		}
+		finally
+		{
+			_dispatchContextFactory.Return(context);
+		}
+	}
+
+	private async Task<IMessageResult<TResponse>> DispatchWithFreshContextTypedAsync<TMessage, TResponse>(TMessage message)
+		where TMessage : IDispatchAction<TResponse>
+	{
+		ArgumentNullException.ThrowIfNull(_dispatcher);
+		ArgumentNullException.ThrowIfNull(_dispatchContextFactory);
+
+		var context = _dispatchContextFactory.CreateContext();
+		var dispatchTask = _dispatcher.DispatchAsync<TMessage, TResponse>(message, context, CancellationToken.None);
+		if (dispatchTask.IsCompletedSuccessfully)
+		{
+			try
+			{
+				return dispatchTask.Result;
+			}
+			finally
+			{
+				_dispatchContextFactory.Return(context);
+			}
+		}
+
+		try
+		{
+			return await dispatchTask.ConfigureAwait(false);
+		}
+		finally
+		{
+			_dispatchContextFactory.Return(context);
+		}
 	}
 }
 

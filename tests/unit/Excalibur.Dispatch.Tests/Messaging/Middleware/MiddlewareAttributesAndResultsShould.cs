@@ -1,4 +1,6 @@
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Validation;
+using Excalibur.Dispatch.Middleware.Versioning;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 

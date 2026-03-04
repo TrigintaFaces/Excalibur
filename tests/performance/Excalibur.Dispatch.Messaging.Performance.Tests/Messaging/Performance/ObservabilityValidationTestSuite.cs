@@ -8,6 +8,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.BatchProcessing;
 using Excalibur.Data.InMemory.Inbox;
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Batch;
 using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Options.Performance;
 using Excalibur.Dispatch.Tests.TestFakes;

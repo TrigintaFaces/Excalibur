@@ -44,7 +44,7 @@ public static class ServiceCollectionExtensions
 	{
 		_ = services.TryAddTenantId();
 		_ = services.AddA3DispatchServices();
-		_ = services.AddAuthentication();
+		_ = AddAuthentication(services);
 		_ = services.AddAuthorization(databaseType);
 		_ = services.AddActivities(typeof(AuthorizationPolicy).Assembly);
 		services.TryAddScoped<IAccessToken, AccessToken>();

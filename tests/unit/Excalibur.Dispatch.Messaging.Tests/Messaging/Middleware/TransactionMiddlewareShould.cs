@@ -5,6 +5,7 @@ using System.Transactions;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Transaction;
 using Excalibur.Dispatch.Tests.TestFakes;
 
 using Microsoft.Extensions.Logging.Abstractions;

@@ -21,6 +21,10 @@ namespace Excalibur.Dispatch.Transport;
 public sealed class ConfiguredMessageMapper : IMessageMapper
 {
 	private readonly ConcurrentDictionary<Type, MessageTypeMapperConfiguration> _typeConfigurations;
+	private readonly ConcurrentDictionary<string, MessageTypeMapperConfiguration> _configurationByTypeName =
+		new(StringComparer.OrdinalIgnoreCase);
+	private readonly ConcurrentDictionary<string, byte> _missingTypeNames =
+		new(StringComparer.OrdinalIgnoreCase);
 	private readonly DefaultMappingConfiguration _defaultConfiguration;
 	private readonly IMessageMapperRegistry _registry;
 
@@ -38,6 +42,7 @@ public sealed class ConfiguredMessageMapper : IMessageMapper
 		_typeConfigurations = typeConfigurations ?? throw new ArgumentNullException(nameof(typeConfigurations));
 		_defaultConfiguration = defaultConfiguration ?? throw new ArgumentNullException(nameof(defaultConfiguration));
 		_registry = registry ?? throw new ArgumentNullException(nameof(registry));
+		PrimeTypeNameLookup();
 	}
 
 	/// <inheritdoc/>
@@ -140,12 +145,7 @@ public sealed class ConfiguredMessageMapper : IMessageMapper
 		var messageTypeName = source.Headers.GetValueOrDefault("X-Message-Type");
 		if (!string.IsNullOrEmpty(messageTypeName))
 		{
-			// Try to find type-specific configuration by type name
-			var typeConfig = _typeConfigurations.Values.FirstOrDefault(c =>
-				string.Equals(c.MessageType.Name, messageTypeName, StringComparison.OrdinalIgnoreCase) ||
-				string.Equals(c.MessageType.FullName, messageTypeName, StringComparison.OrdinalIgnoreCase));
-
-			if (typeConfig is not null)
+			if (TryGetTypeConfiguration(messageTypeName, out var typeConfig))
 			{
 				ApplyTypeConfiguration(typeConfig, transportContext, targetTransportName);
 				return transportContext;
@@ -155,6 +155,58 @@ public sealed class ConfiguredMessageMapper : IMessageMapper
 		// Apply default configuration
 		ApplyDefaultConfiguration(transportContext, targetTransportName);
 		return transportContext;
+	}
+
+	private void PrimeTypeNameLookup()
+	{
+		foreach (var typeConfiguration in _typeConfigurations.Values)
+		{
+			CacheTypeConfiguration(typeConfiguration);
+		}
+	}
+
+	private void CacheTypeConfiguration(MessageTypeMapperConfiguration typeConfiguration)
+	{
+		_configurationByTypeName[typeConfiguration.MessageType.Name] = typeConfiguration;
+		_ = _missingTypeNames.TryRemove(typeConfiguration.MessageType.Name, out _);
+
+		var fullName = typeConfiguration.MessageType.FullName;
+		if (!string.IsNullOrEmpty(fullName))
+		{
+			_configurationByTypeName[fullName] = typeConfiguration;
+			_ = _missingTypeNames.TryRemove(fullName, out _);
+		}
+	}
+
+	private bool TryGetTypeConfiguration(
+		string messageTypeName,
+		out MessageTypeMapperConfiguration typeConfiguration)
+	{
+		if (_configurationByTypeName.TryGetValue(messageTypeName, out typeConfiguration!))
+		{
+			return true;
+		}
+
+		if (_missingTypeNames.ContainsKey(messageTypeName))
+		{
+			typeConfiguration = null!;
+			return false;
+		}
+
+		foreach (var candidate in _typeConfigurations.Values)
+		{
+			if (string.Equals(candidate.MessageType.Name, messageTypeName, StringComparison.OrdinalIgnoreCase) ||
+				string.Equals(candidate.MessageType.FullName, messageTypeName, StringComparison.OrdinalIgnoreCase))
+			{
+				CacheTypeConfiguration(candidate);
+				typeConfiguration = candidate;
+				return true;
+			}
+		}
+
+		_missingTypeNames.TryAdd(messageTypeName, 0);
+		typeConfiguration = null!;
+		return false;
 	}
 
 	private void ApplyTypeConfiguration(

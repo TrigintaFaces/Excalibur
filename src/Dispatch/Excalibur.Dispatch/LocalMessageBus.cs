@@ -64,6 +64,7 @@ public sealed partial class LocalMessageBus(
 	private readonly ConcurrentDictionary<Type, bool> _selfRegisteredHandlerCache = new();
 	private readonly ConcurrentDictionary<Type, bool> _singletonNoContextEligibilityCache = new();
 	private readonly ConcurrentDictionary<Type, object> _singletonNoContextHandlerCache = new();
+	private readonly ConcurrentDictionary<Type, bool> _parameterlessStatelessPromotionEligibilityCache = new();
 	private readonly ConcurrentDictionary<Type, NoContextActivationPlan> _noContextActivationPlanCache = new();
 	private readonly ConcurrentDictionary<Type, ContextActivationPlan> _contextActivationPlanCache = new();
 	private readonly ConcurrentDictionary<Type, Func<object>> _noContextResolverCache = new();
@@ -127,6 +128,9 @@ public sealed partial class LocalMessageBus(
 #endif
 	private static PrecompiledDirectProvider[] _precompiledDirectProviders = [];
 	private static volatile bool _precompiledDirectProvidersInitialized;
+	[ThreadStatic] private static LocalMessageBus? s_cachedNoContextBus;
+	[ThreadStatic] private static Type? s_cachedNoContextHandlerType;
+	[ThreadStatic] private static Func<object>? s_cachedNoContextResolver;
 	private static readonly IMessageContext NoContextActivationContext = new MessageContext();
 
 	static LocalMessageBus()
@@ -652,6 +656,240 @@ public sealed partial class LocalMessageBus(
 
 		invocation = resolvedPlan.InvokeNoResponseAsync(this, action, context: null, cancellationToken);
 		return true;
+	}
+
+	/// <summary>
+	/// Fast-path ultra-local no-response invocation for pre-validated dispatch types.
+	/// </summary>
+	/// <remarks>
+	/// Callers must ensure <paramref name="actionType"/> is eligible for no-context, no-response dispatch.
+	/// This method intentionally avoids metadata resolution work on the hot path.
+	/// </remarks>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal bool TryInvokeUltraLocalNoResponseFast(
+		Type actionType,
+		IDispatchAction action,
+		CancellationToken cancellationToken,
+		out ValueTask invocation)
+	{
+		ArgumentNullException.ThrowIfNull(actionType);
+		ArgumentNullException.ThrowIfNull(action);
+
+		if (TryGetDirectActionDispatchPlan(actionType, out var resolvedPlan))
+		{
+			if (resolvedPlan.ExpectsResponse || resolvedPlan.RequiresContext)
+			{
+				invocation = default;
+				return false;
+			}
+
+			if (resolvedPlan.TryInvokeNoResponseSync is { } syncInvoker)
+			{
+				_ = syncInvoker(this, action, context: null, cancellationToken, out invocation);
+				return true;
+			}
+
+			if (resolvedPlan.InvokeNoResponseAsync is null)
+			{
+				invocation = default;
+				return false;
+			}
+
+			invocation = resolvedPlan.InvokeNoResponseAsync(this, action, context: null, cancellationToken);
+			return true;
+		}
+
+		if (TryGetPrecompiledDirectActionDispatchPlan(actionType, out var precompiledPlan))
+		{
+			if (precompiledPlan.ExpectsResponse || ResolveRequiresContext(actionType, precompiledPlan.RequiresContext))
+			{
+				invocation = default;
+				return false;
+			}
+
+			var precompiledInvocation = precompiledPlan.Invoke(action, provider, context: null, cancellationToken);
+			invocation = precompiledInvocation.IsCompletedSuccessfully
+				? ValueTask.CompletedTask
+				: AwaitNoResponseValueTaskAsync(precompiledInvocation);
+			return true;
+		}
+
+		invocation = default;
+		return false;
+	}
+
+	/// <summary>
+	/// Fast-path ultra-local with-response invocation for pre-validated dispatch types.
+	/// </summary>
+	/// <remarks>
+	/// Callers must ensure <paramref name="actionType"/> is eligible for no-context, with-response dispatch.
+	/// This method intentionally avoids metadata resolution work on the hot path.
+	/// </remarks>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal bool TryInvokeUltraLocalWithResponseFast(
+		Type actionType,
+		IDispatchAction action,
+		CancellationToken cancellationToken,
+		out ValueTask<object?> invocation)
+	{
+		ArgumentNullException.ThrowIfNull(actionType);
+		ArgumentNullException.ThrowIfNull(action);
+
+		if (TryGetDirectActionDispatchPlan(actionType, out var resolvedPlan))
+		{
+			if (!resolvedPlan.ExpectsResponse || resolvedPlan.RequiresContext)
+			{
+				invocation = default;
+				return false;
+			}
+
+			if (resolvedPlan.TryInvokeWithResponseSync is { } syncInvoker)
+			{
+				if (syncInvoker(this, action, context: null, cancellationToken, out var result, out var pendingInvocation))
+				{
+					invocation = new ValueTask<object?>(result);
+					return true;
+				}
+
+				invocation = pendingInvocation;
+				return true;
+			}
+
+			if (resolvedPlan.InvokeWithResponseAsync is null)
+			{
+				invocation = default;
+				return false;
+			}
+
+			invocation = resolvedPlan.InvokeWithResponseAsync(this, action, context: null, cancellationToken);
+			return true;
+		}
+
+		if (TryGetPrecompiledDirectActionDispatchPlan(actionType, out var precompiledPlan))
+		{
+			if (!precompiledPlan.ExpectsResponse || ResolveRequiresContext(actionType, precompiledPlan.RequiresContext))
+			{
+				invocation = default;
+				return false;
+			}
+
+			invocation = precompiledPlan.Invoke(action, provider, context: null, cancellationToken);
+			return true;
+		}
+
+		invocation = default;
+		return false;
+	}
+
+	/// <summary>
+	/// Resolves prevalidated ultra-local invokers for a direct action type.
+	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	internal bool TryGetUltraLocalFastInvokers(
+		Type actionType,
+		out bool expectsResponse,
+		out bool requiresContext,
+		out Func<IDispatchAction, CancellationToken, ValueTask>? noResponseInvoker,
+		out Func<IDispatchAction, CancellationToken, ValueTask<object?>>? withResponseInvoker)
+	{
+		ArgumentNullException.ThrowIfNull(actionType);
+
+		if (TryGetDirectActionDispatchPlan(actionType, out var resolvedPlan))
+		{
+			expectsResponse = resolvedPlan.ExpectsResponse;
+			requiresContext = resolvedPlan.RequiresContext;
+
+			if (requiresContext)
+			{
+				noResponseInvoker = null;
+				withResponseInvoker = null;
+				return true;
+			}
+
+			if (expectsResponse)
+			{
+				if (resolvedPlan.TryInvokeWithResponseSync is { } syncInvoker)
+				{
+					withResponseInvoker = (action, cancellationToken) =>
+					{
+						return syncInvoker(this, action, context: null, cancellationToken, out var result, out var pendingInvocation)
+							? new ValueTask<object?>(result)
+							: pendingInvocation;
+					};
+					noResponseInvoker = null;
+					return true;
+				}
+
+				if (resolvedPlan.InvokeWithResponseAsync is { } asyncInvoker)
+				{
+					withResponseInvoker = (action, cancellationToken) => asyncInvoker(this, action, context: null, cancellationToken);
+					noResponseInvoker = null;
+					return true;
+				}
+
+				noResponseInvoker = null;
+				withResponseInvoker = null;
+				return true;
+			}
+
+			if (resolvedPlan.TryInvokeNoResponseSync is { } syncNoResponseInvoker)
+			{
+				noResponseInvoker = (action, cancellationToken) =>
+				{
+					_ = syncNoResponseInvoker(this, action, context: null, cancellationToken, out var pendingInvocation);
+					return pendingInvocation;
+				};
+				withResponseInvoker = null;
+				return true;
+			}
+
+			if (resolvedPlan.InvokeNoResponseAsync is { } asyncNoResponseInvoker)
+			{
+				noResponseInvoker = (action, cancellationToken) => asyncNoResponseInvoker(this, action, context: null, cancellationToken);
+				withResponseInvoker = null;
+				return true;
+			}
+
+			noResponseInvoker = null;
+			withResponseInvoker = null;
+			return true;
+		}
+
+		if (TryGetPrecompiledDirectActionDispatchPlan(actionType, out var precompiledPlan))
+		{
+			expectsResponse = precompiledPlan.ExpectsResponse;
+			requiresContext = ResolveRequiresContext(actionType, precompiledPlan.RequiresContext);
+			if (requiresContext)
+			{
+				noResponseInvoker = null;
+				withResponseInvoker = null;
+				return true;
+			}
+
+			if (expectsResponse)
+			{
+				withResponseInvoker = (action, cancellationToken) =>
+					precompiledPlan.Invoke(action, provider, context: null, cancellationToken);
+				noResponseInvoker = null;
+				return true;
+			}
+
+			noResponseInvoker = (action, cancellationToken) =>
+			{
+				var precompiledInvocation = precompiledPlan.Invoke(action, provider, context: null, cancellationToken);
+				return precompiledInvocation.IsCompletedSuccessfully
+					? ValueTask.CompletedTask
+					: AwaitNoResponseValueTaskAsync(precompiledInvocation);
+			};
+			withResponseInvoker = null;
+			return true;
+		}
+
+		expectsResponse = false;
+		requiresContext = false;
+		noResponseInvoker = null;
+		withResponseInvoker = null;
+		return false;
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1386,12 +1624,22 @@ public sealed partial class LocalMessageBus(
 		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
 		Type handlerType)
 	{
+		if (ReferenceEquals(s_cachedNoContextBus, this) &&
+		    ReferenceEquals(s_cachedNoContextHandlerType, handlerType) &&
+		    s_cachedNoContextResolver is { } cachedResolver)
+		{
+			return cachedResolver();
+		}
+
 		if (!_noContextResolverCache.TryGetValue(handlerType, out var resolver))
 		{
 			resolver = BuildNoContextResolver(handlerType);
 			_ = _noContextResolverCache.TryAdd(handlerType, resolver);
 		}
 
+		s_cachedNoContextBus = this;
+		s_cachedNoContextHandlerType = handlerType;
+		s_cachedNoContextResolver = resolver;
 		return resolver();
 	}
 
@@ -1632,6 +1880,11 @@ public sealed partial class LocalMessageBus(
 
 		if (!CanUseSingletonNoContextBypass(handlerType))
 		{
+			if (TryPromoteTransientStatelessNoContextHandler(handlerType, out handler))
+			{
+				return true;
+			}
+
 			handler = default!;
 			return false;
 		}
@@ -1642,6 +1895,11 @@ public sealed partial class LocalMessageBus(
 			var second = provider.GetRequiredService(handlerType);
 			if (!ReferenceEquals(first, second))
 			{
+				if (TryPromoteTransientStatelessNoContextHandler(handlerType, out handler))
+				{
+					return true;
+				}
+
 				_ = _singletonNoContextEligibilityCache.TryUpdate(handlerType, false, true);
 				handler = default!;
 				return false;
@@ -1657,6 +1915,80 @@ public sealed partial class LocalMessageBus(
 			handler = default!;
 			return false;
 		}
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private bool TryPromoteTransientStatelessNoContextHandler(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		Type handlerType,
+		out object handler)
+	{
+		if (!CanPromoteTransientStatelessNoContextHandler(handlerType))
+		{
+			handler = default!;
+			return false;
+		}
+
+		try
+		{
+			var resolved = provider.GetRequiredService(handlerType);
+			_ = _singletonNoContextHandlerCache.TryAdd(handlerType, resolved);
+			handler = resolved;
+			return true;
+		}
+		catch (InvalidOperationException)
+		{
+			handler = default!;
+			return false;
+		}
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private bool CanPromoteTransientStatelessNoContextHandler(
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
+		Type handlerType)
+	{
+		if (_parameterlessStatelessPromotionEligibilityCache.TryGetValue(handlerType, out var cached))
+		{
+			return cached;
+		}
+
+		var eligible = IsSelfRegisteredHandler(handlerType) &&
+		               !HandlerActivator.RequiresContextInjection(handlerType) &&
+		               HasParameterlessConstructor(handlerType) &&
+		               !HasInstanceFields(handlerType);
+		_ = _parameterlessStatelessPromotionEligibilityCache.TryAdd(handlerType, eligible);
+		return eligible;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static bool HasParameterlessConstructor(Type handlerType)
+	{
+		var constructors = handlerType.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
+		for (var i = 0; i < constructors.Length; i++)
+		{
+			if (constructors[i].GetParameters().Length == 0)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static bool HasInstanceFields(Type handlerType)
+	{
+		var fields = handlerType.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+		for (var i = 0; i < fields.Length; i++)
+		{
+			if (!fields[i].IsStatic)
+			{
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]

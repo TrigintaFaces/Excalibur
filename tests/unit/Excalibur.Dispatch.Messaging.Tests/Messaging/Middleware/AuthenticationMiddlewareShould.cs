@@ -5,6 +5,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Auth;
 using Excalibur.Dispatch.Options.Middleware;
 
 using Microsoft.Extensions.Logging.Abstractions;

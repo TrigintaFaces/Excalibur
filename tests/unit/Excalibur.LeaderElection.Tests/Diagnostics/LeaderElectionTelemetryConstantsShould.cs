@@ -62,7 +62,7 @@ public sealed class LeaderElectionTelemetryConstantsShould
 	public void HaveCorrectInstanceTagName()
 	{
 		// Assert
-		LeaderElectionTelemetryConstants.Tags.Instance
+		LeaderElectionTelemetryConstants.TagNames.Instance
 			.ShouldBe("excalibur.leaderelection.instance");
 	}
 
@@ -70,7 +70,7 @@ public sealed class LeaderElectionTelemetryConstantsShould
 	public void HaveCorrectResultTagName()
 	{
 		// Assert
-		LeaderElectionTelemetryConstants.Tags.Result
+		LeaderElectionTelemetryConstants.TagNames.Result
 			.ShouldBe("excalibur.leaderelection.result");
 	}
 
@@ -78,7 +78,7 @@ public sealed class LeaderElectionTelemetryConstantsShould
 	public void HaveCorrectProviderTagName()
 	{
 		// Assert
-		LeaderElectionTelemetryConstants.Tags.Provider
+		LeaderElectionTelemetryConstants.TagNames.Provider
 			.ShouldBe("excalibur.leaderelection.provider");
 	}
 
@@ -97,9 +97,9 @@ public sealed class LeaderElectionTelemetryConstantsShould
 	public void HaveTagNamesFollowingDotSeparatedLowercase()
 	{
 		// All tag names should follow OpenTelemetry semantic convention: lowercase, dot-separated
-		LeaderElectionTelemetryConstants.Tags.Instance.ShouldMatch(@"^[a-z._]+$");
-		LeaderElectionTelemetryConstants.Tags.Result.ShouldMatch(@"^[a-z._]+$");
-		LeaderElectionTelemetryConstants.Tags.Provider.ShouldMatch(@"^[a-z._]+$");
+		LeaderElectionTelemetryConstants.TagNames.Instance.ShouldMatch(@"^[a-z._]+$");
+		LeaderElectionTelemetryConstants.TagNames.Result.ShouldMatch(@"^[a-z._]+$");
+		LeaderElectionTelemetryConstants.TagNames.Provider.ShouldMatch(@"^[a-z._]+$");
 	}
 
 	[Fact]
@@ -115,8 +115,8 @@ public sealed class LeaderElectionTelemetryConstantsShould
 	public void HaveTagNamesPrefixedWithExcaliburLeaderElection()
 	{
 		// Assert
-		LeaderElectionTelemetryConstants.Tags.Instance.ShouldStartWith("excalibur.leaderelection.");
-		LeaderElectionTelemetryConstants.Tags.Result.ShouldStartWith("excalibur.leaderelection.");
-		LeaderElectionTelemetryConstants.Tags.Provider.ShouldStartWith("excalibur.leaderelection.");
+		LeaderElectionTelemetryConstants.TagNames.Instance.ShouldStartWith("excalibur.leaderelection.");
+		LeaderElectionTelemetryConstants.TagNames.Result.ShouldStartWith("excalibur.leaderelection.");
+		LeaderElectionTelemetryConstants.TagNames.Provider.ShouldStartWith("excalibur.leaderelection.");
 	}
 }

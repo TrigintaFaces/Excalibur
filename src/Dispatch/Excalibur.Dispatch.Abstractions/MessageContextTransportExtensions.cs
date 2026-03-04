@@ -62,9 +62,7 @@ public static class MessageContextTransportExtensions
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
-		// Filter Items dictionary for header-like entries (could be enhanced with a prefix pattern)
-		return context.Items.Where(static kvp => !kvp.Key.StartsWith("__", StringComparison.Ordinal))
-			.ToDictionary(static kvp => kvp.Key, static kvp => kvp.Value, StringComparer.Ordinal);
+		return ExtractUserItems(context.Items);
 	}
 
 	/// <summary>
@@ -76,8 +74,40 @@ public static class MessageContextTransportExtensions
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
-		// Return all Items as attributes (same as GetHeaders for now)
-		return context.Items.Where(static kvp => !kvp.Key.StartsWith("__", StringComparison.Ordinal))
-			.ToDictionary(static kvp => kvp.Key, static kvp => kvp.Value, StringComparer.Ordinal);
+		return ExtractUserItems(context.Items);
+	}
+
+	private static Dictionary<string, object> ExtractUserItems(IDictionary<string, object> items)
+	{
+		var userCount = 0;
+		foreach (var item in items)
+		{
+			var key = item.Key;
+			if (key.Length >= 2 && key[0] == '_' && key[1] == '_')
+			{
+				continue;
+			}
+
+			userCount++;
+		}
+
+		if (userCount == 0)
+		{
+			return new Dictionary<string, object>(0, StringComparer.Ordinal);
+		}
+
+		var result = new Dictionary<string, object>(userCount, StringComparer.Ordinal);
+		foreach (var item in items)
+		{
+			var key = item.Key;
+			if (key.Length >= 2 && key[0] == '_' && key[1] == '_')
+			{
+				continue;
+			}
+
+			result[key] = item.Value;
+		}
+
+		return result;
 	}
 }

@@ -47,8 +47,8 @@ public sealed class CdcTelemetryConstantsShould
 	[Fact]
 	public void HaveCorrectTagNames()
 	{
-		CdcTelemetryConstants.Tags.CaptureInstance.ShouldBe("cdc.capture_instance");
-		CdcTelemetryConstants.Tags.Operation.ShouldBe("cdc.operation");
-		CdcTelemetryConstants.Tags.ErrorType.ShouldBe("error.type");
+		CdcTelemetryConstants.TagNames.CaptureInstance.ShouldBe("cdc.capture_instance");
+		CdcTelemetryConstants.TagNames.Operation.ShouldBe("cdc.operation");
+		CdcTelemetryConstants.TagNames.ErrorType.ShouldBe("error.type");
 	}
 }

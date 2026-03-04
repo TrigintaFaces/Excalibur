@@ -1,0 +1,87 @@
+{
+  "startedUtc": "2026-03-02T16:28:24.3976890+00:00",
+  "endedUtc": "2026-03-02T16:59:43.4077667+00:00",
+  "duration": "00:31:18.9947268",
+  "configuration": "Release",
+  "repeatCount": 1,
+  "artifactsPath": "D:\\Excalibur.Dispatch\\.\\BenchmarkDotNet.Artifacts.CompetitorRefresh-20260302",
+  "resultsPath": "D:\\Excalibur.Dispatch\\.\\BenchmarkDotNet.Artifacts.CompetitorRefresh-20260302\\results",
+  "environment": {
+    "machineName": "DESKTOP-5OUKF4A",
+    "osDescription": "Microsoft Windows 10.0.26200",
+    "osArchitecture": "X64",
+    "processArchitecture": "X64",
+    "frameworkDescription": ".NET 9.0.10",
+    "processorCount": 32,
+    "isServerGc": false,
+    "gcLatencyMode": "Interactive",
+    "dotnetVersion": "10.0.103",
+    "commitSha": "9bf43c6c823444552c3a593686779ce053d12106",
+    "branch": "main",
+    "isCi": false,
+    "dotnetTieredPgo": null,
+    "dotnetReadyToRun": null,
+    "dotnetGcServer": null,
+    "dotnetTcQuickJit": null,
+    "dotnetTcQuickJitForLoops": null,
+    "comPlusTieredPgo": null,
+    "comPlusReadyToRun": null,
+    "comPlusGcServer": null,
+    "runtimeProfile": "none",
+    "runtimeProfileVariables": {}
+  },
+  "selectedClasses": [
+    "MediatRComparisonBenchmarks",
+    "RoutingFirstParityBenchmarks",
+    "WolverineComparisonBenchmarks",
+    "MassTransitMediatorComparisonBenchmarks"
+  ],
+  "totalBenchmarks": 82.0,
+  "failures": [],
+  "classResults": [
+    {
+      "ClassName": "MediatRComparisonBenchmarks",
+      "Run": 1,
+      "ExitCode": 0,
+      "DurationSeconds": 353.4,
+      "BenchmarkRows": 16,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\.\\BenchmarkDotNet.Artifacts.CompetitorRefresh-20260302\\results\\Excalibur.Dispatch.Benchmarks.Comparative.MediatRComparisonBenchmarks-report-github.run1.20260302-102824.md",
+      "CsvReportPath": "D:\\Excalibur.Dispatch\\.\\BenchmarkDotNet.Artifacts.CompetitorRefresh-20260302\\results\\Excalibur.Dispatch.Benchmarks.Comparative.MediatRComparisonBenchmarks-report.run1.20260302-102824.csv",
+      "LogPath": "D:\\Excalibur.Dispatch\\.\\BenchmarkDotNet.Artifacts.CompetitorRefresh-20260302\\results\\run-MediatRComparisonBenchmarks-r1-20260302-102824.log"
+    },
+    {
+      "ClassName": "RoutingFirstParityBenchmarks",
+      "Run": 1,
+      "ExitCode": 0,
+      "DurationSeconds": 872.1,
+      "BenchmarkRows": 42,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\.\\BenchmarkDotNet.Artifacts.CompetitorRefresh-20260302\\results\\Excalibur.Dispatch.Benchmarks.Comparative.RoutingFirstParityBenchmarks-report-github.run1.20260302-103418.md",
+      "CsvReportPath": "D:\\Excalibur.Dispatch\\.\\BenchmarkDotNet.Artifacts.CompetitorRefresh-20260302\\results\\Excalibur.Dispatch.Benchmarks.Comparative.RoutingFirstParityBenchmarks-report.run1.20260302-103418.csv",
+      "LogPath": "D:\\Excalibur.Dispatch\\.\\BenchmarkDotNet.Artifacts.CompetitorRefresh-20260302\\results\\run-RoutingFirstParityBenchmarks-r1-20260302-103418.log"
+    },
+    {
+      "ClassName": "WolverineComparisonBenchmarks",
+      "Run": 1,
+      "ExitCode": 0,
+      "DurationSeconds": 351.0,
+      "BenchmarkRows": 14,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\.\\BenchmarkDotNet.Artifacts.CompetitorRefresh-20260302\\results\\Excalibur.Dispatch.Benchmarks.Comparative.WolverineComparisonBenchmarks-report-github.run1.20260302-104850.md",
+      "CsvReportPath": "D:\\Excalibur.Dispatch\\.\\BenchmarkDotNet.Artifacts.CompetitorRefresh-20260302\\results\\Excalibur.Dispatch.Benchmarks.Comparative.WolverineComparisonBenchmarks-report.run1.20260302-104850.csv",
+      "LogPath": "D:\\Excalibur.Dispatch\\.\\BenchmarkDotNet.Artifacts.CompetitorRefresh-20260302\\results\\run-WolverineComparisonBenchmarks-r1-20260302-104850.log"
+    },
+    {
+      "ClassName": "MassTransitMediatorComparisonBenchmarks",
+      "Run": 1,
+      "ExitCode": 0,
+      "DurationSeconds": 302.3,
+      "BenchmarkRows": 10,
+      "ReportFound": true,
+      "ReportPath": "D:\\Excalibur.Dispatch\\.\\BenchmarkDotNet.Artifacts.CompetitorRefresh-20260302\\results\\Excalibur.Dispatch.Benchmarks.Comparative.MassTransitMediatorComparisonBenchmarks-report-github.run1.20260302-105441.md",
+      "CsvReportPath": "D:\\Excalibur.Dispatch\\.\\BenchmarkDotNet.Artifacts.CompetitorRefresh-20260302\\results\\Excalibur.Dispatch.Benchmarks.Comparative.MassTransitMediatorComparisonBenchmarks-report.run1.20260302-105441.csv",
+      "LogPath": "D:\\Excalibur.Dispatch\\.\\BenchmarkDotNet.Artifacts.CompetitorRefresh-20260302\\results\\run-MassTransitMediatorComparisonBenchmarks-r1-20260302-105441.log"
+    }
+  ]
+}

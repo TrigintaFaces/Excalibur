@@ -278,11 +278,9 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 
 	/// <inheritdoc />
 	[JsonIgnore]
-	public IDictionary<string, object?> Properties =>
-		_items as IDictionary<string, object?> ??
-		new Dictionary<string, object?>(
-			_items.Select(static kv => new KeyValuePair<string, object?>(kv.Key, kv.Value)),
-			StringComparer.Ordinal);
+#pragma warning disable IDE0004 // Required to satisfy nullability contract without allocating a copy.
+	public IDictionary<string, object?> Properties => (IDictionary<string, object?>)_items;
+#pragma warning restore IDE0004
 
 	/// <summary>
 	/// Gets a value indicating whether the message processing was successful.

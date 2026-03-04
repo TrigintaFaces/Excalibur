@@ -197,7 +197,7 @@ public partial class CdcProcessor : ICdcProcessor
 		await _executionLock.WaitAsync(cancellationToken).ConfigureAwait(false);
 
 		using var activity = CdcTelemetryConstants.ActivitySource.StartActivity("cdc.process");
-		activity?.SetTag(CdcTelemetryConstants.Tags.CaptureInstance, string.Join(",", _dbConfig.CaptureInstances));
+		activity?.SetTag(CdcTelemetryConstants.TagNames.CaptureInstance, string.Join(",", _dbConfig.CaptureInstances));
 
 		try
 		{
@@ -249,7 +249,7 @@ public partial class CdcProcessor : ICdcProcessor
 	/// <inheritdoc />
 	public async ValueTask DisposeAsync()
 	{
-		await DisposeAsyncCore().ConfigureAwait(false);
+		await DisposeCoreAsync().ConfigureAwait(false);
 		GC.SuppressFinalize(this);
 	}
 
@@ -265,12 +265,7 @@ public partial class CdcProcessor : ICdcProcessor
 	/// <summary>
 	/// Disposes of resources used by the <see cref="CdcProcessor" />.
 	/// </summary>
-	// DisposeCoreAsync is the standard .NET IAsyncDisposable pattern name per framework design guidelines
-	// See: https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/implementing-disposeasync#implement-the-async-dispose-pattern
-	// R0.8: Asynchronous method name should end with 'Async'
-#pragma warning disable RCS1046
-
-	protected virtual async ValueTask DisposeAsyncCore()
+	protected virtual async ValueTask DisposeCoreAsync()
 	{
 		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
 		{
@@ -346,8 +341,6 @@ public partial class CdcProcessor : ICdcProcessor
 			_producerCancellationTokenSource.Dispose();
 		}
 	}
-
-#pragma warning restore RCS1046 // Asynchronous method name should end with 'Async'
 
 	/// <summary>
 	/// Releases the unmanaged resources used by the <see cref="CdcProcessor" /> and optionally releases the managed resources.
@@ -811,15 +804,15 @@ public partial class CdcProcessor : ICdcProcessor
 
 				EventsProcessedCounter.Add(1, new TagList
 				{
-					{ CdcTelemetryConstants.Tags.CaptureInstance, changeEvent.TableName },
+					{ CdcTelemetryConstants.TagNames.CaptureInstance, changeEvent.TableName },
 				});
 			}
 			catch (Exception ex)
 			{
 				EventsFailedCounter.Add(1, new TagList
 				{
-					{ CdcTelemetryConstants.Tags.CaptureInstance, changeEvent.TableName },
-					{ CdcTelemetryConstants.Tags.ErrorType, ex.GetType().Name },
+					{ CdcTelemetryConstants.TagNames.CaptureInstance, changeEvent.TableName },
+					{ CdcTelemetryConstants.TagNames.ErrorType, ex.GetType().Name },
 				});
 
 				LogUnhandledException(changeEvent.TableName, ByteArrayToHex(changeEvent.Lsn), ByteArrayToHex(changeEvent.SeqVal),

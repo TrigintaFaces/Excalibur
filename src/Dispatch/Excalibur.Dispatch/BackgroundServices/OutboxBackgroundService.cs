@@ -239,16 +239,12 @@ public partial class OutboxBackgroundService : BackgroundService
 			var unsentMessages = await outboxStore.GetUnsentMessagesAsync(_options.PublishBatchSize, cancellationToken)
 				.ConfigureAwait(false);
 
-			if (!unsentMessages.Any())
+			var hasKnownMessageCount = TryGetMessageCount(unsentMessages, out var messageCount);
+			if (hasKnownMessageCount && messageCount == 0)
 			{
 				LogNoUnsentMessages();
 				return false;
 			}
-
-			var messageCount = unsentMessages.Count();
-			LogFoundUnsentMessages(messageCount);
-
-			_ = (activity?.SetTag("outbox.message_count", messageCount));
 
 			var publishedCount = 0;
 			var failedCount = 0;
@@ -256,6 +252,11 @@ public partial class OutboxBackgroundService : BackgroundService
 			// Process each message
 			foreach (var message in unsentMessages)
 			{
+				if (!hasKnownMessageCount)
+				{
+					messageCount++;
+				}
+
 				try
 				{
 					// Check if message is ready for delivery (not scheduled for future)
@@ -287,6 +288,14 @@ public partial class OutboxBackgroundService : BackgroundService
 				}
 			}
 
+			if (messageCount == 0)
+			{
+				LogNoUnsentMessages();
+				return false;
+			}
+
+			LogFoundUnsentMessages(messageCount);
+			_ = (activity?.SetTag("outbox.message_count", messageCount));
 			LogOutboxProcessingCompleted(publishedCount, failedCount);
 
 			_ = (activity?.SetTag("outbox.published_count", publishedCount));
@@ -300,6 +309,24 @@ public partial class OutboxBackgroundService : BackgroundService
 			_ = (activity?.SetStatus(ActivityStatusCode.Error, ex.Message));
 			throw;
 		}
+	}
+
+	private static bool TryGetMessageCount(IEnumerable<OutboundMessage> messages, out int count)
+	{
+		if (messages is ICollection<OutboundMessage> collection)
+		{
+			count = collection.Count;
+			return true;
+		}
+
+		if (messages is IReadOnlyCollection<OutboundMessage> readOnlyCollection)
+		{
+			count = readOnlyCollection.Count;
+			return true;
+		}
+
+		count = 0;
+		return false;
 	}
 
 	/// <summary>

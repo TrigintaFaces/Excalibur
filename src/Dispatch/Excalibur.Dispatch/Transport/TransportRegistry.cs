@@ -12,8 +12,17 @@ namespace Excalibur.Dispatch.Transport;
 /// </summary>
 public sealed class TransportRegistry
 {
+	private static readonly IReadOnlyDictionary<string, TransportRegistration> EmptyTransports =
+		new Dictionary<string, TransportRegistration>(0, StringComparer.Ordinal);
+
 	private readonly ConcurrentDictionary<string, TransportRegistration> _transports = new(StringComparer.Ordinal);
 	private readonly ConcurrentDictionary<string, TransportFactoryRegistration> _factories = new(StringComparer.Ordinal);
+#if NET9_0_OR_GREATER
+	private readonly System.Threading.Lock _snapshotUpdateGate = new();
+#else
+	private readonly object _snapshotUpdateGate = new();
+#endif
+	private volatile string[] _transportNamesSnapshot = [];
 	private string? _defaultTransportName;
 
 	/// <summary>
@@ -35,6 +44,11 @@ public sealed class TransportRegistry
 	public bool HasPendingFactories => !_factories.IsEmpty;
 
 	/// <summary>
+	/// Gets the number of pending factory registrations.
+	/// </summary>
+	public int PendingFactoryCount => _factories.Count;
+
+	/// <summary>
 	/// Registers a transport adapter.
 	/// </summary>
 	/// <param name="name"> The transport name. </param>
@@ -48,12 +62,7 @@ public sealed class TransportRegistry
 		ArgumentNullException.ThrowIfNull(adapter);
 		ArgumentException.ThrowIfNullOrWhiteSpace(transportType);
 
-		var registration = new TransportRegistration(adapter, transportType, options ?? []);
-
-		if (!_transports.TryAdd(name, registration))
-		{
-			throw new InvalidOperationException($"A transport with name '{name}' is already registered");
-		}
+		RegisterTransportCore(name, adapter, transportType, options, updateNamesSnapshot: true);
 	}
 
 	/// <summary>
@@ -86,28 +95,28 @@ public sealed class TransportRegistry
 	/// <returns> Collection of transport names (both initialized and pending). </returns>
 	public IEnumerable<string> GetTransportNames()
 	{
-		// Yield initialized transports first
-		foreach (var key in _transports.Keys)
-		{
-			yield return key;
-		}
-
-		// Then yield pending factories that aren't already initialized
-		foreach (var key in _factories.Keys)
-		{
-			if (!_transports.ContainsKey(key))
-			{
-				yield return key;
-			}
-		}
+		return _transportNamesSnapshot;
 	}
 
 	/// <summary>
 	/// Gets all registered transports.
 	/// </summary>
 	/// <returns> Dictionary of transport names and their registrations. </returns>
-	public IReadOnlyDictionary<string, TransportRegistration> GetAllTransports() =>
-		_transports.ToDictionary(static kvp => kvp.Key, static kvp => kvp.Value, StringComparer.Ordinal);
+	public IReadOnlyDictionary<string, TransportRegistration> GetAllTransports()
+	{
+		if (_transports.IsEmpty)
+		{
+			return EmptyTransports;
+		}
+
+		var copy = new Dictionary<string, TransportRegistration>(_transports.Count, StringComparer.Ordinal);
+		foreach (var transport in _transports)
+		{
+			copy[transport.Key] = transport.Value;
+		}
+
+		return copy;
+	}
 
 	/// <summary>
 	/// Removes a transport by name.
@@ -118,7 +127,13 @@ public sealed class TransportRegistry
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-		return _transports.TryRemove(name, out _);
+		var removed = _transports.TryRemove(name, out _);
+		if (removed)
+		{
+			UpdateTransportNamesSnapshot();
+		}
+
+		return removed;
 	}
 
 	/// <summary>
@@ -128,6 +143,7 @@ public sealed class TransportRegistry
 	{
 		_transports.Clear();
 		_defaultTransportName = null;
+		UpdateTransportNamesSnapshot();
 	}
 
 	/// <summary>
@@ -209,6 +225,8 @@ public sealed class TransportRegistry
 		{
 			throw new InvalidOperationException($"A transport factory with name '{name}' is already registered");
 		}
+
+		UpdateTransportNamesSnapshot();
 	}
 
 	/// <summary>
@@ -235,18 +253,79 @@ public sealed class TransportRegistry
 		ArgumentNullException.ThrowIfNull(serviceProvider);
 
 		var count = 0;
-
-		foreach (var name in _factories.Keys.ToList())
+		var pendingFactoryNames = new List<string>(_factories.Count);
+		foreach (var name in _factories.Keys)
 		{
+			pendingFactoryNames.Add(name);
+		}
+
+		for (var i = 0; i < pendingFactoryNames.Count; i++)
+		{
+			var name = pendingFactoryNames[i];
 			if (_factories.TryRemove(name, out var factoryReg))
 			{
 				var adapter = factoryReg.Factory(serviceProvider);
-				RegisterTransport(name, adapter, factoryReg.TransportType);
+				RegisterTransportCore(name, adapter, factoryReg.TransportType, options: null, updateNamesSnapshot: false);
 				count++;
 			}
 		}
 
+		UpdateTransportNamesSnapshot();
 		return count;
+	}
+
+	private void UpdateTransportNamesSnapshot()
+	{
+		lock (_snapshotUpdateGate)
+		{
+			var capacity = _transports.Count + _factories.Count;
+			if (capacity == 0)
+			{
+				_transportNamesSnapshot = [];
+				return;
+			}
+
+			var names = new List<string>(capacity);
+			var seen = new HashSet<string>(capacity, StringComparer.Ordinal);
+
+			foreach (var key in _transports.Keys)
+			{
+				if (seen.Add(key))
+				{
+					names.Add(key);
+				}
+			}
+
+			foreach (var key in _factories.Keys)
+			{
+				if (seen.Add(key))
+				{
+					names.Add(key);
+				}
+			}
+
+			_transportNamesSnapshot = [.. names];
+		}
+	}
+
+	private void RegisterTransportCore(
+		string name,
+		ITransportAdapter adapter,
+		string transportType,
+		Dictionary<string, object>? options,
+		bool updateNamesSnapshot)
+	{
+		var registration = new TransportRegistration(adapter, transportType, options ?? []);
+
+		if (!_transports.TryAdd(name, registration))
+		{
+			throw new InvalidOperationException($"A transport with name '{name}' is already registered");
+		}
+
+		if (updateNamesSnapshot)
+		{
+			UpdateTransportNamesSnapshot();
+		}
 	}
 }
 

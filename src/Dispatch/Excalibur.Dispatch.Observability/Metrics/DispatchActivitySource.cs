@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 
 using Excalibur.Dispatch.Abstractions;
@@ -25,6 +26,22 @@ public static class DispatchActivitySource
 	public static ActivitySource Instance { get; } = new(Name);
 
 	/// <summary>
+	/// Caches Type.Name strings to avoid repeated reflection per dispatch.
+	/// </summary>
+	private static readonly ConcurrentDictionary<Type, string> TypeNameCache = new();
+
+	/// <summary>
+	/// Caches middleware activity names ("middleware.{TypeName}") to avoid string interpolation per dispatch.
+	/// </summary>
+	private static readonly ConcurrentDictionary<Type, string> MiddlewareActivityNameCache = new();
+
+	/// <summary>
+	/// Gets the cached name for a type, avoiding repeated reflection.
+	/// </summary>
+	private static string GetCachedTypeName(Type type) =>
+		TypeNameCache.GetOrAdd(type, static t => t.Name);
+
+	/// <summary>
 	/// Starts a new activity for message processing.
 	/// </summary>
 	/// <param name="message"> The message being processed. </param>
@@ -39,7 +56,7 @@ public static class DispatchActivitySource
 
 		if (activity != null)
 		{
-			_ = activity.SetTag("message.type", message.GetType().Name);
+			_ = activity.SetTag("message.type", GetCachedTypeName(message.GetType()));
 			_ = activity.SetTag("dispatch.operation", activityName);
 		}
 
@@ -61,7 +78,7 @@ public static class DispatchActivitySource
 
 		if (activity != null)
 		{
-			_ = activity.SetTag("message.type", message.GetType().Name);
+			_ = activity.SetTag("message.type", GetCachedTypeName(message.GetType()));
 			_ = activity.SetTag("message.destination", destination);
 			_ = activity.SetTag("dispatch.operation", "publish");
 		}
@@ -85,8 +102,8 @@ public static class DispatchActivitySource
 
 		if (activity != null)
 		{
-			_ = activity.SetTag("message.type", message.GetType().Name);
-			_ = activity.SetTag("handler.type", handlerType.Name);
+			_ = activity.SetTag("message.type", GetCachedTypeName(message.GetType()));
+			_ = activity.SetTag("handler.type", GetCachedTypeName(handlerType));
 			_ = activity.SetTag("dispatch.operation", "handle");
 		}
 
@@ -107,12 +124,15 @@ public static class DispatchActivitySource
 		ArgumentNullException.ThrowIfNull(middlewareType);
 		ArgumentNullException.ThrowIfNull(message);
 
-		var activity = Instance.StartActivity($"middleware.{middlewareType.Name}");
+		var activityName = MiddlewareActivityNameCache.GetOrAdd(
+			middlewareType, static t => string.Concat("middleware.", t.Name));
+
+		var activity = Instance.StartActivity(activityName);
 
 		if (activity != null)
 		{
-			_ = activity.SetTag("middleware.type", middlewareType.Name);
-			_ = activity.SetTag("message.type", message.GetType().Name);
+			_ = activity.SetTag("middleware.type", GetCachedTypeName(middlewareType));
+			_ = activity.SetTag("message.type", GetCachedTypeName(message.GetType()));
 			_ = activity.SetTag("dispatch.operation", "middleware");
 		}
 

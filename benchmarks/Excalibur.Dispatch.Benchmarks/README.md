@@ -55,10 +55,10 @@ pwsh ./eng/run-benchmark-matrix.ps1
 ```
 
 This runs the comparative + diagnostics class matrix sequentially, writes per-class logs to
-`BenchmarkDotNet.Artifacts/results/run-<Class>-<timestamp>.log`, and emits a matrix summary:
+`benchmarks/runs/BenchmarkDotNet.Artifacts/results/run-<Class>-<timestamp>.log`, and emits a matrix summary:
 
-- `BenchmarkDotNet.Artifacts/results/benchmark-matrix-summary-<timestamp>.json`
-- `BenchmarkDotNet.Artifacts/results/benchmark-matrix-summary-<timestamp>.md`
+- `benchmarks/runs/BenchmarkDotNet.Artifacts/results/benchmark-matrix-summary-<timestamp>.json`
+- `benchmarks/runs/BenchmarkDotNet.Artifacts/results/benchmark-matrix-summary-<timestamp>.md`
 
 Useful flags:
 
@@ -73,7 +73,7 @@ pwsh ./eng/run-benchmark-matrix.ps1 -DiagnosticsOnly
 pwsh ./eng/run-benchmark-matrix.ps1 -CiSmoke -NoBuild -NoRestore
 
 # Focused parity rerun (MediatR + routing-first only, per-class logs)
-pwsh ./eng/run-benchmark-matrix.ps1 -NoBuild -NoRestore -Classes MediatRComparisonBenchmarks,RoutingFirstParityBenchmarks,WolverineComparisonBenchmarks,MassTransitComparisonBenchmarks -ArtifactsPath ./BenchmarkDotNet.Artifacts.FullRefresh-20260219
+pwsh ./eng/run-benchmark-matrix.ps1 -NoBuild -NoRestore -Classes MediatRComparisonBenchmarks,RoutingFirstParityBenchmarks,WolverineComparisonBenchmarks,MassTransitComparisonBenchmarks -ArtifactsPath ./benchmarks/runs/BenchmarkDotNet.Artifacts.FullRefresh-20260219
 
 # Keep verbose framework logs (default is quiet warning-level logs)
 pwsh ./eng/run-benchmark-matrix.ps1 -VerboseFrameworkLogs
@@ -114,7 +114,7 @@ dotnet run -c Release --filter *HandlerInvokerPathBenchmarks*
 
 ### View Results
 
-Results are automatically exported to `BenchmarkDotNet.Artifacts/results/`:
+Results are automatically exported to `benchmarks/runs/BenchmarkDotNet.Artifacts/results/`:
 
 - **HTML**: Interactive charts and tables
 - **CSV**: Machine-readable data
@@ -620,10 +620,10 @@ dotnet run -c Release --filter "*Concurrent*"
 
 ### Export Formats
 
-Results are automatically exported to `BenchmarkDotNet.Artifacts/results/`:
+Results are automatically exported to `benchmarks/runs/BenchmarkDotNet.Artifacts/results/`:
 
 ```
-BenchmarkDotNet.Artifacts/
+benchmarks/runs/BenchmarkDotNet.Artifacts/
 └── results/
     ├── Excalibur.Dispatch.Benchmarks.Patterns.EventAppendBenchmarks-report.html
     ├── Excalibur.Dispatch.Benchmarks.Patterns.EventAppendBenchmarks-report.csv
@@ -889,18 +889,18 @@ Excalibur competes in the **.NET messaging framework** space:
 ```yaml
 - name: Run MediatR Local Parity Gate
   run: |
-    pwsh ./eng/run-benchmark-matrix.ps1 -NoBuild -NoRestore -Classes MediatRComparisonBenchmarks,RoutingFirstParityBenchmarks -ArtifactsPath ./BenchmarkDotNet.Artifacts.MediatRParity
-    pwsh ./eng/validate-performance-gates.ps1 -Gate MediatRLocalParity -ResultsPath ./BenchmarkDotNet.Artifacts.MediatRParity/results
+    pwsh ./eng/run-benchmark-matrix.ps1 -NoBuild -NoRestore -Classes MediatRComparisonBenchmarks,RoutingFirstParityBenchmarks -ArtifactsPath ./benchmarks/runs/BenchmarkDotNet.Artifacts.MediatRParity
+    pwsh ./eng/validate-performance-gates.ps1 -Gate MediatRLocalParity -ResultsPath ./benchmarks/runs/BenchmarkDotNet.Artifacts.MediatRParity/results
 
 - name: Run Transport Comparison Gate
   run: |
-    pwsh ./eng/run-benchmark-matrix.ps1 -NoBuild -NoRestore -Classes WolverineComparisonBenchmarks,MassTransitComparisonBenchmarks -ArtifactsPath ./BenchmarkDotNet.Artifacts.TransportComparison
-    pwsh ./eng/validate-performance-gates.ps1 -Gate TransportComparison -ResultsPath ./BenchmarkDotNet.Artifacts.TransportComparison/results
+    pwsh ./eng/run-benchmark-matrix.ps1 -NoBuild -NoRestore -Classes WolverineComparisonBenchmarks,MassTransitComparisonBenchmarks -ArtifactsPath ./benchmarks/runs/BenchmarkDotNet.Artifacts.TransportComparison
+    pwsh ./eng/validate-performance-gates.ps1 -Gate TransportComparison -ResultsPath ./benchmarks/runs/BenchmarkDotNet.Artifacts.TransportComparison/results
 
 - name: Run Comparative + Diagnostics Matrix
   run: |
     pwsh ./eng/run-benchmark-matrix.ps1 -NoBuild -NoRestore
-    # Summary: BenchmarkDotNet.Artifacts/results/benchmark-matrix-summary-*.json
+    # Summary: benchmarks/runs/BenchmarkDotNet.Artifacts/results/benchmark-matrix-summary-*.json
 ```
 
 **Regression Detection**:
@@ -976,4 +976,3 @@ This comprehensive benchmark suite provides:
 **Questions or Issues?** Open a GitHub issue or contact the Excalibur team.
 
 **License**: Excalibur License 1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0 (see `../../LICENSE`)
-

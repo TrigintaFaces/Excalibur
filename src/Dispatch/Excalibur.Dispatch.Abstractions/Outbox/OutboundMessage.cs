@@ -224,8 +224,15 @@ public sealed class OutboundMessage
 	/// <returns>The transport delivery record, or null if not found.</returns>
 	public OutboundMessageTransport? GetTransportDelivery(string transportName)
 	{
-		return TransportDeliveries.FirstOrDefault(t =>
-			string.Equals(t.TransportName, transportName, StringComparison.OrdinalIgnoreCase));
+		foreach (var delivery in TransportDeliveries)
+		{
+			if (string.Equals(delivery.TransportName, transportName, StringComparison.OrdinalIgnoreCase))
+			{
+				return delivery;
+			}
+		}
+
+		return null;
 	}
 
 	/// <summary>
@@ -234,7 +241,13 @@ public sealed class OutboundMessage
 	/// <returns>Transport deliveries that are pending.</returns>
 	public IEnumerable<OutboundMessageTransport> GetPendingTransportDeliveries()
 	{
-		return TransportDeliveries.Where(t => t.Status == TransportDeliveryStatus.Pending);
+		foreach (var delivery in TransportDeliveries)
+		{
+			if (delivery.Status == TransportDeliveryStatus.Pending)
+			{
+				yield return delivery;
+			}
+		}
 	}
 
 	/// <summary>
@@ -243,7 +256,13 @@ public sealed class OutboundMessage
 	/// <returns>Transport deliveries that have failed.</returns>
 	public IEnumerable<OutboundMessageTransport> GetFailedTransportDeliveries()
 	{
-		return TransportDeliveries.Where(t => t.Status == TransportDeliveryStatus.Failed);
+		foreach (var delivery in TransportDeliveries)
+		{
+			if (delivery.Status == TransportDeliveryStatus.Failed)
+			{
+				yield return delivery;
+			}
+		}
 	}
 
 	/// <summary>
@@ -257,8 +276,15 @@ public sealed class OutboundMessage
 			return Status == OutboxStatus.Sent;
 		}
 
-		return TransportDeliveries.All(t =>
-			t.Status is TransportDeliveryStatus.Sent or TransportDeliveryStatus.Skipped);
+		foreach (var delivery in TransportDeliveries)
+		{
+			if (delivery.Status is not (TransportDeliveryStatus.Sent or TransportDeliveryStatus.Skipped))
+			{
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/// <summary>
@@ -271,24 +297,47 @@ public sealed class OutboundMessage
 			return;
 		}
 
-		if (AreAllTransportsComplete())
+		var allFailed = true;
+		var failedCount = 0;
+		var allComplete = true;
+
+		foreach (var delivery in TransportDeliveries)
+		{
+			var status = delivery.Status;
+			if (status == TransportDeliveryStatus.Sending)
+			{
+				Status = OutboxStatus.Sending;
+				return;
+			}
+
+			if (status == TransportDeliveryStatus.Failed)
+			{
+				failedCount++;
+			}
+			else
+			{
+				allFailed = false;
+			}
+
+			if (status is not (TransportDeliveryStatus.Sent or TransportDeliveryStatus.Skipped))
+			{
+				allComplete = false;
+			}
+		}
+
+		if (allComplete)
 		{
 			MarkSent();
 		}
-		else if (TransportDeliveries.Any(t => t.Status == TransportDeliveryStatus.Sending))
-		{
-			Status = OutboxStatus.Sending;
-		}
-		else if (TransportDeliveries.All(t => t.Status == TransportDeliveryStatus.Failed))
+		else if (allFailed)
 		{
 			Status = OutboxStatus.Failed;
 			LastError = "All transport deliveries failed";
 		}
-		else if (TransportDeliveries.Any(t => t.Status == TransportDeliveryStatus.Failed))
+		else if (failedCount > 0)
 		{
 			Status = OutboxStatus.PartiallyFailed;
-			LastError =
-				$"{TransportDeliveries.Count(t => t.Status == TransportDeliveryStatus.Failed)} of {TransportDeliveries.Count} transports failed";
+			LastError = $"{failedCount} of {TransportDeliveries.Count} transports failed";
 		}
 	}
 
@@ -399,6 +448,70 @@ public sealed class OutboundMessage
 
 	private void UpdateTargetTransportsString()
 	{
-		TargetTransports = string.Join(",", TransportDeliveries.Select(t => t.TransportName).Distinct());
+		TargetTransports = BuildTargetTransportsString(TransportDeliveries);
+	}
+
+	private static string BuildTargetTransportsString(ICollection<OutboundMessageTransport> transportDeliveries)
+	{
+		if (transportDeliveries.Count == 0)
+		{
+			return string.Empty;
+		}
+
+		var distinctNames = new HashSet<string>(StringComparer.Ordinal);
+		var orderedNames = new List<string>(transportDeliveries.Count);
+		var combinedNameLength = 0;
+
+		if (transportDeliveries is IReadOnlyList<OutboundMessageTransport> deliveryList)
+		{
+			for (var i = 0; i < deliveryList.Count; i++)
+			{
+				AddDistinctTransportName(deliveryList[i].TransportName, distinctNames, orderedNames, ref combinedNameLength);
+			}
+		}
+		else
+		{
+			foreach (var delivery in transportDeliveries)
+			{
+				AddDistinctTransportName(delivery.TransportName, distinctNames, orderedNames, ref combinedNameLength);
+			}
+		}
+
+		if (orderedNames.Count == 0)
+		{
+			return string.Empty;
+		}
+
+		var totalLength = combinedNameLength + orderedNames.Count - 1;
+		return string.Create(totalLength, orderedNames, static (span, names) =>
+		{
+			var writeIndex = 0;
+			for (var i = 0; i < names.Count; i++)
+			{
+				var name = names[i];
+				name.AsSpan().CopyTo(span.Slice(writeIndex));
+				writeIndex += name.Length;
+
+				if (i < names.Count - 1)
+				{
+					span[writeIndex++] = ',';
+				}
+			}
+		});
+	}
+
+	private static void AddDistinctTransportName(
+		string transportName,
+		HashSet<string> distinctNames,
+		List<string> orderedNames,
+		ref int combinedNameLength)
+	{
+		if (!distinctNames.Add(transportName))
+		{
+			return;
+		}
+
+		orderedNames.Add(transportName);
+		combinedNameLength += transportName.Length;
 	}
 }

@@ -1,16 +1,12 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
-
 using Excalibur.Data.InMemory.Inbox;
 using Excalibur.Testing.Conformance;
+
 using InMemoryInboxOptions = Excalibur.Data.InMemory.Inbox.InMemoryInboxOptions;
 
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-
-using Xunit;
 
 namespace Excalibur.Tests.Testing.Conformance;
 

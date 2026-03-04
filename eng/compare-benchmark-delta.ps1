@@ -12,7 +12,7 @@ param(
     [double]$MaxRegressionPercent = 5.0,
 
     [Parameter(Mandatory = $false)]
-    [string]$OutputPath = "BenchmarkDotNet.Artifacts/results/mediatr-protected-delta.md"
+    [string]$OutputPath = "benchmarks/runs/BenchmarkDotNet.Artifacts/results/mediatr-protected-delta.md"
 )
 
 Set-StrictMode -Version Latest

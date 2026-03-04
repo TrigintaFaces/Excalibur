@@ -25,17 +25,27 @@ public class RoutingFirstParityBenchmarks
 {
 	private static readonly RoutingDecision LocalRoutingDecision = RoutingDecision.Success("local", []);
 	private static readonly RoutingDecision AwsSqsRoutingDecision = RoutingDecision.Success("aws-sqs", ["aws-sqs"]);
+	private static readonly RoutingDecision AwsSnsRoutingDecision = RoutingDecision.Success("aws-sns", ["aws-sns"]);
+	private static readonly RoutingDecision AwsEventBridgeRoutingDecision =
+		RoutingDecision.Success("aws-eventbridge", ["aws-eventbridge"]);
 	private static readonly RoutingDecision AzureServiceBusRoutingDecision =
 		RoutingDecision.Success("azure-servicebus", ["azure-servicebus"]);
+	private static readonly RoutingDecision AzureEventHubsRoutingDecision =
+		RoutingDecision.Success("azure-eventhubs", ["azure-eventhubs"]);
 	private static readonly RoutingDecision KafkaRoutingDecision = RoutingDecision.Success("kafka", ["kafka"]);
+	private static readonly RoutingDecision GrpcRoutingDecision = RoutingDecision.Success("grpc", ["grpc"]);
 	private static readonly RoutingDecision RabbitMqRoutingDecision = RoutingDecision.Success("rabbitmq", ["rabbitmq"]);
 
 	private IServiceProvider? _serviceProvider;
 	private IDispatcher? _dispatcher;
 	private IMessageContextFactory? _contextFactory;
 	private ProviderParityMessageBus? _awsSqsBus;
+	private ProviderParityMessageBus? _awsSnsBus;
+	private ProviderParityMessageBus? _awsEventBridgeBus;
 	private ProviderParityMessageBus? _azureServiceBus;
+	private ProviderParityMessageBus? _azureEventHubsBus;
 	private ProviderParityMessageBus? _kafkaBus;
+	private ProviderParityMessageBus? _grpcBus;
 	private ProviderParityMessageBus? _rabbitMqBus;
 
 	[GlobalSetup]
@@ -48,13 +58,21 @@ public class RoutingFirstParityBenchmarks
 		_ = services.AddTransient<IActionHandler<RoutingFirstQuery, int>, RoutingFirstQueryHandler>();
 
 		_awsSqsBus = new ProviderParityMessageBus("aws-sqs");
+		_awsSnsBus = new ProviderParityMessageBus("aws-sns");
+		_awsEventBridgeBus = new ProviderParityMessageBus("aws-eventbridge");
 		_azureServiceBus = new ProviderParityMessageBus("azure-servicebus");
+		_azureEventHubsBus = new ProviderParityMessageBus("azure-eventhubs");
 		_kafkaBus = new ProviderParityMessageBus("kafka");
+		_grpcBus = new ProviderParityMessageBus("grpc");
 		_rabbitMqBus = new ProviderParityMessageBus("rabbitmq");
 
 		_ = services.AddRemoteMessageBus("aws-sqs", _ => _awsSqsBus);
+		_ = services.AddRemoteMessageBus("aws-sns", _ => _awsSnsBus);
+		_ = services.AddRemoteMessageBus("aws-eventbridge", _ => _awsEventBridgeBus);
 		_ = services.AddRemoteMessageBus("azure-servicebus", _ => _azureServiceBus);
+		_ = services.AddRemoteMessageBus("azure-eventhubs", _ => _azureEventHubsBus);
 		_ = services.AddRemoteMessageBus("kafka", _ => _kafkaBus);
+		_ = services.AddRemoteMessageBus("grpc", _ => _grpcBus);
 		_ = services.AddRemoteMessageBus("rabbitmq", _ => _rabbitMqBus);
 
 		_serviceProvider = services.BuildServiceProvider();
@@ -98,6 +116,34 @@ public class RoutingFirstParityBenchmarks
 		var evt = new RoutingFirstEvent { Value = 42 };
 		return await DispatchWithRouteAsync(evt, AzureServiceBusRoutingDecision)
 			.ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch: pre-routed remote event (AWS SNS)")]
+	public async Task<IMessageResult> Dispatch_PreRoutedRemoteEvent_AwsSns()
+	{
+		var evt = new RoutingFirstEvent { Value = 42 };
+		return await DispatchWithRouteAsync(evt, AwsSnsRoutingDecision).ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch: pre-routed remote event (AWS EventBridge)")]
+	public async Task<IMessageResult> Dispatch_PreRoutedRemoteEvent_AwsEventBridge()
+	{
+		var evt = new RoutingFirstEvent { Value = 42 };
+		return await DispatchWithRouteAsync(evt, AwsEventBridgeRoutingDecision).ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch: pre-routed remote event (Azure Event Hubs)")]
+	public async Task<IMessageResult> Dispatch_PreRoutedRemoteEvent_AzureEventHubs()
+	{
+		var evt = new RoutingFirstEvent { Value = 42 };
+		return await DispatchWithRouteAsync(evt, AzureEventHubsRoutingDecision).ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch: pre-routed remote event (gRPC)")]
+	public async Task<IMessageResult> Dispatch_PreRoutedRemoteEvent_Grpc()
+	{
+		var evt = new RoutingFirstEvent { Value = 42 };
+		return await DispatchWithRouteAsync(evt, GrpcRoutingDecision).ConfigureAwait(false);
 	}
 
 	[Benchmark(Description = "Dispatch: pre-routed remote event (AWS SQS) throughput profile")]
@@ -212,6 +258,246 @@ public class RoutingFirstParityBenchmarks
 		return await DispatchWithRouteAsync(
 				evt,
 				AzureServiceBusRoutingDecision,
+				static context =>
+				{
+					context.Items[ProviderParityMessageBus.BenchmarkScenarioKey] = ProviderParityScenario.Observability;
+					context.Items[ProviderParityMessageBus.BenchmarkObservabilityDepthKey] = 8;
+				})
+			.ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch: pre-routed remote event (AWS SNS) throughput profile")]
+	public async Task<IMessageResult> Dispatch_PreRoutedRemoteEvent_AwsSns_Throughput()
+	{
+		var evt = new RoutingFirstEvent { Value = 42 };
+		return await DispatchWithRouteAsync(
+				evt,
+				AwsSnsRoutingDecision,
+				static context =>
+				{
+					context.Items[ProviderParityMessageBus.BenchmarkScenarioKey] = ProviderParityScenario.Throughput;
+					context.Items[ProviderParityMessageBus.BenchmarkBatchSizeKey] = 32;
+				})
+			.ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch: pre-routed remote event (AWS SNS) retry profile")]
+	public async Task<IMessageResult> Dispatch_PreRoutedRemoteEvent_AwsSns_Retry()
+	{
+		var evt = new RoutingFirstEvent { Value = 42 };
+		return await DispatchWithRouteAsync(
+				evt,
+				AwsSnsRoutingDecision,
+				static context =>
+				{
+					context.Items[ProviderParityMessageBus.BenchmarkScenarioKey] = ProviderParityScenario.Retry;
+					context.Items[ProviderParityMessageBus.BenchmarkRetryAttemptsKey] = 3;
+				})
+			.ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch: pre-routed remote event (AWS SNS) poison profile")]
+	public async Task<IMessageResult> Dispatch_PreRoutedRemoteEvent_AwsSns_Poison()
+	{
+		var evt = new RoutingFirstEvent { Value = 42 };
+		return await DispatchWithRouteAsync(
+				evt,
+				AwsSnsRoutingDecision,
+				static context =>
+				{
+					context.Items[ProviderParityMessageBus.BenchmarkScenarioKey] = ProviderParityScenario.Poison;
+					context.Items[ProviderParityMessageBus.BenchmarkPoisonReasonKey] = "delivery_failure";
+				})
+			.ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch: pre-routed remote event (AWS SNS) observability profile")]
+	public async Task<IMessageResult> Dispatch_PreRoutedRemoteEvent_AwsSns_Observability()
+	{
+		var evt = new RoutingFirstEvent { Value = 42 };
+		return await DispatchWithRouteAsync(
+				evt,
+				AwsSnsRoutingDecision,
+				static context =>
+				{
+					context.Items[ProviderParityMessageBus.BenchmarkScenarioKey] = ProviderParityScenario.Observability;
+					context.Items[ProviderParityMessageBus.BenchmarkObservabilityDepthKey] = 8;
+				})
+			.ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch: pre-routed remote event (AWS EventBridge) throughput profile")]
+	public async Task<IMessageResult> Dispatch_PreRoutedRemoteEvent_AwsEventBridge_Throughput()
+	{
+		var evt = new RoutingFirstEvent { Value = 42 };
+		return await DispatchWithRouteAsync(
+				evt,
+				AwsEventBridgeRoutingDecision,
+				static context =>
+				{
+					context.Items[ProviderParityMessageBus.BenchmarkScenarioKey] = ProviderParityScenario.Throughput;
+					context.Items[ProviderParityMessageBus.BenchmarkBatchSizeKey] = 32;
+				})
+			.ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch: pre-routed remote event (AWS EventBridge) retry profile")]
+	public async Task<IMessageResult> Dispatch_PreRoutedRemoteEvent_AwsEventBridge_Retry()
+	{
+		var evt = new RoutingFirstEvent { Value = 42 };
+		return await DispatchWithRouteAsync(
+				evt,
+				AwsEventBridgeRoutingDecision,
+				static context =>
+				{
+					context.Items[ProviderParityMessageBus.BenchmarkScenarioKey] = ProviderParityScenario.Retry;
+					context.Items[ProviderParityMessageBus.BenchmarkRetryAttemptsKey] = 3;
+				})
+			.ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch: pre-routed remote event (AWS EventBridge) poison profile")]
+	public async Task<IMessageResult> Dispatch_PreRoutedRemoteEvent_AwsEventBridge_Poison()
+	{
+		var evt = new RoutingFirstEvent { Value = 42 };
+		return await DispatchWithRouteAsync(
+				evt,
+				AwsEventBridgeRoutingDecision,
+				static context =>
+				{
+					context.Items[ProviderParityMessageBus.BenchmarkScenarioKey] = ProviderParityScenario.Poison;
+					context.Items[ProviderParityMessageBus.BenchmarkPoisonReasonKey] = "rule_target_failure";
+				})
+			.ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch: pre-routed remote event (AWS EventBridge) observability profile")]
+	public async Task<IMessageResult> Dispatch_PreRoutedRemoteEvent_AwsEventBridge_Observability()
+	{
+		var evt = new RoutingFirstEvent { Value = 42 };
+		return await DispatchWithRouteAsync(
+				evt,
+				AwsEventBridgeRoutingDecision,
+				static context =>
+				{
+					context.Items[ProviderParityMessageBus.BenchmarkScenarioKey] = ProviderParityScenario.Observability;
+					context.Items[ProviderParityMessageBus.BenchmarkObservabilityDepthKey] = 8;
+				})
+			.ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch: pre-routed remote event (Azure Event Hubs) throughput profile")]
+	public async Task<IMessageResult> Dispatch_PreRoutedRemoteEvent_AzureEventHubs_Throughput()
+	{
+		var evt = new RoutingFirstEvent { Value = 42 };
+		return await DispatchWithRouteAsync(
+				evt,
+				AzureEventHubsRoutingDecision,
+				static context =>
+				{
+					context.Items[ProviderParityMessageBus.BenchmarkScenarioKey] = ProviderParityScenario.Throughput;
+					context.Items[ProviderParityMessageBus.BenchmarkBatchSizeKey] = 32;
+				})
+			.ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch: pre-routed remote event (Azure Event Hubs) retry profile")]
+	public async Task<IMessageResult> Dispatch_PreRoutedRemoteEvent_AzureEventHubs_Retry()
+	{
+		var evt = new RoutingFirstEvent { Value = 42 };
+		return await DispatchWithRouteAsync(
+				evt,
+				AzureEventHubsRoutingDecision,
+				static context =>
+				{
+					context.Items[ProviderParityMessageBus.BenchmarkScenarioKey] = ProviderParityScenario.Retry;
+					context.Items[ProviderParityMessageBus.BenchmarkRetryAttemptsKey] = 3;
+				})
+			.ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch: pre-routed remote event (Azure Event Hubs) poison profile")]
+	public async Task<IMessageResult> Dispatch_PreRoutedRemoteEvent_AzureEventHubs_Poison()
+	{
+		var evt = new RoutingFirstEvent { Value = 42 };
+		return await DispatchWithRouteAsync(
+				evt,
+				AzureEventHubsRoutingDecision,
+				static context =>
+				{
+					context.Items[ProviderParityMessageBus.BenchmarkScenarioKey] = ProviderParityScenario.Poison;
+					context.Items[ProviderParityMessageBus.BenchmarkPoisonReasonKey] = "checkpoint_failure";
+				})
+			.ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch: pre-routed remote event (Azure Event Hubs) observability profile")]
+	public async Task<IMessageResult> Dispatch_PreRoutedRemoteEvent_AzureEventHubs_Observability()
+	{
+		var evt = new RoutingFirstEvent { Value = 42 };
+		return await DispatchWithRouteAsync(
+				evt,
+				AzureEventHubsRoutingDecision,
+				static context =>
+				{
+					context.Items[ProviderParityMessageBus.BenchmarkScenarioKey] = ProviderParityScenario.Observability;
+					context.Items[ProviderParityMessageBus.BenchmarkObservabilityDepthKey] = 8;
+				})
+			.ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch: pre-routed remote event (gRPC) throughput profile")]
+	public async Task<IMessageResult> Dispatch_PreRoutedRemoteEvent_Grpc_Throughput()
+	{
+		var evt = new RoutingFirstEvent { Value = 42 };
+		return await DispatchWithRouteAsync(
+				evt,
+				GrpcRoutingDecision,
+				static context =>
+				{
+					context.Items[ProviderParityMessageBus.BenchmarkScenarioKey] = ProviderParityScenario.Throughput;
+					context.Items[ProviderParityMessageBus.BenchmarkBatchSizeKey] = 32;
+				})
+			.ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch: pre-routed remote event (gRPC) retry profile")]
+	public async Task<IMessageResult> Dispatch_PreRoutedRemoteEvent_Grpc_Retry()
+	{
+		var evt = new RoutingFirstEvent { Value = 42 };
+		return await DispatchWithRouteAsync(
+				evt,
+				GrpcRoutingDecision,
+				static context =>
+				{
+					context.Items[ProviderParityMessageBus.BenchmarkScenarioKey] = ProviderParityScenario.Retry;
+					context.Items[ProviderParityMessageBus.BenchmarkRetryAttemptsKey] = 3;
+				})
+			.ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch: pre-routed remote event (gRPC) poison profile")]
+	public async Task<IMessageResult> Dispatch_PreRoutedRemoteEvent_Grpc_Poison()
+	{
+		var evt = new RoutingFirstEvent { Value = 42 };
+		return await DispatchWithRouteAsync(
+				evt,
+				GrpcRoutingDecision,
+				static context =>
+				{
+					context.Items[ProviderParityMessageBus.BenchmarkScenarioKey] = ProviderParityScenario.Poison;
+					context.Items[ProviderParityMessageBus.BenchmarkPoisonReasonKey] = "deserialization_error";
+				})
+			.ConfigureAwait(false);
+	}
+
+	[Benchmark(Description = "Dispatch: pre-routed remote event (gRPC) observability profile")]
+	public async Task<IMessageResult> Dispatch_PreRoutedRemoteEvent_Grpc_Observability()
+	{
+		var evt = new RoutingFirstEvent { Value = 42 };
+		return await DispatchWithRouteAsync(
+				evt,
+				GrpcRoutingDecision,
 				static context =>
 				{
 					context.Items[ProviderParityMessageBus.BenchmarkScenarioKey] = ProviderParityScenario.Observability;
@@ -505,8 +791,12 @@ internal sealed class ProviderParityMessageBus(string providerName) : IMessageBu
 	private readonly string _providerMetadataKey = providerName switch
 	{
 		"aws-sqs" => "benchmark.aws.attributes",
+		"aws-sns" => "benchmark.sns.attributes",
+		"aws-eventbridge" => "benchmark.eventbridge.attributes",
 		"azure-servicebus" => "benchmark.asb.applicationProperties",
+		"azure-eventhubs" => "benchmark.eventhubs.properties",
 		"kafka" => "benchmark.kafka.headers",
+		"grpc" => "benchmark.grpc.metadata",
 		_ => "benchmark.rabbitmq.headers",
 	};
 

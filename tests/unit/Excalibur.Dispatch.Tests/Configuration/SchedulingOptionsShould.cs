@@ -21,6 +21,10 @@ public sealed class SchedulingOptionsShould
 		// Assert
 		options.PollInterval.ShouldBe(TimeSpan.FromSeconds(30));
 		options.PastScheduleBehavior.ShouldBe(PastScheduleBehavior.ExecuteImmediately);
+		options.EnableAdaptivePolling.ShouldBeFalse();
+		options.MinPollingInterval.ShouldBe(TimeSpan.FromSeconds(1));
+		options.AdaptivePollingBackoffMultiplier.ShouldBe(2.0);
+		options.PollingJitterRatio.ShouldBe(0);
 	}
 
 	[Fact]
@@ -31,11 +35,19 @@ public sealed class SchedulingOptionsShould
 		{
 			PollInterval = TimeSpan.FromMinutes(1),
 			PastScheduleBehavior = PastScheduleBehavior.Reject,
+			EnableAdaptivePolling = true,
+			MinPollingInterval = TimeSpan.FromMilliseconds(250),
+			AdaptivePollingBackoffMultiplier = 1.5,
+			PollingJitterRatio = 0.1,
 		};
 
 		// Assert
 		options.PollInterval.ShouldBe(TimeSpan.FromMinutes(1));
 		options.PastScheduleBehavior.ShouldBe(PastScheduleBehavior.Reject);
+		options.EnableAdaptivePolling.ShouldBeTrue();
+		options.MinPollingInterval.ShouldBe(TimeSpan.FromMilliseconds(250));
+		options.AdaptivePollingBackoffMultiplier.ShouldBe(1.5);
+		options.PollingJitterRatio.ShouldBe(0.1);
 	}
 
 	// --- CronScheduleOptions ---

@@ -141,11 +141,13 @@ Dispatch is optimized for high-throughput, low-latency messaging with lean local
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| **Dispatch single command** | 118.79 ns | BenchmarkDotNet comparative matrix run on February 19, 2026 |
-| **MediatR single command** | 40.92 ns | Same run, in-process microbenchmark |
-| **Wolverine single command (`InvokeAsync`)** | 209.48 ns | Same run, in-process microbenchmark |
-| **MassTransit single command** | 15.515 ms | Same run, in-memory bus and queued semantics |
-| **Memory allocation (ultra-local single command)** | 48 B | Lowest-overhead local dispatch path in this run |
+| **Dispatch single command (lean)** | 75.32 ns | BenchmarkDotNet comparative matrix baseline (March 2, 2026) |
+| **Dispatch ultra-local single command** | 31.54 ns | Lowest-overhead local Dispatch path in the same run |
+| **Dispatch singleton-promoted single command** | 31.73 ns | Cached direct handler path in the same run |
+| **Dispatch vs Wolverine (`InvokeAsync`)** | 132.26 ns vs 368.19 ns | In-process command parity comparison |
+| **Dispatch vs MassTransit Mediator** | 178.2 ns vs 4,120.8 ns | In-process mediator parity comparison |
+| **Dispatch queued command end-to-end** | 1.147 us | Queued/bus parity benchmark |
+| **Pre-routed local command** | 78.17 ns | Routing-first parity benchmark |
 
 ### Optimizations Included
 
@@ -166,7 +168,8 @@ services.Configure<PerformanceOptions>(o => o.AutoFreezeOnStart = false);
 
 For detailed benchmarks, methodology caveats, and raw reports, see:
 - [Competitor comparison](docs-site/docs/performance/competitor-comparison.md)
-- `BenchmarkDotNet.Artifacts/results/` (latest local run outputs)
+- `benchmarks/baselines/net10.0/dispatch-comparative-20260302/results/` (current published baseline)
+- `benchmarks/runs/BenchmarkDotNet.Artifacts/results/` (latest local run outputs)
 
 ---
 

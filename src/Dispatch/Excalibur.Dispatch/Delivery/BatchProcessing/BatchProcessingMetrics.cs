@@ -14,6 +14,8 @@ namespace Excalibur.Dispatch.Delivery.BatchProcessing;
 /// </summary>
 public sealed class BatchProcessingMetrics : IDisposable
 {
+	private static readonly KeyValuePair<string, object?>[] EmptyTagList = [];
+
 	private readonly Meter _meter;
 	private readonly TelemetryClient? _telemetryClient;
 
@@ -129,8 +131,7 @@ public sealed class BatchProcessingMetrics : IDisposable
 		var throughput = duration.TotalSeconds > 0 ? totalProcessed / duration.TotalSeconds : 0;
 
 		// Update counters
-		var tagList = tags?.Select(static kvp => new KeyValuePair<string, object?>(kvp.Key, kvp.Value)).ToArray()
-					  ?? [];
+		var tagList = CreateTagList(tags);
 		_messagesProcessedCounter.Add(successfulCount, tagList);
 		_failedMessagesCounter.Add(failedCount, tagList);
 		_batchesProcessedCounter.Add(1, tagList);
@@ -152,9 +153,7 @@ public sealed class BatchProcessingMetrics : IDisposable
 
 		if (tags != null)
 		{
-			var properties = tags.ToDictionary(
-				static kvp => kvp.Key,
-				static kvp => kvp.Value?.ToString() ?? string.Empty, StringComparer.Ordinal);
+			var properties = CreateTelemetryProperties(tags);
 
 			_telemetryClient?.TrackEvent("BatchProcessingCompleted", properties);
 		}
@@ -163,13 +162,42 @@ public sealed class BatchProcessingMetrics : IDisposable
 	/// <summary>
 	/// Records a batch processing failure.
 	/// </summary>
-	public void RecordBatchFailure(Exception exception, Dictionary<string, object?>? tags = null) =>
-		_telemetryClient?.TrackException(exception, tags?.ToDictionary(
-			static kvp => kvp.Key,
-			static kvp => kvp.Value?.ToString() ?? string.Empty));
+	public void RecordBatchFailure(Exception exception, Dictionary<string, object?>? tags = null)
+	{
+		var properties = tags is null ? null : CreateTelemetryProperties(tags);
+		_telemetryClient?.TrackException(exception, properties);
+	}
 
 	/// <summary>
 	/// Disposes of the metrics resources.
 	/// </summary>
 	public void Dispose() => _meter?.Dispose();
+
+	private static KeyValuePair<string, object?>[] CreateTagList(Dictionary<string, object?>? tags)
+	{
+		if (tags is null || tags.Count == 0)
+		{
+			return EmptyTagList;
+		}
+
+		var tagList = new KeyValuePair<string, object?>[tags.Count];
+		var index = 0;
+		foreach (var tag in tags)
+		{
+			tagList[index++] = tag;
+		}
+
+		return tagList;
+	}
+
+	private static Dictionary<string, string> CreateTelemetryProperties(Dictionary<string, object?> tags)
+	{
+		var properties = new Dictionary<string, string>(tags.Count, StringComparer.Ordinal);
+		foreach (var tag in tags)
+		{
+			properties[tag.Key] = tag.Value?.ToString() ?? string.Empty;
+		}
+
+		return properties;
+	}
 }

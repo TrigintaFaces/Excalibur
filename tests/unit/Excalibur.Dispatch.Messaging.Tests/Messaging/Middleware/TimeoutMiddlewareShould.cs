@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Timeout;
 using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Tests.TestFakes;
 

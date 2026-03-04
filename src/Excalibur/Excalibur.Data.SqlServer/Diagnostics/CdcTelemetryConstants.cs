@@ -56,7 +56,7 @@ public static class CdcTelemetryConstants
 	/// Tag names for CDC metrics.
 	/// </summary>
 	[SuppressMessage("Design", "CA1034:Nested types should not be visible", Justification = "Logical grouping of telemetry constants")]
-	public static class Tags
+	public static class TagNames
 	{
 		/// <summary>The capture instance (table) name.</summary>
 		public const string CaptureInstance = "cdc.capture_instance";

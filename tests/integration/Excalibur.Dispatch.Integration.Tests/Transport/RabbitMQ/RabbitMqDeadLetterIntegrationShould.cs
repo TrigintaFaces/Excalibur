@@ -6,6 +6,7 @@ using System.Text;
 using RabbitMQ.Client;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Infrastructure;
 
 using Testcontainers.RabbitMq;
 
@@ -22,6 +23,8 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.RabbitMQ;
 [Trait("Component", "Transport")]
 public sealed class RabbitMqDeadLetterIntegrationShould : IAsyncLifetime
 {
+    private static readonly TimeSpan MessageWaitTimeout = TestTimeouts.Scale(TimeSpan.FromSeconds(20));
+
     private RabbitMqContainer? _container;
     private IConnection? _connection;
     private IChannel? _channel;
@@ -143,17 +146,13 @@ public sealed class RabbitMqDeadLetterIntegrationShould : IAsyncLifetime
             },
             body: Encoding.UTF8.GetBytes("dead letter test")).ConfigureAwait(false);
 
-        await Task.Delay(500).ConfigureAwait(false);
-
         // Act - receive and reject (nack without requeue)
-        var mainResult = await _channel.BasicGetAsync(mainQueue, autoAck: false).ConfigureAwait(false);
+        var mainResult = await WaitForBasicGetAsync(_channel, mainQueue, autoAck: false, MessageWaitTimeout).ConfigureAwait(false);
         mainResult.ShouldNotBeNull();
         await _channel.BasicNackAsync(mainResult.DeliveryTag, multiple: false, requeue: false).ConfigureAwait(false);
 
-        await Task.Delay(1000).ConfigureAwait(false);
-
         // Assert - message should be in DLQ
-        var dlqResult = await _channel.BasicGetAsync(dlqQueue, autoAck: true).ConfigureAwait(false);
+        var dlqResult = await WaitForBasicGetAsync(_channel, dlqQueue, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
         dlqResult.ShouldNotBeNull();
         dlqResult.BasicProperties.MessageId.ShouldBe("dlx-msg-001");
         Encoding.UTF8.GetString(dlqResult.Body.ToArray()).ShouldBe("dead letter test");
@@ -208,17 +207,13 @@ public sealed class RabbitMqDeadLetterIntegrationShould : IAsyncLifetime
             },
             body: Encoding.UTF8.GetBytes("{\"data\":1}")).ConfigureAwait(false);
 
-        await Task.Delay(500).ConfigureAwait(false);
-
         // Act - reject to trigger DLX routing
-        var mainResult = await _channel.BasicGetAsync(mainQueue, autoAck: false).ConfigureAwait(false);
+        var mainResult = await WaitForBasicGetAsync(_channel, mainQueue, autoAck: false, MessageWaitTimeout).ConfigureAwait(false);
         mainResult.ShouldNotBeNull();
         await _channel.BasicNackAsync(mainResult.DeliveryTag, multiple: false, requeue: false).ConfigureAwait(false);
 
-        await Task.Delay(1000).ConfigureAwait(false);
-
         // Assert - DLQ message should contain x-death header (added by RabbitMQ)
-        var dlqResult = await _channel.BasicGetAsync(dlqQueue, autoAck: true).ConfigureAwait(false);
+        var dlqResult = await WaitForBasicGetAsync(_channel, dlqQueue, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
         dlqResult.ShouldNotBeNull();
         dlqResult.BasicProperties.Headers.ShouldNotBeNull();
         dlqResult.BasicProperties.Headers.ShouldContainKey("x-death");
@@ -275,10 +270,8 @@ public sealed class RabbitMqDeadLetterIntegrationShould : IAsyncLifetime
             basicProperties: properties,
             body: Encoding.UTF8.GetBytes("failed message body")).ConfigureAwait(false);
 
-        await Task.Delay(500).ConfigureAwait(false);
-
         // Assert
-        var result = await _channel.BasicGetAsync(dlqQueue, autoAck: true).ConfigureAwait(false);
+        var result = await WaitForBasicGetAsync(_channel, dlqQueue, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
         result.ShouldNotBeNull();
         result.BasicProperties.MessageId.ShouldBe("direct-dlq-msg");
         result.BasicProperties.Headers.ShouldNotBeNull();
@@ -334,11 +327,8 @@ public sealed class RabbitMqDeadLetterIntegrationShould : IAsyncLifetime
             basicProperties: new BasicProperties { MessageId = "ttl-expire-msg" },
             body: Encoding.UTF8.GetBytes("ttl expired")).ConfigureAwait(false);
 
-        // Wait for TTL to expire and DLX routing
-        await Task.Delay(3000).ConfigureAwait(false);
-
         // Assert - message should be in DLQ after TTL expiry
-        var dlqResult = await _channel.BasicGetAsync(dlqQueue, autoAck: true).ConfigureAwait(false);
+        var dlqResult = await WaitForBasicGetAsync(_channel, dlqQueue, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
         dlqResult.ShouldNotBeNull();
         dlqResult.BasicProperties.MessageId.ShouldBe("ttl-expire-msg");
         Encoding.UTF8.GetString(dlqResult.Body.ToArray()).ShouldBe("ttl expired");
@@ -372,9 +362,18 @@ public sealed class RabbitMqDeadLetterIntegrationShould : IAsyncLifetime
                 body: Encoding.UTF8.GetBytes($"purge-{i}")).ConfigureAwait(false);
         }
 
-        await Task.Delay(500).ConfigureAwait(false);
-
         // Act
+        var queuePopulated = await WaitHelpers.WaitUntilAsync(
+                async () =>
+                {
+                    var queueInfo = await _channel.QueueDeclarePassiveAsync(dlqQueue).ConfigureAwait(false);
+                    return queueInfo.MessageCount == 5u;
+                },
+                MessageWaitTimeout,
+                TimeSpan.FromMilliseconds(100))
+            .ConfigureAwait(false);
+        queuePopulated.ShouldBeTrue("Expected DLQ to contain all published messages before purge.");
+
         var purgedCount = await _channel.QueuePurgeAsync(dlqQueue).ConfigureAwait(false);
 
         // Assert
@@ -427,16 +426,12 @@ public sealed class RabbitMqDeadLetterIntegrationShould : IAsyncLifetime
             basicProperties: new BasicProperties { MessageId = "routed-dlq-msg" },
             body: Encoding.UTF8.GetBytes("routed dlq")).ConfigureAwait(false);
 
-        await Task.Delay(500).ConfigureAwait(false);
-
-        var mainResult = await _channel.BasicGetAsync(mainQueue, autoAck: false).ConfigureAwait(false);
+        var mainResult = await WaitForBasicGetAsync(_channel, mainQueue, autoAck: false, MessageWaitTimeout).ConfigureAwait(false);
         mainResult.ShouldNotBeNull();
         await _channel.BasicNackAsync(mainResult.DeliveryTag, multiple: false, requeue: false).ConfigureAwait(false);
 
-        await Task.Delay(1000).ConfigureAwait(false);
-
         // Assert - should route to high-priority DLQ
-        var highResult = await _channel.BasicGetAsync(dlqHighPriority, autoAck: true).ConfigureAwait(false);
+        var highResult = await WaitForBasicGetAsync(_channel, dlqHighPriority, autoAck: true, MessageWaitTimeout).ConfigureAwait(false);
         highResult.ShouldNotBeNull();
         highResult.BasicProperties.MessageId.ShouldBe("routed-dlq-msg");
 
@@ -468,12 +463,32 @@ public sealed class RabbitMqDeadLetterIntegrationShould : IAsyncLifetime
                 body: Encoding.UTF8.GetBytes($"stats-{i}")).ConfigureAwait(false);
         }
 
-        await Task.Delay(500).ConfigureAwait(false);
-
         // Act
+        var hasExpectedMessageCount = await WaitHelpers.WaitUntilAsync(
+                async () =>
+                {
+                    var info = await _channel.QueueDeclarePassiveAsync(queueName).ConfigureAwait(false);
+                    return info.MessageCount == 3u;
+                },
+                MessageWaitTimeout,
+                TimeSpan.FromMilliseconds(100))
+            .ConfigureAwait(false);
+        hasExpectedMessageCount.ShouldBeTrue("Expected queue to report 3 messages.");
         var queueInfo = await _channel.QueueDeclarePassiveAsync(queueName).ConfigureAwait(false);
 
         // Assert
         queueInfo.MessageCount.ShouldBe(3u);
+    }
+
+    private static Task<BasicGetResult?> WaitForBasicGetAsync(
+        IChannel channel,
+        string queueName,
+        bool autoAck,
+        TimeSpan timeout)
+    {
+        return WaitHelpers.WaitForValueAsync(
+            () => channel.BasicGetAsync(queueName, autoAck),
+            timeout,
+            TimeSpan.FromMilliseconds(100));
     }
 }

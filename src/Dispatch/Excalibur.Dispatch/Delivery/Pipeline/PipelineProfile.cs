@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Auth;
 
 namespace Excalibur.Dispatch.Delivery.Pipeline;
 
@@ -17,6 +18,12 @@ namespace Excalibur.Dispatch.Delivery.Pipeline;
 /// </summary>
 public sealed class PipelineProfile : IPipelineProfile
 {
+	private static readonly ConcurrentDictionary<Type, MessageKinds> MessageKindsCache = new();
+	private static readonly IReadOnlySet<DispatchFeatures> NoEnabledFeatures = new HashSet<DispatchFeatures>();
+
+	private readonly MiddlewareRule[] _middlewareRules;
+	private readonly ConcurrentDictionary<MessageKinds, IReadOnlyList<Type>> _noFeatureApplicableMiddlewareCache = new();
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PipelineProfile"/> class.
 	/// Creates a new pipeline profile.
@@ -34,12 +41,11 @@ public sealed class PipelineProfile : IPipelineProfile
 
 		Name = name;
 		Description = description;
-		MiddlewareTypes = middlewareTypes.ToList().AsReadOnly();
 		IsStrict = isStrict;
 		SupportedMessageKinds = supportedMessageKinds;
 
-		// Validate all types implement IDispatchMiddleware
-		foreach (var type in MiddlewareTypes)
+		var middlewareTypeList = new List<Type>();
+		foreach (var type in middlewareTypes)
 		{
 			if (!typeof(IDispatchMiddleware).IsAssignableFrom(type))
 			{
@@ -47,6 +53,15 @@ public sealed class PipelineProfile : IPipelineProfile
 								ErrorMessages.TypeDoesNotImplementInterface,
 								nameof(middlewareTypes));
 			}
+
+			middlewareTypeList.Add(type);
+		}
+
+		MiddlewareTypes = middlewareTypeList.AsReadOnly();
+		_middlewareRules = new MiddlewareRule[middlewareTypeList.Count];
+		for (var i = 0; i < middlewareTypeList.Count; i++)
+		{
+			_middlewareRules[i] = MiddlewareRule.Create(middlewareTypeList[i]);
 		}
 	}
 
@@ -126,7 +141,7 @@ public sealed class PipelineProfile : IPipelineProfile
 	/// <param name="messageKind"> The message kind to filter for. </param>
 	/// <returns> An ordered list of applicable middleware types. </returns>
 	public IReadOnlyList<Type> GetApplicableMiddleware(MessageKinds messageKind) =>
-		GetApplicableMiddleware(messageKind, new HashSet<DispatchFeatures>());
+		_noFeatureApplicableMiddlewareCache.GetOrAdd(messageKind, CreateNoFeatureApplicableMiddleware);
 
 	/// <summary>
 	/// Gets middleware applicable to the specified message kind and enabled features. Implements R2.6.
@@ -134,16 +149,28 @@ public sealed class PipelineProfile : IPipelineProfile
 	/// <param name="messageKind"> The message kind to filter for. </param>
 	/// <param name="enabledFeatures"> The set of enabled dispatch features. </param>
 	/// <returns> An ordered list of applicable middleware types. </returns>
-	public IReadOnlyList<Type> GetApplicableMiddleware(MessageKinds messageKind, IReadOnlySet<DispatchFeatures> enabledFeatures) =>
-		MiddlewareTypes
-			.Where(m => IsApplicableToMessageKind(m, messageKind) && HasRequiredFeatures(m, enabledFeatures))
-			.ToList();
+	public IReadOnlyList<Type> GetApplicableMiddleware(MessageKinds messageKind, IReadOnlySet<DispatchFeatures> enabledFeatures)
+	{
+		ArgumentNullException.ThrowIfNull(enabledFeatures);
+
+		if (ReferenceEquals(enabledFeatures, NoEnabledFeatures) || enabledFeatures.Count == 0)
+		{
+			return _noFeatureApplicableMiddlewareCache.GetOrAdd(messageKind, CreateNoFeatureApplicableMiddleware);
+		}
+
+		return FilterApplicableMiddleware(messageKind, enabledFeatures);
+	}
 
 	[RequiresUnreferencedCode("Uses reflection to check for generic action interfaces")]
 	private static MessageKinds DetermineMessageKinds(IDispatchMessage message)
 	{
+		return MessageKindsCache.GetOrAdd(message.GetType(), static type => DetermineMessageKinds(type));
+	}
+
+	[RequiresUnreferencedCode("Uses reflection to check for generic action interfaces")]
+	private static MessageKinds DetermineMessageKinds(Type type)
+	{
 		var kinds = MessageKinds.None;
-		var type = message.GetType();
 
 		// Check for IDispatchAction (including generic variants)
 		// Uses manual loop to avoid LINQ iterator allocation
@@ -174,44 +201,29 @@ public sealed class PipelineProfile : IPipelineProfile
 		return kinds;
 	}
 
-	/// <summary>
-	/// Determines if middleware is applicable to a specific message kind using attributes.
-	/// </summary>
-	private static bool IsApplicableToMessageKind(Type middlewareType, MessageKinds messageKind)
+	private IReadOnlyList<Type> CreateNoFeatureApplicableMiddleware(MessageKinds messageKind)
 	{
-		var appliesToAttribute = middlewareType.GetCustomAttribute<AppliesToAttribute>();
-		var excludeKindsAttribute = middlewareType.GetCustomAttribute<ExcludeKindsAttribute>();
-
-		// Check for exclusion first (R2.5 - exclusion overrides inclusion)
-		if (excludeKindsAttribute?.ExcludedKinds.HasFlag(messageKind) == true)
-		{
-			return false;
-		}
-
-		// Check for inclusion
-		if (appliesToAttribute != null)
-		{
-			return appliesToAttribute.MessageKinds.HasFlag(messageKind);
-		}
-
-		// Default to All if no attributes (R2.4)
-		return true;
+		return FilterApplicableMiddleware(messageKind, NoEnabledFeatures);
 	}
 
-	/// <summary>
-	/// Determines if middleware has all required features enabled.
-	/// </summary>
-	private static bool HasRequiredFeatures(Type middlewareType, IReadOnlySet<DispatchFeatures> enabledFeatures)
+	private IReadOnlyList<Type> FilterApplicableMiddleware(MessageKinds messageKind, IReadOnlySet<DispatchFeatures> enabledFeatures)
 	{
-		var requiresFeaturesAttribute = middlewareType.GetCustomAttribute<RequiresFeaturesAttribute>();
-
-		if (requiresFeaturesAttribute == null)
+		if (_middlewareRules.Length == 0)
 		{
-			return true; // No feature requirements
+			return [];
 		}
 
-		// All required features must be enabled (R2.6)
-		return requiresFeaturesAttribute.Features.All(enabledFeatures.Contains);
+		var applicable = new List<Type>(_middlewareRules.Length);
+		for (var i = 0; i < _middlewareRules.Length; i++)
+		{
+			ref readonly var rule = ref _middlewareRules[i];
+			if (rule.IsApplicable(messageKind, enabledFeatures))
+			{
+				applicable.Add(rule.MiddlewareType);
+			}
+		}
+
+		return applicable.Count == 0 ? [] : applicable;
 	}
 
 	/// <summary>
@@ -231,5 +243,78 @@ public sealed class PipelineProfile : IPipelineProfile
 		}
 
 		return false;
+	}
+
+	private readonly struct MiddlewareRule
+	{
+		private readonly MessageKinds _includedKinds;
+		private readonly MessageKinds _excludedKinds;
+		private readonly DispatchFeatures[] _requiredFeatures;
+
+		private MiddlewareRule(
+			Type middlewareType,
+			MessageKinds includedKinds,
+			MessageKinds excludedKinds,
+			DispatchFeatures[] requiredFeatures)
+		{
+			MiddlewareType = middlewareType;
+			_includedKinds = includedKinds;
+			_excludedKinds = excludedKinds;
+			_requiredFeatures = requiredFeatures;
+		}
+
+		public Type MiddlewareType { get; }
+
+		public static MiddlewareRule Create(Type middlewareType)
+		{
+			var appliesToAttribute = middlewareType.GetCustomAttribute<AppliesToAttribute>();
+			var excludeKindsAttribute = middlewareType.GetCustomAttribute<ExcludeKindsAttribute>();
+			var requiresFeaturesAttribute = middlewareType.GetCustomAttribute<RequiresFeaturesAttribute>();
+
+			var requiredFeatures = requiresFeaturesAttribute?.Features;
+			DispatchFeatures[] requiredFeatureArray;
+			if (requiredFeatures is null || requiredFeatures.Count == 0)
+			{
+				requiredFeatureArray = [];
+			}
+			else
+			{
+				requiredFeatureArray = new DispatchFeatures[requiredFeatures.Count];
+				for (var i = 0; i < requiredFeatures.Count; i++)
+				{
+					requiredFeatureArray[i] = requiredFeatures[i];
+				}
+			}
+
+			return new MiddlewareRule(
+				middlewareType,
+				appliesToAttribute?.MessageKinds ?? MessageKinds.All,
+				excludeKindsAttribute?.ExcludedKinds ?? MessageKinds.None,
+				requiredFeatureArray);
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		public bool IsApplicable(MessageKinds messageKind, IReadOnlySet<DispatchFeatures> enabledFeatures)
+		{
+			if ((_excludedKinds & messageKind) != MessageKinds.None)
+			{
+				return false;
+			}
+
+			if ((_includedKinds & messageKind) == MessageKinds.None)
+			{
+				return false;
+			}
+
+			for (var i = 0; i < _requiredFeatures.Length; i++)
+			{
+				if (!enabledFeatures.Contains(_requiredFeatures[i]))
+				{
+					return false;
+				}
+			}
+
+			return true;
+		}
 	}
 }

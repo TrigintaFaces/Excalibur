@@ -5,38 +5,26 @@ using Elastic.Clients.Elasticsearch;
 using Elastic.Clients.Elasticsearch.IndexManagement;
 
 using Excalibur.Data.ElasticSearch.IndexManagement;
+using Excalibur.Integration.Tests.DataElasticSearch.Infrastructure.TestBaseClasses;
 
-using Testcontainers.Elasticsearch;
+using Tests.Shared.Fixtures;
 
 namespace Excalibur.Integration.Tests.DataElasticSearch.IndexManagement;
 
 /// <summary>
 ///     Integration tests for <see cref="IndexTemplateManager" /> using Tests.Shared.Handlers.
 /// </summary>
-[System.Diagnostics.CodeAnalysis.SuppressMessage("IDisposable", "CA1001:Types that own disposable fields should be disposable", Justification = "Disposed via IAsyncLifetime.DisposeAsync")]
-public sealed class IndexTemplateManagerIntegrationShould : IAsyncLifetime
+[System.Diagnostics.CodeAnalysis.SuppressMessage("IDisposable", "CA1001:Types that own disposable fields should be disposable", Justification = "Disposed via IDisposable.Dispose")]
+[Collection(nameof(ElasticsearchHostTests))]
+public sealed class IndexTemplateManagerIntegrationShould : IDisposable
 {
-	private readonly ElasticsearchContainer _elasticsearchContainer = new ElasticsearchBuilder()
-		.WithImage("docker.elastic.co/elasticsearch/elasticsearch:8.11.0")
-		.WithEnvironment("discovery.type", "single-node")
-		.WithEnvironment("xpack.security.enabled", "false")
-		.Build();
+	private readonly ElasticsearchClient _client;
+	private readonly IndexTemplateManager _manager;
+	private readonly ILoggerFactory _loggerFactory;
 
-	private ElasticsearchClient _client = null!;
-	private IndexTemplateManager _manager = null!;
-	private ILoggerFactory _loggerFactory = null!;
-
-	/// <inheritdoc/>
-	public async Task InitializeAsync()
+	public IndexTemplateManagerIntegrationShould(ElasticsearchContainerFixture fixture)
 	{
-		await _elasticsearchContainer.StartAsync().ConfigureAwait(true);
-
-		// GetConnectionString() returns https:// by default, but security is disabled so ES
-		// listens on plain HTTP. Replace the scheme to avoid SSL handshake failures.
-		var connectionString = _elasticsearchContainer.GetConnectionString()
-			.Replace("https://", "http://", StringComparison.OrdinalIgnoreCase);
-
-		var settings = new ElasticsearchClientSettings(new Uri(connectionString));
+		var settings = new ElasticsearchClientSettings(new Uri(fixture.ConnectionString));
 		_client = new ElasticsearchClient(settings);
 
 		_loggerFactory = new LoggerFactory();
@@ -44,11 +32,9 @@ public sealed class IndexTemplateManagerIntegrationShould : IAsyncLifetime
 		_manager = new IndexTemplateManager(_client, logger);
 	}
 
-	/// <inheritdoc/>
-	public async Task DisposeAsync()
+	public void Dispose()
 	{
-		_loggerFactory?.Dispose();
-		await _elasticsearchContainer.DisposeAsync().ConfigureAwait(true);
+		_loggerFactory.Dispose();
 	}
 
 	[Fact]

@@ -58,7 +58,14 @@ public sealed class SqlServerEventStoreConcurrencyIntegrationShould : IAsyncLife
 	{
 		if (_container != null)
 		{
-			await _container.DisposeAsync().ConfigureAwait(false);
+			try
+			{
+				await _container.DisposeAsync().ConfigureAwait(false);
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine($"Container cleanup failed: {ex.Message}");
+			}
 		}
 	}
 

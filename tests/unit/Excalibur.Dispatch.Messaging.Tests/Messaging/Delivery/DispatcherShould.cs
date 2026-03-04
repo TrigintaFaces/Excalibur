@@ -600,6 +600,29 @@ public sealed class DispatcherShould
 	}
 
 	[Fact]
+	public async Task Set_And_Clear_Ambient_Context_On_DirectLocal_FastPath_When_None_Exists()
+	{
+		// Arrange
+		var (dispatcher, localInvoker, _) = CreateTransportAwareDispatcherForFastPath();
+		var context = new MessageContext();
+		var message = new LocalTransportAction();
+		IMessageContext? capturedAmbient = null;
+		MessageContextHolder.Current = null;
+
+		_ = A.CallTo(() => localInvoker.InvokeAsync(A<object>._, message, A<CancellationToken>._))
+			.Invokes(() => capturedAmbient = MessageContextHolder.Current)
+			.Returns(Task.FromResult<object?>(null));
+
+		// Act
+		var result = await dispatcher.DispatchAsync(message, context, CancellationToken.None).ConfigureAwait(true);
+
+		// Assert
+		result.Succeeded.ShouldBeTrue();
+		capturedAmbient.ShouldBe(context);
+		MessageContextHolder.Current.ShouldBeNull();
+	}
+
+	[Fact]
 	public async Task DispatchLocalAsync_Should_Use_UltraLocal_ValueTask_Path()
 	{
 		// Arrange
@@ -628,6 +651,149 @@ public sealed class DispatcherShould
 		result.ShouldBe(22);
 		A.CallTo(() => localInvoker.InvokeAsync(A<object>._, message, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task Set_ReturnValue_And_Context_Result_On_DirectLocal_Typed_ValueType_Path()
+	{
+		// Arrange
+		var (dispatcher, _) = CreateTransportAwareTypedDispatcherForFastPath();
+		var message = new LocalTransportQuery { Value = 21 };
+		var context = new MessageContext { Result = "stale" };
+
+		// Act
+		var result = await dispatcher.DispatchAsync<LocalTransportQuery, int>(message, context, CancellationToken.None)
+			.ConfigureAwait(true);
+
+		// Assert
+		result.Succeeded.ShouldBeTrue();
+		result.ReturnValue.ShouldBe(42);
+		context.Result.ShouldBeOfType<int>().ShouldBe(42);
+	}
+
+	[Fact]
+	public async Task Clear_Stale_Context_Result_When_DirectLocal_Query_Returns_Null_On_Untyped_Path()
+	{
+		// Arrange
+		var serviceProvider = A.Fake<IServiceProvider>();
+		var registry = A.Fake<IHandlerRegistry>();
+		var activator = A.Fake<IHandlerActivator>();
+		var localInvoker = A.Fake<IHandlerInvoker>();
+		var localLogger = A.Fake<ILogger<LocalMessageBus>>();
+		var busProvider = A.Fake<IMessageBusProvider>();
+		var finalLogger = A.Fake<ILogger<FinalDispatchHandler>>();
+		var busOptionsMap = new Dictionary<string, IMessageBusOptions>();
+
+		var handlerEntry = new HandlerRegistryEntry(
+			typeof(LocalTransportNullableQuery),
+			typeof(LocalTransportNullableQueryHandler),
+			expectsResponse: true);
+		HandlerRegistryEntry outEntry = handlerEntry;
+		_ = A.CallTo(() => registry.TryGetHandler(typeof(LocalTransportNullableQuery), out outEntry))
+			.Returns(true)
+			.AssignsOutAndRefParameters(handlerEntry);
+		_ = A.CallTo(() => registry.GetAll()).Returns([handlerEntry]);
+
+		var handler = new LocalTransportNullableQueryHandler();
+		_ = A.CallTo(() => activator.ActivateHandler(typeof(LocalTransportNullableQueryHandler), A<IMessageContext>._, serviceProvider))
+			.Returns(handler);
+		_ = A.CallTo(() => localInvoker.InvokeAsync(A<object>._, A<IDispatchMessage>._, A<CancellationToken>._))
+			.Returns(Task.FromResult<object?>(null));
+
+		var localMessageBus = new LocalMessageBus(serviceProvider, registry, activator, localInvoker, localLogger);
+		IMessageBus? outLocalBus = localMessageBus;
+		_ = A.CallTo(() => busProvider.TryGet("local", out outLocalBus))
+			.Returns(true)
+			.AssignsOutAndRefParameters(localMessageBus);
+
+		var finalHandler = new FinalDispatchHandler(busProvider, finalLogger, retryPolicy: null, busOptionsMap);
+		var dispatcher = new Dispatcher(
+			middlewareInvoker: new DispatchMiddlewareInvoker([]),
+			finalHandler: finalHandler,
+			transportContextProvider: null,
+			serviceProvider: serviceProvider,
+			localMessageBus: localMessageBus,
+			busOptionsMap: busOptionsMap,
+			dispatchRouter: null,
+			dispatchOptions: null);
+
+		var context = new MessageContext
+		{
+			Result = "stale",
+		};
+		var message = new LocalTransportNullableQuery();
+
+		// Act
+		var result = await dispatcher.DispatchAsync(message, context, CancellationToken.None).ConfigureAwait(true);
+
+		// Assert
+		result.Succeeded.ShouldBeTrue();
+		context.Result.ShouldBeNull();
+	}
+
+	[Fact]
+	public async Task Clear_Stale_Context_Result_When_DirectLocal_Query_Returns_Null_On_Typed_Path()
+	{
+		// Arrange
+		var serviceProvider = A.Fake<IServiceProvider>();
+		var registry = A.Fake<IHandlerRegistry>();
+		var activator = A.Fake<IHandlerActivator>();
+		var localInvoker = A.Fake<IHandlerInvoker>();
+		var localLogger = A.Fake<ILogger<LocalMessageBus>>();
+		var busProvider = A.Fake<IMessageBusProvider>();
+		var finalLogger = A.Fake<ILogger<FinalDispatchHandler>>();
+		var busOptionsMap = new Dictionary<string, IMessageBusOptions>();
+
+		var handlerEntry = new HandlerRegistryEntry(
+			typeof(LocalTransportNullableQuery),
+			typeof(LocalTransportNullableQueryHandler),
+			expectsResponse: true);
+		HandlerRegistryEntry outEntry = handlerEntry;
+		_ = A.CallTo(() => registry.TryGetHandler(typeof(LocalTransportNullableQuery), out outEntry))
+			.Returns(true)
+			.AssignsOutAndRefParameters(handlerEntry);
+		_ = A.CallTo(() => registry.GetAll()).Returns([handlerEntry]);
+
+		var handler = new LocalTransportNullableQueryHandler();
+		_ = A.CallTo(() => activator.ActivateHandler(typeof(LocalTransportNullableQueryHandler), A<IMessageContext>._, serviceProvider))
+			.Returns(handler);
+		_ = A.CallTo(() => localInvoker.InvokeAsync(A<object>._, A<IDispatchMessage>._, A<CancellationToken>._))
+			.Returns(Task.FromResult<object?>(null));
+
+		var localMessageBus = new LocalMessageBus(serviceProvider, registry, activator, localInvoker, localLogger);
+		IMessageBus? outLocalBus = localMessageBus;
+		_ = A.CallTo(() => busProvider.TryGet("local", out outLocalBus))
+			.Returns(true)
+			.AssignsOutAndRefParameters(localMessageBus);
+
+		var finalHandler = new FinalDispatchHandler(busProvider, finalLogger, retryPolicy: null, busOptionsMap);
+		var dispatcher = new Dispatcher(
+			middlewareInvoker: new DispatchMiddlewareInvoker([]),
+			finalHandler: finalHandler,
+			transportContextProvider: null,
+			serviceProvider: serviceProvider,
+			localMessageBus: localMessageBus,
+			busOptionsMap: busOptionsMap,
+			dispatchRouter: null,
+			dispatchOptions: null);
+
+		var context = new MessageContext
+		{
+			Result = "stale",
+		};
+		var message = new LocalTransportNullableQuery();
+
+		// Act
+		var result = await dispatcher.DispatchAsync<LocalTransportNullableQuery, string?>(
+				message,
+				context,
+				CancellationToken.None)
+			.ConfigureAwait(true);
+
+		// Assert
+		result.Succeeded.ShouldBeTrue();
+		result.ReturnValue.ShouldBeNull();
+		context.Result.ShouldBeNull();
 	}
 
 	[Fact]
@@ -989,6 +1155,8 @@ public sealed class DispatcherShould
 		public int Value { get; init; }
 	}
 
+	private sealed record LocalTransportNullableQuery : IDispatchAction<string?>;
+
 	private sealed record LocalTransportQuery : IDispatchAction<int>
 	{
 		public int Value { get; init; }
@@ -1012,6 +1180,16 @@ public sealed class DispatcherShould
 		{
 			_ = cancellationToken;
 			return Task.FromResult(action.Value * 2);
+		}
+	}
+
+	private sealed class LocalTransportNullableQueryHandler
+	{
+		public Task<string?> HandleAsync(LocalTransportNullableQuery action, CancellationToken cancellationToken)
+		{
+			_ = action;
+			_ = cancellationToken;
+			return Task.FromResult<string?>(null);
 		}
 	}
 }

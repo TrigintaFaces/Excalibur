@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using System.Globalization;
+using System.Runtime.InteropServices;
 
 using Excalibur.Dispatch.Abstractions.Configuration;
 
@@ -27,42 +28,70 @@ public sealed class TransportConfigurationValidator : ITransportConfigurationVal
 	public TransportValidationResult Validate(IEnumerable<TransportRegistrationInfo> registrations)
 	{
 		ArgumentNullException.ThrowIfNull(registrations);
+		var errors = new List<TransportValidationError>();
+		var nameStates = new Dictionary<string, DuplicateNameState>(StringComparer.OrdinalIgnoreCase);
+		var hasRegistrations = false;
 
-		var registrationList = registrations.ToList();
-		if (registrationList.Count == 0)
+		// Single-pass duplicate tracking + registration validation.
+		foreach (var registration in registrations)
+		{
+			hasRegistrations = true;
+			TrackDuplicateName(registration.Name, nameStates);
+			ValidateRegistration(registration, errors);
+		}
+
+		if (!hasRegistrations)
 		{
 			return TransportValidationResult.Success();
 		}
 
-		var errors = new List<TransportValidationError>();
-
-		// Check for duplicate names
-		var duplicateNames = registrationList
-			.GroupBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
-			.Where(g => g.Count() > 1)
-			.Select(g => g.Key)
-			.ToList();
-
-		foreach (var duplicateName in duplicateNames)
-		{
-			errors.Add(new TransportValidationError(
-				duplicateName,
-				"Name",
-				string.Format(
-					CultureInfo.CurrentCulture,
-					Resources.TransportConfigurationValidator_DuplicateTransportNameFormat,
-					duplicateName)));
-		}
-
-		// Validate each registration
-		foreach (var registration in registrationList)
-		{
-			ValidateRegistration(registration, errors);
-		}
+		AddDuplicateNameErrors(nameStates, errors);
 
 		return errors.Count == 0
 			? TransportValidationResult.Success()
 			: TransportValidationResult.Failure(errors);
+	}
+
+	private static void TrackDuplicateName(
+		string transportName,
+		Dictionary<string, DuplicateNameState> nameStates)
+	{
+		ref var state = ref CollectionsMarshal.GetValueRefOrAddDefault(nameStates, transportName, out var exists);
+
+		if (!exists)
+		{
+			state = new DuplicateNameState(transportName, 1);
+			return;
+		}
+
+		state.Count++;
+	}
+
+	private static void AddDuplicateNameErrors(
+		Dictionary<string, DuplicateNameState> nameStates,
+		List<TransportValidationError> errors)
+	{
+		foreach (var (_, state) in nameStates)
+		{
+			if (state.Count <= 1)
+			{
+				continue;
+			}
+
+			errors.Add(new TransportValidationError(
+				state.FirstSeenName,
+				"Name",
+				string.Format(
+					CultureInfo.CurrentCulture,
+					Resources.TransportConfigurationValidator_DuplicateTransportNameFormat,
+					state.FirstSeenName)));
+		}
+	}
+
+	private struct DuplicateNameState(string firstSeenName, int count)
+	{
+		public string FirstSeenName = firstSeenName;
+		public int Count = count;
 	}
 
 	private static void ValidateRegistration(
@@ -247,4 +276,5 @@ public sealed class TransportConfigurationValidator : ITransportConfigurationVal
 		public const string ConnectionString = "ConnectionString";
 		public const string CronExpression = "CronExpression";
 	}
+
 }

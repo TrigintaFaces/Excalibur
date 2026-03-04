@@ -3,6 +3,7 @@
 
 using System.Diagnostics;
 using System.Security.Claims;
+using System.Text;
 
 using Excalibur.Dispatch.Abstractions;
 
@@ -161,10 +162,9 @@ public static class MessageMetadataExtensions
 		}
 
 		// Build baggage string from activity baggage
-		var baggageItems = activity.Baggage.ToList();
-		if (baggageItems.Count > 0)
+		var baggageString = BuildBaggageString(activity.Baggage);
+		if (baggageString is not null)
 		{
-			var baggageString = string.Join(',', baggageItems.Select(static kv => $"{kv.Key}={kv.Value}"));
 			_ = builder.WithBaggage(baggageString);
 		}
 
@@ -203,8 +203,13 @@ public static class MessageMetadataExtensions
 		_ = builder.WithClaims(metadata.Claims);
 
 		// Copy relevant headers
-		foreach (var header in metadata.Headers.Where(static h => IsRelevantForReply(h.Key)))
+		foreach (var header in metadata.Headers)
 		{
+			if (!IsRelevantForReply(header.Key))
+			{
+				continue;
+			}
+
 			_ = builder.AddHeader(header.Key, header.Value);
 		}
 
@@ -350,10 +355,10 @@ public static class MessageMetadataExtensions
 		_ = builder.AddItems(secondary.Items);
 
 		// Merge roles and claims
-		var mergedRoles = primary.Roles.Union(secondary.Roles, StringComparer.Ordinal).Distinct(StringComparer.Ordinal);
+		var mergedRoles = primary.Roles.Union(secondary.Roles, StringComparer.Ordinal);
 		_ = builder.WithRoles(mergedRoles);
 
-		var mergedClaims = primary.Claims.Union(secondary.Claims, new ClaimComparer()).Distinct(new ClaimComparer());
+		var mergedClaims = primary.Claims.Union(secondary.Claims, new ClaimComparer());
 		_ = builder.WithClaims(mergedClaims);
 
 		return builder.Build();
@@ -453,13 +458,42 @@ public static class MessageMetadataExtensions
 		}
 	}
 
+	private static string? BuildBaggageString(IEnumerable<KeyValuePair<string, string?>> baggage)
+	{
+		StringBuilder? builder = null;
+		foreach (var baggageItem in baggage)
+		{
+			builder ??= new StringBuilder();
+			if (builder.Length > 0)
+			{
+				_ = builder.Append(',');
+			}
+
+			_ = builder.Append(baggageItem.Key);
+			_ = builder.Append('=');
+			_ = builder.Append(baggageItem.Value);
+		}
+
+		return builder?.ToString();
+	}
+
 	private static readonly string[] RelevantReplyHeaders =
 	[
 		"X-Request-Id", "X-Session-Id", "X-Client-Id", "X-API-Version", "Accept-Language", "X-Forwarded-For",
 	];
 
-	private static bool IsRelevantForReply(string headerKey) =>
-		RelevantReplyHeaders.Any(h => h.Equals(headerKey, StringComparison.OrdinalIgnoreCase));
+	private static bool IsRelevantForReply(string headerKey)
+	{
+		for (var i = 0; i < RelevantReplyHeaders.Length; i++)
+		{
+			if (headerKey.Equals(RelevantReplyHeaders[i], StringComparison.OrdinalIgnoreCase))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
 
 	private sealed class ClaimComparer : IEqualityComparer<Claim>
 	{
