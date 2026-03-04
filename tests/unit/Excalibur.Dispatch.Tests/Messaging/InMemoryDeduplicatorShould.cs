@@ -54,7 +54,12 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 	{
 		// Arrange - use very short expiry
 		await _deduplicator.MarkProcessedAsync("msg-1", TimeSpan.FromMilliseconds(1), CancellationToken.None);
-		await WaitUntilNotDuplicateAsync("msg-1", TimeSpan.FromSeconds(5));
+		var expirationObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+				async () => !await _deduplicator.IsDuplicateAsync("msg-1", TimeSpan.FromHours(1), CancellationToken.None).ConfigureAwait(false),
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(20)),
+				TimeSpan.FromMilliseconds(50))
+			.ConfigureAwait(false);
+		expirationObserved.ShouldBeTrue("Expected deduplication entry to expire within timeout.");
 
 		// Act
 		var isDuplicate = await _deduplicator.IsDuplicateAsync("msg-1", TimeSpan.FromHours(1), CancellationToken.None);
@@ -200,26 +205,6 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 
 		// Assert - all should detect as duplicate
 		results.ShouldAllBe(r => r);
-	}
-
-	private async Task WaitUntilNotDuplicateAsync(string messageId, TimeSpan timeout)
-	{
-		var startedAt = DateTimeOffset.UtcNow;
-		while ((DateTimeOffset.UtcNow - startedAt) < timeout)
-		{
-			var isDuplicate = await _deduplicator
-				.IsDuplicateAsync(messageId, TimeSpan.FromHours(1), CancellationToken.None)
-				.ConfigureAwait(false);
-
-			if (!isDuplicate)
-			{
-				return;
-			}
-
-			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10).ConfigureAwait(false);
-		}
-
-		throw new TimeoutException($"Message '{messageId}' did not expire within {timeout}.");
 	}
 }
 

@@ -193,6 +193,51 @@ public sealed class OutboundMessageShould
 	}
 
 	[Fact]
+	public void IsEligibleForRetry_Should_ReturnFalse_WhenRetryDelayHasNotElapsed()
+	{
+		// Arrange
+		var msg = new OutboundMessage
+		{
+			Status = OutboxStatus.Failed,
+			RetryCount = 1,
+			LastAttemptAt = DateTimeOffset.UtcNow.AddMinutes(-1),
+		};
+
+		// Act & Assert
+		msg.IsEligibleForRetry(maxRetries: 3, retryDelayMinutes: 5).ShouldBeFalse();
+	}
+
+	[Fact]
+	public void IsEligibleForRetry_Should_ReturnTrue_WhenRetryDelayHasElapsed()
+	{
+		// Arrange
+		var msg = new OutboundMessage
+		{
+			Status = OutboxStatus.Failed,
+			RetryCount = 1,
+			LastAttemptAt = DateTimeOffset.UtcNow.AddMinutes(-10),
+		};
+
+		// Act & Assert
+		msg.IsEligibleForRetry(maxRetries: 3, retryDelayMinutes: 5).ShouldBeTrue();
+	}
+
+	[Fact]
+	public void IsEligibleForRetry_Should_UseExponentialBackoff_WithCap()
+	{
+		// Arrange
+		var msg = new OutboundMessage
+		{
+			Status = OutboxStatus.Failed,
+			RetryCount = 4,
+			LastAttemptAt = DateTimeOffset.UtcNow.AddMinutes(-31),
+		};
+
+		// Act & Assert
+		msg.IsEligibleForRetry(maxRetries: 10, retryDelayMinutes: 5, useExponentialBackoff: true, maxRetryDelayMinutes: 30).ShouldBeTrue();
+	}
+
+	[Fact]
 	public void AddTransport_Should_CreateTransportDelivery()
 	{
 		// Arrange
@@ -479,5 +524,51 @@ public sealed class OutboundMessageShould
 		result.ShouldContain("OrderCreated");
 		result.ShouldContain("orders-queue");
 		result.ShouldContain("Staged");
+	}
+
+	[Fact]
+	public void BuildTargetTransportsString_Should_ReturnEmpty_ForEmptyCollection()
+	{
+		// Arrange
+		var method = typeof(OutboundMessage).GetMethod(
+			"BuildTargetTransportsString",
+			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+		method.ShouldNotBeNull();
+
+		// Act
+		var result = (string)method!.Invoke(null, [new List<OutboundMessageTransport>()])!;
+
+		// Assert
+		result.ShouldBe(string.Empty);
+	}
+
+	[Fact]
+	public void BuildTargetTransportsString_Should_HandleNonReadOnlyCollection_WithNoEnumeratedItems()
+	{
+		// Arrange
+		var method = typeof(OutboundMessage).GetMethod(
+			"BuildTargetTransportsString",
+			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+		method.ShouldNotBeNull();
+		var inconsistentCollection = new InconsistentTransportCollection();
+
+		// Act
+		var result = (string)method!.Invoke(null, [inconsistentCollection])!;
+
+		// Assert
+		result.ShouldBe(string.Empty);
+	}
+
+	private sealed class InconsistentTransportCollection : ICollection<OutboundMessageTransport>
+	{
+		public int Count => 1;
+		public bool IsReadOnly => true;
+		public void Add(OutboundMessageTransport item) => throw new NotSupportedException();
+		public void Clear() => throw new NotSupportedException();
+		public bool Contains(OutboundMessageTransport item) => false;
+		public void CopyTo(OutboundMessageTransport[] array, int arrayIndex) => throw new NotSupportedException();
+		public bool Remove(OutboundMessageTransport item) => throw new NotSupportedException();
+		public IEnumerator<OutboundMessageTransport> GetEnumerator() => Enumerable.Empty<OutboundMessageTransport>().GetEnumerator();
+		System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
 	}
 }

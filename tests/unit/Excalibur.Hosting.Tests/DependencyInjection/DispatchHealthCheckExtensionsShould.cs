@@ -16,6 +16,8 @@ namespace Excalibur.Hosting.Tests.DependencyInjection;
 [Trait("Component", "Hosting")]
 public sealed class DispatchHealthCheckExtensionsShould
 {
+	private static readonly object HealthCheckTargetsSync = new();
+
 	[Fact]
 	public void ThrowArgumentNullException_WhenBuilderIsNull()
 	{
@@ -171,6 +173,19 @@ public sealed class DispatchHealthCheckExtensionsShould
 	}
 
 	[Fact]
+	public void ResolveType_ReturnNull_WhenTypeDoesNotExistInLoadedAssembly()
+	{
+		// Arrange
+		var assemblyName = typeof(DispatchHealthCheckExtensions).Assembly.GetName().Name!;
+
+		// Act
+		var resolved = InvokeResolveType(assemblyName, "Microsoft.Extensions.DependencyInjection.NotARealType");
+
+		// Assert
+		resolved.ShouldBeNull();
+	}
+
+	[Fact]
 	public void TryInvokeHealthCheckExtension_ReturnFalse_WhenMethodNameIsUnknown()
 	{
 		// Arrange
@@ -183,6 +198,90 @@ public sealed class DispatchHealthCheckExtensionsShould
 
 		// Assert
 		invoked.ShouldBeFalse();
+	}
+
+	[Fact]
+	public void TryInvokeHealthCheckExtension_ReturnTrue_ForKnownMethod()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		services.AddLogging();
+		var builder = services.AddHealthChecks();
+
+		// Act
+		var invoked = InvokeTryInvokeHealthCheckExtension(builder, "AddOutboxHealthCheck");
+
+		// Assert
+		invoked.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void TryInvokeHealthCheckExtension_ReturnFalse_WhenMethodHasNoParameters()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		services.AddLogging();
+		var builder = services.AddHealthChecks();
+		var target = (
+			typeof(DispatchHealthCheckExtensionsShould).Assembly.GetName().Name!,
+			typeof(HealthCheckExtensionTestTargets).FullName!,
+			nameof(HealthCheckExtensionTestTargets.NoParameterMethod));
+
+		// Act
+		var invoked = false;
+		WithTemporaryHealthCheckTarget(target, () =>
+		{
+			invoked = InvokeTryInvokeHealthCheckExtension(builder, target.Item3);
+		});
+
+		// Assert
+		invoked.ShouldBeFalse();
+	}
+
+	[Fact]
+	public void TryInvokeHealthCheckExtension_ReturnFalse_WhenMethodHasRequiredParameters()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		services.AddLogging();
+		var builder = services.AddHealthChecks();
+		var target = (
+			typeof(DispatchHealthCheckExtensionsShould).Assembly.GetName().Name!,
+			typeof(HealthCheckExtensionTestTargets).FullName!,
+			nameof(HealthCheckExtensionTestTargets.RequiredParameterMethod));
+
+		// Act
+		var invoked = false;
+		WithTemporaryHealthCheckTarget(target, () =>
+		{
+			invoked = InvokeTryInvokeHealthCheckExtension(builder, target.Item3);
+		});
+
+		// Assert
+		invoked.ShouldBeFalse();
+	}
+
+	[Fact]
+	public void TryInvokeHealthCheckExtension_ReturnTrue_WhenMethodHasOnlyOptionalParameters()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		services.AddLogging();
+		var builder = services.AddHealthChecks();
+		var target = (
+			typeof(DispatchHealthCheckExtensionsShould).Assembly.GetName().Name!,
+			typeof(HealthCheckExtensionTestTargets).FullName!,
+			nameof(HealthCheckExtensionTestTargets.OptionalParameterMethod));
+
+		// Act
+		var invoked = false;
+		WithTemporaryHealthCheckTarget(target, () =>
+		{
+			invoked = InvokeTryInvokeHealthCheckExtension(builder, target.Item3);
+		});
+
+		// Assert
+		invoked.ShouldBeTrue();
 	}
 
 	private static IReadOnlyList<HealthCheckRegistration> GetHealthCheckRegistrations(IServiceCollection services)
@@ -233,5 +332,58 @@ public sealed class DispatchHealthCheckExtensionsShould
 		method.ShouldNotBeNull();
 
 		return (Type?)method!.Invoke(null, [assemblyName, typeName]);
+	}
+
+	private static void WithTemporaryHealthCheckTarget(
+		(string AssemblyName, string TypeName, string MethodName) target,
+		Action action)
+	{
+		var field = typeof(DispatchHealthCheckExtensions).GetField(
+			"HealthCheckExtensionTargets",
+			BindingFlags.NonPublic | BindingFlags.Static);
+		field.ShouldNotBeNull();
+
+		if (field!.GetValue(null) is not (string AssemblyName, string TypeName, string MethodName)[] targets)
+		{
+			throw new InvalidOperationException("HealthCheckExtensionTargets field did not return the expected tuple array.");
+		}
+
+		lock (HealthCheckTargetsSync)
+		{
+			var snapshot = ((string AssemblyName, string TypeName, string MethodName)[])targets.Clone();
+			try
+			{
+				for (var i = 0; i < targets.Length; i++)
+				{
+					targets[i] = (string.Empty, string.Empty, string.Empty);
+				}
+
+				targets[0] = target;
+				action();
+			}
+			finally
+			{
+				Array.Copy(snapshot, targets, snapshot.Length);
+			}
+		}
+	}
+
+	private static class HealthCheckExtensionTestTargets
+	{
+		public static void NoParameterMethod()
+		{
+		}
+
+		public static void RequiredParameterMethod(IHealthChecksBuilder builder, string requiredValue)
+		{
+			_ = builder;
+			_ = requiredValue;
+		}
+
+		public static IHealthChecksBuilder OptionalParameterMethod(IHealthChecksBuilder builder, string optionalValue = "default")
+		{
+			_ = optionalValue;
+			return builder;
+		}
 	}
 }
