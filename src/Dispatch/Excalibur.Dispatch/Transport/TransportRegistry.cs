@@ -17,6 +17,11 @@ public sealed class TransportRegistry
 
 	private readonly ConcurrentDictionary<string, TransportRegistration> _transports = new(StringComparer.Ordinal);
 	private readonly ConcurrentDictionary<string, TransportFactoryRegistration> _factories = new(StringComparer.Ordinal);
+#if NET9_0_OR_GREATER
+	private readonly System.Threading.Lock _snapshotUpdateGate = new();
+#else
+	private readonly object _snapshotUpdateGate = new();
+#endif
 	private volatile string[] _transportNamesSnapshot = [];
 	private string? _defaultTransportName;
 
@@ -271,33 +276,36 @@ public sealed class TransportRegistry
 
 	private void UpdateTransportNamesSnapshot()
 	{
-		var capacity = _transports.Count + _factories.Count;
-		if (capacity == 0)
+		lock (_snapshotUpdateGate)
 		{
-			_transportNamesSnapshot = [];
-			return;
-		}
-
-		var names = new List<string>(capacity);
-		var seen = new HashSet<string>(capacity, StringComparer.Ordinal);
-
-		foreach (var key in _transports.Keys)
-		{
-			if (seen.Add(key))
+			var capacity = _transports.Count + _factories.Count;
+			if (capacity == 0)
 			{
-				names.Add(key);
+				_transportNamesSnapshot = [];
+				return;
 			}
-		}
 
-		foreach (var key in _factories.Keys)
-		{
-			if (seen.Add(key))
+			var names = new List<string>(capacity);
+			var seen = new HashSet<string>(capacity, StringComparer.Ordinal);
+
+			foreach (var key in _transports.Keys)
 			{
-				names.Add(key);
+				if (seen.Add(key))
+				{
+					names.Add(key);
+				}
 			}
-		}
 
-		_transportNamesSnapshot = [.. names];
+			foreach (var key in _factories.Keys)
+			{
+				if (seen.Add(key))
+				{
+					names.Add(key);
+				}
+			}
+
+			_transportNamesSnapshot = [.. names];
+		}
 	}
 
 	private void RegisterTransportCore(
