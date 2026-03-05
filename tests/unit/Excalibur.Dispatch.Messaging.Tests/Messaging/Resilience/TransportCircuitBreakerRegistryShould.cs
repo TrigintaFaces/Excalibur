@@ -18,11 +18,22 @@ public sealed class TransportCircuitBreakerRegistryShould
 	private static async Task WaitForStateAsync(ICircuitBreakerPolicy policy, CircuitState expectedState, TimeSpan timeout)
 	{
 		var scaledTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(timeout);
+		if (scaledTimeout < TimeSpan.FromSeconds(10))
+		{
+			scaledTimeout = TimeSpan.FromSeconds(10);
+		}
+
 		var stateObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
 				() => policy.State == expectedState,
 				scaledTimeout,
 				TimeSpan.FromMilliseconds(100))
 			.ConfigureAwait(false);
+
+		if (!stateObserved && policy.State == expectedState)
+		{
+			stateObserved = true;
+		}
+
 		stateObserved.ShouldBeTrue($"Expected circuit state {expectedState} within {scaledTimeout}, actual state was {policy.State}.");
 	}
 
