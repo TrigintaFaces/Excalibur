@@ -19,6 +19,9 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Auditing;
 [Trait("Feature", "Auditing")]
 public sealed class SecurityEventLoggerLifecycleShould : IDisposable
 {
+    private static readonly TimeSpan ProcessingTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan ProcessingPollInterval = TimeSpan.FromMilliseconds(100);
+
     private readonly ISecurityEventStore _eventStore;
     private readonly SecurityEventLogger _sut;
 
@@ -112,15 +115,13 @@ public sealed class SecurityEventLoggerLifecycleShould : IDisposable
             SecuritySeverity.Low,
             CancellationToken.None);
 
-        // Allow time for background processing
-        await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(2000);
+        var stored = await WaitForStoreEventsAsync(
+            events => events.Any(),
+            ProcessingTimeout);
         await _sut.StopAsync(CancellationToken.None);
 
         // Assert
-        A.CallTo(() => _eventStore.StoreEventsAsync(
-            A<IEnumerable<SecurityEvent>>.That.Matches(e => e.Any()),
-            A<CancellationToken>._))
-            .MustHaveHappened();
+        stored.ShouldBeTrue("Expected logger to persist at least one non-empty event batch.");
     }
 
     [Fact]
@@ -149,15 +150,13 @@ public sealed class SecurityEventLoggerLifecycleShould : IDisposable
             CancellationToken.None,
             context);
 
-        // Allow time for background processing
-        await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(2000);
+        var stored = await WaitForStoreEventsAsync(
+            events => events.Any(),
+            ProcessingTimeout);
         await _sut.StopAsync(CancellationToken.None);
 
         // Assert - verify events were stored
-        A.CallTo(() => _eventStore.StoreEventsAsync(
-            A<IEnumerable<SecurityEvent>>._,
-            A<CancellationToken>._))
-            .MustHaveHappened();
+        stored.ShouldBeTrue("Expected logger to persist context-enriched security events.");
     }
 
     [Fact]
@@ -174,15 +173,13 @@ public sealed class SecurityEventLoggerLifecycleShould : IDisposable
             CancellationToken.None,
             context: null);
 
-        // Allow time for background processing
-        await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(2000);
+        var stored = await WaitForStoreEventsAsync(
+            events => events.Any(),
+            ProcessingTimeout);
         await _sut.StopAsync(CancellationToken.None);
 
         // Assert
-        A.CallTo(() => _eventStore.StoreEventsAsync(
-            A<IEnumerable<SecurityEvent>>._,
-            A<CancellationToken>._))
-            .MustHaveHappened();
+        stored.ShouldBeTrue("Expected logger to persist event when context is null.");
     }
 
     [Fact]
@@ -201,11 +198,13 @@ public sealed class SecurityEventLoggerLifecycleShould : IDisposable
             SecuritySeverity.Medium,
             CancellationToken.None);
 
-        // Allow time for background processing
-        await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(2000);
+        var storeAttempted = await WaitForStoreEventsAsync(
+            _ => true,
+            ProcessingTimeout);
 
         // Assert - should not throw during stop either
         await _sut.StopAsync(CancellationToken.None);
+        storeAttempted.ShouldBeTrue("Expected logger to attempt persistence even when store throws.");
     }
 
     [Fact]
@@ -217,6 +216,20 @@ public sealed class SecurityEventLoggerLifecycleShould : IDisposable
             _eventStore);
 
         logger.Dispose();
+    }
+
+    private async Task<bool> WaitForStoreEventsAsync(
+        Func<IEnumerable<SecurityEvent>, bool> batchPredicate,
+        TimeSpan timeout)
+    {
+        return await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+            () => Fake.GetCalls(_eventStore).Any(call =>
+                call.Method.Name == nameof(ISecurityEventStore.StoreEventsAsync) &&
+                call.Arguments.Count > 0 &&
+                call.Arguments[0] is IEnumerable<SecurityEvent> events &&
+                batchPredicate(events)),
+            timeout,
+            ProcessingPollInterval).ConfigureAwait(false);
     }
 }
 
