@@ -136,7 +136,9 @@ try {
     Write-Progress -Activity "Repo Inventory" -Status "Dependency snapshot $index/$($selectedProjects.Count): $relative" -PercentComplete (($index / $selectedProjects.Count) * 100)
     Write-Host "[$index/$($selectedProjects.Count)] Dependency snapshot: $relative"
 
-    if ($script:GlobalStopwatch.Elapsed -ge $script:Budget) {
+    # Only treat budget as a hard breach when there are still projects left to process.
+    # This avoids false failures on the final iteration (e.g. "[N/N]" logged, then breach).
+    if ($script:GlobalStopwatch.Elapsed -ge $script:Budget -and $index -lt $selectedProjects.Count) {
       $script:GuardrailBreached = $true
       "- Guardrail: stopped dependency snapshot after reaching total budget of $($script:Budget.TotalMinutes) minute(s)." |
         Out-File -FilePath $Output -Encoding UTF8 -Append

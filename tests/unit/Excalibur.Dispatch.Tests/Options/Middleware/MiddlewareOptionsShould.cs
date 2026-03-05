@@ -4,6 +4,14 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Versioning;
+using Excalibur.Dispatch.Middleware.Validation;
+using Excalibur.Dispatch.Middleware.Transaction;
+using Excalibur.Dispatch.Middleware.Outbox;
+using Excalibur.Dispatch.Middleware.Logging;
+using Excalibur.Dispatch.Middleware.Batch;
+using Excalibur.Dispatch.Middleware.Auth;
+using Excalibur.Dispatch.Middleware.Resilience;
 using Excalibur.Dispatch.Options.Middleware;
 
 using MiddlewareTimeoutOptions = Excalibur.Dispatch.Options.Middleware.TimeoutOptions;

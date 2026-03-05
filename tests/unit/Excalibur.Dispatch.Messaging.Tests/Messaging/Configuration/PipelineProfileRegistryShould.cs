@@ -327,4 +327,76 @@ public sealed class PipelineProfileRegistryShould
 		profiles.ShouldContain(p => p.Name == "AAA");
 		profiles.ShouldContain(p => p.Name == "ZZZ");
 	}
+
+	#region Profile Selection Cache
+
+	[Fact]
+	public void NotBeFrozenByDefault()
+	{
+		// Assert
+		_sut.IsProfileSelectionCacheFrozen.ShouldBeFalse();
+	}
+
+	[Fact]
+	public void FreezeProfileSelectionCache()
+	{
+		// Arrange — warm the cache
+		var message = A.Fake<IDispatchAction<string>>();
+		_ = _sut.SelectProfile(message);
+
+		// Act
+		_sut.FreezeProfileSelectionCache();
+
+		// Assert
+		_sut.IsProfileSelectionCacheFrozen.ShouldBeTrue();
+	}
+
+	[Fact]
+	public void ReturnSameProfileAfterFreezing()
+	{
+		// Arrange — warm the cache
+		var message = A.Fake<IDispatchAction<string>>();
+		var beforeFreeze = _sut.SelectProfile(message);
+
+		// Act — freeze then re-select
+		_sut.FreezeProfileSelectionCache();
+		var afterFreeze = _sut.SelectProfile(message);
+
+		// Assert
+		afterFreeze.ShouldBe(beforeFreeze);
+	}
+
+	[Fact]
+	public void ReturnConsistentProfileOnRepeatedCalls()
+	{
+		// Arrange
+		var message = A.Fake<IDispatchAction<string>>();
+
+		// Act — multiple calls should return same cached result
+		var first = _sut.SelectProfile(message);
+		var second = _sut.SelectProfile(message);
+		var third = _sut.SelectProfile(message);
+
+		// Assert
+		first.ShouldBe(second);
+		second.ShouldBe(third);
+	}
+
+	[Fact]
+	public void BeIdempotentWhenFreezingMultipleTimes()
+	{
+		// Arrange
+		var message = A.Fake<IDispatchAction<string>>();
+		_ = _sut.SelectProfile(message);
+
+		// Act — freeze twice
+		_sut.FreezeProfileSelectionCache();
+		_sut.FreezeProfileSelectionCache();
+
+		// Assert — still works
+		_sut.IsProfileSelectionCacheFrozen.ShouldBeTrue();
+		_sut.SelectProfile(message).ShouldNotBeNull();
+	}
+
+	#endregion
 }

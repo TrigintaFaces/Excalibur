@@ -567,7 +567,8 @@ public sealed class ErasureVerificationServiceShould
 
 		// Assert
 		report.GeneratedAt.ShouldBeGreaterThanOrEqualTo(beforeTime);
-		report.GeneratedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+		var assertionUpperBound1 = DateTimeOffset.UtcNow;
+		report.GeneratedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	[Fact]

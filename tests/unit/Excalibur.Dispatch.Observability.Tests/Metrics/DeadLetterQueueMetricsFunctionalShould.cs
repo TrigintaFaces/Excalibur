@@ -19,13 +19,14 @@ public sealed class DeadLetterQueueMetricsFunctionalShould : IDisposable
 {
 	private readonly DeadLetterQueueMetrics _metrics = new();
 	private readonly MeterListener _listener = new();
+	private readonly object _recordingGate = new();
 	private readonly Dictionary<string, List<(object Value, KeyValuePair<string, object?>[] Tags)>> _recorded = new(StringComparer.Ordinal);
 
 	public DeadLetterQueueMetricsFunctionalShould()
 	{
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DeadLetterQueueMetrics.MeterName)
+			if (ReferenceEquals(instrument.Meter, _metrics.Meter))
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -54,25 +55,34 @@ public sealed class DeadLetterQueueMetricsFunctionalShould : IDisposable
 	[Fact]
 	public void RecordEnqueued_EmitsCounterWithTypeAndReason()
 	{
-		_metrics.RecordEnqueued("OrderFailed", "max_retries_exceeded");
+		var messageType = $"OrderFailed-{Guid.NewGuid():N}";
+		var reason = $"max_retries_exceeded-{Guid.NewGuid():N}";
+		_metrics.RecordEnqueued(messageType, reason);
 
 		var entries = GetRecorded("dispatch.dlq.enqueued");
 		entries.ShouldNotBeEmpty();
-		var (value, tags) = entries[0];
+		var (value, tags) = entries.First(e =>
+			e.Tags.Any(t => t.Key == "message_type" && string.Equals(t.Value as string, messageType, StringComparison.Ordinal)) &&
+			e.Tags.Any(t => t.Key == "reason" && string.Equals(t.Value as string, reason, StringComparison.Ordinal)));
 		((long)value).ShouldBe(1);
-		tags.ShouldContain(t => t.Key == "message_type" && (string)t.Value! == "OrderFailed");
-		tags.ShouldContain(t => t.Key == "reason" && (string)t.Value! == "max_retries_exceeded");
+		tags.ShouldContain(t => t.Key == "message_type" && string.Equals(t.Value as string, messageType, StringComparison.Ordinal));
+		tags.ShouldContain(t => t.Key == "reason" && string.Equals(t.Value as string, reason, StringComparison.Ordinal));
 	}
 
 	[Fact]
 	public void RecordEnqueued_IncludesSourceQueueWhenProvided()
 	{
-		_metrics.RecordEnqueued("PaymentFailed", "poison_message", sourceQueue: "payments-queue");
+		var messageType = $"PaymentFailed-{Guid.NewGuid():N}";
+		var reason = $"poison_message-{Guid.NewGuid():N}";
+		var sourceQueue = $"payments-queue-{Guid.NewGuid():N}";
+		_metrics.RecordEnqueued(messageType, reason, sourceQueue: sourceQueue);
 
 		var entries = GetRecorded("dispatch.dlq.enqueued");
 		entries.ShouldNotBeEmpty();
-		var (_, tags) = entries[0];
-		tags.ShouldContain(t => t.Key == "source_queue" && (string)t.Value! == "payments-queue");
+		var (_, tags) = entries.First(e =>
+			e.Tags.Any(t => t.Key == "message_type" && string.Equals(t.Value as string, messageType, StringComparison.Ordinal)) &&
+			e.Tags.Any(t => t.Key == "reason" && string.Equals(t.Value as string, reason, StringComparison.Ordinal)));
+		tags.ShouldContain(t => t.Key == "source_queue" && string.Equals(t.Value as string, sourceQueue, StringComparison.Ordinal));
 	}
 
 	[Fact]
@@ -119,13 +129,15 @@ public sealed class DeadLetterQueueMetricsFunctionalShould : IDisposable
 	[Fact]
 	public void RecordPurged_EmitsCounterWithBatchCount()
 	{
-		_metrics.RecordPurged(50, "expired");
+		var reason = $"expired-{Guid.NewGuid():N}";
+		_metrics.RecordPurged(50, reason);
 
 		var entries = GetRecorded("dispatch.dlq.purged");
 		entries.ShouldNotBeEmpty();
-		var (value, tags) = entries[0];
+		var (value, tags) = entries.First(e =>
+			e.Tags.Any(t => t.Key == "reason" && string.Equals(t.Value as string, reason, StringComparison.Ordinal)));
 		((long)value).ShouldBe(50);
-		tags.ShouldContain(t => t.Key == "reason" && (string)t.Value! == "expired");
+		tags.ShouldContain(t => t.Key == "reason" && string.Equals(t.Value as string, reason, StringComparison.Ordinal));
 	}
 
 	[Fact]
@@ -160,7 +172,7 @@ public sealed class DeadLetterQueueMetricsFunctionalShould : IDisposable
 		_metrics.UpdateDepth(100);
 		_metrics.UpdateDepth(50);
 
-		var entries = GetRecorded("dispatch.dlq.depth");
+		var entries = GetRecorded("dispatch.dlq.depth", minimumCount: 2);
 		// Observable gauge reports latest value
 		entries.ShouldNotBeEmpty();
 		var lastEntry = entries.Last(e =>
@@ -186,18 +198,36 @@ public sealed class DeadLetterQueueMetricsFunctionalShould : IDisposable
 
 	private void RecordMeasurement(string instrumentName, object value, ReadOnlySpan<KeyValuePair<string, object?>> tags)
 	{
-		if (!_recorded.TryGetValue(instrumentName, out var list))
+		lock (_recordingGate)
 		{
-			list = [];
-			_recorded[instrumentName] = list;
-		}
+			if (!_recorded.TryGetValue(instrumentName, out var list))
+			{
+				list = [];
+				_recorded[instrumentName] = list;
+			}
 
-		list.Add((value, tags.ToArray()));
+			list.Add((value, tags.ToArray()));
+		}
 	}
 
-	private List<(object Value, KeyValuePair<string, object?>[] Tags)> GetRecorded(string instrumentName)
+	private List<(object Value, KeyValuePair<string, object?>[] Tags)> GetRecorded(string instrumentName, int minimumCount = 1)
 	{
-		_listener.RecordObservableInstruments();
-		return _recorded.GetValueOrDefault(instrumentName) ?? [];
+		var observed = global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() =>
+			{
+				_listener.RecordObservableInstruments();
+				lock (_recordingGate)
+				{
+					return _recorded.TryGetValue(instrumentName, out var list) && list.Count >= minimumCount;
+				}
+			},
+			TimeSpan.FromSeconds(2),
+			TimeSpan.FromMilliseconds(10)).GetAwaiter().GetResult();
+
+		observed.ShouldBeTrue($"Expected at least {minimumCount} metric samples for '{instrumentName}'.");
+		lock (_recordingGate)
+		{
+			return (_recorded.GetValueOrDefault(instrumentName) ?? []).ToList();
+		}
 	}
 }

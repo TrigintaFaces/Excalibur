@@ -52,7 +52,8 @@ public sealed class DefaultFipsDetectorShould
 		_ = status.ShouldNotBeNull();
 		status.Platform.ShouldNotBeNullOrEmpty();
 		status.ValidationDetails.ShouldNotBeNullOrEmpty();
-		status.DetectedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+		var assertionUpperBound1 = DateTimeOffset.UtcNow;
+		status.DetectedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	[Fact]
@@ -136,7 +137,8 @@ public sealed class DefaultFipsDetectorShould
 
 		// Assert - detection should be recent
 		status.DetectedAt.ShouldBeGreaterThanOrEqualTo(beforeCreation.AddSeconds(-1));
-		status.DetectedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow.AddSeconds(1));
+		var assertionUpperBound1 = DateTimeOffset.UtcNow.AddSeconds(1);
+		status.DetectedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	private DefaultFipsDetector CreateSut() => new(_logger);
@@ -180,7 +182,8 @@ public sealed class FipsDetectionResultShould
 
 		// Assert
 		result.DetectedAt.ShouldBeGreaterThanOrEqualTo(before.AddSeconds(-1));
-		result.DetectedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow.AddSeconds(1));
+		var assertionUpperBound1 = DateTimeOffset.UtcNow.AddSeconds(1);
+		result.DetectedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	[Fact]

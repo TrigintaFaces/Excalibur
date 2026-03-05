@@ -13,6 +13,8 @@ public sealed class PostgresContainerFixture : ContainerFixtureBase, IDatabaseCo
 {
 	private PostgreSqlContainer? _container;
 
+	protected override TimeSpan ContainerStartTimeout => TimeSpan.FromMinutes(4);
+
 	/// <inheritdoc/>
 	public string ConnectionString => _container?.GetConnectionString()
 		?? throw new InvalidOperationException("Container not initialized");

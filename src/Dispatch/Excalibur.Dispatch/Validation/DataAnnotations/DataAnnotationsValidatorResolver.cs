@@ -40,13 +40,28 @@ public sealed class DataAnnotationsValidatorResolver : IValidatorResolver
 			return null; // No validation errors - pass through
 		}
 
-		var errors = results
-			.Where(r => r.ErrorMessage != null)
-			.Select(r => (object)new ValidationError(
-				string.Join(", ", r.MemberNames),
-				r.ErrorMessage))
-			.ToArray();
+		var mappedErrors = new object[results.Count];
+		var mappedCount = 0;
+		for (var i = 0; i < results.Count; i++)
+		{
+			var result = results[i];
+			if (result.ErrorMessage == null)
+			{
+				continue;
+			}
 
-		return SerializableValidationResult.Failed(errors);
+			mappedErrors[mappedCount++] = new ValidationError(
+				string.Join(", ", result.MemberNames),
+				result.ErrorMessage);
+		}
+
+		if (mappedCount == mappedErrors.Length)
+		{
+			return SerializableValidationResult.Failed(mappedErrors);
+		}
+
+		var trimmedErrors = new object[mappedCount];
+		Array.Copy(mappedErrors, trimmedErrors, mappedCount);
+		return SerializableValidationResult.Failed(trimmedErrors);
 	}
 }

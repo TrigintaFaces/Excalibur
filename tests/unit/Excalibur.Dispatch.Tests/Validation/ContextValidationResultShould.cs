@@ -12,8 +12,11 @@ public sealed class ContextValidationResultShould
 	[Fact]
 	public void DefaultConstructor_SetValidToTrue()
 	{
+		var lowerBound = DateTimeOffset.UtcNow;
+
 		// Act
 		var result = new ContextValidationResult();
+		var upperBound = DateTimeOffset.UtcNow;
 
 		// Assert
 		result.IsValid.ShouldBeTrue();
@@ -25,7 +28,8 @@ public sealed class ContextValidationResultShould
 		result.Details.ShouldNotBeNull();
 		result.Details.ShouldBeEmpty();
 		result.Severity.ShouldBe(ValidationSeverity.Info);
-		result.ValidationTimestamp.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddMinutes(-1));
+		result.ValidationTimestamp.ShouldBeGreaterThanOrEqualTo(lowerBound);
+		result.ValidationTimestamp.ShouldBeLessThanOrEqualTo(upperBound);
 	}
 
 	[Fact]

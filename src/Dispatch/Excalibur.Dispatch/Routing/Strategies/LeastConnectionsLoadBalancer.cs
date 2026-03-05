@@ -25,7 +25,7 @@ public partial class LeastConnectionsLoadBalancer(ILogger<LeastConnectionsLoadBa
 	public RouteDefinition SelectRoute(IReadOnlyList<RouteDefinition> routes, RoutingContext context)
 	{
 		ArgumentNullException.ThrowIfNull(routes);
-		if (!routes.Any())
+		if (routes.Count == 0)
 		{
 			throw new ArgumentException(
 				Resources.LoadBalancing_NoRoutesAvailable,

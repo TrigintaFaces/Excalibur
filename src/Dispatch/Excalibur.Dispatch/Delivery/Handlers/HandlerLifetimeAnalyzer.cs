@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 using Excalibur.Dispatch.Abstractions.Delivery;
 
@@ -153,7 +154,37 @@ internal static class HandlerLifetimeAnalyzer
 			return false;
 		}
 
+		// Conservative safety gate: do not promote handlers with mutable instance state.
+		if (HasMutableInstanceFields(handlerType))
+		{
+			return false;
+		}
+
 		return true;
+	}
+
+	private static bool HasMutableInstanceFields(Type handlerType)
+	{
+		var fields = handlerType.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+		for (var i = 0; i < fields.Length; i++)
+		{
+			var field = fields[i];
+			if (field.IsStatic || field.IsInitOnly || field.IsLiteral)
+			{
+				continue;
+			}
+
+			// Treat auto-property backing fields as mutable instance state.
+			if (field.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false) &&
+			    field.Name.Contains("k__BackingField", StringComparison.Ordinal))
+			{
+				return true;
+			}
+
+			return true;
+		}
+
+		return false;
 	}
 
 	private static bool IsHandlerInterface(Type serviceType)

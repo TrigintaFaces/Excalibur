@@ -45,8 +45,12 @@ public sealed partial class InMemoryDeadLetterStore : IDeadLetterStore
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
-		var message = _messages.Values.FirstOrDefault(m => string.Equals(m.MessageId, messageId, StringComparison.Ordinal));
-		return Task.FromResult(message);
+		if (TryGetByMessageId(messageId, out var message))
+		{
+			return Task.FromResult((DeadLetterMessage?)message);
+		}
+
+		return Task.FromResult<DeadLetterMessage?>(null);
 	}
 
 	/// <inheritdoc />
@@ -55,49 +59,77 @@ public sealed partial class InMemoryDeadLetterStore : IDeadLetterStore
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(filter);
-
-		var query = _messages.Values.AsEnumerable();
-
-		if (!string.IsNullOrWhiteSpace(filter.MessageType))
+		if (filter.MaxResults <= 0)
 		{
-			query = query.Where(m => string.Equals(m.MessageType, filter.MessageType, StringComparison.Ordinal));
+			return Task.FromResult<IEnumerable<DeadLetterMessage>>([]);
 		}
 
-		if (!string.IsNullOrWhiteSpace(filter.Reason))
+		var skip = filter.Skip < 0 ? 0 : filter.Skip;
+		var candidateCount = skip >= int.MaxValue - filter.MaxResults
+			? int.MaxValue
+			: skip + filter.MaxResults;
+		var messageCount = _messages.Count;
+		if (messageCount == 0)
 		{
-			query = query.Where(m => m.Reason.Contains(filter.Reason, StringComparison.OrdinalIgnoreCase));
+			return Task.FromResult<IEnumerable<DeadLetterMessage>>([]);
 		}
 
-		if (filter.FromDate.HasValue)
+		if (candidateCount > messageCount)
 		{
-			query = query.Where(m => m.MovedToDeadLetterAt >= filter.FromDate.Value);
+			candidateCount = messageCount;
 		}
 
-		if (filter.ToDate.HasValue)
+		var newestMatches = new DeadLetterMessage[candidateCount];
+		var newestCount = 0;
+		var oldestIndex = 0;
+		var oldestTicks = long.MaxValue;
+		foreach (var message in _messages.Values)
 		{
-			query = query.Where(m => m.MovedToDeadLetterAt <= filter.ToDate.Value);
+			if (!MatchesFilter(message, filter))
+			{
+				continue;
+			}
+
+			var priority = message.MovedToDeadLetterAt.UtcTicks;
+			if (newestCount < candidateCount)
+			{
+				newestMatches[newestCount] = message;
+				if (priority < oldestTicks)
+				{
+					oldestTicks = priority;
+					oldestIndex = newestCount;
+				}
+
+				newestCount++;
+				continue;
+			}
+
+			if (priority <= oldestTicks)
+			{
+				continue;
+			}
+
+			newestMatches[oldestIndex] = message;
+			oldestTicks = newestMatches[0].MovedToDeadLetterAt.UtcTicks;
+			oldestIndex = 0;
+			for (var i = 1; i < newestCount; i++)
+			{
+				var candidateTicks = newestMatches[i].MovedToDeadLetterAt.UtcTicks;
+				if (candidateTicks < oldestTicks)
+				{
+					oldestTicks = candidateTicks;
+					oldestIndex = i;
+				}
+			}
 		}
 
-		if (filter.IsReplayed.HasValue)
+		if (newestCount == 0)
 		{
-			query = query.Where(m => m.IsReplayed == filter.IsReplayed.Value);
+			return Task.FromResult<IEnumerable<DeadLetterMessage>>([]);
 		}
 
-		if (!string.IsNullOrWhiteSpace(filter.SourceSystem))
-		{
-			query = query.Where(m => string.Equals(m.SourceSystem, filter.SourceSystem, StringComparison.Ordinal));
-		}
-
-		if (!string.IsNullOrWhiteSpace(filter.CorrelationId))
-		{
-			query = query.Where(m => string.Equals(m.CorrelationId, filter.CorrelationId, StringComparison.Ordinal));
-		}
-
-		var results = query
-			.OrderByDescending(m => m.MovedToDeadLetterAt)
-			.Skip(filter.Skip)
-			.Take(filter.MaxResults)
-			.ToList();
+		Array.Sort(newestMatches, 0, newestCount, DeadLetterNewestFirstComparer.Instance);
+		var results = SliceMessages(newestMatches, newestCount, skip, filter.MaxResults);
 
 		return Task.FromResult<IEnumerable<DeadLetterMessage>>(results);
 	}
@@ -107,8 +139,7 @@ public sealed partial class InMemoryDeadLetterStore : IDeadLetterStore
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
-		var message = _messages.Values.FirstOrDefault(m => string.Equals(m.MessageId, messageId, StringComparison.Ordinal));
-		if (message != null)
+		if (TryGetByMessageId(messageId, out var message))
 		{
 			message.IsReplayed = true;
 			message.ReplayedAt = DateTimeOffset.UtcNow;
@@ -124,8 +155,7 @@ public sealed partial class InMemoryDeadLetterStore : IDeadLetterStore
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(messageId);
 
-		var messageToDelete = _messages.Values.FirstOrDefault(m => string.Equals(m.MessageId, messageId, StringComparison.Ordinal));
-		if (messageToDelete != null)
+		if (TryGetByMessageId(messageId, out var messageToDelete))
 		{
 			var removed = _messages.TryRemove(messageToDelete.Id, out _);
 			if (removed)
@@ -146,14 +176,19 @@ public sealed partial class InMemoryDeadLetterStore : IDeadLetterStore
 	public Task<int> CleanupOldMessagesAsync(int retentionDays, CancellationToken cancellationToken)
 	{
 		var cutoffDate = DateTimeOffset.UtcNow.AddDays(-retentionDays);
-		var messagesToRemove = _messages.Values
-			.Where(m => m.MovedToDeadLetterAt < cutoffDate)
-			.ToList();
+		var messageIdsToRemove = new List<string>();
+		foreach (var message in _messages.Values)
+		{
+			if (message.MovedToDeadLetterAt < cutoffDate)
+			{
+				messageIdsToRemove.Add(message.Id);
+			}
+		}
 
 		var removedCount = 0;
-		foreach (var message in messagesToRemove)
+		for (var i = 0; i < messageIdsToRemove.Count; i++)
 		{
-			if (_messages.TryRemove(message.Id, out _))
+			if (_messages.TryRemove(messageIdsToRemove[i], out _))
 			{
 				removedCount++;
 			}
@@ -165,6 +200,125 @@ public sealed partial class InMemoryDeadLetterStore : IDeadLetterStore
 		}
 
 		return Task.FromResult(removedCount);
+	}
+
+	private bool TryGetByMessageId(string messageId, out DeadLetterMessage message)
+	{
+		foreach (var candidate in _messages.Values)
+		{
+			if (string.Equals(candidate.MessageId, messageId, StringComparison.Ordinal))
+			{
+				message = candidate;
+				return true;
+			}
+		}
+
+		message = null!;
+		return false;
+	}
+
+	private static bool MatchesFilter(DeadLetterMessage message, DeadLetterFilter filter)
+	{
+		if (!string.IsNullOrWhiteSpace(filter.MessageType) &&
+		    !string.Equals(message.MessageType, filter.MessageType, StringComparison.Ordinal))
+		{
+			return false;
+		}
+
+		if (!string.IsNullOrWhiteSpace(filter.Reason) &&
+		    !message.Reason.Contains(filter.Reason, StringComparison.OrdinalIgnoreCase))
+		{
+			return false;
+		}
+
+		if (filter.FromDate.HasValue &&
+		    message.MovedToDeadLetterAt < filter.FromDate.Value)
+		{
+			return false;
+		}
+
+		if (filter.ToDate.HasValue &&
+		    message.MovedToDeadLetterAt > filter.ToDate.Value)
+		{
+			return false;
+		}
+
+		if (filter.IsReplayed.HasValue &&
+		    message.IsReplayed != filter.IsReplayed.Value)
+		{
+			return false;
+		}
+
+		if (!string.IsNullOrWhiteSpace(filter.SourceSystem) &&
+		    !string.Equals(message.SourceSystem, filter.SourceSystem, StringComparison.Ordinal))
+		{
+			return false;
+		}
+
+		if (!string.IsNullOrWhiteSpace(filter.CorrelationId) &&
+		    !string.Equals(message.CorrelationId, filter.CorrelationId, StringComparison.Ordinal))
+		{
+			return false;
+		}
+
+		return true;
+	}
+
+	private static List<DeadLetterMessage> SliceMessages(
+		DeadLetterMessage[] source,
+		int sourceCount,
+		int skip,
+		int maxResults)
+	{
+		if (maxResults <= 0 || sourceCount == 0)
+		{
+			return [];
+		}
+
+		if (skip < 0)
+		{
+			skip = 0;
+		}
+
+		if (skip >= sourceCount)
+		{
+			return [];
+		}
+
+		var remainingCount = sourceCount - skip;
+		var takeCount = maxResults < remainingCount ? maxResults : remainingCount;
+		var result = new List<DeadLetterMessage>(takeCount);
+		for (var i = 0; i < takeCount; i++)
+		{
+			result.Add(source[skip + i]);
+		}
+
+		return result;
+	}
+
+	private sealed class DeadLetterNewestFirstComparer : IComparer<DeadLetterMessage>
+	{
+		public static DeadLetterNewestFirstComparer Instance { get; } = new();
+
+		public int Compare(DeadLetterMessage? left, DeadLetterMessage? right)
+		{
+			if (ReferenceEquals(left, right))
+			{
+				return 0;
+			}
+
+			if (left is null)
+			{
+				return 1;
+			}
+
+			if (right is null)
+			{
+				return -1;
+			}
+
+			return right.MovedToDeadLetterAt.CompareTo(left.MovedToDeadLetterAt);
+		}
 	}
 
 	// Source-generated logging methods

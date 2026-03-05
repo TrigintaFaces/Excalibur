@@ -320,6 +320,46 @@ public sealed class MessageBusOutboxPublisherShould
 			.MustHaveHappenedOnceExactly();
 	}
 
+	[Fact]
+	public async Task PublishMultiTransportAsync_Should_SetTargetTransportsCsvInInputOrder()
+	{
+		// Arrange
+		var multiStoreBase = A.Fake<IOutboxStore>(o => o.Implements<IMultiTransportOutboxStore>());
+		var multiStore = multiStoreBase.ShouldBeAssignableTo<IMultiTransportOutboxStore>();
+		var serializer = A.Fake<IPayloadSerializer>();
+		var messageBus = A.Fake<IMessageBusAdapter>();
+		var serviceProvider = A.Fake<IServiceProvider>();
+		var logger = A.Fake<ILogger<MessageBusOutboxPublisher>>();
+		var publisher = new MessageBusOutboxPublisher(
+			multiStoreBase,
+			serializer,
+			messageBus,
+			serviceProvider,
+			logger);
+
+		var payload = new byte[] { 1, 2, 3, 4 };
+		_ = A.CallTo(() => serializer.SerializeObject(A<object>._, A<Type>._)).Returns(payload);
+
+		var transports = new[]
+		{
+			new OutboundMessageTransport("msg-1", "sns") { Destination = "topic-a" },
+			new OutboundMessageTransport("msg-1", "sqs") { Destination = "queue-b" },
+			new OutboundMessageTransport("msg-1", "grpc") { Destination = "endpoint-c" }
+		};
+
+		// Act
+		var result = await publisher.PublishMultiTransportAsync(new TestMessage { Content = "payload" }, transports, CancellationToken.None);
+
+		// Assert
+		result.TargetTransports.ShouldBe("sns,sqs,grpc");
+		result.TransportDeliveries.Count.ShouldBe(3);
+		_ = A.CallTo(() => multiStore.StageMessageWithTransportsAsync(
+				A<OutboundMessage>.That.Matches(m => m.TargetTransports == "sns,sqs,grpc"),
+				A<IEnumerable<OutboundMessageTransport>>._,
+				A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
 	private sealed class TestMessage
 	{
 		public string Content { get; set; } = string.Empty;

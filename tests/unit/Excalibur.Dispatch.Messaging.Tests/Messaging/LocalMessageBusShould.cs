@@ -467,6 +467,118 @@ public sealed class LocalMessageBusShould
 	}
 
 	[Fact]
+	public async Task TryGetUltraLocalFastInvokers_Should_Return_NoResponse_Delegate_For_NoContext_Handler()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		_ = services.AddSingleton<FastInvokerNoResponseHandler>();
+		var provider = services.BuildServiceProvider();
+		var registry = new HandlerRegistry();
+		registry.Register(typeof(FastInvokerNoResponseAction), typeof(FastInvokerNoResponseHandler), expectsResponse: false);
+		var bus = new LocalMessageBus(provider, registry, new HandlerActivator(), new HandlerInvoker(), A.Fake<ILogger<LocalMessageBus>>());
+
+		// Act
+		var resolved = bus.TryGetUltraLocalFastInvokers(
+			typeof(FastInvokerNoResponseAction),
+			out var expectsResponse,
+			out var requiresContext,
+			out var noResponseInvoker,
+			out var withResponseInvoker);
+
+		// Assert
+		resolved.ShouldBeTrue();
+		expectsResponse.ShouldBeFalse();
+		requiresContext.ShouldBeFalse();
+		noResponseInvoker.ShouldNotBeNull();
+		withResponseInvoker.ShouldBeNull();
+
+		await noResponseInvoker!(new FastInvokerNoResponseAction(), CancellationToken.None).ConfigureAwait(true);
+		provider.GetRequiredService<FastInvokerNoResponseHandler>().CallCount.ShouldBe(1);
+	}
+
+	[Fact]
+	public async Task TryGetUltraLocalFastInvokers_Should_Return_WithResponse_Delegate_For_NoContext_Handler()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		_ = services.AddSingleton<FastInvokerResponseHandler>();
+		var provider = services.BuildServiceProvider();
+		var registry = new HandlerRegistry();
+		registry.Register(typeof(FastInvokerResponseAction), typeof(FastInvokerResponseHandler), expectsResponse: true);
+		var bus = new LocalMessageBus(provider, registry, new HandlerActivator(), new HandlerInvoker(), A.Fake<ILogger<LocalMessageBus>>());
+		var action = new FastInvokerResponseAction { Value = 21 };
+
+		// Act
+		var resolved = bus.TryGetUltraLocalFastInvokers(
+			typeof(FastInvokerResponseAction),
+			out var expectsResponse,
+			out var requiresContext,
+			out var noResponseInvoker,
+			out var withResponseInvoker);
+
+		// Assert
+		resolved.ShouldBeTrue();
+		expectsResponse.ShouldBeTrue();
+		requiresContext.ShouldBeFalse();
+		noResponseInvoker.ShouldBeNull();
+		withResponseInvoker.ShouldNotBeNull();
+
+		var result = await withResponseInvoker!(action, CancellationToken.None).ConfigureAwait(true);
+		result.ShouldBe(42);
+		provider.GetRequiredService<FastInvokerResponseHandler>().CallCount.ShouldBe(1);
+	}
+
+	[Fact]
+	public void TryGetUltraLocalFastInvokers_Should_Return_Null_Delegates_When_Handler_Requires_Context()
+	{
+		// Arrange
+		var services = new ServiceCollection();
+		_ = services.AddSingleton<FastInvokerContextHandler>();
+		var provider = services.BuildServiceProvider();
+		var registry = new HandlerRegistry();
+		registry.Register(typeof(FastInvokerContextAction), typeof(FastInvokerContextHandler), expectsResponse: false);
+		var bus = new LocalMessageBus(provider, registry, new HandlerActivator(), new HandlerInvoker(), A.Fake<ILogger<LocalMessageBus>>());
+
+		// Act
+		var resolved = bus.TryGetUltraLocalFastInvokers(
+			typeof(FastInvokerContextAction),
+			out var expectsResponse,
+			out var requiresContext,
+			out var noResponseInvoker,
+			out var withResponseInvoker);
+
+		// Assert
+		resolved.ShouldBeTrue();
+		expectsResponse.ShouldBeFalse();
+		requiresContext.ShouldBeTrue();
+		noResponseInvoker.ShouldBeNull();
+		withResponseInvoker.ShouldBeNull();
+	}
+
+	[Fact]
+	public void TryGetUltraLocalFastInvokers_Should_Return_False_For_Unregistered_Action()
+	{
+		// Arrange
+		var services = new ServiceCollection().BuildServiceProvider();
+		var bus = new LocalMessageBus(services, new HandlerRegistry(), new HandlerActivator(), new HandlerInvoker(), A.Fake<ILogger<LocalMessageBus>>());
+
+		// Act
+		var resolved = bus.TryGetUltraLocalFastInvokers(
+			typeof(UnregisteredUltraLocalAction),
+			out var expectsResponse,
+			out var requiresContext,
+			out var noResponseInvoker,
+			out var withResponseInvoker);
+
+		// Assert
+		resolved.ShouldBeFalse();
+		expectsResponse.ShouldBeFalse();
+		requiresContext.ShouldBeFalse();
+		noResponseInvoker.ShouldBeNull();
+		withResponseInvoker.ShouldBeNull();
+	}
+
+	[Fact]
 	public async Task SendAsync_Should_Use_Singleton_NoContext_Instance_Cache_When_Eligible()
 	{
 		// Arrange
@@ -602,6 +714,52 @@ public sealed class LocalMessageBusShould
 		public Task HandleAsync(TypedUltraLocalAction action, CancellationToken cancellationToken)
 		{
 			CallCount++;
+			return Task.CompletedTask;
+		}
+	}
+
+	private sealed record FastInvokerNoResponseAction : IDispatchAction;
+	private sealed record FastInvokerContextAction : IDispatchAction;
+	private sealed record UnregisteredUltraLocalAction : IDispatchAction;
+
+	private sealed record FastInvokerResponseAction : IDispatchAction<int>
+	{
+		public int Value { get; init; }
+	}
+
+	private sealed class FastInvokerNoResponseHandler : IActionHandler<FastInvokerNoResponseAction>
+	{
+		public int CallCount { get; private set; }
+
+		public Task HandleAsync(FastInvokerNoResponseAction action, CancellationToken cancellationToken)
+		{
+			_ = action;
+			_ = cancellationToken;
+			CallCount++;
+			return Task.CompletedTask;
+		}
+	}
+
+	private sealed class FastInvokerResponseHandler : IActionHandler<FastInvokerResponseAction, int>
+	{
+		public int CallCount { get; private set; }
+
+		public Task<int> HandleAsync(FastInvokerResponseAction action, CancellationToken cancellationToken)
+		{
+			_ = cancellationToken;
+			CallCount++;
+			return Task.FromResult(action.Value * 2);
+		}
+	}
+
+	private sealed class FastInvokerContextHandler : IActionHandler<FastInvokerContextAction>
+	{
+		public IMessageContext? Context { get; set; }
+
+		public Task HandleAsync(FastInvokerContextAction action, CancellationToken cancellationToken)
+		{
+			_ = action;
+			_ = cancellationToken;
 			return Task.CompletedTask;
 		}
 	}

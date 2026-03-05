@@ -1161,3 +1161,6 @@ static Microsoft.Extensions.DependencyInjection.SagaTelemetryExtensions.AddSagaI
 static Microsoft.Extensions.DependencyInjection.SagaTimeoutServiceCollectionExtensions.AddSagaTimeoutDelivery(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Saga.SagaTimeoutOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
 static Microsoft.Extensions.DependencyInjection.SagaTimeoutServiceCollectionExtensions.AddSagaTimeoutDelivery(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
 static Microsoft.Extensions.DependencyInjection.SagaTimeoutServiceCollectionExtensions.AddSagaTimeoutDeliveryService(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Saga.SagaTimeoutOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
+
+Microsoft.Extensions.DependencyInjection.SagaExcaliburBuilderExtensions
+static Microsoft.Extensions.DependencyInjection.SagaExcaliburBuilderExtensions.AddSagas(Excalibur.Hosting.Builders.IExcaliburBuilder builder, System.Action<Excalibur.Saga.SagaOptions> configure = null) -> Excalibur.Hosting.Builders.IExcaliburBuilder

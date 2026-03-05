@@ -63,7 +63,8 @@ public sealed class WorkflowContextExtendedShould
 
 		// Assert
 		context.StartedAt.ShouldBeGreaterThanOrEqualTo(before);
-		context.StartedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+		var assertionUpperBound1 = DateTimeOffset.UtcNow;
+		context.StartedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	[Fact]

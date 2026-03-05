@@ -7,7 +7,7 @@ param(
     [string]$Configuration = "Release",
 
     [Parameter(Mandatory = $false)]
-    [string]$ArtifactsPath = "BenchmarkDotNet.Artifacts",
+    [string]$ArtifactsPath = "benchmarks/runs/BenchmarkDotNet.Artifacts",
 
     [Parameter(Mandatory = $false)]
     [switch]$NoBuild,
@@ -19,11 +19,48 @@ param(
     [switch]$CiSmoke,
 
     [Parameter(Mandatory = $false)]
-    [switch]$VerboseFrameworkLogs
+    [switch]$VerboseFrameworkLogs,
+
+    [Parameter(Mandatory = $false)]
+    [string]$RuntimeProfile,
+
+    [Parameter(Mandatory = $false)]
+    [string]$RuntimeProfilesPath = "eng/runtime-profiles.json"
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+function Get-RuntimeProfileVariables {
+    param(
+        [Parameter(Mandatory = $false)]
+        [string]$ProfileName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ProfilesFilePath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ProfileName)) {
+        return @{}
+    }
+
+    if (-not (Test-Path $ProfilesFilePath)) {
+        throw "Runtime profiles file not found: $ProfilesFilePath"
+    }
+
+    $profilesRoot = Get-Content -Path $ProfilesFilePath -Raw | ConvertFrom-Json -AsHashtable
+    if (-not $profilesRoot.ContainsKey("profiles")) {
+        throw "Runtime profiles file is missing the top-level 'profiles' object: $ProfilesFilePath"
+    }
+
+    $profiles = $profilesRoot["profiles"]
+    if (-not $profiles.ContainsKey($ProfileName)) {
+        $availableProfiles = @($profiles.Keys) -join ", "
+        throw "Runtime profile '$ProfileName' was not found in $ProfilesFilePath. Available profiles: $availableProfiles"
+    }
+
+    return [hashtable]$profiles[$ProfileName]
+}
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $projectPath = Join-Path $repoRoot "benchmarks/Excalibur.Dispatch.Benchmarks"
@@ -38,6 +75,19 @@ if (-not (Test-Path $artifactsFullPath)) {
     New-Item -ItemType Directory -Force -Path $artifactsFullPath | Out-Null
 }
 
+$runtimeProfilesFullPath = if ([System.IO.Path]::IsPathRooted($RuntimeProfilesPath)) {
+    $RuntimeProfilesPath
+}
+else {
+    Join-Path $repoRoot $RuntimeProfilesPath
+}
+$runtimeProfileVariables = Get-RuntimeProfileVariables -ProfileName $RuntimeProfile -ProfilesFilePath $runtimeProfilesFullPath
+$runtimeProfileOriginalEnv = @{}
+foreach ($envVar in $runtimeProfileVariables.Keys) {
+    $runtimeProfileOriginalEnv[$envVar] = [Environment]::GetEnvironmentVariable($envVar)
+    [Environment]::SetEnvironmentVariable($envVar, "$($runtimeProfileVariables[$envVar])")
+}
+
 $filters = if ($CiSmoke) {
     @(
         "*MediatRComparisonBenchmarks.Dispatch_SingleCommand*",
@@ -45,7 +95,8 @@ $filters = if ($CiSmoke) {
         "*MassTransitMediatorComparisonBenchmarks.Dispatch_SingleCommand*",
         "*TransportQueueParityComparisonBenchmarks.Dispatch_QueuedCommand_EndToEnd*",
         "*WolverineComparisonBenchmarks.Dispatch_SingleCommand*",
-        "*MassTransitComparisonBenchmarks.Dispatch_SingleCommand*"
+        "*MassTransitComparisonBenchmarks.Dispatch_SingleCommand*",
+        "*PipelineComparisonBenchmarks.Dispatch_WithPipelineBehaviors*"
     )
 }
 else {
@@ -55,7 +106,8 @@ else {
         "*MassTransitMediatorComparisonBenchmarks*",
         "*TransportQueueParityComparisonBenchmarks*",
         "*WolverineComparisonBenchmarks*",
-        "*MassTransitComparisonBenchmarks*"
+        "*MassTransitComparisonBenchmarks*",
+        "*PipelineComparisonBenchmarks*"
     )
 }
 
@@ -94,6 +146,10 @@ Write-Host "Artifacts path: $artifactsFullPath" -ForegroundColor Cyan
 Write-Host "Filters: $($filters -join ', ')" -ForegroundColor Cyan
 Write-Host "CI smoke mode: $CiSmoke" -ForegroundColor Cyan
 Write-Host "Quiet framework logs: $(-not $VerboseFrameworkLogs)" -ForegroundColor Cyan
+Write-Host "Runtime profile: $(if ([string]::IsNullOrWhiteSpace($RuntimeProfile)) { 'none' } else { $RuntimeProfile })" -ForegroundColor Cyan
+if ($runtimeProfileVariables.Count -gt 0) {
+    Write-Host "Runtime profile variables: $(($runtimeProfileVariables.GetEnumerator() | ForEach-Object { '{0}={1}' -f $_.Key, $_.Value }) -join ', ')" -ForegroundColor Cyan
+}
 
 $quietLogEnvVars = @(
     "Logging__LogLevel__Default",
@@ -126,6 +182,10 @@ finally {
             [Environment]::SetEnvironmentVariable($envVar, $originalEnv[$envVar])
         }
     }
+
+    foreach ($envVar in $runtimeProfileVariables.Keys) {
+        [Environment]::SetEnvironmentVariable($envVar, $runtimeProfileOriginalEnv[$envVar])
+    }
 }
 
 $expectedReports = @(
@@ -134,7 +194,8 @@ $expectedReports = @(
     "Excalibur.Dispatch.Benchmarks.Comparative.MassTransitMediatorComparisonBenchmarks-report-github.md",
     "Excalibur.Dispatch.Benchmarks.Comparative.TransportQueueParityComparisonBenchmarks-report-github.md",
     "Excalibur.Dispatch.Benchmarks.Comparative.WolverineComparisonBenchmarks-report-github.md",
-    "Excalibur.Dispatch.Benchmarks.Comparative.MassTransitComparisonBenchmarks-report-github.md"
+    "Excalibur.Dispatch.Benchmarks.Comparative.MassTransitComparisonBenchmarks-report-github.md",
+    "Excalibur.Dispatch.Benchmarks.Comparative.PipelineComparisonBenchmarks-report-github.md"
 )
 
 $missingReports = @()

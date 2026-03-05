@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
@@ -30,6 +31,7 @@ public static class MessageTypeCache
 	/// Pre-computed type metadata using frozen collections for O(1) lookup performance.
 	/// </summary>
 	private static FrozenDictionary<Type, MessageTypeMetadata> _typeCache = FrozenDictionary<Type, MessageTypeMetadata>.Empty;
+	private static readonly ConcurrentDictionary<Type, MessageTypeMetadata> _fallbackTypeCache = new();
 
 	private static FrozenDictionary<string, Type> _nameToTypeCache = FrozenDictionary<string, Type>.Empty;
 	private static volatile bool _initialized;
@@ -86,6 +88,7 @@ public static class MessageTypeCache
 
 			_typeCache = typeDict.ToFrozenDictionary();
 			_nameToTypeCache = nameDict.ToFrozenDictionary(StringComparer.Ordinal);
+			_fallbackTypeCache.Clear();
 			_initialized = true;
 		}
 	}
@@ -114,8 +117,14 @@ public static class MessageTypeCache
 			return metadata;
 		}
 
-		// Fallback for types not in the cache (rare case)
-		return new MessageTypeMetadata(messageType);
+		// Fallback for types not in the startup cache (rare case): cache once to avoid repeated reflection.
+		if (_fallbackTypeCache.TryGetValue(messageType, out var fallbackMetadata))
+		{
+			return fallbackMetadata;
+		}
+
+		fallbackMetadata = new MessageTypeMetadata(messageType);
+		return _fallbackTypeCache.GetOrAdd(messageType, fallbackMetadata);
 	}
 
 	/// <summary>
@@ -138,7 +147,9 @@ public static class MessageTypeCache
 		ArgumentNullException.ThrowIfNull(messageType);
 		return _typeCache.TryGetValue(messageType, out var metadata)
 			? metadata.FullName
-			: messageType.FullName ?? messageType.Name;
+			: _fallbackTypeCache.TryGetValue(messageType, out var fallbackMetadata)
+				? fallbackMetadata.FullName
+				: messageType.FullName ?? messageType.Name;
 	}
 
 	/// <summary>

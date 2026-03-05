@@ -263,7 +263,8 @@ public sealed class ContextFlowMetricsDepthCoverageShould : IDisposable
 
 		// Assert
 		summary.Timestamp.ShouldBeGreaterThanOrEqualTo(before);
-		summary.Timestamp.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+		var assertionUpperBound1 = DateTimeOffset.UtcNow;
+		summary.Timestamp.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	private static ContextFlowMetrics CreateMetrics()

@@ -18,6 +18,7 @@ namespace Excalibur.Dispatch.Performance;
 /// <param name="HandlerActivatorFrozen">Whether the handler activator cache is frozen.</param>
 /// <param name="ResultFactoryFrozen">Whether the result factory cache is frozen.</param>
 /// <param name="MiddlewareEvaluatorFrozen">Whether the middleware applicability evaluator cache is frozen.</param>
+/// <param name="ProfileSelectionFrozen">Whether the pipeline profile selection cache is frozen.</param>
 /// <param name="FrozenAt">The timestamp when caches were frozen, or null if not frozen.</param>
 public sealed record CacheFreezeStatus(
 	bool HandlerInvokerFrozen,
@@ -25,6 +26,7 @@ public sealed record CacheFreezeStatus(
 	bool HandlerActivatorFrozen,
 	bool ResultFactoryFrozen,
 	bool MiddlewareEvaluatorFrozen,
+	bool ProfileSelectionFrozen,
 	DateTimeOffset? FrozenAt)
 {
 	/// <summary>
@@ -38,7 +40,8 @@ public sealed record CacheFreezeStatus(
 		HandlerRegistryFrozen &&
 		HandlerActivatorFrozen &&
 		ResultFactoryFrozen &&
-		MiddlewareEvaluatorFrozen;
+		MiddlewareEvaluatorFrozen &&
+		ProfileSelectionFrozen;
 
 	/// <summary>
 	/// Gets the default unfrozen status.
@@ -49,5 +52,6 @@ public sealed record CacheFreezeStatus(
 		HandlerActivatorFrozen: false,
 		ResultFactoryFrozen: false,
 		MiddlewareEvaluatorFrozen: false,
+		ProfileSelectionFrozen: false,
 		FrozenAt: null);
 }

@@ -12,6 +12,7 @@ using Excalibur.Dispatch.Transport.Kafka;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Testcontainers.Kafka;
+using Tests.Shared.Infrastructure;
 
 namespace Excalibur.Dispatch.Integration.Tests.Transport.Kafka;
 
@@ -26,6 +27,8 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.Kafka;
 [Trait("Component", "Transport")]
 public sealed class KafkaDeadLetterIntegrationShould : IAsyncLifetime
 {
+	private static readonly TimeSpan MessageWaitTimeout = TestTimeouts.Scale(TimeSpan.FromSeconds(30));
+
 	private KafkaContainer? _container;
 	private string? _bootstrapServers;
 
@@ -94,7 +97,7 @@ public sealed class KafkaDeadLetterIntegrationShould : IAsyncLifetime
 		using var consumer = BuildRawConsumer(dlqTopic, $"verify-dlq-{Guid.NewGuid():N}");
 		consumer.Subscribe(dlqTopic);
 
-		var consumed = ConsumeWithRetry(consumer, TimeSpan.FromSeconds(15));
+		var consumed = ConsumeWithRetry(consumer, MessageWaitTimeout);
 		consumed.ShouldNotBeNull();
 		consumed.Message.Value.ShouldBe(originalMessage.Body.ToArray());
 
@@ -139,7 +142,7 @@ public sealed class KafkaDeadLetterIntegrationShould : IAsyncLifetime
 		using var consumer = BuildRawConsumer(dlqTopic, $"verify-no-exc-{Guid.NewGuid():N}");
 		consumer.Subscribe(dlqTopic);
 
-		var consumed = ConsumeWithRetry(consumer, TimeSpan.FromSeconds(15));
+		var consumed = ConsumeWithRetry(consumer, MessageWaitTimeout);
 		consumed.ShouldNotBeNull();
 
 		GetHeaderValue(consumed.Message.Headers, "dlq_reason").ShouldBe("Max retries exceeded");
@@ -182,20 +185,18 @@ public sealed class KafkaDeadLetterIntegrationShould : IAsyncLifetime
 
 		// Retry consuming with polling for partition assignment
 		IReadOnlyList<DeadLetterMessage>? messages = null;
-		var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
-		while (DateTime.UtcNow < deadline)
-		{
-			messages = (IReadOnlyList<DeadLetterMessage>)consumeMethod.Invoke(
-				dlqConsumer, [dlqTopic, 10, CancellationToken.None])!;
-			if (messages.Count > 0)
+		var hasMessages = await WaitHelpers.WaitUntilAsync(
+			() =>
 			{
-				break;
-			}
-
-			await Task.Delay(200).ConfigureAwait(false);
-		}
+				messages = (IReadOnlyList<DeadLetterMessage>)consumeMethod.Invoke(
+					dlqConsumer, [dlqTopic, 10, CancellationToken.None])!;
+				return messages.Count > 0;
+			},
+			MessageWaitTimeout,
+			TimeSpan.FromMilliseconds(100)).ConfigureAwait(false);
 
 		// Assert
+		hasMessages.ShouldBeTrue();
 		messages.ShouldNotBeNull();
 		messages.Count.ShouldBe(1);
 
@@ -239,19 +240,17 @@ public sealed class KafkaDeadLetterIntegrationShould : IAsyncLifetime
 			var (dlqConsumer1, _, peekMethod1) = CreateDlqConsumerWithMethods(dlqGroupId);
 			using var disposable1 = (IDisposable)dlqConsumer1;
 
-			var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
-			while (DateTime.UtcNow < deadline)
-			{
-				peeked = (IReadOnlyList<DeadLetterMessage>)peekMethod1.Invoke(
-					dlqConsumer1, [dlqTopic, 10, CancellationToken.None])!;
-				if (peeked.Count > 0)
+			var hasPeeked = await WaitHelpers.WaitUntilAsync(
+				() =>
 				{
-					break;
-				}
+					peeked = (IReadOnlyList<DeadLetterMessage>)peekMethod1.Invoke(
+						dlqConsumer1, [dlqTopic, 10, CancellationToken.None])!;
+					return peeked.Count > 0;
+				},
+				MessageWaitTimeout,
+				TimeSpan.FromMilliseconds(100)).ConfigureAwait(false);
 
-				await Task.Delay(200).ConfigureAwait(false);
-			}
-
+			hasPeeked.ShouldBeTrue();
 			peeked.ShouldNotBeNull();
 			peeked.Count.ShouldBe(1);
 		}
@@ -262,18 +261,17 @@ public sealed class KafkaDeadLetterIntegrationShould : IAsyncLifetime
 			var (dlqConsumer2, consumeMethod2, _) = CreateDlqConsumerWithMethods(dlqGroupId);
 			using var disposable2 = (IDisposable)dlqConsumer2;
 
-			var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
-			while (DateTime.UtcNow < deadline)
-			{
-				consumed = (IReadOnlyList<DeadLetterMessage>)consumeMethod2.Invoke(
-					dlqConsumer2, [dlqTopic, 10, CancellationToken.None])!;
-				if (consumed.Count > 0)
+			var hasConsumed = await WaitHelpers.WaitUntilAsync(
+				() =>
 				{
-					break;
-				}
+					consumed = (IReadOnlyList<DeadLetterMessage>)consumeMethod2.Invoke(
+						dlqConsumer2, [dlqTopic, 10, CancellationToken.None])!;
+					return consumed.Count > 0;
+				},
+				MessageWaitTimeout,
+				TimeSpan.FromMilliseconds(100)).ConfigureAwait(false);
 
-				await Task.Delay(200).ConfigureAwait(false);
-			}
+			hasConsumed.ShouldBeTrue();
 		}
 
 		// Assert - message should still be available since peek doesn't commit
@@ -329,7 +327,7 @@ public sealed class KafkaDeadLetterIntegrationShould : IAsyncLifetime
 		using var consumer = BuildRawConsumer(originalTopic, $"verify-reprocess-{Guid.NewGuid():N}");
 		consumer.Subscribe(originalTopic);
 
-		var consumed = ConsumeWithRetry(consumer, TimeSpan.FromSeconds(15));
+		var consumed = ConsumeWithRetry(consumer, MessageWaitTimeout);
 		consumed.ShouldNotBeNull();
 		consumed.Message.Value.ShouldBe(Encoding.UTF8.GetBytes("reprocess-body"));
 	}
@@ -419,17 +417,24 @@ public sealed class KafkaDeadLetterIntegrationShould : IAsyncLifetime
 		return (instance, consumeMethod, peekMethod);
 	}
 
-	private static global::Confluent.Kafka.ConsumeResult<string, byte[]>? ConsumeWithRetry(IConsumer<string, byte[]> consumer, TimeSpan timeout)
+private static global::Confluent.Kafka.ConsumeResult<string, byte[]>? ConsumeWithRetry(IConsumer<string, byte[]> consumer, TimeSpan timeout)
+{
+	var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+	while (stopwatch.Elapsed < timeout)
 	{
-		var deadline = DateTime.UtcNow + timeout;
-		while (DateTime.UtcNow < deadline)
+		var remaining = timeout - stopwatch.Elapsed;
+		if (remaining <= TimeSpan.Zero)
 		{
-			var result = consumer.Consume(TimeSpan.FromSeconds(2));
-			if (result?.Message is not null)
-			{
-				return result;
-			}
+			break;
 		}
+
+		var pollTimeout = remaining < TimeSpan.FromMilliseconds(250) ? remaining : TimeSpan.FromMilliseconds(250);
+		var result = consumer.Consume(pollTimeout);
+		if (result?.Message is not null)
+		{
+			return result;
+		}
+	}
 
 		return null;
 	}

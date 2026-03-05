@@ -78,12 +78,12 @@ public sealed class MiddlewareInvokerInterceptorGeneratorShould
 		// Arrange
 		var info1 = new MiddlewareInterceptorInfo
 		{
-			MiddlewareTypeFullName = "global::Excalibur.Dispatch.Middleware.LoggingMiddleware",
+			MiddlewareTypeFullName = "global::Excalibur.Dispatch.Middleware.Logging.LoggingMiddleware",
 			MiddlewareTypeName = "LoggingMiddleware"
 		};
 		var info2 = new MiddlewareInterceptorInfo
 		{
-			MiddlewareTypeFullName = "global::Excalibur.Dispatch.Middleware.LoggingMiddleware",
+			MiddlewareTypeFullName = "global::Excalibur.Dispatch.Middleware.Logging.LoggingMiddleware",
 			MiddlewareTypeName = "LoggingMiddleware"
 		};
 
@@ -98,11 +98,11 @@ public sealed class MiddlewareInvokerInterceptorGeneratorShould
 		// Arrange
 		var info1 = new MiddlewareInterceptorInfo
 		{
-			MiddlewareTypeFullName = "global::Excalibur.Dispatch.Middleware.LoggingMiddleware"
+			MiddlewareTypeFullName = "global::Excalibur.Dispatch.Middleware.Logging.LoggingMiddleware"
 		};
 		var info2 = new MiddlewareInterceptorInfo
 		{
-			MiddlewareTypeFullName = "global::Excalibur.Dispatch.Middleware.ValidationMiddleware"
+			MiddlewareTypeFullName = "global::Excalibur.Dispatch.Middleware.Validation.ValidationMiddleware"
 		};
 
 		// Act & Assert

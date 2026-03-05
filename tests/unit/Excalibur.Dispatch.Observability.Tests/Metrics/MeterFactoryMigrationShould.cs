@@ -50,7 +50,7 @@ public sealed class MeterFactoryMigrationShould : IDisposable
 		using var listener = new MeterListener();
 		listener.InstrumentPublished = (instrument, theListener) =>
 		{
-			if (instrument.Meter.Name == DispatchMetrics.MeterName)
+			if (ReferenceEquals(instrument.Meter, metrics.Meter))
 			{
 				instrumentNames.Add(instrument.Name);
 				theListener.EnableMeasurementEvents(instrument);
@@ -81,7 +81,7 @@ public sealed class MeterFactoryMigrationShould : IDisposable
 		using var listener = new MeterListener();
 		listener.InstrumentPublished = (instrument, theListener) =>
 		{
-			if (instrument.Meter.Name == DispatchMetrics.MeterName &&
+			if (ReferenceEquals(instrument.Meter, metrics.Meter) &&
 				instrument.Name == "dispatch.messages.processed")
 			{
 				theListener.EnableMeasurementEvents(instrument);
@@ -155,7 +155,7 @@ public sealed class MeterFactoryMigrationShould : IDisposable
 		using var listener = new MeterListener();
 		listener.InstrumentPublished = (instrument, theListener) =>
 		{
-			if (instrument.Meter.Name == CircuitBreakerMetrics.MeterName)
+			if (ReferenceEquals(instrument.Meter, metrics.Meter))
 			{
 				instrumentNames.Add(instrument.Name);
 				theListener.EnableMeasurementEvents(instrument);
@@ -215,7 +215,7 @@ public sealed class MeterFactoryMigrationShould : IDisposable
 		using var listener = new MeterListener();
 		listener.InstrumentPublished = (instrument, theListener) =>
 		{
-			if (instrument.Meter.Name == DeadLetterQueueMetrics.MeterName)
+			if (ReferenceEquals(instrument.Meter, metrics.Meter))
 			{
 				instrumentNames.Add(instrument.Name);
 				theListener.EnableMeasurementEvents(instrument);

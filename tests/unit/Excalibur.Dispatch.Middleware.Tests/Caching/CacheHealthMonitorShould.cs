@@ -19,15 +19,17 @@ public sealed class CacheHealthMonitorShould : UnitTestBase
 	{
 		// Arrange
 		var monitor = new CacheHealthMonitor(connectionMultiplexer: null);
+		var before = DateTimeOffset.UtcNow;
 
 		// Act
 		var status = await monitor.GetHealthStatusAsync(CancellationToken.None);
+		var after = DateTimeOffset.UtcNow;
 
 		// Assert
 		status.IsHealthy.ShouldBeFalse();
 		status.ConnectionStatus.ShouldBe("Redis not available");
 		status.ResponseTimeMs.ShouldBe(0);
-		status.LastChecked.ShouldBeInRange(DateTimeOffset.UtcNow.AddSeconds(-1), DateTimeOffset.UtcNow.AddSeconds(1));
+		status.LastChecked.ShouldBeInRange(before, after);
 	}
 
 	[Fact]
@@ -57,15 +59,17 @@ public sealed class CacheHealthMonitorShould : UnitTestBase
 		A.CallTo(() => multiplexer.GetDatabase(A<int>._, A<object>._)).Returns(database);
 		A.CallTo(() => database.PingAsync(A<CommandFlags>._)).Returns(Task.FromResult(TimeSpan.FromMilliseconds(5.3)));
 		var monitor = new CacheHealthMonitor(multiplexer);
+		var before = DateTimeOffset.UtcNow;
 
 		// Act
 		var status = await monitor.GetHealthStatusAsync(CancellationToken.None);
+		var after = DateTimeOffset.UtcNow;
 
 		// Assert
 		status.IsHealthy.ShouldBeTrue();
 		status.ConnectionStatus.ShouldBe("Connected");
 		status.ResponseTimeMs.ShouldBe(5.3);
-		status.LastChecked.ShouldBeInRange(DateTimeOffset.UtcNow.AddSeconds(-1), DateTimeOffset.UtcNow.AddSeconds(1));
+		status.LastChecked.ShouldBeInRange(before, after);
 	}
 
 	[Fact]
@@ -94,15 +98,17 @@ public sealed class CacheHealthMonitorShould : UnitTestBase
 	{
 		// Arrange
 		var monitor = new CacheHealthMonitor();
+		var before = DateTimeOffset.UtcNow;
 
 		// Act
 		var snapshot = monitor.GetPerformanceSnapshot();
+		var after = DateTimeOffset.UtcNow;
 
 		// Assert
 		snapshot.HitCount.ShouldBe(0);
 		snapshot.MissCount.ShouldBe(0);
 		snapshot.TotalErrors.ShouldBe(0);
-		snapshot.Timestamp.ShouldBeInRange(DateTimeOffset.UtcNow.AddSeconds(-1), DateTimeOffset.UtcNow.AddSeconds(1));
+		snapshot.Timestamp.ShouldBeInRange(before, after);
 	}
 
 	[Fact]

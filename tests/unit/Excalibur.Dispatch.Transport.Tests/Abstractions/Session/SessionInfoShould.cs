@@ -180,19 +180,20 @@ public class SessionInfoShould
     [Fact]
     public void AllowExpiredSessionConfiguration()
     {
+        var now = DateTimeOffset.UtcNow;
         var info = new SessionInfo
         {
             SessionId = "expired-session",
             State = DispatchSessionState.Expired,
-            CreatedAt = DateTimeOffset.UtcNow.AddHours(-2),
-            ExpiresAt = DateTimeOffset.UtcNow.AddHours(-1),
+            CreatedAt = now.AddHours(-2),
+            ExpiresAt = now.AddHours(-1),
             LockToken = null,
             OwnerId = null
         };
 
         info.State.ShouldBe(DispatchSessionState.Expired);
         info.ExpiresAt.ShouldNotBeNull();
-        info.ExpiresAt.Value.ShouldBeLessThan(DateTimeOffset.UtcNow);
+        info.ExpiresAt.Value.ShouldBeLessThan(now);
     }
 
     [Fact]

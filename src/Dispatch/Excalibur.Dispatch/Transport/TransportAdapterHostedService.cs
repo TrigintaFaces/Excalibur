@@ -153,7 +153,7 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 		// Initialize any factory-registered transports first
 		if (_transportRegistry.HasPendingFactories)
 		{
-			LogInitializingFactories(_transportRegistry.GetPendingFactoryNames().Count());
+			LogInitializingFactories(_transportRegistry.PendingFactoryCount);
 
 			var initialized = _transportRegistry.InitializeFactories(_serviceProvider);
 
@@ -268,10 +268,14 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 		{
 			lock (_lock)
 			{
-				return _transportRegistry.GetAllTransports()
-					.Select(static kvp => kvp.Value.Adapter)
-					.ToList()
-					.AsReadOnly();
+				var transports = _transportRegistry.GetAllTransports();
+				var adapters = new List<ITransportAdapter>(transports.Count);
+				foreach (var transport in transports)
+				{
+					adapters.Add(transport.Value.Adapter);
+				}
+
+				return adapters.AsReadOnly();
 			}
 		}
 	}
@@ -283,7 +287,7 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 		{
 			lock (_lock)
 			{
-				return _transportRegistry.GetTransportNames().ToList().AsReadOnly();
+				return MaterializeTransportNames(_transportRegistry.GetTransportNames());
 			}
 		}
 	}
@@ -376,6 +380,34 @@ public sealed partial class TransportAdapterHostedService : ITransportLifecycleM
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
 		return _transportRegistry.GetTransportRegistration(name) is not null;
+	}
+
+	private static IReadOnlyCollection<string> MaterializeTransportNames(IEnumerable<string> transportNames)
+	{
+		if (transportNames is IReadOnlyCollection<string> readOnlyCollection)
+		{
+			return readOnlyCollection;
+		}
+
+		if (transportNames is ICollection<string> collection)
+		{
+			if (collection.Count == 0)
+			{
+				return Array.Empty<string>();
+			}
+
+			var names = new string[collection.Count];
+			collection.CopyTo(names, 0);
+			return names;
+		}
+
+		var buffered = new List<string>();
+		foreach (var transportName in transportNames)
+		{
+			buffered.Add(transportName);
+		}
+
+		return buffered;
 	}
 
 	/// <inheritdoc/>

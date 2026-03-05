@@ -11,24 +11,43 @@ namespace Tests.Shared.Helpers;
 /// </summary>
 public sealed class TestMeterFactory : IMeterFactory
 {
+	private readonly object _sync = new();
 	private readonly List<Meter> _meters = [];
 
 	/// <inheritdoc />
 	public Meter Create(MeterOptions options)
 	{
 		var meter = new Meter(options.Name, options.Version);
-		_meters.Add(meter);
+		lock (_sync)
+		{
+			_meters.Add(meter);
+		}
+
 		return meter;
+	}
+
+	/// <summary>
+	/// Returns true when <paramref name="meter"/> was created by this factory instance.
+	/// </summary>
+	public bool Owns(Meter meter)
+	{
+		lock (_sync)
+		{
+			return _meters.Contains(meter);
+		}
 	}
 
 	/// <inheritdoc />
 	public void Dispose()
 	{
-		foreach (var meter in _meters)
+		lock (_sync)
 		{
-			meter.Dispose();
-		}
+			foreach (var meter in _meters)
+			{
+				meter.Dispose();
+			}
 
-		_meters.Clear();
+			_meters.Clear();
+		}
 	}
 }

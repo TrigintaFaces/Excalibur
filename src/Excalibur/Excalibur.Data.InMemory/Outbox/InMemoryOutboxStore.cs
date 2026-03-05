@@ -54,11 +54,6 @@ public sealed partial class InMemoryOutboxStore : IOutboxStore, IOutboxStoreAdmi
 		ArgumentNullException.ThrowIfNull(message);
 		ObjectDisposedException.ThrowIf(_disposed, this);
 
-		if (_messages.ContainsKey(message.Id))
-		{
-			throw new InvalidOperationException($"Message with ID '{message.Id}' already exists in the outbox.");
-		}
-
 		// Enforce capacity limits
 		EnforceCapacityLimit();
 
@@ -447,29 +442,50 @@ public sealed partial class InMemoryOutboxStore : IOutboxStore, IOutboxStoreAdmi
 
 	private void EvictOldestSentMessage()
 	{
-		// First try to evict sent messages
-		var oldestSent = _messages.Values
-			.Where(m => m.Status == OutboxStatus.Sent)
-			.OrderBy(m => m.SentAt)
-			.FirstOrDefault();
-
-		if (oldestSent != null)
+		if (TryGetEvictionCandidateId(out var messageId))
 		{
-			_ = _messages.TryRemove(oldestSent.Id, out _);
-			_ = _messageLocks.TryRemove(oldestSent.Id, out _);
-			return;
+			_ = _messages.TryRemove(messageId, out _);
+			_ = _messageLocks.TryRemove(messageId, out _);
+		}
+	}
+
+	private bool TryGetEvictionCandidateId(out string messageId)
+	{
+		OutboundMessage? oldestSentMessage = null;
+		DateTimeOffset? oldestSentAt = null;
+		OutboundMessage? oldestOverallMessage = null;
+		var oldestCreatedAt = DateTimeOffset.MaxValue;
+
+		foreach (var message in _messages.Values)
+		{
+			if (message.CreatedAt < oldestCreatedAt)
+			{
+				oldestCreatedAt = message.CreatedAt;
+				oldestOverallMessage = message;
+			}
+
+			if (message.Status != OutboxStatus.Sent)
+			{
+				continue;
+			}
+
+			if (oldestSentMessage is null ||
+			    Nullable.Compare(message.SentAt, oldestSentAt) < 0)
+			{
+				oldestSentMessage = message;
+				oldestSentAt = message.SentAt;
+			}
 		}
 
-		// If no sent messages, evict oldest message regardless of status
-		var oldest = _messages.Values
-			.OrderBy(m => m.CreatedAt)
-			.FirstOrDefault();
-
-		if (oldest != null)
+		var candidate = oldestSentMessage ?? oldestOverallMessage;
+		if (candidate is null)
 		{
-			_ = _messages.TryRemove(oldest.Id, out _);
-			_ = _messageLocks.TryRemove(oldest.Id, out _);
+			messageId = string.Empty;
+			return false;
 		}
+
+		messageId = candidate.Id;
+		return true;
 	}
 
 	#region High-Performance Logging

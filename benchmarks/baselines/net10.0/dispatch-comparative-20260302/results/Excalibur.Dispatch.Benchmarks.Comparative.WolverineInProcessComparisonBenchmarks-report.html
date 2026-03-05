@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Comparative.WolverineInProcessComparisonBenchmarks-20260302-220544</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7840)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.103
+  [Host] : .NET 10.0.3 (10.0.3, 10.0.326.7603), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=comparative-inproc  Toolchain=InProcessEmitToolchain  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                                           </th><th>Mean  </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Gen2</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Dispatch (local): Single command&#39;</td><td>132.26 ns</td><td>2.601 ns</td><td>2.433 ns</td><td>1.00</td><td>0.03</td><td>0.0033</td><td>-</td><td>-</td><td>264 B</td><td>1.00</td>
+</tr><tr><td>&#39;Dispatch (ultra-local): Single command&#39;</td><td>61.27 ns</td><td>1.189 ns</td><td>1.627 ns</td><td>0.46</td><td>0.01</td><td>0.0006</td><td>-</td><td>-</td><td>48 B</td><td>0.18</td>
+</tr><tr><td>&#39;Wolverine (in-process): Single command InvokeAsync&#39;</td><td>368.19 ns</td><td>5.028 ns</td><td>4.703 ns</td><td>2.78</td><td>0.06</td><td>0.0091</td><td>0.0005</td><td>0.0005</td><td>-</td><td>0.00</td>
+</tr><tr><td>&#39;Dispatch (local): Notification to 2 handlers&#39;</td><td>219.40 ns</td><td>2.412 ns</td><td>2.138 ns</td><td>1.66</td><td>0.03</td><td>0.0036</td><td>-</td><td>-</td><td>288 B</td><td>1.09</td>
+</tr><tr><td>&#39;Wolverine (in-process): Notification to 2 handlers&#39;</td><td>3,954.40 ns</td><td>30.278 ns</td><td>28.322 ns</td><td>29.91</td><td>0.57</td><td>0.0534</td><td>-</td><td>-</td><td>4512 B</td><td>17.09</td>
+</tr><tr><td>&#39;Dispatch (local): Query with return&#39;</td><td>96.88 ns</td><td>1.307 ns</td><td>1.223 ns</td><td>0.73</td><td>0.02</td><td>0.0061</td><td>0.0001</td><td>0.0001</td><td>102289 B</td><td>387.46</td>
+</tr><tr><td>&#39;Wolverine (in-process): Query with return InvokeAsync&#39;</td><td>289.44 ns</td><td>2.239 ns</td><td>1.984 ns</td><td>2.19</td><td>0.04</td><td>0.0119</td><td>-</td><td>-</td><td>936 B</td><td>3.55</td>
+</tr><tr><td>&#39;Dispatch (local): 10 concurrent commands&#39;</td><td>940.32 ns</td><td>12.639 ns</td><td>11.823 ns</td><td>7.11</td><td>0.15</td><td>0.0324</td><td>0.0010</td><td>0.0010</td><td>-</td><td>0.00</td>
+</tr><tr><td>&#39;Wolverine (in-process): 10 concurrent commands&#39;</td><td>2,192.44 ns</td><td>14.189 ns</td><td>12.578 ns</td><td>16.58</td><td>0.31</td><td>0.0877</td><td>-</td><td>-</td><td>6928 B</td><td>26.24</td>
+</tr><tr><td>&#39;Dispatch (local): 100 concurrent commands&#39;</td><td>8,249.13 ns</td><td>115.937 ns</td><td>102.775 ns</td><td>62.39</td><td>1.35</td><td>0.2747</td><td>-</td><td>-</td><td>21760 B</td><td>82.42</td>
+</tr><tr><td>&#39;Wolverine (in-process): 100 concurrent commands&#39;</td><td>22,060.96 ns</td><td>247.081 ns</td><td>219.031 ns</td><td>166.85</td><td>3.39</td><td>1.1597</td><td>-</td><td>-</td><td>68128 B</td><td>258.06</td>
+</tr></tbody></table>
+</body>
+</html>

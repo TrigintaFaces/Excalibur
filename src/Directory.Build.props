@@ -85,20 +85,12 @@
 		<BannedSymbolsFile Condition="'$(BannedSymbolsFile)' == ''">$(MSBuildThisFileDirectory)..\eng\banned\BannedSymbols.txt</BannedSymbolsFile>
 	</PropertyGroup>
 
-	<!-- Include LICENSE file and full license texts in NuGet packages (AD-318-1)
-	     Suppress NU5118 (duplicate file warning) caused by multi-targeting evaluating items per TFM
+	<!-- LICENSE inclusion is centralized in Directory.Build.targets (AD-320-1)
+	     Suppress NU5118 (duplicate file warning) for pack stability
 	     CA1873 (logging arg evaluation) — Sprint 565: fixed in Compliance/Dispatch core, remaining in transport packages -->
 	<PropertyGroup>
 		<NoWarn>$(NoWarn);NU5118;CA1873</NoWarn>
 	</PropertyGroup>
-	<ItemGroup>
-		<None Include="$(MSBuildThisFileDirectory)../LICENSE" Pack="true" PackagePath="" />
-		<None Include="$(MSBuildThisFileDirectory)../licenses/LICENSE-AGPL-3.0.txt" Pack="true" PackagePath="licenses/" />
-		<None Include="$(MSBuildThisFileDirectory)../licenses/LICENSE-APACHE-2.0.txt" Pack="true" PackagePath="licenses/" />
-		<None Include="$(MSBuildThisFileDirectory)../licenses/LICENSE-EXCALIBUR.txt" Pack="true" PackagePath="licenses/" />
-		<None Include="$(MSBuildThisFileDirectory)../licenses/LICENSE-SSPL-1.0.txt" Pack="true" PackagePath="licenses/" />
-	</ItemGroup>
-
 	<ItemGroup Condition="'$(IsPackable)' != 'false' And Exists('$(MSBuildProjectDirectory)\README.md')">
 		<None Include="$(MSBuildProjectDirectory)\README.md" Pack="true" PackagePath="/" Visible="false" />
 	</ItemGroup>

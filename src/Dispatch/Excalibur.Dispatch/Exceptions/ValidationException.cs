@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Text;
+
 using Excalibur.Dispatch.Abstractions;
 
 namespace Excalibur.Dispatch.Exceptions;
@@ -142,9 +144,10 @@ public sealed class ValidationException : DispatchException
 	{
 		if (ValidationErrors.TryGetValue(fieldName, out var existing))
 		{
-			var list = existing.ToList();
-			list.Add(errorMessage);
-			ValidationErrors[fieldName] = [.. list];
+			var updated = new string[existing.Length + 1];
+			Array.Copy(existing, updated, existing.Length);
+			updated[existing.Length] = errorMessage;
+			ValidationErrors[fieldName] = updated;
 		}
 		else
 		{
@@ -162,7 +165,7 @@ public sealed class ValidationException : DispatchException
 	{
 		var baseDetails = base.ToDispatchProblemDetails();
 
-		if (!ValidationErrors.Any())
+		if (ValidationErrors.Count == 0)
 		{
 			return baseDetails;
 		}
@@ -193,12 +196,35 @@ public sealed class ValidationException : DispatchException
 	/// </summary>
 	private static string FormatValidationMessage(IDictionary<string, string[]> errors)
 	{
-		if (!errors.Any())
+		if (errors.Count == 0)
 		{
 			return "Validation failed.";
 		}
 
-		var messages = errors.SelectMany(kvp => kvp.Value.Select(v => $"{kvp.Key}: {v}"));
-		return $"Validation failed: {string.Join("; ", messages)}";
+		var builder = new StringBuilder("Validation failed: ");
+		var hasMessage = false;
+
+		foreach (var fieldErrors in errors)
+		{
+			var fieldName = fieldErrors.Key;
+			var messages = fieldErrors.Value;
+			for (var i = 0; i < messages.Length; i++)
+			{
+				if (hasMessage)
+				{
+					builder.Append("; ");
+				}
+				else
+				{
+					hasMessage = true;
+				}
+
+				builder.Append(fieldName);
+				builder.Append(": ");
+				builder.Append(messages[i]);
+			}
+		}
+
+		return hasMessage ? builder.ToString() : "Validation failed.";
 	}
 }

@@ -40,6 +40,8 @@ public sealed partial class FinalDispatchHandler(
 	private readonly ILogger<FinalDispatchHandler> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	private const string ResultContextKey = "Dispatch:Result";
 	private const string CacheHitContextKey = "Dispatch:CacheHit";
+	private const string ValidationResultPropertyKey = "__ValidationResult";
+	private const string AuthorizationResultPropertyKey = "__AuthorizationResult";
 	private const string LocalBusName = "local";
 	private readonly IMessageBus? _cachedLocalBus = ResolveLocalBus(busProvider);
 	private readonly bool _localRetriesEnabled = ResolveLocalRetriesEnabled(busOptionsMap, retryPolicy);
@@ -65,7 +67,9 @@ public sealed partial class FinalDispatchHandler(
 		"Design",
 		"CA1506:AvoidExcessiveClassCoupling",
 		Justification = "Final dispatch composes the end-to-end pipeline across messaging abstractions and transports.")]
-	public async ValueTask<IMessageResult> HandleAsync(
+	// PERF: Non-async to avoid state machine allocation on the four common local/single-target paths.
+	// Only the multi-target routing path (rare) uses the async HandleMultiTargetAsync.
+	public ValueTask<IMessageResult> HandleAsync(
 		IDispatchMessage message,
 		IMessageContext context,
 		CancellationToken cancellationToken)
@@ -76,28 +80,41 @@ public sealed partial class FinalDispatchHandler(
 		var routingDecision = context.RoutingDecision;
 		if (message is IDispatchAction actionMessage && routingDecision?.Endpoints is not { Count: > 0 })
 		{
-			return await HandleLocalActionFastPathAsync(actionMessage, context, routingDecision, cancellationToken)
-				.ConfigureAwait(false);
+			return HandleLocalActionFastPathAsync(actionMessage, context, routingDecision, cancellationToken);
 		}
 
 		if (message is IDispatchEvent eventMessage && routingDecision?.Endpoints is not { Count: > 0 })
 		{
-			return await HandleLocalEventFastPathAsync(eventMessage, context, routingDecision, cancellationToken)
-				.ConfigureAwait(false);
+			return HandleLocalEventFastPathAsync(eventMessage, context, routingDecision, cancellationToken);
 		}
 
 		if (message is IDispatchDocument documentMessage && routingDecision?.Endpoints is not { Count: > 0 })
 		{
-			return await HandleLocalDocumentFastPathAsync(documentMessage, context, routingDecision, cancellationToken)
-				.ConfigureAwait(false);
+			return HandleLocalDocumentFastPathAsync(documentMessage, context, routingDecision, cancellationToken);
 		}
 
 		if (routingDecision?.Endpoints is { Count: 1 } singleEndpoints)
 		{
-			return await HandleSingleTargetAsync(message, context, singleEndpoints[0], routingDecision, cancellationToken)
-				.ConfigureAwait(false);
+			return HandleSingleTargetAsync(message, context, singleEndpoints[0], routingDecision, cancellationToken);
 		}
 
+		return HandleMultiTargetAsync(message, context, routingDecision, cancellationToken);
+	}
+
+	/// <summary>
+	/// Handles multi-target routing dispatch (cold path). Extracted from HandleAsync to keep
+	/// the hot path non-async and avoid state machine allocation.
+	/// </summary>
+	[SuppressMessage(
+		"Design",
+		"CA1506:AvoidExcessiveClassCoupling",
+		Justification = "Multi-target dispatch composes the end-to-end pipeline across messaging abstractions and transports.")]
+	private async ValueTask<IMessageResult> HandleMultiTargetAsync(
+		IDispatchMessage message,
+		IMessageContext context,
+		RoutingDecision? routingDecision,
+		CancellationToken cancellationToken)
+	{
 		var routes = GetTargetRoutes(routingDecision);
 		if (message is IDispatchAction && routes.Count > 1)
 		{
@@ -285,23 +302,42 @@ public sealed partial class FinalDispatchHandler(
 			return new ValueTask<IMessageResult>(CreateNoLocalBusResult(routingDecision, context));
 		}
 
+		var actionResultType = GetActionResultType(action.GetType());
+
 		try
 		{
 			if (!_localRetriesEnabled)
 			{
-				if (!HasContextResult(context))
+				var hasContextResult = HasContextResult(context);
+				if (!hasContextResult)
 				{
 					var publishTask = localBus.PublishAsync(action, context, cancellationToken);
 					if (!publishTask.IsCompletedSuccessfully)
 					{
-						return HandleLocalActionFastPathSlowAsync(publishTask, action, context, routingDecision);
+						return HandleLocalActionFastPathSlowAsync(
+							publishTask,
+							action,
+							context,
+							routingDecision,
+							actionResultType);
 					}
 				}
 
-				return new ValueTask<IMessageResult>(CreateTypedResult(action, context));
+				return new ValueTask<IMessageResult>(CreateActionDispatchResult(
+					action,
+					context,
+					routingDecision,
+					actionResultType,
+					hasContextResult));
 			}
 
-			return HandleLocalActionFastPathWithRetryAsync(localBus, action, context, routingDecision, cancellationToken);
+			return HandleLocalActionFastPathWithRetryAsync(
+				localBus,
+				action,
+				context,
+				routingDecision,
+				actionResultType,
+				cancellationToken);
 		}
 		catch (Exception ex)
 		{
@@ -313,12 +349,18 @@ public sealed partial class FinalDispatchHandler(
 		Task publishTask,
 		IDispatchAction action,
 		IMessageContext context,
-		RoutingDecision? routingDecision)
+		RoutingDecision? routingDecision,
+		Type? actionResultType)
 	{
 		try
 		{
 			await publishTask.ConfigureAwait(false);
-			return CreateTypedResult(action, context);
+			return CreateActionDispatchResult(
+				action,
+				context,
+				routingDecision,
+				actionResultType,
+				hadContextResultBeforeDispatch: false);
 		}
 		catch (Exception ex)
 		{
@@ -331,18 +373,25 @@ public sealed partial class FinalDispatchHandler(
 		IDispatchAction action,
 		IMessageContext context,
 		RoutingDecision? routingDecision,
+		Type? actionResultType,
 		CancellationToken cancellationToken)
 	{
 		try
 		{
 			async Task<IMessageResult> ExecuteLocalAsync(CancellationToken ct)
 			{
-				if (!HasContextResult(context))
+				var hasContextResult = HasContextResult(context);
+				if (!hasContextResult)
 				{
 					await localBus.PublishAsync(action, context, ct).ConfigureAwait(false);
 				}
 
-				return CreateTypedResult(action, context);
+				return CreateActionDispatchResult(
+					action,
+					context,
+					routingDecision,
+					actionResultType,
+					hasContextResult);
 			}
 
 			return await retryPolicy!.ExecuteAsync(ExecuteLocalAsync, cancellationToken).ConfigureAwait(false);
@@ -534,9 +583,12 @@ public sealed partial class FinalDispatchHandler(
 		{
 			if (message is IDispatchAction action)
 			{
+				var actionResultType = GetActionResultType(action.GetType());
+
 				if (useNoOpPolicy)
 				{
-					if (!HasContextResult(context))
+					var hasContextResult = HasContextResult(context);
+					if (!hasContextResult)
 					{
 						var publishTask = resolvedBus.PublishAsync(action, context, cancellationToken);
 						if (!publishTask.IsCompletedSuccessfully)
@@ -545,17 +597,28 @@ public sealed partial class FinalDispatchHandler(
 						}
 					}
 
-					return CreateTypedResult(action, context);
+					return CreateActionDispatchResult(
+						action,
+						context,
+						routingDecision,
+						actionResultType,
+						hasContextResult);
 				}
 
 				async Task<IMessageResult> ExecuteActionAsync(CancellationToken ct)
 				{
-					if (!HasContextResult(context))
+					var hasContextResult = HasContextResult(context);
+					if (!hasContextResult)
 					{
 						await resolvedBus.PublishAsync(action, context, ct).ConfigureAwait(false);
 					}
 
-					return CreateTypedResult(action, context);
+					return CreateActionDispatchResult(
+						action,
+						context,
+						routingDecision,
+						actionResultType,
+						hasContextResult);
 				}
 
 				return await policy.ExecuteAsync(ExecuteActionAsync, cancellationToken).ConfigureAwait(false);
@@ -866,15 +929,27 @@ public sealed partial class FinalDispatchHandler(
 		{
 			var methods = typeof(Abstractions.MessageResult).GetMethods(BindingFlags.Public | BindingFlags.Static);
 
-			GenericSuccessMethod5Params = methods.FirstOrDefault(m =>
-				m is { Name: nameof(Abstractions.MessageResult.Success), IsGenericMethodDefinition: true } &&
-				m.GetGenericArguments().Length == 1 &&
-				m.GetParameters().Length == 5);
+			GenericSuccessMethod5Params = FindGenericSuccessMethod(methods, parameterCount: 5);
+			GenericSuccessMethod1Param = FindGenericSuccessMethod(methods, parameterCount: 1);
+		}
 
-			GenericSuccessMethod1Param = methods.FirstOrDefault(m =>
-				m is { Name: nameof(Abstractions.MessageResult.Success), IsGenericMethodDefinition: true } &&
-				m.GetGenericArguments().Length == 1 &&
-				m.GetParameters().Length == 1);
+		private static MethodInfo? FindGenericSuccessMethod(MethodInfo[] methods, int parameterCount)
+		{
+			for (var i = 0; i < methods.Length; i++)
+			{
+				var method = methods[i];
+				if (!method.IsGenericMethodDefinition ||
+				    !string.Equals(method.Name, nameof(Abstractions.MessageResult.Success), StringComparison.Ordinal) ||
+				    method.GetGenericArguments().Length != 1 ||
+				    method.GetParameters().Length != parameterCount)
+				{
+					continue;
+				}
+
+				return method;
+			}
+
+			return null;
 		}
 
 		/// <summary>
@@ -1035,7 +1110,7 @@ public sealed partial class FinalDispatchHandler(
 		[RequiresDynamicCode("Creates generic methods at runtime")]
 		private static LeanSuccessFactory CreateLeanFactory(Type resultType)
 		{
-			var simpleResultType = typeof(SimpleMessageResultOfT<>).MakeGenericType(resultType);
+			var simpleResultType = typeof(SimpleSuccessMessageResultOfT<>).MakeGenericType(resultType);
 			var ctor = simpleResultType.GetConstructor([resultType, typeof(bool)]);
 			if (ctor is null)
 			{
@@ -1089,27 +1164,45 @@ public sealed partial class FinalDispatchHandler(
 	[RequiresDynamicCode("This method uses reflection to construct generic methods at runtime.")]
 	private static IMessageResult CreateTypedResult(IDispatchAction action, IMessageContext context)
 	{
+		var actionResultType = GetActionResultType(action.GetType());
+		return CreateTypedResult(action, context, actionResultType);
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static IMessageResult CreateActionDispatchResult(
+		IDispatchAction action,
+		IMessageContext context,
+		RoutingDecision? routingDecision,
+		Type? actionResultType,
+		bool hadContextResultBeforeDispatch)
+	{
+		if (!hadContextResultBeforeDispatch && actionResultType is null && !HasContextResult(context))
+		{
+			return CreateSuccessResult(context, routingDecision);
+		}
+
+		return CreateTypedResult(action, context, actionResultType);
+	}
+
+	[RequiresUnreferencedCode("This method uses reflection to create typed MessageResult instances and set properties dynamically")]
+	[RequiresDynamicCode("This method uses reflection to construct generic methods at runtime.")]
+	private static IMessageResult CreateTypedResult(
+		IDispatchAction action,
+		IMessageContext context,
+		Type? actionResultType)
+	{
 		var result = TryGetContextResult(context);
 
 		var resultType = result?.GetType();
 
 		if (resultType is null)
 		{
-			var actionType = action.GetType();
-			resultType = GetActionResultType(actionType);
+			resultType = actionResultType;
 
 			// Fast path for non-response actions: avoid reflective generic result factory.
 			if (resultType is null)
 			{
-				var routingDecision = context.RoutingDecision;
-				var validationResult = context.ValidationResult();
-				var authorizationResult = context.AuthorizationResult();
-				var nonResponseCacheHit = context.GetItem(CacheHitContextKey, false);
-				return Abstractions.MessageResult.Success(
-					routingDecision,
-					validationResult,
-					authorizationResult,
-					nonResponseCacheHit);
+				return CreateSuccessResult(context, context.RoutingDecision);
 			}
 		}
 
@@ -1125,8 +1218,8 @@ public sealed partial class FinalDispatchHandler(
 		// Read cache hit flag from context
 		var cacheHit = IsCacheHit(context);
 		var routing = context.RoutingDecision;
-		var validation = context.ValidationResult();
-		var authorization = context.AuthorizationResult();
+		var validation = GetValidationResultFast(context);
+		var authorization = GetAuthorizationResultFast(context);
 
 		if (routing is null && validation is null && authorization is null)
 		{
@@ -1168,10 +1261,11 @@ public sealed partial class FinalDispatchHandler(
 			return context.Result;
 		}
 
-		if (context is MessageContext messageContext &&
-		    messageContext.TryGetItemFast(ResultContextKey, out var fastCachedValue))
+		if (context is MessageContext messageContext)
 		{
-			return fastCachedValue;
+			return messageContext.TryGetItemFast(ResultContextKey, out var fastCachedValue)
+				? fastCachedValue
+				: null;
 		}
 
 		return context.GetItem<object?>(ResultContextKey);
@@ -1183,24 +1277,71 @@ public sealed partial class FinalDispatchHandler(
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static bool IsCacheHit(IMessageContext context)
 	{
-		if (context is MessageContext messageContext &&
-		    messageContext.TryGetItemFast(CacheHitContextKey, out var fastValue) &&
-		    fastValue is bool fastFlag)
+		if (context is MessageContext messageContext)
 		{
-			return fastFlag;
+			if (messageContext.TryGetItemFast(CacheHitContextKey, out var fastValue))
+			{
+				return fastValue is bool fastFlag
+					? fastFlag
+					: context.GetItem(CacheHitContextKey, false);
+			}
+
+			return false;
 		}
 
 		return context.GetItem(CacheHitContextKey, false);
 	}
 
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static object? GetValidationResultFast(IMessageContext context)
+	{
+		if (context is MessageContext messageContext)
+		{
+			return messageContext.TryGetItemFast(ValidationResultPropertyKey, out var fastValue)
+				? fastValue
+				: null;
+		}
+
+		return context.ValidationResult();
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static object? GetAuthorizationResultFast(IMessageContext context)
+	{
+		if (context is MessageContext messageContext)
+		{
+			return messageContext.TryGetItemFast(AuthorizationResultPropertyKey, out var fastValue)
+				? fastValue
+				: null;
+		}
+
+		return context.AuthorizationResult();
+	}
+
+
 	[RequiresUnreferencedCode("This method uses reflection to inspect generic interface types")]
 	private static Type? GetActionResultType(Type actionType) =>
 		ActionResultTypeCache.GetOrAdd(
 			actionType,
-			static type =>
-				type.GetInterfaces()
-					.FirstOrDefault(static i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDispatchAction<>))
-					?.GetGenericArguments()[0]);
+			static type => ResolveActionResultType(type));
+
+	private static Type? ResolveActionResultType(Type actionType)
+	{
+		var interfaces = actionType.GetInterfaces();
+		for (var i = 0; i < interfaces.Length; i++)
+		{
+			var contract = interfaces[i];
+			if (!contract.IsGenericType || contract.GetGenericTypeDefinition() != typeof(IDispatchAction<>))
+			{
+				continue;
+			}
+
+			var genericArguments = contract.GetGenericArguments();
+			return genericArguments.Length > 0 ? genericArguments[0] : null;
+		}
+
+		return null;
+	}
 
 	// Source-generated logging methods
 	[LoggerMessage(DeliveryEventId.FinalDispatchNoBusFound, LogLevel.Error,

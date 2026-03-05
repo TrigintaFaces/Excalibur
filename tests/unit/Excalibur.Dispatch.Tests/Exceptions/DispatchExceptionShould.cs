@@ -13,15 +13,19 @@ public sealed class DispatchExceptionShould
 	[Fact]
 	public void InitializeWithDefaultConstructor()
 	{
+		var lowerBound = DateTimeOffset.UtcNow;
+
 		// Act
 		var ex = new DispatchException();
+		var upperBound = DateTimeOffset.UtcNow;
 
 		// Assert
 		ex.ErrorCode.ShouldNotBeNullOrWhiteSpace();
 		ex.Category.ShouldBe(ErrorCategory.Unknown);
 		ex.Severity.ShouldBe(ErrorSeverity.Information);
 		ex.InstanceId.ShouldNotBe(Guid.Empty);
-		ex.Timestamp.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddMinutes(-1));
+		ex.Timestamp.ShouldBeGreaterThanOrEqualTo(lowerBound);
+		ex.Timestamp.ShouldBeLessThanOrEqualTo(upperBound);
 	}
 
 	[Fact]

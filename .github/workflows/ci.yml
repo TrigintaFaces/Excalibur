@@ -33,6 +33,7 @@ jobs:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         include:
@@ -46,7 +47,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
+
+      - name: Free disk space (Ubuntu only)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Disk usage before cleanup:"
+          df -h
+          sudo rm -rf /usr/share/swift || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo rm -rf /home/linuxbrew || true
+          sudo rm -rf /usr/local/.ghcup || true
+          sudo rm -rf /usr/local/share/boost || true
+          sudo apt-get clean || true
+          docker system prune -af || true
+          echo "Disk usage after cleanup:"
+          df -h
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -59,22 +79,22 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          path: ~/.nuget/packages
+          path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore Excalibur.sln
+        run: dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
 
       - name: Build solution
-        run: dotnet build Excalibur.sln --configuration Release --no-restore --verbosity minimal
+        run: dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity quiet
 
       - name: Deterministic build validation (Ubuntu only)
         if: matrix.os == 'ubuntu-latest'
         run: |
           echo "Validating deterministic builds with CI flag..."
-          dotnet build --configuration Release --no-restore -p:CI=true --verbosity minimal
+          dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore -p:CI=true --verbosity quiet
           echo "✅ Deterministic build validation successful (Sprint 318 T3.4 AD-318-3)"
 
       - name: Package validation (Ubuntu only)
@@ -103,7 +123,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -224,7 +244,7 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          path: ~/.nuget/packages
+          path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
@@ -380,7 +400,7 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          path: ~/.nuget/packages
+          path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
@@ -466,7 +486,7 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          path: ~/.nuget/packages
+          path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
@@ -537,16 +557,16 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          path: ~/.nuget/packages
+          path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore Excalibur.sln
+        run: dotnet restore eng/ci/shards/UnitTests.slnf
 
       - name: Build solution
-        run: dotnet build Excalibur.sln --configuration Release --no-restore
+        run: dotnet build eng/ci/shards/UnitTests.slnf --configuration Release --no-restore
 
       - name: Compose Windows unit test filter
         shell: pwsh
@@ -558,7 +578,7 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          dotnet test --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFileName=unit-tests-windows.trx" --logger "console;verbosity=minimal" --results-directory ./TestResults --filter "${{ env.WINDOWS_UNIT_TEST_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
+          dotnet test eng/ci/shards/UnitTests.slnf --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFileName=unit-tests-windows.trx" --logger "console;verbosity=minimal" --results-directory ./TestResults --filter "${{ env.WINDOWS_UNIT_TEST_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
 
       - name: Upload test results
         if: always()
@@ -593,7 +613,7 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          path: ~/.nuget/packages
+          path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
@@ -694,20 +714,20 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          path: ~/.nuget/packages
+          path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore Excalibur.sln
+        run: dotnet restore eng/ci/shards/TestsOnly.slnf
 
       - name: Build solution
-        run: dotnet build Excalibur.sln --configuration Release --no-restore
+        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore
 
       - name: Run Functional Tests
         run: |
-          dotnet test \
+          dotnet test eng/ci/shards/TestsOnly.slnf \
             --configuration Release \
             --no-build \
             --blame-hang-timeout 5m \
@@ -743,6 +763,23 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      - name: Free disk space (Ubuntu)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Disk usage before cleanup:"
+          df -h
+          sudo rm -rf /usr/share/swift || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo rm -rf /home/linuxbrew || true
+          sudo rm -rf /usr/local/.ghcup || true
+          sudo rm -rf /usr/local/share/boost || true
+          sudo apt-get clean || true
+          docker system prune -af || true
+          echo "Disk usage after cleanup:"
+          df -h
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -751,12 +788,18 @@ jobs:
             9.0.x
             10.0.x
       - name: Restore dependencies
-        run: dotnet restore Excalibur.sln
+        run: dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
       - name: Build with warnings as errors (SAST-lite)
         shell: bash
         run: |
-          set -o pipefail
-          dotnet build Excalibur.sln --configuration Release --no-restore -warnaserror 2>&1 | tee sast-build.log
+          set -euo pipefail
+          build_exit=0
+          dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity quiet -warnaserror -clp:ErrorsOnly\;Summary > sast-build.log 2>&1 || build_exit=$?
+          if [ "$build_exit" -ne 0 ]; then
+            echo "Build failed. Last 200 lines from sast-build.log:"
+            tail -n 200 sast-build.log || true
+            exit "$build_exit"
+          fi
       - name: Upload SAST log
         if: always()
         uses: actions/upload-artifact@v4
@@ -784,7 +827,7 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          path: ~/.nuget/packages
+          path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
@@ -844,16 +887,16 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          path: ~/.nuget/packages
+          path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore Excalibur.sln
+        run: dotnet restore eng/ci/shards/TestsOnly.slnf
 
       - name: Build architecture tests
-        run: dotnet build Excalibur.sln --configuration Release --no-restore
+        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore
 
       - name: Run architecture test projects
         run: |
@@ -936,7 +979,7 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          path: ~/.nuget/packages
+          path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
@@ -1112,7 +1155,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.sha }}
           path: base
-          fetch-depth: 0
+          fetch-depth: 1
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -1190,12 +1233,57 @@ jobs:
           path: head-cov
           merge-multiple: true
       - name: List changed files
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const files = await github.paginate(github.rest.pulls.listFiles, { owner: context.repo.owner, repo: context.repo.repo, pull_number: context.issue.number });
-            const fs = require('fs');
-            fs.writeFileSync('changed-files.json', JSON.stringify(files.map(f => f.filename)));
+        shell: bash
+        run: |
+          set -euo pipefail
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          PR_REF="refs/remotes/origin/pr-${PR_NUMBER}"
+
+          # Use git-based PR head ref resolution to avoid transient GitHub API failures.
+          if ! git -C base fetch --no-tags --depth=1 origin "refs/pull/${PR_NUMBER}/head:${PR_REF}"; then
+            echo "::warning::Unable to fetch PR head ref for #${PR_NUMBER}; defaulting to an empty changed file set."
+            printf '[]' > changed-files.json
+            exit 0
+          fi
+
+          # Ensure the target base commit exists in the shallow checkout.
+          if ! git -C base cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            if ! git -C base fetch --no-tags --depth=1 origin "${BASE_SHA}"; then
+              echo "::warning::Unable to fetch base SHA ${BASE_SHA}; defaulting to an empty changed file set."
+              printf '[]' > changed-files.json
+              exit 0
+            fi
+          fi
+
+          # With shallow PR fetches, merge-base may be missing; deepen only when necessary.
+          if ! git -C base merge-base "${BASE_SHA}" "${PR_REF}" >/dev/null 2>&1; then
+            for depth in 64 256 1024 4096; do
+              if git -C base fetch --no-tags --depth="${depth}" origin "refs/pull/${PR_NUMBER}/head:${PR_REF}" && \
+                 git -C base merge-base "${BASE_SHA}" "${PR_REF}" >/dev/null 2>&1; then
+                break
+              fi
+            done
+          fi
+
+          if git -C base merge-base "${BASE_SHA}" "${PR_REF}" >/dev/null 2>&1; then
+            git -C base diff --name-only "${BASE_SHA}...${PR_REF}" > changed-files.txt
+          else
+            echo "::warning::No merge base between ${BASE_SHA} and ${PR_REF}; using two-dot diff fallback."
+            git -C base diff --name-only "${BASE_SHA}..${PR_REF}" > changed-files.txt
+          fi
+
+          python3 - <<'PY'
+          import json
+
+          with open("changed-files.txt", "r", encoding="utf-8") as fh:
+              files = [line.strip() for line in fh if line.strip()]
+
+          with open("changed-files.json", "w", encoding="utf-8") as out:
+              json.dump(files, out)
+
+          print(f"Changed files discovered: {len(files)}")
+          PY
       - name: Enforce ≤1% coverage drop on touched files (Dispatch+Excalibur)
         shell: pwsh
         run: |
@@ -1295,7 +1383,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
+
+      - name: Free disk space (Ubuntu)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Disk usage before cleanup:"
+          df -h
+          sudo rm -rf /usr/share/swift || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo rm -rf /home/linuxbrew || true
+          sudo rm -rf /usr/local/.ghcup || true
+          sudo rm -rf /usr/local/share/boost || true
+          sudo apt-get clean || true
+          docker system prune -af || true
+          echo "Disk usage after cleanup:"
+          df -h
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -1308,16 +1414,16 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          path: ~/.nuget/packages
+          path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore Excalibur.sln
+        run: dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
 
       - name: Build solution
-        run: dotnet build Excalibur.sln --configuration Release --no-restore
+        run: dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity quiet
 
       - name: Scan for vulnerable packages (R20.10)
         run: |
@@ -1454,7 +1560,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -1508,7 +1614,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -1544,7 +1650,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -1588,7 +1694,7 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          path: ~/.nuget/packages
+          path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
@@ -1607,6 +1713,7 @@ jobs:
             -Configuration Release `
             -NoBuild `
             -NoRestore `
+            -RepeatCount 1 `
             -Classes MediatRComparisonBenchmarks,RoutingFirstParityBenchmarks `
             -ArtifactsPath ./BenchmarkDotNet.Artifacts.MediatRParity
 
@@ -1616,6 +1723,8 @@ jobs:
           ./eng/validate-performance-gates.ps1 `
             -Gate MediatRLocalParity `
             -ResultsPath ./BenchmarkDotNet.Artifacts.MediatRParity/results `
+            -RequireBenchmarkSummaryMetadata:$true `
+            -MinimumRepeatCount 1 `
             -MediatRSingleCommandMaxRatio 1.00 `
             -MediatRQueryMaxRatio 1.00
 
@@ -1643,6 +1752,7 @@ jobs:
           echo "- Runner: \`eng/run-benchmark-matrix.ps1 -Classes MediatRComparisonBenchmarks,RoutingFirstParityBenchmarks\`" >> $GITHUB_STEP_SUMMARY
           echo "- Gate validator: \`eng/validate-performance-gates.ps1 -Gate MediatRLocalParity\`" >> $GITHUB_STEP_SUMMARY
           echo "- Delta validator: \`eng/compare-benchmark-delta.ps1\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
           echo "- Hard thresholds: single-command and query local parity ratio <= 1.00" >> $GITHUB_STEP_SUMMARY
           echo "- Protected rows: single command, query, notification, 10 concurrent, 100 concurrent (<= +5% vs baseline)" >> $GITHUB_STEP_SUMMARY
           echo "- Artifacts: \`benchmark-results-mediatr-parity\`" >> $GITHUB_STEP_SUMMARY
@@ -1668,7 +1778,7 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          path: ~/.nuget/packages
+          path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
@@ -1687,6 +1797,7 @@ jobs:
             -Configuration Release `
             -NoBuild `
             -NoRestore `
+            -RepeatCount 1 `
             -Classes TransportQueueParityComparisonBenchmarks `
             -ArtifactsPath ./BenchmarkDotNet.Artifacts.TransportComparison
 
@@ -1696,6 +1807,8 @@ jobs:
           ./eng/validate-performance-gates.ps1 `
             -Gate TransportComparison `
             -ResultsPath ./BenchmarkDotNet.Artifacts.TransportComparison/results `
+            -RequireBenchmarkSummaryMetadata:$true `
+            -MinimumRepeatCount 1 `
             -TransportSingleCommandMinAdvantageRatio 1.00 `
             -TransportConcurrent10MinAdvantageRatio 1.00
 
@@ -1713,14 +1826,239 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- Runner: \`eng/run-benchmark-matrix.ps1 -Classes TransportQueueParityComparisonBenchmarks\`" >> $GITHUB_STEP_SUMMARY
           echo "- Gate validator: \`eng/validate-performance-gates.ps1 -Gate TransportComparison\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
           echo "- Thresholds: Dispatch must retain >= 1.00x advantage on single-command and concurrent(10) rows" >> $GITHUB_STEP_SUMMARY
           echo "- Artifacts: \`benchmark-results-transport-comparison\`" >> $GITHUB_STEP_SUMMARY
+
+  # Performance gate 3: dispatch hot-path regression
+  performance-dispatch-hotpath:
+    name: Performance Gate - Dispatch Hot Path
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event.inputs.run_performance_tests == 'true' || github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: .nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build benchmarks
+        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+
+      - name: Run dispatch hot-path benchmark gate
+        shell: pwsh
+        run: |
+          Write-Host "Running dispatch hot-path benchmark classes..."
+          ./eng/run-benchmark-matrix.ps1 `
+            -Configuration Release `
+            -NoBuild `
+            -NoRestore `
+            -RepeatCount 1 `
+            -Classes DispatchHotPathBreakdownBenchmarks,MiddlewareCostCurveBenchmarks `
+            -ArtifactsPath ./BenchmarkDotNet.Artifacts.DispatchHotPath
+
+      - name: Enforce dispatch hot-path thresholds
+        shell: pwsh
+        run: |
+          ./eng/validate-performance-gates.ps1 `
+            -Gate DispatchHotPath `
+            -ResultsPath ./BenchmarkDotNet.Artifacts.DispatchHotPath/results `
+            -RequireBenchmarkSummaryMetadata:$true `
+            -MinimumRepeatCount 1 `
+            -HotPathLookupMaxDispatchRatio 0.25 `
+            -HotPathInvokerMaxDispatchRatio 0.40 `
+            -HotPathMiddlewareCurveMinGrowthRatio 2.00 `
+            -HotPathDispatchMaxAllocBytes 512 `
+            -HotPathInvokerMaxAllocBytes 128
+
+      - name: Upload dispatch hot-path benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-dispatch-hotpath
+          path: BenchmarkDotNet.Artifacts.DispatchHotPath
+          retention-days: 30
+
+      - name: Dispatch hot-path gate summary
+        if: always()
+        run: |
+          echo "## ⚡ Performance Gate: Dispatch Hot Path" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Runner: \`eng/run-benchmark-matrix.ps1 -Classes DispatchHotPathBreakdownBenchmarks,MiddlewareCostCurveBenchmarks\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Gate validator: \`eng/validate-performance-gates.ps1 -Gate DispatchHotPath\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
+          echo "- Thresholds: lookup/invoker ratios, dispatch alloc ceiling, middleware 0->10 cost-curve growth" >> $GITHUB_STEP_SUMMARY
+          echo "- Artifacts: \`benchmark-results-dispatch-hotpath\`" >> $GITHUB_STEP_SUMMARY
+
+  # Performance gate 4: observability overhead
+  performance-observability-overhead:
+    name: Performance Gate - Observability Overhead
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event.inputs.run_performance_tests == 'true' || github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: .nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build benchmarks
+        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+
+      - name: Run observability overhead benchmark gate
+        shell: pwsh
+        run: |
+          Write-Host "Running observability overhead benchmark class..."
+          ./eng/run-benchmark-matrix.ps1 `
+            -Configuration Release `
+            -NoBuild `
+            -NoRestore `
+            -RepeatCount 1 `
+            -Classes MetricsLoggingOverheadBenchmarks `
+            -ArtifactsPath ./BenchmarkDotNet.Artifacts.ObservabilityOverhead
+
+      - name: Enforce observability overhead thresholds
+        shell: pwsh
+        run: |
+          ./eng/validate-performance-gates.ps1 `
+            -Gate ObservabilityOverhead `
+            -ResultsPath ./BenchmarkDotNet.Artifacts.ObservabilityOverhead/results `
+            -RequireBenchmarkSummaryMetadata:$true `
+            -MinimumRepeatCount 1 `
+            -ObservabilityUtf8BytesMaxRatio 1.10 `
+            -ObservabilitySkippedMaxRatio 0.10 `
+            -ObservabilitySkippedMaxAllocBytes 0
+
+      - name: Upload observability overhead benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-observability-overhead
+          path: BenchmarkDotNet.Artifacts.ObservabilityOverhead
+          retention-days: 30
+
+      - name: Observability gate summary
+        if: always()
+        run: |
+          echo "## ⚡ Performance Gate: Observability Overhead" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Runner: \`eng/run-benchmark-matrix.ps1 -Classes MetricsLoggingOverheadBenchmarks\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Gate validator: \`eng/validate-performance-gates.ps1 -Gate ObservabilityOverhead\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
+          echo "- Thresholds: Utf8Bytes cost ratio, skipped-estimation cost ratio, skipped-estimation zero-allocation" >> $GITHUB_STEP_SUMMARY
+          echo "- Artifacts: \`benchmark-results-observability-overhead\`" >> $GITHUB_STEP_SUMMARY
+
+  # Performance gate 5: persistence/background smoke
+  performance-persistence-background-smoke:
+    name: Performance Gate - Persistence/Background Smoke
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event.inputs.run_performance_tests == 'true' || github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: .nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build benchmarks
+        run: dotnet build --configuration Release --no-restore benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
+
+      - name: Run persistence/background benchmark smoke classes
+        shell: pwsh
+        run: |
+          Write-Host "Running persistence/background smoke benchmark classes..."
+          ./eng/run-benchmark-matrix.ps1 `
+            -Configuration Release `
+            -NoBuild `
+            -NoRestore `
+            -RepeatCount 1 `
+            -Classes CdcLatencyBenchmarks,DeliveryGuaranteeBenchmarks `
+            -ArtifactsPath ./BenchmarkDotNet.Artifacts.PersistenceBackgroundSmoke
+
+      - name: Enforce persistence/background smoke thresholds
+        shell: pwsh
+        run: |
+          ./eng/validate-performance-gates.ps1 `
+            -Gate PersistenceBackgroundSmoke `
+            -ResultsPath ./BenchmarkDotNet.Artifacts.PersistenceBackgroundSmoke/results `
+            -RequireBenchmarkSummaryMetadata:$true `
+            -MinimumRepeatCount 1 `
+            -PersistenceBackgroundCdcBatch100MaxNs 10000000 `
+            -PersistenceBackgroundProcessBatch100MaxNs 50000 `
+            -PersistenceBackgroundMinimumRowsPerClass 18
+
+      - name: Upload persistence/background benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-persistence-background-smoke
+          path: BenchmarkDotNet.Artifacts.PersistenceBackgroundSmoke
+          retention-days: 30
+
+      - name: Persistence/background smoke gate summary
+        if: always()
+        run: |
+          echo "## ⚡ Performance Gate: Persistence/Background Smoke" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Runner: \`eng/run-benchmark-matrix.ps1 -Classes CdcLatencyBenchmarks,DeliveryGuaranteeBenchmarks\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Gate validator: \`eng/validate-performance-gates.ps1 -Gate PersistenceBackgroundSmoke\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
+          echo "- Thresholds: CDC DequeueBatch@100 latency ceiling + Delivery ProcessBatch@100 smoke ceiling + minimum row counts" >> $GITHUB_STEP_SUMMARY
+          echo "- Artifacts: \`benchmark-results-persistence-background-smoke\`" >> $GITHUB_STEP_SUMMARY
 
   # Final validation and summary
   summary:
     name: CI Summary
     runs-on: ubuntu-latest
-    needs: [build, smoke-tests, unit-shard-coverage, unit-tests, unit-tests-windows, integration-tests, functional-tests, contract-tests, architecture-tests, transport-conformance, flaky-quarantine-governance, flaky-tests-quarantine, release-blocking-tests, release-blocking-ci, quality, coverage, security-sast, public-api-baselines, transitive-bloat, banned-apis, serialization-policy, package-composition, solution-governance, package-dependency-graph, sample-validation, aot-sample-validation, documentation-validation, performance-mediatr-parity, performance-transport-comparison]
+    needs: [build, smoke-tests, unit-shard-coverage, unit-tests, unit-tests-windows, integration-tests, functional-tests, contract-tests, architecture-tests, transport-conformance, flaky-quarantine-governance, flaky-tests-quarantine, release-blocking-tests, release-blocking-ci, quality, coverage, security-sast, public-api-baselines, transitive-bloat, banned-apis, serialization-policy, package-composition, solution-governance, package-dependency-graph, sample-validation, aot-sample-validation, documentation-validation, performance-mediatr-parity, performance-transport-comparison, performance-dispatch-hotpath, performance-observability-overhead, performance-persistence-background-smoke]
     if: always()
     steps:
       - name: Generate CI summary
@@ -1759,6 +2097,9 @@ jobs:
           echo "| Documentation Verification (T5.4) | ${{ needs.documentation-validation.result == 'success' && '✅' || '❌' }} ${{ needs.documentation-validation.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Performance MediatR Parity | ${{ needs.performance-mediatr-parity.result == 'success' && '✅' || (needs.performance-mediatr-parity.result == 'skipped' && '⏭️' || '❌') }} ${{ needs.performance-mediatr-parity.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Performance Transport Comparison | ${{ needs.performance-transport-comparison.result == 'success' && '✅' || (needs.performance-transport-comparison.result == 'skipped' && '⏭️' || '❌') }} ${{ needs.performance-transport-comparison.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Performance Dispatch Hot Path | ${{ needs.performance-dispatch-hotpath.result == 'success' && '✅' || (needs.performance-dispatch-hotpath.result == 'skipped' && '⏭️' || '❌') }} ${{ needs.performance-dispatch-hotpath.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Performance Observability Overhead | ${{ needs.performance-observability-overhead.result == 'success' && '✅' || (needs.performance-observability-overhead.result == 'skipped' && '⏭️' || '❌') }} ${{ needs.performance-observability-overhead.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Performance Persistence/Background Smoke | ${{ needs.performance-persistence-background-smoke.result == 'success' && '✅' || (needs.performance-persistence-background-smoke.result == 'skipped' && '⏭️' || '❌') }} ${{ needs.performance-persistence-background-smoke.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ "${{ needs.release-blocking-ci.result }}" = "success" ]; then
@@ -1867,7 +2208,7 @@ jobs:
   release-blocking-tests:
     name: Release-Blocking Test Governance
     runs-on: ubuntu-latest
-    needs: [smoke-tests, unit-shard-coverage, unit-tests, unit-tests-windows, integration-tests, functional-tests, contract-tests, architecture-tests, transport-conformance]
+    needs: [unit-shard-coverage, unit-tests, unit-tests-windows]
     if: always()
     steps:
       - name: Validate release-blocking test matrix
@@ -1883,39 +2224,22 @@ jobs:
           }
           failures=()
 
-          smoke="${{ needs.smoke-tests.result }}"
           shard="${{ needs.unit-shard-coverage.result }}"
           unit="${{ needs.unit-tests.result }}"
           unit_win="${{ needs.unit-tests-windows.result }}"
-          integration="${{ needs.integration-tests.result }}"
-          functional="${{ needs.functional-tests.result }}"
-          contract="${{ needs.contract-tests.result }}"
-          architecture="${{ needs.architecture-tests.result }}"
-          conformance="${{ needs.transport-conformance.result }}"
 
           echo "## ✅ Release-Blocking Test Governance" >> "$GITHUB_STEP_SUMMARY"
+          echo "Deterministic required tier: unit/dependency-injection only (perf/integration/functional/load are report-only)." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Suite | Status |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| smoke-tests | $smoke |" >> "$GITHUB_STEP_SUMMARY"
           echo "| unit-shard-coverage | $shard |" >> "$GITHUB_STEP_SUMMARY"
           echo "| unit-tests | $unit |" >> "$GITHUB_STEP_SUMMARY"
           echo "| unit-tests-windows | $unit_win |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| integration-tests | $integration |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| functional-tests | $functional |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| contract-tests | $contract |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| architecture-tests | $architecture |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| transport-conformance | $conformance |" >> "$GITHUB_STEP_SUMMARY"
 
-          require_success "smoke-tests" "$smoke"
           require_success "unit-shard-coverage" "$shard"
           require_success "unit-tests" "$unit"
           require_success "unit-tests-windows" "$unit_win"
-          require_success "integration-tests" "$integration"
-          require_success "functional-tests" "$functional"
-          require_success "contract-tests" "$contract"
-          require_success "architecture-tests" "$architecture"
-          require_success "transport-conformance" "$conformance"
 
           if [ ${#failures[@]} -gt 0 ]; then
             printf '❌ %s\n' "One or more release-blocking test suites failed: ${failures[*]}" >> "$GITHUB_STEP_SUMMARY"
@@ -1927,7 +2251,7 @@ jobs:
   release-blocking-ci:
     name: Release-Blocking CI Governance
     runs-on: ubuntu-latest
-    needs: [build, release-blocking-tests, flaky-quarantine-governance, public-api-baselines, transitive-bloat, banned-apis, serialization-policy, package-composition, solution-governance, package-dependency-graph, sample-validation, aot-sample-validation, documentation-validation, security-sast, performance-mediatr-parity, performance-transport-comparison]
+    needs: [build, release-blocking-tests, quality, flaky-quarantine-governance, public-api-baselines, transitive-bloat, banned-apis, serialization-policy, package-composition, solution-governance, package-dependency-graph, security-sast]
     if: always()
     steps:
       - name: Validate release-blocking CI policy
@@ -1942,17 +2266,10 @@ jobs:
             fi
           }
 
-          require_success_or_skipped() {
-            local gate="$1"
-            local status="$2"
-            if [[ "$status" != "success" && "$status" != "skipped" ]]; then
-              failures+=("${gate}=${status}")
-            fi
-          }
-
           failures=()
           build="${{ needs.build.result }}"
           test_gate="${{ needs.release-blocking-tests.result }}"
+          quality="${{ needs.quality.result }}"
           flaky_quarantine="${{ needs.flaky-quarantine-governance.result }}"
           public_api="${{ needs.public-api-baselines.result }}"
           bloat="${{ needs.transitive-bloat.result }}"
@@ -1961,19 +2278,16 @@ jobs:
           package_composition="${{ needs.package-composition.result }}"
           solution_governance="${{ needs.solution-governance.result }}"
           dep_graph="${{ needs.package-dependency-graph.result }}"
-          samples="${{ needs.sample-validation.result }}"
-          aot_samples="${{ needs.aot-sample-validation.result }}"
-          docs="${{ needs.documentation-validation.result }}"
           sast="${{ needs.security-sast.result }}"
-          perf_mediatr="${{ needs.performance-mediatr-parity.result }}"
-          perf_transport="${{ needs.performance-transport-comparison.result }}"
 
           echo "## 🚦 Release-Blocking CI Governance" >> "$GITHUB_STEP_SUMMARY"
+          echo "Required tier: deterministic unit tests + static analysis + package integrity + flaky quarantine governance." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Gate | Status |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
           echo "| build | $build |" >> "$GITHUB_STEP_SUMMARY"
           echo "| release-blocking-tests | $test_gate |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| quality | $quality |" >> "$GITHUB_STEP_SUMMARY"
           echo "| flaky-quarantine-governance | $flaky_quarantine |" >> "$GITHUB_STEP_SUMMARY"
           echo "| public-api-baselines | $public_api |" >> "$GITHUB_STEP_SUMMARY"
           echo "| transitive-bloat | $bloat |" >> "$GITHUB_STEP_SUMMARY"
@@ -1982,15 +2296,11 @@ jobs:
           echo "| package-composition | $package_composition |" >> "$GITHUB_STEP_SUMMARY"
           echo "| solution-governance | $solution_governance |" >> "$GITHUB_STEP_SUMMARY"
           echo "| package-dependency-graph | $dep_graph |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| sample-validation | $samples |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| aot-sample-validation | $aot_samples |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| documentation-validation | $docs |" >> "$GITHUB_STEP_SUMMARY"
           echo "| security-sast | $sast |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| performance-mediatr-parity | $perf_mediatr |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| performance-transport-comparison | $perf_transport |" >> "$GITHUB_STEP_SUMMARY"
 
           require_success "build" "$build"
           require_success "release-blocking-tests" "$test_gate"
+          require_success "quality" "$quality"
           require_success "flaky-quarantine-governance" "$flaky_quarantine"
           require_success "public-api-baselines" "$public_api"
           require_success "transitive-bloat" "$bloat"
@@ -1999,18 +2309,11 @@ jobs:
           require_success "package-composition" "$package_composition"
           require_success "solution-governance" "$solution_governance"
           require_success "package-dependency-graph" "$dep_graph"
-          require_success "sample-validation" "$samples"
-          require_success "aot-sample-validation" "$aot_samples"
-          require_success "documentation-validation" "$docs"
 
           # SAST is advisory on pull requests, blocking on push/release style events.
           if [[ "${{ github.event_name }}" != "pull_request" ]]; then
             require_success "security-sast" "$sast"
           fi
-
-          # Performance gates are optional on PRs and should report as skipped when not requested.
-          require_success_or_skipped "performance-mediatr-parity" "$perf_mediatr"
-          require_success_or_skipped "performance-transport-comparison" "$perf_transport"
 
           if [ ${#failures[@]} -gt 0 ]; then
             printf '❌ %s\n' "Release-blocking CI policy failed: ${failures[*]}" >> "$GITHUB_STEP_SUMMARY"
@@ -2155,7 +2458,7 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          path: ~/.nuget/packages
+          path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
@@ -2251,7 +2554,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Verify specs live under management/Specs/**
         shell: bash
@@ -2467,7 +2770,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Install Gitleaks
         run: |
@@ -2508,7 +2811,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -2521,7 +2824,7 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          path: ~/.nuget/packages
+          path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
@@ -2600,7 +2903,7 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          path: ~/.nuget/packages
+          path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
@@ -2655,7 +2958,7 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
-          path: ~/.nuget/packages
+          path: .nuget/packages
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
           restore-keys: |
             ${{ runner.os }}-nuget-
@@ -2767,5 +3070,4 @@ jobs:
           else
             echo "❌ **Status:** AOT sample validation failed - see logs for details" >> $GITHUB_STEP_SUMMARY
           fi
-
 

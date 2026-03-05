@@ -179,7 +179,8 @@ public sealed class FipsValidationServiceShould
 		report.IsCompliant.ShouldBeTrue();
 		report.Platform.ShouldBe("Windows");
 		report.ValidationDetails.ShouldContain("Registry key FIPS enabled");
-		report.CheckedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+		var assertionUpperBound1 = DateTimeOffset.UtcNow;
+		report.CheckedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	[Fact]

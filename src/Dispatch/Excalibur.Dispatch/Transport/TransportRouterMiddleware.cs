@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
 // AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
@@ -26,6 +27,8 @@ namespace Excalibur.Dispatch.Transport;
 /// </remarks>
 public sealed partial class TransportRouterMiddleware(ILogger<TransportRouterMiddleware> logger) : IDispatchMiddleware
 {
+	private static readonly ConcurrentDictionary<Type, MessageKinds> MessageKindCache = new();
+
 	private readonly ILogger<TransportRouterMiddleware> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <inheritdoc />
@@ -94,13 +97,31 @@ public sealed partial class TransportRouterMiddleware(ILogger<TransportRouterMid
 	private static MessageKinds DetermineMessageKind(IDispatchMessage message)
 	{
 		var type = message.GetType();
+		return MessageKindCache.GetOrAdd(type, static t => DetermineMessageKindForType(t));
+	}
+
+	[RequiresUnreferencedCode("Uses reflection to check message interfaces")]
+	private static MessageKinds DetermineMessageKindForType(Type type)
+	{
 		var kinds = MessageKinds.None;
 
-		if (typeof(IDispatchAction).IsAssignableFrom(type) ||
-			type.GetInterfaces().Any(static i => i.IsGenericType &&
-												 i.GetGenericTypeDefinition() == typeof(IDispatchAction<>)))
+		if (typeof(IDispatchAction).IsAssignableFrom(type))
 		{
 			kinds |= MessageKinds.Action;
+		}
+		else
+		{
+			var interfaces = type.GetInterfaces();
+			for (var i = 0; i < interfaces.Length; i++)
+			{
+				var iface = interfaces[i];
+				if (iface.IsGenericType &&
+					iface.GetGenericTypeDefinition() == typeof(IDispatchAction<>))
+				{
+					kinds |= MessageKinds.Action;
+					break;
+				}
+			}
 		}
 
 		if (typeof(IDispatchEvent).IsAssignableFrom(type))

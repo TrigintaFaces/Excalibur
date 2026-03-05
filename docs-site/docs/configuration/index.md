@@ -14,6 +14,7 @@ Excalibur uses Microsoft-style dependency injection with fluent builder patterns
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
+  dotnet add package Excalibur.Hosting
   ```
 - Familiarity with [dependency injection](../core-concepts/dependency-injection.md) and [core concepts](../core-concepts/index.md)
 
@@ -35,6 +36,8 @@ services.AddExcalibur(excalibur =>
 });
 ```
 
+`AddExcalibur()` is provided by `Excalibur.Hosting`, while each `.AddXxx(...)` subsystem method is provided by its feature package.
+
 This automatically:
 - Registers Dispatch primitives (`IDispatcher`, `IMessageBus`, etc.)
 - Sets up the core pipeline with sensible defaults
@@ -44,6 +47,7 @@ This automatically:
 
 | Feature | Package |
 |---------|---------|
+| Unified builder (`AddExcalibur`) | `Excalibur.Hosting` |
 | Core domain modeling | `Excalibur.Domain` |
 | Event sourcing | `Excalibur.EventSourcing` |
 | SQL Server provider | `Excalibur.EventSourcing.SqlServer` |

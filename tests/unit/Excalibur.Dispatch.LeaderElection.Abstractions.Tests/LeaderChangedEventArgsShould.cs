@@ -46,7 +46,8 @@ public sealed class LeaderChangedEventArgsShould : UnitTestBase
 
 		// Assert
 		args.Timestamp.ShouldBeGreaterThanOrEqualTo(before);
-		args.Timestamp.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+		var assertionUpperBound1 = DateTimeOffset.UtcNow;
+		args.Timestamp.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	[Fact]

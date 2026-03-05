@@ -318,9 +318,21 @@ public static class WaitHelpers
 					await action().ConfigureAwait(false);
 					return true; // Success
 				}
-				catch (Exception) when (attempts < maxRetries && !linkedCts.Token.IsCancellationRequested)
+				catch (Exception) when (!cancellationToken.IsCancellationRequested)
 				{
-					// Action failed, wait and retry
+					// If timeout won the race with the action failure, treat as timeout rather than surfacing
+					// a transient action exception.
+					if (timeoutCts.IsCancellationRequested)
+					{
+						return false;
+					}
+
+					if (attempts >= maxRetries)
+					{
+						throw;
+					}
+
+					// Action failed, wait and retry.
 					await Task.Delay(delay, linkedCts.Token).ConfigureAwait(false);
 				}
 			}

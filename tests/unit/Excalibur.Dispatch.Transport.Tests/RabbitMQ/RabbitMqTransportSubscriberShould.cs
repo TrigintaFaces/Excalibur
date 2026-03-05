@@ -95,6 +95,82 @@ public sealed class RabbitMqTransportSubscriberShould : IAsyncDisposable
 	}
 
 	[Fact]
+	public async Task Apply_prefetch_qos_when_prefetch_is_configured()
+	{
+		var channel = A.Fake<IChannel>();
+		_ = A.CallTo(() => channel.BasicConsumeAsync(
+				A<string>._,
+				A<bool>._,
+				A<string>._,
+				A<bool>._,
+				A<bool>._,
+				A<IDictionary<string, object?>>._,
+				A<IAsyncBasicConsumer>._,
+				A<CancellationToken>._))
+			.Returns(Task.FromResult("consumer-tag"));
+		_ = A.CallTo(() => channel.BasicCancelAsync(
+				A<string>._,
+				A<bool>._,
+				A<CancellationToken>._))
+			.Returns(Task.CompletedTask);
+
+		var sut = new RabbitMqTransportSubscriber(
+			channel,
+			TestSource,
+			TestQueueName,
+			NullLogger<RabbitMqTransportSubscriber>.Instance,
+			prefetchCount: 25,
+			prefetchGlobal: false);
+
+		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+		await sut.SubscribeAsync(static (_, _) => Task.FromResult(MessageAction.Acknowledge), cts.Token);
+
+		A.CallTo(() => channel.BasicQosAsync(
+				prefetchSize: 0,
+				prefetchCount: (ushort)25,
+				global: false,
+				cancellationToken: A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task Skip_prefetch_qos_when_prefetch_is_zero()
+	{
+		var channel = A.Fake<IChannel>();
+		_ = A.CallTo(() => channel.BasicConsumeAsync(
+				A<string>._,
+				A<bool>._,
+				A<string>._,
+				A<bool>._,
+				A<bool>._,
+				A<IDictionary<string, object?>>._,
+				A<IAsyncBasicConsumer>._,
+				A<CancellationToken>._))
+			.Returns(Task.FromResult("consumer-tag"));
+		_ = A.CallTo(() => channel.BasicCancelAsync(
+				A<string>._,
+				A<bool>._,
+				A<CancellationToken>._))
+			.Returns(Task.CompletedTask);
+
+		var sut = new RabbitMqTransportSubscriber(
+			channel,
+			TestSource,
+			TestQueueName,
+			NullLogger<RabbitMqTransportSubscriber>.Instance);
+
+		using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+		await sut.SubscribeAsync(static (_, _) => Task.FromResult(MessageAction.Acknowledge), cts.Token);
+
+		A.CallTo(() => channel.BasicQosAsync(
+				prefetchSize: A<uint>._,
+				prefetchCount: A<ushort>._,
+				global: A<bool>._,
+				cancellationToken: A<CancellationToken>._))
+			.MustNotHaveHappened();
+	}
+
+	[Fact]
 	public void Return_channel_via_GetService()
 	{
 		var result = _sut.GetService(typeof(IChannel));

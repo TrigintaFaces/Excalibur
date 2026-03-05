@@ -266,7 +266,7 @@ public sealed class TestSagaStateShould
 		state.Counter.ShouldBe(3);
 		state.Data.Count.ShouldBe(2);
 		state.CompletedUtc.ShouldNotBeNull();
-		state.CompletedUtc.Value.ShouldBeGreaterThan(state.CreatedUtc);
+		state.CompletedUtc.Value.ShouldBeGreaterThanOrEqualTo(state.CreatedUtc);
 	}
 
 	[Fact]

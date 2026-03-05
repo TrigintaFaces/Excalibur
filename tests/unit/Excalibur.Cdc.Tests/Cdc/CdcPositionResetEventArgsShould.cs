@@ -18,8 +18,12 @@ public sealed class CdcPositionResetEventArgsShould : UnitTestBase
 	[Fact]
 	public void HasCorrectDefaults()
 	{
-		// Arrange & Act
+		// Arrange
+		var before = DateTimeOffset.UtcNow;
+
+		// Act
 		var args = new CdcPositionResetEventArgs();
+		var after = DateTimeOffset.UtcNow;
 
 		// Assert
 		args.ProcessorId.ShouldBe(string.Empty);
@@ -36,7 +40,7 @@ public sealed class CdcPositionResetEventArgsShould : UnitTestBase
 		args.AttemptNumber.ShouldBe(0);
 		args.Strategy.ShouldBe(StalePositionRecoveryStrategy.Throw);
 		args.AdditionalContext.ShouldBeNull();
-		args.DetectedAt.ShouldBeInRange(DateTimeOffset.UtcNow.AddSeconds(-1), DateTimeOffset.UtcNow.AddSeconds(1));
+		args.DetectedAt.ShouldBeInRange(before, after);
 	}
 
 	#endregion

@@ -13,6 +13,7 @@ using Excalibur.Dispatch.Transport.Kafka;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Infrastructure;
 
 namespace Excalibur.Dispatch.Integration.Tests.Transport.Kafka;
 
@@ -27,6 +28,9 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.Kafka;
 [Collection(ContainerCollections.Kafka)]
 public sealed class KafkaPartitioningIntegrationShould
 {
+	private static readonly TimeSpan MessageWaitTimeout = TestTimeouts.Scale(TimeSpan.FromSeconds(15));
+	private static readonly TimeSpan TopicReadyTimeout = TestTimeouts.Scale(TimeSpan.FromSeconds(90));
+
 	private readonly KafkaContainerFixture _fixture;
 
 	public KafkaPartitioningIntegrationShould(KafkaContainerFixture fixture)
@@ -138,7 +142,7 @@ public sealed class KafkaPartitioningIntegrationShould
 		using var consumer = BuildRawConsumer(topic, $"verify-ok-{Guid.NewGuid():N}");
 		consumer.Subscribe(topic);
 
-		var consumed = ConsumeWithRetry(consumer, TimeSpan.FromSeconds(15));
+		var consumed = ConsumeWithRetry(consumer, MessageWaitTimeout);
 		consumed.ShouldNotBeNull();
 		consumed.Message.Key.ShouldBe(orderingKey);
 	}
@@ -183,7 +187,7 @@ public sealed class KafkaPartitioningIntegrationShould
 
 		for (var i = 0; i < messageCount; i++)
 		{
-			var consumed = ConsumeWithRetry(consumer, TimeSpan.FromSeconds(15));
+			var consumed = ConsumeWithRetry(consumer, MessageWaitTimeout);
 			consumed.ShouldNotBeNull();
 			receivedOffsets.Add(consumed.Offset.Value);
 			receivedBodies.Add(Encoding.UTF8.GetString(consumed.Message.Value));
@@ -228,7 +232,7 @@ public sealed class KafkaPartitioningIntegrationShould
 		using var consumer = BuildRawConsumer(topic, $"verify-default-{Guid.NewGuid():N}");
 		consumer.Subscribe(topic);
 
-		var consumed = ConsumeWithRetry(consumer, TimeSpan.FromSeconds(15));
+		var consumed = ConsumeWithRetry(consumer, MessageWaitTimeout);
 		consumed.ShouldNotBeNull();
 		consumed.Message.Key.ShouldBe(messageId);
 	}
@@ -263,7 +267,7 @@ public sealed class KafkaPartitioningIntegrationShould
 		using var consumer = BuildRawConsumer(topic, $"verify-precedence-{Guid.NewGuid():N}");
 		consumer.Subscribe(topic);
 
-		var consumed = ConsumeWithRetry(consumer, TimeSpan.FromSeconds(15));
+		var consumed = ConsumeWithRetry(consumer, MessageWaitTimeout);
 		consumed.ShouldNotBeNull();
 		consumed.Message.Key.ShouldBe("ordering-key-value");
 	}
@@ -281,56 +285,81 @@ public sealed class KafkaPartitioningIntegrationShould
 		using var adminClient = new AdminClientBuilder(adminConfig).Build();
 
 		// Retry topic creation and metadata readiness — controller elections can take time in CI.
-		var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(90);
-		while (true)
-		{
-			try
+		var topicCreated = await WaitHelpers.RetryUntilSuccessAsync(
+			async () =>
 			{
-				await adminClient.CreateTopicsAsync([
-					new global::Confluent.Kafka.Admin.TopicSpecification
+				try
+				{
+					await adminClient.CreateTopicsAsync([
+						new global::Confluent.Kafka.Admin.TopicSpecification
+						{
+							Name = topicName,
+							NumPartitions = partitions,
+							ReplicationFactor = 1,
+						}
+					], new CreateTopicsOptions
 					{
-						Name = topicName,
-						NumPartitions = partitions,
-						ReplicationFactor = 1,
-					}
-				], new CreateTopicsOptions
-				{
-					OperationTimeout = TimeSpan.FromSeconds(30),
-					RequestTimeout = TimeSpan.FromSeconds(30),
-				}).ConfigureAwait(false);
-
-				break;
-			}
-			catch (CreateTopicsException) when (DateTime.UtcNow < deadline)
-			{
-				await Task.Delay(1000).ConfigureAwait(false);
-			}
-			catch (KafkaException) when (DateTime.UtcNow < deadline)
-			{
-				await Task.Delay(1000).ConfigureAwait(false);
-			}
-		}
-
-		while (DateTime.UtcNow < deadline)
-		{
-			try
-			{
-				var metadata = adminClient.GetMetadata(topicName, TimeSpan.FromSeconds(5));
-				var topic = metadata.Topics.FirstOrDefault(t => string.Equals(t.Topic, topicName, StringComparison.Ordinal));
-				if (topic is not null && topic.Error.Code == ErrorCode.NoError && topic.Partitions.Count == partitions)
-				{
-					return;
+						OperationTimeout = TimeSpan.FromSeconds(30),
+						RequestTimeout = TimeSpan.FromSeconds(30),
+					}).ConfigureAwait(false);
 				}
-			}
-			catch (KafkaException)
-			{
-				// keep retrying until deadline
-			}
+				catch (CreateTopicsException ex) when (AllTopicsAlreadyExist(ex))
+				{
+					// Topic was already created during retries.
+				}
+			},
+			TopicReadyTimeout,
+			TimeSpan.FromMilliseconds(500)).ConfigureAwait(false);
 
-			await Task.Delay(500).ConfigureAwait(false);
+		if (!topicCreated)
+		{
+			throw new TimeoutException($"Kafka topic '{topicName}' creation timed out.");
 		}
 
-		throw new TimeoutException($"Kafka topic '{topicName}' was not ready with {partitions} partitions before deadline.");
+		var topicReady = await WaitHelpers.WaitUntilAsync(
+			() =>
+			{
+				try
+				{
+					var metadata = adminClient.GetMetadata(topicName, TimeSpan.FromSeconds(5));
+					for (var i = 0; i < metadata.Topics.Count; i++)
+					{
+						var topic = metadata.Topics[i];
+						if (!string.Equals(topic.Topic, topicName, StringComparison.Ordinal))
+						{
+							continue;
+						}
+
+						return topic.Error.Code == ErrorCode.NoError && topic.Partitions.Count == partitions;
+					}
+				}
+				catch (KafkaException)
+				{
+					// Metadata may not be ready yet.
+				}
+
+				return false;
+			},
+			TopicReadyTimeout,
+			TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
+
+		if (!topicReady)
+		{
+			throw new TimeoutException($"Kafka topic '{topicName}' was not ready with {partitions} partitions before timeout.");
+		}
+	}
+
+	private static bool AllTopicsAlreadyExist(CreateTopicsException exception)
+	{
+		for (var i = 0; i < exception.Results.Count; i++)
+		{
+			if (exception.Results[i].Error.Code != ErrorCode.TopicAlreadyExists)
+			{
+				return false;
+			}
+		}
+
+		return exception.Results.Count > 0;
 	}
 
 	private IProducer<string, byte[]> BuildProducer()
@@ -368,17 +397,24 @@ public sealed class KafkaPartitioningIntegrationShould
 		return (ITransportSender)ctor.Invoke([producer, topic, logger]);
 	}
 
-	private static global::Confluent.Kafka.ConsumeResult<string, byte[]>? ConsumeWithRetry(IConsumer<string, byte[]> consumer, TimeSpan timeout)
+private static global::Confluent.Kafka.ConsumeResult<string, byte[]>? ConsumeWithRetry(IConsumer<string, byte[]> consumer, TimeSpan timeout)
+{
+	var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+	while (stopwatch.Elapsed < timeout)
 	{
-		var deadline = DateTime.UtcNow + timeout;
-		while (DateTime.UtcNow < deadline)
+		var remaining = timeout - stopwatch.Elapsed;
+		if (remaining <= TimeSpan.Zero)
 		{
-			var result = consumer.Consume(TimeSpan.FromSeconds(2));
-			if (result?.Message is not null)
-			{
-				return result;
-			}
+			break;
 		}
+
+		var pollTimeout = remaining < TimeSpan.FromMilliseconds(250) ? remaining : TimeSpan.FromMilliseconds(250);
+		var result = consumer.Consume(pollTimeout);
+		if (result?.Message is not null)
+		{
+			return result;
+		}
+	}
 
 		return null;
 	}

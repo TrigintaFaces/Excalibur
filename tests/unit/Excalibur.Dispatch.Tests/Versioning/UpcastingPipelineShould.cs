@@ -502,21 +502,23 @@ public sealed class UpcastingPipelineShould : IDisposable
 		_sut.Register(new UserCreatedEventV3ToV4Upcaster());
 
 		var tasks = new List<Task>();
-		var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
 
 		// Act - Run many concurrent upcasts
 		for (var i = 0; i < 100; i++)
 		{
+			var iteration = i;
 			tasks.Add(Task.Run(() =>
 			{
-				var v1 = new UserCreatedEventV1 { Id = Guid.NewGuid(), Name = $"User {i}" };
+				var v1 = new UserCreatedEventV1 { Id = Guid.NewGuid(), Name = $"User {iteration}" };
 				var result = _sut.Upcast(v1);
 				_ = result.ShouldBeOfType<UserCreatedEventV4>();
-			}, cts.Token));
+			}));
 		}
 
 		// Assert - Should complete without deadlock
-		await Task.WhenAll(tasks);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			Task.WhenAll(tasks),
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromMinutes(2))).ConfigureAwait(false);
 	}
 
 	[Fact]

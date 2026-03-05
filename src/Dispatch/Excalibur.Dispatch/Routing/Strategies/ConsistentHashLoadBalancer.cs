@@ -19,15 +19,23 @@ public partial class ConsistentHashLoadBalancer(
 	ILogger<ConsistentHashLoadBalancer> logger,
 	int virtualNodesPerRoute = 150) : ILoadBalancingStrategy
 {
+	private static readonly Dictionary<string, int> EmptyRouteWeightSnapshot = new(0, StringComparer.Ordinal);
+
 	private readonly ILogger<ConsistentHashLoadBalancer> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-	private readonly SortedDictionary<uint, RouteDefinition> _hashRing = [];
+#if NET9_0_OR_GREATER
+	private readonly Lock _rebuildLock = new();
+#else
+	private readonly object _rebuildLock = new();
+#endif
+	private HashRingSnapshot _hashRingSnapshot = HashRingSnapshot.Empty;
+	private Dictionary<string, int> _routeWeightSnapshot = EmptyRouteWeightSnapshot;
 
 	/// <inheritdoc />
 	public RouteDefinition SelectRoute(IReadOnlyList<RouteDefinition> routes, RoutingContext context)
 	{
 		ArgumentNullException.ThrowIfNull(routes);
 		ArgumentNullException.ThrowIfNull(context);
-		if (!routes.Any())
+		if (routes.Count == 0)
 		{
 			throw new ArgumentException(
 				Resources.LoadBalancing_NoRoutesAvailable,
@@ -86,51 +94,129 @@ public partial class ConsistentHashLoadBalancer(
 
 	private void RebuildHashRing(IReadOnlyList<RouteDefinition> routes)
 	{
-		lock (_hashRing)
+		if (RoutesUnchanged(routes, _routeWeightSnapshot))
 		{
-			// Check if rebuild needed
-			var currentRoutes = _hashRing.Values.Select(static r => r.RouteId).Distinct(StringComparer.Ordinal)
-				.Order(StringComparer.Ordinal);
-			var newRoutes = routes.Select(static r => r.RouteId).Order(StringComparer.Ordinal);
+			return;
+		}
 
-			if (currentRoutes.SequenceEqual(newRoutes, StringComparer.Ordinal))
+		lock (_rebuildLock)
+		{
+			if (RoutesUnchanged(routes, _routeWeightSnapshot))
 			{
 				return;
 			}
 
-			_hashRing.Clear();
+			var hashRingSnapshot = BuildHashRing(routes, out var routeWeightSnapshot);
+			_hashRingSnapshot = hashRingSnapshot;
+			_routeWeightSnapshot = routeWeightSnapshot;
+		}
+	}
 
-			foreach (var route in routes)
+	private static bool RoutesUnchanged(
+		IReadOnlyList<RouteDefinition> routes,
+		IReadOnlyDictionary<string, int> routeWeightSnapshot)
+	{
+		if (routes.Count != routeWeightSnapshot.Count)
+		{
+			return false;
+		}
+
+		for (var i = 0; i < routes.Count; i++)
+		{
+			var route = routes[i];
+			var weight = Math.Max(1, route.Weight);
+
+			if (!routeWeightSnapshot.TryGetValue(route.RouteId, out var previousWeight) ||
+				previousWeight != weight)
 			{
-				var weight = Math.Max(1, route.Weight);
-				var nodes = virtualNodesPerRoute * weight / 100;
-
-				for (var i = 0; i < nodes; i++)
-				{
-					var virtualKey = $"{route.RouteId}:{i}";
-					var hash = ComputeHash(virtualKey);
-					_hashRing[hash] = route;
-				}
+				return false;
 			}
 		}
+
+		return true;
+	}
+
+	private HashRingSnapshot BuildHashRing(
+		IReadOnlyList<RouteDefinition> routes,
+		out Dictionary<string, int> routeWeightSnapshot)
+	{
+		routeWeightSnapshot = new Dictionary<string, int>(routes.Count, StringComparer.Ordinal);
+
+		var estimatedNodes = 0;
+		for (var i = 0; i < routes.Count; i++)
+		{
+			var weight = Math.Max(1, routes[i].Weight);
+			estimatedNodes += virtualNodesPerRoute * weight / 100;
+		}
+
+		var nodes = new List<HashRingNode>(Math.Max(estimatedNodes, 0));
+
+		for (var routeIndex = 0; routeIndex < routes.Count; routeIndex++)
+		{
+			var route = routes[routeIndex];
+			var weight = Math.Max(1, route.Weight);
+			routeWeightSnapshot[route.RouteId] = weight;
+
+			var nodeCount = virtualNodesPerRoute * weight / 100;
+			for (var nodeIndex = 0; nodeIndex < nodeCount; nodeIndex++)
+			{
+				var virtualKey = $"{route.RouteId}:{nodeIndex}";
+				var hash = ComputeHash(virtualKey);
+				nodes.Add(new HashRingNode(hash, route));
+			}
+		}
+
+		if (nodes.Count == 0)
+		{
+			return HashRingSnapshot.Empty;
+		}
+
+		nodes.Sort(static (left, right) => left.Hash.CompareTo(right.Hash));
+
+		var hashes = new uint[nodes.Count];
+		var mappedRoutes = new RouteDefinition[nodes.Count];
+		for (var i = 0; i < nodes.Count; i++)
+		{
+			hashes[i] = nodes[i].Hash;
+			mappedRoutes[i] = nodes[i].Route;
+		}
+
+		return new HashRingSnapshot(hashes, mappedRoutes);
 	}
 
 	private RouteDefinition GetRouteFromRing(uint hash)
 	{
-		lock (_hashRing)
+		var hashRingSnapshot = _hashRingSnapshot;
+		if (hashRingSnapshot.Count == 0)
 		{
-			// Find the first node with hash >= our hash
-			foreach (var kvp in _hashRing)
-			{
-				if (kvp.Key >= hash)
-				{
-					return kvp.Value;
-				}
-			}
-
-			// Wrap around to the first node
-			return _hashRing.First().Value;
+			throw new InvalidOperationException("Hash ring is empty.");
 		}
+
+		var index = Array.BinarySearch(hashRingSnapshot.Hashes, hash);
+		if (index < 0)
+		{
+			index = ~index;
+		}
+
+		if (index >= hashRingSnapshot.Count)
+		{
+			index = 0;
+		}
+
+		return hashRingSnapshot.Routes[index];
+	}
+
+	private readonly record struct HashRingNode(uint Hash, RouteDefinition Route);
+
+	private sealed class HashRingSnapshot(uint[] hashes, RouteDefinition[] routes)
+	{
+		public static readonly HashRingSnapshot Empty = new([], []);
+
+		public uint[] Hashes { get; } = hashes;
+
+		public RouteDefinition[] Routes { get; } = routes;
+
+		public int Count => Hashes.Length;
 	}
 
 	// Source-generated logging methods

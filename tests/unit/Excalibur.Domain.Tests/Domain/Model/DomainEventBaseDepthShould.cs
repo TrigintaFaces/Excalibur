@@ -16,15 +16,19 @@ public sealed class DomainEventBaseDepthShould
 	[Fact]
 	public void DefaultValues_AreSetCorrectly()
 	{
+		var lowerBound = DateTimeOffset.UtcNow;
+
 		// Arrange & Act
 		var evt = new TestDomainEvent();
+		var upperBound = DateTimeOffset.UtcNow;
 
 		// Assert
 		evt.EventId.ShouldNotBeNullOrEmpty();
 		Guid.TryParse(evt.EventId, out _).ShouldBeTrue();
 		evt.AggregateId.ShouldBe(string.Empty);
 		evt.Version.ShouldBe(0);
-		evt.OccurredAt.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddMinutes(-1));
+		evt.OccurredAt.ShouldBeGreaterThanOrEqualTo(lowerBound);
+		evt.OccurredAt.ShouldBeLessThanOrEqualTo(upperBound);
 		evt.EventType.ShouldBe(nameof(TestDomainEvent));
 		evt.Metadata.ShouldBeNull();
 	}

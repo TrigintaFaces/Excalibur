@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Signing;
 [Trait("Component", "Security")]
 public sealed class HmacMessageSigningServiceCoverageShould : IDisposable
 {
-    private static readonly byte[] TestKey = Encoding.UTF8.GetBytes("test-key-1234567890-abcdefghijkl");
+    private readonly byte[] _testKey = Encoding.UTF8.GetBytes("test-key-1234567890-abcdefghijkl");
     private readonly IKeyProvider _keyProvider;
     private readonly HmacMessageSigningService _sut;
 
@@ -23,7 +23,7 @@ public sealed class HmacMessageSigningServiceCoverageShould : IDisposable
     {
         _keyProvider = A.Fake<IKeyProvider>();
         A.CallTo(() => _keyProvider.GetKeyAsync(A<string>._, A<CancellationToken>._))
-            .Returns(TestKey);
+            .ReturnsLazily((string _, CancellationToken _) => Task.FromResult((byte[])_testKey.Clone()));
 
         var options = Microsoft.Extensions.Options.Options.Create(new SigningOptions
         {
@@ -265,7 +265,8 @@ public sealed class HmacMessageSigningServiceCoverageShould : IDisposable
         signedMessage.Signature.ShouldNotBeNullOrEmpty();
         signedMessage.Algorithm.ShouldBe(SigningAlgorithm.HMACSHA256);
         signedMessage.KeyId.ShouldBe("my-key");
-        signedMessage.SignedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+        var assertionUpperBound1 = DateTimeOffset.UtcNow;
+        signedMessage.SignedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
         signedMessage.Metadata.ShouldContainKeyAndValue("purpose", "test");
     }
 

@@ -193,13 +193,11 @@ public struct MessageEnvelopeBuilder : IEquatable<MessageEnvelopeBuilder>
 	public readonly bool Equals(MessageEnvelopeBuilder other) => string.Equals(_messageId, other._messageId, StringComparison.Ordinal) &&
 		_body.Equals(other._body) &&
 		_timestampTicks == other._timestampTicks &&
-string.Equals(_correlationId, other._correlationId, StringComparison.Ordinal) &&
-string.Equals(_messageType, other._messageType, StringComparison.Ordinal) &&
+		string.Equals(_correlationId, other._correlationId, StringComparison.Ordinal) &&
+		string.Equals(_messageType, other._messageType, StringComparison.Ordinal) &&
 		_priority == other._priority &&
 		_timeToLiveSeconds == other._timeToLiveSeconds &&
-		((_headers == null && other._headers == null) ||
-		 (_headers != null && other._headers != null && _headers.Count == other._headers.Count &&
-		  _headers.All(kvp => other._headers.TryGetValue(kvp.Key, out var value) && string.Equals(value, kvp.Value, StringComparison.Ordinal))));
+		HeadersEqual(_headers, other._headers);
 
 	/// <summary>
 	/// Determines whether the specified object is equal to the current builder.
@@ -219,15 +217,51 @@ string.Equals(_messageType, other._messageType, StringComparison.Ordinal) &&
 		hash.Add(_messageType);
 		hash.Add(_priority);
 		hash.Add(_timeToLiveSeconds);
-		if (_headers != null)
+		if (_headers is { Count: > 0 })
 		{
-			foreach (var kvp in _headers.OrderBy(static x => x.Key, StringComparer.Ordinal))
-			{
-				hash.Add(kvp.Key);
-				hash.Add(kvp.Value);
-			}
+			hash.Add(GetOrderIndependentHeadersHash(_headers));
 		}
 
 		return hash.ToHashCode();
+	}
+
+	private static bool HeadersEqual(
+		Dictionary<string, string>? left,
+		Dictionary<string, string>? right)
+	{
+		if (left == null || right == null)
+		{
+			return left == right;
+		}
+
+		if (left.Count != right.Count)
+		{
+			return false;
+		}
+
+		foreach (var header in left)
+		{
+			if (!right.TryGetValue(header.Key, out var rightValue) ||
+				!string.Equals(rightValue, header.Value, StringComparison.Ordinal))
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	private static int GetOrderIndependentHeadersHash(Dictionary<string, string> headers)
+	{
+		var combined = 0;
+		var sum = 0;
+		foreach (var header in headers)
+		{
+			var entryHash = HashCode.Combine(header.Key, header.Value);
+			combined ^= entryHash;
+			sum += entryHash;
+		}
+
+		return HashCode.Combine(headers.Count, combined, sum);
 	}
 }

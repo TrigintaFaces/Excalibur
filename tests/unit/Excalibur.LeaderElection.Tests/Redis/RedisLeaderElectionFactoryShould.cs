@@ -74,7 +74,9 @@ public sealed class RedisLeaderElectionFactoryShould : UnitTestBase
 
 		// Assert
 		election.CandidateId.ShouldNotBeNullOrWhiteSpace();
-		election.CandidateId.ShouldContain(Environment.MachineName);
+		election.CandidateId.Length.ShouldBeLessThanOrEqualTo(24);
+		var machinePrefix = Environment.MachineName[..Math.Min(Environment.MachineName.Length, election.CandidateId.Length)];
+		election.CandidateId.StartsWith(machinePrefix, StringComparison.OrdinalIgnoreCase).ShouldBeTrue();
 	}
 
 	[Fact]

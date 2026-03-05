@@ -5,6 +5,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Auth;
 using Excalibur.Dispatch.Options.Middleware;
 
 using FakeItEasy;
@@ -13,7 +14,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using MsOptions = Microsoft.Extensions.Options.Options;
-using AuthorizationResult = Excalibur.Dispatch.Middleware.AuthorizationResult;
+using AuthorizationResult = Excalibur.Dispatch.Middleware.Auth.AuthorizationResult;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 
@@ -342,6 +343,37 @@ public sealed class AuthorizationMiddlewareShould
 
 		// Assert
 		result.IsSuccess.ShouldBeTrue();
+		A.CallTo(() => _authorizationService.AuthorizeAsync(
+			A<IDispatchMessage>._,
+			A<IMessageContext>._,
+			A<object>._,
+			A<CancellationToken>._)).MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task SkipClaimsLookup_WhenMessageBypassesAuthorization()
+	{
+		// Arrange
+		var options = MsOptions.Create(new AuthorizationOptions
+		{
+			Enabled = true,
+			BypassAuthorizationForTypes = [nameof(TestActionMessage)],
+		});
+		var middleware = new AuthorizationMiddleware(options, _authorizationService, NullTelemetrySanitizer.Instance, _logger);
+		var message = new TestActionMessage();
+
+		// Act
+		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
+
+		// Assert
+		result.IsSuccess.ShouldBeTrue();
+		A.CallTo(() => _context.GetItem<object>("UserId")).MustNotHaveHappened();
+		A.CallTo(() => _context.GetItem<object>("SubjectId")).MustNotHaveHappened();
+		A.CallTo(() => _context.GetItem<object>("ServiceId")).MustNotHaveHappened();
+		A.CallTo(() => _context.GetItem<object>("TenantId")).MustNotHaveHappened();
+		A.CallTo(() => _context.GetItem<object>("Roles")).MustNotHaveHappened();
+		A.CallTo(() => _context.GetItem<object>("claim:UserId")).MustNotHaveHappened();
+		A.CallTo(() => _context.GetItem<object>("claim:TenantId")).MustNotHaveHappened();
 		A.CallTo(() => _authorizationService.AuthorizeAsync(
 			A<IDispatchMessage>._,
 			A<IMessageContext>._,

@@ -48,11 +48,11 @@ public sealed class ServiceCollectionExtensionsDepthShould
 	[Fact]
 	public void AddImplementations_ThrowsArgumentNullException_WhenServicesIsNull()
 	{
+		IServiceCollection services = null!;
+
 		Should.Throw<ArgumentNullException>(() =>
-			ServiceCollectionExtensions.AddImplementations(
-				null!,
+			services.AddImplementations<IDepthTestService>(
 				typeof(IDepthTestService).Assembly,
-				typeof(IDepthTestService),
 				ServiceLifetime.Singleton));
 	}
 
@@ -62,9 +62,8 @@ public sealed class ServiceCollectionExtensionsDepthShould
 		var services = new ServiceCollection();
 
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddImplementations(
+			services.AddImplementations<IDepthTestService>(
 				null!,
-				typeof(IDepthTestService),
 				ServiceLifetime.Singleton));
 	}
 

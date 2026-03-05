@@ -476,3 +476,6 @@ static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtension
 static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions.AddInboxHostedService(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
 static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions.AddOutboxHostedService(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
 static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions.HasExcaliburOutbox(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> System.Boolean
+
+Microsoft.Extensions.DependencyInjection.OutboxExcaliburBuilderExtensions
+static Microsoft.Extensions.DependencyInjection.OutboxExcaliburBuilderExtensions.AddOutbox(Excalibur.Hosting.Builders.IExcaliburBuilder builder, System.Action<Excalibur.Outbox.IOutboxBuilder> configure) -> Excalibur.Hosting.Builders.IExcaliburBuilder

@@ -1,0 +1,63 @@
+<svg width="1600" height="420" viewBox="0 0 1600 420" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Excalibur + Dispatch</title>
+  <desc id="desc">Excalibur sword icon on the left, centered Excalibur plus Dispatch text, and Dispatch paper airplanes on the right.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1600" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1a1a2e"/>
+      <stop offset="1" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="420" fill="url(#bg)"/>
+
+  <!-- Left motif: Excalibur sword -->
+  <g transform="translate(120 210) scale(0.88)">
+    <path d="M0-150L-24-78L-16 130L0 160" fill="#3b82f6" opacity="0.72"/>
+    <path d="M0-150L24-78L16 130L0 160" fill="#3b82f6" opacity="0.72"/>
+    <path d="M0-150L-12-78L-8 130L0 160" fill="#60a5fa" opacity="0.95"/>
+    <path d="M0-150L12-78L8 130L0 160" fill="#60a5fa" opacity="0.95"/>
+    <line x1="0" y1="-150" x2="0" y2="160" stroke="#dbeafe" stroke-width="2.4" opacity="0.72"/>
+    <polygon points="-56,130 -28,136 28,136 56,130 54,148 -54,148" fill="#0ea5e9"/>
+    <polygon points="-54,148 -26,152 26,152 54,148" fill="#06b6d4" opacity="0.86"/>
+    <rect x="-10" y="152" width="20" height="28" fill="#334155" rx="1"/>
+    <polygon points="-18,180 0,190 18,180 16,198 -16,198" fill="#0ea5e9"/>
+    <circle cx="0" cy="189" r="6" fill="#bae6fd"/>
+  </g>
+
+  <!-- Right motif: Dispatch paper airplanes -->
+  <g transform="translate(1435 120)">
+    <line x1="-250" y1="120" x2="-56" y2="120" stroke="#00d4ff" stroke-width="1.2" opacity="0.2"/>
+    <line x1="-250" y1="88" x2="14" y2="88" stroke="#00d4ff" stroke-width="1.35" opacity="0.26"/>
+    <line x1="-250" y1="54" x2="88" y2="54" stroke="#00d4ff" stroke-width="1.55" opacity="0.34"/>
+
+    <g transform="translate(-20 120) scale(0.44)" opacity="0.45">
+      <path d="M0 0L-100-38L-50 0Z" fill="#00d4ff"/>
+      <path d="M0 0L-100 38L-50 0Z" fill="#00d4ff"/>
+      <line x1="0" y1="0" x2="-100" y2="0" stroke="#1a1a2e" stroke-width="5"/>
+    </g>
+
+    <g transform="translate(62 88) scale(0.6)" opacity="0.68">
+      <path d="M0 0L-100-38L-50 0Z" fill="#00d4ff"/>
+      <path d="M0 0L-100 38L-50 0Z" fill="#00d4ff"/>
+      <line x1="0" y1="0" x2="-100" y2="0" stroke="#1a1a2e" stroke-width="5"/>
+    </g>
+
+    <g transform="translate(160 54) scale(0.8)" opacity="0.9">
+      <path d="M0 0L-100-38L-50 0Z" fill="#00d4ff"/>
+      <path d="M0 0L-100 38L-50 0Z" fill="#00d4ff"/>
+      <line x1="0" y1="0" x2="-100" y2="0" stroke="#1a1a2e" stroke-width="5"/>
+    </g>
+  </g>
+
+  <!-- Center text -->
+  <text x="800" y="168" text-anchor="middle" fill="#5de4ff" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="20" letter-spacing="1.8">
+    OPEN SOURCE .NET FRAMEWORK
+  </text>
+  <text x="800" y="225" text-anchor="middle" fill="#f8fafc" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="56" font-weight="700" letter-spacing="1.2">
+    EXCALIBUR + DISPATCH
+  </text>
+  <text x="800" y="270" text-anchor="middle" fill="#00d4ff" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="24">
+    High-performance messaging, event sourcing, and CQRS
+  </text>
+</svg>

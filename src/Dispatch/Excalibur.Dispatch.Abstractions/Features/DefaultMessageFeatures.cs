@@ -11,13 +11,15 @@ namespace Excalibur.Dispatch.Abstractions;
 /// </summary>
 public sealed class DefaultMessageFeatures : IMessageFeatures
 {
-	private readonly ConcurrentDictionary<Type, object> _features = new();
+	private ConcurrentDictionary<Type, object>? _features;
 
 	/// <inheritdoc />
 	public TFeature? GetFeature<TFeature>()
 		where TFeature : class
 	{
-		if (_features.TryGetValue(typeof(TFeature), out var value))
+		var features = _features;
+		if (features is not null &&
+			features.TryGetValue(typeof(TFeature), out var value))
 		{
 			return value as TFeature;
 		}
@@ -29,12 +31,20 @@ public sealed class DefaultMessageFeatures : IMessageFeatures
 	public void SetFeature<TFeature>(TFeature? instance)
 		where TFeature : class
 	{
+		var featureType = typeof(TFeature);
+		var features = _features;
+
 		if (instance is null)
 		{
-			_ = _features.TryRemove(typeof(TFeature), out _);
+			if (features is not null)
+			{
+				_ = features.TryRemove(featureType, out _);
+			}
+
 			return;
 		}
 
-		_features[typeof(TFeature)] = instance;
+		features ??= Interlocked.CompareExchange(ref _features, new ConcurrentDictionary<Type, object>(), comparand: null) ?? _features!;
+		features[featureType] = instance;
 	}
 }

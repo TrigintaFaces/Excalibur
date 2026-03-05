@@ -36,6 +36,19 @@ public sealed class SchedulerOptionsShould
 		options.PastScheduleBehavior.ShouldBe(PastScheduleBehavior.ExecuteImmediately);
 	}
 
+	[Fact]
+	public void AdaptivePolling_Defaults_AreDisabled()
+	{
+		// Arrange & Act
+		var options = new SchedulerOptions();
+
+		// Assert
+		options.EnableAdaptivePolling.ShouldBeFalse();
+		options.MinPollingInterval.ShouldBe(TimeSpan.FromSeconds(1));
+		options.AdaptivePollingBackoffMultiplier.ShouldBe(2.0);
+		options.PollingJitterRatio.ShouldBe(0);
+	}
+
 	#endregion
 
 	#region Property Setter Tests
@@ -66,6 +79,25 @@ public sealed class SchedulerOptionsShould
 		options.PastScheduleBehavior.ShouldBe(PastScheduleBehavior.Reject);
 	}
 
+	[Fact]
+	public void AdaptivePolling_Properties_CanBeSet()
+	{
+		// Arrange
+		var options = new SchedulerOptions();
+
+		// Act
+		options.EnableAdaptivePolling = true;
+		options.MinPollingInterval = TimeSpan.FromMilliseconds(250);
+		options.AdaptivePollingBackoffMultiplier = 1.5;
+		options.PollingJitterRatio = 0.15;
+
+		// Assert
+		options.EnableAdaptivePolling.ShouldBeTrue();
+		options.MinPollingInterval.ShouldBe(TimeSpan.FromMilliseconds(250));
+		options.AdaptivePollingBackoffMultiplier.ShouldBe(1.5);
+		options.PollingJitterRatio.ShouldBe(0.15);
+	}
+
 	#endregion
 
 	#region Object Initializer Tests
@@ -78,11 +110,19 @@ public sealed class SchedulerOptionsShould
 		{
 			PollInterval = TimeSpan.FromSeconds(10),
 			PastScheduleBehavior = PastScheduleBehavior.Reject,
+			EnableAdaptivePolling = true,
+			MinPollingInterval = TimeSpan.FromMilliseconds(500),
+			AdaptivePollingBackoffMultiplier = 1.75,
+			PollingJitterRatio = 0.2,
 		};
 
 		// Assert
 		options.PollInterval.ShouldBe(TimeSpan.FromSeconds(10));
 		options.PastScheduleBehavior.ShouldBe(PastScheduleBehavior.Reject);
+		options.EnableAdaptivePolling.ShouldBeTrue();
+		options.MinPollingInterval.ShouldBe(TimeSpan.FromMilliseconds(500));
+		options.AdaptivePollingBackoffMultiplier.ShouldBe(1.75);
+		options.PollingJitterRatio.ShouldBe(0.2);
 	}
 
 	#endregion

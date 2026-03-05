@@ -3,7 +3,15 @@
 
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Auth;
+using Excalibur.Dispatch.Middleware.Batch;
+using Excalibur.Dispatch.Middleware.Logging;
+using Excalibur.Dispatch.Middleware.Outbox;
+using Excalibur.Dispatch.Middleware.Resilience;
+using Excalibur.Dispatch.Middleware.Timeout;
+using Excalibur.Dispatch.Middleware.Transaction;
+using Excalibur.Dispatch.Middleware.Validation;
+using Excalibur.Dispatch.Middleware.Versioning;
 
 namespace Excalibur.Dispatch.Configuration;
 

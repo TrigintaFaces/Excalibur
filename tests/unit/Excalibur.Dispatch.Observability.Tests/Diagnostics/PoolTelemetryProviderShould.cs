@@ -18,8 +18,8 @@ namespace Excalibur.Dispatch.Observability.Tests.Diagnostics;
 [Trait("Feature", "PoolTelemetry")]
 public sealed class PoolTelemetryProviderShould : IDisposable
 {
-	private const string DefaultMeterName = "Excalibur.Dispatch.Pooling";
-	private const string CustomMeterName = "Test.Custom.Pooling";
+	private readonly string _defaultMeterName = $"Excalibur.Dispatch.Pooling.{Guid.NewGuid():N}";
+	private readonly string _customMeterName = $"Test.Custom.Pooling.{Guid.NewGuid():N}";
 
 	private PoolTelemetryProvider? _sut;
 	private MeterListener? _listener;
@@ -36,7 +36,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 	public void CreateInstanceWithDefaultMeterName()
 	{
 		// Arrange & Act
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Assert
 		_sut.ShouldNotBeNull();
@@ -46,7 +46,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 	public void CreateInstanceWithCustomMeterName()
 	{
 		// Arrange & Act
-		_sut = new PoolTelemetryProvider(CustomMeterName);
+		_sut = new PoolTelemetryProvider(_customMeterName);
 
 		// Assert
 		_sut.ShouldNotBeNull();
@@ -62,7 +62,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		{
 			// Only capture from our expected meter to avoid cross-test interference
 			// when other tests publish instruments from different meters in parallel
-			if (instrument.Meter.Name == DefaultMeterName)
+			if (instrument.Meter.Name == _defaultMeterName)
 			{
 				capturedMeterName = instrument.Meter.Name;
 			}
@@ -72,11 +72,11 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener.Start();
 
 		// Act
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 		_sut.RecordRent("test-pool", 1.0); // Trigger instrument publication
 
 		// Assert
-		capturedMeterName.ShouldBe(DefaultMeterName);
+		capturedMeterName.ShouldBe(_defaultMeterName);
 	}
 
 	[Fact]
@@ -89,7 +89,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		{
 			// Only capture from our expected meter to avoid cross-test interference
 			// when other tests publish instruments from different meters in parallel
-			if (instrument.Meter.Name == CustomMeterName)
+			if (instrument.Meter.Name == _customMeterName)
 			{
 				capturedMeterName = instrument.Meter.Name;
 			}
@@ -99,11 +99,11 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener.Start();
 
 		// Act
-		_sut = new PoolTelemetryProvider(CustomMeterName);
+		_sut = new PoolTelemetryProvider(_customMeterName);
 		_sut.RecordRent("test-pool", 1.0);
 
 		// Assert
-		capturedMeterName.ShouldBe(CustomMeterName);
+		capturedMeterName.ShouldBe(_customMeterName);
 	}
 
 	[Fact]
@@ -115,7 +115,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
 			// Only capture from our expected meter to avoid cross-test interference
-			if (instrument.Meter.Name == DefaultMeterName)
+			if (instrument.Meter.Name == _defaultMeterName)
 			{
 				capturedVersion = instrument.Meter.Version;
 			}
@@ -125,7 +125,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener.Start();
 
 		// Act
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 		_sut.RecordRent("test-pool", 1.0);
 
 		// Assert
@@ -144,7 +144,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName)
+			if (instrument.Meter.Name == _defaultMeterName)
 			{
 				instrumentNames.Add(instrument.Name);
 				listener.EnableMeasurementEvents(instrument);
@@ -153,7 +153,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener.Start();
 
 		// Act
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 		_sut.RecordRent("test-pool", 1.0);
 
 		// Assert
@@ -168,7 +168,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName)
+			if (instrument.Meter.Name == _defaultMeterName)
 			{
 				instrumentNames.Add(instrument.Name);
 				listener.EnableMeasurementEvents(instrument);
@@ -177,7 +177,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener.Start();
 
 		// Act
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 		_sut.RecordReturn("test-pool");
 
 		// Assert
@@ -192,7 +192,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName)
+			if (instrument.Meter.Name == _defaultMeterName)
 			{
 				instrumentNames.Add(instrument.Name);
 				listener.EnableMeasurementEvents(instrument);
@@ -201,7 +201,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener.Start();
 
 		// Act
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 		_sut.RecordRent("test-pool", 5.0);
 
 		// Assert
@@ -216,7 +216,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName && instrument.Name == "dispatch.pool.rent.duration")
+			if (instrument.Meter.Name == _defaultMeterName && instrument.Name == "dispatch.pool.rent.duration")
 			{
 				capturedUnit = instrument.Unit;
 				listener.EnableMeasurementEvents(instrument);
@@ -225,7 +225,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener.Start();
 
 		// Act
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 		_sut.RecordRent("test-pool", 5.0);
 
 		// Assert
@@ -244,7 +244,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName && instrument.Name == "dispatch.pool.rent.count")
+			if (instrument.Meter.Name == _defaultMeterName && instrument.Name == "dispatch.pool.rent.count")
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -258,7 +258,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		});
 		_listener.Start();
 
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Act
 		_sut.RecordRent("my-pool", 2.5);
@@ -275,7 +275,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName && instrument.Name == "dispatch.pool.rent.duration")
+			if (instrument.Meter.Name == _defaultMeterName && instrument.Name == "dispatch.pool.rent.duration")
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -289,7 +289,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		});
 		_listener.Start();
 
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Act
 		_sut.RecordRent("my-pool", 42.7);
@@ -306,7 +306,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName && instrument.Name == "dispatch.pool.rent.count")
+			if (instrument.Meter.Name == _defaultMeterName && instrument.Name == "dispatch.pool.rent.count")
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -326,7 +326,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		});
 		_listener.Start();
 
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Act
 		_sut.RecordRent("orders-pool", 1.0);
@@ -343,7 +343,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName && instrument.Name == "dispatch.pool.rent.duration")
+			if (instrument.Meter.Name == _defaultMeterName && instrument.Name == "dispatch.pool.rent.duration")
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -363,7 +363,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		});
 		_listener.Start();
 
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Act
 		_sut.RecordRent("events-pool", 10.5);
@@ -380,7 +380,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName && instrument.Name == "dispatch.pool.rent.count")
+			if (instrument.Meter.Name == _defaultMeterName && instrument.Name == "dispatch.pool.rent.count")
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -394,7 +394,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		});
 		_listener.Start();
 
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Act
 		_sut.RecordRent("pool-a", 1.0);
@@ -413,7 +413,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName && instrument.Name == "dispatch.pool.rent.duration")
+			if (instrument.Meter.Name == _defaultMeterName && instrument.Name == "dispatch.pool.rent.duration")
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -427,7 +427,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		});
 		_listener.Start();
 
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Act
 		_sut.RecordRent("fast-pool", 0.0);
@@ -444,7 +444,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName && instrument.Name == "dispatch.pool.rent.duration")
+			if (instrument.Meter.Name == _defaultMeterName && instrument.Name == "dispatch.pool.rent.duration")
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -458,7 +458,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		});
 		_listener.Start();
 
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Act
 		_sut.RecordRent("slow-pool", 60000.0);
@@ -479,7 +479,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName && instrument.Name == "dispatch.pool.rent.count")
+			if (instrument.Meter.Name == _defaultMeterName && instrument.Name == "dispatch.pool.rent.count")
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -499,7 +499,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		});
 		_listener.Start();
 
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Act
 		_sut.RecordRent(poolName, 1.0);
@@ -520,7 +520,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName && instrument.Name == "dispatch.pool.return.count")
+			if (instrument.Meter.Name == _defaultMeterName && instrument.Name == "dispatch.pool.return.count")
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -534,7 +534,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		});
 		_listener.Start();
 
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Act
 		_sut.RecordReturn("my-pool");
@@ -551,7 +551,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName && instrument.Name == "dispatch.pool.return.count")
+			if (instrument.Meter.Name == _defaultMeterName && instrument.Name == "dispatch.pool.return.count")
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -571,7 +571,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		});
 		_listener.Start();
 
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Act
 		_sut.RecordReturn("orders-pool");
@@ -588,7 +588,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName && instrument.Name == "dispatch.pool.return.count")
+			if (instrument.Meter.Name == _defaultMeterName && instrument.Name == "dispatch.pool.return.count")
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -602,7 +602,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		});
 		_listener.Start();
 
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Act
 		_sut.RecordReturn("pool-a");
@@ -625,7 +625,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName && instrument.Name == "dispatch.pool.return.count")
+			if (instrument.Meter.Name == _defaultMeterName && instrument.Name == "dispatch.pool.return.count")
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -645,7 +645,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		});
 		_listener.Start();
 
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Act
 		_sut.RecordReturn(poolName);
@@ -667,7 +667,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName)
+			if (instrument.Meter.Name == _defaultMeterName)
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -685,7 +685,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		});
 		_listener.Start();
 
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Act - Simulate a typical rent-use-return cycle
 		_sut.RecordRent("worker-pool", 0.5);
@@ -706,7 +706,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName && instrument.Name == "dispatch.pool.rent.count")
+			if (instrument.Meter.Name == _defaultMeterName && instrument.Name == "dispatch.pool.rent.count")
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -726,7 +726,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		});
 		_listener.Start();
 
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Act
 		_sut.RecordRent("pool-a", 1.0);
@@ -748,7 +748,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 	public void ImplementIDisposable()
 	{
 		// Arrange
-		var provider = new PoolTelemetryProvider();
+		var provider = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Assert
 		provider.ShouldBeAssignableTo<IDisposable>();
@@ -761,7 +761,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 	public void DisposeWithoutError()
 	{
 		// Arrange
-		var provider = new PoolTelemetryProvider();
+		var provider = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Act & Assert
 		Should.NotThrow(() => provider.Dispose());
@@ -771,7 +771,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 	public void DisposeMultipleTimesWithoutError()
 	{
 		// Arrange
-		var provider = new PoolTelemetryProvider();
+		var provider = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Act & Assert - Double dispose should be safe
 		Should.NotThrow(() =>
@@ -790,7 +790,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName && instrument.Name == "dispatch.pool.rent.count")
+			if (instrument.Meter.Name == _defaultMeterName && instrument.Name == "dispatch.pool.rent.count")
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -804,7 +804,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		});
 		_listener.Start();
 
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Act - Record before dispose, then dispose, then attempt to record
 		_sut.RecordRent("test-pool", 1.0);
@@ -832,7 +832,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 	public async Task RecordRent_Concurrently_WithoutErrors()
 	{
 		// Arrange
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 		var exceptions = new ConcurrentBag<Exception>();
 
 		// Act - Concurrent rent recordings from multiple threads
@@ -861,7 +861,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 	public async Task RecordReturn_Concurrently_WithoutErrors()
 	{
 		// Arrange
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 		var exceptions = new ConcurrentBag<Exception>();
 
 		// Act - Concurrent return recordings from multiple threads
@@ -895,7 +895,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName)
+			if (instrument.Meter.Name == _defaultMeterName)
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -913,7 +913,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		});
 		_listener.Start();
 
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 		var exceptions = new ConcurrentBag<Exception>();
 
 		// Act - Mixed concurrent rent and return operations
@@ -963,7 +963,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 	public void RecordRent_WithEmptyPoolName()
 	{
 		// Arrange
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Act & Assert - Should not throw
 		Should.NotThrow(() => _sut.RecordRent(string.Empty, 1.0));
@@ -973,7 +973,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 	public void RecordReturn_WithEmptyPoolName()
 	{
 		// Arrange
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Act & Assert - Should not throw
 		Should.NotThrow(() => _sut.RecordReturn(string.Empty));
@@ -987,7 +987,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName && instrument.Name == "dispatch.pool.rent.duration")
+			if (instrument.Meter.Name == _defaultMeterName && instrument.Name == "dispatch.pool.rent.duration")
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -1001,7 +1001,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		});
 		_listener.Start();
 
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 
 		// Act - Negative duration (edge case; should still record)
 		_sut.RecordRent("pool", -1.0);
@@ -1018,7 +1018,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DefaultMeterName && instrument.Name == "dispatch.pool.rent.count")
+			if (instrument.Meter.Name == _defaultMeterName && instrument.Name == "dispatch.pool.rent.count")
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -1038,7 +1038,7 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 		});
 		_listener.Start();
 
-		_sut = new PoolTelemetryProvider();
+		_sut = new PoolTelemetryProvider(_defaultMeterName);
 		const string specialName = "pool/with:special.chars-and_underscores";
 
 		// Act
@@ -1068,3 +1068,4 @@ public sealed class PoolTelemetryProviderShould : IDisposable
 
 	#endregion
 }
+

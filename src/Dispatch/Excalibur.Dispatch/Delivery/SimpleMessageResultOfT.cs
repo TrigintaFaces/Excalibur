@@ -13,6 +13,21 @@ namespace Excalibur.Dispatch.Delivery;
 /// <typeparam name="T"> The type of the return value. </typeparam>
 internal sealed class SimpleMessageResultOfT<T> : IMessageResult<T>
 {
+	private sealed class ResultMetadata(
+		RoutingDecision? routingDecision,
+		object? validationResult,
+		object? authorizationResult,
+		IMessageProblemDetails? problemDetails)
+	{
+		public RoutingDecision? RoutingDecision { get; } = routingDecision;
+
+		public object? ValidationResult { get; } = validationResult;
+
+		public object? AuthorizationResult { get; } = authorizationResult;
+
+		public IMessageProblemDetails? ProblemDetails { get; } = problemDetails;
+	}
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SimpleMessageResultOfT{T}"/> class for success cases.
 	/// </summary>
@@ -22,10 +37,6 @@ internal sealed class SimpleMessageResultOfT<T> : IMessageResult<T>
 		Succeeded = true;
 		ReturnValue = value;
 		CacheHit = false;
-		ProblemDetails = null;
-		RoutingDecision = null;
-		_validationResult = null;
-		_authorizationResult = null;
 	}
 
 	/// <summary>
@@ -39,10 +50,6 @@ internal sealed class SimpleMessageResultOfT<T> : IMessageResult<T>
 		Succeeded = true;
 		ReturnValue = value;
 		CacheHit = cacheHit;
-		ProblemDetails = null;
-		RoutingDecision = null;
-		_validationResult = null;
-		_authorizationResult = null;
 	}
 
 	/// <summary>
@@ -69,17 +76,19 @@ internal sealed class SimpleMessageResultOfT<T> : IMessageResult<T>
 		Succeeded = succeeded;
 		ReturnValue = value;
 		CacheHit = cacheHit;
-		ProblemDetails = problemDetails;
-		RoutingDecision = routingDecision;
-		_validationResult = validationResult;
-		_authorizationResult = authorizationResult;
 		_errorMessage = errorMessage;
+
+		if (routingDecision is not null ||
+		    validationResult is not null ||
+		    authorizationResult is not null ||
+		    problemDetails is not null)
+		{
+			_metadata = new ResultMetadata(routingDecision, validationResult, authorizationResult, problemDetails);
+		}
 	}
 
 	private readonly string? _errorMessage;
-
-	private readonly object? _validationResult;
-	private readonly object? _authorizationResult;
+	private readonly ResultMetadata? _metadata;
 
 	/// <inheritdoc/>
 	public bool Succeeded { get; }
@@ -88,10 +97,10 @@ internal sealed class SimpleMessageResultOfT<T> : IMessageResult<T>
 	public T? ReturnValue { get; }
 
 	/// <inheritdoc/>
-	public IMessageProblemDetails? ProblemDetails { get; }
+	public IMessageProblemDetails? ProblemDetails => _metadata?.ProblemDetails;
 
 	/// <inheritdoc/>
-	public RoutingDecision? RoutingDecision { get; }
+	public RoutingDecision? RoutingDecision => _metadata?.RoutingDecision;
 
 	/// <inheritdoc/>
 	public bool CacheHit { get; }
@@ -119,8 +128,8 @@ internal sealed class SimpleMessageResultOfT<T> : IMessageResult<T>
 	// Explicit interface implementations for compatibility with Excalibur.Dispatch.Abstractions
 
 	/// <inheritdoc/>
-	object? IMessageResult.ValidationResult => _validationResult;
+	object? IMessageResult.ValidationResult => _metadata?.ValidationResult;
 
 	/// <inheritdoc/>
-	object? IMessageResult.AuthorizationResult => _authorizationResult;
+	object? IMessageResult.AuthorizationResult => _metadata?.AuthorizationResult;
 }

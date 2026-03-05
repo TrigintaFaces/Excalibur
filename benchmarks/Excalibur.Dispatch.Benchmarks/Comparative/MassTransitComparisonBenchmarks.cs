@@ -7,6 +7,8 @@ using System.Collections.Concurrent;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Delivery.Handlers;
+using Excalibur.Dispatch.Delivery.Pipeline;
 
 using MassTransit;
 
@@ -21,25 +23,13 @@ namespace Excalibur.Dispatch.Benchmarks.Comparative;
 /// Measures relative performance for in-memory messaging scenarios.
 /// </summary>
 /// <remarks>
-/// Sprint 185 - Performance Benchmarks Enhancement.
-/// bd-fch68: MassTransit Comparison NEW (5 scenarios).
-///
 /// Framework Versions:
 /// - Excalibur: 1.0.0 (local build)
 /// - MassTransit: 8.x (latest stable)
 ///
-/// MassTransit Focus Areas:
-/// - In-memory bus performance
-/// - Consumer-based message handling
-/// - Publish/Send patterns
-/// - Concurrency and throughput
-///
-/// Scenarios (5 total):
-/// 1. Dispatch vs MassTransit: Single message
-/// 2. Dispatch vs MassTransit: Event publish (multi-consumer)
-/// 3. Dispatch vs MassTransit: 10 concurrent messages
-/// 4. Dispatch vs MassTransit: 100 concurrent messages
-/// 5. Dispatch vs MassTransit: Batch send (10 messages)
+/// Dispatch uses lean AddDispatch() (no cache/dedupe/outbox middleware) for fair
+/// comparison against MassTransit's in-memory bus.
+/// Fresh context per iteration, warmup + freeze for production-representative numbers.
 /// </remarks>
 [MemoryDiagnoser]
 [Config(typeof(ComparativeBenchmarkConfig))]
@@ -50,7 +40,7 @@ public class MassTransitComparisonBenchmarks
 	// Excalibur infrastructure
 	private IServiceProvider? _dispatchServiceProvider;
 	private IDispatcher? _dispatcher;
-	private IMessageContext? _dispatchContext;
+	private IMessageContextFactory? _dispatchContextFactory;
 
 	// MassTransit infrastructure
 	private IServiceProvider? _massTransitServiceProvider;
@@ -65,18 +55,17 @@ public class MassTransitComparisonBenchmarks
 	{
 		MassTransitBenchmarkCompletionTracker.Reset();
 
-		// Setup Excalibur
+		// Setup Excalibur — lean default (no cache/dedupe/outbox)
 		var dispatchServices = new ServiceCollection();
-		_ = dispatchServices.AddLogging(); // Required for FinalDispatchHandler
-		_ = dispatchServices.AddBenchmarkDispatch(); // Register benchmark pipeline options
+		_ = dispatchServices.AddLogging();
+		_ = dispatchServices.AddDispatch();
 		_ = dispatchServices.AddTransient<IActionHandler<MassTransitTestCommand>, DispatchMassTransitCommandHandler>();
 		_ = dispatchServices.AddTransient<IEventHandler<MassTransitTestEvent>, DispatchMassTransitEventHandler1>();
 		_ = dispatchServices.AddTransient<IEventHandler<MassTransitTestEvent>, DispatchMassTransitEventHandler2>();
 
 		_dispatchServiceProvider = dispatchServices.BuildServiceProvider();
 		_dispatcher = _dispatchServiceProvider.GetRequiredService<IDispatcher>();
-		var contextFactory = _dispatchServiceProvider.GetRequiredService<IMessageContextFactory>();
-		_dispatchContext = contextFactory.CreateContext();
+		_dispatchContextFactory = _dispatchServiceProvider.GetRequiredService<IMessageContextFactory>();
 
 		// Setup MassTransit (in-memory bus only for fair comparison)
 		var massTransitServices = new ServiceCollection();
@@ -96,6 +85,9 @@ public class MassTransitComparisonBenchmarks
 		_busControl = _massTransitServiceProvider.GetRequiredService<IBusControl>();
 		await _busControl.StartAsync(CancellationToken.None).ConfigureAwait(false);
 		_bus = _busControl;
+
+		// Warm and freeze Dispatch caches so benchmark reflects optimized production mode.
+		WarmupAndFreezeDispatchCaches();
 	}
 
 	/// <summary>
@@ -152,7 +144,7 @@ public class MassTransitComparisonBenchmarks
 	public async Task<IMessageResult> Dispatch_SingleCommand()
 	{
 		var command = new MassTransitTestCommand { Value = 42 };
-		return await _dispatcher.DispatchAsync(command, _dispatchContext, CancellationToken.None);
+		return await DispatchWithFreshContextAsync(command).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -183,7 +175,7 @@ public class MassTransitComparisonBenchmarks
 	public async Task<IMessageResult> Dispatch_EventMultipleHandlers()
 	{
 		var @event = new MassTransitTestEvent { Message = "test" };
-		return await _dispatcher.DispatchAsync(@event, _dispatchContext, CancellationToken.None);
+		return await DispatchWithFreshContextAsync(@event).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -213,14 +205,14 @@ public class MassTransitComparisonBenchmarks
 	[Benchmark(Description = "Dispatch: 10 concurrent commands")]
 	public async Task Dispatch_ConcurrentCommands10()
 	{
-		var tasks = new List<Task<IMessageResult>>(10);
+		var tasks = new Task<IMessageResult>[10];
 		for (int i = 0; i < 10; i++)
 		{
 			var command = new MassTransitTestCommand { Value = i };
-			tasks.Add(_dispatcher.DispatchAsync(command, _dispatchContext, CancellationToken.None));
+			tasks[i] = DispatchWithFreshContextAsync(command);
 		}
 
-		_ = await Task.WhenAll(tasks);
+		_ = await Task.WhenAll(tasks).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -243,8 +235,8 @@ public class MassTransitComparisonBenchmarks
 			tasks.Add(_bus.Publish(command, CancellationToken.None));
 		}
 
-		await Task.WhenAll(tasks);
-		await Task.WhenAll(completionTasks.Select(task => task.WaitAsync(QueueCompletionTimeout)));
+		await Task.WhenAll(tasks).ConfigureAwait(false);
+		await Task.WhenAll(completionTasks.Select(task => task.WaitAsync(QueueCompletionTimeout))).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -253,14 +245,14 @@ public class MassTransitComparisonBenchmarks
 	[Benchmark(Description = "Dispatch: 100 concurrent commands")]
 	public async Task Dispatch_ConcurrentCommands100()
 	{
-		var tasks = new List<Task<IMessageResult>>(100);
+		var tasks = new Task<IMessageResult>[100];
 		for (int i = 0; i < 100; i++)
 		{
 			var command = new MassTransitTestCommand { Value = i };
-			tasks.Add(_dispatcher.DispatchAsync(command, _dispatchContext, CancellationToken.None));
+			tasks[i] = DispatchWithFreshContextAsync(command);
 		}
 
-		_ = await Task.WhenAll(tasks);
+		_ = await Task.WhenAll(tasks).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -283,8 +275,8 @@ public class MassTransitComparisonBenchmarks
 			tasks.Add(_bus.Publish(command, CancellationToken.None));
 		}
 
-		await Task.WhenAll(tasks);
-		await Task.WhenAll(completionTasks.Select(task => task.WaitAsync(QueueCompletionTimeout)));
+		await Task.WhenAll(tasks).ConfigureAwait(false);
+		await Task.WhenAll(completionTasks.Select(task => task.WaitAsync(QueueCompletionTimeout))).ConfigureAwait(false);
 	}
 
 	// ============================================================================
@@ -300,7 +292,7 @@ public class MassTransitComparisonBenchmarks
 		for (int i = 0; i < 10; i++)
 		{
 			var command = new MassTransitTestCommand { Value = i };
-			_ = await _dispatcher.DispatchAsync(command, _dispatchContext, CancellationToken.None);
+			_ = await DispatchWithFreshContextAsync(command).ConfigureAwait(false);
 		}
 	}
 
@@ -324,7 +316,55 @@ public class MassTransitComparisonBenchmarks
 		}
 
 		await _bus.PublishBatch(messages, CancellationToken.None);
-		await Task.WhenAll(completionTasks.Select(task => task.WaitAsync(QueueCompletionTimeout)));
+		await Task.WhenAll(completionTasks.Select(task => task.WaitAsync(QueueCompletionTimeout))).ConfigureAwait(false);
+	}
+
+	// ============================================================================
+	// Helper Methods
+	// ============================================================================
+
+	private void WarmupAndFreezeDispatchCaches()
+	{
+		_ = DispatchWithFreshContextAsync(new MassTransitTestCommand { Value = 1 })
+			.GetAwaiter().GetResult();
+		_ = DispatchWithFreshContextAsync(new MassTransitTestEvent { Message = "warmup" })
+			.GetAwaiter().GetResult();
+
+		HandlerInvoker.FreezeCache();
+		HandlerInvokerRegistry.FreezeCache();
+		HandlerActivator.FreezeCache();
+		FinalDispatchHandler.FreezeResultFactoryCache();
+		MiddlewareApplicabilityEvaluator.FreezeCache();
+	}
+
+	private async Task<IMessageResult> DispatchWithFreshContextAsync<TMessage>(TMessage message)
+		where TMessage : IDispatchMessage
+	{
+		ArgumentNullException.ThrowIfNull(_dispatcher);
+		ArgumentNullException.ThrowIfNull(_dispatchContextFactory);
+
+		var context = _dispatchContextFactory.CreateContext();
+		var dispatchTask = _dispatcher.DispatchAsync(message, context, CancellationToken.None);
+		if (dispatchTask.IsCompletedSuccessfully)
+		{
+			try
+			{
+				return dispatchTask.Result;
+			}
+			finally
+			{
+				_dispatchContextFactory.Return(context);
+			}
+		}
+
+		try
+		{
+			return await dispatchTask.ConfigureAwait(false);
+		}
+		finally
+		{
+			_dispatchContextFactory.Return(context);
+		}
 	}
 }
 

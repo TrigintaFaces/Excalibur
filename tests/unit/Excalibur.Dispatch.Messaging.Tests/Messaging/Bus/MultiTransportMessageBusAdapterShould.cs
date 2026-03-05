@@ -337,6 +337,25 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	}
 
 	[Fact]
+	public async Task PreserveSubscriptionSuffix_WhenQualifiedNameContainsAdditionalDelimiter()
+	{
+		// Arrange
+		Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>> handler =
+			(_, _, _) => Task.FromResult(MessageResult.Success());
+
+		// Act
+		await _sut.SubscribeAsync("kafka://topic://partition-a", handler, null, CancellationToken.None);
+
+		// Assert
+		A.CallTo(() => _kafkaAdapter.SubscribeAsync(
+			"topic://partition-a",
+			A<Func<IDispatchMessage, IMessageContext, CancellationToken, Task<IMessageResult>>>._,
+			A<IMessageBusOptions?>._,
+			A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
 	public async Task ThrowArgumentException_WhenAdapterNotRegistered()
 	{
 		// Arrange

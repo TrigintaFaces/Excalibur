@@ -83,10 +83,11 @@ public sealed class DefaultServerlessContextShould : UnitTestBase
 
 		// Act
 		using var context = new DefaultServerlessContext(ServerlessPlatform.AwsLambda, NullLogger.Instance);
+		var after = DateTimeOffset.UtcNow;
 
 		// Assert
-		context.ExecutionDeadline.ShouldBeGreaterThan(before);
-		context.ExecutionDeadline.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow.AddMinutes(16));
+		context.ExecutionDeadline.ShouldBeGreaterThanOrEqualTo(before);
+		context.ExecutionDeadline.ShouldBeLessThanOrEqualTo(after.AddMinutes(16));
 	}
 
 	[Fact]

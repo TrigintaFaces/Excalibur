@@ -329,7 +329,7 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 	/// <returns> A value task that represents the asynchronous dispose operation. </returns>
 	public async ValueTask DisposeAsync()
 	{
-		await DisposeAsyncCore().ConfigureAwait(false);
+		await DisposeCoreAsync().ConfigureAwait(false);
 		GC.SuppressFinalize(this);
 	}
 
@@ -346,14 +346,7 @@ public class CdcRepository : ICdcRepository, ICdcRepositoryLsnMapping
 	/// Core asynchronous disposal implementation.
 	/// </summary>
 	/// <returns> A value task that represents the asynchronous disposal operation. </returns>
-	// DisposeCoreAsync is the standard .NET IAsyncDisposable pattern name per framework design guidelines
-	// See: https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/implementing-disposeasync#implement-the-async-dispose-pattern
-	// R0.8: Asynchronous method name should end with 'Async'
-#pragma warning disable RCS1046
-
-	protected virtual async ValueTask DisposeAsyncCore() => await CdcDisposalHelper.SafeDisposeAsync(_connection).ConfigureAwait(false);
-
-#pragma warning restore RCS1046 // Asynchronous method name should end with 'Async'
+	protected virtual async ValueTask DisposeCoreAsync() => await CdcDisposalHelper.SafeDisposeAsync(_connection).ConfigureAwait(false);
 
 	/// <summary>
 	/// Core disposal implementation.

@@ -79,12 +79,12 @@ public sealed class MiddlewareDecompositionAnalyzerShould
 		// Arrange
 		var decomposition1 = new MiddlewareDecomposition
 		{
-			MiddlewareTypeFullName = "global::Excalibur.Dispatch.Middleware.LoggingMiddleware",
+			MiddlewareTypeFullName = "global::Excalibur.Dispatch.Middleware.Logging.LoggingMiddleware",
 			MiddlewareTypeName = "LoggingMiddleware"
 		};
 		var decomposition2 = new MiddlewareDecomposition
 		{
-			MiddlewareTypeFullName = "global::Excalibur.Dispatch.Middleware.LoggingMiddleware",
+			MiddlewareTypeFullName = "global::Excalibur.Dispatch.Middleware.Logging.LoggingMiddleware",
 			MiddlewareTypeName = "LoggingMiddleware"
 		};
 
@@ -99,11 +99,11 @@ public sealed class MiddlewareDecompositionAnalyzerShould
 		// Arrange
 		var decomposition1 = new MiddlewareDecomposition
 		{
-			MiddlewareTypeFullName = "global::Excalibur.Dispatch.Middleware.LoggingMiddleware"
+			MiddlewareTypeFullName = "global::Excalibur.Dispatch.Middleware.Logging.LoggingMiddleware"
 		};
 		var decomposition2 = new MiddlewareDecomposition
 		{
-			MiddlewareTypeFullName = "global::Excalibur.Dispatch.Middleware.ValidationMiddleware"
+			MiddlewareTypeFullName = "global::Excalibur.Dispatch.Middleware.Validation.ValidationMiddleware"
 		};
 
 		// Act & Assert

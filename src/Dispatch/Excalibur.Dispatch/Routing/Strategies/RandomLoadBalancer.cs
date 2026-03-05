@@ -23,7 +23,7 @@ public partial class RandomLoadBalancer(ILogger<RandomLoadBalancer> logger) : IL
 	public RouteDefinition SelectRoute(IReadOnlyList<RouteDefinition> routes, RoutingContext context)
 	{
 		ArgumentNullException.ThrowIfNull(routes);
-		if (!routes.Any())
+		if (routes.Count == 0)
 		{
 			throw new ArgumentException(
 				Resources.LoadBalancing_NoRoutesAvailable,
@@ -35,8 +35,12 @@ public partial class RandomLoadBalancer(ILogger<RandomLoadBalancer> logger) : IL
 			return routes[0];
 		}
 
-		// Calculate total weight
-		var totalWeight = routes.Sum(static r => Math.Max(1, r.Weight));
+		// Calculate total weight.
+		var totalWeight = 0;
+		foreach (var route in routes)
+		{
+			totalWeight += Math.Max(1, route.Weight);
+		}
 		// CA5394: Random used for weighted load balancing, not cryptographic purposes (ADR-039)
 #pragma warning disable CA5394
 		var randomValue = _random.Next(totalWeight);

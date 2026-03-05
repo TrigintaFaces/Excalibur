@@ -6,6 +6,9 @@ using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Versioning;
+using Excalibur.Dispatch.Middleware.Auth;
+using Excalibur.Dispatch.Middleware.Batch;
 using Excalibur.Dispatch.Tests.TestFakes;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;

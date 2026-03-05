@@ -182,6 +182,12 @@ public static class DispatchServiceCollectionExtensions
 		_ = services.AddDispatchPipeline();
 		_ = services.AddDispatchHandlers(assemblies);
 
+		// Ensure default AddDispatch() gets optimized runtime materialization and
+		// stateless handler singleton promotion without requiring explicit builder usage.
+		using var builder = new DispatchBuilder(services);
+		EnableDefaultPerformancePromotion(builder);
+		_ = builder.Build();
+
 		return services;
 	}
 
@@ -230,6 +236,12 @@ public static class DispatchServiceCollectionExtensions
 		_ = builder.Build();
 
 		return services;
+	}
+
+	private static void EnableDefaultPerformancePromotion(IDispatchBuilder builder)
+	{
+		builder.WithOptions(options =>
+			options.CrossCutting.Performance.AutoPromoteStatelessHandlersToSingleton = true);
 	}
 
 	/// <summary>

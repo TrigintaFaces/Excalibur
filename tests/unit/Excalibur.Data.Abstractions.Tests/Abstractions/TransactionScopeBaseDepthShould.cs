@@ -16,15 +16,19 @@ public sealed class TransactionScopeBaseDepthShould
 	[Fact]
 	public void InitializeWithCorrectDefaultValues()
 	{
+		var lowerBound = DateTimeOffset.UtcNow;
+
 		// Act
 		var scope = new TestTransactionScope(IsolationLevel.ReadCommitted, TimeSpan.FromSeconds(30));
+		var upperBound = DateTimeOffset.UtcNow;
 
 		// Assert
 		scope.TransactionId.ShouldNotBeNullOrWhiteSpace();
 		scope.IsolationLevel.ShouldBe(IsolationLevel.ReadCommitted);
 		scope.Status.ShouldBe(TransactionStatus.Active);
 		scope.Timeout.ShouldBe(TimeSpan.FromSeconds(30));
-		scope.StartTime.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddMinutes(-1));
+		scope.StartTime.ShouldBeGreaterThanOrEqualTo(lowerBound);
+		scope.StartTime.ShouldBeLessThanOrEqualTo(upperBound);
 	}
 
 	[Fact]

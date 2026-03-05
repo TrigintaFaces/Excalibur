@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Resilience;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 
@@ -317,12 +318,13 @@ public sealed class RateLimitExceededExceptionShould
 		{
 			RetryAfter = TimeSpan.FromSeconds(30),
 		};
+		var before = DateTimeOffset.UtcNow;
 
 		// Act
-		var retryAt = DateTimeOffset.UtcNow.Add(exception.RetryAfter.Value);
+		var retryAt = before.Add(exception.RetryAfter.Value);
 
 		// Assert
-		retryAt.ShouldBeGreaterThan(DateTimeOffset.UtcNow);
+		retryAt.ShouldBe(before.AddSeconds(30));
 	}
 
 	[Fact]

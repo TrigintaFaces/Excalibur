@@ -32,7 +32,7 @@ public sealed partial class TransportStartupValidator : IHostedService
 {
 	private readonly TransportRegistry _transportRegistry;
 	private readonly TransportValidationOptions _options;
-	private readonly IEnumerable<ITransportOptionsValidator> _validators;
+	private readonly ITransportOptionsValidator[] _validators;
 	private readonly ILogger<TransportStartupValidator> _logger;
 
 	/// <summary>
@@ -50,7 +50,7 @@ public sealed partial class TransportStartupValidator : IHostedService
 	{
 		_transportRegistry = transportRegistry ?? throw new ArgumentNullException(nameof(transportRegistry));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
-		_validators = validators ?? [];
+		_validators = MaterializeValidators(validators ?? []);
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	}
 
@@ -63,8 +63,8 @@ public sealed partial class TransportStartupValidator : IHostedService
 			return;
 		}
 
-		var transportNames = _transportRegistry.GetTransportNames().ToList();
-		var transportCount = transportNames.Count;
+		var transportNames = MaterializeTransportNames(_transportRegistry.GetTransportNames());
+		var transportCount = transportNames.Length;
 
 		LogValidatingConfiguration(transportCount);
 
@@ -105,16 +105,23 @@ public sealed partial class TransportStartupValidator : IHostedService
 	{
 		var transports = _transportRegistry.GetAllTransports();
 		var allErrors = new List<string>();
+		var validatorCount = _validators.Length;
+		if (validatorCount == 0)
+		{
+			return;
+		}
 
 		foreach (var (transportName, registration) in transports)
 		{
-			// Find validators that apply to this transport.
-			var applicableValidators = _validators.Where(v =>
-				string.Equals(v.TransportName, transportName, StringComparison.OrdinalIgnoreCase) ||
-				string.Equals(v.TransportName, registration.TransportType, StringComparison.OrdinalIgnoreCase));
-
-			foreach (var validator in applicableValidators)
+			for (var i = 0; i < validatorCount; i++)
 			{
+				var validator = _validators[i];
+				if (!string.Equals(validator.TransportName, transportName, StringComparison.OrdinalIgnoreCase) &&
+				    !string.Equals(validator.TransportName, registration.TransportType, StringComparison.OrdinalIgnoreCase))
+				{
+					continue;
+				}
+
 				LogRunningValidator(transportName);
 
 				var result = await validator.ValidateAsync(registration.Options, cancellationToken)
@@ -123,7 +130,10 @@ public sealed partial class TransportStartupValidator : IHostedService
 				if (!result.IsValid)
 				{
 					LogValidatorFailed(transportName, string.Join("; ", result.Errors));
-					allErrors.AddRange(result.Errors.Select(e => $"[{transportName}] {e}"));
+					for (var errorIndex = 0; errorIndex < result.Errors.Count; errorIndex++)
+					{
+						allErrors.Add($"[{transportName}] {result.Errors[errorIndex]}");
+					}
 				}
 			}
 		}
@@ -137,6 +147,63 @@ public sealed partial class TransportStartupValidator : IHostedService
 					allErrors.Count,
 					$"{Environment.NewLine}{string.Join(Environment.NewLine, allErrors)}"));
 		}
+	}
+
+	private static string[] MaterializeTransportNames(IEnumerable<string> transportNames)
+	{
+		if (transportNames is string[] namesArray)
+		{
+			return namesArray;
+		}
+
+		if (transportNames is ICollection<string> namesCollection)
+		{
+			if (namesCollection.Count == 0)
+			{
+				return [];
+			}
+
+			var names = new string[namesCollection.Count];
+			namesCollection.CopyTo(names, 0);
+			return names;
+		}
+
+		var bufferedNames = new List<string>();
+		foreach (var transportName in transportNames)
+		{
+			bufferedNames.Add(transportName);
+		}
+
+		return bufferedNames.ToArray();
+	}
+
+	private static ITransportOptionsValidator[] MaterializeValidators(
+		IEnumerable<ITransportOptionsValidator> validators)
+	{
+		if (validators is ITransportOptionsValidator[] validatorArray)
+		{
+			return validatorArray;
+		}
+
+		if (validators is ICollection<ITransportOptionsValidator> validatorCollection)
+		{
+			if (validatorCollection.Count == 0)
+			{
+				return [];
+			}
+
+			var validatorsCopy = new ITransportOptionsValidator[validatorCollection.Count];
+			validatorCollection.CopyTo(validatorsCopy, 0);
+			return validatorsCopy;
+		}
+
+		var bufferedValidators = new List<ITransportOptionsValidator>();
+		foreach (var validator in validators)
+		{
+			bufferedValidators.Add(validator);
+		}
+
+		return bufferedValidators.ToArray();
 	}
 
 	#region LoggerMessage Definitions

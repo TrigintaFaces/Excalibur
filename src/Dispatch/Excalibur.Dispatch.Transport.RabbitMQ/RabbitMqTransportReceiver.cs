@@ -21,6 +21,10 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// </remarks>
 internal sealed partial class RabbitMqTransportReceiver : ITransportReceiver
 {
+	private const int DefaultMaxBatchSize = 50;
+	private static readonly TimeSpan DefaultMaxBatchWait = TimeSpan.FromMilliseconds(500);
+	private static readonly TimeSpan EmptyPollDelay = TimeSpan.FromMilliseconds(25);
+
 	// CA2213: DI-injected channel is owned by the container.
 	[SuppressMessage("Usage", "CA2213:Disposable fields should be disposed",
 		Justification = "RabbitMQ channel is injected via DI and owned by the container.")]
@@ -29,6 +33,7 @@ internal sealed partial class RabbitMqTransportReceiver : ITransportReceiver
 	private readonly string _queueName;
 	private readonly ILogger _logger;
 	private readonly ConcurrentDictionary<string, ulong> _deliveryTagCache = new(StringComparer.Ordinal);
+	private readonly int _maxBatchSize;
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -48,6 +53,7 @@ internal sealed partial class RabbitMqTransportReceiver : ITransportReceiver
 		Source = source ?? throw new ArgumentNullException(nameof(source));
 		_queueName = queueName ?? throw new ArgumentNullException(nameof(queueName));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_maxBatchSize = DefaultMaxBatchSize;
 	}
 
 	/// <inheritdoc />
@@ -58,16 +64,29 @@ internal sealed partial class RabbitMqTransportReceiver : ITransportReceiver
 	{
 		try
 		{
-			var messages = new List<TransportReceivedMessage>();
+			if (maxMessages <= 0)
+			{
+				return [];
+			}
 
-			for (var i = 0; i < maxMessages && !cancellationToken.IsCancellationRequested; i++)
+			var messages = new List<TransportReceivedMessage>();
+			var boundedMaxMessages = Math.Min(maxMessages, _maxBatchSize);
+			var waitDeadline = DateTimeOffset.UtcNow + DefaultMaxBatchWait;
+
+			while (messages.Count < boundedMaxMessages && !cancellationToken.IsCancellationRequested)
 			{
 				var result = await _channel.BasicGetAsync(_queueName, autoAck: false, cancellationToken)
 					.ConfigureAwait(false);
 
 				if (result == null)
 				{
-					break;
+					if (messages.Count > 0 || DateTimeOffset.UtcNow >= waitDeadline)
+					{
+						break;
+					}
+
+					await Task.Delay(EmptyPollDelay, cancellationToken).ConfigureAwait(false);
+					continue;
 				}
 
 				var received = ConvertToReceivedMessage(result);

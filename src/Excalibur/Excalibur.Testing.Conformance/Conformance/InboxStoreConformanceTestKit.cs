@@ -654,16 +654,27 @@ public abstract class InboxStoreConformanceTestKit
 		await store.MarkProcessedAsync(messageId, handlerType, CancellationToken.None)
 			.ConfigureAwait(false);
 
-		// Cleanup with very short retention (0 seconds) - should remove all processed
-		var removedCount = await store.CleanupAsync(TimeSpan.Zero, CancellationToken.None)
-			.ConfigureAwait(false);
+		// Cleanup with very short retention (0 seconds) - should remove processed entries.
+		// Retry briefly to avoid timestamp boundary races when ProcessedAt ~= cutoff.
+		var removedCount = 0;
+		var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
+		var removedOrMissing = false;
+		do
+		{
+			removedCount += await store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false);
+			var currentEntry = await store.GetEntryAsync(messageId, handlerType, CancellationToken.None).ConfigureAwait(false);
+			if (currentEntry is null || removedCount > 0)
+			{
+				removedOrMissing = true;
+				break;
+			}
 
-		// Verify cleanup occurred (at least our entry should be removed)
-		var entry = await store.GetEntryAsync(messageId, handlerType, CancellationToken.None)
-			.ConfigureAwait(false);
+			await Task.Yield();
+		}
+		while (DateTimeOffset.UtcNow < deadline);
 
 		// Either the entry should be removed, or removedCount should be >= 1
-		if (entry is not null && removedCount == 0)
+		if (!removedOrMissing && removedCount == 0)
 		{
 			throw new TestFixtureAssertionException(
 				"Expected CleanupAsync to remove processed entries with zero retention");

@@ -185,7 +185,7 @@ public sealed class TelemetryClaimCheckProviderShould : IDisposable
 		using var listener = new MeterListener();
 		listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == "test-meter")
+			if (ReferenceEquals(instrument.Meter, _meter))
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}

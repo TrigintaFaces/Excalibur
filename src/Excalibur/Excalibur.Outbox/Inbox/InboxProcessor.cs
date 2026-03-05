@@ -248,7 +248,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	/// </remarks>
 	public async ValueTask DisposeAsync()
 	{
-		await DisposeAsyncCoreAsync().ConfigureAwait(false);
+		await DisposeCoreAsync().ConfigureAwait(false);
 		GC.SuppressFinalize(this);
 	}
 
@@ -365,7 +365,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		return _internalSerializer.Deserialize<InboxEnvelope>(data);
 	}
 
-	private async ValueTask DisposeAsyncCoreAsync()
+	private async ValueTask DisposeCoreAsync()
 	{
 		if (Interlocked.CompareExchange(ref _disposedFlag, 1, 0) == 1)
 		{

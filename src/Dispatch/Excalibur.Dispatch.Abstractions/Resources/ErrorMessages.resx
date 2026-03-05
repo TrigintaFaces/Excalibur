@@ -1247,7 +1247,7 @@
 	<value>Maximum connection lifetime must be positive.</value>
   </data>
   <data name="DispatchCoreBatchingMiddleware" xml:space="preserve">
-	<value>Excalibur.Dispatch.Middleware.BatchingMiddleware</value>
+	<value>Excalibur.Dispatch.Middleware.Batch.UnifiedBatchingMiddleware</value>
   </data>
   <data name="Version" xml:space="preserve">
 	<value>1.0.0</value>

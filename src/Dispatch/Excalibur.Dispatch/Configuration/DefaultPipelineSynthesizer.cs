@@ -13,7 +13,28 @@ namespace Excalibur.Dispatch.Configuration;
 /// </summary>
 public sealed class DefaultPipelineSynthesizer : IDefaultPipelineSynthesizer
 {
+	private static readonly DispatchMiddlewareStage[] StageOrder =
+	[
+		DispatchMiddlewareStage.Start,
+		DispatchMiddlewareStage.RateLimiting,
+		DispatchMiddlewareStage.PreProcessing,
+		DispatchMiddlewareStage.Instrumentation,
+		DispatchMiddlewareStage.Authentication,
+		DispatchMiddlewareStage.Validation,
+		DispatchMiddlewareStage.Serialization,
+		DispatchMiddlewareStage.Authorization,
+		DispatchMiddlewareStage.Cache,
+		DispatchMiddlewareStage.Routing,
+		DispatchMiddlewareStage.Processing,
+		DispatchMiddlewareStage.PostProcessing,
+		DispatchMiddlewareStage.Error,
+		DispatchMiddlewareStage.End,
+	];
+
+	private static readonly MiddlewareRegistrationComparer RegistrationComparer = new();
+
 	private readonly Dictionary<DispatchMiddlewareStage, List<MiddlewareRegistration>> _middlewareByStage = [];
+	private int _registeredMiddlewareCount;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DefaultPipelineSynthesizer" /> class.
@@ -34,29 +55,51 @@ public sealed class DefaultPipelineSynthesizer : IDefaultPipelineSynthesizer
 	{
 		ArgumentNullException.ThrowIfNull(options);
 
-		var pipeline = new List<Type>();
+		var pipeline = new List<Type>(_registeredMiddlewareCount);
 
 		// R7.5: Synthesize default pipelines based on configuration R7.6: Pipeline synthesis follows deterministic ordering R7.10: Default
 		// synthesis follows canonical order
 
 		// Apply middleware in stage order (R7.11)
-		foreach (var stage in GetStagesInOrder())
+		for (var stageIndex = 0; stageIndex < StageOrder.Length; stageIndex++)
 		{
+			var stage = StageOrder[stageIndex];
 			if (!_middlewareByStage.TryGetValue(stage, out var middlewareList))
 			{
 				continue;
 			}
 
-			// Filter middleware by message kinds and configuration
-			var applicableMiddleware = middlewareList
-				.Where(m => IsApplicableForKinds(m, messageKinds) &&
-							IsEnabledByConfiguration(m, options))
-				.OrderBy(m => m.Priority) // R7.6: Deterministic ordering by priority
-				.ThenBy(m => m.RegistrationOrder) // Then by registration order
-				.Select(m => m.MiddlewareType)
-				.ToList();
+			if (middlewareList.Count == 0)
+			{
+				continue;
+			}
 
-			pipeline.AddRange(applicableMiddleware);
+			var applicableMiddleware = new List<MiddlewareRegistration>(middlewareList.Count);
+			for (var i = 0; i < middlewareList.Count; i++)
+			{
+				var middleware = middlewareList[i];
+				if (IsApplicableForKinds(middleware, messageKinds) &&
+					IsEnabledByConfiguration(middleware, options))
+				{
+					applicableMiddleware.Add(middleware);
+				}
+			}
+
+			if (applicableMiddleware.Count == 0)
+			{
+				continue;
+			}
+
+			if (applicableMiddleware.Count > 1)
+			{
+				// R7.6: Deterministic ordering by priority, then registration order.
+				applicableMiddleware.Sort(RegistrationComparer);
+			}
+
+			for (var i = 0; i < applicableMiddleware.Count; i++)
+			{
+				pipeline.Add(applicableMiddleware[i].MiddlewareType);
+			}
 		}
 
 		// R7.12: Apply profile overrides if specified
@@ -91,25 +134,7 @@ public sealed class DefaultPipelineSynthesizer : IDefaultPipelineSynthesizer
 		};
 
 		middlewareList.Add(registration);
-	}
-
-	private static IEnumerable<DispatchMiddlewareStage> GetStagesInOrder()
-	{
-		// R7.10: Canonical order for stages (sorted by enum value)
-		yield return DispatchMiddlewareStage.Start;
-		yield return DispatchMiddlewareStage.RateLimiting;
-		yield return DispatchMiddlewareStage.PreProcessing;
-		yield return DispatchMiddlewareStage.Instrumentation;
-		yield return DispatchMiddlewareStage.Authentication;
-		yield return DispatchMiddlewareStage.Validation;
-		yield return DispatchMiddlewareStage.Serialization;
-		yield return DispatchMiddlewareStage.Authorization;
-		yield return DispatchMiddlewareStage.Cache;
-		yield return DispatchMiddlewareStage.Routing;
-		yield return DispatchMiddlewareStage.Processing;
-		yield return DispatchMiddlewareStage.PostProcessing;
-		yield return DispatchMiddlewareStage.Error;
-		yield return DispatchMiddlewareStage.End;
+		_registeredMiddlewareCount++;
 	}
 
 	private static bool IsApplicableForKinds(MiddlewareRegistration registration, MessageKinds messageKinds)
@@ -172,5 +197,31 @@ public sealed class DefaultPipelineSynthesizer : IDefaultPipelineSynthesizer
 		public required MessageKinds ApplicableKinds { get; init; }
 
 		public required int RegistrationOrder { get; init; }
+	}
+
+	private sealed class MiddlewareRegistrationComparer : IComparer<MiddlewareRegistration>
+	{
+		public int Compare(MiddlewareRegistration? x, MiddlewareRegistration? y)
+		{
+			if (ReferenceEquals(x, y))
+			{
+				return 0;
+			}
+
+			if (x is null)
+			{
+				return -1;
+			}
+
+			if (y is null)
+			{
+				return 1;
+			}
+
+			var priorityComparison = x.Priority.CompareTo(y.Priority);
+			return priorityComparison != 0
+				? priorityComparison
+				: x.RegistrationOrder.CompareTo(y.RegistrationOrder);
+		}
 	}
 }

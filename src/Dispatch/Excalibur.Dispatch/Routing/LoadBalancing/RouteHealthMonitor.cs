@@ -20,6 +20,15 @@ namespace Excalibur.Dispatch.Routing.LoadBalancing;
 /// </summary>
 public partial class RouteHealthMonitor : IRouteHealthMonitor, IHostedService, IDisposable
 {
+	private static readonly string[] KnownQueueTypes =
+	[
+		"rabbitmq",
+		"kafka",
+		"azureservicebus",
+		"googlepubsub",
+		"awssqs",
+	];
+
 	private readonly ILogger<RouteHealthMonitor> _logger;
 	private readonly IHttpClientFactory _httpClientFactory;
 	private readonly RouteHealthMonitorOptions _options;
@@ -311,8 +320,7 @@ public partial class RouteHealthMonitor : IRouteHealthMonitor, IHostedService, I
 		}
 
 		// Validate known queue types (case-insensitive comparison)
-		var knownQueueTypes = new[] { "rabbitmq", "kafka", "azureservicebus", "googlepubsub", "awssqs" };
-		if (!knownQueueTypes.Contains(queueType, StringComparer.OrdinalIgnoreCase))
+		if (!IsKnownQueueType(queueType))
 		{
 			LogUnknownQueueType(queueType, route.RouteId);
 			// Unknown queue type, but configuration exists - assume healthy
@@ -328,9 +336,12 @@ public partial class RouteHealthMonitor : IRouteHealthMonitor, IHostedService, I
 	{
 		try
 		{
-			var tasks = _registeredRoutes.Values
-				.Select(route => CheckHealthAsync(route, CancellationToken.None))
-				.ToList();
+			var routes = _registeredRoutes.Values;
+			var tasks = new List<Task<RouteHealthStatus>>(_registeredRoutes.Count);
+			foreach (var route in routes)
+			{
+				tasks.Add(CheckHealthAsync(route, CancellationToken.None));
+			}
 
 			_ = await Task.WhenAll(tasks).ConfigureAwait(false);
 
@@ -340,6 +351,19 @@ public partial class RouteHealthMonitor : IRouteHealthMonitor, IHostedService, I
 		{
 			LogScheduledHealthCheckError(ex);
 		}
+	}
+
+	private static bool IsKnownQueueType(string queueType)
+	{
+		for (var i = 0; i < KnownQueueTypes.Length; i++)
+		{
+			if (string.Equals(KnownQueueTypes[i], queueType, StringComparison.OrdinalIgnoreCase))
+			{
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private async Task<bool> CheckHttpHealthAsync(RouteDefinition route, CancellationToken cancellationToken)
@@ -457,6 +481,7 @@ public partial class RouteHealthMonitor : IRouteHealthMonitor, IHostedService, I
 
 #endif
 		private readonly Queue<double> _latencyWindow = new();
+		private double _latencyWindowTotal;
 
 		public bool IsHealthy { get; private set; } = true;
 
@@ -491,13 +516,17 @@ public partial class RouteHealthMonitor : IRouteHealthMonitor, IHostedService, I
 				}
 
 				// Update latency window
-				_latencyWindow.Enqueue(latency.TotalMilliseconds);
+				var latencyMs = latency.TotalMilliseconds;
+				_latencyWindow.Enqueue(latencyMs);
+				_latencyWindowTotal += latencyMs;
 				if (_latencyWindow.Count > MaxLatencyWindowSize)
 				{
-					_ = _latencyWindow.Dequeue();
+					_latencyWindowTotal -= _latencyWindow.Dequeue();
 				}
 
-				AverageLatency = _latencyWindow.Average();
+				AverageLatency = _latencyWindow.Count > 0
+					? _latencyWindowTotal / _latencyWindow.Count
+					: 0;
 			}
 		}
 	}

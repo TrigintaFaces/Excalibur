@@ -19,19 +19,19 @@ namespace Excalibur.Dispatch.Security.Tests.Security.Signing;
 [Trait("Feature", "Signing")]
 public sealed class HmacMessageSigningServiceShould : IDisposable
 {
-    private static readonly byte[] TestKey = new byte[32];
+    private readonly byte[] _testKey = new byte[32];
     private readonly IKeyProvider _keyProvider;
     private readonly ILogger<HmacMessageSigningService> _logger;
     private readonly HmacMessageSigningService _sut;
 
     public HmacMessageSigningServiceShould()
     {
-        Array.Fill(TestKey, (byte)0xAB);
+        Array.Fill(_testKey, (byte)0xAB);
         _keyProvider = A.Fake<IKeyProvider>();
         _logger = new NullLogger<HmacMessageSigningService>();
 
         A.CallTo(() => _keyProvider.GetKeyAsync(A<string>._, A<CancellationToken>._))
-            .Returns(Task.FromResult(TestKey));
+            .ReturnsLazily((string _, CancellationToken _) => Task.FromResult((byte[])_testKey.Clone()));
 
         _sut = new HmacMessageSigningService(
             Microsoft.Extensions.Options.Options.Create(new SigningOptions()),

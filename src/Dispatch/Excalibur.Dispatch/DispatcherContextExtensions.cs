@@ -16,6 +16,8 @@ namespace Excalibur.Dispatch.Abstractions;
 /// </summary>
 public static class DispatcherContextExtensions
 {
+	private static readonly ConditionalWeakTable<IDispatcher, ContextFactoryHolder> ContextFactoryCache = new();
+
 	/// <summary>
 	/// Dispatches a message using the current ambient context or a new context if none exists.
 	/// </summary>
@@ -187,7 +189,9 @@ public static class DispatcherContextExtensions
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static IMessageContext CreateContext(IDispatcher dispatcher)
 	{
-		var factory = dispatcher.ServiceProvider?.GetService<IMessageContextFactory>();
+		var factory = ContextFactoryCache.GetValue(
+			dispatcher,
+			static key => new ContextFactoryHolder(key.ServiceProvider?.GetService<IMessageContextFactory>())).Factory;
 		return factory?.CreateContext() ?? new MessageContext();
 	}
 
@@ -217,7 +221,7 @@ public static class DispatcherContextExtensions
 		{
 			var value = await directLocalDispatcher.DispatchLocalAsync<TMessage, TResponse>(message, cancellationToken)
 				.ConfigureAwait(false);
-			return MessageResult.Success<TResponse>(value);
+			return new SimpleSuccessMessageResultOfT<TResponse>(value, cacheHit: false);
 		}
 		catch (Exception ex) when (ex is not OperationCanceledException)
 		{
@@ -250,6 +254,16 @@ public static class DispatcherContextExtensions
 			Instance = Guid.NewGuid().ToString(),
 		};
 
-		return MessageResult.Failed<TResponse>(exception.Message, problem);
+		return new SimpleMessageResultOfT<TResponse>(
+			value: default,
+			succeeded: false,
+			errorMessage: exception.Message,
+			cacheHit: false,
+			problemDetails: problem);
+	}
+
+	private sealed class ContextFactoryHolder(IMessageContextFactory? factory)
+	{
+		public IMessageContextFactory? Factory { get; } = factory;
 	}
 }

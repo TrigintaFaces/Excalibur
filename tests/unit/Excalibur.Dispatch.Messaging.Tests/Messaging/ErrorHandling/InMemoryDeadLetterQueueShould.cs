@@ -162,7 +162,8 @@ public sealed class InMemoryDeadLetterQueueShould
 		// Assert
 		entry.ShouldNotBeNull();
 		entry.EnqueuedAt.ShouldBeGreaterThanOrEqualTo(beforeEnqueue);
-		entry.EnqueuedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+		var assertionUpperBound1 = DateTimeOffset.UtcNow;
+		entry.EnqueuedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	[Fact]

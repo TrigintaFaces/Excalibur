@@ -14,20 +14,18 @@ namespace Excalibur.Dispatch.Patterns.Tests.ClaimCheck.InMemory;
 [Trait("Category", "Unit")]
 public sealed class InMemoryClaimCheckProviderExpirationTests
 {
+	private static readonly TimeSpan ShortTtl = TimeSpan.FromMilliseconds(250);
+	private static readonly TimeSpan ExpirationTimeout = TimeSpan.FromSeconds(10);
+
 	private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
 	{
-		var deadline = DateTimeOffset.UtcNow + timeout;
-		while (DateTimeOffset.UtcNow < deadline)
-		{
-			if (condition())
-			{
-				return;
-			}
-
-			await Task.Yield();
-		}
-
-		throw new TimeoutException($"Condition not met within {timeout}.");
+		var scaledTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(timeout);
+		var conditionMet = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+				condition,
+				scaledTimeout,
+				TimeSpan.FromMilliseconds(100))
+			.ConfigureAwait(false);
+		conditionMet.ShouldBeTrue($"Condition not met within {scaledTimeout}.");
 	}
 
 	private static async Task WaitUntilExpiredAsync(ClaimCheckReference reference, TimeSpan timeout)
@@ -72,14 +70,14 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 		// Arrange
 		var provider = CreateProvider(options =>
 		{
-			options.DefaultTtl = TimeSpan.FromMilliseconds(50); // Very short TTL
+			options.DefaultTtl = ShortTtl; // Short TTL to validate expiration behavior
 		});
 
 		var payload = "Expiring payload"u8.ToArray();
 		var reference = await provider.StoreAsync(payload, CancellationToken.None);
 
 		// Act - Wait for expiration
-		await WaitUntilExpiredAsync(reference, TimeSpan.FromSeconds(2));
+		await WaitUntilExpiredAsync(reference, ExpirationTimeout);
 		var removedCount = provider.RemoveExpiredEntries();
 
 		// Assert
@@ -113,7 +111,7 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 		// Arrange
 		var provider = CreateProvider(options =>
 		{
-			options.DefaultTtl = TimeSpan.FromMilliseconds(50);
+			options.DefaultTtl = ShortTtl;
 		});
 
 		// Store expired entries
@@ -121,8 +119,8 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 		var expiringReference2 = await provider.StoreAsync("Expiring 2"u8.ToArray(), CancellationToken.None);
 
 		// Wait for expiration
-		await WaitUntilExpiredAsync(expiringReference1, TimeSpan.FromSeconds(2));
-		await WaitUntilExpiredAsync(expiringReference2, TimeSpan.FromSeconds(2));
+		await WaitUntilExpiredAsync(expiringReference1, ExpirationTimeout);
+		await WaitUntilExpiredAsync(expiringReference2, ExpirationTimeout);
 
 		// This provider applies one TTL to all entries in a given instance, so this test validates
 		// cleanup behavior for a fully expired set.
@@ -141,7 +139,7 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 		// Arrange
 		var provider = CreateProvider(options =>
 		{
-			options.DefaultTtl = TimeSpan.FromMilliseconds(50);
+			options.DefaultTtl = ShortTtl;
 		});
 
 		var payload = "Expiring payload"u8.ToArray();
@@ -149,7 +147,7 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 		var countBefore = provider.EntryCount;
 
 		// Act - Wait for expiration
-		await WaitUntilExpiredAsync(reference, TimeSpan.FromSeconds(2));
+		await WaitUntilExpiredAsync(reference, ExpirationTimeout);
 
 		// Assert
 		countBefore.ShouldBe(1);
@@ -186,7 +184,7 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 		// Arrange
 		var provider = CreateProvider(options =>
 		{
-			options.DefaultTtl = TimeSpan.FromMilliseconds(50);
+			options.DefaultTtl = ShortTtl;
 		});
 
 		var reference1 = await provider.StoreAsync("Payload 1"u8.ToArray(), CancellationToken.None);
@@ -196,8 +194,8 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 		var removed1 = provider.RemoveExpiredEntries();
 
 		// Wait for expiration
-		await WaitUntilExpiredAsync(reference1, TimeSpan.FromSeconds(2));
-		await WaitUntilExpiredAsync(reference2, TimeSpan.FromSeconds(2));
+		await WaitUntilExpiredAsync(reference1, ExpirationTimeout);
+		await WaitUntilExpiredAsync(reference2, ExpirationTimeout);
 
 		// Second cleanup (should remove expired)
 		var removed2 = provider.RemoveExpiredEntries();
@@ -230,7 +228,7 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 		// Arrange
 		var provider = CreateProvider(options =>
 		{
-			options.DefaultTtl = TimeSpan.FromMilliseconds(1);
+			options.DefaultTtl = ShortTtl;
 		});
 
 		var payload = "Quick expiration"u8.ToArray();
@@ -274,14 +272,14 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 		// Arrange
 		var provider = CreateProvider(options =>
 		{
-			options.DefaultTtl = TimeSpan.FromMilliseconds(50);
+			options.DefaultTtl = ShortTtl;
 		});
 
 		var payload = "Expiring payload"u8.ToArray();
 		var reference = await provider.StoreAsync(payload, CancellationToken.None);
 
 		// Wait for expiration
-		await WaitUntilExpiredAsync(reference, TimeSpan.FromSeconds(2));
+		await WaitUntilExpiredAsync(reference, ExpirationTimeout);
 
 		// Act - Delete expired entry
 		var deleted = await provider.DeleteAsync(reference, CancellationToken.None);
@@ -296,14 +294,14 @@ public sealed class InMemoryClaimCheckProviderExpirationTests
 		// Arrange
 		var provider = CreateProvider(options =>
 		{
-			options.DefaultTtl = TimeSpan.FromMilliseconds(50);
+			options.DefaultTtl = ShortTtl;
 		});
 
 		// Store initial entries
 		var initialReference = await provider.StoreAsync("Initial"u8.ToArray(), CancellationToken.None);
 
 		// Wait for expiration
-		await WaitUntilExpiredAsync(initialReference, TimeSpan.FromSeconds(2));
+		await WaitUntilExpiredAsync(initialReference, ExpirationTimeout);
 
 		// Act - Concurrent cleanup and store
 		var cleanupTask = Task.Run(() => provider.RemoveExpiredEntries());

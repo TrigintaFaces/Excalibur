@@ -70,14 +70,17 @@ public sealed class InMemoryMasterKeyBackupServiceShould
 		{
 			ExpiresIn = TimeSpan.FromDays(30),
 		};
+		var minExpectedExpiry = DateTimeOffset.UtcNow.AddDays(29);
 
 		// Act
 		var result = await _sut.ExportMasterKeyAsync("k1", options, CancellationToken.None)
 			.ConfigureAwait(false);
+		var maxExpectedExpiry = DateTimeOffset.UtcNow.AddDays(31);
 
 		// Assert
 		result.ExpiresAt.ShouldNotBeNull();
-		result.ExpiresAt.Value.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddDays(29));
+		result.ExpiresAt.Value.ShouldBeGreaterThanOrEqualTo(minExpectedExpiry);
+		result.ExpiresAt.Value.ShouldBeLessThanOrEqualTo(maxExpectedExpiry);
 	}
 
 	[Fact]

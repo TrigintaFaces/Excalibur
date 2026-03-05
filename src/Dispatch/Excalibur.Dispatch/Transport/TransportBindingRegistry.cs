@@ -15,7 +15,12 @@ public sealed class TransportBindingRegistry : IDisposable
 {
 	private readonly ConcurrentDictionary<string, ITransportBinding> _bindings = new(StringComparer.Ordinal);
 	private readonly List<ITransportBinding> _orderedBindings = [];
-	private readonly ReaderWriterLockSlim _lock = new();
+#if NET9_0_OR_GREATER
+	private readonly Lock _writeSync = new();
+#else
+	private readonly object _writeSync = new();
+#endif
+	private volatile ITransportBinding[] _orderedBindingsSnapshot = [];
 	private volatile bool _disposed;
 
 	/// <summary>
@@ -26,8 +31,7 @@ public sealed class TransportBindingRegistry : IDisposable
 	{
 		ArgumentNullException.ThrowIfNull(binding);
 
-		_lock.EnterWriteLock();
-		try
+		lock (_writeSync)
 		{
 			if (!_bindings.TryAdd(binding.Name, binding))
 			{
@@ -35,14 +39,33 @@ public sealed class TransportBindingRegistry : IDisposable
 					$"A binding with name '{binding.Name}' is already registered");
 			}
 
-			// Reorder bindings by priority
-			_orderedBindings.Add(binding);
-			_orderedBindings.Sort(static (a, b) => b.Priority.CompareTo(a.Priority));
+			// Keep list sorted by descending priority without re-sorting the full list each time.
+			var insertionIndex = FindInsertionIndex(binding.Priority);
+			_orderedBindings.Insert(insertionIndex, binding);
+			_orderedBindingsSnapshot = _orderedBindings.ToArray();
 		}
-		finally
+	}
+
+	private int FindInsertionIndex(int priority)
+	{
+		var low = 0;
+		var high = _orderedBindings.Count;
+
+		// Descending priority order.
+		while (low < high)
 		{
-			_lock.ExitWriteLock();
+			var mid = low + ((high - low) >> 1);
+			if (_orderedBindings[mid].Priority < priority)
+			{
+				high = mid;
+			}
+			else
+			{
+				low = mid + 1;
+			}
 		}
+
+		return low;
 	}
 
 	/// <summary>
@@ -52,16 +75,19 @@ public sealed class TransportBindingRegistry : IDisposable
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(endpoint);
 
-		_lock.EnterReadLock();
-		try
+		var snapshot = _orderedBindingsSnapshot;
+
+		// Find first matching binding (ordered by priority)
+		for (var i = 0; i < snapshot.Length; i++)
 		{
-			// Find first matching binding (ordered by priority)
-			return _orderedBindings.FirstOrDefault(b => b.Matches(endpoint));
+			var binding = snapshot[i];
+			if (binding.Matches(endpoint))
+			{
+				return binding;
+			}
 		}
-		finally
-		{
-			_lock.ExitReadLock();
-		}
+
+		return null;
 	}
 
 	/// <summary>
@@ -86,15 +112,7 @@ public sealed class TransportBindingRegistry : IDisposable
 	/// </summary>
 	public IReadOnlyList<ITransportBinding> GetBindings()
 	{
-		_lock.EnterReadLock();
-		try
-		{
-			return _orderedBindings.ToList();
-		}
-		finally
-		{
-			_lock.ExitReadLock();
-		}
+		return _orderedBindingsSnapshot;
 	}
 
 	/// <summary>
@@ -104,20 +122,16 @@ public sealed class TransportBindingRegistry : IDisposable
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-		_lock.EnterWriteLock();
-		try
+		lock (_writeSync)
 		{
 			if (_bindings.TryRemove(name, out var binding))
 			{
 				_ = _orderedBindings.Remove(binding);
+				_orderedBindingsSnapshot = _orderedBindings.ToArray();
 				return true;
 			}
 
 			return false;
-		}
-		finally
-		{
-			_lock.ExitWriteLock();
 		}
 	}
 
@@ -131,7 +145,6 @@ public sealed class TransportBindingRegistry : IDisposable
 			return;
 		}
 
-		_lock?.Dispose();
 		_disposed = true;
 	}
 }

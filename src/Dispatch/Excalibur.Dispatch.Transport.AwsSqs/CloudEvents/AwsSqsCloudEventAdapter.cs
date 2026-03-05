@@ -280,7 +280,7 @@ public sealed class AwsSqsCloudEventAdapter : ICloudEventMapper<SendMessageReque
 	{
 		null => string.Empty,
 		byte[] binary => Convert.ToBase64String(binary),
-		ReadOnlyMemory<byte> rom => Convert.ToBase64String(rom.ToArray()),
+		ReadOnlyMemory<byte> rom => Convert.ToBase64String(rom.Span),
 		string text => text,
 		_ => JsonSerializer.Serialize(cloudEvent.Data),
 	};

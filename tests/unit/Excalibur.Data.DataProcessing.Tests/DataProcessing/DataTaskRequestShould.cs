@@ -14,12 +14,16 @@ public sealed class DataTaskRequestShould : UnitTestBase
 	[Fact]
 	public void HaveDefaultValues_WhenCreated()
 	{
-		// Arrange & Act
+		// Arrange
+		var before = DateTime.UtcNow;
+
+		// Act
 		var request = new DataTaskRequest();
+		var after = DateTime.UtcNow;
 
 		// Assert
 		request.DataTaskId.ShouldNotBe(Guid.Empty);
-		request.CreatedAt.ShouldBeInRange(DateTime.UtcNow.AddSeconds(-5), DateTime.UtcNow.AddSeconds(1));
+		request.CreatedAt.ShouldBeInRange(before, after);
 		request.RecordType.ShouldBe(string.Empty);
 		request.Attempts.ShouldBe(0);
 		request.MaxAttempts.ShouldBe(0);

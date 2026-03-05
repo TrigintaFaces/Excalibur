@@ -3,11 +3,11 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet("MediatRLocalParity", "TransportComparison")]
+    [ValidateSet("MediatRLocalParity", "TransportComparison", "DispatchHotPath", "ObservabilityOverhead", "PersistenceBackgroundSmoke")]
     [string]$Gate,
 
     [Parameter(Mandatory = $false)]
-    [string]$ResultsPath = "BenchmarkDotNet.Artifacts/results",
+    [string]$ResultsPath = "benchmarks/runs/BenchmarkDotNet.Artifacts/results",
 
     [Parameter(Mandatory = $false)]
     [double]$MediatRSingleCommandMaxRatio = 1.00,
@@ -19,7 +19,50 @@ param(
     [double]$TransportSingleCommandMinAdvantageRatio = 1.00,
 
     [Parameter(Mandatory = $false)]
-    [double]$TransportConcurrent10MinAdvantageRatio = 1.00
+    [double]$TransportConcurrent10MinAdvantageRatio = 1.00,
+
+    [Parameter(Mandatory = $false)]
+    [double]$HotPathLookupMaxDispatchRatio = 0.25,
+
+    [Parameter(Mandatory = $false)]
+    [double]$HotPathInvokerMaxDispatchRatio = 0.40,
+
+    [Parameter(Mandatory = $false)]
+    [double]$HotPathMiddlewareCurveMinGrowthRatio = 2.00,
+
+    [Parameter(Mandatory = $false)]
+    [double]$HotPathDispatchMaxAllocBytes = 512,
+
+    [Parameter(Mandatory = $false)]
+    [double]$HotPathInvokerMaxAllocBytes = 128,
+
+    [Parameter(Mandatory = $false)]
+    [double]$ObservabilityUtf8BytesMaxRatio = 1.10,
+
+    [Parameter(Mandatory = $false)]
+    [double]$ObservabilitySkippedMaxRatio = 0.10,
+
+    [Parameter(Mandatory = $false)]
+    [double]$ObservabilitySkippedMaxAllocBytes = 0,
+
+    [Parameter(Mandatory = $false)]
+    [double]$PersistenceBackgroundCdcBatch100MaxNs = 10000000,
+
+    [Parameter(Mandatory = $false)]
+    [double]$PersistenceBackgroundProcessBatch100MaxNs = 50000,
+
+    [Parameter(Mandatory = $false)]
+    [int]$PersistenceBackgroundMinimumRowsPerClass = 18,
+
+    [Parameter(Mandatory = $false)]
+    [bool]$RequireBenchmarkSummaryMetadata = $true,
+
+    [Parameter(Mandatory = $false)]
+    [ValidateRange(1, 20)]
+    [int]$MinimumRepeatCount = 1,
+
+    [Parameter(Mandatory = $false)]
+    [string]$RequiredRuntimeProfile
 )
 
 Set-StrictMode -Version Latest
@@ -76,6 +119,39 @@ function Convert-MeanToNs {
     }
 }
 
+function Convert-AllocatedToBytes {
+    param([string]$RawAllocated)
+
+    if ([string]::IsNullOrWhiteSpace($RawAllocated)) {
+        return $null
+    }
+
+    $allocated = $RawAllocated.Trim()
+    if ($allocated -eq "NA" -or $allocated -eq "?") {
+        return $null
+    }
+
+    $parts = $allocated -split '\s+', 2
+    if ($parts.Count -ne 2) {
+        throw "Unable to parse allocated value '$RawAllocated'."
+    }
+
+    $numericText = $parts[0].Replace(",", "")
+    $unit = $parts[1].Trim().ToUpperInvariant()
+
+    $numeric = 0.0
+    if (-not [double]::TryParse($numericText, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$numeric)) {
+        throw "Unable to parse numeric allocated value '$RawAllocated'."
+    }
+
+    switch ($unit) {
+        "B" { return $numeric }
+        "KB" { return $numeric * 1024.0 }
+        "MB" { return $numeric * 1024.0 * 1024.0 }
+        default { throw "Unsupported allocated unit '$unit' in '$RawAllocated'." }
+    }
+}
+
 function Get-LatestCsv {
     param(
         [string]$ResultsDirectory,
@@ -85,6 +161,32 @@ function Get-LatestCsv {
     return Get-ChildItem -Path $ResultsDirectory -Filter $Pattern -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTimeUtc -Descending |
         Select-Object -First 1
+}
+
+function Get-LatestMatrixSummary {
+    param(
+        [string]$ResultsDirectory
+    )
+
+    $summaryFile = Get-ChildItem -Path $ResultsDirectory -Filter "benchmark-matrix-summary-*.json" -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTimeUtc -Descending |
+        Select-Object -First 1
+
+    if ($null -eq $summaryFile) {
+        return $null
+    }
+
+    try {
+        $raw = Get-Content -Path $summaryFile.FullName -Raw
+        $json = $raw | ConvertFrom-Json
+        return [pscustomobject]@{
+            Path = $summaryFile.FullName
+            Data = $json
+        }
+    }
+    catch {
+        throw "Failed to parse matrix summary JSON: $($summaryFile.FullName). $_"
+    }
 }
 
 function Find-MeanByMethod {
@@ -118,6 +220,75 @@ function Find-MeanByPrefix {
     return Convert-MeanToNs $row.Mean
 }
 
+function Find-AllocatedByMethod {
+    param(
+        [object[]]$Rows,
+        [string]$MethodName
+    )
+
+    $row = $Rows | Where-Object { (Normalize-MethodName $_.Method) -eq $MethodName } | Select-Object -First 1
+    if ($null -eq $row) {
+        return $null
+    }
+
+    return Convert-AllocatedToBytes $row.Allocated
+}
+
+function Find-MeanByColumns {
+    param(
+        [object[]]$Rows,
+        [int]$MiddlewareCount,
+        [string]$Scenario,
+        [string]$CacheHit
+    )
+
+    $row = $Rows |
+        Where-Object {
+            [int]$_.MiddlewareCount -eq $MiddlewareCount -and
+            [string]::Equals("$($_.Scenario)", $Scenario, [StringComparison]::OrdinalIgnoreCase) -and
+            [string]::Equals("$($_.CacheHit)", $CacheHit, [StringComparison]::OrdinalIgnoreCase)
+        } |
+        Select-Object -First 1
+
+    if ($null -eq $row) {
+        return $null
+    }
+
+    return Convert-MeanToNs $row.Mean
+}
+
+function Find-MinMeanByMethodAndBatch {
+    param(
+        [object[]]$Rows,
+        [string]$MethodName,
+        [int]$BatchSize
+    )
+
+    $candidateRows = $Rows |
+        Where-Object {
+            (Normalize-MethodName $_.Method) -eq $MethodName -and
+            [int]$_.BatchSize -eq $BatchSize
+        }
+
+    if ($null -eq $candidateRows -or @($candidateRows).Count -eq 0) {
+        return $null
+    }
+
+    $means = @()
+    foreach ($row in $candidateRows) {
+        $mean = Convert-MeanToNs $row.Mean
+        if ($null -ne $mean) {
+            $means += $mean
+        }
+    }
+
+    if (@($means).Count -eq 0) {
+        return $null
+    }
+
+    return ($means | Measure-Object -Minimum).Minimum
+}
+
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $resultsFullPath = if ([System.IO.Path]::IsPathRooted($ResultsPath)) {
     $ResultsPath
@@ -134,6 +305,51 @@ Write-Host "Validating performance gate: $Gate" -ForegroundColor Cyan
 Write-Host "Results path: $resultsFullPath" -ForegroundColor Cyan
 
 $failures = @()
+
+$matrixSummary = $null
+if ($RequireBenchmarkSummaryMetadata) {
+    $matrixSummary = Get-LatestMatrixSummary -ResultsDirectory $resultsFullPath
+    if ($null -eq $matrixSummary) {
+        $failures += "Benchmark matrix summary JSON not found under $resultsFullPath"
+    }
+    else {
+        $summary = $matrixSummary.Data
+
+        $hasRepeatCount = $summary.PSObject.Properties.Name -contains "repeatCount"
+        if (-not $hasRepeatCount) {
+            $failures += "Benchmark matrix summary is missing repeatCount metadata ($($matrixSummary.Path))"
+        }
+        else {
+            $repeatCount = [int]$summary.repeatCount
+            if ($repeatCount -lt $MinimumRepeatCount) {
+                $failures += "Repeat count $repeatCount is below required minimum $MinimumRepeatCount ($($matrixSummary.Path))"
+            }
+        }
+
+        $hasEnvironment = $summary.PSObject.Properties.Name -contains "environment"
+        if (-not $hasEnvironment -or $null -eq $summary.environment) {
+            $failures += "Benchmark matrix summary is missing environment metadata ($($matrixSummary.Path))"
+        }
+        else {
+            $hasCommitSha = $summary.environment.PSObject.Properties.Name -contains "commitSha"
+            $commitSha = if ($hasCommitSha) { "$($summary.environment.commitSha)".Trim() } else { "" }
+            if ([string]::IsNullOrWhiteSpace($commitSha)) {
+                $failures += "Benchmark matrix summary is missing environment.commitSha metadata ($($matrixSummary.Path))"
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($RequiredRuntimeProfile)) {
+                $hasRuntimeProfile = $summary.environment.PSObject.Properties.Name -contains "runtimeProfile"
+                $runtimeProfile = if ($hasRuntimeProfile) { "$($summary.environment.runtimeProfile)".Trim() } else { "" }
+                if ([string]::IsNullOrWhiteSpace($runtimeProfile)) {
+                    $failures += "Benchmark matrix summary is missing environment.runtimeProfile metadata ($($matrixSummary.Path))"
+                }
+                elseif (-not [string]::Equals($runtimeProfile, $RequiredRuntimeProfile, [StringComparison]::OrdinalIgnoreCase)) {
+                    $failures += "Runtime profile '$runtimeProfile' does not match required profile '$RequiredRuntimeProfile' ($($matrixSummary.Path))"
+                }
+            }
+        }
+    }
+}
 
 if ($Gate -eq "MediatRLocalParity") {
     $csv = Get-LatestCsv -ResultsDirectory $resultsFullPath -Pattern "*MediatRComparisonBenchmarks-report.csv"
@@ -221,6 +437,151 @@ elseif ($Gate -eq "TransportComparison") {
 
     if ($massTransitConcurrent10Advantage -lt $TransportConcurrent10MinAdvantageRatio) {
         $failures += "MassTransit concurrent(10) advantage $([math]::Round($massTransitConcurrent10Advantage, 3))x is below minimum $TransportConcurrent10MinAdvantageRatio x"
+    }
+}
+elseif ($Gate -eq "DispatchHotPath") {
+    $hotPathCsv = Get-LatestCsv -ResultsDirectory $resultsFullPath -Pattern "*DispatchHotPathBreakdownBenchmarks-report.csv"
+    $middlewareCsv = Get-LatestCsv -ResultsDirectory $resultsFullPath -Pattern "*MiddlewareCostCurveBenchmarks-report.csv"
+
+    if ($null -eq $hotPathCsv) {
+        throw "Dispatch hot-path breakdown report CSV not found under $resultsFullPath"
+    }
+    if ($null -eq $middlewareCsv) {
+        throw "Middleware cost-curve report CSV not found under $resultsFullPath"
+    }
+
+    $hotPathRows = Import-Csv -Path $hotPathCsv.FullName
+    $middlewareRows = Import-Csv -Path $middlewareCsv.FullName
+
+    $dispatchSingle = Find-MeanByMethod -Rows $hotPathRows -MethodName "Dispatcher: Single command"
+    $handlerLookup = Find-MeanByMethod -Rows $hotPathRows -MethodName "HandlerRegistry: Lookup"
+    $handlerInvoker = Find-MeanByMethod -Rows $hotPathRows -MethodName "HandlerInvoker: Invoke"
+
+    $dispatchAllocBytes = Find-AllocatedByMethod -Rows $hotPathRows -MethodName "Dispatcher: Single command"
+    $handlerInvokerAllocBytes = Find-AllocatedByMethod -Rows $hotPathRows -MethodName "HandlerInvoker: Invoke"
+
+    if ($null -eq $dispatchSingle -or $null -eq $handlerLookup -or $null -eq $handlerInvoker) {
+        throw "Required dispatch hot-path rows were not found in $($hotPathCsv.FullName)"
+    }
+    if ($null -eq $dispatchAllocBytes -or $null -eq $handlerInvokerAllocBytes) {
+        throw "Required allocation columns for dispatch hot-path rows were not found in $($hotPathCsv.FullName)"
+    }
+
+    $lookupRatio = $handlerLookup / $dispatchSingle
+    $invokerRatio = $handlerInvoker / $dispatchSingle
+
+    Write-Host ("Dispatch hot-path (lookup ratio): {0:N3} (max {1:N3})" -f $lookupRatio, $HotPathLookupMaxDispatchRatio) -ForegroundColor Yellow
+    Write-Host ("Dispatch hot-path (invoker ratio): {0:N3} (max {1:N3})" -f $invokerRatio, $HotPathInvokerMaxDispatchRatio) -ForegroundColor Yellow
+    Write-Host ("Dispatch hot-path (dispatch alloc): {0:N2} B (max {1:N2} B)" -f $dispatchAllocBytes, $HotPathDispatchMaxAllocBytes) -ForegroundColor Yellow
+    Write-Host ("Dispatch hot-path (invoker alloc): {0:N2} B (max {1:N2} B)" -f $handlerInvokerAllocBytes, $HotPathInvokerMaxAllocBytes) -ForegroundColor Yellow
+
+    if ($lookupRatio -gt $HotPathLookupMaxDispatchRatio) {
+        $failures += "HandlerRegistry lookup ratio $([math]::Round($lookupRatio, 3)) exceeds max $HotPathLookupMaxDispatchRatio"
+    }
+    if ($invokerRatio -gt $HotPathInvokerMaxDispatchRatio) {
+        $failures += "HandlerInvoker invoke ratio $([math]::Round($invokerRatio, 3)) exceeds max $HotPathInvokerMaxDispatchRatio"
+    }
+    if ($dispatchAllocBytes -gt $HotPathDispatchMaxAllocBytes) {
+        $failures += "Dispatcher single-command allocation $([math]::Round($dispatchAllocBytes, 2)) B exceeds max $HotPathDispatchMaxAllocBytes B"
+    }
+    if ($handlerInvokerAllocBytes -gt $HotPathInvokerMaxAllocBytes) {
+        $failures += "HandlerInvoker allocation $([math]::Round($handlerInvokerAllocBytes, 2)) B exceeds max $HotPathInvokerMaxAllocBytes B"
+    }
+
+    $middleware0 = Find-MeanByColumns -Rows $middlewareRows -MiddlewareCount 0 -Scenario "Command" -CacheHit "False"
+    $middleware10 = Find-MeanByColumns -Rows $middlewareRows -MiddlewareCount 10 -Scenario "Command" -CacheHit "False"
+    if ($null -eq $middleware0 -or $null -eq $middleware10) {
+        throw "Required middleware cost-curve rows (Command, CacheHit=False, MiddlewareCount=0/10) were not found in $($middlewareCsv.FullName)"
+    }
+
+    $middlewareGrowthRatio = $middleware10 / $middleware0
+    Write-Host ("Middleware cost-curve (0->10 growth ratio): {0:N3} (min {1:N3})" -f $middlewareGrowthRatio, $HotPathMiddlewareCurveMinGrowthRatio) -ForegroundColor Yellow
+
+    if ($middlewareGrowthRatio -lt $HotPathMiddlewareCurveMinGrowthRatio) {
+        $failures += "Middleware growth ratio $([math]::Round($middlewareGrowthRatio, 3)) is below minimum $HotPathMiddlewareCurveMinGrowthRatio"
+    }
+}
+elseif ($Gate -eq "ObservabilityOverhead") {
+    $observabilityCsv = Get-LatestCsv -ResultsDirectory $resultsFullPath -Pattern "*MetricsLoggingOverheadBenchmarks-report.csv"
+    if ($null -eq $observabilityCsv) {
+        throw "Metrics logging overhead report CSV not found under $resultsFullPath"
+    }
+
+    $rows = Import-Csv -Path $observabilityCsv.FullName
+
+    $stringPath = Find-MeanByMethod -Rows $rows -MethodName "Size via JSON string + UTF8 count"
+    $utf8Path = Find-MeanByMethod -Rows $rows -MethodName "Size via SerializeToUtf8Bytes"
+    $skippedPath = Find-MeanByMethod -Rows $rows -MethodName "Size estimation skipped"
+    $skippedAllocBytes = Find-AllocatedByMethod -Rows $rows -MethodName "Size estimation skipped"
+
+    if ($null -eq $stringPath -or $null -eq $utf8Path -or $null -eq $skippedPath) {
+        throw "Required observability overhead rows were not found in $($observabilityCsv.FullName)"
+    }
+    if ($null -eq $skippedAllocBytes) {
+        throw "Required observability allocation column was not found in $($observabilityCsv.FullName)"
+    }
+
+    $utf8Ratio = $utf8Path / $stringPath
+    $skippedRatio = $skippedPath / $stringPath
+
+    Write-Host ("Observability overhead (Utf8Bytes ratio): {0:N3} (max {1:N3})" -f $utf8Ratio, $ObservabilityUtf8BytesMaxRatio) -ForegroundColor Yellow
+    Write-Host ("Observability overhead (Skipped ratio): {0:N3} (max {1:N3})" -f $skippedRatio, $ObservabilitySkippedMaxRatio) -ForegroundColor Yellow
+    Write-Host ("Observability overhead (Skipped alloc): {0:N2} B (max {1:N2} B)" -f $skippedAllocBytes, $ObservabilitySkippedMaxAllocBytes) -ForegroundColor Yellow
+
+    if ($utf8Ratio -gt $ObservabilityUtf8BytesMaxRatio) {
+        $failures += "SerializeToUtf8Bytes ratio $([math]::Round($utf8Ratio, 3)) exceeds max $ObservabilityUtf8BytesMaxRatio"
+    }
+    if ($skippedRatio -gt $ObservabilitySkippedMaxRatio) {
+        $failures += "Skipped estimation ratio $([math]::Round($skippedRatio, 3)) exceeds max $ObservabilitySkippedMaxRatio"
+    }
+    if ($skippedAllocBytes -gt $ObservabilitySkippedMaxAllocBytes) {
+        $failures += "Skipped estimation allocation $([math]::Round($skippedAllocBytes, 2)) B exceeds max $ObservabilitySkippedMaxAllocBytes B"
+    }
+}
+elseif ($Gate -eq "PersistenceBackgroundSmoke") {
+    $cdcCsv = Get-LatestCsv -ResultsDirectory $resultsFullPath -Pattern "*CdcLatencyBenchmarks-report.csv"
+    $deliveryCsv = Get-LatestCsv -ResultsDirectory $resultsFullPath -Pattern "*DeliveryGuaranteeBenchmarks-report.csv"
+
+    if ($null -eq $cdcCsv) {
+        throw "CDC latency report CSV not found under $resultsFullPath"
+    }
+    if ($null -eq $deliveryCsv) {
+        throw "Delivery guarantee report CSV not found under $resultsFullPath"
+    }
+
+    $cdcRows = Import-Csv -Path $cdcCsv.FullName
+    $deliveryRows = Import-Csv -Path $deliveryCsv.FullName
+
+    $cdcRowCount = @($cdcRows).Count
+    $deliveryRowCount = @($deliveryRows).Count
+
+    if ($cdcRowCount -lt $PersistenceBackgroundMinimumRowsPerClass) {
+        $failures += "CDC row count $cdcRowCount is below required minimum $PersistenceBackgroundMinimumRowsPerClass"
+    }
+    if ($deliveryRowCount -lt $PersistenceBackgroundMinimumRowsPerClass) {
+        $failures += "Delivery guarantee row count $deliveryRowCount is below required minimum $PersistenceBackgroundMinimumRowsPerClass"
+    }
+
+    $cdcDequeueBatch100 = Find-MinMeanByMethodAndBatch -Rows $cdcRows -MethodName "DequeueBatch" -BatchSize 100
+    if ($null -eq $cdcDequeueBatch100) {
+        $failures += "CDC benchmark missing a numeric mean for DequeueBatch (BatchSize=100)"
+    }
+    else {
+        Write-Host ("Persistence/background (CDC DequeueBatch@100): {0:N2} ns (max {1:N2} ns)" -f $cdcDequeueBatch100, $PersistenceBackgroundCdcBatch100MaxNs) -ForegroundColor Yellow
+        if ($cdcDequeueBatch100 -gt $PersistenceBackgroundCdcBatch100MaxNs) {
+            $failures += "CDC DequeueBatch@100 mean $([math]::Round($cdcDequeueBatch100, 2)) ns exceeds max $PersistenceBackgroundCdcBatch100MaxNs ns"
+        }
+    }
+
+    $deliveryProcessBatch100 = Find-MinMeanByMethodAndBatch -Rows $deliveryRows -MethodName "ProcessBatch" -BatchSize 100
+    if ($null -eq $deliveryProcessBatch100) {
+        $failures += "Delivery guarantee benchmark missing a numeric mean for ProcessBatch (BatchSize=100)"
+    }
+    else {
+        Write-Host ("Persistence/background (ProcessBatch@100 best): {0:N2} ns (max {1:N2} ns)" -f $deliveryProcessBatch100, $PersistenceBackgroundProcessBatch100MaxNs) -ForegroundColor Yellow
+        if ($deliveryProcessBatch100 -gt $PersistenceBackgroundProcessBatch100MaxNs) {
+            $failures += "Delivery ProcessBatch@100 mean $([math]::Round($deliveryProcessBatch100, 2)) ns exceeds max $PersistenceBackgroundProcessBatch100MaxNs ns"
+        }
     }
 }
 

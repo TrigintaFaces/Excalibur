@@ -21,6 +21,9 @@ const conversions = [
   { input: 'Excalibur/icon-transparent.svg', output: 'Excalibur/png/icon-256.png', width: 256 },
   { input: 'Excalibur/readme-banner.svg', output: 'Excalibur/png/readme-banner.png', width: 1600 },
   { input: 'Excalibur/github-banner.svg', output: 'Excalibur/png/github-banner.png', width: 1280 },
+
+  // Combined brand assets
+  { input: 'Combined/readme-banner.svg', output: 'Combined/readme-banner.png', width: 1600 },
 ];
 
 async function convertSvgToPng() {

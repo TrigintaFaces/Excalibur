@@ -129,7 +129,8 @@ public sealed class SqlServerAuthorizationRequestsShould
 		var request = new DeleteAllActivityGroupsRequest(Ct);
 
 		request.CreatedAt.ShouldBeGreaterThanOrEqualTo(before);
-		request.CreatedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+		var assertionUpperBound1 = DateTimeOffset.UtcNow;
+		request.CreatedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	#endregion
@@ -943,7 +944,8 @@ public sealed class SqlServerAuthorizationRequestsShould
 		var request = new ReadAllGrantsRequest("user-1", Ct);
 
 		request.CreatedAt.ShouldBeGreaterThanOrEqualTo(before);
-		request.CreatedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+		var assertionUpperBound1 = DateTimeOffset.UtcNow;
+		request.CreatedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	[Fact]

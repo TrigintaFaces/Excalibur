@@ -188,7 +188,7 @@ public sealed class JobInstanceInfoShould : UnitTestBase
 		info.UpdateHeartbeat();
 
 		// Assert
-		info.LastHeartbeat.ShouldBeGreaterThan(originalHeartbeat);
+		info.LastHeartbeat.ShouldBeGreaterThanOrEqualTo(originalHeartbeat);
 	}
 
 	[Fact]

@@ -9,16 +9,38 @@ namespace Excalibur.Dispatch.Delivery;
 /// <summary>
 /// Composite message upgrade strategy that delegates to multiple underlying strategies.
 /// </summary>
-/// <param name="strategies"> The collection of upgrade strategies to use. </param>
-public sealed class CompositeMessageUpgradeStrategy(IEnumerable<IMessageUpgradeStrategy> strategies) : IMessageUpgradeStrategy
+public sealed class CompositeMessageUpgradeStrategy : IMessageUpgradeStrategy
 {
+	private readonly IMessageUpgradeStrategy[] _strategies;
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="CompositeMessageUpgradeStrategy"/> class.
+	/// </summary>
+	/// <param name="strategies"> The collection of upgrade strategies to use. </param>
+	public CompositeMessageUpgradeStrategy(IEnumerable<IMessageUpgradeStrategy> strategies)
+	{
+		ArgumentNullException.ThrowIfNull(strategies);
+		_strategies = MaterializeStrategies(strategies);
+	}
+
 	/// <summary>
 	/// Determines whether any of the underlying strategies can upgrade the specified message type and version.
 	/// </summary>
 	/// <param name="messageType"> The type of message to upgrade. </param>
 	/// <param name="version"> The current version of the message. </param>
 	/// <returns> True if any strategy can upgrade the message; otherwise, false. </returns>
-	public bool CanUpgrade(Type messageType, string version) => strategies.Any(s => s.CanUpgrade(messageType, version));
+	public bool CanUpgrade(Type messageType, string version)
+	{
+		for (var i = 0; i < _strategies.Length; i++)
+		{
+			if (_strategies[i].CanUpgrade(messageType, version))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
 
 	/// <summary>
 	/// Upgrades a message using the first available strategy that can handle the upgrade.
@@ -33,9 +55,44 @@ public sealed class CompositeMessageUpgradeStrategy(IEnumerable<IMessageUpgradeS
 	{
 		ArgumentNullException.ThrowIfNull(messageType);
 
-		var strategy = strategies.FirstOrDefault(s => s.CanUpgrade(messageType, fromVersion)) ??
-					   throw new NotSupportedException($"No upgrade strategy found for {messageType.FullName} from version {fromVersion}");
+		for (var i = 0; i < _strategies.Length; i++)
+		{
+			var strategy = _strategies[i];
+			if (strategy.CanUpgrade(messageType, fromVersion))
+			{
+				return strategy.Upgrade(payload, messageType, fromVersion, toVersion);
+			}
+		}
 
-		return strategy.Upgrade(payload, messageType, fromVersion, toVersion);
+		throw new NotSupportedException(
+			$"No upgrade strategy found for {messageType.FullName} from version {fromVersion}");
+	}
+
+	private static IMessageUpgradeStrategy[] MaterializeStrategies(IEnumerable<IMessageUpgradeStrategy> strategies)
+	{
+		if (strategies is IMessageUpgradeStrategy[] array)
+		{
+			return array.Length == 0 ? [] : [.. array];
+		}
+
+		if (strategies is ICollection<IMessageUpgradeStrategy> collection)
+		{
+			if (collection.Count == 0)
+			{
+				return [];
+			}
+
+			var materialized = new IMessageUpgradeStrategy[collection.Count];
+			collection.CopyTo(materialized, 0);
+			return materialized;
+		}
+
+		var list = new List<IMessageUpgradeStrategy>();
+		foreach (var strategy in strategies)
+		{
+			list.Add(strategy);
+		}
+
+		return [.. list];
 	}
 }

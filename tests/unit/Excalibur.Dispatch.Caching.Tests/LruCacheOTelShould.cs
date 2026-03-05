@@ -4,7 +4,6 @@
 using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.Caching;
-using Excalibur.Dispatch.Caching.Diagnostics;
 
 using Tests.Shared.Helpers;
 
@@ -28,7 +27,7 @@ public sealed class LruCacheOTelShould : IDisposable
 	{
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == DispatchCachingTelemetryConstants.MeterName)
+			if (_meterFactory.Owns(instrument.Meter))
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -158,3 +157,4 @@ public sealed class LruCacheOTelShould : IDisposable
 		_hitCount.ShouldBeGreaterThanOrEqualTo(1);
 	}
 }
+

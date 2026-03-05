@@ -404,7 +404,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 
 		// Assert
 		_ = result.ShouldNotBeNull();
-		result.Value.ShouldBeGreaterThan(DateTimeOffset.UtcNow);
+		result.Value.ShouldBeGreaterThan(key.CreatedAt);
 	}
 
 	[Fact]

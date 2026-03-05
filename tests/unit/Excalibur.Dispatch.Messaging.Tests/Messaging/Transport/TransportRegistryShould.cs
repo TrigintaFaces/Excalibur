@@ -494,20 +494,27 @@ public sealed class TransportRegistryShould
 	{
 		// Arrange
 		var registry = new TransportRegistry();
-		var tasks = new List<Task>();
+		var registrations = Enumerable.Range(0, 100)
+			.Select(i => (Name: $"transport-{i}", Adapter: CreateAdapter($"adapter-{i}")))
+			.ToArray();
+		var tasks = registrations
+			.Select(registration => Task.Run(() =>
+				registry.RegisterTransport(registration.Name, registration.Adapter, "Type")))
+			.ToArray();
 
-		// Act - Register 100 transports concurrently
-		for (var i = 0; i < 100; i++)
-		{
-			var index = i;
-			tasks.Add(Task.Run(() =>
-				registry.RegisterTransport($"transport-{index}", CreateAdapter($"adapter-{index}"), "Type")));
-		}
+		// Act
+		await Task.WhenAll(tasks).ConfigureAwait(false);
 
-		await Task.WhenAll(tasks);
+		var snapshotPopulated = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+				() => registry.GetTransportNames().Count() == registrations.Length,
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)),
+				TimeSpan.FromMilliseconds(100))
+			.ConfigureAwait(false);
 
 		// Assert
-		registry.GetTransportNames().Count().ShouldBe(100);
+		snapshotPopulated.ShouldBeTrue("Expected transport names snapshot to include all concurrent registrations.");
+		registry.GetAllTransports().Count.ShouldBe(registrations.Length);
+		registry.GetTransportNames().Count().ShouldBe(registrations.Length);
 	}
 
 	#endregion Thread Safety Tests

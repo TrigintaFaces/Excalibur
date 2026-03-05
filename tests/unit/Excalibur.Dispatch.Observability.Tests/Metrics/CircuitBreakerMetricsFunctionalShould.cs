@@ -19,13 +19,14 @@ public sealed class CircuitBreakerMetricsFunctionalShould : IDisposable
 {
 	private readonly CircuitBreakerMetrics _metrics = new();
 	private readonly MeterListener _listener = new();
+	private readonly object _recordingGate = new();
 	private readonly Dictionary<string, List<(object Value, KeyValuePair<string, object?>[] Tags)>> _recorded = new(StringComparer.Ordinal);
 
 	public CircuitBreakerMetricsFunctionalShould()
 	{
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == CircuitBreakerMetrics.MeterName)
+			if (ReferenceEquals(instrument.Meter, _metrics.Meter))
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -59,14 +60,15 @@ public sealed class CircuitBreakerMetricsFunctionalShould : IDisposable
 	[Fact]
 	public void RecordStateChange_EmitsCounterWithTransitionTags()
 	{
-		_metrics.RecordStateChange("order-service", "Closed", "Open");
+		var circuitName = $"order-service-{Guid.NewGuid():N}";
+		_metrics.RecordStateChange(circuitName, "Closed", "Open");
 
 		var entries = GetRecorded("dispatch.circuitbreaker.state_changes");
 		entries.ShouldNotBeEmpty();
 		entries.Any(static entry => (long)entry.Value == 1).ShouldBeTrue();
 		entries.Any(entry => entry.Tags.Any(tag =>
 			tag.Key == "circuit_name" &&
-			string.Equals(tag.Value as string, "order-service", StringComparison.Ordinal)))
+			string.Equals(tag.Value as string, circuitName, StringComparison.Ordinal)))
 			.ShouldBeTrue();
 		entries.Any(entry => entry.Tags.Any(tag =>
 			tag.Key == "previous_state" &&
@@ -81,61 +83,78 @@ public sealed class CircuitBreakerMetricsFunctionalShould : IDisposable
 	[Fact]
 	public void RecordRejection_EmitsCounterWithCircuitName()
 	{
-		_metrics.RecordRejection("payment-circuit");
+		var circuitName = $"payment-circuit-{Guid.NewGuid():N}";
+		_metrics.RecordRejection(circuitName);
 
 		var entries = GetRecorded("dispatch.circuitbreaker.rejections");
 		entries.ShouldNotBeEmpty();
 		entries.Any(entry => entry.Tags.Any(tag =>
 			tag.Key == "circuit_name" &&
-			string.Equals(tag.Value as string, "payment-circuit", StringComparison.Ordinal)))
+			string.Equals(tag.Value as string, circuitName, StringComparison.Ordinal)))
 			.ShouldBeTrue();
 	}
 
 	[Fact]
 	public void RecordFailure_EmitsCounterWithExceptionType()
 	{
-		_metrics.RecordFailure("api-circuit", "TimeoutException");
+		var circuitName = $"api-circuit-{Guid.NewGuid():N}";
+		_metrics.RecordFailure(circuitName, "TimeoutException");
 
 		var entries = GetRecorded("dispatch.circuitbreaker.failures");
 		entries.ShouldNotBeEmpty();
-		var (_, tags) = entries[0];
-		tags.ShouldContain(t => t.Key == "circuit_name" && (string)t.Value! == "api-circuit");
-		tags.ShouldContain(t => t.Key == "exception_type" && (string)t.Value! == "TimeoutException");
+		entries.Any(entry =>
+				entry.Tags.Any(t => t.Key == "circuit_name" && string.Equals(t.Value as string, circuitName, StringComparison.Ordinal)) &&
+				entry.Tags.Any(t => t.Key == "exception_type" && string.Equals(t.Value as string, "TimeoutException", StringComparison.Ordinal)))
+			.ShouldBeTrue();
 	}
 
 	[Fact]
 	public void RecordSuccess_EmitsCounterWithCircuitName()
 	{
-		_metrics.RecordSuccess("db-circuit");
+		var circuitName = $"db-circuit-{Guid.NewGuid():N}";
+		_metrics.RecordSuccess(circuitName);
 
 		var entries = GetRecorded("dispatch.circuitbreaker.successes");
 		entries.ShouldNotBeEmpty();
-		var (value, tags) = entries[0];
-		((long)value).ShouldBe(1);
-		tags.ShouldContain(t => t.Key == "circuit_name" && (string)t.Value! == "db-circuit");
+		entries.Any(entry =>
+				(long)entry.Value == 1 &&
+				entry.Tags.Any(t => t.Key == "circuit_name" && string.Equals(t.Value as string, circuitName, StringComparison.Ordinal)))
+			.ShouldBeTrue();
 	}
 
 	[Fact]
 	public void UpdateState_ReportsViaObservableGauge()
 	{
-		_metrics.UpdateState("test-circuit", 1); // Open
+		var circuitName = $"test-circuit-{Guid.NewGuid():N}";
+		_metrics.UpdateState(circuitName, 1); // Open
 
 		var entries = GetRecorded("dispatch.circuitbreaker.state");
 		entries.ShouldNotBeEmpty();
-		var (value, tags) = entries[0];
-		((int)value).ShouldBe(1);
-		tags.ShouldContain(t => t.Key == "circuit_name" && (string)t.Value! == "test-circuit");
+		entries.Any(entry =>
+				(int)entry.Value == 1 &&
+				entry.Tags.Any(t => t.Key == "circuit_name" && string.Equals(t.Value as string, circuitName, StringComparison.Ordinal)))
+			.ShouldBeTrue();
 	}
 
 	[Fact]
 	public void TrackMultipleCircuitStates()
 	{
-		_metrics.UpdateState("circuit-a", 0); // Closed
-		_metrics.UpdateState("circuit-b", 1); // Open
-		_metrics.UpdateState("circuit-c", 2); // HalfOpen
+		var suffix = Guid.NewGuid().ToString("N");
+		var circuitA = $"circuit-a-{suffix}";
+		var circuitB = $"circuit-b-{suffix}";
+		var circuitC = $"circuit-c-{suffix}";
 
-		var entries = GetRecorded("dispatch.circuitbreaker.state");
-		entries.Count.ShouldBe(3);
+		_metrics.UpdateState(circuitA, 0); // Closed
+		_metrics.UpdateState(circuitB, 1); // Open
+		_metrics.UpdateState(circuitC, 2); // HalfOpen
+
+		var entries = GetRecorded("dispatch.circuitbreaker.state", minimumCount: 3);
+		entries.Any(entry => (int)entry.Value == 0 &&
+			entry.Tags.Any(tag => tag.Key == "circuit_name" && string.Equals(tag.Value as string, circuitA, StringComparison.Ordinal))).ShouldBeTrue();
+		entries.Any(entry => (int)entry.Value == 1 &&
+			entry.Tags.Any(tag => tag.Key == "circuit_name" && string.Equals(tag.Value as string, circuitB, StringComparison.Ordinal))).ShouldBeTrue();
+		entries.Any(entry => (int)entry.Value == 2 &&
+			entry.Tags.Any(tag => tag.Key == "circuit_name" && string.Equals(tag.Value as string, circuitC, StringComparison.Ordinal))).ShouldBeTrue();
 	}
 
 	[Fact]
@@ -156,18 +175,36 @@ public sealed class CircuitBreakerMetricsFunctionalShould : IDisposable
 
 	private void RecordMeasurement(string instrumentName, object value, ReadOnlySpan<KeyValuePair<string, object?>> tags)
 	{
-		if (!_recorded.TryGetValue(instrumentName, out var list))
+		lock (_recordingGate)
 		{
-			list = [];
-			_recorded[instrumentName] = list;
-		}
+			if (!_recorded.TryGetValue(instrumentName, out var list))
+			{
+				list = [];
+				_recorded[instrumentName] = list;
+			}
 
-		list.Add((value, tags.ToArray()));
+			list.Add((value, tags.ToArray()));
+		}
 	}
 
-	private List<(object Value, KeyValuePair<string, object?>[] Tags)> GetRecorded(string instrumentName)
+	private List<(object Value, KeyValuePair<string, object?>[] Tags)> GetRecorded(string instrumentName, int minimumCount = 1)
 	{
-		_listener.RecordObservableInstruments();
-		return _recorded.GetValueOrDefault(instrumentName) ?? [];
+		var observed = global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() =>
+			{
+				_listener.RecordObservableInstruments();
+				lock (_recordingGate)
+				{
+					return _recorded.TryGetValue(instrumentName, out var list) && list.Count >= minimumCount;
+				}
+			},
+			TimeSpan.FromSeconds(2),
+			TimeSpan.FromMilliseconds(10)).GetAwaiter().GetResult();
+
+		observed.ShouldBeTrue($"Expected at least {minimumCount} metric samples for '{instrumentName}'.");
+		lock (_recordingGate)
+		{
+			return (_recorded.GetValueOrDefault(instrumentName) ?? []).ToList();
+		}
 	}
 }

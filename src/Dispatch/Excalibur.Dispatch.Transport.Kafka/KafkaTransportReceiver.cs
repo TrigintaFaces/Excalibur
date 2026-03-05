@@ -21,10 +21,14 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// </remarks>
 internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 {
+	private const int DefaultMaxBatchSize = 100;
+	private static readonly TimeSpan DefaultMaxBatchWait = TimeSpan.FromMilliseconds(1000);
+
 	private readonly IConsumer<string, byte[]> _consumer;
 	private readonly ILogger _logger;
 	private readonly ConcurrentDictionary<string, TopicPartitionOffset> _offsetCache = new(StringComparer.Ordinal);
 	private volatile bool _disposed;
+	private readonly int _maxBatchSize;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="KafkaTransportReceiver"/> class.
@@ -40,6 +44,7 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 		_consumer = consumer ?? throw new ArgumentNullException(nameof(consumer));
 		Source = source ?? throw new ArgumentNullException(nameof(source));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_maxBatchSize = DefaultMaxBatchSize;
 	}
 
 	/// <inheritdoc />
@@ -50,11 +55,18 @@ internal sealed partial class KafkaTransportReceiver : ITransportReceiver
 	{
 		try
 		{
-			var messages = new List<TransportReceivedMessage>();
-
-			for (var i = 0; i < maxMessages && !cancellationToken.IsCancellationRequested; i++)
+			if (maxMessages <= 0)
 			{
-				var consumeResult = _consumer.Consume(TimeSpan.FromSeconds(1));
+				return Task.FromResult<IReadOnlyList<TransportReceivedMessage>>([]);
+			}
+
+			var messages = new List<TransportReceivedMessage>();
+			var boundedMaxMessages = Math.Min(maxMessages, _maxBatchSize);
+
+			for (var i = 0; i < boundedMaxMessages && !cancellationToken.IsCancellationRequested; i++)
+			{
+				var pollTimeout = i == 0 ? DefaultMaxBatchWait : TimeSpan.Zero;
+				var consumeResult = _consumer.Consume(pollTimeout);
 				if (consumeResult?.Message == null)
 				{
 					break;

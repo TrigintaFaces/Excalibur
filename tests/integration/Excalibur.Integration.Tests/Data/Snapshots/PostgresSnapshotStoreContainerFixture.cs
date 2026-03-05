@@ -6,6 +6,7 @@ using Dapper;
 using Npgsql;
 
 using Testcontainers.PostgreSql;
+using Tests.Shared.Fixtures;
 
 #pragma warning disable CA2100 // SQL strings are safe - table name is a constant in test fixture
 
@@ -19,11 +20,10 @@ namespace Excalibur.Integration.Tests.Data.Snapshots;
 /// Uses postgres:16-alpine for fast container startup.
 /// Enables Npgsql legacy timestamp behavior to map TIMESTAMPTZ to DateTimeOffset.
 /// </remarks>
-public sealed class PostgresSnapshotStoreContainerFixture : IAsyncLifetime, IDisposable
+public sealed class PostgresSnapshotStoreContainerFixture : ContainerFixtureBase
 {
-	private readonly PostgreSqlContainer _container;
+	private PostgreSqlContainer? _container;
 	private bool _initialized;
-	private bool _disposed;
 
 	/// <summary>
 	/// Static constructor to configure Dapper and Npgsql.
@@ -49,7 +49,8 @@ public sealed class PostgresSnapshotStoreContainerFixture : IAsyncLifetime, IDis
 	/// <summary>
 	/// Gets the connection string for the Postgres container.
 	/// </summary>
-	public string ConnectionString => _container.GetConnectionString();
+	public string ConnectionString => _container?.GetConnectionString()
+		?? throw new InvalidOperationException("Container not initialized");
 
 	/// <summary>
 	/// Gets the schema name for snapshots.
@@ -61,10 +62,10 @@ public sealed class PostgresSnapshotStoreContainerFixture : IAsyncLifetime, IDis
 	/// </summary>
 	public string TableName { get; } = "snapshots";
 
-	/// <summary>
-	/// Initializes a new instance of the <see cref="PostgresSnapshotStoreContainerFixture"/> class.
-	/// </summary>
-	public PostgresSnapshotStoreContainerFixture()
+	protected override TimeSpan ContainerStartTimeout => TimeSpan.FromMinutes(4);
+
+	/// <inheritdoc/>
+	protected override async Task InitializeContainerAsync(CancellationToken cancellationToken)
 	{
 		_container = new PostgreSqlBuilder()
 			.WithImage("postgres:16-alpine")
@@ -74,12 +75,8 @@ public sealed class PostgresSnapshotStoreContainerFixture : IAsyncLifetime, IDis
 			.WithPassword("postgres_password")
 			.WithCleanUp(true)
 			.Build();
-	}
 
-	/// <inheritdoc/>
-	public async Task InitializeAsync()
-	{
-		await _container.StartAsync().ConfigureAwait(false);
+		await _container.StartAsync(cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -143,19 +140,11 @@ public sealed class PostgresSnapshotStoreContainerFixture : IAsyncLifetime, IDis
 	}
 
 	/// <inheritdoc/>
-	public void Dispose()
+	protected override async Task DisposeContainerAsync(CancellationToken cancellationToken)
 	{
-		if (_disposed)
+		if (_container is not null)
 		{
-			return;
+			await _container.DisposeAsync().ConfigureAwait(false);
 		}
-
-		_disposed = true;
-	}
-
-	/// <inheritdoc/>
-	public async Task DisposeAsync()
-	{
-		await _container.DisposeAsync().ConfigureAwait(false);
 	}
 }

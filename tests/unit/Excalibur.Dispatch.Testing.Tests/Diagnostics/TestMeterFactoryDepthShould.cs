@@ -88,7 +88,7 @@ public sealed class TestMeterFactoryDepthShould
 		using var listener = new MeterListener();
 		listener.InstrumentPublished = (instrument, meterListener) =>
 		{
-			if (instrument.Meter.Name == "FunctionalMeter")
+			if (ReferenceEquals(instrument.Meter, meter))
 			{
 				meterListener.EnableMeasurementEvents(instrument);
 			}
@@ -117,7 +117,7 @@ public sealed class TestMeterFactoryDepthShould
 		using var listener = new MeterListener();
 		listener.InstrumentPublished = (instrument, meterListener) =>
 		{
-			if (instrument.Meter.Name == "HistogramMeter")
+			if (ReferenceEquals(instrument.Meter, meter))
 			{
 				meterListener.EnableMeasurementEvents(instrument);
 			}

@@ -151,7 +151,7 @@ public abstract class TransportConnectionBase : IAsyncDisposable
 			return;
 		}
 
-		await DisposeAsyncCore().ConfigureAwait(false);
+		await DisposeCoreAsync().ConfigureAwait(false);
 
 		_disposed = true;
 		GC.SuppressFinalize(this);
@@ -161,5 +161,5 @@ public abstract class TransportConnectionBase : IAsyncDisposable
 	/// When overridden in a derived class, releases transport-specific resources.
 	/// </summary>
 	/// <returns>A task representing the asynchronous operation.</returns>
-	protected virtual ValueTask DisposeAsyncCore() => ValueTask.CompletedTask;
+	protected virtual ValueTask DisposeCoreAsync() => ValueTask.CompletedTask;
 }

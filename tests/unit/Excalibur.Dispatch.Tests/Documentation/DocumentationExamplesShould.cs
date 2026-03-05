@@ -59,8 +59,7 @@ public sealed class DocumentationExamplesShould
 		};
 		IMessageResult result2 = MessageResult.Failed(problemDetails);
 		_ = result2.ProblemDetails.ShouldNotBeNull();
-		// Note: Status is on concrete MessageProblemDetails, not IMessageProblemDetails interface
-		(result2.ProblemDetails as MessageProblemDetails)?.Status.ShouldBe(404);
+		result2.ProblemDetails?.Status.ShouldBe(404);
 
 		// Typed failure
 		IMessageResult<TestOrder> result3 = MessageResult.Failed<TestOrder>("Validation failed", problemDetails);

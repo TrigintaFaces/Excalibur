@@ -24,19 +24,51 @@ public sealed class MessageTypeMetadata
 		SimpleName = type.Name;
 		AssemblyQualifiedName = type.AssemblyQualifiedName ?? FullName;
 
-		// Pre-compute common interface checks using interface names This avoids dependencies on Messaging.Abstractions
+		// Pre-compute common interface checks in a single pass to avoid repeated interface scans.
 		var interfaces = type.GetInterfaces();
-		IsEvent = interfaces.Any(static i => string.Equals(i.Name, "IDispatchEvent", StringComparison.Ordinal));
-		IsCommand = interfaces.Any(static i => string.Equals(i.Name, "IDispatchAction", StringComparison.Ordinal));
-		IsDocument = interfaces.Any(static i => string.Equals(i.Name, "IDispatchDocument", StringComparison.Ordinal));
-		IsProjection = interfaces.Any(static i => string.Equals(i.Name, "IProjection", StringComparison.Ordinal));
+		var isEvent = false;
+		var isCommand = false;
+		var isDocument = false;
+		var isProjection = false;
+		var isIntegrationEvent = false;
+		for (var i = 0; i < interfaces.Length; i++)
+		{
+			switch (interfaces[i].Name)
+			{
+				case "IDispatchEvent":
+					isEvent = true;
+					break;
+				case "IDispatchAction":
+					isCommand = true;
+					break;
+				case "IDispatchDocument":
+					isDocument = true;
+					break;
+				case "IProjection":
+					isProjection = true;
+					break;
+				case "IIntegrationEvent":
+					isIntegrationEvent = true;
+					break;
+			}
+
+			if (isEvent && isCommand && isDocument && isProjection && isIntegrationEvent)
+			{
+				break;
+			}
+		}
+
+		IsEvent = isEvent;
+		IsCommand = isCommand;
+		IsDocument = isDocument;
+		IsProjection = isProjection;
 
 		// Cache routing hints
-		if (IsEvent && interfaces.Any(static i => string.Equals(i.Name, "IIntegrationEvent", StringComparison.Ordinal)))
+		if (isEvent && isIntegrationEvent)
 		{
 			RoutingHint = "remote";
 		}
-		else if (IsEvent || IsDocument || IsProjection)
+		else if (isEvent || isDocument || isProjection)
 		{
 			RoutingHint = "local";
 		}

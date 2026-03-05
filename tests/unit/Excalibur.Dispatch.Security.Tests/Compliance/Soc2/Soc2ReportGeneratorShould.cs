@@ -283,7 +283,8 @@ public sealed class Soc2ReportGeneratorShould
 
 		// Assert
 		result.GeneratedAt.ShouldBeGreaterThanOrEqualTo(beforeTime);
-		result.GeneratedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+		var assertionUpperBound1 = DateTimeOffset.UtcNow;
+		result.GeneratedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	[Fact]

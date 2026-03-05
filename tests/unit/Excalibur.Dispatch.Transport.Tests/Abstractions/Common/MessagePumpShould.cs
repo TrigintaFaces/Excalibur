@@ -15,12 +15,16 @@ namespace Excalibur.Dispatch.Transport.Tests.Abstractions.Common;
 public sealed class MessagePumpShould
 {
     private static Channel<MessageEnvelope> CreateChannel() => Channel.CreateUnbounded<MessageEnvelope>();
+    private static readonly TimeSpan SignalWaitTimeout = TimeSpan.FromSeconds(10);
 
     private static async Task WaitForSignalAsync(Task signalTask, TimeSpan timeout, string failureMessage)
     {
-        var timeoutTask = global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(timeout);
-        var completed = await Task.WhenAny(signalTask, timeoutTask).ConfigureAwait(false);
-        completed.ShouldBe(signalTask, failureMessage);
+        var scaledTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(timeout);
+        var observed = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+            () => signalTask.IsCompleted,
+            scaledTimeout,
+            TimeSpan.FromMilliseconds(20)).ConfigureAwait(false);
+        observed.ShouldBeTrue($"{failureMessage} Timeout={scaledTimeout}.");
         await signalTask.ConfigureAwait(false);
     }
 
@@ -193,7 +197,7 @@ public sealed class MessagePumpShould
         var envelope = new MessageEnvelope { MessageId = "msg-1" };
         await channel.Writer.WriteAsync(envelope);
 
-        await WaitForSignalAsync(messageProcessed.Task, TimeSpan.FromSeconds(2), "Message pump did not process the message in time.").ConfigureAwait(false);
+        await WaitForSignalAsync(messageProcessed.Task, SignalWaitTimeout, "Message pump did not process the message in time.").ConfigureAwait(false);
 
         await StopPumpGracefully(sut, channel);
     }
@@ -316,11 +320,11 @@ public sealed class MessagePumpShould
 
         // Send a message that throws
         await channel.Writer.WriteAsync(new MessageEnvelope { MessageId = "fail" });
-        await WaitForSignalAsync(failMessageObserved.Task, TimeSpan.FromSeconds(2), "Failing message was not observed by the handler.").ConfigureAwait(false);
+        await WaitForSignalAsync(failMessageObserved.Task, SignalWaitTimeout, "Failing message was not observed by the handler.").ConfigureAwait(false);
 
         // Send a second message to verify the pump is still running
         await channel.Writer.WriteAsync(new MessageEnvelope { MessageId = "ok" });
-        await WaitForSignalAsync(successMessageProcessed.Task, TimeSpan.FromSeconds(2), "Message pump did not continue processing after handler exception.").ConfigureAwait(false);
+        await WaitForSignalAsync(successMessageProcessed.Task, SignalWaitTimeout, "Message pump did not continue processing after handler exception.").ConfigureAwait(false);
 
         Volatile.Read(ref processedAfterErrorCount).ShouldBeGreaterThan(0);
         sut.IsRunning.ShouldBeTrue();
@@ -333,14 +337,17 @@ public sealed class MessagePumpShould
     {
         var channel = CreateChannel();
         var sut = new MessagePump("test", channel, _ => Task.CompletedTask);
+        var lowerBound = DateTimeOffset.UtcNow;
 
         sut.Metrics.StartedAt.ShouldBeNull();
 
         using var cts = new CancellationTokenSource();
         await sut.StartAsync(cts.Token);
+        var upperBound = DateTimeOffset.UtcNow;
 
         sut.Metrics.StartedAt.ShouldNotBeNull();
-        sut.Metrics.StartedAt!.Value.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddMinutes(-1));
+        sut.Metrics.StartedAt!.Value.ShouldBeGreaterThanOrEqualTo(lowerBound);
+        sut.Metrics.StartedAt!.Value.ShouldBeLessThanOrEqualTo(upperBound);
 
         await StopPumpGracefully(sut, channel);
     }

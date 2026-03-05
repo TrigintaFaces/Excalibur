@@ -1,5 +1,7 @@
 using Excalibur.Dispatch.CloudNative;
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Resilience;
+using Excalibur.Dispatch.Middleware.Versioning;
 
 using ConfigValidationSeverity = Excalibur.Dispatch.Configuration.ValidationSeverity;
 using Excalibur.Dispatch.Configuration;

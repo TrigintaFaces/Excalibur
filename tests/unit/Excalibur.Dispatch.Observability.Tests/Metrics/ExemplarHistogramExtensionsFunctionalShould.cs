@@ -16,17 +16,19 @@ namespace Excalibur.Dispatch.Observability.Tests.Metrics;
 [Trait("Feature", "Metrics")]
 public sealed class ExemplarHistogramExtensionsFunctionalShould : IDisposable
 {
+	private readonly string _meterName;
 	private readonly Meter _meter;
 	private readonly MeterListener _listener;
 	private readonly List<(string Name, object Value, KeyValuePair<string, object?>[] Tags)> _measurements = [];
 
 	public ExemplarHistogramExtensionsFunctionalShould()
 	{
-		_meter = new Meter("Test.Exemplar");
+		_meterName = $"Test.Exemplar.{Guid.NewGuid():N}";
+		_meter = new Meter(_meterName);
 		_listener = new MeterListener();
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == "Test.Exemplar")
+			if (ReferenceEquals(instrument.Meter, _meter))
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}
@@ -63,7 +65,8 @@ public sealed class ExemplarHistogramExtensionsFunctionalShould : IDisposable
 	[Fact]
 	public void RecordDouble_WithExemplarTags_WhenActivityPresent()
 	{
-		var histogram = _meter.CreateHistogram<double>("test.double.exemplar");
+		var metricName = $"test.double.exemplar.{Guid.NewGuid():N}";
+		var histogram = _meter.CreateHistogram<double>(metricName);
 
 		using var activitySource = new ActivitySource("Test.Exemplar.Source");
 		using var activityListener = new ActivityListener
@@ -79,7 +82,7 @@ public sealed class ExemplarHistogramExtensionsFunctionalShould : IDisposable
 		var tags = new TagList { { "custom", "value" } };
 		histogram.RecordWithExemplar(42.5, tags);
 
-		var recorded = _measurements.FirstOrDefault(m => m.Name == "test.double.exemplar");
+		var recorded = _measurements.FirstOrDefault(m => m.Name == metricName);
 		recorded.Name.ShouldNotBeNull();
 		((double)recorded.Value).ShouldBe(42.5);
 
@@ -92,7 +95,8 @@ public sealed class ExemplarHistogramExtensionsFunctionalShould : IDisposable
 	[Fact]
 	public void RecordDouble_WithoutExemplarTags_WhenNoActivity()
 	{
-		var histogram = _meter.CreateHistogram<double>("test.double.no-activity");
+		var metricName = $"test.double.no-activity.{Guid.NewGuid():N}";
+		var histogram = _meter.CreateHistogram<double>(metricName);
 
 		// Ensure no current activity
 		Activity.Current = null;
@@ -100,7 +104,7 @@ public sealed class ExemplarHistogramExtensionsFunctionalShould : IDisposable
 		var tags = new TagList { { "operation", "test" } };
 		histogram.RecordWithExemplar(10.0, tags);
 
-		var recorded = _measurements.FirstOrDefault(m => m.Name == "test.double.no-activity");
+		var recorded = _measurements.FirstOrDefault(m => m.Name == metricName);
 		recorded.Name.ShouldNotBeNull();
 
 		// Should NOT contain trace_id/span_id
@@ -111,13 +115,14 @@ public sealed class ExemplarHistogramExtensionsFunctionalShould : IDisposable
 	[Fact]
 	public void RecordDouble_WithMessageType()
 	{
-		var histogram = _meter.CreateHistogram<double>("test.double.message-type");
+		var metricName = $"test.double.message-type.{Guid.NewGuid():N}";
+		var histogram = _meter.CreateHistogram<double>(metricName);
 
 		Activity.Current = null;
 
 		histogram.RecordWithExemplar(100.0, "OrderCreated", true);
 
-		var recorded = _measurements.FirstOrDefault(m => m.Name == "test.double.message-type");
+		var recorded = _measurements.FirstOrDefault(m => m.Name == metricName);
 		recorded.Name.ShouldNotBeNull();
 		((double)recorded.Value).ShouldBe(100.0);
 		recorded.Tags.ShouldContain(t => t.Key == "message_type" && (string)t.Value! == "OrderCreated");
@@ -127,7 +132,8 @@ public sealed class ExemplarHistogramExtensionsFunctionalShould : IDisposable
 	[Fact]
 	public void RecordDouble_WithActivityContext()
 	{
-		var histogram = _meter.CreateHistogram<double>("test.double.activity-context");
+		var metricName = $"test.double.activity-context.{Guid.NewGuid():N}";
+		var histogram = _meter.CreateHistogram<double>(metricName);
 		var traceId = ActivityTraceId.CreateRandom();
 		var spanId = ActivitySpanId.CreateRandom();
 		var activityContext = new ActivityContext(traceId, spanId, ActivityTraceFlags.Recorded);
@@ -135,7 +141,7 @@ public sealed class ExemplarHistogramExtensionsFunctionalShould : IDisposable
 		var tags = new TagList();
 		histogram.RecordWithExemplar(25.0, activityContext, tags);
 
-		var recorded = _measurements.FirstOrDefault(m => m.Name == "test.double.activity-context");
+		var recorded = _measurements.FirstOrDefault(m => m.Name == metricName);
 		recorded.Name.ShouldNotBeNull();
 		recorded.Tags.ShouldContain(t => t.Key == "trace_id" && (string)t.Value! == traceId.ToString());
 		recorded.Tags.ShouldContain(t => t.Key == "span_id" && (string)t.Value! == spanId.ToString());
@@ -144,12 +150,13 @@ public sealed class ExemplarHistogramExtensionsFunctionalShould : IDisposable
 	[Fact]
 	public void RecordDouble_WithDefaultActivityContext_NoExemplarTags()
 	{
-		var histogram = _meter.CreateHistogram<double>("test.double.default-context");
+		var metricName = $"test.double.default-context.{Guid.NewGuid():N}";
+		var histogram = _meter.CreateHistogram<double>(metricName);
 
 		var tags = new TagList();
 		histogram.RecordWithExemplar(50.0, default, tags);
 
-		var recorded = _measurements.FirstOrDefault(m => m.Name == "test.double.default-context");
+		var recorded = _measurements.FirstOrDefault(m => m.Name == metricName);
 		recorded.Name.ShouldNotBeNull();
 		recorded.Tags.ShouldNotContain(t => t.Key == "trace_id");
 	}
@@ -157,7 +164,8 @@ public sealed class ExemplarHistogramExtensionsFunctionalShould : IDisposable
 	[Fact]
 	public void RecordLong_WithExemplarTags_WhenActivityPresent()
 	{
-		var histogram = _meter.CreateHistogram<long>("test.long.exemplar");
+		var metricName = $"test.long.exemplar.{Guid.NewGuid():N}";
+		var histogram = _meter.CreateHistogram<long>(metricName);
 
 		using var activitySource = new ActivitySource("Test.Exemplar.Source.Long");
 		using var activityListener = new ActivityListener
@@ -173,7 +181,7 @@ public sealed class ExemplarHistogramExtensionsFunctionalShould : IDisposable
 		var tags = new TagList { { "type", "long" } };
 		histogram.RecordWithExemplar(100L, tags);
 
-		var recorded = _measurements.FirstOrDefault(m => m.Name == "test.long.exemplar");
+		var recorded = _measurements.FirstOrDefault(m => m.Name == metricName);
 		recorded.Name.ShouldNotBeNull();
 		((long)recorded.Value).ShouldBe(100L);
 		recorded.Tags.ShouldContain(t => t.Key == "trace_id");

@@ -282,7 +282,7 @@ public sealed partial class KafkaCloudEventAdapter : IKafkaCloudEventAdapter
 		{
 			string text => text,
 			byte[] binary => Convert.ToBase64String(binary),
-			ReadOnlyMemory<byte> memory => Convert.ToBase64String(memory.ToArray()),
+			ReadOnlyMemory<byte> memory => Convert.ToBase64String(memory.Span),
 			JsonElement element => element.GetRawText(),
 			_ => JsonSerializer.Serialize(cloudEvent.Data),
 		};

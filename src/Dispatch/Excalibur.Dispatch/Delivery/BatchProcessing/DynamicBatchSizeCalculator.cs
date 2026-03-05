@@ -25,6 +25,8 @@ public sealed class DynamicBatchSizeCalculator
 	private readonly Queue<ThroughputMeasurement> _measurements;
 	private int _currentBatchSize;
 	private double _lastThroughput;
+	private double _throughputTotal;
+	private double _successRateTotal;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DynamicBatchSizeCalculator" /> class.
@@ -79,23 +81,27 @@ public sealed class DynamicBatchSizeCalculator
 		lock (_lock)
 		{
 			// Add new measurement
-			_measurements.Enqueue(new ThroughputMeasurement
-			{
-				BatchSize = _currentBatchSize,
-				Throughput = throughput,
-				SuccessRate = successRate,
-				Timestamp = DateTimeOffset.UtcNow,
-			});
+			_measurements.Enqueue(new ThroughputMeasurement(throughput, successRate));
+			_throughputTotal += throughput;
+			_successRateTotal += successRate;
 
 			// Remove old measurements
 			while (_measurements.Count > MeasurementWindowSize)
 			{
-				_ = _measurements.Dequeue();
+				var removed = _measurements.Dequeue();
+				_throughputTotal -= removed.Throughput;
+				_successRateTotal -= removed.SuccessRate;
+			}
+
+			var measurementCount = _measurements.Count;
+			if (measurementCount == 0)
+			{
+				return;
 			}
 
 			// Calculate average throughput and success rate
-			var avgThroughput = _measurements.Average(static m => m.Throughput);
-			var avgSuccessRate = _measurements.Average(static m => m.SuccessRate);
+			var avgThroughput = _throughputTotal / measurementCount;
+			var avgSuccessRate = _successRateTotal / measurementCount;
 
 			// Adjust batch size based on performance
 			AdjustBatchSize(avgThroughput, avgSuccessRate);
@@ -136,14 +142,5 @@ public sealed class DynamicBatchSizeCalculator
 		_lastThroughput = avgThroughput;
 	}
 
-	private sealed class ThroughputMeasurement
-	{
-		public int BatchSize { get; init; }
-
-		public double Throughput { get; init; }
-
-		public double SuccessRate { get; init; }
-
-		public DateTimeOffset Timestamp { get; init; }
-	}
+	private readonly record struct ThroughputMeasurement(double Throughput, double SuccessRate);
 }

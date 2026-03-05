@@ -147,7 +147,8 @@ public sealed class GrpcTransportReceiverDepthShould : IAsyncDisposable
 
 		// Assert — EnqueuedAt should be approximately now
 		result.EnqueuedAt.ShouldBeGreaterThanOrEqualTo(before);
-		result.EnqueuedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow.AddSeconds(1));
+		var assertionUpperBound1 = DateTimeOffset.UtcNow.AddSeconds(1);
+		result.EnqueuedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	[Fact]

@@ -1,10 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+#pragma warning disable CA2012 // Use ValueTasks correctly - test assertions call HandleAsync inside lambdas
+
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Delivery.Handlers;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Tests.TestFakes;
 
@@ -59,27 +62,27 @@ public sealed class FinalDispatchHandlerShould
 	}
 
 	[Fact]
-	public async Task ThrowArgumentNullException_WhenMessageIsNull()
+	public void ThrowArgumentNullException_WhenMessageIsNull()
 	{
 		// Arrange
 		var handler = CreateHandler();
 		var context = new FakeMessageContext();
 
-		// Act & Assert
-		_ = await Should.ThrowAsync<ArgumentNullException>(
-			handler.HandleAsync(null!, context, CancellationToken.None).AsTask());
+		// Act & Assert — HandleAsync is non-async so ThrowIfNull throws synchronously
+		_ = Should.Throw<ArgumentNullException>(
+			() => handler.HandleAsync(null!, context, CancellationToken.None));
 	}
 
 	[Fact]
-	public async Task ThrowArgumentNullException_WhenContextIsNull()
+	public void ThrowArgumentNullException_WhenContextIsNull()
 	{
 		// Arrange
 		var handler = CreateHandler();
 		var message = new FakeDispatchMessage();
 
-		// Act & Assert
-		_ = await Should.ThrowAsync<ArgumentNullException>(
-			handler.HandleAsync(message, null!, CancellationToken.None).AsTask());
+		// Act & Assert — HandleAsync is non-async so ThrowIfNull throws synchronously
+		_ = Should.Throw<ArgumentNullException>(
+			() => handler.HandleAsync(message, null!, CancellationToken.None));
 	}
 
 	#endregion
@@ -319,6 +322,205 @@ public sealed class FinalDispatchHandlerShould
 		// Assert - Bus should not be called due to cache hit
 		A.CallTo(() => bus.PublishAsync(A<IDispatchAction>._, A<IMessageContext>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
+	}
+
+	[Fact]
+	public async Task Preserve_Metadata_WhenCreatingTypedActionResult_From_MessageContext_FastPath()
+	{
+		// Arrange
+		var handler = CreateHandler();
+		var message = new FakeDispatchActionWithResponse();
+		var context = new MessageContext
+		{
+			RoutingDecision = RoutingDecision.Success("TestBus", ["TestBus"]),
+		};
+		var validation = new object();
+		var authorization = new object();
+		context.ValidationResult(validation);
+		context.AuthorizationResult(authorization);
+		var bus = A.Fake<IMessageBus>();
+		_ = A.CallTo(() => bus.PublishAsync(A<IDispatchAction>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Invokes((IDispatchAction _, IMessageContext publishContext, CancellationToken _) => publishContext.Result = 123)
+			.Returns(Task.CompletedTask);
+
+		IMessageBus? outBus = bus;
+		_ = A.CallTo(() => _busProvider.TryGet("TestBus", out outBus))
+			.Returns(true)
+			.AssignsOutAndRefParameters(bus);
+
+		// Act
+		var result = await handler.HandleAsync(message, context, CancellationToken.None);
+
+		// Assert
+		result.Succeeded.ShouldBeTrue();
+		result.ValidationResult.ShouldBeSameAs(validation);
+		result.AuthorizationResult.ShouldBeSameAs(authorization);
+		result.ShouldBeAssignableTo<IMessageResult<int>>().ReturnValue.ShouldBe(123);
+	}
+
+	[Fact]
+	public async Task Preserve_Metadata_WhenCreatingTypedActionResult_From_NonMessageContext_Fallback()
+	{
+		// Arrange
+		var handler = CreateHandler();
+		var message = new FakeDispatchActionWithResponse();
+		var context = CreateContextWithRouting("TestBus");
+		var validation = new object();
+		var authorization = new object();
+		context.ValidationResult(validation);
+		context.AuthorizationResult(authorization);
+		var bus = A.Fake<IMessageBus>();
+		_ = A.CallTo(() => bus.PublishAsync(A<IDispatchAction>._, A<IMessageContext>._, A<CancellationToken>._))
+			.Invokes((IDispatchAction _, IMessageContext publishContext, CancellationToken _) => publishContext.Result = 123)
+			.Returns(Task.CompletedTask);
+
+		IMessageBus? outBus = bus;
+		_ = A.CallTo(() => _busProvider.TryGet("TestBus", out outBus))
+			.Returns(true)
+			.AssignsOutAndRefParameters(bus);
+
+		// Act
+		var result = await handler.HandleAsync(message, context, CancellationToken.None);
+
+		// Assert
+		result.Succeeded.ShouldBeTrue();
+		result.ValidationResult.ShouldBeSameAs(validation);
+		result.AuthorizationResult.ShouldBeSameAs(authorization);
+		result.ShouldBeAssignableTo<IMessageResult<int>>().ReturnValue.ShouldBe(123);
+	}
+
+	#endregion
+
+	#region Local Fast Path Branch Tests
+
+	[Fact]
+	public async Task SendDocument_UseLocalBusFastPath_WhenNoRoutingDecisionProvided()
+	{
+		// Arrange — exercises the document local fast path (HandleLocalDocumentFastPathAsync)
+		var handler = CreateHandler();
+		var message = new FakeDispatchDocument();
+		var context = new FakeMessageContext { RoutingDecision = null };
+		var bus = A.Fake<IMessageBus>();
+
+		IMessageBus? outBus = bus;
+		_ = A.CallTo(() => _busProvider.TryGet("local", out outBus))
+			.Returns(true)
+			.AssignsOutAndRefParameters(bus);
+
+		// Act
+		var result = await handler.HandleAsync(message, context, CancellationToken.None);
+
+		// Assert
+		result.Succeeded.ShouldBeTrue();
+		_ = A.CallTo(() => bus.PublishAsync(A<IDispatchDocument>._, context, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task SendEvent_UseLocalBusFastPath_WhenNoRoutingDecisionProvided()
+	{
+		// Arrange — exercises the event local fast path (HandleLocalEventFastPathAsync)
+		var handler = CreateHandler();
+		var message = new FakeIntegrationEvent();
+		var context = new FakeMessageContext { RoutingDecision = null };
+		var bus = A.Fake<IMessageBus>();
+
+		IMessageBus? outBus = bus;
+		_ = A.CallTo(() => _busProvider.TryGet("local", out outBus))
+			.Returns(true)
+			.AssignsOutAndRefParameters(bus);
+
+		// Act
+		var result = await handler.HandleAsync(message, context, CancellationToken.None);
+
+		// Assert
+		result.Succeeded.ShouldBeTrue();
+		_ = A.CallTo(() => bus.PublishAsync(A<IIntegrationEvent>._, context, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task SendAction_UseLocalBusFastPath_WhenRoutingHasEmptyEndpoints()
+	{
+		// Arrange — exercises the action local fast path with empty endpoints list
+		var handler = CreateHandler();
+		var message = new FakeDispatchAction();
+		var routingDecision = RoutingDecision.Success("local", []);
+		var context = new FakeMessageContext
+		{
+			MessageId = Guid.NewGuid().ToString(),
+			RoutingDecision = routingDecision,
+		};
+		var bus = A.Fake<IMessageBus>();
+
+		IMessageBus? outBus = bus;
+		_ = A.CallTo(() => _busProvider.TryGet("local", out outBus))
+			.Returns(true)
+			.AssignsOutAndRefParameters(bus);
+
+		// Act
+		var result = await handler.HandleAsync(message, context, CancellationToken.None);
+
+		// Assert
+		result.Succeeded.ShouldBeTrue();
+		_ = A.CallTo(() => bus.PublishAsync(A<IDispatchAction>._, context, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task SendEvent_UseLocalBusFastPath_WhenRoutingHasEmptyEndpoints()
+	{
+		// Arrange — exercises the event local fast path with empty endpoints list
+		var handler = CreateHandler();
+		var message = new FakeIntegrationEvent();
+		var routingDecision = RoutingDecision.Success("local", []);
+		var context = new FakeMessageContext
+		{
+			MessageId = Guid.NewGuid().ToString(),
+			RoutingDecision = routingDecision,
+		};
+		var bus = A.Fake<IMessageBus>();
+
+		IMessageBus? outBus = bus;
+		_ = A.CallTo(() => _busProvider.TryGet("local", out outBus))
+			.Returns(true)
+			.AssignsOutAndRefParameters(bus);
+
+		// Act
+		var result = await handler.HandleAsync(message, context, CancellationToken.None);
+
+		// Assert
+		result.Succeeded.ShouldBeTrue();
+		_ = A.CallTo(() => bus.PublishAsync(A<IIntegrationEvent>._, context, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
+	}
+
+	[Fact]
+	public async Task SendDocument_UseLocalBusFastPath_WhenRoutingHasEmptyEndpoints()
+	{
+		// Arrange — exercises the document local fast path with empty endpoints list
+		var handler = CreateHandler();
+		var message = new FakeDispatchDocument();
+		var routingDecision = RoutingDecision.Success("local", []);
+		var context = new FakeMessageContext
+		{
+			MessageId = Guid.NewGuid().ToString(),
+			RoutingDecision = routingDecision,
+		};
+		var bus = A.Fake<IMessageBus>();
+
+		IMessageBus? outBus = bus;
+		_ = A.CallTo(() => _busProvider.TryGet("local", out outBus))
+			.Returns(true)
+			.AssignsOutAndRefParameters(bus);
+
+		// Act
+		var result = await handler.HandleAsync(message, context, CancellationToken.None);
+
+		// Assert
+		result.Succeeded.ShouldBeTrue();
+		_ = A.CallTo(() => bus.PublishAsync(A<IDispatchDocument>._, context, A<CancellationToken>._))
+			.MustHaveHappenedOnceExactly();
 	}
 
 	#endregion
@@ -570,6 +772,18 @@ public sealed class FinalDispatchHandlerShould
 		public IReadOnlyDictionary<string, object> Headers { get; } = new Dictionary<string, object>();
 		public object Body => this;
 		public string MessageType => GetType().FullName ?? "FakeDispatchAction";
+		public IMessageFeatures Features { get; } = new DefaultMessageFeatures();
+	}
+
+	private sealed class FakeDispatchActionWithResponse : IDispatchAction<int>
+	{
+		public Guid Id { get; } = Guid.NewGuid();
+		public string MessageId { get; } = Guid.NewGuid().ToString();
+		public DateTimeOffset Timestamp { get; } = DateTimeOffset.UtcNow;
+		public MessageKinds Kind { get; } = MessageKinds.Action;
+		public IReadOnlyDictionary<string, object> Headers { get; } = new Dictionary<string, object>();
+		public object Body => this;
+		public string MessageType => GetType().FullName ?? "FakeDispatchActionWithResponse";
 		public IMessageFeatures Features { get; } = new DefaultMessageFeatures();
 	}
 

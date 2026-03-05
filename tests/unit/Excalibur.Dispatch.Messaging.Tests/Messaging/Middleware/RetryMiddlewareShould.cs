@@ -4,6 +4,7 @@
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Resilience;
 using Excalibur.Dispatch.Resilience;
 using Excalibur.Dispatch.Options.Resilience;
 using Excalibur.Dispatch.Tests.TestFakes;
@@ -118,20 +119,20 @@ public sealed class RetryMiddlewareShould
 		var middleware = CreateMiddleware(options);
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext();
-		var stopwatch = Stopwatch.StartNew();
+		var attemptCount = 0;
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 		{
+			attemptCount++;
 			return new ValueTask<IMessageResult>(MessageResult.Success());
 		}
 
 		// Act
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
-		stopwatch.Stop();
 
 		// Assert
 		result.IsSuccess.ShouldBeTrue();
-		stopwatch.ElapsedMilliseconds.ShouldBeLessThan(1000);
+		attemptCount.ShouldBe(1);
 	}
 
 	[Fact]
@@ -471,15 +472,15 @@ public sealed class RetryMiddlewareShould
 		var options = new RetryOptions
 		{
 			MaxAttempts = 3,
-			BaseDelay = TimeSpan.FromMilliseconds(100),
+			BaseDelay = TimeSpan.FromSeconds(30),
 			MaxDelay = TimeSpan.FromMilliseconds(50),
 			BackoffStrategy = BackoffStrategy.Exponential,
 		};
 		var middleware = CreateMiddleware(options);
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext();
-		var stopwatch = Stopwatch.StartNew();
 		var attemptCount = 0;
+		using var cancellationSource = new CancellationTokenSource(TimeSpan.FromSeconds(15));
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 		{
@@ -492,14 +493,12 @@ public sealed class RetryMiddlewareShould
 		}
 
 		// Act
-		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
-		stopwatch.Stop();
+		var result = await middleware.InvokeAsync(message, context, NextDelegate, cancellationSource.Token).ConfigureAwait(false);
 
-		// Assert - delays should be capped at 50ms each, so max ~100ms for 2 delays
-		// CI-friendly: Relaxed from 500ms to 2500ms (5x) to account for CI environment variance
-		// Thread scheduling and timer resolution can vary significantly in virtualized CI environments
+		// Assert - with 30s exponential base delay and 15s cancellation, the call only completes
+		// if per-attempt delay is properly capped to MaxDelay.
 		result.IsSuccess.ShouldBeTrue();
-		stopwatch.ElapsedMilliseconds.ShouldBeLessThan(2500);
+		attemptCount.ShouldBe(3);
 	}
 
 	#endregion Max Delay Capping Tests

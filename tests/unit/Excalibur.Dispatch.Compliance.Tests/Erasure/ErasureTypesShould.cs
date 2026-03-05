@@ -9,6 +9,8 @@ public sealed class ErasureRequestShould
 	[Fact]
 	public void Have_expected_defaults()
 	{
+		var lowerBound = DateTimeOffset.UtcNow;
+
 		var request = new ErasureRequest
 		{
 			DataSubjectId = "user-1",
@@ -16,6 +18,7 @@ public sealed class ErasureRequestShould
 			LegalBasis = ErasureLegalBasis.ConsentWithdrawal,
 			RequestedBy = "admin"
 		};
+		var upperBound = DateTimeOffset.UtcNow;
 
 		request.RequestId.ShouldNotBe(Guid.Empty);
 		request.Scope.ShouldBe(ErasureScope.User);
@@ -24,7 +27,8 @@ public sealed class ErasureRequestShould
 		request.GracePeriodOverride.ShouldBeNull();
 		request.DataCategories.ShouldBeNull();
 		request.Metadata.ShouldBeNull();
-		request.RequestedAt.ShouldBeGreaterThan(DateTimeOffset.UtcNow.AddSeconds(-5));
+		request.RequestedAt.ShouldBeGreaterThanOrEqualTo(lowerBound);
+		request.RequestedAt.ShouldBeLessThanOrEqualTo(upperBound);
 	}
 
 	[Fact]

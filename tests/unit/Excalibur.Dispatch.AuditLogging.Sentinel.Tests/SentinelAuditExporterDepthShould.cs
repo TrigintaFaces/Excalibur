@@ -155,7 +155,8 @@ public sealed class SentinelAuditExporterDepthShould : IDisposable
 
 		// Assert
 		result.ExportedAt.ShouldBeGreaterThanOrEqualTo(before);
-		result.ExportedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow.AddSeconds(1));
+		var assertionUpperBound1 = DateTimeOffset.UtcNow.AddSeconds(1);
+		result.ExportedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
 	}
 
 	[Fact]

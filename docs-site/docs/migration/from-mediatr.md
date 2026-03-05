@@ -784,29 +784,34 @@ builder.Services.AddDispatch(dispatch =>
 ## Performance Comparison
 
 Latest benchmark sources:
-- `BenchmarkDotNet.Artifacts.FullRefresh-20260219/results/Excalibur.Dispatch.Benchmarks.Comparative.MediatRComparisonBenchmarks-report-github.md` (February 19, 2026)
-- `BenchmarkDotNet.Artifacts.FullRefresh-20260219/results/Excalibur.Dispatch.Benchmarks.Comparative.RoutingFirstParityBenchmarks-report-github.md` (February 19, 2026)
+- `benchmarks/baselines/net10.0/dispatch-comparative-20260302/results/Excalibur.Dispatch.Benchmarks.Comparative.MediatRComparisonBenchmarks-report-github.md` (March 2, 2026)
+- `benchmarks/baselines/net10.0/dispatch-comparative-20260302/results/Excalibur.Dispatch.Benchmarks.Comparative.RoutingFirstParityBenchmarks-report-github.md` (March 2, 2026)
+
+Latest comparative validation run:
+- `pwsh eng/run-benchmark-matrix.ps1 -NoBuild -NoRestore -Classes MediatRComparisonBenchmarks,RoutingFirstParityBenchmarks,WolverineComparisonBenchmarks,MassTransitMediatorComparisonBenchmarks` (March 2, 2026)
+- `pwsh eng/run-benchmark-matrix.ps1 -NoBuild -NoRestore -Classes WolverineInProcessComparisonBenchmarks` (March 2, 2026)
+- Result: `5/5` classes passed, `93` rows, `0` failures (combined summaries: `benchmark-matrix-summary-20260302-114222.md` and `benchmark-matrix-summary-20260302-114611.md`)
 
 | Scenario | MediatR | Excalibur | Relative Result |
 |----------|---------|-------------------|-----------------|
-| Single command handler | 40.92 ns | 118.79 ns | MediatR ~2.9x faster |
-| Single command ultra-local API | 40.92 ns | 47.12 ns | MediatR ~1.2x faster |
-| Notification to 3 handlers | 96.10 ns | 154.47 ns | MediatR ~1.6x faster |
-| Query with return value | 49.29 ns | 126.63 ns | MediatR ~2.6x faster |
-| Query ultra-local API | 49.29 ns | 66.94 ns | MediatR ~1.4x faster |
-| 10 concurrent commands | 497.81 ns | 1,244.58 ns | MediatR ~2.5x faster |
-| 100 concurrent commands | 4,797.88 ns | 12,107.20 ns | MediatR ~2.5x faster |
+| Single command handler | 40.59 ns | 78.24 ns | MediatR ~1.9x faster |
+| Single command ultra-local API | 40.59 ns | 29.72 ns | **Dispatch ~1.4x faster** |
+| Notification to 3 handlers | 88.71 ns | 127.07 ns | MediatR ~1.4x faster |
+| Query with return value | 46.47 ns | 81.75 ns | MediatR ~1.8x faster |
+| Query ultra-local API | 46.47 ns | 49.35 ns | MediatR ~1.1x faster |
+| 10 concurrent commands | 497.09 ns | 921.98 ns | MediatR ~1.9x faster |
+| 100 concurrent commands | 4,987.21 ns | 8,282.24 ns | MediatR ~1.7x faster |
 
 Routing-first replacement path (Dispatch local + transport-ready branch selection):
 
 | Dispatch routing-first scenario | Mean |
 |---------------------------------|------|
-| Pre-routed local command | 106.0 ns |
-| Pre-routed local query | 141.3 ns |
-| Pre-routed remote event (AWS SQS) | 183.3 ns |
-| Pre-routed remote event (Azure Service Bus) | 191.8 ns |
-| Pre-routed remote event (Kafka) | 189.1 ns |
-| Pre-routed remote event (RabbitMQ) | 184.1 ns |
+| Pre-routed local command | 78.17 ns |
+| Pre-routed local query | 93.86 ns |
+| Pre-routed remote event (AWS SQS) | 157.17 ns |
+| Pre-routed remote event (Azure Service Bus) | 167.66 ns |
+| Pre-routed remote event (Kafka) | 163.22 ns |
+| Pre-routed remote event (RabbitMQ) | 159.09 ns |
 
 Dispatch supports both:
 

@@ -6,6 +6,8 @@ using BenchmarkDotNet.Attributes;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Delivery.Handlers;
+using Excalibur.Dispatch.Delivery.Pipeline;
 
 using MassTransit;
 
@@ -18,14 +20,21 @@ namespace Excalibur.Dispatch.Benchmarks.Comparative;
 /// <summary>
 /// In-process parity benchmarks: Dispatch local path vs MassTransit Mediator path.
 /// </summary>
+/// <remarks>
+/// Dispatch uses lean AddDispatch() (no cache/dedupe/outbox middleware) for fair
+/// comparison against MassTransit Mediator's in-process execution.
+/// Fresh context per iteration, warmup + freeze for production-representative numbers.
+/// </remarks>
 [MemoryDiagnoser]
 [Config(typeof(ComparativeBenchmarkConfig))]
 public class MassTransitMediatorComparisonBenchmarks
 {
+	// Excalibur infrastructure
 	private IServiceProvider? _dispatchServiceProvider;
 	private IDispatcher? _dispatcher;
-	private IMessageContext? _dispatchContext;
+	private IMessageContextFactory? _dispatchContextFactory;
 
+	// MassTransit Mediator infrastructure
 	private IServiceProvider? _mediatorServiceProvider;
 	private IServiceScope? _mediatorScope;
 	private MassTransit.Mediator.IScopedMediator? _mediator;
@@ -33,9 +42,10 @@ public class MassTransitMediatorComparisonBenchmarks
 	[GlobalSetup]
 	public void GlobalSetup()
 	{
+		// Setup Excalibur — lean default (no cache/dedupe/outbox)
 		var dispatchServices = new ServiceCollection();
 		_ = dispatchServices.AddLogging();
-		_ = dispatchServices.AddBenchmarkDispatch();
+		_ = dispatchServices.AddDispatch();
 		_ = dispatchServices.AddTransient<IActionHandler<MassTransitMediatorDispatchCommand>, MassTransitMediatorDispatchCommandHandler>();
 		_ = dispatchServices.AddTransient<IEventHandler<MassTransitMediatorDispatchEvent>, MassTransitMediatorDispatchEventHandler1>();
 		_ = dispatchServices.AddTransient<IEventHandler<MassTransitMediatorDispatchEvent>, MassTransitMediatorDispatchEventHandler2>();
@@ -43,9 +53,9 @@ public class MassTransitMediatorComparisonBenchmarks
 
 		_dispatchServiceProvider = dispatchServices.BuildServiceProvider();
 		_dispatcher = _dispatchServiceProvider.GetRequiredService<IDispatcher>();
-		var contextFactory = _dispatchServiceProvider.GetRequiredService<IMessageContextFactory>();
-		_dispatchContext = contextFactory.CreateContext();
+		_dispatchContextFactory = _dispatchServiceProvider.GetRequiredService<IMessageContextFactory>();
 
+		// Setup MassTransit Mediator
 		var mediatorServices = new ServiceCollection();
 		_ = mediatorServices.AddMediator(cfg =>
 		{
@@ -59,6 +69,9 @@ public class MassTransitMediatorComparisonBenchmarks
 		_mediatorServiceProvider = mediatorServices.BuildServiceProvider();
 		_mediatorScope = _mediatorServiceProvider.CreateScope();
 		_mediator = _mediatorScope.ServiceProvider.GetRequiredService<MassTransit.Mediator.IScopedMediator>();
+
+		// Warm and freeze Dispatch caches so benchmark reflects optimized production mode.
+		WarmupAndFreezeDispatchCaches();
 	}
 
 	[GlobalCleanup]
@@ -88,11 +101,15 @@ public class MassTransitMediatorComparisonBenchmarks
 		}
 	}
 
+	// ============================================================================
+	// Single Command
+	// ============================================================================
+
 	[Benchmark(Baseline = true, Description = "Dispatch (local): Single command")]
 	public async Task<IMessageResult> Dispatch_SingleCommand()
 	{
 		var command = new MassTransitMediatorDispatchCommand { Value = 42 };
-		return await _dispatcher.DispatchAsync(command, _dispatchContext, CancellationToken.None);
+		return await DispatchWithFreshContextAsync(command).ConfigureAwait(false);
 	}
 
 	[Benchmark(Description = "MassTransit Mediator (in-process): Single command")]
@@ -106,11 +123,15 @@ public class MassTransitMediatorComparisonBenchmarks
 		await _mediator.Publish(command, CancellationToken.None).ConfigureAwait(false);
 	}
 
+	// ============================================================================
+	// Notification / Event Fan-Out
+	// ============================================================================
+
 	[Benchmark(Description = "Dispatch (local): Notification to 2 handlers")]
 	public async Task<IMessageResult> Dispatch_NotificationTwoHandlers()
 	{
 		var evt = new MassTransitMediatorDispatchEvent { Message = "test" };
-		return await _dispatcher.DispatchAsync(evt, _dispatchContext, CancellationToken.None);
+		return await DispatchWithFreshContextAsync(evt).ConfigureAwait(false);
 	}
 
 	[Benchmark(Description = "MassTransit Mediator (in-process): Notification to 2 consumers")]
@@ -124,11 +145,15 @@ public class MassTransitMediatorComparisonBenchmarks
 		await _mediator.Publish(evt, CancellationToken.None).ConfigureAwait(false);
 	}
 
+	// ============================================================================
+	// Query with Return Value
+	// ============================================================================
+
 	[Benchmark(Description = "Dispatch (local): Query with return")]
 	public async Task<IMessageResult<int>> Dispatch_QueryWithReturn()
 	{
 		var query = new MassTransitMediatorDispatchQuery { Id = 123 };
-		return await _dispatcher.DispatchAsync<MassTransitMediatorDispatchQuery, int>(query, _dispatchContext, CancellationToken.None);
+		return await DispatchWithFreshContextTypedAsync<MassTransitMediatorDispatchQuery, int>(query).ConfigureAwait(false);
 	}
 
 	[Benchmark(Description = "MassTransit Mediator (in-process): Query with return")]
@@ -142,16 +167,18 @@ public class MassTransitMediatorComparisonBenchmarks
 		return response.Message.Value;
 	}
 
+	// ============================================================================
+	// Concurrent Commands
+	// ============================================================================
+
 	[Benchmark(Description = "Dispatch (local): 10 concurrent commands")]
 	public async Task Dispatch_ConcurrentCommands10()
 	{
-		var tasks = new List<Task<IMessageResult>>(10);
+		var tasks = new Task<IMessageResult>[10];
 		for (int i = 0; i < 10; i++)
 		{
-			tasks.Add(_dispatcher.DispatchAsync(
-				new MassTransitMediatorDispatchCommand { Value = i },
-				_dispatchContext,
-				CancellationToken.None));
+			tasks[i] = DispatchWithFreshContextAsync(
+				new MassTransitMediatorDispatchCommand { Value = i });
 		}
 
 		_ = await Task.WhenAll(tasks).ConfigureAwait(false);
@@ -174,13 +201,11 @@ public class MassTransitMediatorComparisonBenchmarks
 	[Benchmark(Description = "Dispatch (local): 100 concurrent commands")]
 	public async Task Dispatch_ConcurrentCommands100()
 	{
-		var tasks = new List<Task<IMessageResult>>(100);
+		var tasks = new Task<IMessageResult>[100];
 		for (int i = 0; i < 100; i++)
 		{
-			tasks.Add(_dispatcher.DispatchAsync(
-				new MassTransitMediatorDispatchCommand { Value = i },
-				_dispatchContext,
-				CancellationToken.None));
+			tasks[i] = DispatchWithFreshContextAsync(
+				new MassTransitMediatorDispatchCommand { Value = i });
 		}
 
 		_ = await Task.WhenAll(tasks).ConfigureAwait(false);
@@ -198,6 +223,84 @@ public class MassTransitMediatorComparisonBenchmarks
 		}
 
 		await Task.WhenAll(publishTasks).ConfigureAwait(false);
+	}
+
+	// ============================================================================
+	// Helper Methods
+	// ============================================================================
+
+	private void WarmupAndFreezeDispatchCaches()
+	{
+		_ = DispatchWithFreshContextAsync(new MassTransitMediatorDispatchCommand { Value = 1 })
+			.GetAwaiter().GetResult();
+		_ = DispatchWithFreshContextAsync(new MassTransitMediatorDispatchEvent { Message = "warmup" })
+			.GetAwaiter().GetResult();
+
+		HandlerInvoker.FreezeCache();
+		HandlerInvokerRegistry.FreezeCache();
+		HandlerActivator.FreezeCache();
+		FinalDispatchHandler.FreezeResultFactoryCache();
+		MiddlewareApplicabilityEvaluator.FreezeCache();
+	}
+
+	private async Task<IMessageResult> DispatchWithFreshContextAsync<TMessage>(TMessage message)
+		where TMessage : IDispatchMessage
+	{
+		ArgumentNullException.ThrowIfNull(_dispatcher);
+		ArgumentNullException.ThrowIfNull(_dispatchContextFactory);
+
+		var context = _dispatchContextFactory.CreateContext();
+		var dispatchTask = _dispatcher.DispatchAsync(message, context, CancellationToken.None);
+		if (dispatchTask.IsCompletedSuccessfully)
+		{
+			try
+			{
+				return dispatchTask.Result;
+			}
+			finally
+			{
+				_dispatchContextFactory.Return(context);
+			}
+		}
+
+		try
+		{
+			return await dispatchTask.ConfigureAwait(false);
+		}
+		finally
+		{
+			_dispatchContextFactory.Return(context);
+		}
+	}
+
+	private async Task<IMessageResult<TResponse>> DispatchWithFreshContextTypedAsync<TMessage, TResponse>(TMessage message)
+		where TMessage : IDispatchAction<TResponse>
+	{
+		ArgumentNullException.ThrowIfNull(_dispatcher);
+		ArgumentNullException.ThrowIfNull(_dispatchContextFactory);
+
+		var context = _dispatchContextFactory.CreateContext();
+		var dispatchTask = _dispatcher.DispatchAsync<TMessage, TResponse>(message, context, CancellationToken.None);
+		if (dispatchTask.IsCompletedSuccessfully)
+		{
+			try
+			{
+				return dispatchTask.Result;
+			}
+			finally
+			{
+				_dispatchContextFactory.Return(context);
+			}
+		}
+
+		try
+		{
+			return await dispatchTask.ConfigureAwait(false);
+		}
+		finally
+		{
+			_dispatchContextFactory.Return(context);
+		}
 	}
 }
 

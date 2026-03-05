@@ -380,7 +380,8 @@ public sealed class JwtAuthenticationMiddlewareFunctionalShould
         result.Succeeded.ShouldBeTrue();
         var authenticatedAt = context.Properties["AuthenticatedAt"].ShouldBeOfType<DateTimeOffset>();
         authenticatedAt.ShouldBeGreaterThanOrEqualTo(before);
-        authenticatedAt.ShouldBeLessThanOrEqualTo(DateTimeOffset.UtcNow);
+        var assertionUpperBound1 = DateTimeOffset.UtcNow;
+        authenticatedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
     }
 
     [Fact]

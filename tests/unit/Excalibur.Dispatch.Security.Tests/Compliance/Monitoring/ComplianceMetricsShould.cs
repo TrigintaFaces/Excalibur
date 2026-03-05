@@ -19,7 +19,7 @@ public sealed class ComplianceMetricsShould : IDisposable
 
 		_listener.InstrumentPublished = (instrument, listener) =>
 		{
-			if (instrument.Meter.Name == ComplianceMetrics.MeterName)
+			if (ReferenceEquals(instrument.Meter, _sut.Meter))
 			{
 				listener.EnableMeasurementEvents(instrument);
 			}

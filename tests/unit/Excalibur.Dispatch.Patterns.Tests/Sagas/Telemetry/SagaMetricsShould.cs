@@ -85,6 +85,20 @@ public sealed class SagaMetricsShould : IDisposable
 		}
 	}
 
+	private static string UniqueSagaType(string prefix) => $"{prefix}-{Guid.NewGuid():N}";
+
+	private static bool HasSagaTypeTag(KeyValuePair<string, object?>[] tags, string sagaType) =>
+		tags.Any(tag => tag.Key == "saga_type" && string.Equals(tag.Value as string, sagaType, StringComparison.Ordinal));
+
+	private List<(string Name, object Value, KeyValuePair<string, object?>[] Tags)> GetMeasurementsForSaga(string metricName, string sagaType)
+	{
+		var measurements = GetMeasurements(metricName)
+			.Where(m => HasSagaTypeTag(m.Tags, sagaType))
+			.ToList();
+		measurements.ShouldNotBeEmpty();
+		return measurements;
+	}
+
 	#region Meter Configuration Tests
 
 	[Fact]
@@ -108,61 +122,67 @@ public sealed class SagaMetricsShould : IDisposable
 	[Fact]
 	public void IncrementSagaStartedCounter()
 	{
+		var sagaType = UniqueSagaType("OrderSaga");
+
 		// Act
-		SagaMetrics.RecordSagaStarted("OrderSaga");
+		SagaMetrics.RecordSagaStarted(sagaType);
 
 		// Assert
-		var measurements = GetMeasurements("dispatch.saga.started_total").ToList();
-		measurements.ShouldNotBeEmpty();
-		measurements.Last().Value.ShouldBe(1L);
+		var measurements = GetMeasurementsForSaga("dispatch.saga.started_total", sagaType);
+		measurements.ShouldContain(m => (long)m.Value == 1L);
 	}
 
 	[Fact]
 	public void IncrementSagaCompletedCounter()
 	{
+		var sagaType = UniqueSagaType("OrderSaga");
+
 		// Act
-		SagaMetrics.RecordSagaCompleted("OrderSaga");
+		SagaMetrics.RecordSagaCompleted(sagaType);
 
 		// Assert
-		var measurements = GetMeasurements("dispatch.saga.completed_total").ToList();
-		measurements.ShouldNotBeEmpty();
-		measurements.Last().Value.ShouldBe(1L);
+		var measurements = GetMeasurementsForSaga("dispatch.saga.completed_total", sagaType);
+		measurements.ShouldContain(m => (long)m.Value == 1L);
 	}
 
 	[Fact]
 	public void IncrementSagaFailedCounter()
 	{
+		var sagaType = UniqueSagaType("PaymentSaga");
+
 		// Act
-		SagaMetrics.RecordSagaFailed("PaymentSaga");
+		SagaMetrics.RecordSagaFailed(sagaType);
 
 		// Assert
-		var measurements = GetMeasurements("dispatch.saga.failed_total").ToList();
-		measurements.ShouldNotBeEmpty();
-		measurements.Last().Value.ShouldBe(1L);
+		var measurements = GetMeasurementsForSaga("dispatch.saga.failed_total", sagaType);
+		measurements.ShouldContain(m => (long)m.Value == 1L);
 	}
 
 	[Fact]
 	public void IncrementSagaCompensatedCounter()
 	{
+		var sagaType = UniqueSagaType("ShippingSaga");
+
 		// Act
-		SagaMetrics.RecordSagaCompensated("ShippingSaga");
+		SagaMetrics.RecordSagaCompensated(sagaType);
 
 		// Assert
-		var measurements = GetMeasurements("dispatch.saga.compensated_total").ToList();
-		measurements.ShouldNotBeEmpty();
-		measurements.Last().Value.ShouldBe(1L);
+		var measurements = GetMeasurementsForSaga("dispatch.saga.compensated_total", sagaType);
+		measurements.ShouldContain(m => (long)m.Value == 1L);
 	}
 
 	[Fact]
 	public void AccumulateMultipleCounterIncrements()
 	{
+		var sagaType = UniqueSagaType("TestSaga");
+
 		// Act
-		SagaMetrics.RecordSagaStarted("TestSaga");
-		SagaMetrics.RecordSagaStarted("TestSaga");
-		SagaMetrics.RecordSagaStarted("TestSaga");
+		SagaMetrics.RecordSagaStarted(sagaType);
+		SagaMetrics.RecordSagaStarted(sagaType);
+		SagaMetrics.RecordSagaStarted(sagaType);
 
 		// Assert
-		var measurements = GetMeasurements("dispatch.saga.started_total").ToList();
+		var measurements = GetMeasurementsForSaga("dispatch.saga.started_total", sagaType);
 		measurements.Count.ShouldBe(3);
 		measurements.All(m => (long)m.Value == 1L).ShouldBeTrue();
 	}
@@ -174,37 +194,40 @@ public sealed class SagaMetricsShould : IDisposable
 	[Fact]
 	public void RecordSagaDuration()
 	{
+		var sagaType = UniqueSagaType("OrderSaga");
+
 		// Act
-		SagaMetrics.RecordSagaDuration("OrderSaga", 1234.5);
+		SagaMetrics.RecordSagaDuration(sagaType, 1234.5);
 
 		// Assert
-		var measurements = GetMeasurements("dispatch.saga.duration_ms").ToList();
-		measurements.ShouldNotBeEmpty();
-		measurements.Last().Value.ShouldBe(1234.5);
+		var measurements = GetMeasurementsForSaga("dispatch.saga.duration_ms", sagaType);
+		measurements.ShouldContain(m => (double)m.Value == 1234.5);
 	}
 
 	[Fact]
 	public void RecordHandlerDuration()
 	{
+		var sagaType = UniqueSagaType("OrderSaga");
+
 		// Act
-		SagaMetrics.RecordHandlerDuration("OrderSaga", 56.7);
+		SagaMetrics.RecordHandlerDuration(sagaType, 56.7);
 
 		// Assert
-		var measurements = GetMeasurements("dispatch.saga.handler_duration_ms").ToList();
-		measurements.ShouldNotBeEmpty();
-		measurements.Last().Value.ShouldBe(56.7);
+		var measurements = GetMeasurementsForSaga("dispatch.saga.handler_duration_ms", sagaType);
+		measurements.ShouldContain(m => (double)m.Value == 56.7);
 	}
 
 	[Fact]
 	public void RecordZeroDuration()
 	{
+		var sagaType = UniqueSagaType("FastSaga");
+
 		// Act
-		SagaMetrics.RecordSagaDuration("FastSaga", 0.0);
+		SagaMetrics.RecordSagaDuration(sagaType, 0.0);
 
 		// Assert
-		var measurements = GetMeasurements("dispatch.saga.duration_ms").ToList();
-		measurements.ShouldNotBeEmpty();
-		measurements.Last().Value.ShouldBe(0.0);
+		var measurements = GetMeasurementsForSaga("dispatch.saga.duration_ms", sagaType);
+		measurements.ShouldContain(m => (double)m.Value == 0.0);
 	}
 
 	#endregion Histogram Tests
@@ -287,79 +310,79 @@ public sealed class SagaMetricsShould : IDisposable
 	[Fact]
 	public void IncludeSagaTypeTagOnStartedCounter()
 	{
+		var sagaType = UniqueSagaType("OrderSaga");
+
 		// Act
-		SagaMetrics.RecordSagaStarted("OrderSaga");
+		SagaMetrics.RecordSagaStarted(sagaType);
 
 		// Assert
-		var measurements = GetMeasurements("dispatch.saga.started_total").ToList();
-		measurements.ShouldNotBeEmpty();
-		var tags = measurements.Last().Tags;
-		tags.ShouldContain(t => t.Key == "saga_type" && (string?)t.Value == "OrderSaga");
+		var measurements = GetMeasurementsForSaga("dispatch.saga.started_total", sagaType);
+		measurements.ShouldContain(m => HasSagaTypeTag(m.Tags, sagaType));
 	}
 
 	[Fact]
 	public void IncludeSagaTypeTagOnCompletedCounter()
 	{
+		var sagaType = UniqueSagaType("OrderSaga");
+
 		// Act
-		SagaMetrics.RecordSagaCompleted("OrderSaga");
+		SagaMetrics.RecordSagaCompleted(sagaType);
 
 		// Assert
-		var measurements = GetMeasurements("dispatch.saga.completed_total").ToList();
-		measurements.ShouldNotBeEmpty();
-		var tags = measurements.Last().Tags;
-		tags.ShouldContain(t => t.Key == "saga_type" && (string?)t.Value == "OrderSaga");
+		var measurements = GetMeasurementsForSaga("dispatch.saga.completed_total", sagaType);
+		measurements.ShouldContain(m => HasSagaTypeTag(m.Tags, sagaType));
 	}
 
 	[Fact]
 	public void IncludeSagaTypeTagOnFailedCounter()
 	{
+		var sagaType = UniqueSagaType("PaymentSaga");
+
 		// Act
-		SagaMetrics.RecordSagaFailed("PaymentSaga");
+		SagaMetrics.RecordSagaFailed(sagaType);
 
 		// Assert
-		var measurements = GetMeasurements("dispatch.saga.failed_total").ToList();
-		measurements.ShouldNotBeEmpty();
-		var tags = measurements.Last().Tags;
-		tags.ShouldContain(t => t.Key == "saga_type" && (string?)t.Value == "PaymentSaga");
+		var measurements = GetMeasurementsForSaga("dispatch.saga.failed_total", sagaType);
+		measurements.ShouldContain(m => HasSagaTypeTag(m.Tags, sagaType));
 	}
 
 	[Fact]
 	public void IncludeSagaTypeTagOnCompensatedCounter()
 	{
+		var sagaType = UniqueSagaType("ShippingSaga");
+
 		// Act
-		SagaMetrics.RecordSagaCompensated("ShippingSaga");
+		SagaMetrics.RecordSagaCompensated(sagaType);
 
 		// Assert
-		var measurements = GetMeasurements("dispatch.saga.compensated_total").ToList();
-		measurements.ShouldNotBeEmpty();
-		var tags = measurements.Last().Tags;
-		tags.ShouldContain(t => t.Key == "saga_type" && (string?)t.Value == "ShippingSaga");
+		var measurements = GetMeasurementsForSaga("dispatch.saga.compensated_total", sagaType);
+		measurements.ShouldContain(m => HasSagaTypeTag(m.Tags, sagaType));
 	}
 
 	[Fact]
 	public void IncludeSagaTypeTagOnDurationHistogram()
 	{
+		var sagaType = UniqueSagaType("OrderSaga");
+
 		// Act
-		SagaMetrics.RecordSagaDuration("OrderSaga", 100.0);
+		SagaMetrics.RecordSagaDuration(sagaType, 100.0);
 
 		// Assert
-		var measurements = GetMeasurements("dispatch.saga.duration_ms").ToList();
-		measurements.ShouldNotBeEmpty();
-		var tags = measurements.Last().Tags;
-		tags.ShouldContain(t => t.Key == "saga_type" && (string?)t.Value == "OrderSaga");
+		var measurements = GetMeasurementsForSaga("dispatch.saga.duration_ms", sagaType);
+		measurements.ShouldContain(m => HasSagaTypeTag(m.Tags, sagaType));
 	}
 
 	[Fact]
 	public void IncludeSagaTypeTagOnHandlerDurationHistogram()
 	{
+		var sagaType = UniqueSagaType("OrderSaga");
+
 		// Act
-		SagaMetrics.RecordHandlerDuration("OrderSaga", 50.0);
+		SagaMetrics.RecordHandlerDuration(sagaType, 50.0);
 
 		// Assert
-		var measurements = GetMeasurements("dispatch.saga.handler_duration_ms").ToList();
-		measurements.ShouldNotBeEmpty();
-		var tags = measurements.Last().Tags;
-		tags.ShouldContain(t => t.Key == "saga_type" && (string?)t.Value == "OrderSaga");
+		var measurements = GetMeasurementsForSaga("dispatch.saga.handler_duration_ms", sagaType);
+		measurements.ShouldContain(m => HasSagaTypeTag(m.Tags, sagaType));
 	}
 
 	#endregion Tag Verification Tests (AD-218-4)

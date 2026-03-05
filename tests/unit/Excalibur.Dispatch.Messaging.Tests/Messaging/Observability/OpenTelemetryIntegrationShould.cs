@@ -7,6 +7,7 @@ using System.Diagnostics.Metrics;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.BatchProcessing;
 using Excalibur.Dispatch.Middleware;
+using Excalibur.Dispatch.Middleware.Batch;
 using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Options.Performance;
 using Excalibur.Dispatch.Tests.TestFakes;
@@ -24,6 +25,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Observability;
 [Trait("Category", "Unit")]
 public sealed class OpenTelemetryIntegrationShould : IDisposable
 {
+	private static readonly TimeSpan ObservabilityWaitTimeout = TimeSpan.FromSeconds(10);
+
 	private readonly OpenTelemetryTestFixture _otelFixture;
 	private readonly ILogger<UnifiedBatchingMiddleware> _middlewareLogger;
 	private readonly ILogger<BatchProcessor<string>> _processorLogger;
@@ -45,18 +48,12 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 
 	private static async Task<bool> WaitForConditionAsync(Func<bool> condition, TimeSpan timeout)
 	{
-		var deadline = DateTime.UtcNow + timeout;
-		while (DateTime.UtcNow < deadline)
-		{
-			if (condition())
-			{
-				return true;
-			}
-
-			await Task.Yield();
-		}
-
-		return condition();
+		var scaledTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(timeout);
+		return await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+				condition,
+				scaledTimeout,
+				TimeSpan.FromMilliseconds(100))
+			.ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -228,7 +225,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		// Assert
 		processedBatches.Count.ShouldBe(1);
-		processedBatches.First().Count.ShouldBe(2);
+		processedBatches.ShouldContain(batch => batch.Count == 2);
 
 		// Verify metrics infrastructure captured the batch processing
 		var intMetrics = _otelFixture.GetRecordedIntMetrics();
@@ -501,7 +498,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 			batchProcessed.Task,
 
 			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
-		_ = await WaitForConditionAsync(() => !metricsCollected.IsEmpty, TimeSpan.FromSeconds(2));
+			_ = await WaitForConditionAsync(() => !metricsCollected.IsEmpty, ObservabilityWaitTimeout);
 
 		// Assert - verify batch processing completed and metrics infrastructure works
 		// Note: Metrics emission depends on the internal meter configuration
@@ -679,7 +676,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 			// Act
 			var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(true);
 
-			_ = await _otelFixture.WaitForActivitiesAsync(count: 1, timeout: TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+				_ = await _otelFixture.WaitForActivitiesAsync(count: 1, timeout: ObservabilityWaitTimeout).ConfigureAwait(false);
 
 			// Assert
 			_ = result.ShouldNotBeNull($"Result should not be null for scenario {scenario.Name}");
@@ -743,7 +740,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		var processingEnd = DateTime.UtcNow;
 
-		_ = await WaitForConditionAsync(() => !performanceMetrics.IsEmpty, TimeSpan.FromSeconds(2));
+			_ = await WaitForConditionAsync(() => !performanceMetrics.IsEmpty, ObservabilityWaitTimeout);
 
 		// Assert
 		var processingDuration = (processingEnd - processingStart).TotalMilliseconds;
@@ -807,7 +804,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		// Act
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(true);
 
-		_ = await WaitForConditionAsync(() => !logEntries.IsEmpty, TimeSpan.FromSeconds(2));
+			_ = await WaitForConditionAsync(() => !logEntries.IsEmpty, ObservabilityWaitTimeout);
 
 		// Assert
 		result.IsSuccess.ShouldBeTrue();
@@ -891,7 +888,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 			activities = await _otelFixture.WaitForActivitiesAsync(
 				count: 1,
 				predicate: a => a.Source.Name.StartsWith("Excalibur.Dispatch.", StringComparison.Ordinal),
-				timeout: TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+					timeout: ObservabilityWaitTimeout).ConfigureAwait(false);
 		}
 		catch (TimeoutException)
 		{
@@ -1043,20 +1040,22 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		await processor.AddAsync("batch1-item1", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("batch1-item2", CancellationToken.None).ConfigureAwait(false); // Batch 1 (size trigger)
 
-		(await WaitForConditionAsync(() => Volatile.Read(ref batchesProcessed) >= 1, TimeSpan.FromSeconds(5)))
+		(await WaitForConditionAsync(() => Volatile.Read(ref batchesProcessed) >= 1, TimeSpan.FromSeconds(15)))
 			.ShouldBeTrue("first batch should be processed");
 
 		await processor.AddAsync("batch2-item1", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("batch2-item2", CancellationToken.None).ConfigureAwait(false); // Batch 2 (size trigger)
 
-		(await WaitForConditionAsync(() => Volatile.Read(ref batchesProcessed) >= 2, TimeSpan.FromSeconds(5)))
+		(await WaitForConditionAsync(() => Volatile.Read(ref batchesProcessed) >= 2, TimeSpan.FromSeconds(15)))
 			.ShouldBeTrue("second batch should be processed");
 
-		await processor.AddAsync("batch3-item1", CancellationToken.None).ConfigureAwait(false);
-		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-			allBatchesCompleted.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
-		_ = await WaitForConditionAsync(() => !batchMetrics.IsEmpty, TimeSpan.FromSeconds(2));
+			await processor.AddAsync("batch3-item1", CancellationToken.None).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+				allBatchesCompleted.Task,
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
+		(await WaitForConditionAsync(() => Volatile.Read(ref totalItemsProcessed) >= 5, TimeSpan.FromSeconds(15)))
+			.ShouldBeTrue("all enqueued items should be processed before aggregation assertions");
+			_ = await WaitForConditionAsync(() => !batchMetrics.IsEmpty, ObservabilityWaitTimeout);
 
 		// Assert - Primary assertions: batch processing completed correctly
 		batchesProcessed.ShouldBeGreaterThanOrEqualTo(3);

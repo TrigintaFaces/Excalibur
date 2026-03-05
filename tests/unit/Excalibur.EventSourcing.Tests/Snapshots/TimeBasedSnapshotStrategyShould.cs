@@ -127,16 +127,18 @@ public sealed class TimeBasedSnapshotStrategyShould
 		var strategy = new TimeBasedSnapshotStrategy(TimeSpan.FromMinutes(5));
 		var aggregate = A.Fake<IAggregateRoot>();
 		_ = A.CallTo(() => aggregate.Id).Returns("tracked-aggregate");
+		var beforeRegistration = DateTime.UtcNow;
 
 		// Register the aggregate
 		_ = strategy.ShouldCreateSnapshot(aggregate);
+		var afterRegistration = DateTime.UtcNow;
 
 		// Act
 		var result = strategy.GetLastSnapshotTime("tracked-aggregate");
 
 		// Assert
 		_ = result.ShouldNotBeNull();
-		result.Value.ShouldBeInRange(DateTime.UtcNow.AddSeconds(-1), DateTime.UtcNow.AddSeconds(1));
+		result.Value.ShouldBeInRange(beforeRegistration, afterRegistration);
 	}
 
 	[Fact]

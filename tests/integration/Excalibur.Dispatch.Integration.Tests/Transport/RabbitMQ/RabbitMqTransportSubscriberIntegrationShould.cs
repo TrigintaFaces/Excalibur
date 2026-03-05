@@ -8,6 +8,7 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
 using Tests.Shared.Fixtures;
+using Tests.Shared.Infrastructure;
 
 using Testcontainers.RabbitMq;
 
@@ -25,6 +26,8 @@ namespace Excalibur.Dispatch.Integration.Tests.Transport.RabbitMQ;
 [Trait("Component", "Transport")]
 public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetime
 {
+    private static readonly TimeSpan MessageWaitTimeout = TestTimeouts.Scale(TimeSpan.FromSeconds(15));
+
     private RabbitMqContainer? _container;
     private IConnection? _connection;
     private IChannel? _channel;
@@ -133,13 +136,12 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
             body: Encoding.UTF8.GetBytes("subscriber test")).ConfigureAwait(false);
 
         // Wait for message delivery
-        var received = await Task.WhenAny(messageReceived.Task, Task.Delay(10_000)).ConfigureAwait(false);
+        await WaitHelpers.AwaitSignalAsync(messageReceived.Task, MessageWaitTimeout).ConfigureAwait(false);
 
         // Cleanup
         await _channel.BasicCancelAsync(consumerTag).ConfigureAwait(false);
 
         // Assert
-        received.ShouldBe(messageReceived.Task, "Message should be received within timeout");
         receivedMessages.Count.ShouldBe(1);
 
         var msg = receivedMessages.First();
@@ -192,12 +194,11 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
                 body: Encoding.UTF8.GetBytes($"message-{i}")).ConfigureAwait(false);
         }
 
-        var received = await Task.WhenAny(allReceived.Task, Task.Delay(15_000)).ConfigureAwait(false);
+        await WaitHelpers.AwaitSignalAsync(allReceived.Task, MessageWaitTimeout).ConfigureAwait(false);
 
         await _channel.BasicCancelAsync(consumerTag).ConfigureAwait(false);
 
         // Assert
-        received.ShouldBe(allReceived.Task, "All messages should be received within timeout");
         receivedMessages.Count.ShouldBe(expectedCount);
     }
 
@@ -240,12 +241,10 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
             basicProperties: new BasicProperties { MessageId = "ack-test" },
             body: Encoding.UTF8.GetBytes("ack body")).ConfigureAwait(false);
 
-        var processed = await Task.WhenAny(messageProcessed.Task, Task.Delay(10_000)).ConfigureAwait(false);
+        await WaitHelpers.AwaitSignalAsync(messageProcessed.Task, MessageWaitTimeout).ConfigureAwait(false);
         await ackChannel.BasicCancelAsync(consumerTag).ConfigureAwait(false);
 
         // Assert
-        processed.ShouldBe(messageProcessed.Task, "Message should be acknowledged within timeout");
-
         // Queue should be empty after ack
         var remaining = await ackChannel.BasicGetAsync(queueName, autoAck: true).ConfigureAwait(false);
         remaining.ShouldBeNull();
@@ -300,11 +299,10 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
             basicProperties: new BasicProperties { MessageId = "requeue-test" },
             body: Encoding.UTF8.GetBytes("requeue body")).ConfigureAwait(false);
 
-        var result = await Task.WhenAny(secondDelivery.Task, Task.Delay(15_000)).ConfigureAwait(false);
+        await WaitHelpers.AwaitSignalAsync(secondDelivery.Task, MessageWaitTimeout).ConfigureAwait(false);
         await _channel.BasicCancelAsync(consumerTag).ConfigureAwait(false);
 
         // Assert
-        result.ShouldBe(secondDelivery.Task, "Message should be redelivered after nack+requeue");
         deliveryCount.ShouldBeGreaterThanOrEqualTo(2);
     }
 
@@ -343,10 +341,13 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
             basicProperties: new BasicProperties { MessageId = "after-cancel" },
             body: Encoding.UTF8.GetBytes("post-cancel")).ConfigureAwait(false);
 
-        await Task.Delay(1000).ConfigureAwait(false);
-
         // Message should still be in queue since consumer was cancelled
-        var result = await separateChannel.BasicGetAsync(queueName, autoAck: true).ConfigureAwait(false);
+        var result = await WaitForBasicGetAsync(
+                separateChannel,
+                queueName,
+                autoAck: true,
+                MessageWaitTimeout)
+            .ConfigureAwait(false);
         result.ShouldNotBeNull();
         result.BasicProperties.MessageId.ShouldBe("after-cancel");
 
@@ -402,11 +403,10 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
             },
             body: Encoding.UTF8.GetBytes("{\"orderId\": 1}")).ConfigureAwait(false);
 
-        var received = await Task.WhenAny(messageReceived.Task, Task.Delay(10_000)).ConfigureAwait(false);
+        await WaitHelpers.AwaitSignalAsync(messageReceived.Task, MessageWaitTimeout).ConfigureAwait(false);
         await _channel.BasicCancelAsync(consumerTag).ConfigureAwait(false);
 
         // Assert
-        received.ShouldBe(messageReceived.Task, "Message should be received within timeout");
         receivedArgs.ShouldNotBeNull();
         receivedArgs!.BasicProperties.MessageId.ShouldBe("props-msg");
         receivedArgs.BasicProperties.ContentType.ShouldBe("application/json");
@@ -468,13 +468,24 @@ public sealed class RabbitMqTransportSubscriberIntegrationShould : IAsyncLifetim
             basicProperties: new BasicProperties { MessageId = "routed-sub-msg" },
             body: Encoding.UTF8.GetBytes("routed message")).ConfigureAwait(false);
 
-        var received = await Task.WhenAny(messageReceived.Task, Task.Delay(10_000)).ConfigureAwait(false);
+        await WaitHelpers.AwaitSignalAsync(messageReceived.Task, MessageWaitTimeout).ConfigureAwait(false);
         await _channel.BasicCancelAsync(consumerTag).ConfigureAwait(false);
 
         // Assert
-        received.ShouldBe(messageReceived.Task, "Routed message should be received");
         receivedArgs.ShouldNotBeNull();
         receivedArgs!.Exchange.ShouldBe(exchangeName);
         receivedArgs.RoutingKey.ShouldBe("events.order.created");
+    }
+
+    private static Task<BasicGetResult?> WaitForBasicGetAsync(
+        IChannel channel,
+        string queueName,
+        bool autoAck,
+        TimeSpan timeout)
+    {
+        return WaitHelpers.WaitForValueAsync(
+            () => channel.BasicGetAsync(queueName, autoAck),
+            timeout,
+            TimeSpan.FromMilliseconds(100));
     }
 }

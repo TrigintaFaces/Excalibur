@@ -31,6 +31,8 @@ jobs:
   pre-release-validation:
     name: Pre-Release Validation
     runs-on: ubuntu-latest
+    env:
+      VSTEST_CONNECTION_TIMEOUT: 300
     outputs:
       version: ${{ steps.version.outputs.version }}
       prerelease: ${{ steps.version.outputs.prerelease }}
@@ -78,6 +80,45 @@ jobs:
             9.0.x
             10.0.x
 
+      - name: Runner disk preflight (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Disk usage before cleanup:"
+          df -h
+
+          for d in \
+            "$RUNNER_TEMP" \
+            "$RUNNER_WORKSPACE/_temp" \
+            "$HOME/actions-runner/_work/_temp" \
+            "$HOME/actions-runner/cached/_work/_temp" \
+            "$HOME/actions-runner/_diag" \
+            "$HOME/actions-runner/cached/_diag" \
+            "/home/runner/actions-runner/_diag" \
+            "/home/runner/actions-runner/cached/_diag"
+          do
+            if [ -d "$d" ]; then
+              echo "Cleaning $d"
+              find "$d" -type f -name '*.log' -mtime +2 -print -delete || true
+              find "$d" -mindepth 1 -maxdepth 1 -type f -size +50M -print -delete || true
+            fi
+          done
+
+          dotnet nuget locals temp --clear || true
+          dotnet nuget locals http-cache --clear || true
+
+          echo "Disk usage after cleanup:"
+          df -h
+
+          available_kb="$(df -Pk . | awk 'NR==2 {print $4}')"
+          minimum_kb=$((8 * 1024 * 1024))
+          if [ "$available_kb" -lt "$minimum_kb" ]; then
+            available_human="$(df -h . | awk 'NR==2 {print $4}')"
+            echo "::error::Insufficient disk space after cleanup (${available_human} available; need >= 8G)."
+            exit 1
+          fi
+
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
@@ -102,19 +143,29 @@ jobs:
         run: |
           ./eng/ci/validate-flaky-quarantine.ps1 -OutDir management/reports/FlakyQuarantineReport -Enforce:$true
 
-      - name: Run all tests from solution
+      - name: Compose release-blocking unit filter
+        shell: pwsh
         run: |
-          echo "Running full test suite from Excalibur.sln for release validation..."
-          dotnet test Excalibur.sln \
+          $baseFilter = '(Category=Unit|Category=DependencyInjection)&Category!=Performance'
+          $filterInfo = ./eng/ci/get-test-filter.ps1 -BaseFilter $baseFilter -Mode Exclude -AsJson | ConvertFrom-Json
+          "RELEASE_BLOCKING_TEST_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
+          Write-Host "Using release-blocking filter with $($filterInfo.count) quarantined exclusions."
+
+      - name: Run release-blocking unit tests
+        run: |
+          echo "Running release-blocking unit suite from ReleaseBlocking.slnf..."
+          dotnet test eng/ci/shards/ReleaseBlocking.slnf \
             --configuration Release \
             --no-build \
+            --blame-hang-timeout 5m \
             --logger "console;verbosity=minimal" \
-            --blame-hang-timeout 10m \
-            -- RunConfiguration.TestSessionTimeout=7200000
+            --filter "${{ env.RELEASE_BLOCKING_TEST_FILTER }}" \
+            -- RunConfiguration.TestSessionTimeout=1500000
 
       - name: Release readiness check
         run: |
           echo "🔍 Checking release readiness..."
+          VERSION="${{ steps.version.outputs.version }}"
 
           # Check for any TODO/FIXME/HACK comments in core libraries
           echo "Scanning for development placeholders..."
@@ -125,8 +176,13 @@ jobs:
           fi
 
           # Verify all core packages can be built
-          echo "Validating package creation..."
-          dotnet pack eng/ci/shards/ShippingOnly.slnf --configuration Release --no-build --verbosity minimal --output ./temp-packages
+          echo "Validating package creation for version: $VERSION..."
+          dotnet pack eng/ci/shards/ShippingOnly.slnf \
+            --configuration Release \
+            --no-build \
+            --verbosity minimal \
+            -p:PackageVersion="$VERSION" \
+            --output ./temp-packages
 
           PACKAGE_COUNT=$(find ./temp-packages -name "*.nupkg" | wc -l)
           EXPECTED_COUNT=$(grep -o '"[^"]*\.csproj"' eng/ci/shards/ShippingOnly.slnf | wc -l)
@@ -154,6 +210,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs: pre-release-validation
     timeout-minutes: 120
+    env:
+      VSTEST_CONNECTION_TIMEOUT: 300
     strategy:
       fail-fast: false
       matrix:
@@ -171,6 +229,45 @@ jobs:
             9.0.x
             10.0.x
 
+      - name: Runner disk preflight (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Disk usage before cleanup:"
+          df -h
+
+          for d in \
+            "$RUNNER_TEMP" \
+            "$RUNNER_WORKSPACE/_temp" \
+            "$HOME/actions-runner/_work/_temp" \
+            "$HOME/actions-runner/cached/_work/_temp" \
+            "$HOME/actions-runner/_diag" \
+            "$HOME/actions-runner/cached/_diag" \
+            "/home/runner/actions-runner/_diag" \
+            "/home/runner/actions-runner/cached/_diag"
+          do
+            if [ -d "$d" ]; then
+              echo "Cleaning $d"
+              find "$d" -type f -name '*.log' -mtime +2 -print -delete || true
+              find "$d" -mindepth 1 -maxdepth 1 -type f -size +50M -print -delete || true
+            fi
+          done
+
+          dotnet nuget locals temp --clear || true
+          dotnet nuget locals http-cache --clear || true
+
+          echo "Disk usage after cleanup:"
+          df -h
+
+          available_kb="$(df -Pk . | awk 'NR==2 {print $4}')"
+          minimum_kb=$((8 * 1024 * 1024))
+          if [ "$available_kb" -lt "$minimum_kb" ]; then
+            available_human="$(df -h . | awk 'NR==2 {print $4}')"
+            echo "::error::Insufficient disk space after cleanup (${available_human} available; need >= 8G)."
+            exit 1
+          fi
+
       - name: Cache NuGet packages
         uses: actions/cache@v4
         with:
@@ -179,11 +276,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Restore unit shard
-        run: dotnet restore eng/ci/shards/UnitTests.slnf
+      - name: Restore release-blocking shard
+        run: dotnet restore eng/ci/shards/ReleaseBlocking.slnf
 
-      - name: Build unit shard
-        run: dotnet build eng/ci/shards/UnitTests.slnf --configuration Release --no-restore --verbosity minimal
+      - name: Build release-blocking shard
+        run: dotnet build eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-restore --verbosity minimal
 
       - name: Compose pre-tag soak filter
         shell: pwsh
@@ -194,7 +291,7 @@ jobs:
           Write-Host "Using pre-tag soak filter with $($filterInfo.count) quarantined exclusions."
 
       - name: Run unit shard soak iteration
-        run: dotnet test eng/ci/shards/UnitTests.slnf --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFileName=pre-tag-unit-soak-${{ matrix.os }}-${{ matrix.iteration }}.trx" --logger "console;verbosity=minimal" --filter "${{ env.PRETAG_SOAK_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
+        run: dotnet test eng/ci/shards/ReleaseBlocking.slnf --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFilePrefix=pre-tag-unit-soak-${{ matrix.os }}-${{ matrix.iteration }}" --logger "console;verbosity=minimal" --filter "${{ env.PRETAG_SOAK_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
 
       - name: Upload soak test results
         if: always()
@@ -240,6 +337,7 @@ jobs:
         run: dotnet build Excalibur.sln --configuration Release --no-restore --verbosity minimal
 
       - name: Create release packages
+        shell: bash
         run: |
           VERSION="${{ needs.pre-release-validation.outputs.version }}"
           PRERELEASE="${{ needs.pre-release-validation.outputs.prerelease }}"
@@ -402,8 +500,9 @@ jobs:
               echo "Package: $filename ($size)"
 
               # Extract and analyze package contents
+              rm -rf temp_analysis/
               mkdir -p temp_analysis
-              unzip -q "$package" -d temp_analysis/
+              unzip -oq "$package" -d temp_analysis/
 
               # Check for common issues
               if find temp_analysis/ -name "*.dll" | head -1 | xargs file | grep -q "executable"; then

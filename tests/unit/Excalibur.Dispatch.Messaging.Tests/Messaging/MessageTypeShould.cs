@@ -26,15 +26,17 @@ public sealed class MessageTypeShould : UnitTestBase
 		var aggregateId = Guid.NewGuid().ToString();
 		var version = 5L;
 		var metadata = new Dictionary<string, object> { { "UserId", "user-123" } };
+		var beforeCreation = DateTimeOffset.UtcNow;
 
 		// Act
 		var domainEvent = new TestDomainEvent(aggregateId, version, metadata);
+		var afterCreation = DateTimeOffset.UtcNow;
 
 		// Assert
 		domainEvent.EventId.ShouldNotBeNullOrEmpty();
 		domainEvent.AggregateId.ShouldBe(aggregateId);
 		domainEvent.Version.ShouldBe(version);
-		domainEvent.OccurredAt.ShouldBeInRange(DateTimeOffset.UtcNow.AddSeconds(-1), DateTimeOffset.UtcNow.AddSeconds(1));
+		domainEvent.OccurredAt.ShouldBeInRange(beforeCreation, afterCreation);
 		domainEvent.EventType.ShouldBe(nameof(TestDomainEvent));
 		_ = domainEvent.Metadata.ShouldNotBeNull();
 		domainEvent.Metadata.ShouldContainKey("UserId");

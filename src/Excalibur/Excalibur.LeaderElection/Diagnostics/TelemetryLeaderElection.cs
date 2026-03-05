@@ -77,8 +77,8 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 				var guardedInstance = _instanceGuard.Guard(_inner.CandidateId);
 				var tags = new TagList
 				{
-					{ LeaderElectionTelemetryConstants.Tags.Instance, guardedInstance },
-					{ LeaderElectionTelemetryConstants.Tags.Provider, _providerName },
+					{ LeaderElectionTelemetryConstants.TagNames.Instance, guardedInstance },
+					{ LeaderElectionTelemetryConstants.TagNames.Provider, _providerName },
 				};
 				return new Measurement<int>(_inner.IsLeader ? 1 : 0, tags);
 			},
@@ -113,8 +113,8 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 	public async Task StartAsync(CancellationToken cancellationToken)
 	{
 		using var activity = _activitySource.StartActivity("leader_election.start");
-		activity?.SetTag(LeaderElectionTelemetryConstants.Tags.Instance, _instanceGuard.Guard(_inner.CandidateId));
-		activity?.SetTag(LeaderElectionTelemetryConstants.Tags.Provider, _providerName);
+		activity?.SetTag(LeaderElectionTelemetryConstants.TagNames.Instance, _instanceGuard.Guard(_inner.CandidateId));
+		activity?.SetTag(LeaderElectionTelemetryConstants.TagNames.Provider, _providerName);
 
 		try
 		{
@@ -131,8 +131,8 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 	public async Task StopAsync(CancellationToken cancellationToken)
 	{
 		using var activity = _activitySource.StartActivity("leader_election.stop");
-		activity?.SetTag(LeaderElectionTelemetryConstants.Tags.Instance, _instanceGuard.Guard(_inner.CandidateId));
-		activity?.SetTag(LeaderElectionTelemetryConstants.Tags.Provider, _providerName);
+		activity?.SetTag(LeaderElectionTelemetryConstants.TagNames.Instance, _instanceGuard.Guard(_inner.CandidateId));
+		activity?.SetTag(LeaderElectionTelemetryConstants.TagNames.Provider, _providerName);
 
 		try
 		{
@@ -180,9 +180,9 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 		var guardedInstance = _instanceGuard.Guard(e.CandidateId);
 		var tags = new TagList
 		{
-			{ LeaderElectionTelemetryConstants.Tags.Instance, guardedInstance },
-			{ LeaderElectionTelemetryConstants.Tags.Provider, _providerName },
-			{ LeaderElectionTelemetryConstants.Tags.Result, "acquired" },
+			{ LeaderElectionTelemetryConstants.TagNames.Instance, guardedInstance },
+			{ LeaderElectionTelemetryConstants.TagNames.Provider, _providerName },
+			{ LeaderElectionTelemetryConstants.TagNames.Result, "acquired" },
 		};
 		_acquisitionsCounter.Add(1, tags);
 
@@ -201,9 +201,9 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 
 		var tags = new TagList
 		{
-			{ LeaderElectionTelemetryConstants.Tags.Instance, guardedInstance },
-			{ LeaderElectionTelemetryConstants.Tags.Provider, _providerName },
-			{ LeaderElectionTelemetryConstants.Tags.Result, "lost" },
+			{ LeaderElectionTelemetryConstants.TagNames.Instance, guardedInstance },
+			{ LeaderElectionTelemetryConstants.TagNames.Provider, _providerName },
+			{ LeaderElectionTelemetryConstants.TagNames.Result, "lost" },
 		};
 		_acquisitionsCounter.Add(1, tags);
 
@@ -222,8 +222,8 @@ public sealed class TelemetryLeaderElection : ILeaderElection, IAsyncDisposable
 			var guardedInstance = _instanceGuard.Guard(_inner.CandidateId);
 			var tags = new TagList
 			{
-				{ LeaderElectionTelemetryConstants.Tags.Instance, guardedInstance },
-				{ LeaderElectionTelemetryConstants.Tags.Provider, _providerName },
+				{ LeaderElectionTelemetryConstants.TagNames.Instance, guardedInstance },
+				{ LeaderElectionTelemetryConstants.TagNames.Provider, _providerName },
 			};
 			_leaseDurationHistogram.Record(leaseStopwatch.Elapsed.TotalSeconds, tags);
 

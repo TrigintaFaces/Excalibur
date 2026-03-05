@@ -299,7 +299,8 @@ public sealed class GrpcTransportSenderDepthShould : IAsyncDisposable
 		callOptions.Deadline.ShouldNotBeNull();
 		var deadline = callOptions.Deadline!.Value;
 		deadline.ShouldBeGreaterThanOrEqualTo(before.AddSeconds(9));
-		deadline.ShouldBeLessThanOrEqualTo(DateTime.UtcNow.AddSeconds(11));
+		var assertionUpperBound = DateTime.UtcNow.AddSeconds(11);
+		deadline.ShouldBeLessThanOrEqualTo(assertionUpperBound);
 	}
 
 	public async ValueTask DisposeAsync()

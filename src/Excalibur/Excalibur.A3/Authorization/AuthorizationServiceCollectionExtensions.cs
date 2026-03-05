@@ -25,7 +25,7 @@ public static class AuthorizationServiceCollectionExtensions
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IAuthorizationHandler, GrantsAuthorizationHandler>());
 		services.TryAddSingleton<IDispatchAuthorizationService, DispatchAuthorizationService>();
 		services.TryAddSingleton<AttributeAuthorizationCache>();
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IDispatchMiddleware, AuthorizationMiddleware>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IDispatchMiddleware, Excalibur.A3.Authorization.AuthorizationMiddleware>());
 
 		return services;
 	}
