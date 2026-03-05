@@ -23,6 +23,12 @@ public static class TaskExtensions
 	{
 		ArgumentNullException.ThrowIfNull(task);
 
+		if (task.IsCompleted)
+		{
+			await task.ConfigureAwait(false);
+			return;
+		}
+
 		using var cts = new CancellationTokenSource();
 
 		var delayTask = Task.Delay(timeout, cts.Token);
@@ -49,6 +55,11 @@ public static class TaskExtensions
 	public static async Task<T> TimeoutAfterAsync<T>(this Task<T> task, TimeSpan timeout)
 	{
 		ArgumentNullException.ThrowIfNull(task);
+
+		if (task.IsCompleted)
+		{
+			return await task.ConfigureAwait(false);
+		}
 
 		using var cts = new CancellationTokenSource();
 

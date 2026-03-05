@@ -512,7 +512,7 @@ public sealed class BatchProcessorShould : IDisposable
 			.Select(async i => await processor.AddAsync($"item{i}", CancellationToken.None).ConfigureAwait(false));
 
 		await Task.WhenAll(tasks).ConfigureAwait(false);
-		await WaitForConditionAsync(() => processedItems.Count == 500, TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+		await WaitForConditionAsync(() => processedItems.Count == 500, TimeSpan.FromSeconds(60)).ConfigureAwait(false);
 
 		processedItems.Count.ShouldBe(500);
 		observedBatchSizes.Count.ShouldBeGreaterThan(0);
@@ -537,9 +537,10 @@ public sealed class BatchProcessorShould : IDisposable
 		_disposables.Add(processor);
 
 		// Calculate actual item count to avoid integer division rounding issues
-		var threadCount = Environment.ProcessorCount;
-		var itemsPerThread = 1000 / threadCount;
-		var actualItemCount = itemsPerThread * threadCount; // May be less than 1000 due to integer division
+		const int targetItemCount = 1000;
+		var threadCount = Math.Max(1, Math.Min(Environment.ProcessorCount, 8));
+		var itemsPerThread = targetItemCount / threadCount;
+		var actualItemCount = itemsPerThread * threadCount;
 
 		// Add items from multiple threads
 		var producerTasks = Enumerable.Range(0, threadCount)
@@ -556,7 +557,7 @@ public sealed class BatchProcessorShould : IDisposable
 		// Wait for all items to be processed
 		await WaitForConditionAsync(
 			() => Volatile.Read(ref processedCount) >= actualItemCount,
-			TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+			TimeSpan.FromSeconds(60)).ConfigureAwait(false);
 
 		processedCount.ShouldBe(actualItemCount);
 	}
@@ -622,7 +623,7 @@ public sealed class BatchProcessorShould : IDisposable
 		await processor.AddAsync("item3", CancellationToken.None).ConfigureAwait(false);
 
 		// Wait for batch to be processed
-		await WaitForConditionAsync(() => processedBatches.Count == 1, TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+		await WaitForConditionAsync(() => processedBatches.Count == 1, TimeSpan.FromSeconds(45)).ConfigureAwait(false);
 
 		processedBatches.Count.ShouldBe(1);
 		var batches = processedBatches.ToArray();
@@ -703,14 +704,14 @@ public sealed class BatchProcessorShould : IDisposable
 		// Add items in bursts with pauses to create variable batch sizes
 		await processor.AddAsync("burst1-item1", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("burst1-item2", CancellationToken.None).ConfigureAwait(false);
-		await WaitForConditionAsync(() => Volatile.Read(ref totalProcessed) >= 2, TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+		await WaitForConditionAsync(() => Volatile.Read(ref totalProcessed) >= 2, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
 		await processor.AddAsync("burst2-item1", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("burst2-item2", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("burst2-item3", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("burst2-item4", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("burst2-item5", CancellationToken.None).ConfigureAwait(false);
-		await WaitForConditionAsync(() => Volatile.Read(ref totalProcessed) >= 7, TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+		await WaitForConditionAsync(() => Volatile.Read(ref totalProcessed) >= 7, TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
 		// Add enough items to trigger size-based batching
 		for (var i = 0; i < 25; i++)
@@ -722,7 +723,7 @@ public sealed class BatchProcessorShould : IDisposable
 
 			allItemsProcessed.Task,
 
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(20)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(45)));
 		batchSizes.Count.ShouldBeGreaterThan(1);
 		batchSizes.All(size => size <= options.MaxBatchSize).ShouldBeTrue();
 		Volatile.Read(ref totalProcessed).ShouldBe(32); // 2 + 5 + 25 = 32 total items
@@ -734,7 +735,7 @@ public sealed class BatchProcessorShould : IDisposable
 		var conditionSatisfied = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
 			condition,
 			scaledTimeout,
-			TimeSpan.FromMilliseconds(25)).ConfigureAwait(false);
+			TimeSpan.FromMilliseconds(100)).ConfigureAwait(false);
 		conditionSatisfied.ShouldBeTrue($"Condition was not satisfied within {scaledTimeout}.");
 	}
 

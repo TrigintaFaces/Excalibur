@@ -95,7 +95,18 @@ public sealed class TransportRegistry
 	/// <returns> Collection of transport names (both initialized and pending). </returns>
 	public IEnumerable<string> GetTransportNames()
 	{
-		return _transportNamesSnapshot;
+		var snapshot = _transportNamesSnapshot;
+		var transportCount = _transports.Count;
+		var factoryCount = _factories.Count;
+
+		// Keep the fast lock-free read path, but self-heal if the snapshot looks stale.
+		if (snapshot.Length < transportCount || snapshot.Length > transportCount + factoryCount)
+		{
+			UpdateTransportNamesSnapshot();
+			snapshot = _transportNamesSnapshot;
+		}
+
+		return snapshot;
 	}
 
 	/// <summary>

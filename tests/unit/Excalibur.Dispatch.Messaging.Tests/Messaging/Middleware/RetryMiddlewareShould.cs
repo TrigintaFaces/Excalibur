@@ -119,20 +119,20 @@ public sealed class RetryMiddlewareShould
 		var middleware = CreateMiddleware(options);
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext();
-		var stopwatch = Stopwatch.StartNew();
+		var attemptCount = 0;
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 		{
+			attemptCount++;
 			return new ValueTask<IMessageResult>(MessageResult.Success());
 		}
 
 		// Act
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
-		stopwatch.Stop();
 
 		// Assert
 		result.IsSuccess.ShouldBeTrue();
-		stopwatch.ElapsedMilliseconds.ShouldBeLessThan(1000);
+		attemptCount.ShouldBe(1);
 	}
 
 	[Fact]

@@ -417,17 +417,24 @@ public sealed class KafkaDeadLetterIntegrationShould : IAsyncLifetime
 		return (instance, consumeMethod, peekMethod);
 	}
 
-	private static global::Confluent.Kafka.ConsumeResult<string, byte[]>? ConsumeWithRetry(IConsumer<string, byte[]> consumer, TimeSpan timeout)
+private static global::Confluent.Kafka.ConsumeResult<string, byte[]>? ConsumeWithRetry(IConsumer<string, byte[]> consumer, TimeSpan timeout)
+{
+	var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+	while (stopwatch.Elapsed < timeout)
 	{
-		var deadline = DateTime.UtcNow + timeout;
-		while (DateTime.UtcNow < deadline)
+		var remaining = timeout - stopwatch.Elapsed;
+		if (remaining <= TimeSpan.Zero)
 		{
-			var result = consumer.Consume(TimeSpan.FromSeconds(2));
-			if (result?.Message is not null)
-			{
-				return result;
-			}
+			break;
 		}
+
+		var pollTimeout = remaining < TimeSpan.FromMilliseconds(250) ? remaining : TimeSpan.FromMilliseconds(250);
+		var result = consumer.Consume(pollTimeout);
+		if (result?.Message is not null)
+		{
+			return result;
+		}
+	}
 
 		return null;
 	}

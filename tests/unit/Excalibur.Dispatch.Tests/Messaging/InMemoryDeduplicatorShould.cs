@@ -12,6 +12,8 @@ namespace Excalibur.Dispatch.Tests.Messaging;
 [Trait("Component", "Core")]
 public sealed class InMemoryDeduplicatorShould : IDisposable
 {
+	private static readonly TimeSpan ShortExpiry = TimeSpan.FromMilliseconds(100);
+
 	private readonly InMemoryDeduplicator _deduplicator;
 
 	public InMemoryDeduplicatorShould()
@@ -53,7 +55,7 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 	public async Task ReturnFalseForExpiredMessage()
 	{
 		// Arrange - use very short expiry
-		await _deduplicator.MarkProcessedAsync("msg-1", TimeSpan.FromMilliseconds(1), CancellationToken.None);
+		await _deduplicator.MarkProcessedAsync("msg-1", ShortExpiry, CancellationToken.None);
 		var expirationObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
 				async () => !await _deduplicator.IsDuplicateAsync("msg-1", TimeSpan.FromHours(1), CancellationToken.None).ConfigureAwait(false),
 				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(20)),
@@ -124,9 +126,11 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 	public async Task CleanupExpiredEntriesRemovesExpiredOnly()
 	{
 		// Arrange
-		await _deduplicator.MarkProcessedAsync("expired-1", TimeSpan.FromMilliseconds(1), CancellationToken.None);
+		await _deduplicator.MarkProcessedAsync("expired-1", ShortExpiry, CancellationToken.None);
 		await _deduplicator.MarkProcessedAsync("active-1", TimeSpan.FromHours(1), CancellationToken.None);
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(100).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromMilliseconds(500)))
+			.ConfigureAwait(false);
 
 		// Act
 		var removed = await _deduplicator.CleanupExpiredEntriesAsync(CancellationToken.None);

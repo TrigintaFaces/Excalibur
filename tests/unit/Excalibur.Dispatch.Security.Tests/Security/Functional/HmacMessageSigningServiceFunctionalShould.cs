@@ -9,16 +9,16 @@ public sealed class HmacMessageSigningServiceFunctionalShould : IDisposable
 {
     private readonly IKeyProvider _keyProvider;
     private readonly HmacMessageSigningService _service;
-    private static readonly byte[] TestKey = new byte[32];
+    private readonly byte[] _testKey = new byte[32];
 
     public HmacMessageSigningServiceFunctionalShould()
     {
         // Initialize key
-        System.Security.Cryptography.RandomNumberGenerator.Fill(TestKey);
+        System.Security.Cryptography.RandomNumberGenerator.Fill(_testKey);
 
         _keyProvider = A.Fake<IKeyProvider>();
         A.CallTo(() => _keyProvider.GetKeyAsync(A<string>._, A<CancellationToken>._))
-            .Returns(Task.FromResult(TestKey));
+            .ReturnsLazily((string _, CancellationToken _) => Task.FromResult((byte[])_testKey.Clone()));
 
         var options = new SigningOptions
         {

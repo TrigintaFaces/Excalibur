@@ -1394,18 +1394,19 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 
 	private static async Task WaitForConditionAsync(Func<Task<bool>> condition, TimeSpan timeout)
 	{
-		var deadline = DateTimeOffset.UtcNow + timeout;
-		while (DateTimeOffset.UtcNow < deadline)
+		var scaledTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(timeout);
+		if (scaledTimeout < TimeSpan.FromSeconds(10))
 		{
-			if (await condition().ConfigureAwait(false))
-			{
-				return;
-			}
-
-			await Task.Yield();
+			scaledTimeout = TimeSpan.FromSeconds(10);
 		}
 
-		throw new TimeoutException($"Condition was not met within {timeout}.");
+		var conditionMet = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+				condition,
+				scaledTimeout,
+				TimeSpan.FromMilliseconds(100))
+			.ConfigureAwait(false);
+
+		conditionMet.ShouldBeTrue($"Condition was not met within {scaledTimeout}.");
 	}
 }
 

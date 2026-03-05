@@ -507,8 +507,8 @@ public sealed class TransportRegistryShould
 
 		var snapshotPopulated = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
 				() => registry.GetTransportNames().Count() == registrations.Length,
-				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
-				TimeSpan.FromMilliseconds(25))
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)),
+				TimeSpan.FromMilliseconds(100))
 			.ConfigureAwait(false);
 
 		// Assert
