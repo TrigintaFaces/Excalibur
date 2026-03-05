@@ -264,24 +264,38 @@ public sealed partial class SecurityEventLogger : ISecurityEventLogger, IHostedS
 	[UnconditionalSuppressMessage("AOT", "IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality", Justification = "ISecurityEventStore implementation controls serialization")]
 	private async Task StoreEventBatchAsync(List<SecurityEvent> events, CancellationTokenSource timeoutCts)
 	{
+		if (events.Count == 0)
+		{
+			return;
+		}
+
+		var batch = events.ToArray();
+
 		try
 		{
-			await _eventStore.StoreEventsAsync(events, timeoutCts.Token).ConfigureAwait(false);
-			LogEventsStored(events.Count);
+			await _eventStore.StoreEventsAsync(batch, timeoutCts.Token).ConfigureAwait(false);
+			LogEventsStored(batch.Length);
 		}
 		catch (Exception ex)
 		{
-			LogStoreFailed(events.Count, ex);
-			await StoreEventsIndividuallyAsync(events, timeoutCts).ConfigureAwait(false);
+			LogStoreFailed(batch.Length, ex);
+			await StoreEventsIndividuallyAsync(batch, timeoutCts).ConfigureAwait(false);
 		}
 	}
 
 	[UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access", Justification = "ISecurityEventStore implementation controls serialization")]
 	[UnconditionalSuppressMessage("AOT", "IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality", Justification = "ISecurityEventStore implementation controls serialization")]
-	private async Task StoreEventsIndividuallyAsync(List<SecurityEvent> events, CancellationTokenSource timeoutCts)
+	private async Task StoreEventsIndividuallyAsync(IReadOnlyList<SecurityEvent> events, CancellationTokenSource timeoutCts)
 	{
-		foreach (var evt in events)
+		if (events.Count == 0)
 		{
+			return;
+		}
+
+		for (var i = 0; i < events.Count; i++)
+		{
+			var evt = events[i];
+
 			try
 			{
 				await _eventStore.StoreEventsAsync(new[] { evt }, timeoutCts.Token).ConfigureAwait(false);
