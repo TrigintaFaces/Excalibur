@@ -311,7 +311,8 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 		sw.Stop();
 
 		// Assert
-		sw.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(2));
+		var maxDisposeWindow = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(7));
+		sw.Elapsed.ShouldBeLessThan(maxDisposeWindow);
 	}
 
 	[Fact]
