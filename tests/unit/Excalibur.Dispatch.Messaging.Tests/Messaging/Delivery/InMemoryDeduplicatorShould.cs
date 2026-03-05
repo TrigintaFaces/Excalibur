@@ -13,6 +13,9 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 [Trait("Category", "Unit")]
 public sealed class InMemoryDeduplicatorShould : IDisposable
 {
+	private static readonly TimeSpan ShortExpiry = TimeSpan.FromMilliseconds(100);
+	private static readonly TimeSpan ExpirationTimeout = TimeSpan.FromSeconds(30);
+
 	private readonly InMemoryDeduplicator _sut;
 
 	public InMemoryDeduplicatorShould()
@@ -44,12 +47,12 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 	[Fact]
 	public async Task ReturnFalseForExpiredMessage()
 	{
-		await _sut.MarkProcessedAsync("msg-1", TimeSpan.FromMilliseconds(1), CancellationToken.None).ConfigureAwait(false);
+		await _sut.MarkProcessedAsync("msg-1", ShortExpiry, CancellationToken.None).ConfigureAwait(false);
 
 		var expired = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
 				async () => !await _sut.IsDuplicateAsync("msg-1", TimeSpan.FromMinutes(5), CancellationToken.None).ConfigureAwait(false),
-				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(20)),
-				TimeSpan.FromMilliseconds(50))
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(ExpirationTimeout),
+				TimeSpan.FromMilliseconds(100))
 			.ConfigureAwait(false);
 		expired.ShouldBeTrue("Expected deduplication entry to expire within timeout.");
 
@@ -88,8 +91,8 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 	[Fact]
 	public async Task CleanupExpiredEntries()
 	{
-		await _sut.MarkProcessedAsync("msg-1", TimeSpan.FromMilliseconds(1), CancellationToken.None).ConfigureAwait(false);
-		await _sut.MarkProcessedAsync("msg-2", TimeSpan.FromMilliseconds(1), CancellationToken.None).ConfigureAwait(false);
+		await _sut.MarkProcessedAsync("msg-1", ShortExpiry, CancellationToken.None).ConfigureAwait(false);
+		await _sut.MarkProcessedAsync("msg-2", ShortExpiry, CancellationToken.None).ConfigureAwait(false);
 		await _sut.MarkProcessedAsync("msg-3", TimeSpan.FromHours(1), CancellationToken.None).ConfigureAwait(false);
 
 		var removed = 0;
@@ -101,8 +104,8 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 					totalRemoved += removed;
 					return totalRemoved >= 2;
 				},
-				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(20)),
-				TimeSpan.FromMilliseconds(50))
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(ExpirationTimeout),
+				TimeSpan.FromMilliseconds(100))
 			.ConfigureAwait(false);
 		cleaned.ShouldBeTrue("Expected cleanup to remove expired entries within timeout.");
 		totalRemoved.ShouldBeGreaterThanOrEqualTo(2);

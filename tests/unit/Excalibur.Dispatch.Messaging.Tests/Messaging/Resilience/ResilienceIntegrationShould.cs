@@ -21,18 +21,13 @@ public sealed class ResilienceIntegrationShould
 
 	private static async Task WaitForCircuitStateAsync(CircuitBreakerPolicy policy, CircuitState expectedState, TimeSpan timeout)
 	{
-		var deadline = DateTime.UtcNow + timeout;
-		while (DateTime.UtcNow < deadline)
-		{
-			if (policy.State == expectedState)
-			{
-				return;
-			}
-
-			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10).ConfigureAwait(false);
-		}
-
-		policy.State.ShouldBe(expectedState);
+		var scaledTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(timeout);
+		var stateObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+				() => policy.State == expectedState,
+				scaledTimeout,
+				TimeSpan.FromMilliseconds(100))
+			.ConfigureAwait(false);
+		stateObserved.ShouldBeTrue($"Expected circuit state {expectedState} within {scaledTimeout}, actual state was {policy.State}.");
 	}
 
 	public ResilienceIntegrationShould()

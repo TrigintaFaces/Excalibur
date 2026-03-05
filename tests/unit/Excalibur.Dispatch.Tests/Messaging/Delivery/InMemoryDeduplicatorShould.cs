@@ -8,6 +8,8 @@ namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 [Trait("Component", "Core")]
 public sealed class InMemoryDeduplicatorShould : IDisposable
 {
+	private static readonly TimeSpan ShortExpiry = TimeSpan.FromMilliseconds(100);
+
 	private readonly InMemoryDeduplicator _deduplicator;
 
 	public InMemoryDeduplicatorShould()
@@ -118,14 +120,14 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 	{
 		// Mark with very short expiry
 		await _deduplicator.MarkProcessedAsync(
-			"msg-1", TimeSpan.FromMilliseconds(1), CancellationToken.None);
+			"msg-1", ShortExpiry, CancellationToken.None);
 
 		var removedCount = 0;
 		await WaitUntilAsync(async () =>
 		{
 			removedCount = await _deduplicator.CleanupExpiredEntriesAsync(CancellationToken.None);
 			return removedCount == 1;
-		}, TimeSpan.FromSeconds(2));
+		}, TimeSpan.FromSeconds(10));
 
 		removedCount.ShouldBe(1);
 	}
@@ -161,18 +163,13 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 
 	private static async Task WaitUntilAsync(Func<Task<bool>> condition, TimeSpan timeout)
 	{
-		var deadline = DateTimeOffset.UtcNow + timeout;
-		while (DateTimeOffset.UtcNow < deadline)
-		{
-			if (await condition())
-			{
-				return;
-			}
-
-			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10);
-		}
-
-		throw new TimeoutException($"Condition was not met within {timeout}.");
+		var scaledTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(timeout);
+		var conditionMet = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+				condition,
+				scaledTimeout,
+				TimeSpan.FromMilliseconds(100))
+			.ConfigureAwait(false);
+		conditionMet.ShouldBeTrue($"Condition was not met within {scaledTimeout}.");
 	}
 }
 

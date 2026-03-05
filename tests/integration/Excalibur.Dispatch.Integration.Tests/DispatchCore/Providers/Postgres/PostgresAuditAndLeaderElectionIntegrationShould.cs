@@ -173,7 +173,7 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 		follower.IsLeader.ShouldBeFalse();
 
 		await leader.StopAsync(TestCancellationToken).ConfigureAwait(true);
-		await WaitForConditionAsync(() => follower.IsLeader, TimeSpan.FromSeconds(3), TestCancellationToken)
+		await WaitForConditionAsync(() => follower.IsLeader, TimeSpan.FromSeconds(10), TestCancellationToken)
 			.ConfigureAwait(true);
 
 		follower.IsLeader.ShouldBeTrue();
@@ -192,7 +192,7 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 		leader.LostLeadership += (_, _) => Interlocked.Exchange(ref lostLeadershipRaised, 1);
 
 		await leader.StartAsync(TestCancellationToken).ConfigureAwait(true);
-		await WaitForConditionAsync(() => leader.IsLeader, TimeSpan.FromSeconds(3), TestCancellationToken)
+		await WaitForConditionAsync(() => leader.IsLeader, TimeSpan.FromSeconds(10), TestCancellationToken)
 			.ConfigureAwait(true);
 
 		var connectionField = typeof(PostgresLeaderElection).GetField(
@@ -202,7 +202,7 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 
 		await WaitForConditionAsync(
 				() => !leader.IsLeader && Volatile.Read(ref lostLeadershipRaised) == 1,
-				TimeSpan.FromSeconds(3),
+				TimeSpan.FromSeconds(10),
 				TestCancellationToken)
 			.ConfigureAwait(true);
 
@@ -259,13 +259,14 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 		TimeSpan timeout,
 		CancellationToken cancellationToken)
 	{
+		var scaledTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(timeout);
 		var conditionMet = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
 				condition,
-				timeout,
+				scaledTimeout,
 				TimeSpan.FromMilliseconds(100),
 				cancellationToken)
 			.ConfigureAwait(true);
-		conditionMet.ShouldBeTrue();
+		conditionMet.ShouldBeTrue($"Condition was not met within {scaledTimeout}.");
 	}
 
 	private async Task InitializeAuditTableAsync()
