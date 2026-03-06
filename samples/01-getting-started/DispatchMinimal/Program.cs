@@ -109,6 +109,7 @@ Console.WriteLine("  Sample Complete!");
 Console.WriteLine("=================================================");
 Console.WriteLine();
 Console.WriteLine("Next steps:");
-Console.WriteLine("- See samples/ExcaliburCqrs for aggregate root patterns");
+Console.WriteLine("- See samples/01-getting-started/ExcaliburCqrs for aggregate root patterns");
 Console.WriteLine("- See samples/MIGRATION.md for upgrade guidance");
 Console.WriteLine();
+

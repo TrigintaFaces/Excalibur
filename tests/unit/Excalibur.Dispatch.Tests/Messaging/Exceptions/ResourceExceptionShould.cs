@@ -1,4 +1,4 @@
-using Excalibur.Dispatch.Exceptions;
+using Excalibur.Data.Abstractions;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 
@@ -11,7 +11,7 @@ public sealed class ResourceExceptionShould
 	{
 		var ex = new ResourceException();
 
-		ex.DispatchStatusCode.ShouldBe(404);
+		ex.StatusCode.ShouldBe(404);
 		ex.Message.ShouldContain("resource error");
 	}
 
@@ -21,7 +21,7 @@ public sealed class ResourceExceptionShould
 		var ex = new ResourceException("Custom message");
 
 		ex.Message.ShouldBe("Custom message");
-		ex.DispatchStatusCode.ShouldBe(404);
+		ex.StatusCode.ShouldBe(404);
 	}
 
 	[Fact]
@@ -32,7 +32,7 @@ public sealed class ResourceExceptionShould
 
 		ex.Message.ShouldBe("msg");
 		ex.InnerException.ShouldBe(inner);
-		ex.DispatchStatusCode.ShouldBe(404);
+		ex.StatusCode.ShouldBe(404);
 	}
 
 	[Fact]

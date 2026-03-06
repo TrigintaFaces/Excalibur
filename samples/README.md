@@ -45,7 +45,6 @@ Transport configuration, multi-bus scenarios, and cross-provider messaging.
 
 | Sample | Description |
 |--------|-------------|
-| [MultiTransport](02-messaging-transports/MultiTransport/) | Using multiple transports in a single application |
 | [MultiBusSample](02-messaging-transports/MultiBusSample/) | RabbitMQ + Kafka multi-bus configuration |
 | [RemoteBusSample](02-messaging-transports/RemoteBusSample/) | RabbitMQ remote bus with command/event handlers |
 | [TransportBindings](02-messaging-transports/TransportBindings/) | Transport binding configuration examples |
@@ -143,11 +142,9 @@ Advanced patterns including distributed coordination, validation, projections, s
 | [BackgroundServices](09-advanced/BackgroundServices/) | Various background service patterns |
 | [CdcAntiCorruption](09-advanced/CdcAntiCorruption/) | Anti-corruption layer for CDC integration |
 | [CdcEventStoreElasticsearch](09-advanced/CdcEventStoreElasticsearch/) | CDC with Elasticsearch event store |
-| [Consolidated](09-advanced/Consolidated/) | Multiple patterns combined in one application |
 | [JobWorkerSample](09-advanced/JobWorkerSample/) | Job worker pattern with multiple job types |
-| [CrossLangSample](09-advanced/CrossLangSample/) | Cross-language messaging (Python, JavaScript) |
-| [DistributedScheduling](09-advanced/DistributedScheduling/) | Distributed scheduling examples |
-| [PipelineProfiles](09-advanced/PipelineProfiles/) | Named pipeline profiles for per-message-type middleware |
+| [MinimalJobSample](09-advanced/MinimalJobSample/) | Minimal job worker setup |
+| [WebWorkerSample](09-advanced/WebWorkerSample/WebHost/) | Worker APIs with hosted processing |
 | [SessionManagement](09-advanced/SessionManagement/) | Session management and state tracking |
 | [Versioning.Examples](09-advanced/Versioning.Examples/) | Event versioning and upcasting patterns |
 
@@ -161,7 +158,7 @@ Production-style samples demonstrating how multiple patterns work together.
 | [ECommerce](10-real-world/ECommerce/) | E-commerce order processing | Hosted Services, Health Checks |
 | [EnhancedStores](10-real-world/EnhancedStores/) | Enhanced store patterns | Repository, Persistence |
 
-### [10-jobs/](13-jobs/)
+### [13-jobs/](13-jobs/)
 
 Job scheduling and background task patterns.
 

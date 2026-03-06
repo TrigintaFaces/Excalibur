@@ -2,58 +2,52 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Data;
-using System.Diagnostics;
-
+using Excalibur.A3.Abstractions.Authorization;
 using Excalibur.A3.Diagnostics;
-using Excalibur.Data;
 using Excalibur.Data.Abstractions;
-using Excalibur.Dispatch.Exceptions;
 using Excalibur.Domain.Exceptions;
 using Excalibur.EventSourcing.Abstractions;
 
 using Microsoft.Extensions.Logging;
 
+using StoreGrant = Excalibur.A3.Abstractions.Authorization.Grant;
+
 namespace Excalibur.A3.Authorization.Grants;
 
 /// <summary>
-/// Represents a repository for managing <see cref="Grant" /> entities, providing CRUD operations and utility methods for handling grants in
-/// a relational database.
+/// Represents a repository for managing <see cref="Grant" /> entities, providing CRUD operations and utility methods for handling grants.
 /// </summary>
 /// <remarks>
 /// <para>
 /// This repository implements the <see cref="IEventSourcedRepository{TAggregate}"/> pattern from Excalibur.EventSourcing
-/// while storing Grant data in a traditional relational schema (not an event store).
+/// while delegating persistence to an <see cref="IGrantStore"/> implementation.
 /// </para>
 /// <para>
 /// The Grant aggregate uses event sourcing for in-memory state management but persists
-/// the current state snapshot to SQL Server tables for efficient querying.
+/// the current state snapshot via the provider-neutral store interface.
 /// </para>
 /// </remarks>
 public partial class GrantRepository : IGrantRepository
 {
-	private readonly IGrantRequestProvider _requestProvider;
-	private readonly IDbConnection _connection;
+	private readonly IGrantStore _grantStore;
+	private readonly IGrantQueryStore? _queryStore;
 	private readonly ILogger<GrantRepository> _logger;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="GrantRepository" /> class.
 	/// </summary>
-	/// <param name="domainDb"> The domain database connection provider. </param>
-	/// <param name="requestProvider"> The database specific request provider. </param>
+	/// <param name="grantStore"> The provider-neutral grant store. </param>
 	/// <param name="logger"> Logger for logging messages and errors. </param>
 	public GrantRepository(
-		IDomainDb domainDb,
-		IGrantRequestProvider requestProvider,
+		IGrantStore grantStore,
 		ILogger<GrantRepository> logger)
 	{
-		ArgumentNullException.ThrowIfNull(domainDb);
-		ArgumentNullException.ThrowIfNull(requestProvider);
+		ArgumentNullException.ThrowIfNull(grantStore);
 		ArgumentNullException.ThrowIfNull(logger);
 
-		_requestProvider = requestProvider;
+		_grantStore = grantStore;
+		_queryStore = grantStore.GetService(typeof(IGrantQueryStore)) as IGrantQueryStore;
 		_logger = logger;
-		_connection = domainDb.Connection;
 	}
 
 	/// <inheritdoc />
@@ -62,14 +56,14 @@ public partial class GrantRepository : IGrantRepository
 		ArgumentException.ThrowIfNullOrEmpty(aggregateId);
 
 		var id = new GrantKey(aggregateId);
-		var getGrant = _requestProvider.GetGrant(
+		var storeGrant = await _grantStore.GetGrantAsync(
 			id.UserId,
 			id.Scope.TenantId,
 			id.Scope.GrantType,
 			id.Scope.Qualifier,
-			cancellationToken);
+			cancellationToken).ConfigureAwait(false);
 
-		return await getGrant.ResolveAsync(_connection).ConfigureAwait(false);
+		return storeGrant is null ? null : ToDomainGrant(storeGrant);
 	}
 
 	/// <inheritdoc />
@@ -99,8 +93,8 @@ public partial class GrantRepository : IGrantRepository
 				throw new InvalidOperationException("Grant UserId and Scope cannot be null.");
 			}
 
-			var saveGrant = _requestProvider.SaveGrant(aggregate, cancellationToken);
-			_ = await saveGrant.ResolveAsync(_connection).ConfigureAwait(false);
+			var storeGrant = ToStoreGrant(aggregate);
+			_ = await _grantStore.SaveGrantAsync(storeGrant, cancellationToken).ConfigureAwait(false);
 
 			// Mark events as committed after successful save
 			aggregate.MarkEventsAsCommitted();
@@ -127,14 +121,12 @@ public partial class GrantRepository : IGrantRepository
 		ArgumentException.ThrowIfNullOrEmpty(aggregateId);
 		var id = new GrantKey(aggregateId);
 
-		var grantExists = _requestProvider.GrantExists(
+		return await _grantStore.GrantExistsAsync(
 			id.UserId,
 			id.Scope.TenantId,
 			id.Scope.GrantType,
 			id.Scope.Qualifier,
-			cancellationToken);
-
-		return await grantExists.ResolveAsync(_connection).ConfigureAwait(false);
+			cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -155,16 +147,14 @@ public partial class GrantRepository : IGrantRepository
 			throw new InvalidOperationException("Grant Scope cannot be null.");
 		}
 
-		var deleteGrant = _requestProvider.DeleteGrant(
+		_ = await _grantStore.DeleteGrantAsync(
 			aggregate.UserId,
 			aggregate.Scope.TenantId,
 			aggregate.Scope.GrantType,
 			aggregate.Scope.Qualifier,
 			aggregate.RevokedBy,
 			aggregate.RevokedOn,
-			cancellationToken);
-
-		_ = await deleteGrant.ResolveAsync(_connection).ConfigureAwait(false);
+			cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -195,14 +185,21 @@ public partial class GrantRepository : IGrantRepository
 		ArgumentNullException.ThrowIfNull(scope);
 		ArgumentException.ThrowIfNullOrEmpty(userId);
 
-		var getMatchingGrants = _requestProvider.GetMatchingGrants(
+		if (_queryStore is null)
+		{
+			throw new InvalidOperationException(
+				"The configured IGrantStore does not support IGrantQueryStore. " +
+				"Ensure the store implementation returns IGrantQueryStore from GetService().");
+		}
+
+		var storeGrants = await _queryStore.GetMatchingGrantsAsync(
 			userId,
 			scope.TenantId,
 			scope.GrantType,
 			scope.Qualifier,
-			CancellationToken.None);
+			CancellationToken.None).ConfigureAwait(false);
 
-		return await getMatchingGrants.ResolveAsync(_connection).ConfigureAwait(false);
+		return storeGrants.Select(ToDomainGrant);
 	}
 
 	/// <inheritdoc />
@@ -212,17 +209,52 @@ public partial class GrantRepository : IGrantRepository
 
 		try
 		{
-			var getAllGrants = _requestProvider.GetAllGrants(userId, CancellationToken.None);
-			return await getAllGrants.ResolveAsync(_connection).ConfigureAwait(false);
+			var storeGrants = await _grantStore.GetAllGrantsAsync(userId, CancellationToken.None).ConfigureAwait(false);
+			return storeGrants.Select(ToDomainGrant);
 		}
 		catch (Exception ex)
 		{
 			throw new OperationFailedException(
-				TypeNameHelper.GetTypeDisplayName(typeof(Grant), fullName: false),
+				nameof(Grant),
 				nameof(ReadAllAsync),
 				innerException: ex);
 		}
 	}
+
+	/// <summary>
+	/// Maps a store DTO grant to a domain aggregate grant.
+	/// </summary>
+	private static Grant ToDomainGrant(StoreGrant storeGrant)
+	{
+		var grant = Grant.Create(
+			$"{storeGrant.UserId}:{storeGrant.TenantId}:{storeGrant.GrantType}:{storeGrant.Qualifier}");
+
+		grant.UserId = storeGrant.UserId;
+		grant.FullName = storeGrant.FullName;
+		grant.Scope = new GrantScope(
+			storeGrant.TenantId ?? string.Empty,
+			storeGrant.GrantType,
+			storeGrant.Qualifier);
+		grant.ExpiresOn = storeGrant.ExpiresOn;
+		grant.GrantedBy = storeGrant.GrantedBy;
+		grant.GrantedOn = storeGrant.GrantedOn;
+
+		return grant;
+	}
+
+	/// <summary>
+	/// Maps a domain aggregate grant to a store DTO grant.
+	/// </summary>
+	private static StoreGrant ToStoreGrant(Grant aggregate) =>
+		new(
+			UserId: aggregate.UserId ?? string.Empty,
+			FullName: aggregate.FullName,
+			TenantId: aggregate.Scope?.TenantId,
+			GrantType: aggregate.Scope?.GrantType ?? string.Empty,
+			Qualifier: aggregate.Scope?.Qualifier ?? string.Empty,
+			ExpiresOn: aggregate.ExpiresOn,
+			GrantedBy: aggregate.GrantedBy ?? string.Empty,
+			GrantedOn: aggregate.GrantedOn);
 
 	[LoggerMessage(A3EventId.GrantSaveError, LogLevel.Error, "Error saving grant with UserId: {UserId}, TenantId: {TenantId}, GrantType: {GrantType}, Qualifier: {Qualifier}.")]
 	private partial void LogGrantSaveError(Exception ex, string? userId, string? tenantId, string? grantType, string? qualifier);

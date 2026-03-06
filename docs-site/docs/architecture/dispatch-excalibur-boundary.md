@@ -122,11 +122,11 @@ Ownership/API changes are required to update governance source and architecture 
 
 ## Adoption Path
 
-1. **Start with `Excalibur.Dispatch`** for MediatR-style usage (`samples/DispatchMinimal` shows how).
+1. **Start with `Excalibur.Dispatch`** for MediatR-style usage (`samples/01-getting-started/DispatchMinimal` shows how).
 2. **Add transports + observability** using `Excalibur.Dispatch.Transport.*` and `Excalibur.Dispatch.Observability`.
 3. **Add `Excalibur.Domain`** when you need aggregates and rich domain modeling.
 4. **Add `Excalibur.EventSourcing`** when you need event stores and persistence.
-5. **Adopt full stack** – `samples/ExcaliburCqrs` mirrors the Dispatch sample with full CQRS.
+5. **Adopt full stack** – `samples/01-getting-started/ExcaliburCqrs` mirrors the Dispatch sample with full CQRS.
 
 Because all packages share the `Excalibur.*` namespace, you never rewrite handlers when adding capabilities.
 
@@ -137,3 +137,4 @@ Because all packages share the `Excalibur.*` namespace, you never rewrite handle
 - [Contributor guide](https://github.com/TrigintaFaces/Excalibur/blob/main/docs/architecture/dispatch-excalibur-boundary.md) – deeper dive for maintainers
 - [Dispatch docs](../core-concepts/) – dispatcher, middleware, context, routing
 - [Samples](../getting-started/samples.md) – runnable projects demonstrating different package combinations
+

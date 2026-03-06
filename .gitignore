@@ -115,6 +115,8 @@ dlldata.c
 
 # Benchmark Results
 BenchmarkDotNet.Artifacts*/
+benchmarks/runs/*
+!benchmarks/runs/.gitkeep
 
 # .NET Core
 project.lock.json
@@ -511,3 +513,6 @@ docs-site/.cache-loader/
 
 # Stryker.NET mutation testing output
 StrykerOutput/
+
+# SARIF static analysis results
+*.sarif

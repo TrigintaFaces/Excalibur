@@ -283,7 +283,7 @@ public sealed class OperationFailedExceptionShould : UnitTestBase
 		var exception = new OperationFailedException("Op", "Resource");
 
 		// Assert
-		exception.ShouldBeAssignableTo<Dispatch.Abstractions.ResourceException>();
+		exception.ShouldBeAssignableTo<Excalibur.Data.Abstractions.ResourceException>();
 	}
 
 	[Fact]

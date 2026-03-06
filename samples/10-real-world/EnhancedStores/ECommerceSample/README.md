@@ -259,6 +259,4 @@ For production use, consider:
 
 ## See Also
 
-- [Basic Usage Example](../BasicUsageExample.cs) - Simple enhanced store usage
-- [High Performance Example](../HighPerformanceExample.cs) - Performance-optimized configuration
-- [Observability Example](../ObservabilityExample.cs) - Advanced monitoring setup
+- See sample source in this project (`Program.cs`, `Configuration/`, `Handlers/`) for runnable usage patterns.

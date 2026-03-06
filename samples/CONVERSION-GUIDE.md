@@ -45,7 +45,7 @@ Copy the sample folder to your solution:
 
 ```bash
 # Copy sample to your project
-cp -r samples/DispatchMinimal ~/my-project/
+cp -r samples/01-getting-started/DispatchMinimal ~/my-project/
 ```
 
 ### Step 2: Replace ProjectReferences
@@ -337,3 +337,4 @@ dotnet build
 ---
 
 *Updated: Sprint 427*
+

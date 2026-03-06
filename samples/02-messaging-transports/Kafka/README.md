@@ -185,7 +185,7 @@ docker exec kafka-sample kafka-consumer-groups --bootstrap-server localhost:9092
 
 - [RabbitMQ](../RabbitMQ/) - RabbitMQ transport
 - [MultiBusSample](../MultiBusSample/) - Multiple transports in one application
-- [MultiTransport](../MultiTransport/) - Multi-transport patterns
+- [MultiBusSample](../MultiBusSample/) - Multi-transport patterns
 
 ## Learn More
 

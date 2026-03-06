@@ -191,7 +191,8 @@ In addition to context items, `ITenantId` is available as a scoped DI service re
 
 ```csharp
 // Single-tenant: ITenantId.Value is "Default" automatically
-services.AddExcaliburA3Services(SupportedDatabase.Postgres);
+services.AddExcaliburA3()
+    .UsePostgres();
 
 // Multi-tenant: resolve per-request before A3
 services.TryAddTenantId(sp =>
@@ -200,7 +201,8 @@ services.TryAddTenantId(sp =>
     return httpContext?.Request.Headers["X-Tenant-ID"].FirstOrDefault()
         ?? TenantDefaults.DefaultTenantId;
 });
-services.AddExcaliburA3Services(SupportedDatabase.Postgres);
+services.AddExcaliburA3()
+    .UsePostgres();
 ```
 
 The `TenantIdentityMiddleware` in the pipeline sets the context-level tenant from HTTP headers, message properties, or a configured default. The DI-registered `ITenantId` is used by A3 authorization, grants, and audit logging.

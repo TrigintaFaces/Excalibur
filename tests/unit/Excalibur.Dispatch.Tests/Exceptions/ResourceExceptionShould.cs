@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Data.Abstractions;
 using Excalibur.Dispatch.Abstractions;
 
 namespace Excalibur.Dispatch.Tests.Exceptions;
@@ -31,7 +32,7 @@ public sealed class ResourceExceptionShould
 		var exception = new ResourceException(resource: "Order");
 
 		// Assert
-		exception.StatusCode.ShouldBe(500);
+		exception.StatusCode.ShouldBe(404);
 	}
 
 	[Fact]
@@ -112,28 +113,28 @@ public sealed class ResourceExceptionShould
 	#region Constructor Tests (Alternative Constructors)
 
 	[Fact]
-	public void Create_WithDefaultConstructor_SetsEmptyResource()
+	public void Create_WithDefaultConstructor_SetsNullResource()
 	{
 		// Arrange & Act
 		var exception = new ResourceException();
 
 		// Assert
-		exception.Resource.ShouldBe(string.Empty);
+		exception.Resource.ShouldBeNull();
 	}
 
 	[Fact]
-	public void Create_WithMessageOnly_SetsEmptyResource()
+	public void Create_WithMessageOnly_SetsNullResource()
 	{
 		// Arrange & Act
 		var exception = new ResourceException("Error message");
 
 		// Assert
 		exception.Message.ShouldBe("Error message");
-		exception.Resource.ShouldBe(string.Empty);
+		exception.Resource.ShouldBeNull();
 	}
 
 	[Fact]
-	public void Create_WithMessageAndInnerException_SetsEmptyResource()
+	public void Create_WithMessageAndInnerException_SetsNullResource()
 	{
 		// Arrange
 		var inner = new InvalidOperationException("Inner");
@@ -144,23 +145,23 @@ public sealed class ResourceExceptionShould
 		// Assert
 		exception.Message.ShouldBe("Error message");
 		exception.InnerException.ShouldBe(inner);
-		exception.Resource.ShouldBe(string.Empty);
+		exception.Resource.ShouldBeNull();
 	}
 
 	[Fact]
-	public void Create_WithStatusCodeMessageAndInner_SetsEmptyResource()
+	public void Create_WithResourceStatusCodeMessageAndInner_SetsAll()
 	{
 		// Arrange
 		var inner = new InvalidOperationException("Inner");
 
 		// Act
-		var exception = new ResourceException(400, "Bad request", inner);
+		var exception = new ResourceException(resource: "Test", statusCode: 400, message: "Bad request", innerException: inner);
 
 		// Assert
 		exception.StatusCode.ShouldBe(400);
 		exception.Message.ShouldBe("Bad request");
 		exception.InnerException.ShouldBe(inner);
-		exception.Resource.ShouldBe(string.Empty);
+		exception.Resource.ShouldBe("Test");
 	}
 
 	#endregion

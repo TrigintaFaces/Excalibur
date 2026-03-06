@@ -105,7 +105,7 @@ TransportBindings/
 
 ## Next Steps
 
-- [MultiTransport](../MultiTransport/) - Full multi-transport example
+- [MultiBusSample](../MultiBusSample/) - Full multi-transport example
 - [MultiBusSample](../MultiBusSample/) - Multi-bus with RabbitMQ + Kafka
 
 ---

@@ -2,16 +2,21 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using Excalibur.A3.Authorization.Grants;
-using Excalibur.Data;
+using Excalibur.A3.Abstractions.Authorization;
 
 namespace Excalibur.A3.Authorization.PolicyData;
 
 /// <summary>
-/// Manages grants in the database.
+/// Manages grants in the store via the provider-neutral query interface.
 /// </summary>
-internal sealed class UserGrants(IDomainDb domainDb, IGrantRequestProvider grantRequestProvider)
+internal sealed class UserGrants(IGrantStore grantStore)
 {
+	private readonly IGrantQueryStore _queryStore =
+		grantStore.GetService(typeof(IGrantQueryStore)) as IGrantQueryStore
+		?? throw new InvalidOperationException(
+			"The configured IGrantStore does not support IGrantQueryStore. " +
+			"Ensure the store implementation returns IGrantQueryStore from GetService().");
+
 	/// <summary>
 	/// Asynchronously retrieves a dictionary of grants for a specific user.
 	/// </summary>
@@ -21,8 +26,7 @@ internal sealed class UserGrants(IDomainDb domainDb, IGrantRequestProvider grant
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(userId);
 
-		return await grantRequestProvider
-			.FindUserGrants(userId, CancellationToken.None).ResolveAsync(domainDb.Connection)
-			.ConfigureAwait(false);
+		var result = await _queryStore.FindUserGrantsAsync(userId, CancellationToken.None).ConfigureAwait(false);
+		return new Dictionary<string, object>(result);
 	}
 }

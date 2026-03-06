@@ -1,11 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
-using System.Reflection;
 using System.Runtime.ExceptionServices;
-using System.Runtime.Loader;
 
 using Excalibur.A3;
 using Excalibur.A3.Audit;
@@ -29,25 +26,62 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class ServiceCollectionExtensions
 {
 	/// <summary>
-	/// Configures the A3 Excalibur services.
+	/// Adds A3 authorization services and returns a builder for store configuration.
 	/// </summary>
-	/// <param name="services"> The service collection to add A3 services. </param>
-	/// <param name="databaseType"> The type of database to configure for A3 services. </param>
-	/// <returns> The updated service collection. </returns>
+	/// <param name="services">The service collection to add A3 services to.</param>
+	/// <returns>An <see cref="IA3Builder"/> for configuring store providers.</returns>
 	/// <remarks>
-	/// Automatically registers <see cref="ITenantId"/> with <see cref="TenantDefaults.DefaultTenantId"/>
-	/// if not already registered. For multi-tenant applications, register your tenant resolver
-	/// before calling this method.
+	/// <para>
+	/// This is the recommended entry point for configuring A3 authorization.
+	/// Use the returned builder to register store providers:
+	/// </para>
+	/// <code>
+	/// services.AddExcaliburA3()
+	///     .UseSqlServer(options =&gt; { options.ConnectionString = "..."; });
+	/// </code>
+	/// <para>
+	/// For custom store implementations:
+	/// </para>
+	/// <code>
+	/// services.AddExcaliburA3()
+	///     .UseGrantStore&lt;MyGrantStore&gt;()
+	///     .UseActivityGroupStore&lt;MyActivityGroupStore&gt;();
+	/// </code>
 	/// </remarks>
-	[RequiresUnreferencedCode("Calls methods that use runtime type resolution to dynamically load database-specific request providers.")]
-	public static IServiceCollection AddExcaliburA3Services(this IServiceCollection services, SupportedDatabase databaseType)
+	public static IA3Builder AddExcaliburA3(this IServiceCollection services)
 	{
+		ArgumentNullException.ThrowIfNull(services);
+
 		_ = services.TryAddTenantId();
 		_ = services.AddA3DispatchServices();
 		_ = AddAuthentication(services);
-		_ = services.AddAuthorization(databaseType);
-		_ = services.AddActivities(typeof(AuthorizationPolicy).Assembly);
+		_ = services.AddA3AuthorizationCore();
 		services.TryAddScoped<IAccessToken, AccessToken>();
+
+		return new A3Builder(services);
+	}
+
+	/// <summary>
+	/// Registers authorization core services without database-specific providers.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <returns>The service collection for chaining.</returns>
+	private static IServiceCollection AddA3AuthorizationCore(this IServiceCollection services)
+	{
+		services.TryAddScoped<IGrantRepository, GrantRepository>();
+
+		_ = services
+			.AddSingleton<Activities>()
+			.AddTransient<ActivityGroups>()
+			.AddTransient<UserGrants>()
+			.AddScoped<IAuthorizationPolicyProvider, AuthorizationPolicyProvider>()
+			.AddScoped<IAuthorizationPolicy>(static container =>
+				ResolvePolicySynchronously(container.GetRequiredService<IAuthorizationPolicyProvider>()))
+			.AddHttpClient<IActivityGroupService, ActivityGroupService>(static client =>
+			{
+				client.BaseAddress = new Uri(ApplicationContext.AuthorizationServiceEndpoint);
+				client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+			});
 
 		return services;
 	}
@@ -94,85 +128,6 @@ public static class ServiceCollectionExtensions
 		return services;
 	}
 
-	/// <summary>
-	/// Configures authorization services with grant-based policy evaluation.
-	/// </summary>
-	/// <param name="services"> The service collection to add services Excalibur.Dispatch.Transport.Aws.Sqs.LongPolling.Configuration. </param>
-	/// <param name="databaseType"> The type of database to configure for authorization services. </param>
-	/// <returns> The updated service collection. </returns>
-	[RequiresUnreferencedCode("Calls methods that use runtime type resolution to dynamically load database-specific request providers.")]
-	private static IServiceCollection AddAuthorization(this IServiceCollection services, SupportedDatabase databaseType)
-	{
-		_ = services
-			.AddAuthorizationRequestProviders(databaseType)
-			.AddSingleton<Activities>()
-			.AddTransient<ActivityGroups>()
-			.AddTransient<UserGrants>()
-			.AddScoped<IAuthorizationPolicyProvider, AuthorizationPolicyProvider>()
-			.AddScoped<IAuthorizationPolicy>(static container =>
-				ResolvePolicySynchronously(container.GetRequiredService<IAuthorizationPolicyProvider>()))
-			.AddHttpClient<IActivityGroupService, ActivityGroupService>(static client =>
-			{
-				client.BaseAddress = new Uri(ApplicationContext.AuthorizationServiceEndpoint);
-				client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-			});
-
-		return services;
-	}
-
-	[RequiresUnreferencedCode("Calls methods that use runtime type resolution to dynamically load database-specific request providers.")]
-	private static IServiceCollection AddAuthorizationRequestProviders(this IServiceCollection services, SupportedDatabase databaseType)
-	{
-		_ = services.AddActivityGroupRequestProvider(databaseType);
-		_ = services.AddGrantRequestProvider(databaseType);
-
-		return services;
-	}
-
-	[RequiresUnreferencedCode(
-		"Uses runtime type resolution to dynamically load database-specific request providers. The types should be preserved if using AOT.")]
-	private static IServiceCollection AddActivityGroupRequestProvider(this IServiceCollection services, SupportedDatabase databaseType)
-	{
-		var (typeName, assemblyName) = databaseType switch
-		{
-			SupportedDatabase.Postgres => (
-				"Excalibur.Dispatch.Databases.Postgres.RequestProviders.Authorization.ActivityGroups.PostgresActivityGroupRequestProvider",
-				"Excalibur.Dispatch.Databases.Postgres"),
-			SupportedDatabase.SqlServer => (
-				"Excalibur.Dispatch.Databases.SqlServer.RequestProviders.Authorization.ActivityGroups.SqlServerActivityGroupRequestProvider",
-				"Excalibur.Dispatch.Databases.SqlServer"),
-			SupportedDatabase.Unknown or _ => throw new NotSupportedException(
-				$"Database type '{databaseType}' is not supported."),
-		};
-
-		var requestProviderType = ResolveRequestProviderType(typeName, assemblyName, databaseType);
-
-		services.TryAddSingleton(typeof(IActivityGroupRequestProvider), requestProviderType);
-		return services;
-	}
-
-	[RequiresUnreferencedCode(
-		"Uses runtime type resolution to dynamically load database-specific request providers. The types should be preserved if using AOT.")]
-	private static IServiceCollection AddGrantRequestProvider(this IServiceCollection services, SupportedDatabase databaseType)
-	{
-		var (typeName, assemblyName) = databaseType switch
-		{
-			SupportedDatabase.Postgres => (
-				"Excalibur.Dispatch.Databases.Postgres.RequestProviders.Authorization.Grants.PostgresGrantRequestProvider",
-				"Excalibur.Dispatch.Databases.Postgres"),
-			SupportedDatabase.SqlServer => (
-				"Excalibur.Dispatch.Databases.SqlServer.RequestProviders.Authorization.Grants.SqlServerGrantRequestProvider",
-				"Excalibur.Dispatch.Databases.SqlServer"),
-			SupportedDatabase.Unknown or _ => throw new NotSupportedException(
-				$"Database type '{databaseType}' is not supported."),
-		};
-
-		var requestProviderType = ResolveRequestProviderType(typeName, assemblyName, databaseType);
-
-		services.TryAddSingleton(typeof(IGrantRequestProvider), requestProviderType);
-		return services;
-	}
-
 	private static IAuthorizationPolicy ResolvePolicySynchronously(IAuthorizationPolicyProvider policyProvider)
 	{
 		using var completed = new ManualResetEventSlim(false);
@@ -207,42 +162,6 @@ public static class ServiceCollectionExtensions
 			{
 				completed.Set();
 			}
-		}
-	}
-
-	private static Type ResolveRequestProviderType(string typeName, string assemblyName, SupportedDatabase databaseType)
-	{
-		var assembly = FindLoadedAssembly(assemblyName) ?? LoadAssembly(assemblyName);
-		var providerType = assembly.GetType(typeName, throwOnError: false, ignoreCase: false);
-
-		return providerType ?? throw new InvalidOperationException(
-			$"The request provider for '{databaseType}' is not available. Ensure the appropriate NuGet package is installed.");
-	}
-
-	private static Assembly? FindLoadedAssembly(string assemblyName)
-	{
-		foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-		{
-			if (string.Equals(assembly.GetName().Name, assemblyName, StringComparison.Ordinal))
-			{
-				return assembly;
-			}
-		}
-
-		return null;
-	}
-
-	private static Assembly LoadAssembly(string assemblyName)
-	{
-		try
-		{
-			return AssemblyLoadContext.Default.LoadFromAssemblyName(new AssemblyName(assemblyName));
-		}
-		catch (Exception ex) when (ex is FileNotFoundException or FileLoadException or BadImageFormatException)
-		{
-			throw new InvalidOperationException(
-				$"The request provider assembly '{assemblyName}' is not available. Ensure the appropriate NuGet package is installed.",
-				ex);
 		}
 	}
 }

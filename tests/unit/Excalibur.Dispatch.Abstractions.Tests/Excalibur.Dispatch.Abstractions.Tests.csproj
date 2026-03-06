@@ -14,6 +14,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Domain\Excalibur.Domain.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />

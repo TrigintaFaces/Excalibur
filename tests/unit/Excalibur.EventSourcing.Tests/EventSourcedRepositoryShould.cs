@@ -560,7 +560,7 @@ public sealed class EventSourcedRepositoryShould
 			id => new TestAggregate(id));
 
 		// Act & Assert
-		var exception = await Should.ThrowAsync<Excalibur.Dispatch.Exceptions.ResourceException>(
+		var exception = await Should.ThrowAsync<Excalibur.Data.Abstractions.ResourceException>(
 			async () => await repository.SaveAsync(aggregate, CancellationToken.None));
 		exception.Message.ShouldContain("Append failed");
 	}

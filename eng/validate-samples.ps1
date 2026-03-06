@@ -89,6 +89,32 @@ $allSamples = @(Get-ChildItem (Join-Path $RepoRoot 'samples') -Recurse -Filter '
     $_.FullName.Substring($RepoRoot.Length + 1).Replace('\', '/')
 } | Sort-Object -Unique)
 
+$sampleRoot = Join-Path $RepoRoot 'samples'
+$orphanSourceFiles = New-Object System.Collections.Generic.List[string]
+$sampleSourceFiles = @(Get-ChildItem $sampleRoot -Recurse -Filter '*.cs' -File | Where-Object {
+    $_.FullName -notmatch '[\\/](obj|bin)[\\/]'
+})
+
+foreach ($sourceFile in $sampleSourceFiles) {
+    $directory = $sourceFile.Directory
+    $hasAncestorProject = $false
+
+    while ($null -ne $directory -and $directory.FullName.StartsWith($sampleRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $projectInDirectory = Get-ChildItem $directory.FullName -Filter '*.csproj' -File | Select-Object -First 1
+        if ($null -ne $projectInDirectory) {
+            $hasAncestorProject = $true
+            break
+        }
+
+        $directory = $directory.Parent
+    }
+
+    if (-not $hasAncestorProject) {
+        $relativePath = $sourceFile.FullName.Substring($RepoRoot.Length + 1).Replace('\', '/')
+        $orphanSourceFiles.Add($relativePath)
+    }
+}
+
 $classified = @($CertifiedSamples + $QuarantinedSamples | Sort-Object -Unique)
 $unclassified = @($allSamples | Where-Object { $_ -notin $classified })
 
@@ -143,6 +169,9 @@ foreach ($samplePath in $smokeByProject.Keys) {
 Write-Host "[1/4] Certified samples to validate: $($CertifiedSamples.Count)" -ForegroundColor Yellow
 Write-Host "Quarantined samples: $($QuarantinedSamples.Count)" -ForegroundColor DarkGray
 Write-Host "Unclassified samples: $($unclassified.Count)`n" -ForegroundColor $(if ($unclassified.Count -eq 0) { 'DarkGray' } else { 'Red' })
+if ($orphanSourceFiles.Count -gt 0) {
+    Write-Host "Orphan sample source files (no ancestor .csproj): $($orphanSourceFiles.Count)`n" -ForegroundColor Red
+}
 
 $results = @()
 $buildPassed = 0
@@ -289,6 +318,10 @@ if ($unclassified.Count -gt 0) {
     $smokeFailed += $unclassified.Count
 }
 
+if ($orphanSourceFiles.Count -gt 0) {
+    $smokeFailed += $orphanSourceFiles.Count
+}
+
 Write-Host "`n[3/4] Results Summary..." -ForegroundColor Yellow
 Write-Host "`n--- Certified Sample Validation Results ---" -ForegroundColor White
 Write-Host "  Build Passed: $buildPassed" -ForegroundColor Green
@@ -312,14 +345,21 @@ if ($unclassified.Count -gt 0) {
     }
 }
 
+if ($orphanSourceFiles.Count -gt 0) {
+    Write-Host "`n--- Orphan Sample Source Files (must be under a sample project) ---" -ForegroundColor Red
+    foreach ($file in $orphanSourceFiles) {
+        Write-Host "  $file" -ForegroundColor Red
+    }
+}
+
 Write-Host "`n[4/4] Final Status..." -ForegroundColor Yellow
 Write-Host "`n========================================" -ForegroundColor Cyan
-if ($buildFailed -eq 0 -and $smokeFailed -eq 0 -and $unclassified.Count -eq 0) {
+if ($buildFailed -eq 0 -and $smokeFailed -eq 0 -and $unclassified.Count -eq 0 -and $orphanSourceFiles.Count -eq 0) {
     Write-Host 'SUCCESS: Certified samples passed build/smoke profiles and all samples are classified.' -ForegroundColor Green
     Write-Host "========================================`n" -ForegroundColor Cyan
     exit 0
 }
 
-Write-Host "FAILURE: build failures=$buildFailed, smoke failures=$smokeFailed, unclassified=$($unclassified.Count)." -ForegroundColor Red
+Write-Host "FAILURE: build failures=$buildFailed, smoke failures=$smokeFailed, unclassified=$($unclassified.Count), orphanSources=$($orphanSourceFiles.Count)." -ForegroundColor Red
 Write-Host "========================================`n" -ForegroundColor Cyan
 exit 1

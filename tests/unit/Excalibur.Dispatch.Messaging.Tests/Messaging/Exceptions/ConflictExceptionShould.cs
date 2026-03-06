@@ -3,11 +3,8 @@
 
 using System.Net;
 
+using Excalibur.Data.Abstractions;
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Exceptions;
-
-// Use alias to disambiguate from Excalibur.Dispatch.Abstractions.ResourceException
-using ResourceException = Excalibur.Dispatch.Exceptions.ResourceException;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 
@@ -27,7 +24,6 @@ public sealed class ConflictExceptionShould
 
 		// Assert
 		_ = exception.ShouldBeAssignableTo<ResourceException>();
-		_ = exception.ShouldBeAssignableTo<DispatchException>();
 		_ = exception.ShouldBeAssignableTo<ApiException>();
 	}
 
@@ -38,17 +34,7 @@ public sealed class ConflictExceptionShould
 		var exception = new ConflictException();
 
 		// Assert
-		exception.DispatchStatusCode.ShouldBe((int)HttpStatusCode.Conflict);
-	}
-
-	[Fact]
-	public void UseResourceConflictErrorCode()
-	{
-		// Arrange & Act
-		var exception = new ConflictException();
-
-		// Assert
-		exception.ErrorCode.ShouldBe(ErrorCodes.ResourceConflict);
+		exception.StatusCode.ShouldBe((int)HttpStatusCode.Conflict);
 	}
 
 	[Fact]
@@ -89,7 +75,7 @@ public sealed class ConflictExceptionShould
 		exception.Message.ShouldContain("User");
 		exception.Message.ShouldContain("user@example.com");
 		exception.Message.ShouldContain("already exists");
-		exception.DispatchStatusCode.ShouldBe(409);
+		exception.StatusCode.ShouldBe(409);
 	}
 
 	[Fact]
@@ -103,22 +89,22 @@ public sealed class ConflictExceptionShould
 		exception.Context.ShouldContainKeyAndValue("targetState", "Cancelled");
 		exception.Message.ShouldContain("Pending");
 		exception.Message.ShouldContain("Cancelled");
-		exception.DispatchStatusCode.ShouldBe(409);
+		exception.StatusCode.ShouldBe(409);
 	}
 
 	[Fact]
-	public void IncludeFieldInDispatchProblemDetailsExtensions()
+	public void IncludeFieldInProblemDetailsExtensions()
 	{
 		// Arrange
 		var exception = new ConflictException("User", "email", "Email already in use.");
 
 		// Act
-		var dispatchProblemDetails = exception.ToDispatchProblemDetails();
+		var problemDetails = exception.ToProblemDetails();
 
-		// Assert - ToDispatchProblemDetails() includes context in Extensions
-		dispatchProblemDetails.Extensions.ShouldContainKeyAndValue("resource", "User");
-		dispatchProblemDetails.Extensions.ShouldContainKeyAndValue("field", "email");
-		dispatchProblemDetails.Extensions.ShouldContainKeyAndValue("reason", "Email already in use.");
+		// Assert
+		problemDetails.Extensions.ShouldContainKeyAndValue("resource", "User");
+		problemDetails.Extensions.ShouldContainKeyAndValue("field", "email");
+		problemDetails.Extensions.ShouldContainKeyAndValue("reason", "Email already in use.");
 	}
 
 	[Fact]
@@ -141,7 +127,7 @@ public sealed class ConflictExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe("Custom conflict message");
-		exception.DispatchStatusCode.ShouldBe(409);
+		exception.StatusCode.ShouldBe(409);
 	}
 
 	[Fact]

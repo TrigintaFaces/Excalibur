@@ -369,6 +369,30 @@ if ($Mode -eq 'Governance') {
         Convert-ToRepoPath -FullPath $_.FullName
     } | Sort-Object -Unique)
 
+    $sampleRootPath = Join-Path $repoRoot 'samples'
+    $sampleSourceFiles = @(Get-ChildItem $sampleRootPath -Recurse -Filter '*.cs' -File | Where-Object {
+        $_.FullName -notmatch '[\\/](obj|bin)[\\/]'
+    })
+    $orphanSampleSourceFiles = New-Object System.Collections.Generic.List[string]
+    foreach ($sourceFile in $sampleSourceFiles) {
+        $directory = $sourceFile.Directory
+        $hasAncestorProject = $false
+
+        while ($null -ne $directory -and $directory.FullName.StartsWith($sampleRootPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $projectInDirectory = Get-ChildItem $directory.FullName -Filter '*.csproj' -File | Select-Object -First 1
+            if ($null -ne $projectInDirectory) {
+                $hasAncestorProject = $true
+                break
+            }
+
+            $directory = $directory.Parent
+        }
+
+        if (-not $hasAncestorProject) {
+            $orphanSampleSourceFiles.Add((Convert-ToRepoPath -FullPath $sourceFile.FullName))
+        }
+    }
+
     $certifiedRaw = @($matrix.sampleFitness.certified)
     $quarantinedRaw = @($matrix.sampleFitness.quarantined)
     $certified = @($certifiedRaw | ForEach-Object { Normalize-RepoPath $_ })
@@ -399,6 +423,10 @@ if ($Mode -eq 'Governance') {
     $unclassified = @($allSampleProjects | Where-Object { $_ -notin $classified })
     foreach ($samplePath in $unclassified) {
         $issues.Add("Sample project is not classified in sampleFitness matrix: $samplePath")
+    }
+
+    foreach ($sourcePath in $orphanSampleSourceFiles) {
+        $issues.Add("Sample source file is not under a project folder: $sourcePath")
     }
 
     $smokeProfiles = @($matrix.sampleFitness.smokeProfiles)

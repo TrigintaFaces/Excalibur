@@ -10,12 +10,13 @@
     <Version>$(VersionPrefix)</Version>
     <PackageId>$(AssemblyName)</PackageId>
     <!-- Suppress warnings irrelevant for sample code -->
-    <NoWarn>$(NoWarn);CA1050</NoWarn>
+    <NoWarn>$(NoWarn);CA1050;CA1506</NoWarn>
   </PropertyGroup>
   <!-- Sprint 428 S428.3: Updated paths for reorganized sample structure -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.DataProcessing\Excalibur.Data.DataProcessing.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />

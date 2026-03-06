@@ -31,8 +31,8 @@ public static class MongoDbAuthorizationExtensions
 			.Configure(configure)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
-		services.TryAddSingleton<IGrantRequestProvider, MongoDbGrantService>();
-		services.TryAddSingleton<IActivityGroupGrantService, MongoDbActivityGroupGrantService>();
+		services.TryAddSingleton<IGrantStore, MongoDbGrantStore>();
+		services.TryAddSingleton<IActivityGroupGrantStore, MongoDbActivityGroupGrantStore>();
 
 		return services;
 	}
@@ -65,7 +65,7 @@ public static class MongoDbAuthorizationExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Action to configure the options.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddMongoDbGrantService(
+	public static IServiceCollection AddMongoDbGrantStore(
 		this IServiceCollection services,
 		Action<MongoDbAuthorizationOptions> configure)
 	{
@@ -76,7 +76,7 @@ public static class MongoDbAuthorizationExtensions
 			.Configure(configure)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
-		services.TryAddSingleton<IGrantRequestProvider, MongoDbGrantService>();
+		services.TryAddSingleton<IGrantStore, MongoDbGrantStore>();
 
 		return services;
 	}
@@ -87,7 +87,7 @@ public static class MongoDbAuthorizationExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Action to configure the options.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddMongoDbActivityGroupGrantService(
+	public static IServiceCollection AddMongoDbActivityGroupGrantStore(
 		this IServiceCollection services,
 		Action<MongoDbAuthorizationOptions> configure)
 	{
@@ -98,7 +98,7 @@ public static class MongoDbAuthorizationExtensions
 			.Configure(configure)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
-		services.TryAddSingleton<IActivityGroupGrantService, MongoDbActivityGroupGrantService>();
+		services.TryAddSingleton<IActivityGroupGrantStore, MongoDbActivityGroupGrantStore>();
 
 		return services;
 	}

@@ -1,9 +1,1 @@
 #nullable enable
-Excalibur.Dispatch.Patterns.DispatchPatternsJsonOptions
-Excalibur.Dispatch.Patterns.DispatchPatternsJsonOptions.DispatchPatternsJsonOptions() -> void
-Excalibur.Dispatch.Patterns.DispatchPatternsJsonOptions.SerializerContext.get -> System.Text.Json.Serialization.JsonSerializerContext
-Excalibur.Dispatch.Patterns.DispatchPatternsJsonOptions.SerializerContext.set -> void
-Excalibur.Dispatch.Patterns.DispatchPatternsJsonOptions.SerializerOptions.get -> System.Text.Json.JsonSerializerOptions
-Microsoft.Extensions.DependencyInjection.DispatchPatternsJsonServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.DispatchPatternsJsonServiceCollectionExtensions.AddDispatchPatternsClaimCheckJson(Microsoft.Extensions.DependencyInjection.IServiceCollection services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
-static Microsoft.Extensions.DependencyInjection.DispatchPatternsJsonServiceCollectionExtensions.AddJsonSerialization(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Excalibur.Dispatch.Patterns.DispatchPatternsJsonOptions> configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection

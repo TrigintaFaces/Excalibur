@@ -9,7 +9,7 @@ This sample shows how to build event-sourced aggregates using the Excalibur fram
 ## Running the Sample
 
 ```bash
-dotnet run --project samples/ExcaliburCqrs/ExcaliburCqrs.csproj
+dotnet run --project samples/01-getting-started/ExcaliburCqrs/ExcaliburCqrs.csproj
 ```
 
 ## What This Sample Demonstrates
@@ -191,3 +191,4 @@ This project is multi-licensed under:
 - [Apache-2.0](..\..\..\licenses\LICENSE-APACHE-2.0.txt)
 
 See [LICENSE](..\..\..\LICENSE) for details.
+

@@ -7,8 +7,8 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 
+using Excalibur.Data.Abstractions;
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Exceptions;
 using Excalibur.Dispatch.Versioning;
 
 using Excalibur.EventSourcing.Outbox;
@@ -16,12 +16,10 @@ using Excalibur.EventSourcing.Snapshots;
 
 using Microsoft.Extensions.Options;
 
-using ConcurrencyException = Excalibur.Dispatch.Exceptions.ConcurrencyException;
 // Use Excalibur.EventSourcing.Abstractions as canonical source (AD-251-2)
 using IEventStore = Excalibur.EventSourcing.Abstractions.IEventStore;
 using ISnapshotManager = Excalibur.EventSourcing.Abstractions.ISnapshotManager;
 using ISnapshotStrategy = Excalibur.EventSourcing.Abstractions.ISnapshotStrategy;
-using ResourceException = Excalibur.Dispatch.Exceptions.ResourceException;
 using StoredEvent = Excalibur.EventSourcing.Abstractions.StoredEvent;
 
 namespace Excalibur.EventSourcing.Implementation;
@@ -218,13 +216,11 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 			}
 
 			throw new ResourceException(
-					ErrorCodes.DataTransactionFailed,
 					string.Format(
 							CultureInfo.CurrentCulture,
 							SaveFailedFormat,
 							aggregate.Id,
-							result.ErrorMessage),
-					null);
+							result.ErrorMessage));
 		}
 
 		// Stage integration events to outbox if configured

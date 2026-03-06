@@ -3,11 +3,8 @@
 
 using System.Net;
 
+using Excalibur.Data.Abstractions;
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Exceptions;
-
-// Use alias to disambiguate from Excalibur.Dispatch.Abstractions.ResourceException
-using ResourceException = Excalibur.Dispatch.Exceptions.ResourceException;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 
@@ -27,7 +24,6 @@ public sealed class ResourceNotFoundExceptionShould
 
 		// Assert
 		_ = exception.ShouldBeAssignableTo<ResourceException>();
-		_ = exception.ShouldBeAssignableTo<DispatchException>();
 		_ = exception.ShouldBeAssignableTo<ApiException>();
 	}
 
@@ -38,17 +34,7 @@ public sealed class ResourceNotFoundExceptionShould
 		var exception = new ResourceNotFoundException();
 
 		// Assert
-		exception.DispatchStatusCode.ShouldBe((int)HttpStatusCode.NotFound);
-	}
-
-	[Fact]
-	public void UseResourceNotFoundErrorCode()
-	{
-		// Arrange & Act
-		var exception = new ResourceNotFoundException();
-
-		// Assert
-		exception.ErrorCode.ShouldBe(ErrorCodes.ResourceNotFound);
+		exception.StatusCode.ShouldBe((int)HttpStatusCode.NotFound);
 	}
 
 	[Fact]
@@ -90,17 +76,17 @@ public sealed class ResourceNotFoundExceptionShould
 	}
 
 	[Fact]
-	public void IncludeResourceInDispatchProblemDetailsExtensions()
+	public void IncludeResourceInProblemDetailsExtensions()
 	{
 		// Arrange
 		var exception = new ResourceNotFoundException("Product", "prod-789");
 
 		// Act
-		var dispatchProblemDetails = exception.ToDispatchProblemDetails();
+		var problemDetails = exception.ToProblemDetails();
 
-		// Assert - ToDispatchProblemDetails() includes context in Extensions
-		dispatchProblemDetails.Extensions.ShouldContainKeyAndValue("resource", "Product");
-		dispatchProblemDetails.Extensions.ShouldContainKeyAndValue("resourceId", "prod-789");
+		// Assert
+		problemDetails.Extensions.ShouldContainKeyAndValue("resource", "Product");
+		problemDetails.Extensions.ShouldContainKeyAndValue("resourceId", "prod-789");
 	}
 
 	[Fact]
@@ -122,7 +108,7 @@ public sealed class ResourceNotFoundExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe("Custom not found message");
-		exception.DispatchStatusCode.ShouldBe(404);
+		exception.StatusCode.ShouldBe(404);
 	}
 
 	[Fact]

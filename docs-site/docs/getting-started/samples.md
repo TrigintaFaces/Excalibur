@@ -23,19 +23,19 @@ Everything under [`/samples`](https://github.com/TrigintaFaces/Excalibur/tree/ma
 
 | Sample | Where | Highlights | Quality Badge |
 |--------|-------|------------|---------------|
-| **DispatchMinimal** | `samples/DispatchMinimal/` | Pure Dispatch usage (no Excalibur dependencies). Shows `IDispatchAction/Event/Document`, middleware, and the ASP.NET Core bridge. | `basic` |
-| **ExcaliburCqrs** | `samples/ExcaliburCqrs/` | Builds on DispatchMinimal with Excalibur aggregates, event sourcing, repositories, and hosting defaults. | `production-pattern` |
+| **DispatchMinimal** | `samples/01-getting-started/DispatchMinimal/` | Pure Dispatch usage (no Excalibur dependencies). Shows `IDispatchAction/Event/Document`, middleware, and the ASP.NET Core bridge. | `basic` |
+| **ExcaliburCqrs** | `samples/01-getting-started/ExcaliburCqrs/` | Builds on DispatchMinimal with Excalibur aggregates, event sourcing, repositories, and hosting defaults. | `production-pattern` |
 | **Migration Guide** | `samples/MIGRATION.md` | Step-by-step instructions for moving from MediatR → Dispatch → Excalibur. | `intermediate` |
 
 Clone the repository, restore packages once, then run any sample:
 
 ```bash
 # Dispatch-only sample
-cd samples/DispatchMinimal
+cd samples/01-getting-started/DispatchMinimal
 dotnet run
 
 # Excalibur CQRS sample
-cd samples/ExcaliburCqrs
+cd samples/01-getting-started/ExcaliburCqrs
 dotnet run
 ```
 
@@ -76,10 +76,10 @@ The `samples/` folder also contains reference implementations for common pattern
 
 | Folder | Pattern |
 |--------|---------|
-| `Excalibur.Dispatch.Examples.Patterns.EventSourcing/` | Aggregate roots, event stores, snapshots |
-| `Excalibur.Dispatch.Examples.Patterns.Sagas/` | Saga orchestration + compensation handlers |
-| `Caching/`, `Channels/`, `TransportBindings/` | Advanced middleware, channel adapters, and transport bindings |
-| `CloudNative/` | Azure/AWS/GCP serverless integrations (Excalibur hosting packages) |
+| `samples/09-advanced/SqlServerEventStore/`, `samples/09-advanced/CosmosDbEventStore/`, `samples/09-advanced/SnapshotStrategies/` | Event sourcing, snapshot strategies, and schema evolution |
+| `samples/04-reliability/SagaOrchestration/` | Saga orchestration + compensation handlers |
+| `samples/02-messaging-transports/TransportBindings/` | Transport bindings and routing |
+| `samples/05-serverless/` | Azure/AWS/GCP serverless integrations (hosting packages) |
 
 Each sub-folder contains its own `README.md` with prerequisites and run commands. Use them as starting points for your own apps or as regression tests when editing the framework.
 

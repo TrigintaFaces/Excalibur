@@ -117,8 +117,8 @@ Production-ready event store implementations with database-specific optimization
 | Sample | Description | Complexity |
 |--------|-------------|------------|
 | [CdcAntiCorruption](CdcAntiCorruption/) | Anti-corruption layer for CDC integration | Advanced |
-| [CrossLangSample](CrossLangSample/) | Cross-language messaging (Python, JavaScript) | Advanced |
-| [DistributedScheduling](DistributedScheduling/) | Distributed scheduling examples | Advanced |
+| [CdcEventStoreElasticsearch](CdcEventStoreElasticsearch/) | CDC processing with event-sourcing projections | Advanced |
+| [SessionManagement](SessionManagement/) | Session-aware message processing patterns | Advanced |
 
 ## Versioning & Evolution
 
@@ -262,11 +262,6 @@ dotnet run --project samples/09-advanced/JobWorkerSample
 
 # CDC Anti-Corruption
 dotnet run --project samples/09-advanced/CdcAntiCorruption
-
-# Cross-Language (requires Python/Node)
-cd samples/09-advanced/CrossLangSample
-dotnet run &
-python python_consumer.py
 ```
 
 ## Prerequisites
@@ -276,7 +271,6 @@ python python_consumer.py
 | LeaderElection | Docker (Redis) |
 | SqlServerEventStore | Docker Desktop |
 | CosmosDbEventStore | Cosmos DB Emulator or Azure account |
-| CrossLangSample | Python 3, Node.js |
 | BackgroundServices | Docker (for some variants) |
 
 ## Related Categories

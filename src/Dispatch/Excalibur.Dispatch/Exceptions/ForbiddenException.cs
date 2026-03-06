@@ -36,7 +36,7 @@ namespace Excalibur.Dispatch.Exceptions;
 /// </code>
 /// </example>
 [Serializable]
-public class ForbiddenException : ResourceException
+public class ForbiddenException : DispatchException
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ForbiddenException"/> class.
@@ -95,6 +95,12 @@ public class ForbiddenException : ResourceException
 		_ = WithContext("operation", operation);
 		_ = WithContext("requiredPermission", requiredPermission);
 	}
+
+	/// <summary>
+	/// Gets the type or name of the resource associated with this exception.
+	/// </summary>
+	/// <value>The resource type or name, or <see langword="null"/> if not specified.</value>
+	public string? Resource { get; }
 
 	/// <summary>
 	/// Gets the operation that was denied.

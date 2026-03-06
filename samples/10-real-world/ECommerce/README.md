@@ -259,8 +259,5 @@ For production use, consider:
 
 ## See Also
 
-- [Basic Usage Example](../EnhancedStores/BasicUsageExample.cs) - Simple enhanced store usage
-- [High Performance Example](../EnhancedStores/HighPerformanceExample.cs) - Performance-optimized configuration
-- [Observability Example](../EnhancedStores/ObservabilityExample.cs) - Advanced monitoring setup
-
+- See runnable enhanced-store usage in `../EnhancedStores/ECommerceSample/`.
 

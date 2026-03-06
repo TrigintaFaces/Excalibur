@@ -1,11 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using System.Data;
-
+using Excalibur.A3.Abstractions.Authorization;
 using Excalibur.A3.Authorization.Grants;
-using Excalibur.Data;
-using Excalibur.Data.Abstractions;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -18,38 +15,28 @@ namespace Excalibur.Tests.A3.Grants;
 [Trait("Component", "A3")]
 public sealed class GrantRepositoryShould
 {
-	private readonly IDomainDb _domainDb = A.Fake<IDomainDb>();
-	private readonly IGrantRequestProvider _requestProvider = A.Fake<IGrantRequestProvider>();
+	private readonly IGrantStore _grantStore = A.Fake<IGrantStore>();
 	private readonly GrantRepository _repository;
 
 	public GrantRepositoryShould()
 	{
-		A.CallTo(() => _domainDb.Connection).Returns(A.Fake<IDbConnection>());
 		_repository = new GrantRepository(
-			_domainDb,
-			_requestProvider,
+			_grantStore,
 			NullLogger<GrantRepository>.Instance);
 	}
 
 	[Fact]
-	public void ThrowArgumentNullException_WhenDomainDbIsNull()
+	public void ThrowArgumentNullException_WhenGrantStoreIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new GrantRepository(null!, _requestProvider, NullLogger<GrantRepository>.Instance));
-	}
-
-	[Fact]
-	public void ThrowArgumentNullException_WhenRequestProviderIsNull()
-	{
-		Should.Throw<ArgumentNullException>(() =>
-			new GrantRepository(_domainDb, null!, NullLogger<GrantRepository>.Instance));
+			new GrantRepository(null!, NullLogger<GrantRepository>.Instance));
 	}
 
 	[Fact]
 	public void ThrowArgumentNullException_WhenLoggerIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new GrantRepository(_domainDb, _requestProvider, null!));
+			new GrantRepository(_grantStore, null!));
 	}
 
 	[Fact]

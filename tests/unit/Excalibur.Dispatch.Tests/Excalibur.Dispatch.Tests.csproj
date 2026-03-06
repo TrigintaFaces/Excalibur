@@ -28,6 +28,7 @@
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.AuditLogging.SqlServer\Excalibur.Dispatch.AuditLogging.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Compliance\Excalibur.Dispatch.Compliance.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Resilience.Polly\Excalibur.Dispatch.Resilience.Polly.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
   </ItemGroup>

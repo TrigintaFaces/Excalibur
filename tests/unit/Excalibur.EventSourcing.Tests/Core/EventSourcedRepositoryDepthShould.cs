@@ -3,17 +3,16 @@
 
 using System.Diagnostics.CodeAnalysis;
 
+using Excalibur.Data.Abstractions;
 using Excalibur.Dispatch.Abstractions;
 
 using Excalibur.Domain.Model;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.EventSourcing.Implementation;
-
-using ConcurrencyException = Excalibur.Dispatch.Exceptions.ConcurrencyException;
 using IEventStore = Excalibur.EventSourcing.Abstractions.IEventStore;
 using ISnapshotManager = Excalibur.EventSourcing.Abstractions.ISnapshotManager;
 using ISnapshotStrategy = Excalibur.EventSourcing.Abstractions.ISnapshotStrategy;
-using ResourceException = Excalibur.Dispatch.Exceptions.ResourceException;
+using ResourceException = Excalibur.Data.Abstractions.ResourceException;
 
 namespace Excalibur.EventSourcing.Tests.Core;
 

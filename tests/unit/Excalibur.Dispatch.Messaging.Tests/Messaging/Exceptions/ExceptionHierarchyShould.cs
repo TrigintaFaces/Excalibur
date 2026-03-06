@@ -3,11 +3,9 @@
 
 using System.Net;
 
+using Excalibur.Data.Abstractions;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Exceptions;
-
-// Use alias to disambiguate from Excalibur.Dispatch.Abstractions.ResourceException
-using ResourceException = Excalibur.Dispatch.Exceptions.ResourceException;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 
@@ -15,14 +13,14 @@ namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 /// Tests for the unified exception hierarchy to verify correct inheritance chain
 /// and ensure all specialized exceptions are catchable as ApiException.
 /// Sprint 438: Exception Hierarchy Consolidation (bd-0fkmg)
+/// Sprint 585: Persistence exceptions moved to Excalibur.Data.Abstractions
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
 public sealed class ExceptionHierarchyShould
 {
 	/// <summary>
-	/// Verifies the complete inheritance chain:
-	/// Exception → ApiException → DispatchException → [Specialized]
+	/// Verifies all exception types are assignable to ApiException.
 	/// </summary>
 	[Theory]
 	[InlineData(typeof(DispatchException))]
@@ -39,18 +37,30 @@ public sealed class ExceptionHierarchyShould
 			$"{exceptionType.Name} should be assignable to ApiException");
 	}
 
+	/// <summary>
+	/// Verifies Dispatch-only exceptions are assignable to DispatchException.
+	/// ForbiddenException and OperationTimeoutException still extend DispatchException.
+	/// ResourceException hierarchy moved to Data.Abstractions and extends ApiException directly.
+	/// </summary>
+	[Theory]
+	[InlineData(typeof(ForbiddenException))]
+	[InlineData(typeof(OperationTimeoutException))]
+	public void BeAssignableToDispatchException(Type exceptionType)
+	{
+		typeof(DispatchException).IsAssignableFrom(exceptionType).ShouldBeTrue(
+			$"{exceptionType.Name} should be assignable to DispatchException");
+	}
+
 	[Theory]
 	[InlineData(typeof(ResourceException))]
 	[InlineData(typeof(ResourceNotFoundException))]
 	[InlineData(typeof(ConflictException))]
 	[InlineData(typeof(ConcurrencyException))]
-	[InlineData(typeof(ForbiddenException))]
-	[InlineData(typeof(OperationTimeoutException))]
-	public void BeAssignableToDispatchException(Type exceptionType)
+	public void NotBeAssignableToDispatchException_ForDataAbstractionsTypes(Type exceptionType)
 	{
-		// Assert - All specialized exceptions should be assignable to DispatchException
-		typeof(DispatchException).IsAssignableFrom(exceptionType).ShouldBeTrue(
-			$"{exceptionType.Name} should be assignable to DispatchException");
+		// Resource exceptions moved to Data.Abstractions and no longer extend DispatchException
+		typeof(DispatchException).IsAssignableFrom(exceptionType).ShouldBeFalse(
+			$"{exceptionType.Name} should NOT be assignable to DispatchException (moved to Data.Abstractions)");
 	}
 
 	[Fact]
@@ -81,43 +91,31 @@ public sealed class ExceptionHierarchyShould
 		}
 	}
 
-	[Theory]
-	[InlineData(typeof(ResourceNotFoundException), 404)]
-	[InlineData(typeof(ConflictException), 409)]
-	[InlineData(typeof(ConcurrencyException), 409)]
-	[InlineData(typeof(ForbiddenException), 403)]
-	[InlineData(typeof(OperationTimeoutException), 408)]
-	public void HaveCorrectDefaultStatusCode(Type exceptionType, int expectedStatusCode)
-	{
-		// Arrange
-		var exception = (DispatchException)Activator.CreateInstance(exceptionType)!;
-
-		// Assert
-		exception.DispatchStatusCode.ShouldBe(expectedStatusCode,
-			$"{exceptionType.Name} should have status code {expectedStatusCode}");
-	}
-
 	[Fact]
 	public void MaintainResourceExceptionHierarchy()
 	{
-		// ResourceException hierarchy:
-		// ResourceException
-		// ├── ResourceNotFoundException
-		// ├── ConflictException
-		// │   └── ConcurrencyException
-		// └── ForbiddenException
+		// ResourceException hierarchy (now in Excalibur.Data.Abstractions):
+		// ApiException
+		// └── ResourceException
+		//     ├── ResourceNotFoundException
+		//     └── ConflictException
+		//         └── ConcurrencyException
+		//
+		// ForbiddenException now extends DispatchException (stays in Dispatch)
 
 		// Assert
 		typeof(ResourceException).IsAssignableFrom(typeof(ResourceNotFoundException)).ShouldBeTrue();
 		typeof(ResourceException).IsAssignableFrom(typeof(ConflictException)).ShouldBeTrue();
-		typeof(ResourceException).IsAssignableFrom(typeof(ForbiddenException)).ShouldBeTrue();
 		typeof(ConflictException).IsAssignableFrom(typeof(ConcurrencyException)).ShouldBeTrue();
+
+		// ForbiddenException no longer inherits from ResourceException
+		typeof(ResourceException).IsAssignableFrom(typeof(ForbiddenException)).ShouldBeFalse();
 	}
 
 	[Fact]
 	public void NotInheritFromResourceException_ForOperationTimeoutException()
 	{
-		// OperationTimeoutException inherits directly from DispatchException, not ResourceException
+		// OperationTimeoutException inherits from DispatchException, not ResourceException
 		typeof(ResourceException).IsAssignableFrom(typeof(OperationTimeoutException)).ShouldBeFalse();
 		typeof(DispatchException).IsAssignableFrom(typeof(OperationTimeoutException)).ShouldBeTrue();
 	}
@@ -168,33 +166,18 @@ public sealed class ExceptionHierarchyShould
 	}
 
 	[Fact]
-	public void HaveUniqueErrorCodesPerType()
+	public void HaveUniqueErrorCodesPerDispatchType()
 	{
-		// Arrange
-		var resourceNotFound = new ResourceNotFoundException();
-		var conflict = new ConflictException();
-		var concurrency = new ConcurrencyException();
+		// Arrange - Only Dispatch-based exceptions have ErrorCode
 		var forbidden = new ForbiddenException();
 		var timeout = new OperationTimeoutException();
 
 		// Assert - Each exception type should have a distinct error code
-		resourceNotFound.ErrorCode.ShouldBe(ErrorCodes.ResourceNotFound);
-		conflict.ErrorCode.ShouldBe(ErrorCodes.ResourceConflict);
-		concurrency.ErrorCode.ShouldBe(ErrorCodes.ResourceConcurrency);
 		forbidden.ErrorCode.ShouldBe(ErrorCodes.SecurityForbidden);
 		timeout.ErrorCode.ShouldBe(ErrorCodes.TimeoutOperationExceeded);
 
-		// Verify all are unique
-		var errorCodes = new[]
-		{
-			resourceNotFound.ErrorCode,
-			conflict.ErrorCode,
-			concurrency.ErrorCode,
-			forbidden.ErrorCode,
-			timeout.ErrorCode,
-		};
-
-		errorCodes.Distinct().Count().ShouldBe(errorCodes.Length, "All error codes should be unique");
+		// Verify they are different
+		forbidden.ErrorCode.ShouldNotBe(timeout.ErrorCode);
 	}
 
 	[Fact]
