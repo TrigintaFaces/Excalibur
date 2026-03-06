@@ -3,14 +3,17 @@
 
 using CdcAntiCorruption.Commands;
 using CdcAntiCorruption.Configuration;
+using CdcAntiCorruption.Backfill;
 
 using Excalibur.Data.SqlServer.Cdc;
+using Excalibur.Data.DataProcessing;
 using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Configuration;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 // ============================================================================
 // CDC Anti-Corruption Layer Example
@@ -63,6 +66,18 @@ builder.Services.AddDispatch(dispatch =>
 // Add CDC anti-corruption layer
 builder.Services.AddCdcAntiCorruptionLayer();
 
+// Add DataProcessing-based backfill/replay path for CDC history gaps
+builder.Services.AddSingleton<IOptions<DataProcessingConfiguration>>(
+	Options.Create(new DataProcessingConfiguration
+	{
+		QueueSize = 128,
+		ProducerBatchSize = 50,
+		ConsumerBatchSize = 20,
+	}));
+builder.Services.AddSingleton<ILegacyCustomerSnapshotSource, InMemoryLegacyCustomerSnapshotSource>();
+builder.Services.AddDataProcessor<CustomerHistoryBackfillProcessor>();
+builder.Services.AddRecordHandler<CustomerHistoryRecordHandler, LegacyCustomerSnapshot>();
+
 // Add example command handlers (in real app, these would be domain handlers)
 builder.Services.AddScoped<IActionHandler<SyncCustomerCommand, SyncCustomerResult>, ExampleSyncCustomerHandler>();
 builder.Services.AddScoped<IActionHandler<UpdateCustomerCommand, UpdateCustomerResult>, ExampleUpdateCustomerHandler>();
@@ -112,6 +127,30 @@ static async Task DemonstrateAntiCorruptionLayerAsync(IServiceProvider services)
 	Console.WriteLine("3. DELETE event (Soft delete → Deactivate)");
 	var deleteEvent = CreateMockDeleteEvent();
 	await handler.HandleAsync(deleteEvent, CancellationToken.None);
+
+	Console.WriteLine();
+	Console.WriteLine("4. CDC gap recovery (historical replay via Excalibur.Data.DataProcessing)");
+	await DemonstrateCdcHistoryReplayAsync(services);
+}
+
+static async Task DemonstrateCdcHistoryReplayAsync(IServiceProvider services)
+{
+	using var scope = services.CreateScope();
+	var processor = scope.ServiceProvider.GetRequiredService<CustomerHistoryBackfillProcessor>();
+
+	try
+	{
+		var replayed = await processor.RunAsync(
+			completedCount: 0,
+			updateCompletedCount: static (_, _) => Task.CompletedTask,
+			cancellationToken: CancellationToken.None).ConfigureAwait(false);
+
+		Console.WriteLine($"   → Replayed {replayed} historical records to close missing CDC history.");
+	}
+	finally
+	{
+		await processor.DisposeAsync().ConfigureAwait(false);
+	}
 }
 
 static DataChangeEvent CreateMockInsertEvent()

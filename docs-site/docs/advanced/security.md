@@ -188,7 +188,8 @@ The `AuthorizationMiddleware` is built-in and automatically processes messages t
 
 ```csharp
 // Registration - middleware is automatically included with A3 services
-builder.Services.AddExcaliburA3Services(SupportedDatabase.SqlServer);
+builder.Services.AddExcaliburA3()
+    .UseSqlServer();
 
 // Or register the middleware manually if needed
 builder.Services.AddDispatch(options =>

@@ -31,8 +31,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      DOCS_ANNOUNCEMENT_TEXT: "v3.0.0-alpha.25 is now available."
-      DOCS_ANNOUNCEMENT_ID: "release-3-0-0-alpha-25"
+      DOCS_ANNOUNCEMENT_TEXT: "A new Excalibur prerelease is available."
+      DOCS_ANNOUNCEMENT_ID: "release-prerelease"
     defaults:
       run:
         working-directory: docs-site

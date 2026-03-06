@@ -1,9 +1,1 @@
 #nullable enable
-Microsoft.AspNetCore.Builder.ExcaliburJobHostApplicationExtensions
-Microsoft.Extensions.DependencyInjection.HostingJobsServiceCollectionExtensions
-Microsoft.Extensions.Hosting.ExcaliburJobHostBuilderExtensions
-static Microsoft.AspNetCore.Builder.ExcaliburJobHostApplicationExtensions.UseExcaliburJobHost(Microsoft.AspNetCore.Builder.IApplicationBuilder app) -> Microsoft.AspNetCore.Builder.IApplicationBuilder
-static Microsoft.Extensions.DependencyInjection.HostingJobsServiceCollectionExtensions.AddExcaliburJobHost(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Action<Quartz.IServiceCollectionQuartzConfigurator> configureQuartz, System.Reflection.Assembly[] assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
-static Microsoft.Extensions.DependencyInjection.HostingJobsServiceCollectionExtensions.AddExcaliburJobHost(Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Reflection.Assembly[] assemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection
-static Microsoft.Extensions.Hosting.ExcaliburJobHostBuilderExtensions.AddExcaliburJobHost(Microsoft.Extensions.Hosting.IHostApplicationBuilder builder, System.Action<Quartz.IServiceCollectionQuartzConfigurator> configureQuartz, System.Reflection.Assembly[] assemblies) -> Microsoft.Extensions.Hosting.IHostApplicationBuilder
-static Microsoft.Extensions.Hosting.ExcaliburJobHostBuilderExtensions.AddExcaliburJobHost(Microsoft.Extensions.Hosting.IHostApplicationBuilder builder, System.Reflection.Assembly[] assemblies) -> Microsoft.Extensions.Hosting.IHostApplicationBuilder

@@ -6,9 +6,6 @@ using System.Net;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Exceptions;
 
-// Use alias to disambiguate from Excalibur.Dispatch.Abstractions.ResourceException
-using ResourceException = Excalibur.Dispatch.Exceptions.ResourceException;
-
 namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 
 /// <summary>
@@ -20,13 +17,12 @@ namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 public sealed class ForbiddenExceptionShould
 {
 	[Fact]
-	public void InheritFromResourceException()
+	public void InheritFromDispatchException()
 	{
 		// Arrange & Act
 		var exception = new ForbiddenException();
 
 		// Assert
-		_ = exception.ShouldBeAssignableTo<ResourceException>();
 		_ = exception.ShouldBeAssignableTo<DispatchException>();
 		_ = exception.ShouldBeAssignableTo<ApiException>();
 	}

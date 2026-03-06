@@ -1,19 +1,1 @@
 #nullable enable
-Excalibur.Jobs.Abstractions.IBackgroundJob
-Excalibur.Jobs.Abstractions.IBackgroundJob.ExecuteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
-Excalibur.Jobs.Abstractions.IBackgroundJob`1
-Excalibur.Jobs.Abstractions.IBackgroundJob`1.ExecuteAsync( context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task
-Excalibur.Jobs.Abstractions.IConfigurableJob`1
-Excalibur.Jobs.Abstractions.IJobConfig
-Excalibur.Jobs.Abstractions.IJobConfig.CronSchedule.get -> System.String
-Excalibur.Jobs.Abstractions.IJobConfig.CronSchedule.set -> void
-Excalibur.Jobs.Abstractions.IJobConfig.DegradedThreshold.get -> System.TimeSpan
-Excalibur.Jobs.Abstractions.IJobConfig.DegradedThreshold.set -> void
-Excalibur.Jobs.Abstractions.IJobConfig.Disabled.get -> System.Boolean
-Excalibur.Jobs.Abstractions.IJobConfig.Disabled.set -> void
-Excalibur.Jobs.Abstractions.IJobConfig.JobGroup.get -> System.String
-Excalibur.Jobs.Abstractions.IJobConfig.JobGroup.set -> void
-Excalibur.Jobs.Abstractions.IJobConfig.JobName.get -> System.String
-Excalibur.Jobs.Abstractions.IJobConfig.JobName.set -> void
-Excalibur.Jobs.Abstractions.IJobConfig.UnhealthyThreshold.get -> System.TimeSpan
-Excalibur.Jobs.Abstractions.IJobConfig.UnhealthyThreshold.set -> void

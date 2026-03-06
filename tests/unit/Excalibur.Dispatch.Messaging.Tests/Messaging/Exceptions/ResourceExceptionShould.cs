@@ -3,11 +3,8 @@
 
 using System.Net;
 
+using Excalibur.Data.Abstractions;
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Exceptions;
-
-// Use alias to disambiguate from Excalibur.Dispatch.Abstractions.ResourceException
-using ResourceException = Excalibur.Dispatch.Exceptions.ResourceException;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 
@@ -20,13 +17,12 @@ namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 public sealed class ResourceExceptionShould
 {
 	[Fact]
-	public void InheritFromDispatchException()
+	public void InheritFromApiException()
 	{
 		// Arrange & Act
 		var exception = new ResourceException();
 
 		// Assert
-		_ = exception.ShouldBeAssignableTo<DispatchException>();
 		_ = exception.ShouldBeAssignableTo<ApiException>();
 	}
 
@@ -37,17 +33,7 @@ public sealed class ResourceExceptionShould
 		var exception = new ResourceException();
 
 		// Assert
-		exception.DispatchStatusCode.ShouldBe((int)HttpStatusCode.NotFound);
-	}
-
-	[Fact]
-	public void UseResourceNotFoundErrorCode()
-	{
-		// Arrange & Act
-		var exception = new ResourceException();
-
-		// Assert
-		exception.ErrorCode.ShouldBe(ErrorCodes.ResourceNotFound);
+		exception.StatusCode.ShouldBe((int)HttpStatusCode.NotFound);
 	}
 
 	[Fact]
@@ -66,32 +52,32 @@ public sealed class ResourceExceptionShould
 	}
 
 	[Fact]
-	public void IncludeResourceInDispatchProblemDetailsExtensions()
+	public void IncludeResourceInProblemDetailsExtensions()
 	{
 		// Arrange
 		var exception = ResourceException.ForResource("Order", "order-456");
 
 		// Act
-		var dispatchProblemDetails = exception.ToDispatchProblemDetails();
+		var problemDetails = exception.ToProblemDetails();
 
-		// Assert - ToDispatchProblemDetails() includes context in Extensions
-		dispatchProblemDetails.Extensions.ShouldContainKeyAndValue("resource", "Order");
-		dispatchProblemDetails.Extensions.ShouldContainKeyAndValue("resourceId", "order-456");
+		// Assert
+		problemDetails.Extensions.ShouldContainKeyAndValue("resource", "Order");
+		problemDetails.Extensions.ShouldContainKeyAndValue("resourceId", "order-456");
 	}
 
 	[Fact]
-	public void MergeContextWithDispatchProblemDetailsExtensions()
+	public void MergeContextWithProblemDetailsExtensions()
 	{
 		// Arrange
 		var exception = ResourceException.ForResource("Product", "prod-789")
 			.WithContext("customField", "customValue");
 
 		// Act
-		var dispatchProblemDetails = exception.ToDispatchProblemDetails();
+		var problemDetails = exception.ToProblemDetails();
 
-		// Assert - ToDispatchProblemDetails() includes context in Extensions
-		dispatchProblemDetails.Extensions.ShouldContainKeyAndValue("resource", "Product");
-		dispatchProblemDetails.Extensions.ShouldContainKeyAndValue("customField", "customValue");
+		// Assert
+		problemDetails.Extensions.ShouldContainKeyAndValue("resource", "Product");
+		problemDetails.Extensions.ShouldContainKeyAndValue("customField", "customValue");
 	}
 
 	[Fact]
@@ -102,7 +88,7 @@ public sealed class ResourceExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe("Custom resource error");
-		exception.DispatchStatusCode.ShouldBe(404);
+		exception.StatusCode.ShouldBe(404);
 	}
 
 	[Fact]

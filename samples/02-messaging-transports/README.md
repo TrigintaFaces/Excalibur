@@ -28,7 +28,6 @@ These samples show how to combine multiple transports:
 
 | Sample | Description | Transports |
 |--------|-------------|------------|
-| [MultiTransport](MultiTransport/) | Using multiple transports in a single application | In-memory, RabbitMQ |
 | [MultiBusSample](MultiBusSample/) | Multi-bus configuration with Kafka and RabbitMQ | RabbitMQ, Kafka |
 | [RemoteBusSample](RemoteBusSample/) | RabbitMQ remote bus with command/event handlers | RabbitMQ |
 | [TransportBindings](TransportBindings/) | Transport binding configuration examples | Various |
@@ -160,7 +159,7 @@ var remoteBus = services.AddDispatchBus("remote", cfg => cfg.UseRabbitMq());
 ## What's Next?
 
 - [04-reliability/](../04-reliability/) - Sagas and distributed transactions
-- [09-advanced/CrossLangSample/](../09-advanced/CrossLangSample/) - Cross-language messaging
+- [09-advanced/CdcAntiCorruption/](../09-advanced/CdcAntiCorruption/) - CDC anti-corruption integration
 - [09-advanced/SessionManagement/](../09-advanced/SessionManagement/) - AWS SQS FIFO session patterns
 
 ---

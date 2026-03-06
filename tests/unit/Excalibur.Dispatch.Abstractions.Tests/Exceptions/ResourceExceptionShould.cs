@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Data.Abstractions;
+
 namespace Excalibur.Dispatch.Abstractions.Tests.Exceptions;
 
 /// <summary>
@@ -14,13 +16,13 @@ public sealed class ResourceExceptionShould
 	#region Default Constructor Tests
 
 	[Fact]
-	public void DefaultConstructor_SetsEmptyResource()
+	public void DefaultConstructor_SetsNullResource()
 	{
 		// Act
 		var ex = new ResourceException();
 
 		// Assert
-		ex.Resource.ShouldBe(string.Empty);
+		ex.Resource.ShouldBeNull();
 	}
 
 	#endregion
@@ -38,13 +40,13 @@ public sealed class ResourceExceptionShould
 	}
 
 	[Fact]
-	public void MessageConstructor_SetsEmptyResource()
+	public void MessageConstructor_SetsNullResource()
 	{
 		// Act
 		var ex = new ResourceException("Custom message");
 
 		// Assert
-		ex.Resource.ShouldBe(string.Empty);
+		ex.Resource.ShouldBeNull();
 	}
 
 	#endregion
@@ -78,7 +80,7 @@ public sealed class ResourceExceptionShould
 	}
 
 	[Fact]
-	public void InnerExceptionConstructor_SetsEmptyResource()
+	public void InnerExceptionConstructor_SetsNullResource()
 	{
 		// Arrange
 		var inner = new InvalidOperationException("Inner");
@@ -87,41 +89,7 @@ public sealed class ResourceExceptionShould
 		var ex = new ResourceException("Outer", inner);
 
 		// Assert
-		ex.Resource.ShouldBe(string.Empty);
-	}
-
-	#endregion
-
-	#region StatusCode Constructor Tests
-
-	[Fact]
-	public void StatusCodeConstructor_SetsStatusCode()
-	{
-		// Act
-		var ex = new ResourceException(404, "Not found", null);
-
-		// Assert
-		ex.StatusCode.ShouldBe(404);
-	}
-
-	[Fact]
-	public void StatusCodeConstructor_SetsMessage()
-	{
-		// Act
-		var ex = new ResourceException(404, "Resource not found", null);
-
-		// Assert
-		ex.Message.ShouldBe("Resource not found");
-	}
-
-	[Fact]
-	public void StatusCodeConstructor_SetsEmptyResource()
-	{
-		// Act
-		var ex = new ResourceException(500, "Error", null);
-
-		// Assert
-		ex.Resource.ShouldBe(string.Empty);
+		ex.Resource.ShouldBeNull();
 	}
 
 	#endregion
@@ -175,7 +143,7 @@ public sealed class ResourceExceptionShould
 		var ex = new ResourceException(resource: "Users", statusCode: null);
 
 		// Assert
-		ex.StatusCode.ShouldBe(500);
+		ex.StatusCode.ShouldBe(404);
 	}
 
 	[Fact]

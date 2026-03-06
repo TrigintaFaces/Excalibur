@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Data;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 using System.Text.Json;
 
+using Excalibur.A3.Abstractions.Authorization;
 using Excalibur.A3.Authentication;
 using Excalibur.A3.Authorization.Grants;
 using Excalibur.Data.Abstractions;
@@ -25,18 +25,16 @@ namespace Excalibur.A3.Authorization;
 public sealed class ActivityGroupService(
 	HttpClient httpClient,
 	ICorrelationId correlationId,
-	IDbConnection connection,
 	IAuthenticationToken token,
-	IActivityGroupRequestProvider activityGroupRequestProvider,
-	IGrantRequestProvider grantRequestProvider,
+	IActivityGroupStore activityGroupStore,
+	IActivityGroupGrantStore activityGroupGrantStore,
 	ILogger<ActivityGroupService> logger,
 	IDistributedCache cache) : IActivityGroupService
 {
 	/// <inheritdoc />
 	public async Task<bool> ExistsAsync(string activityGroupName)
 	{
-		var activityGroupExists = activityGroupRequestProvider.ActivityGroupExists(activityGroupName, CancellationToken.None);
-		return await activityGroupExists.ResolveAsync(connection).ConfigureAwait(false);
+		return await activityGroupStore.ActivityGroupExistsAsync(activityGroupName, CancellationToken.None).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
@@ -61,8 +59,7 @@ public sealed class ActivityGroupService(
 
 		var activityGroups = JsonSerializer.Deserialize<IEnumerable<ActivityGroup>>(body);
 
-		var deleteAllActivityGroups = activityGroupRequestProvider.DeleteAllActivityGroups(CancellationToken.None);
-		_ = await deleteAllActivityGroups.ResolveAsync(connection).ConfigureAwait(false);
+		_ = await activityGroupStore.DeleteAllActivityGroupsAsync(CancellationToken.None).ConfigureAwait(false);
 
 		var activitiesInGroups = activityGroups
 			?.SelectMany(a => a.Activities.Select(act => new { ActivityGroupName = a.Name, act.ActivityName, a.TenantId })).ToArray() ?? [];
@@ -71,13 +68,11 @@ public sealed class ActivityGroupService(
 		{
 			foreach (var activityGroup in activitiesInGroups)
 			{
-				var createActivityGroup = activityGroupRequestProvider.CreateActivityGroup(
+				_ = await activityGroupStore.CreateActivityGroupAsync(
 					activityGroup.TenantId,
 					activityGroup.ActivityGroupName,
 					activityGroup.ActivityName,
-					CancellationToken.None);
-
-				_ = await createActivityGroup.ResolveAsync(connection).ConfigureAwait(false);
+					CancellationToken.None).ConfigureAwait(false);
 			}
 		}
 
@@ -117,17 +112,14 @@ public sealed class ActivityGroupService(
 			GrantedBy = token.FullName,
 		}).ToArray() ?? [];
 
-		var deleteActivityGroupGrantsByUserId = grantRequestProvider.DeleteActivityGroupGrantsByUserId(userId, GrantType.ActivityGroup, CancellationToken.None);
-		_ = await deleteActivityGroupGrantsByUserId.ResolveAsync(connection).ConfigureAwait(false);
+		_ = await activityGroupGrantStore.DeleteActivityGroupGrantsByUserIdAsync(userId, GrantType.ActivityGroup, CancellationToken.None).ConfigureAwait(false);
 
 		if (grants.Length > 0)
 		{
 			foreach (var grant in grants)
 			{
-				var insertActivityGroupGrant = grantRequestProvider.InsertActivityGroupGrant(
-					grant.UserId, grant.UserId, grant.TenantId, grant.GrantType, grant.Qualifier, grant.ExpiresOn, grant.GrantedBy, CancellationToken.None);
-
-				_ = await insertActivityGroupGrant.ResolveAsync(connection).ConfigureAwait(false);
+				_ = await activityGroupGrantStore.InsertActivityGroupGrantAsync(
+					grant.UserId, grant.UserId, grant.TenantId, grant.GrantType, grant.Qualifier, grant.ExpiresOn, grant.GrantedBy, CancellationToken.None).ConfigureAwait(false);
 			}
 		}
 
@@ -167,20 +159,16 @@ public sealed class ActivityGroupService(
 			GrantedBy = token.FullName,
 		}).ToArray() ?? [];
 
-		var getDistinctActivityGroupGrantUserIds = grantRequestProvider.GetDistinctActivityGroupGrantUserIds(GrantType.ActivityGroup, CancellationToken.None);
-		var userIds = await getDistinctActivityGroupGrantUserIds.ResolveAsync(connection).ConfigureAwait(false);
+		var userIds = await activityGroupGrantStore.GetDistinctActivityGroupGrantUserIdsAsync(GrantType.ActivityGroup, CancellationToken.None).ConfigureAwait(false);
 
-		var deleteAllActivityGroupGrants = grantRequestProvider.DeleteAllActivityGroupGrants(GrantType.ActivityGroup, CancellationToken.None);
-		_ = await deleteAllActivityGroupGrants.ResolveAsync(connection).ConfigureAwait(false);
+		_ = await activityGroupGrantStore.DeleteAllActivityGroupGrantsAsync(GrantType.ActivityGroup, CancellationToken.None).ConfigureAwait(false);
 
 		if (grants.Length > 0)
 		{
 			foreach (var grant in grants)
 			{
-				var insertActivityGroupGrant = grantRequestProvider.InsertActivityGroupGrant(
-					grant.UserId, grant.UserId, grant.TenantId, grant.GrantType, grant.Qualifier, grant.ExpiresOn, grant.GrantedBy, CancellationToken.None);
-
-				_ = await insertActivityGroupGrant.ResolveAsync(connection).ConfigureAwait(false);
+				_ = await activityGroupGrantStore.InsertActivityGroupGrantAsync(
+					grant.UserId, grant.UserId, grant.TenantId, grant.GrantType, grant.Qualifier, grant.ExpiresOn, grant.GrantedBy, CancellationToken.None).ConfigureAwait(false);
 			}
 		}
 

@@ -20,6 +20,7 @@
     <PackageReference Include="Microsoft.Extensions.Http" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Excalibur.A3.Abstractions\Excalibur.A3.Abstractions.csproj" />
     <ProjectReference Include="..\Excalibur.Application\Excalibur.Application.csproj" />
     <ProjectReference Include="..\Excalibur.Data\Excalibur.Data.csproj" />
     <ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />

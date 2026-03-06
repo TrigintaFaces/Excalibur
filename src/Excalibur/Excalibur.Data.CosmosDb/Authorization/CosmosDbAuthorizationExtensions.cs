@@ -27,9 +27,12 @@ public static class CosmosDbAuthorizationExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.Configure(configure);
-		services.TryAddSingleton<IGrantRequestProvider, CosmosDbGrantService>();
-		services.TryAddSingleton<IActivityGroupGrantService, CosmosDbActivityGroupGrantService>();
+		_ = services.AddOptions<CosmosDbAuthorizationOptions>()
+			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+		services.TryAddSingleton<IGrantStore, CosmosDbGrantStore>();
+		services.TryAddSingleton<IActivityGroupGrantStore, CosmosDbActivityGroupGrantStore>();
 
 		return services;
 	}
@@ -105,15 +108,18 @@ public static class CosmosDbAuthorizationExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Action to configure the options.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddCosmosDbGrantService(
+	public static IServiceCollection AddCosmosDbGrantStore(
 		this IServiceCollection services,
 		Action<CosmosDbAuthorizationOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.Configure(configure);
-		services.TryAddSingleton<IGrantRequestProvider, CosmosDbGrantService>();
+		_ = services.AddOptions<CosmosDbAuthorizationOptions>()
+			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+		services.TryAddSingleton<IGrantStore, CosmosDbGrantStore>();
 
 		return services;
 	}
@@ -132,7 +138,7 @@ public static class CosmosDbAuthorizationExtensions
 	/// where you need to bypass SSL certificate validation.
 	/// </para>
 	/// </remarks>
-	public static IServiceCollection AddCosmosDbGrantService(
+	public static IServiceCollection AddCosmosDbGrantStore(
 		this IServiceCollection services,
 		string connectionString,
 		Func<HttpClient> httpClientFactory,
@@ -142,7 +148,7 @@ public static class CosmosDbAuthorizationExtensions
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 		ArgumentNullException.ThrowIfNull(httpClientFactory);
 
-		return services.AddCosmosDbGrantService(options =>
+		return services.AddCosmosDbGrantStore(options =>
 		{
 			options.ConnectionString = connectionString;
 			options.DatabaseName = databaseName;
@@ -156,15 +162,18 @@ public static class CosmosDbAuthorizationExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Action to configure the options.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddCosmosDbActivityGroupGrantService(
+	public static IServiceCollection AddCosmosDbActivityGroupGrantStore(
 		this IServiceCollection services,
 		Action<CosmosDbAuthorizationOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.Configure(configure);
-		services.TryAddSingleton<IActivityGroupGrantService, CosmosDbActivityGroupGrantService>();
+		_ = services.AddOptions<CosmosDbAuthorizationOptions>()
+			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+		services.TryAddSingleton<IActivityGroupGrantStore, CosmosDbActivityGroupGrantStore>();
 
 		return services;
 	}
@@ -183,7 +192,7 @@ public static class CosmosDbAuthorizationExtensions
 	/// where you need to bypass SSL certificate validation.
 	/// </para>
 	/// </remarks>
-	public static IServiceCollection AddCosmosDbActivityGroupGrantService(
+	public static IServiceCollection AddCosmosDbActivityGroupGrantStore(
 		this IServiceCollection services,
 		string connectionString,
 		Func<HttpClient> httpClientFactory,
@@ -193,7 +202,7 @@ public static class CosmosDbAuthorizationExtensions
 		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 		ArgumentNullException.ThrowIfNull(httpClientFactory);
 
-		return services.AddCosmosDbActivityGroupGrantService(options =>
+		return services.AddCosmosDbActivityGroupGrantStore(options =>
 		{
 			options.ConnectionString = connectionString;
 			options.DatabaseName = databaseName;

@@ -14,6 +14,7 @@
     <PackageReference Include="coverlet.collector" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.A3\Excalibur.A3.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.MongoDB\Excalibur.Data.MongoDB.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Domain\Excalibur.Domain.csproj" />

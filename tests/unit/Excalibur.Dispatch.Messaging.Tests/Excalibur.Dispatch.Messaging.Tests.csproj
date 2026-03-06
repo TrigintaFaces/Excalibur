@@ -30,6 +30,7 @@
     <None Include="Messaging\Resilience\ResilienceIntegrationShould.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Observability\Excalibur.Dispatch.Observability.csproj" />
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch.Transport.Abstractions\Excalibur.Dispatch.Transport.Abstractions.csproj" />

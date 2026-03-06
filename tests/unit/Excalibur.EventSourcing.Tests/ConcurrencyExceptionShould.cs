@@ -3,7 +3,7 @@
 
 using System.Net;
 
-using Excalibur.Dispatch.Exceptions;
+using Excalibur.Data.Abstractions;
 
 using Shouldly;
 
@@ -35,7 +35,7 @@ public sealed class ConcurrencyExceptionShould
 		var exception = new ConcurrencyException("Order", "key-123", 1, 2);
 
 		// Assert
-		exception.DispatchStatusCode.ShouldBe((int)HttpStatusCode.Conflict);
+		exception.StatusCode.ShouldBe((int)HttpStatusCode.Conflict);
 	}
 
 	[Fact]

@@ -3,11 +3,8 @@
 
 using System.Net;
 
+using Excalibur.Data.Abstractions;
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Exceptions;
-
-// Use alias to disambiguate from Excalibur.Dispatch.Abstractions.ResourceException
-using ResourceException = Excalibur.Dispatch.Exceptions.ResourceException;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 
@@ -28,7 +25,6 @@ public sealed class ConcurrencyExceptionShould
 		// Assert
 		_ = exception.ShouldBeAssignableTo<ConflictException>();
 		_ = exception.ShouldBeAssignableTo<ResourceException>();
-		_ = exception.ShouldBeAssignableTo<DispatchException>();
 		_ = exception.ShouldBeAssignableTo<ApiException>();
 	}
 
@@ -39,17 +35,7 @@ public sealed class ConcurrencyExceptionShould
 		var exception = new ConcurrencyException();
 
 		// Assert
-		exception.DispatchStatusCode.ShouldBe((int)HttpStatusCode.Conflict);
-	}
-
-	[Fact]
-	public void UseResourceConcurrencyErrorCode()
-	{
-		// Arrange & Act
-		var exception = new ConcurrencyException();
-
-		// Assert
-		exception.ErrorCode.ShouldBe(ErrorCodes.ResourceConcurrency);
+		exception.StatusCode.ShouldBe((int)HttpStatusCode.Conflict);
 	}
 
 	[Fact]
@@ -141,33 +127,33 @@ public sealed class ConcurrencyExceptionShould
 	}
 
 	[Fact]
-	public void IncludeNumericVersionsInDispatchProblemDetailsExtensions()
+	public void IncludeNumericVersionsInProblemDetailsExtensions()
 	{
 		// Arrange
 		var exception = new ConcurrencyException("Order", "order-123", 5L, 10L);
 
 		// Act
-		var dispatchProblemDetails = exception.ToDispatchProblemDetails();
+		var problemDetails = exception.ToProblemDetails();
 
-		// Assert - ToDispatchProblemDetails() includes context in Extensions
-		dispatchProblemDetails.Extensions.ShouldContainKeyAndValue("resource", "Order");
-		dispatchProblemDetails.Extensions.ShouldContainKeyAndValue("resourceId", "order-123");
-		dispatchProblemDetails.Extensions.ShouldContainKeyAndValue("expectedVersion", 5L);
-		dispatchProblemDetails.Extensions.ShouldContainKeyAndValue("actualVersion", 10L);
+		// Assert
+		problemDetails.Extensions.ShouldContainKeyAndValue("resource", "Order");
+		problemDetails.Extensions.ShouldContainKeyAndValue("resourceId", "order-123");
+		problemDetails.Extensions.ShouldContainKeyAndValue("expectedVersion", 5L);
+		problemDetails.Extensions.ShouldContainKeyAndValue("actualVersion", 10L);
 	}
 
 	[Fact]
-	public void IncludeStringVersionsInDispatchProblemDetailsExtensions()
+	public void IncludeStringVersionsInProblemDetailsExtensions()
 	{
 		// Arrange
 		var exception = new ConcurrencyException("Document", "doc-456", "etag-v1", "etag-v2");
 
 		// Act
-		var dispatchProblemDetails = exception.ToDispatchProblemDetails();
+		var problemDetails = exception.ToProblemDetails();
 
-		// Assert - ToDispatchProblemDetails() includes context in Extensions
-		dispatchProblemDetails.Extensions.ShouldContainKeyAndValue("expectedVersion", "etag-v1");
-		dispatchProblemDetails.Extensions.ShouldContainKeyAndValue("actualVersion", "etag-v2");
+		// Assert
+		problemDetails.Extensions.ShouldContainKeyAndValue("expectedVersion", "etag-v1");
+		problemDetails.Extensions.ShouldContainKeyAndValue("actualVersion", "etag-v2");
 	}
 
 	[Fact]
@@ -189,7 +175,7 @@ public sealed class ConcurrencyExceptionShould
 
 		// Assert
 		exception.Message.ShouldBe("Custom concurrency message");
-		exception.DispatchStatusCode.ShouldBe(409);
+		exception.StatusCode.ShouldBe(409);
 	}
 
 	[Fact]

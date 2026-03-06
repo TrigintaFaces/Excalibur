@@ -89,7 +89,11 @@
 	     Suppress NU5118 (duplicate file warning) for pack stability
 	     CA1873 (logging arg evaluation) — Sprint 565: fixed in Compliance/Dispatch core, remaining in transport packages -->
 	<PropertyGroup>
-		<NoWarn>$(NoWarn);NU5118;CA1873</NoWarn>
+		<!-- RS0016: Undeclared public API, suppressed during alpha (PublicAPI.Shipped.txt files are empty baselines).
+		     Enable after populating PublicAPI files to track new API additions (before v3.0.0 stable).
+		     RS0027: Optional parameter backcompat, alpha consumers expect breaking changes.
+		     RS0041: Oblivious reference types in System.Text.Json source generated code (uncontrollable). -->
+		<NoWarn>$(NoWarn);NU5118;CA1873;RS0016;RS0027;RS0041</NoWarn>
 	</PropertyGroup>
 	<ItemGroup Condition="'$(IsPackable)' != 'false' And Exists('$(MSBuildProjectDirectory)\README.md')">
 		<None Include="$(MSBuildProjectDirectory)\README.md" Pack="true" PackagePath="/" Visible="false" />
@@ -110,6 +114,11 @@
 	<PropertyGroup Condition="'$(EnableBannedApiAnalyzers)' == 'true' And '$(BannedApiStrict)' == 'true'">
 		<WarningsAsErrors>$(WarningsAsErrors);RS0030</WarningsAsErrors>
 	</PropertyGroup>
+
+	<!-- Public API surface tracking for breaking change detection (RS0016/RS0017) -->
+	<ItemGroup>
+		<PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+	</ItemGroup>
 
 	<!-- Public API baseline files for Microsoft.CodeAnalysis.PublicApiAnalyzers -->
 	<ItemGroup Condition="Exists('$(MSBuildProjectDirectory)\PublicAPI.Shipped.txt')">

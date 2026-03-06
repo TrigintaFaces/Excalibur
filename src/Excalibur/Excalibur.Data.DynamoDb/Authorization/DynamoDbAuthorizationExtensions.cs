@@ -27,9 +27,12 @@ public static class DynamoDbAuthorizationExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.Configure(configure);
-		services.TryAddSingleton<IGrantRequestProvider, DynamoDbGrantService>();
-		services.TryAddSingleton<IActivityGroupGrantService, DynamoDbActivityGroupGrantService>();
+		_ = services.AddOptions<DynamoDbAuthorizationOptions>()
+			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+		services.TryAddSingleton<IGrantStore, DynamoDbGrantStore>();
+		services.TryAddSingleton<IActivityGroupGrantStore, DynamoDbActivityGroupGrantStore>();
 
 		return services;
 	}
@@ -65,15 +68,18 @@ public static class DynamoDbAuthorizationExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Action to configure the options.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddDynamoDbGrantService(
+	public static IServiceCollection AddDynamoDbGrantStore(
 		this IServiceCollection services,
 		Action<DynamoDbAuthorizationOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.Configure(configure);
-		services.TryAddSingleton<IGrantRequestProvider, DynamoDbGrantService>();
+		_ = services.AddOptions<DynamoDbAuthorizationOptions>()
+			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+		services.TryAddSingleton<IGrantStore, DynamoDbGrantStore>();
 
 		return services;
 	}
@@ -84,15 +90,18 @@ public static class DynamoDbAuthorizationExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Action to configure the options.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddDynamoDbActivityGroupGrantService(
+	public static IServiceCollection AddDynamoDbActivityGroupGrantStore(
 		this IServiceCollection services,
 		Action<DynamoDbAuthorizationOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.Configure(configure);
-		services.TryAddSingleton<IActivityGroupGrantService, DynamoDbActivityGroupGrantService>();
+		_ = services.AddOptions<DynamoDbAuthorizationOptions>()
+			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+		services.TryAddSingleton<IActivityGroupGrantStore, DynamoDbActivityGroupGrantStore>();
 
 		return services;
 	}

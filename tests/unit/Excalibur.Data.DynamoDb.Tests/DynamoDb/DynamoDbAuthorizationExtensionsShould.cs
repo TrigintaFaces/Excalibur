@@ -11,10 +11,6 @@ namespace Excalibur.Data.Tests.DynamoDb;
 /// <summary>
 /// Unit tests for <see cref="DynamoDbAuthorizationExtensions"/>.
 /// </summary>
-/// <remarks>
-/// Sprint 514 (S514.4): DynamoDB unit tests.
-/// Tests verify authorization extension methods.
-/// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "DynamoDb")]
 [Trait("Feature", "DependencyInjection")]
@@ -61,7 +57,7 @@ public sealed class DynamoDbAuthorizationExtensionsShould
 	}
 
 	[Fact]
-	public void AddDynamoDbAuthorization_WithAction_RegistersIGrantRequestProvider()
+	public void AddDynamoDbAuthorization_WithAction_RegistersIGrantStore()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -74,12 +70,12 @@ public sealed class DynamoDbAuthorizationExtensionsShould
 
 		// Assert
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IGrantRequestProvider) &&
-			sd.ImplementationType == typeof(DynamoDbGrantService));
+			sd.ServiceType == typeof(IGrantStore) &&
+			sd.ImplementationType == typeof(DynamoDbGrantStore));
 	}
 
 	[Fact]
-	public void AddDynamoDbAuthorization_WithAction_RegistersIActivityGroupGrantService()
+	public void AddDynamoDbAuthorization_WithAction_RegistersIActivityGroupGrantStore()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -92,8 +88,8 @@ public sealed class DynamoDbAuthorizationExtensionsShould
 
 		// Assert
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IActivityGroupGrantService) &&
-			sd.ImplementationType == typeof(DynamoDbActivityGroupGrantService));
+			sd.ServiceType == typeof(IActivityGroupGrantStore) &&
+			sd.ImplementationType == typeof(DynamoDbActivityGroupGrantStore));
 	}
 
 	#endregion
@@ -164,38 +160,38 @@ public sealed class DynamoDbAuthorizationExtensionsShould
 
 	#endregion
 
-	#region AddDynamoDbGrantService Tests
+	#region AddDynamoDbGrantStore Tests
 
 	[Fact]
-	public void AddDynamoDbGrantService_ThrowsArgumentNullException_WhenServicesIsNull()
+	public void AddDynamoDbGrantStore_ThrowsArgumentNullException_WhenServicesIsNull()
 	{
 		// Arrange
 		IServiceCollection? services = null;
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbGrantService(options => { }));
+			services.AddDynamoDbGrantStore(options => { }));
 	}
 
 	[Fact]
-	public void AddDynamoDbGrantService_ThrowsArgumentNullException_WhenConfigureIsNull()
+	public void AddDynamoDbGrantStore_ThrowsArgumentNullException_WhenConfigureIsNull()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbGrantService(null!));
+			services.AddDynamoDbGrantStore(null!));
 	}
 
 	[Fact]
-	public void AddDynamoDbGrantService_ReturnsServiceCollection()
+	public void AddDynamoDbGrantStore_ReturnsServiceCollection()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		var result = services.AddDynamoDbGrantService(options =>
+		var result = services.AddDynamoDbGrantStore(options =>
 		{
 			options.Region = "us-east-1";
 		});
@@ -205,73 +201,73 @@ public sealed class DynamoDbAuthorizationExtensionsShould
 	}
 
 	[Fact]
-	public void AddDynamoDbGrantService_RegistersIGrantRequestProvider()
+	public void AddDynamoDbGrantStore_RegistersIGrantStore()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddDynamoDbGrantService(options =>
+		services.AddDynamoDbGrantStore(options =>
 		{
 			options.Region = "us-east-1";
 		});
 
 		// Assert
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IGrantRequestProvider) &&
-			sd.ImplementationType == typeof(DynamoDbGrantService));
+			sd.ServiceType == typeof(IGrantStore) &&
+			sd.ImplementationType == typeof(DynamoDbGrantStore));
 	}
 
 	[Fact]
-	public void AddDynamoDbGrantService_DoesNotRegisterIActivityGroupGrantService()
+	public void AddDynamoDbGrantStore_DoesNotRegisterIActivityGroupGrantStore()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddDynamoDbGrantService(options =>
+		services.AddDynamoDbGrantStore(options =>
 		{
 			options.Region = "us-east-1";
 		});
 
 		// Assert
-		services.ShouldNotContain(sd => sd.ServiceType == typeof(IActivityGroupGrantService));
+		services.ShouldNotContain(sd => sd.ServiceType == typeof(IActivityGroupGrantStore));
 	}
 
 	#endregion
 
-	#region AddDynamoDbActivityGroupGrantService Tests
+	#region AddDynamoDbActivityGroupGrantStore Tests
 
 	[Fact]
-	public void AddDynamoDbActivityGroupGrantService_ThrowsArgumentNullException_WhenServicesIsNull()
+	public void AddDynamoDbActivityGroupGrantStore_ThrowsArgumentNullException_WhenServicesIsNull()
 	{
 		// Arrange
 		IServiceCollection? services = null;
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbActivityGroupGrantService(options => { }));
+			services.AddDynamoDbActivityGroupGrantStore(options => { }));
 	}
 
 	[Fact]
-	public void AddDynamoDbActivityGroupGrantService_ThrowsArgumentNullException_WhenConfigureIsNull()
+	public void AddDynamoDbActivityGroupGrantStore_ThrowsArgumentNullException_WhenConfigureIsNull()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbActivityGroupGrantService(null!));
+			services.AddDynamoDbActivityGroupGrantStore(null!));
 	}
 
 	[Fact]
-	public void AddDynamoDbActivityGroupGrantService_ReturnsServiceCollection()
+	public void AddDynamoDbActivityGroupGrantStore_ReturnsServiceCollection()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		var result = services.AddDynamoDbActivityGroupGrantService(options =>
+		var result = services.AddDynamoDbActivityGroupGrantStore(options =>
 		{
 			options.Region = "us-east-1";
 		});
@@ -281,37 +277,37 @@ public sealed class DynamoDbAuthorizationExtensionsShould
 	}
 
 	[Fact]
-	public void AddDynamoDbActivityGroupGrantService_RegistersIActivityGroupGrantService()
+	public void AddDynamoDbActivityGroupGrantStore_RegistersIActivityGroupGrantStore()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddDynamoDbActivityGroupGrantService(options =>
+		services.AddDynamoDbActivityGroupGrantStore(options =>
 		{
 			options.Region = "us-east-1";
 		});
 
 		// Assert
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IActivityGroupGrantService) &&
-			sd.ImplementationType == typeof(DynamoDbActivityGroupGrantService));
+			sd.ServiceType == typeof(IActivityGroupGrantStore) &&
+			sd.ImplementationType == typeof(DynamoDbActivityGroupGrantStore));
 	}
 
 	[Fact]
-	public void AddDynamoDbActivityGroupGrantService_DoesNotRegisterIGrantRequestProvider()
+	public void AddDynamoDbActivityGroupGrantStore_DoesNotRegisterIGrantStore()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddDynamoDbActivityGroupGrantService(options =>
+		services.AddDynamoDbActivityGroupGrantStore(options =>
 		{
 			options.Region = "us-east-1";
 		});
 
 		// Assert
-		services.ShouldNotContain(sd => sd.ServiceType == typeof(IGrantRequestProvider));
+		services.ShouldNotContain(sd => sd.ServiceType == typeof(IGrantStore));
 	}
 
 	#endregion

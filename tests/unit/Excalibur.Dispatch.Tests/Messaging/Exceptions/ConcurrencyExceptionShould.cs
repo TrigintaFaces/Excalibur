@@ -1,4 +1,4 @@
-using Excalibur.Dispatch.Exceptions;
+using Excalibur.Data.Abstractions;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Exceptions;
 
@@ -12,7 +12,7 @@ public sealed class ConcurrencyExceptionShould
 		var ex = new ConcurrencyException();
 
 		ex.Message.ShouldContain("concurrency conflict");
-		ex.DispatchStatusCode.ShouldBe(409);
+		ex.StatusCode.ShouldBe(409);
 	}
 
 	[Fact]
@@ -21,7 +21,7 @@ public sealed class ConcurrencyExceptionShould
 		var ex = new ConcurrencyException("Custom message");
 
 		ex.Message.ShouldBe("Custom message");
-		ex.DispatchStatusCode.ShouldBe(409);
+		ex.StatusCode.ShouldBe(409);
 	}
 
 	[Fact]

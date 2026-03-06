@@ -23,24 +23,49 @@ Excalibur.A3 provides a unified **Authentication, Authorization, and Audit** (A3
 | Package | Purpose |
 |---------|---------|
 | `Excalibur.A3` | Authorization service, policies, grants, audit publisher |
-| `Excalibur.A3.Abstractions` | Provider-neutral interfaces: `ITokenValidator`, `IAuditSink`, `IAuditEvent`, `IAuthorizationEvaluator`, `Grant` |
+| `Excalibur.A3.Abstractions` | Provider-neutral interfaces: `ITokenValidator`, `IAuditSink`, `IAuditEvent`, `IAuthorizationEvaluator`, `IGrantStore`, `IActivityGroupStore`, `Grant` |
 
 ## Setup
 
-Register A3 services via `IDispatchBuilder` or `IServiceCollection`:
+Register A3 services using the builder pattern. Call `AddExcaliburA3()` to get an `IA3Builder`, then chain a provider-specific `Use*()` extension:
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-// Via IDispatchBuilder
-builder.AddDispatchAuthorization();
+// SQL providers (connection configured via IDataRequest/IDomainDb)
+services.AddExcaliburA3()
+    .UseSqlServer();
 
-// Or directly on IServiceCollection
-services.AddDispatchAuthorization();
+// Or PostgreSQL
+services.AddExcaliburA3()
+    .UsePostgres();
+
+// NoSQL providers (options configured inline)
+services.AddExcaliburA3()
+    .UseCosmosDb(options => { options.DatabaseId = "mydb"; options.ContainerId = "grants"; });
+
+services.AddExcaliburA3()
+    .UseMongoDB(options => { options.DatabaseName = "mydb"; });
+
+services.AddExcaliburA3()
+    .UseDynamoDb(options => { options.TableName = "grants"; });
+
+services.AddExcaliburA3()
+    .UseFirestore(options => { options.ProjectId = "my-project"; });
 ```
 
+For custom store implementations:
+
+```csharp
+services.AddExcaliburA3()
+    .UseGrantStore<MyGrantStore>()
+    .UseActivityGroupStore<MyActivityGroupStore>();
+```
+
+The builder also registers Dispatch pipeline integration (`AddDispatchAuthorization()`) automatically.
+
 :::tip Single-Tenant Applications
-You do **not** need to configure a tenant to use A3. When you call `AddExcaliburA3Services()`, it automatically registers `ITenantId` with the default value `"Default"` (via `TenantDefaults.DefaultTenantId`). All tenant-scoped features — grants, authorization policies, audit logging — work transparently.
+You do **not** need to configure a tenant to use A3. When you call `AddExcaliburA3()`, it automatically registers `ITenantId` with the default value `"Default"` (via `TenantDefaults.DefaultTenantId`). All tenant-scoped features — grants, authorization policies, audit logging — work transparently.
 
 For **multi-tenant** applications that serve multiple tenants from a single instance, use the factory overload:
 ```csharp
@@ -51,7 +76,8 @@ services.TryAddTenantId(sp =>
     return httpContext?.Request.Headers["X-Tenant-ID"].FirstOrDefault()
         ?? TenantDefaults.DefaultTenantId;
 });
-services.AddExcaliburA3Services(SupportedDatabase.Postgres);
+services.AddExcaliburA3()
+    .UsePostgres();
 ```
 :::
 
@@ -333,6 +359,58 @@ public class KafkaAuditPublisher : IAuditMessagePublisher
     }
 }
 ```
+
+## Store Pattern
+
+A3 uses a **store pattern** modeled after ASP.NET Core Identity (`IUserStore<T>`, `IRoleStore<T>`, `IdentityBuilder`). Store interfaces live in `Excalibur.A3.Abstractions` and each database provider implements them in its own package.
+
+### Store Interfaces
+
+| Interface | Methods | Purpose |
+|-----------|---------|---------|
+| `IGrantStore` | 5 + `GetService(Type)` | Core grant CRUD (get, getAll, save, delete, exists) |
+| `IGrantQueryStore` | 2 | ISP sub-interface for advanced queries (matching, find) |
+| `IActivityGroupStore` | 4 + `GetService(Type)` | Activity group operations (exists, findAll, deleteAll, create) |
+| `IActivityGroupGrantStore` | 4 | Bridging ISP for activity-group grant operations |
+
+Advanced features are accessed via the `GetService(Type)` escape hatch rather than adding optional methods to the core interface:
+
+```csharp
+// Access advanced query capabilities from IGrantStore
+IGrantStore store = ...;
+var queryStore = store.GetService(typeof(IGrantQueryStore)) as IGrantQueryStore;
+if (queryStore is not null)
+{
+    var grants = await queryStore.GetMatchingGrantsAsync(
+        userId, tenantId, grantType, qualifier, cancellationToken);
+}
+```
+
+### Builder Pattern (`IA3Builder`)
+
+`AddExcaliburA3()` returns an `IA3Builder` that configures store providers via fluent `Use*()` methods:
+
+```csharp
+public interface IA3Builder
+{
+    IServiceCollection Services { get; }
+    IA3Builder UseGrantStore<TStore>() where TStore : class, IGrantStore;
+    IA3Builder UseActivityGroupStore<TStore>() where TStore : class, IActivityGroupStore;
+}
+```
+
+Each provider package ships a single extension method (e.g., `UseSqlServer()`, `UseCosmosDb(Action<CosmosDbAuthorizationOptions>)`) that registers the appropriate store implementations. SQL providers use existing `IDataRequest` infrastructure for connection management; NoSQL providers accept an options callback with `ValidateOnStart()`.
+
+### Available Providers
+
+| Provider | Extension | Options |
+|----------|-----------|---------|
+| SQL Server | `.UseSqlServer()` | Connection via `IDataRequest` |
+| PostgreSQL | `.UsePostgres()` | Connection via `IDataRequest` |
+| Cosmos DB | `.UseCosmosDb(Action<CosmosDbAuthorizationOptions>)` | `DatabaseId`, `ContainerId` |
+| MongoDB | `.UseMongoDB(Action<MongoDbAuthorizationOptions>)` | `DatabaseName` |
+| DynamoDB | `.UseDynamoDb(Action<DynamoDbAuthorizationOptions>)` | `TableName` |
+| Firestore | `.UseFirestore(Action<FirestoreAuthorizationOptions>)` | `ProjectId` |
 
 ## What's Next
 

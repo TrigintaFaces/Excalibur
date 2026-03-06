@@ -27,9 +27,12 @@ public static class FirestoreAuthorizationExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.Configure(configure);
-		services.TryAddSingleton<IGrantRequestProvider, FirestoreGrantService>();
-		services.TryAddSingleton<IActivityGroupGrantService, FirestoreActivityGroupGrantService>();
+		_ = services.AddOptions<FirestoreAuthorizationOptions>()
+			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+		services.TryAddSingleton<IGrantStore, FirestoreGrantStore>();
+		services.TryAddSingleton<IActivityGroupGrantStore, FirestoreActivityGroupGrantStore>();
 
 		return services;
 	}
@@ -69,15 +72,18 @@ public static class FirestoreAuthorizationExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Action to configure the options.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddFirestoreGrantService(
+	public static IServiceCollection AddFirestoreGrantStore(
 		this IServiceCollection services,
 		Action<FirestoreAuthorizationOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.Configure(configure);
-		services.TryAddSingleton<IGrantRequestProvider, FirestoreGrantService>();
+		_ = services.AddOptions<FirestoreAuthorizationOptions>()
+			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+		services.TryAddSingleton<IGrantStore, FirestoreGrantStore>();
 
 		return services;
 	}
@@ -88,15 +94,18 @@ public static class FirestoreAuthorizationExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Action to configure the options.</param>
 	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddFirestoreActivityGroupGrantService(
+	public static IServiceCollection AddFirestoreActivityGroupGrantStore(
 		this IServiceCollection services,
 		Action<FirestoreAuthorizationOptions> configure)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.Configure(configure);
-		services.TryAddSingleton<IActivityGroupGrantService, FirestoreActivityGroupGrantService>();
+		_ = services.AddOptions<FirestoreAuthorizationOptions>()
+			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+		services.TryAddSingleton<IActivityGroupGrantStore, FirestoreActivityGroupGrantStore>();
 
 		return services;
 	}

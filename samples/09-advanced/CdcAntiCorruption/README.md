@@ -41,6 +41,13 @@ This example demonstrates the **Anti-Corruption Layer (ACL)** pattern for Change
    │                       Dispatcher                               │
    │  SyncCustomerCommand │ UpdateCustomerCommand │ DeactivateCmd   │
    └────────────────────────────────────────────────────────────────┘
+
+   Optional Gap-Recovery Lane (when CDC history is incomplete)
+   ┌────────────────────────────────────────────────────────────────┐
+   │ Excalibur.Data.DataProcessing                                 │
+   │  CustomerHistoryBackfillProcessor + CustomerHistoryRecordHandler│
+   │  replay historical snapshots through the same domain commands │
+   └────────────────────────────────────────────────────────────────┘
 ```
 
 ## Why Anti-Corruption Layer?
@@ -114,6 +121,27 @@ Clean, domain-focused commands that don't know about CDC:
 - `UpdateCustomerCommand` - Update existing customer
 - `DeactivateCustomerCommand` - Soft-delete (not hard delete)
 
+### 4. Historical Replay for Missing CDC History (`Excalibur.Data.DataProcessing`)
+
+When CDC retention/windows are insufficient, this sample also shows a replay lane:
+
+1. Fetch historical snapshots from a legacy source.
+2. Process in batches using `DataProcessor<TRecord>`.
+3. Re-dispatch through `SyncCustomerCommand` so business rules remain consistent.
+
+```csharp
+builder.Services.AddSingleton<IOptions<DataProcessingConfiguration>>(
+    Options.Create(new DataProcessingConfiguration
+    {
+        QueueSize = 128,
+        ProducerBatchSize = 50,
+        ConsumerBatchSize = 20
+    }));
+builder.Services.AddSingleton<ILegacyCustomerSnapshotSource, InMemoryLegacyCustomerSnapshotSource>();
+builder.Services.AddDataProcessor<CustomerHistoryBackfillProcessor>();
+builder.Services.AddRecordHandler<CustomerHistoryRecordHandler, LegacyCustomerSnapshot>();
+```
+
 ## Schema Evolution Support
 
 The adapter handles multiple schema versions automatically:
@@ -156,6 +184,12 @@ Simulating CDC events...
 
 3. DELETE event (Soft delete → Deactivate)
    → DeactivateCustomerCommand: Soft-deleted customer CUST-001
+
+4. CDC gap recovery (historical replay via Excalibur.Data.DataProcessing)
+   → Backfill SyncCustomerCommand: Replayed historical customer CUST-000
+   → Backfill SyncCustomerCommand: Replayed historical customer CUST-001
+   → Backfill SyncCustomerCommand: Replayed historical customer CUST-002
+   → Replayed 3 historical records to close missing CDC history
 ```
 
 ## Configuration
@@ -168,9 +202,13 @@ services.AddDispatch();
 services.AddCdcAntiCorruptionLayer();
 ```
 
-The extension method registers:
+`AddCdcAntiCorruptionLayer()` registers:
 - `ILegacyCustomerSchemaAdapter` (singleton)
 - `IDataChangeHandler` (scoped)
+
+Sample-specific replay registration adds:
+- `CustomerHistoryBackfillProcessor` (data processor for replay)
+- `CustomerHistoryRecordHandler` (maps historical records to domain commands)
 
 ## Best Practices
 

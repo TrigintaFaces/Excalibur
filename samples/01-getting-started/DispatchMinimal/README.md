@@ -9,7 +9,7 @@ This sample shows how to use Dispatch as a lightweight MediatR alternative for s
 ## Running the Sample
 
 ```bash
-dotnet run --project samples/DispatchMinimal/DispatchMinimal.csproj
+dotnet run --project samples/01-getting-started/DispatchMinimal/DispatchMinimal.csproj
 ```
 
 ## What This Sample Demonstrates
@@ -139,4 +139,5 @@ This project is multi-licensed under:
 - [Apache-2.0](..\..\..\licenses\LICENSE-APACHE-2.0.txt)
 
 See [LICENSE](..\..\..\LICENSE) for details.
+
 

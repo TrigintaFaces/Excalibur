@@ -141,8 +141,8 @@ This provides:
 
 ## Next Steps
 
-- See `samples/DispatchMinimal` for a console-based example
-- See `samples/ExcaliburCqrs` for full CQRS with event sourcing
+- See `samples/01-getting-started/DispatchMinimal` for a console-based example
+- See `samples/01-getting-started/ExcaliburCqrs` for full CQRS with event sourcing
 - See `docs-site/docs/source-generators/getting-started.md` for more on [AutoRegister]
 - See `samples/CONVERSION-GUIDE.md` for converting to PackageReference
 
@@ -160,3 +160,4 @@ For your own projects, replace ProjectReference with PackageReference:
 ```
 
 See `samples/CONVERSION-GUIDE.md` for complete instructions.
+

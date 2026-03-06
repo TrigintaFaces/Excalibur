@@ -738,12 +738,12 @@ Dispatch provides a unified exception hierarchy for handling exceptional conditi
 ```
 Exception
 └── ApiException (Excalibur.Dispatch.Abstractions) — simple base with ToProblemDetails()
+    ├── ResourceException (Excalibur.Data.Abstractions) — base for resource/persistence errors
+    │   ├── ResourceNotFoundException — 404 Not Found
+    │   └── ConflictException — 409 Conflict
+    │       └── ConcurrencyException — optimistic locking failures
     └── DispatchException (Dispatch) — rich features: ErrorCode, Category, Severity
-        ├── ResourceException — base for resource errors
-        │   ├── ResourceNotFoundException — 404 Not Found
-        │   ├── ConflictException — 409 Conflict
-        │   │   └── ConcurrencyException — optimistic locking failures
-        │   └── ForbiddenException — 403 Forbidden
+        ├── ForbiddenException — 403 Forbidden (security/authorization)
         ├── ValidationException — 400 Bad Request with field errors
         └── OperationTimeoutException — 408 Request Timeout
 ```
@@ -787,7 +787,7 @@ throw new DispatchException("ORDER_FAILED", "Failed to process order")
 #### ResourceNotFoundException (404)
 
 ```csharp
-using Excalibur.Dispatch.Exceptions;
+using Excalibur.Data.Abstractions;
 
 // Simple usage
 throw new ResourceNotFoundException("Order", orderId.ToString());
@@ -825,7 +825,7 @@ throw new ValidationException("Validation failed")
 #### ConflictException (409)
 
 ```csharp
-using Excalibur.Dispatch.Exceptions;
+using Excalibur.Data.Abstractions;
 
 // Resource conflict
 throw new ConflictException("Order", "duplicate-order",
@@ -835,13 +835,15 @@ throw new ConflictException("Order", "duplicate-order",
 #### ConcurrencyException (409)
 
 ```csharp
-using Excalibur.Dispatch.Exceptions;
+using Excalibur.Data.Abstractions;
 
-// Optimistic locking failure
-throw new ConcurrencyException("Order",
-    expectedVersion: 5,
-    actualVersion: 7,
-    "The order was modified by another user");
+// Optimistic locking failure with numeric versions
+throw new ConcurrencyException("Order", orderId.ToString(),
+    expectedVersion: 5, actualVersion: 7);
+
+// Using factory method for aggregates
+throw ConcurrencyException.ForAggregate<Order>(orderId,
+    expectedVersion: 5, actualVersion: 7);
 ```
 
 #### ForbiddenException (403)
@@ -850,8 +852,13 @@ throw new ConcurrencyException("Order",
 using Excalibur.Dispatch.Exceptions;
 
 // Access denied
-throw new ForbiddenException("Order", "delete",
-    "You are not authorized to delete this order");
+throw new ForbiddenException("Order", "Delete");
+
+// With required permission
+throw new ForbiddenException("Order", "Delete", "Orders.Delete");
+
+// Using factory method
+throw ForbiddenException.MissingRole("Order", "Delete", "Admin");
 ```
 
 #### OperationTimeoutException (408)

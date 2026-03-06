@@ -66,7 +66,7 @@ public interface IEventSourcedRepository<TAggregate, TKey>
 	/// <param name="aggregate">The aggregate to save.</param>
 	/// <param name="expectedETag">
 	/// The expected ETag value. If the current ETag doesn't match,
-	/// a <see cref="Dispatch.Messaging.Exceptions.ConcurrencyException"/> is thrown.
+	/// a <see cref="Data.Abstractions.ConcurrencyException"/> is thrown.
 	/// Pass <see langword="null"/> to skip ETag validation.
 	/// </param>
 	/// <param name="cancellationToken">The cancellation token.</param>
