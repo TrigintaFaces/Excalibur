@@ -122,8 +122,8 @@ app.MapPost("/orders", async (OrderRequest request, IDispatcher dispatcher, ILog
 	// Add trace context to dispatch context for correlation
 	if (Activity.Current != null)
 	{
-		context.Properties["TraceId"] = Activity.Current.TraceId.ToString();
-		context.Properties["SpanId"] = Activity.Current.SpanId.ToString();
+		context.Items["TraceId"] = Activity.Current.TraceId.ToString();
+		context.Items["SpanId"] = Activity.Current.SpanId.ToString();
 	}
 
 	_ = await dispatcher.DispatchAsync(orderEvent, context, cancellationToken: default).ConfigureAwait(false);

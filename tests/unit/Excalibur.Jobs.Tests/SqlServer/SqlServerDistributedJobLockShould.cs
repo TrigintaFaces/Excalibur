@@ -3,7 +3,6 @@
 
 using System.Reflection;
 
-using Excalibur.Jobs.Coordination;
 using Excalibur.Jobs.SqlServer;
 
 using Microsoft.Data.SqlClient;

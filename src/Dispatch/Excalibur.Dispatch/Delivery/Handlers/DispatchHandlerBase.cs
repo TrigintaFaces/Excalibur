@@ -71,5 +71,5 @@ public abstract class DispatchHandlerBase<TMessage, TResult>
 	/// routing might indicate misconfiguration, missing handlers, or unsupported message types that may require special handling or error responses.
 	/// </remarks>
 	/// <value>The current <see cref="IsRouted"/> value.</value>
-	protected bool IsRouted => Context.RoutingDecision?.IsSuccess ?? true;
+	protected bool IsRouted => Routing.RoutingDecisionAccessor.GetRoutingDecisionFast(Context)?.IsSuccess ?? true;
 }

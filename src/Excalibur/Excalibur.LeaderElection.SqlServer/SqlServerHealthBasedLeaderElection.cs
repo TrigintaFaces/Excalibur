@@ -142,7 +142,7 @@ public sealed partial class SqlServerHealthBasedLeaderElection : IHealthBasedLea
 	}
 
 	/// <inheritdoc/>
-	public async Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata)
+	public async Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata, CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 

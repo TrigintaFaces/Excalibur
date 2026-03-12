@@ -5,38 +5,37 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
-using Excalibur.Dispatch.Patterns;
-
-using Microsoft.Extensions.DependencyInjection;
+using Excalibur.Dispatch.Serialization;
 
 using Shouldly;
-
-using Tests.Shared;
 
 using Xunit;
 
 namespace Excalibur.Dispatch.Patterns.Tests.Hosting.Json;
 
 /// <summary>
-/// Unit tests for the internal SystemTextJsonSerializer resolved via DI.
+/// Unit tests for DispatchJsonSerializer configured in reflection mode (no source-gen context)
+/// so that arbitrary test types can be serialized and deserialized.
 /// </summary>
 [Trait("Category", "Unit")]
 [SuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode", Justification = "Test code — trimming not required")]
 [SuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "Test code — AOT not required")]
-public sealed class SystemTextJsonSerializerShould : UnitTestBase
+public sealed class SystemTextJsonSerializerShould : IDisposable
 {
-	private readonly IJsonSerializer _serializer;
+	private readonly DispatchJsonSerializer _serializer;
 
 	public SystemTextJsonSerializerShould()
 	{
-		_ = Services.AddJsonSerialization();
-		BuildServiceProvider();
-		_serializer = GetRequiredService<IJsonSerializer>();
+		// Use reflection-based serialization by clearing the source-gen TypeInfoResolver.
+		// This allows the serializer to handle arbitrary test types like TestPayload.
+		_serializer = new DispatchJsonSerializer(
+			configure: opts => opts.TypeInfoResolver = null);
 	}
 
+	public void Dispose() => _serializer.Dispose();
+
 	[Fact]
-	public void Resolve_FromDI_AsIJsonSerializer()
+	public void Resolve_Serializer_IsNotNull()
 	{
 		// Assert
 		_serializer.ShouldNotBeNull();
@@ -53,7 +52,7 @@ public sealed class SystemTextJsonSerializerShould : UnitTestBase
 
 		// Assert
 		json.ShouldNotBeNullOrWhiteSpace();
-		json.ShouldContain("\"name\""); // camelCase by default (Web defaults)
+		json.ShouldContain("\"name\""); // camelCase by default
 		json.ShouldContain("\"count\"");
 	}
 
@@ -89,47 +88,43 @@ public sealed class SystemTextJsonSerializerShould : UnitTestBase
 	}
 
 	[Fact]
-	public void Serialize_WithCustomOptions_RespectsConfiguration()
+	public void Serialize_WithCustomConfigure_AppliesOptions()
 	{
-		// Arrange — rebuild with indented output
-		var services = new ServiceCollection();
-		_ = services.AddJsonSerialization(opt => opt.SerializerOptions.WriteIndented = true);
-		using var sp = services.BuildServiceProvider();
-		var serializer = sp.GetRequiredService<IJsonSerializer>();
-		var value = new TestPayload { Name = "indented", Count = 1 };
+		// Arrange — create serializer with reflection mode (no source-gen context)
+		using var serializer = new DispatchJsonSerializer(
+			configure: opts =>
+			{
+				opts.TypeInfoResolver = null;
+			});
+		var value = new TestPayload { Name = "custom", Count = 42 };
 
 		// Act
 		var json = serializer.Serialize(value, typeof(TestPayload));
 
-		// Assert — indented JSON contains newlines
-		json.ShouldContain("\n");
+		// Assert — serializer produces valid JSON with camelCase (default)
+		json.ShouldContain("\"name\"");
+		json.ShouldContain("\"count\"");
+		json.ShouldContain("42");
 	}
 
 	[Fact]
-	public void Serialize_ThrowsOnNullValue()
-	{
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() => _serializer.Serialize(null!, typeof(TestPayload)));
-	}
-
-	[Fact]
-	public void Serialize_ThrowsOnNullType()
+	public void Serialize_NullType_ThrowsArgumentNullException()
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() => _serializer.Serialize(new TestPayload(), null!));
 	}
 
 	[Fact]
-	public void Deserialize_ThrowsOnNullJson()
+	public void Deserialize_NullJson_ThrowsArgumentException()
 	{
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() => _serializer.Deserialize(null!, typeof(TestPayload)));
+		// Act & Assert — ThrowIfNullOrWhiteSpace throws ArgumentException (or ArgumentNullException subclass)
+		Should.Throw<ArgumentException>(() => _serializer.Deserialize(null!, typeof(TestPayload)));
 	}
 
 	[Fact]
-	public void Deserialize_ThrowsOnNullType()
+	public void Deserialize_NullType_ThrowsArgumentException()
 	{
-		// Act & Assert
+		// Act & Assert — ThrowIfNullOrWhiteSpace on empty string throws, then ThrowIfNull on type
 		Should.Throw<ArgumentNullException>(() => _serializer.Deserialize("{}", null!));
 	}
 
@@ -143,7 +138,7 @@ public sealed class SystemTextJsonSerializerShould : UnitTestBase
 	[Fact]
 	public void Deserialize_CaseInsensitive_ByDefault()
 	{
-		// Arrange — PascalCase keys should still deserialize due to Web defaults
+		// Arrange — PascalCase keys should still deserialize due to PropertyNameCaseInsensitive = true
 		var json = """{"Name":"pascal","Count":7}""";
 
 		// Act

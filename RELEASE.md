@@ -301,7 +301,7 @@ After a successful release:
 ### NuGet API Key
 
 - Stored as GitHub secret `NUGET_API_KEY`
-- Scoped to Excalibur packages only
+- Scoped to Excalibur.Dispatch packages only
 - Rotated annually
 
 ### Release Verification
@@ -341,6 +341,7 @@ The `nuget-production` environment:
 - [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines
 - [Directory.Build.props](Directory.Build.props) - Version and package metadata
 - [eng/ci/shards/ShippingOnly.slnf](eng/ci/shards/ShippingOnly.slnf) - Shipping package filter
+- [Compatibility Matrix](docs/compatibility-matrix.md) - Supported frameworks
 
 ---
 

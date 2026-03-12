@@ -141,7 +141,7 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 		await CreateSessionAsync(cancellationToken).ConfigureAwait(false);
 
 		// Update our health status
-		await UpdateHealthAsync(isHealthy: true, metadata: null).ConfigureAwait(false);
+		await UpdateHealthAsync(isHealthy: true, metadata: null, cancellationToken).ConfigureAwait(false);
 
 		// Start trying to acquire leadership
 		await TryAcquireLeadershipAsync(cancellationToken).ConfigureAwait(false);
@@ -183,13 +183,13 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 		await DestroySessionAsync().ConfigureAwait(false);
 
 		// Update our health status
-		await UpdateHealthAsync(isHealthy: false, metadata: null).ConfigureAwait(false);
+		await UpdateHealthAsync(isHealthy: false, metadata: null, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <inheritdoc />
 	[RequiresDynamicCode("JSON serialization of health metadata requires dynamic code generation for type inspection and property access")]
 	[RequiresUnreferencedCode("JSON serialization may reference types not preserved during trimming")]
-	public async Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata)
+	public async Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata, CancellationToken cancellationToken)
 	{
 		var health = new CandidateHealth
 		{
@@ -211,7 +211,7 @@ public sealed partial class ConsulLeaderElection : IHealthBasedLeaderElection, I
 		{
 			await _retryPolicy.ExecuteAsync(
 				async ct => _ = await _consulClient.KV.Put(new KVPair(healthKeyPath) { Value = healthData }, ct).ConfigureAwait(false),
-				CancellationToken.None).ConfigureAwait(false);
+				cancellationToken).ConfigureAwait(false);
 		}
 		catch (Exception ex)
 		{

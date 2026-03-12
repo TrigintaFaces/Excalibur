@@ -189,9 +189,9 @@ public partial class SagaTimeoutDeliveryService : BackgroundService
 			var context = new MessageContext(dispatchMessage, scope.ServiceProvider)
 			{
 				MessageId = timeout.TimeoutId,
-				MessageType = timeout.TimeoutType,
-				ReceivedTimestampUtc = DateTimeOffset.UtcNow,
 			};
+			context.SetMessageType(timeout.TimeoutType);
+			context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
 
 			_ = await dispatcher.DispatchAsync(dispatchMessage, context, cancellationToken).ConfigureAwait(false);
 

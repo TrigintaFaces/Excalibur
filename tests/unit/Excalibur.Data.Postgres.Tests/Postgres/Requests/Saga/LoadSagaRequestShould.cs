@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Data.Postgres.Saga;
+using Excalibur.Saga.Postgres;
 using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Dispatch.Abstractions.Serialization;
 
@@ -30,7 +30,7 @@ public sealed class LoadSagaRequestShould
 	{
 		// Arrange
 		var options = CreateOptions();
-		var serializer = A.Fake<IJsonSerializer>();
+		var serializer = new DispatchJsonSerializer();
 
 		// Act
 		var request = new LoadSagaRequest<TestSagaState>(
@@ -46,7 +46,7 @@ public sealed class LoadSagaRequestShould
 	{
 		// Arrange
 		var options = CreateOptions();
-		var serializer = A.Fake<IJsonSerializer>();
+		var serializer = new DispatchJsonSerializer();
 
 		// Act
 		var request = new LoadSagaRequest<TestSagaState>(
@@ -63,7 +63,7 @@ public sealed class LoadSagaRequestShould
 	{
 		// Arrange
 		var options = CreateOptions();
-		var serializer = A.Fake<IJsonSerializer>();
+		var serializer = new DispatchJsonSerializer();
 
 		// Act
 		var request = new LoadSagaRequest<TestSagaState>(
@@ -79,7 +79,7 @@ public sealed class LoadSagaRequestShould
 	{
 		// Arrange
 		var options = CreateOptions();
-		var serializer = A.Fake<IJsonSerializer>();
+		var serializer = new DispatchJsonSerializer();
 
 		// Act
 		var request = new LoadSagaRequest<TestSagaState>(
@@ -95,7 +95,7 @@ public sealed class LoadSagaRequestShould
 	{
 		// Arrange
 		var options = CreateOptions();
-		var serializer = A.Fake<IJsonSerializer>();
+		var serializer = new DispatchJsonSerializer();
 
 		// Act
 		var request = new LoadSagaRequest<TestSagaState>(
@@ -112,7 +112,7 @@ public sealed class LoadSagaRequestShould
 		// Arrange
 		var options = CreateOptions();
 		options.CommandTimeoutSeconds = 60;
-		var serializer = A.Fake<IJsonSerializer>();
+		var serializer = new DispatchJsonSerializer();
 
 		// Act
 		var request = new LoadSagaRequest<TestSagaState>(
@@ -125,7 +125,7 @@ public sealed class LoadSagaRequestShould
 	[Fact]
 	public void ThrowArgumentNullException_WhenOptionsIsNull()
 	{
-		var serializer = A.Fake<IJsonSerializer>();
+		var serializer = new DispatchJsonSerializer();
 		Should.Throw<ArgumentNullException>(() => new LoadSagaRequest<TestSagaState>(
 			SagaId, null!, serializer, CancellationToken.None));
 	}

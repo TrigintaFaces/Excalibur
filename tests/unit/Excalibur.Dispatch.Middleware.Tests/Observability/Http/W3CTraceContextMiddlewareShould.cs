@@ -77,8 +77,8 @@ public sealed class W3CTraceContextMiddlewareShould : UnitTestBase
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.GetItem<string>("traceparent")).Returns(null);
-		A.CallTo(() => context.GetItem<IDictionary<string, string>>("Headers")).Returns(null);
+		var items = new Dictionary<string, object>();
+		A.CallTo(() => context.Items).Returns(items);
 
 		var nextCalled = false;
 		DispatchRequestDelegate next = (_, _, _) =>
@@ -105,7 +105,8 @@ public sealed class W3CTraceContextMiddlewareShould : UnitTestBase
 
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.GetItem<string>("traceparent")).Returns(traceparent);
+		var items = new Dictionary<string, object> { ["traceparent"] = traceparent };
+		A.CallTo(() => context.Items).Returns(items);
 
 		var nextCalled = false;
 		DispatchRequestDelegate next = (_, _, _) =>
@@ -133,8 +134,8 @@ public sealed class W3CTraceContextMiddlewareShould : UnitTestBase
 
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.GetItem<string>("traceparent")).Returns(null);
-		A.CallTo(() => context.GetItem<IDictionary<string, string>>("Headers")).Returns(headers);
+		var items = new Dictionary<string, object> { ["Headers"] = headers };
+		A.CallTo(() => context.Items).Returns(items);
 
 		var nextCalled = false;
 		DispatchRequestDelegate next = (_, _, _) =>
@@ -157,7 +158,8 @@ public sealed class W3CTraceContextMiddlewareShould : UnitTestBase
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.GetItem<string>("traceparent")).Returns("invalid-traceparent");
+		var items = new Dictionary<string, object> { ["traceparent"] = "invalid-traceparent" };
+		A.CallTo(() => context.Items).Returns(items);
 
 		var nextCalled = false;
 		DispatchRequestDelegate next = (_, _, _) =>

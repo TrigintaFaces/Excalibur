@@ -3,7 +3,7 @@
 
 using System.Reflection;
 
-using Excalibur.Data.SqlServer.Cdc;
+using Excalibur.Cdc.SqlServer;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Hosting;

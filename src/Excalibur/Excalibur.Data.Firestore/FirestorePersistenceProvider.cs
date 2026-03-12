@@ -37,7 +37,9 @@ internal interface IFirestoreBatchCreateOperation
 	"Maintainability",
 	"CA1506:Avoid excessive class coupling",
 	Justification = "Cloud persistence providers inherently couple with many SDK and abstraction types.")]
-public sealed partial class FirestorePersistenceProvider : ICloudNativePersistenceProvider, IPersistenceProviderHealth, IPersistenceProviderTransaction, IAsyncDisposable
+public sealed partial class FirestorePersistenceProvider : ICloudNativePersistenceProvider,
+	ICloudNativeProviderInfo, ICloudNativePersistenceQueryOperations, ICloudNativePersistenceBatchOperations, ICloudNativePersistenceChangeFeed,
+	IPersistenceProviderHealth, IPersistenceProviderTransaction, IAsyncDisposable
 {
 	private readonly FirestoreOptions _options;
 	private readonly ILogger<FirestorePersistenceProvider> _logger;
@@ -782,6 +784,26 @@ public sealed partial class FirestorePersistenceProvider : ICloudNativePersisten
 		}
 
 		if (serviceType == typeof(IPersistenceProviderTransaction))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(ICloudNativePersistenceQueryOperations))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(ICloudNativePersistenceBatchOperations))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(ICloudNativePersistenceChangeFeed))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(ICloudNativeProviderInfo))
 		{
 			return this;
 		}

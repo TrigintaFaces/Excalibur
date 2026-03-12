@@ -57,8 +57,8 @@ var host = new HostBuilder()
 		_ = services.AddExcaliburAzureFunctionsServerless(opts =>
 		{
 			opts.EnableColdStartOptimization = true;
-			opts.EnableDistributedTracing = true;
-			opts.EnableStructuredLogging = true;
+			opts.Telemetry.EnableDistributedTracing = true;
+			opts.Telemetry.EnableStructuredLogging = true;
 
 			// Azure Functions specific options
 			opts.AzureFunctions.HostingPlan = "Consumption";

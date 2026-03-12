@@ -4,14 +4,14 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.A3.Events;
+using Excalibur.Dispatch.Abstractions;
 
 namespace Excalibur.A3.Audit.Events;
 
 /// <summary>
 /// Represents an audited activity, capturing details about an activity performed in the system, including metadata for auditing purposes.
 /// </summary>
-public sealed class ActivityAudited : DomainEventBase, IActivityAudited
+public sealed record ActivityAudited : DomainEvent, IActivityAudited
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ActivityAudited" /> class by copying properties from an existing
@@ -36,7 +36,7 @@ public sealed class ActivityAudited : DomainEventBase, IActivityAudited
 		Response = audit.Response;
 		StatusCode = audit.StatusCode;
 		TenantId = audit.TenantId;
-		Timestamp = audit.Timestamp;
+		ActivityTimestamp = audit.Timestamp;
 		UserId = audit.UserId;
 		UserName = audit.UserName;
 	}
@@ -70,8 +70,8 @@ public sealed class ActivityAudited : DomainEventBase, IActivityAudited
 	/// <value>The serialized request string.</value>
 	public required string Request
 	{
-		[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize&lt;TValue&gt;(TValue, JsonSerializerOptions)")]
-		[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize&lt;TValue&gt;(TValue, JsonSerializerOptions)")]
+		[RequiresUnreferencedCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
+		[RequiresDynamicCode("Calls System.Text.Json.JsonSerializer.Serialize<TValue>(TValue, JsonSerializerOptions)")]
 		get;
 		init;
 	}
@@ -85,8 +85,21 @@ public sealed class ActivityAudited : DomainEventBase, IActivityAudited
 	/// <inheritdoc />
 	public string? TenantId { get; init; }
 
+	/// <summary>
+	/// Gets the timestamp of the audited activity.
+	/// </summary>
+	/// <remarks>
+	/// This is the application-level activity timestamp, distinct from <see cref="DomainEvent.OccurredAt"/>
+	/// which tracks when the event was created.
+	/// </remarks>
+	public DateTimeOffset ActivityTimestamp { get; init; }
+
 	/// <inheritdoc />
-	public new DateTimeOffset Timestamp { get; set; }
+	DateTimeOffset IActivityAudited.Timestamp
+	{
+		get => ActivityTimestamp;
+		set => _ = value; // Immutable record — timestamp is set via constructor only
+	}
 
 	/// <inheritdoc />
 	public required string UserId { get; init; }

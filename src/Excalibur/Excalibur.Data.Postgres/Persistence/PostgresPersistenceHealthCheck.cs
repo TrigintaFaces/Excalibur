@@ -65,12 +65,12 @@ public sealed class PostgresPersistenceHealthCheck(
 			}
 
 			// Note: NpgsqlConnection.GetPoolStatistics() was removed in Npgsql 7+ Pool statistics are now available through different mechanisms
-			if (_options.EnableConnectionPooling)
+			if (_options.Pooling.EnableConnectionPooling)
 			{
 				// Pool statistics can be obtained through performance counters or custom metrics
 				data["pool_enabled"] = true;
-				data["pool_max_size"] = _options.MaxPoolSize;
-				data["pool_min_size"] = _options.MinPoolSize;
+				data["pool_max_size"] = _options.Pooling.MaxPoolSize;
+				data["pool_min_size"] = _options.Pooling.MinPoolSize;
 			}
 
 			// Check database statistics

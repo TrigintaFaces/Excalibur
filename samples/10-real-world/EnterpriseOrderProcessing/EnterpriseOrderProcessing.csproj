@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>EnterpriseOrderProcessing</RootNamespace>
+    <!-- Suppress warnings for sample code (intentionally comprehensive demo) -->
+    <NoWarn>$(NoWarn);CA1506;CA1303;CA1505;CA5394</NoWarn>
+  </PropertyGroup>
+
+  <!-- ========================================================================================
+       Dispatch packages (messaging, dispatching, pipeline)
+       ======================================================================================== -->
+  <ItemGroup>
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+  </ItemGroup>
+
+  <!-- Dispatch validation (FluentValidation) -->
+  <ItemGroup>
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Validation.FluentValidation\Excalibur.Dispatch.Validation.FluentValidation.csproj" />
+  </ItemGroup>
+
+  <!-- Dispatch resilience (Polly) -->
+  <ItemGroup>
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Resilience.Polly\Excalibur.Dispatch.Resilience.Polly.csproj" />
+  </ItemGroup>
+
+  <!-- Dispatch transport (RabbitMQ) -->
+  <ItemGroup>
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Transport.RabbitMQ\Excalibur.Dispatch.Transport.RabbitMQ.csproj" />
+  </ItemGroup>
+
+  <!-- Dispatch serialization (MessagePack) -->
+  <ItemGroup>
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Serialization.MessagePack\Excalibur.Dispatch.Serialization.MessagePack.csproj" />
+  </ItemGroup>
+
+  <!-- Dispatch security + compliance -->
+  <ItemGroup>
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Security\Excalibur.Dispatch.Security.csproj" />
+    <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Compliance\Excalibur.Dispatch.Compliance.csproj" />
+  </ItemGroup>
+
+  <!-- ========================================================================================
+       Excalibur packages (domain, event sourcing, persistence, infrastructure)
+       ======================================================================================== -->
+
+  <!-- Domain modeling -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Domain\Excalibur.Domain.csproj" />
+  </ItemGroup>
+
+  <!-- Event sourcing -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.EventSourcing.SqlServer\Excalibur.EventSourcing.SqlServer.csproj" />
+  </ItemGroup>
+
+  <!-- CDC (Change Data Capture) -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Cdc\Excalibur.Cdc.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Cdc.SqlServer\Excalibur.Cdc.SqlServer.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Jobs.Cdc\Excalibur.Jobs.Cdc.csproj" />
+  </ItemGroup>
+
+  <!-- Outbox pattern -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Outbox\Excalibur.Outbox.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Outbox.SqlServer\Excalibur.Outbox.SqlServer.csproj" />
+  </ItemGroup>
+
+  <!-- Projections (ElasticSearch) -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.ElasticSearch\Excalibur.Data.ElasticSearch.csproj" />
+  </ItemGroup>
+
+  <!-- Jobs (scheduling) -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Jobs\Excalibur.Jobs.csproj" />
+  </ItemGroup>
+
+  <!-- Hosting + observability -->
+  <ItemGroup>
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Hosting\Excalibur.Hosting.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Hosting.Observability\Excalibur.Hosting.Observability.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Hosting.Logging.Serilog\Excalibur.Hosting.Logging.Serilog.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Hosting.HealthChecks\Excalibur.Hosting.HealthChecks.csproj" />
+  </ItemGroup>
+
+  <!-- External package references -->
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+  </ItemGroup>
+</Project>

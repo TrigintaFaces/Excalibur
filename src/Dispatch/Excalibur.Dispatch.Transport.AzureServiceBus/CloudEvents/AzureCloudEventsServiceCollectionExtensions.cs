@@ -146,7 +146,7 @@ public static class AzureCloudEventsServiceCollectionExtensions
 
 		if (enableDoDCompliance)
 		{
-			_ = services.Configure<CloudEventOptions>(static options => options.CustomValidator =
+			_ = services.Configure<CloudEventOptions>(static options => options.Schema.CustomValidator =
 				static async (cloudEvent, cancellationToken) =>
 				{
 					// Validate DoD-required envelope properties
@@ -178,8 +178,8 @@ public static class AzureCloudEventsServiceCollectionExtensions
 
 		_ = services.Configure<CloudEventOptions>(options =>
 		{
-			var existingTransformer = options.OutgoingTransformer;
-			options.OutgoingTransformer = async (ce, evt, ctx, ct) =>
+			var existingTransformer = options.Schema.OutgoingTransformer;
+			options.Schema.OutgoingTransformer = async (ce, evt, ctx, ct) =>
 			{
 				// Call existing transformer first
 				if (existingTransformer != null)

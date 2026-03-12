@@ -174,8 +174,8 @@ public static class AzureStorageQueueTransportServiceCollectionExtensions
 		_ = services.AddOptions<AzureProviderOptions>()
 			.Configure(options =>
 			{
-				options.UseManagedIdentity = transportOptions.UseManagedIdentity;
-				options.StorageAccountUri = transportOptions.StorageAccountUri;
+				options.Authentication.UseManagedIdentity = transportOptions.UseManagedIdentity;
+				options.Storage.StorageAccountUri = transportOptions.StorageAccountUri;
 			})
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
@@ -188,9 +188,9 @@ public static class AzureStorageQueueTransportServiceCollectionExtensions
 				options.StorageAccountUri = transportOptions.StorageAccountUri;
 				options.QueueName = transportOptions.QueueName ?? string.Empty;
 				options.MaxConcurrentMessages = transportOptions.MaxConcurrentMessages;
-				options.VisibilityTimeout = transportOptions.VisibilityTimeout;
-				options.PollingInterval = transportOptions.PollingInterval;
-				options.MaxMessages = transportOptions.MaxMessages;
+				options.Polling.VisibilityTimeout = transportOptions.VisibilityTimeout;
+				options.Polling.PollingInterval = transportOptions.PollingInterval;
+				options.Polling.MaxMessages = transportOptions.MaxMessages;
 				options.EnableEncryption = transportOptions.EnableEncryption;
 				options.DeadLetterQueueName = transportOptions.DeadLetterQueueName;
 				options.MaxDequeueCount = transportOptions.MaxDequeueCount;

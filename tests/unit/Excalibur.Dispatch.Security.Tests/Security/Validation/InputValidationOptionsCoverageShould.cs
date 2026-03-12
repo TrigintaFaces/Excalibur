@@ -20,13 +20,13 @@ public sealed class InputValidationOptionsCoverageShould
         options.MaxStringLength.ShouldBeGreaterThan(0);
         options.MaxMessageSizeBytes.ShouldBeGreaterThan(0);
         options.MaxObjectDepth.ShouldBeGreaterThan(0);
-        options.BlockControlCharacters.ShouldBeTrue();
-        options.BlockHtmlContent.ShouldBeTrue();
-        options.BlockSqlInjection.ShouldBeTrue();
-        options.BlockNoSqlInjection.ShouldBeTrue();
-        options.BlockCommandInjection.ShouldBeTrue();
-        options.BlockPathTraversal.ShouldBeTrue();
-        options.BlockLdapInjection.ShouldBeTrue();
+        options.InjectionPrevention.BlockControlCharacters.ShouldBeTrue();
+        options.InjectionPrevention.BlockHtmlContent.ShouldBeTrue();
+        options.InjectionPrevention.BlockSqlInjection.ShouldBeTrue();
+        options.InjectionPrevention.BlockNoSqlInjection.ShouldBeTrue();
+        options.InjectionPrevention.BlockCommandInjection.ShouldBeTrue();
+        options.InjectionPrevention.BlockPathTraversal.ShouldBeTrue();
+        options.InjectionPrevention.BlockLdapInjection.ShouldBeTrue();
     }
 
     [Fact]
@@ -39,13 +39,16 @@ public sealed class InputValidationOptionsCoverageShould
             MaxStringLength = 500,
             MaxMessageSizeBytes = 1024,
             MaxObjectDepth = 3,
-            BlockControlCharacters = false,
-            BlockHtmlContent = false,
-            BlockSqlInjection = false,
-            BlockNoSqlInjection = false,
-            BlockCommandInjection = false,
-            BlockPathTraversal = false,
-            BlockLdapInjection = false,
+            InjectionPrevention = new InputInjectionPreventionOptions
+            {
+                BlockControlCharacters = false,
+                BlockHtmlContent = false,
+                BlockSqlInjection = false,
+                BlockNoSqlInjection = false,
+                BlockCommandInjection = false,
+                BlockPathTraversal = false,
+                BlockLdapInjection = false,
+            },
             AllowNullProperties = true,
             AllowEmptyStrings = true,
             RequireCorrelationId = false,
@@ -58,13 +61,13 @@ public sealed class InputValidationOptionsCoverageShould
         options.MaxStringLength.ShouldBe(500);
         options.MaxMessageSizeBytes.ShouldBe(1024);
         options.MaxObjectDepth.ShouldBe(3);
-        options.BlockControlCharacters.ShouldBeFalse();
-        options.BlockHtmlContent.ShouldBeFalse();
-        options.BlockSqlInjection.ShouldBeFalse();
-        options.BlockNoSqlInjection.ShouldBeFalse();
-        options.BlockCommandInjection.ShouldBeFalse();
-        options.BlockPathTraversal.ShouldBeFalse();
-        options.BlockLdapInjection.ShouldBeFalse();
+        options.InjectionPrevention.BlockControlCharacters.ShouldBeFalse();
+        options.InjectionPrevention.BlockHtmlContent.ShouldBeFalse();
+        options.InjectionPrevention.BlockSqlInjection.ShouldBeFalse();
+        options.InjectionPrevention.BlockNoSqlInjection.ShouldBeFalse();
+        options.InjectionPrevention.BlockCommandInjection.ShouldBeFalse();
+        options.InjectionPrevention.BlockPathTraversal.ShouldBeFalse();
+        options.InjectionPrevention.BlockLdapInjection.ShouldBeFalse();
         options.AllowNullProperties.ShouldBeTrue();
         options.AllowEmptyStrings.ShouldBeTrue();
         options.RequireCorrelationId.ShouldBeFalse();

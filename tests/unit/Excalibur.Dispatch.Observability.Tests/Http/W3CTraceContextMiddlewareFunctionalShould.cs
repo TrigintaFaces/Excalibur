@@ -63,6 +63,19 @@ public sealed class W3CTraceContextMiddlewareFunctionalShould : IDisposable
 			a.TraceId == traceId);
 	}
 
+	/// <summary>
+	/// Creates a fake <see cref="IMessageContext"/> backed by a real Items dictionary
+	/// so that extension methods (GetItem, SetItem, ContainsItem) work correctly.
+	/// </summary>
+	private static IMessageContext CreateFakeContext(Dictionary<string, object>? items = null)
+	{
+		var context = A.Fake<IMessageContext>();
+		var itemsDict = items ?? new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Items).Returns(itemsDict);
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
+		return context;
+	}
+
 	[Fact]
 	public void HavePreProcessingStage()
 	{
@@ -106,9 +119,8 @@ public sealed class W3CTraceContextMiddlewareFunctionalShould : IDisposable
 	{
 		var middleware = new W3CTraceContextMiddleware();
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.GetItem<string>(W3CTraceContextMiddleware.TraceparentKey)).Returns(null);
-		A.CallTo(() => context.GetItem<IDictionary<string, string>>("Headers")).Returns(null);
+		var context = CreateFakeContext();
+		// No traceparent or headers in Items
 
 		var expectedResult = A.Fake<IMessageResult>();
 		var nextInvoked = false;
@@ -129,12 +141,13 @@ public sealed class W3CTraceContextMiddlewareFunctionalShould : IDisposable
 	{
 		var middleware = new W3CTraceContextMiddleware();
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
 
 		var (traceparent, traceIdHex) = CreateUniqueTraceparent();
-		A.CallTo(() => context.GetItem<string>(W3CTraceContextMiddleware.TraceparentKey)).Returns(traceparent);
-		A.CallTo(() => context.GetItem<IDictionary<string, string>>("Headers")).Returns(null);
-		A.CallTo(() => context.GetItem<string>(W3CTraceContextMiddleware.TracestateKey)).Returns(null);
+		var items = new Dictionary<string, object>(StringComparer.Ordinal)
+		{
+			[W3CTraceContextMiddleware.TraceparentKey] = traceparent,
+		};
+		var context = CreateFakeContext(items);
 
 		var expectedResult = A.Fake<IMessageResult>();
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(expectedResult);
@@ -153,14 +166,16 @@ public sealed class W3CTraceContextMiddlewareFunctionalShould : IDisposable
 	{
 		var middleware = new W3CTraceContextMiddleware();
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
 
 		var (traceparent, traceIdHex) = CreateUniqueTraceparent();
 		var tracestate = "congo=lZWRzIHRoNhcm5hbWVkT2";
 
-		A.CallTo(() => context.GetItem<string>(W3CTraceContextMiddleware.TraceparentKey)).Returns(traceparent);
-		A.CallTo(() => context.GetItem<string>(W3CTraceContextMiddleware.TracestateKey)).Returns(tracestate);
-		A.CallTo(() => context.GetItem<IDictionary<string, string>>("Headers")).Returns(null);
+		var items = new Dictionary<string, object>(StringComparer.Ordinal)
+		{
+			[W3CTraceContextMiddleware.TraceparentKey] = traceparent,
+			[W3CTraceContextMiddleware.TracestateKey] = tracestate,
+		};
+		var context = CreateFakeContext(items);
 
 		var expectedResult = A.Fake<IMessageResult>();
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(expectedResult);
@@ -177,11 +192,6 @@ public sealed class W3CTraceContextMiddlewareFunctionalShould : IDisposable
 	{
 		var middleware = new W3CTraceContextMiddleware();
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
-
-		// Return null from direct context item
-		A.CallTo(() => context.GetItem<string>(W3CTraceContextMiddleware.TraceparentKey)).Returns(null);
-		A.CallTo(() => context.GetItem<string>(W3CTraceContextMiddleware.TracestateKey)).Returns(null);
 
 		// Provide headers dictionary with unique traceparent
 		var (traceparent, traceIdHex) = CreateUniqueTraceparent();
@@ -189,7 +199,12 @@ public sealed class W3CTraceContextMiddlewareFunctionalShould : IDisposable
 		{
 			["traceparent"] = traceparent,
 		};
-		A.CallTo(() => context.GetItem<IDictionary<string, string>>("Headers")).Returns(headers);
+		// No direct traceparent in Items, only in Headers dict
+		var items = new Dictionary<string, object>(StringComparer.Ordinal)
+		{
+			["Headers"] = headers,
+		};
+		var context = CreateFakeContext(items);
 
 		var expectedResult = A.Fake<IMessageResult>();
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(expectedResult);
@@ -205,12 +220,13 @@ public sealed class W3CTraceContextMiddlewareFunctionalShould : IDisposable
 	{
 		var middleware = new W3CTraceContextMiddleware();
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
 
 		var (traceparent, traceIdHex) = CreateUniqueTraceparent();
-		A.CallTo(() => context.GetItem<string>(W3CTraceContextMiddleware.TraceparentKey)).Returns(traceparent);
-		A.CallTo(() => context.GetItem<string>(W3CTraceContextMiddleware.TracestateKey)).Returns(null);
-		A.CallTo(() => context.GetItem<IDictionary<string, string>>("Headers")).Returns(null);
+		var items = new Dictionary<string, object>(StringComparer.Ordinal)
+		{
+			[W3CTraceContextMiddleware.TraceparentKey] = traceparent,
+		};
+		var context = CreateFakeContext(items);
 
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(A.Fake<IMessageResult>());
 
@@ -226,13 +242,13 @@ public sealed class W3CTraceContextMiddlewareFunctionalShould : IDisposable
 	{
 		var middleware = new W3CTraceContextMiddleware();
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
 
 		// Malformed traceparent (too few parts)
-		A.CallTo(() => context.GetItem<string>(W3CTraceContextMiddleware.TraceparentKey))
-			.Returns("00-short-01");
-		A.CallTo(() => context.GetItem<string>(W3CTraceContextMiddleware.TracestateKey)).Returns(null);
-		A.CallTo(() => context.GetItem<IDictionary<string, string>>("Headers")).Returns(null);
+		var items = new Dictionary<string, object>(StringComparer.Ordinal)
+		{
+			[W3CTraceContextMiddleware.TraceparentKey] = "00-short-01",
+		};
+		var context = CreateFakeContext(items);
 
 		var expectedResult = A.Fake<IMessageResult>();
 		var nextInvoked = false;

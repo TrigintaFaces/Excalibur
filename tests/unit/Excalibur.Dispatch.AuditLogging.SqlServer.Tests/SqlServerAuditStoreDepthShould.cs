@@ -24,10 +24,10 @@ public sealed class SqlServerAuditStoreDepthShould
 		options.SchemaName.ShouldBe("audit");
 		options.TableName.ShouldBe("AuditEvents");
 		options.BatchInsertSize.ShouldBe(1000);
-		options.RetentionPeriod.ShouldBe(TimeSpan.FromDays(7 * 365));
-		options.EnableRetentionEnforcement.ShouldBeTrue();
-		options.RetentionCleanupInterval.ShouldBe(TimeSpan.FromDays(1));
-		options.RetentionCleanupBatchSize.ShouldBe(10000);
+		options.Retention.RetentionPeriod.ShouldBe(TimeSpan.FromDays(7 * 365));
+		options.Retention.EnableRetentionEnforcement.ShouldBeTrue();
+		options.Retention.CleanupInterval.ShouldBe(TimeSpan.FromDays(1));
+		options.Retention.CleanupBatchSize.ShouldBe(10000);
 		options.CommandTimeoutSeconds.ShouldBe(30);
 		options.UsePartitioning.ShouldBeFalse();
 		options.EnableHashChain.ShouldBeTrue();
@@ -94,7 +94,7 @@ public sealed class SqlServerAuditStoreDepthShould
 		var options = Microsoft.Extensions.Options.Options.Create(new SqlServerAuditOptions
 		{
 			ConnectionString = "Server=localhost;Database=Audit",
-			RetentionPeriod = TimeSpan.FromDays(365)
+			Retention = new() { RetentionPeriod = TimeSpan.FromDays(365) }
 		});
 
 		// Act
@@ -116,10 +116,13 @@ public sealed class SqlServerAuditStoreDepthShould
 			SchemaName = "custom_schema",
 			TableName = "custom_table",
 			BatchInsertSize = 500,
-			RetentionPeriod = TimeSpan.FromDays(365),
-			EnableRetentionEnforcement = false,
-			RetentionCleanupInterval = TimeSpan.FromHours(6),
-			RetentionCleanupBatchSize = 5000,
+			Retention = new()
+			{
+				RetentionPeriod = TimeSpan.FromDays(365),
+				EnableRetentionEnforcement = false,
+				CleanupInterval = TimeSpan.FromHours(6),
+				CleanupBatchSize = 5000
+			},
 			CommandTimeoutSeconds = 60,
 			UsePartitioning = true,
 			EnableHashChain = false,
@@ -141,7 +144,7 @@ public sealed class SqlServerAuditStoreDepthShould
 	[InlineData("with-dash", false)]
 	[InlineData("with space", false)]
 	[InlineData("with.dot", false)]
-	[InlineData("emoji_😀", false)]
+	[InlineData("emoji_\U0001F600", false)]
 	public void Sql_identifier_regex_matches_expected_patterns(string value, bool expected)
 	{
 		var regexFactory = typeof(SqlServerAuditStore).GetMethod(

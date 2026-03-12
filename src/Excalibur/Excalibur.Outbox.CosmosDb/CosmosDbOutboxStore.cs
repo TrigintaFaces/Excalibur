@@ -743,12 +743,12 @@ public sealed partial class CosmosDbOutboxStore : ICloudNativeOutboxStore, IAsyn
 
 	private CosmosClient CreateClient(CosmosClientOptions options)
 	{
-		if (!string.IsNullOrWhiteSpace(_options.ConnectionString))
+		if (!string.IsNullOrWhiteSpace(_options.Connection.ConnectionString))
 		{
-			return new CosmosClient(_options.ConnectionString, options);
+			return new CosmosClient(_options.Connection.ConnectionString, options);
 		}
 
-		return new CosmosClient(_options.AccountEndpoint, _options.AccountKey, options);
+		return new CosmosClient(_options.Connection.AccountEndpoint, _options.Connection.AccountKey, options);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]

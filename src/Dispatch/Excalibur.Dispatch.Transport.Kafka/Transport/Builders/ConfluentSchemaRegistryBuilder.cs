@@ -74,8 +74,8 @@ internal sealed class ConfluentSchemaRegistryBuilder : IConfluentSchemaRegistryB
 	/// <inheritdoc/>
 	public IConfluentSchemaRegistryBuilder SubjectNameStrategy(SubjectNameStrategy strategy)
 	{
-		_options.SubjectNameStrategy = strategy;
-		_options.CustomSubjectNameStrategyType = null; // Clear any custom type
+		_options.Schema.SubjectNameStrategy = strategy;
+		_options.Schema.CustomSubjectNameStrategyType = null; // Clear any custom type
 		return this;
 	}
 
@@ -83,28 +83,28 @@ internal sealed class ConfluentSchemaRegistryBuilder : IConfluentSchemaRegistryB
 	public IConfluentSchemaRegistryBuilder SubjectNameStrategy<TStrategy>()
 		where TStrategy : class, ISubjectNameStrategy, new()
 	{
-		_options.CustomSubjectNameStrategyType = typeof(TStrategy);
+		_options.Schema.CustomSubjectNameStrategyType = typeof(TStrategy);
 		return this;
 	}
 
 	/// <inheritdoc/>
 	public IConfluentSchemaRegistryBuilder CompatibilityMode(CompatibilityMode mode)
 	{
-		_options.DefaultCompatibility = mode;
+		_options.Schema.DefaultCompatibility = mode;
 		return this;
 	}
 
 	/// <inheritdoc/>
 	public IConfluentSchemaRegistryBuilder AutoRegisterSchemas(bool enable = true)
 	{
-		_options.AutoRegisterSchemas = enable;
+		_options.Schema.AutoRegisterSchemas = enable;
 		return this;
 	}
 
 	/// <inheritdoc/>
 	public IConfluentSchemaRegistryBuilder ValidateBeforeRegister(bool enable = true)
 	{
-		_options.ValidateBeforeRegister = enable;
+		_options.Schema.ValidateBeforeRegister = enable;
 		return this;
 	}
 

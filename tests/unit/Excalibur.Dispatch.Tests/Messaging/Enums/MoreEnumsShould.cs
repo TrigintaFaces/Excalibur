@@ -1,9 +1,10 @@
+using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.CloudNative;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Resilience;
 using Excalibur.Dispatch.Middleware.Versioning;
 
-using ConfigValidationSeverity = Excalibur.Dispatch.Configuration.ValidationSeverity;
+using ConfigValidationSeverity = Excalibur.Dispatch.Abstractions.Validation.ValidationSeverity;
 using Excalibur.Dispatch.Configuration;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Enums;

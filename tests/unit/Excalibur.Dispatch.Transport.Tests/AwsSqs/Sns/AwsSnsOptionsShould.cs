@@ -24,15 +24,14 @@ public sealed class AwsSnsOptionsShould
 		options.RawMessageDelivery.ShouldBeFalse();
 		options.DisplayName.ShouldBe(string.Empty);
 		options.KmsMasterKeyId.ShouldBeNull();
-		options.ServiceUrl.ShouldBeNull();
-		options.MaxErrorRetry.ShouldBe(3);
-		options.Timeout.ShouldBe(TimeSpan.FromSeconds(30));
-		options.ReadWriteTimeout.ShouldBe(TimeSpan.FromSeconds(30));
-		options.UseHttp.ShouldBeFalse();
-		options.RegionEndpoint.ShouldBeNull();
-		options.UseLocalStack.ShouldBeFalse();
-		options.AccessKey.ShouldBeNull();
-		options.SecretKey.ShouldBeNull();
+		options.Connection.ServiceUrl.ShouldBeNull();
+		options.Connection.MaxErrorRetry.ShouldBe(3);
+		options.Connection.Timeout.ShouldBe(TimeSpan.FromSeconds(30));
+		options.Connection.ReadWriteTimeout.ShouldBe(TimeSpan.FromSeconds(30));
+		options.Connection.UseHttp.ShouldBeFalse();
+		options.Connection.RegionEndpoint.ShouldBeNull();
+		options.Connection.AccessKey.ShouldBeNull();
+		options.Connection.SecretKey.ShouldBeNull();
 	}
 
 	[Fact]
@@ -86,23 +85,19 @@ public sealed class AwsSnsOptionsShould
 	public void AllowSettingConnectionConfiguration()
 	{
 		// Arrange & Act
-		var options = new AwsSnsOptions
-		{
-			ServiceUrl = new Uri("http://localhost:4566"),
-			UseLocalStack = true,
-			UseHttp = true,
-			AccessKey = "test-key",
-			SecretKey = "test-secret",
-			RegionEndpoint = "us-west-2",
-		};
+		var options = new AwsSnsOptions();
+		options.Connection.ServiceUrl = new Uri("http://localhost:4566");
+		options.Connection.UseHttp = true;
+		options.Connection.AccessKey = "test-key";
+		options.Connection.SecretKey = "test-secret";
+		options.Connection.RegionEndpoint = "us-west-2";
 
 		// Assert
-		options.ServiceUrl!.ToString().ShouldBe("http://localhost:4566/");
-		options.UseLocalStack.ShouldBeTrue();
-		options.UseHttp.ShouldBeTrue();
-		options.AccessKey.ShouldBe("test-key");
-		options.SecretKey.ShouldBe("test-secret");
-		options.RegionEndpoint.ShouldBe("us-west-2");
+		options.Connection.ServiceUrl!.ToString().ShouldBe("http://localhost:4566/");
+		options.Connection.UseHttp.ShouldBeTrue();
+		options.Connection.AccessKey.ShouldBe("test-key");
+		options.Connection.SecretKey.ShouldBe("test-secret");
+		options.Connection.RegionEndpoint.ShouldBe("us-west-2");
 	}
 
 	[Fact]

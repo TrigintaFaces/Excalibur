@@ -42,3 +42,4 @@ global using TestContainersTestBase = Excalibur.Dispatch.Integration.Tests.Dispa
 // Database fixtures
 global using SqlServerFixture = Tests.Shared.Fixtures.SqlServerContainerFixture;
 global using PostgresFixture = Tests.Shared.Fixtures.PostgresContainerFixture;
+global using Excalibur.Dispatch.Serialization;

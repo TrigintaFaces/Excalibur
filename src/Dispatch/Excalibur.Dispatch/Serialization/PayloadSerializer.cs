@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Serialization;
 /// <list type="bullet">
 ///   <item>Prepending the serializer ID as a magic byte during serialization</item>
 ///   <item>Detecting the format via magic byte during deserialization</item>
-///   <item>Routing to the appropriate <see cref="IPluggableSerializer"/> implementation</item>
+///   <item>Routing to the appropriate <see cref="ISerializer"/> implementation</item>
 /// </list>
 /// <para>
 /// <b>Performance Characteristics:</b>
@@ -112,7 +112,7 @@ public sealed partial class PayloadSerializer : IPayloadSerializer
 		byte[] payload;
 		try
 		{
-			payload = currentSerializer.Serialize(value);
+			payload = currentSerializer.SerializeToBytes(value);
 		}
 		catch (Exception ex) when (ex is not SerializationException)
 		{
@@ -210,7 +210,12 @@ public sealed partial class PayloadSerializer : IPayloadSerializer
 		return result;
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Deserializes transport message data with hybrid format detection for external system interoperability.
+	/// </summary>
+	/// <typeparam name="T">The type to deserialize to.</typeparam>
+	/// <param name="data">The raw message payload bytes from a transport (Kafka, RabbitMQ, etc.).</param>
+	/// <returns>The deserialized object.</returns>
 	/// <remarks>
 	/// <para>
 	/// <b>Hybrid Format Detection Strategy:</b>
@@ -297,7 +302,7 @@ public sealed partial class PayloadSerializer : IPayloadSerializer
 			"AOT",
 			"IL3050:RequiresDynamicCode",
 			Justification = "Deserializer implementations may require dynamic code generation; AOT users must select compatible serializers.")]
-	private static T DeserializeWithSerializer<T>(IPluggableSerializer serializer, ReadOnlySpan<byte> payload)
+	private static T DeserializeWithSerializer<T>(ISerializer serializer, ReadOnlySpan<byte> payload)
 	{
 		try
 		{

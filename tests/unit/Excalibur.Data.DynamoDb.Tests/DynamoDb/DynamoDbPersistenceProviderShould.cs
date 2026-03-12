@@ -25,7 +25,7 @@ public sealed class DynamoDbPersistenceProviderShould : UnitTestBase
 		_logger = A.Fake<ILogger<DynamoDbPersistenceProvider>>();
 		_validOptions = Options.Create(new DynamoDbOptions
 		{
-			ServiceUrl = "http://localhost:8000",
+			Connection = new DynamoDbConnectionOptions { ServiceUrl = "http://localhost:8000" },
 			Name = "TestDynamoDb",
 		});
 	}
@@ -54,8 +54,7 @@ public sealed class DynamoDbPersistenceProviderShould : UnitTestBase
 		// Neither ServiceUrl nor Region
 		var invalidOptions = Options.Create(new DynamoDbOptions
 		{
-			ServiceUrl = null,
-			Region = null,
+			Connection = new DynamoDbConnectionOptions { ServiceUrl = null, Region = null },
 		});
 
 		_ = Should.Throw<InvalidOperationException>(() =>

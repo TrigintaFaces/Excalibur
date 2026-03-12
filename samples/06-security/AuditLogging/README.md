@@ -21,12 +21,15 @@ No external dependencies required - uses in-memory storage for demonstration.
 All commands and queries are automatically logged with timestamps and user context:
 
 ```csharp
-public sealed class AuditLoggingMiddleware : IDispatchPipelineBehavior
+public sealed class AuditLoggingMiddleware : IDispatchMiddleware
 {
-    public async Task<DispatchResult> HandleAsync(
-        object message,
+    public DispatchMiddlewareStage? Stage => DispatchMiddlewareStage.PostProcessing;
+    public MessageKinds ApplicableMessageKinds => MessageKinds.All;
+
+    public async ValueTask<IMessageResult> InvokeAsync(
+        IDispatchMessage message,
         IMessageContext context,
-        Func<object, IMessageContext, Task<DispatchResult>> next,
+        DispatchRequestDelegate nextDelegate,
         CancellationToken cancellationToken)
     {
         var startTime = DateTimeOffset.UtcNow;
@@ -37,7 +40,7 @@ public sealed class AuditLoggingMiddleware : IDispatchPipelineBehavior
             message.GetType().Name,
             startTime);
 
-        var result = await next(message, context);
+        var result = await nextDelegate(message, context, cancellationToken);
 
         _logger.LogInformation(
             "[AUDIT] Completed {MessageType}. Payload: {Payload}",

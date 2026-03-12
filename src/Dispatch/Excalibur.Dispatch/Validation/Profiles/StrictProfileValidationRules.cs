@@ -5,6 +5,7 @@
 using System.Text.RegularExpressions;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Abstractions.Validation;
 
@@ -151,14 +152,16 @@ public partial class StrictProfileValidationRules : IProfileValidationRules
 		{
 			if (message is IDispatchAction)
 			{
+				var userId = context.GetUserId();
+
 				// Check for authorization context
-				if (string.IsNullOrEmpty(context.UserId) && !context.Items?.ContainsKey("SystemInitiated") == true)
+				if (string.IsNullOrEmpty(userId) && !context.Items?.ContainsKey("SystemInitiated") == true)
 				{
 					return SerializableValidationResult.Failed("Actions require user context or SystemInitiated flag in strict profile");
 				}
 
 				// Validate user claims if present
-				if (!string.IsNullOrEmpty(context.UserId) && !IsUserAuthenticated(context))
+				if (!string.IsNullOrEmpty(userId) && !IsUserAuthenticated(context))
 				{
 					return SerializableValidationResult.Failed("User must be authenticated for Actions in strict profile");
 				}

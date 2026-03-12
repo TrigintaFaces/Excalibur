@@ -29,7 +29,7 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<TestProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(10);
 		var context = CreateTestContext(provider);
@@ -62,7 +62,7 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<TestProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(5);
 		var context = CreateTestContext(provider);
@@ -95,7 +95,7 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<TestProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(10);
 		var context = CreateTestContext(provider);
@@ -121,7 +121,7 @@ public sealed class ProgressDocumentHandlerShould
 		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(10);
 		var context = CreateTestContext(provider);
@@ -149,7 +149,7 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<TestProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 		var context = CreateTestContext(provider);
 		var progress = new Progress<DocumentProgress>(_ => { });
 
@@ -175,7 +175,7 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<TestProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(10);
 		var progress = new Progress<DocumentProgress>(_ => { });
@@ -202,7 +202,7 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<TestProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(10);
 		var context = CreateTestContext(provider);
@@ -231,7 +231,7 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<TestProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(20);
 		var context = CreateTestContext(provider);
@@ -287,7 +287,7 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<ErrorThrowingProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(10);
 		var context = CreateTestContext(provider);
@@ -322,7 +322,7 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<IndeterminateProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(5);
 		var context = CreateTestContext(provider);
@@ -356,7 +356,7 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<MultiPhaseProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		// Use 9 items so it divides evenly into 3 phases
 		var document = new TestProgressDocument(9);
@@ -389,7 +389,7 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<TestProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(5);
 		var context = CreateTestContext(provider);
@@ -459,4 +459,3 @@ public sealed class ProgressDocumentHandlerShould
 		return DispatchContextInitializer.CreateDefaultContext(provider);
 	}
 }
-

@@ -1,4 +1,4 @@
-// Functional tests for InputValidationMiddleware — injection detection, size limits, custom validators, context validation
+// Functional tests for InputValidationMiddleware -- injection detection, size limits, custom validators, context validation
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Security;
@@ -16,13 +16,16 @@ public sealed class InputValidationMiddlewareFunctionalShould
         opts ??= new InputValidationOptions
         {
             EnableValidation = true,
-            BlockSqlInjection = true,
-            BlockNoSqlInjection = true,
-            BlockCommandInjection = true,
-            BlockPathTraversal = true,
-            BlockLdapInjection = true,
-            BlockHtmlContent = true,
-            BlockControlCharacters = true,
+            InjectionPrevention = new InputInjectionPreventionOptions
+            {
+                BlockSqlInjection = true,
+                BlockNoSqlInjection = true,
+                BlockCommandInjection = true,
+                BlockPathTraversal = true,
+                BlockLdapInjection = true,
+                BlockHtmlContent = true,
+                BlockControlCharacters = true,
+            },
             MaxStringLength = 10000,
             MaxMessageSizeBytes = 1_048_576,
             RequireCorrelationId = true,
@@ -46,10 +49,11 @@ public sealed class InputValidationMiddlewareFunctionalShould
             ["MessageId"] = Guid.NewGuid().ToString(),
         };
         A.CallTo(() => context.Items).Returns(items);
-        A.CallTo(() => context.Properties).Returns(new Dictionary<string, object?>());
         A.CallTo(() => context.CorrelationId).Returns(Guid.NewGuid().ToString());
         A.CallTo(() => context.MessageId).Returns(Guid.NewGuid().ToString());
-        A.CallTo(() => context.ReceivedTimestampUtc).Returns(DateTimeOffset.UtcNow);
+
+        // Set timestamp via Items-based extension method
+        context.SetSentTimestampUtc(DateTimeOffset.UtcNow);
 
         var successResult = A.Fake<IMessageResult>();
         A.CallTo(() => successResult.Succeeded).Returns(true);

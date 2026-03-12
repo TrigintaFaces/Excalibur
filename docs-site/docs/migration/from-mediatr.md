@@ -20,7 +20,7 @@ Excalibur is designed as a **production-ready alternative to MediatR** with enha
 
 | Feature | MediatR | Excalibur |
 |---------|---------|-------------------|
-| **Core Focus** | Simple mediator pattern | Messaging + Event Sourcing + DDD |
+| **Core Focus** | Simple mediator pattern | High-performance messaging framework with optional event sourcing and DDD capabilities |
 | **Request/Response** | `IRequest<T>` / `IRequestHandler<T>` | `IDispatchAction<T>` / `IActionHandler<T, R>` |
 | **Notifications** | `INotification` / `INotificationHandler` | `IDomainEvent` / `IEventHandler` |
 | **Pipeline Behaviors** | `IPipelineBehavior<TRequest, TResponse>` | `IDispatchMiddleware` |
@@ -290,7 +290,6 @@ Replace MediatR entirely in one release. Only viable for small codebases.
 
 ```bash
 dotnet add package Excalibur.Dispatch
-dotnet add package Excalibur.Dispatch.Abstractions
 ```
 
 ### Step 2: Update Registration
@@ -488,6 +487,10 @@ public class OrdersController : ControllerBase
 - `Send()` → `DispatchAsync()`
 
 ## New Capabilities in Dispatch
+
+:::info Optional Features
+The capabilities below are optional add-ons available in separate packages. They are **not** required for a successful MediatR migration. Many teams use Excalibur.Dispatch exclusively for messaging without any of these.
+:::
 
 ### Event Sourcing
 

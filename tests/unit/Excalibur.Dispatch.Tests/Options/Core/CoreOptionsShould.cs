@@ -291,25 +291,9 @@ public sealed class CoreOptionsShould
 	}
 
 	[Fact]
-	public void MiddlewareRegistrationOptions_HaveDefaults()
-	{
-		var opts = new MiddlewareRegistrationOptions();
-
-		opts.ShouldNotBeNull();
-	}
-
-	[Fact]
 	public void MultiTransportOptions_HaveDefaults()
 	{
 		var opts = new MultiTransportOptions();
-
-		opts.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void DispatchProfileOptions_HaveDefaults()
-	{
-		var opts = new DispatchProfileOptions();
 
 		opts.ShouldNotBeNull();
 	}

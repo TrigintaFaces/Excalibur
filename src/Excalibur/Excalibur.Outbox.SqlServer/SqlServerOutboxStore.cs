@@ -8,7 +8,7 @@ using Dapper;
 
 using Excalibur.Data.Abstractions;
 using Excalibur.Data.Abstractions.Observability;
-using Excalibur.Data.SqlServer.Inbox;
+using Excalibur.Inbox.SqlServer;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Diagnostics;
 using Excalibur.Dispatch.Abstractions.Serialization;
@@ -42,7 +42,7 @@ namespace Excalibur.Outbox.SqlServer;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IOutboxStoreAdmin
+public sealed class SqlServerOutboxStore : IMultiTransportOutboxStore, IMultiTransportOutboxStoreAdmin, IOutboxStoreAdmin
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly SqlServerOutboxOptions _options;

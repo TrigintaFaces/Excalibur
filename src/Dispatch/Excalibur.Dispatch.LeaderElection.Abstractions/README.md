@@ -60,8 +60,8 @@ public interface ILeaderElection
     string? CurrentLeaderId { get; }
 
     // Methods
-    Task StartAsync(CancellationToken cancellationToken = default);
-    Task StopAsync(CancellationToken cancellationToken = default);
+    Task StartAsync(CancellationToken cancellationToken);
+    Task StopAsync(CancellationToken cancellationToken);
 }
 ```
 
@@ -129,8 +129,8 @@ Extends leader election with health awareness - leaders can step down when unhea
 ```csharp
 public interface IHealthBasedLeaderElection : ILeaderElection
 {
-    Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata = null);
-    Task<IEnumerable<CandidateHealth>> GetCandidateHealthAsync(CancellationToken cancellationToken = default);
+    Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata, CancellationToken cancellationToken);
+    Task<IEnumerable<CandidateHealth>> GetCandidateHealthAsync(CancellationToken cancellationToken);
 }
 ```
 
@@ -161,7 +161,7 @@ public class HealthMonitoredService : BackgroundService
                 ["cpu_usage"] = "65%",
                 ["memory_usage"] = "80%",
                 ["disk_space"] = "healthy"
-            });
+            }, cancellationToken);
 
             // If unhealthy and leader, will automatically step down
             if (!isHealthy && _election.IsLeader)
@@ -199,24 +199,24 @@ public interface ILeaderElectionFactory
 }
 ```
 
-**Dependency Injection**:
+**Dependency Injection** (Builder API -- recommended):
 
 ```csharp
-public class Startup
-{
-    public void ConfigureServices(IServiceCollection services)
-    {
-        // Provider registers ILeaderElectionFactory
-        services.AddConsulLeaderElection(/* options */);
+services.AddExcaliburLeaderElection(le => le
+    .UseConsul(opts => opts.ConsulAddress = "http://localhost:8500")
+    .WithHealthChecks()
+    .WithFencingTokens());
+```
 
-        // Inject factory to create elections
-        services.AddSingleton(sp =>
-        {
-            var factory = sp.GetRequiredService<ILeaderElectionFactory>();
-            return factory.CreateElection("my-resource-lock");
-        });
-    }
-}
+**Dependency Injection** (Factory pattern):
+
+```csharp
+// Inject factory to create elections for different resources
+services.AddSingleton(sp =>
+{
+    var factory = sp.GetRequiredService<ILeaderElectionFactory>();
+    return factory.CreateElection("my-resource-lock");
+});
 ```
 
 ---
@@ -466,7 +466,8 @@ public class HealthAwareLeaderService : BackgroundService
             // Update election with health status
             await _election.UpdateHealthAsync(
                 isHealthy: health.Score >= 0.75,
-                metadata: health.Metadata
+                metadata: health.Metadata,
+                cancellationToken
             );
 
             if (_election.IsLeader)

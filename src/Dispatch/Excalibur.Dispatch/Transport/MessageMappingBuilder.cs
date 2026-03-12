@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Transport;
 /// <summary>
 /// Default implementation of <see cref="IMessageMappingBuilder"/> for fluent message mapping configuration.
 /// </summary>
-public sealed class MessageMappingBuilder : IMessageMappingBuilder
+public sealed class MessageMappingBuilder : IMessageMappingBuilder, IMessageMappingConventions
 {
 	private readonly IServiceCollection _services;
 	private readonly MessageMapperRegistry _registry;
@@ -43,45 +43,46 @@ public sealed class MessageMappingBuilder : IMessageMappingBuilder
 	internal ConcurrentDictionary<Type, MessageTypeMapperConfiguration> TypeConfigurations => _typeConfigurations;
 
 	/// <inheritdoc/>
-	public IMessageTypeMappingBuilder<TMessage> MapMessage<TMessage>()
-		where TMessage : class
+	public void Add(Action<IMessageMappingConventions> convention)
+	{
+		ArgumentNullException.ThrowIfNull(convention);
+		convention(this);
+	}
+
+	/// <inheritdoc/>
+	IMessageTypeMappingBuilder<TMessage> IMessageMappingConventions.MapMessage<TMessage>()
 	{
 		var config = _typeConfigurations.GetOrAdd(typeof(TMessage), _ => new MessageTypeMapperConfiguration(typeof(TMessage)));
 		return new MessageTypeMappingBuilder<TMessage>(this, config);
 	}
 
 	/// <inheritdoc/>
-	public IMessageMappingBuilder RegisterMapper(IMessageMapper mapper)
+	void IMessageMappingConventions.RegisterMapper(IMessageMapper mapper)
 	{
 		ArgumentNullException.ThrowIfNull(mapper);
 		_registry.Register(mapper);
-		return this;
 	}
 
 	/// <inheritdoc/>
-	public IMessageMappingBuilder RegisterMapper<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMapper>()
-		where TMapper : class, IMessageMapper
+	void IMessageMappingConventions.RegisterMapper<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TMapper>()
 	{
 		_services.TryAddSingleton<TMapper>();
 		_ = _services.AddSingleton<IMessageMapper, TMapper>();
-		return this;
 	}
 
 	/// <inheritdoc/>
-	public IMessageMappingBuilder UseDefaultMappers()
+	void IMessageMappingConventions.UseDefaultMappers()
 	{
 		_ = _registry.RegisterDefaultMappers();
-		return this;
 	}
 
 	/// <inheritdoc/>
-	public IMessageMappingBuilder ConfigureDefaults(Action<IDefaultMappingBuilder> configure)
+	void IMessageMappingConventions.ConfigureDefaults(Action<IDefaultMappingBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(configure);
 
 		var defaultBuilder = new DefaultMappingBuilder(_defaultConfiguration);
 		configure(defaultBuilder);
-		return this;
 	}
 
 	/// <summary>
@@ -110,61 +111,10 @@ public sealed class MessageTypeMappingBuilder<TMessage> : IMessageTypeMappingBui
 		_config = config ?? throw new ArgumentNullException(nameof(config));
 	}
 
-	/// <inheritdoc/>
-	public IMessageTypeMappingBuilder<TMessage> ToRabbitMq(Action<IRabbitMqMappingContext> configure)
-	{
-		ArgumentNullException.ThrowIfNull(configure);
-		_config.RabbitMqConfiguration = configure;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IMessageTypeMappingBuilder<TMessage> ToKafka(Action<IKafkaMappingContext> configure)
-	{
-		ArgumentNullException.ThrowIfNull(configure);
-		_config.KafkaConfiguration = configure;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IMessageTypeMappingBuilder<TMessage> ToAzureServiceBus(Action<IAzureServiceBusMappingContext> configure)
-	{
-		ArgumentNullException.ThrowIfNull(configure);
-		_config.AzureServiceBusConfiguration = configure;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IMessageTypeMappingBuilder<TMessage> ToAwsSqs(Action<IAwsSqsMappingContext> configure)
-	{
-		ArgumentNullException.ThrowIfNull(configure);
-		_config.AwsSqsConfiguration = configure;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IMessageTypeMappingBuilder<TMessage> ToAwsSns(Action<IAwsSnsMappingContext> configure)
-	{
-		ArgumentNullException.ThrowIfNull(configure);
-		_config.AwsSnsConfiguration = configure;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IMessageTypeMappingBuilder<TMessage> ToGooglePubSub(Action<IGooglePubSubMappingContext> configure)
-	{
-		ArgumentNullException.ThrowIfNull(configure);
-		_config.GooglePubSubConfiguration = configure;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IMessageTypeMappingBuilder<TMessage> ToGrpc(Action<IGrpcMappingContext> configure)
-	{
-		ArgumentNullException.ThrowIfNull(configure);
-		_config.GrpcConfiguration = configure;
-		return this;
-	}
+	/// <summary>
+	/// Gets the underlying configuration for internal use by transport-specific extension methods.
+	/// </summary>
+	internal MessageTypeMapperConfiguration Configuration => _config;
 
 	/// <inheritdoc/>
 	public IMessageTypeMappingBuilder<TMessage> ToTransport(string transportName, Action<ITransportMessageContext> configure)
@@ -191,43 +141,17 @@ public sealed class DefaultMappingBuilder : IDefaultMappingBuilder
 		_config = config ?? throw new ArgumentNullException(nameof(config));
 	}
 
-	/// <inheritdoc/>
-	public IDefaultMappingBuilder ForRabbitMq(Action<IRabbitMqMappingContext> configure)
-	{
-		ArgumentNullException.ThrowIfNull(configure);
-		_config.RabbitMqDefaults = configure;
-		return this;
-	}
+	/// <summary>
+	/// Gets the underlying configuration for internal use by transport-specific extension methods.
+	/// </summary>
+	internal DefaultMappingConfiguration Configuration => _config;
 
 	/// <inheritdoc/>
-	public IDefaultMappingBuilder ForKafka(Action<IKafkaMappingContext> configure)
+	public IDefaultMappingBuilder ForTransport(string transportName, Action<ITransportMessageContext> configure)
 	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(transportName);
 		ArgumentNullException.ThrowIfNull(configure);
-		_config.KafkaDefaults = configure;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IDefaultMappingBuilder ForAzureServiceBus(Action<IAzureServiceBusMappingContext> configure)
-	{
-		ArgumentNullException.ThrowIfNull(configure);
-		_config.AzureServiceBusDefaults = configure;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IDefaultMappingBuilder ForAwsSqs(Action<IAwsSqsMappingContext> configure)
-	{
-		ArgumentNullException.ThrowIfNull(configure);
-		_config.AwsSqsDefaults = configure;
-		return this;
-	}
-
-	/// <inheritdoc/>
-	public IDefaultMappingBuilder ForGooglePubSub(Action<IGooglePubSubMappingContext> configure)
-	{
-		ArgumentNullException.ThrowIfNull(configure);
-		_config.GooglePubSubDefaults = configure;
+		_config.CustomTransportDefaults[transportName] = configure;
 		return this;
 	}
 }
@@ -265,4 +189,7 @@ internal sealed class DefaultMappingConfiguration
 	public Action<IAzureServiceBusMappingContext>? AzureServiceBusDefaults { get; set; }
 	public Action<IAwsSqsMappingContext>? AwsSqsDefaults { get; set; }
 	public Action<IGooglePubSubMappingContext>? GooglePubSubDefaults { get; set; }
+
+	public Dictionary<string, Action<ITransportMessageContext>> CustomTransportDefaults { get; } =
+		new(StringComparer.OrdinalIgnoreCase);
 }

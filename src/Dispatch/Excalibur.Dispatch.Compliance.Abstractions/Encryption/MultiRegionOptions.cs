@@ -96,32 +96,6 @@ public sealed class MultiRegionOptions
 	/// </summary>
 	/// <value> The failover sub-options. </value>
 	public MultiRegionFailoverOptions Failover { get; set; } = new();
-
-	// --- Backward-compatible shims ---
-
-	/// <summary>
-	/// Gets or sets the interval between health checks.
-	/// </summary>
-	/// <value> Defaults to 30 seconds. </value>
-	public TimeSpan HealthCheckInterval { get => Failover.HealthCheckInterval; set => Failover.HealthCheckInterval = value; }
-
-	/// <summary>
-	/// Gets or sets the number of consecutive health check failures required to trigger automatic failover.
-	/// </summary>
-	/// <value> Defaults to 3. </value>
-	public int FailoverThreshold { get => Failover.FailoverThreshold; set => Failover.FailoverThreshold = value; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether automatic failover is enabled.
-	/// </summary>
-	/// <value> Defaults to <c>true</c>. </value>
-	public bool EnableAutomaticFailover { get => Failover.EnableAutomaticFailover; set => Failover.EnableAutomaticFailover = value; }
-
-	/// <summary>
-	/// Gets or sets the interval between replication syncs for asynchronous mode.
-	/// </summary>
-	/// <value> Defaults to 5 minutes. </value>
-	public TimeSpan AsyncReplicationInterval { get => Failover.AsyncReplicationInterval; set => Failover.AsyncReplicationInterval = value; }
 }
 
 /// <summary>

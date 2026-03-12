@@ -10,7 +10,9 @@ using System.Threading.Channels;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Transport.AwsSqs;
 
@@ -87,7 +89,7 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 
 		_pollingTasks = [];
 		_shutdownTokenSource = new CancellationTokenSource();
-		_concurrencyLimit = new SemaphoreSlim(_options.MaxConcurrentPollers);
+		_concurrencyLimit = new SemaphoreSlim(_options.Polling.MaxConcurrentPollers);
 
 		// Initialize metrics
 		Metrics = new SqsChannelMetrics();
@@ -143,10 +145,10 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 	public Task StartAsync(CancellationToken cancellationToken)
 	{
 		_ = cancellationToken;
-		LogProcessorStarting(_options.QueueUrl.ToString(), _options.ConcurrentPollers);
+		LogProcessorStarting(_options.QueueUrl.ToString(), _options.Polling.ConcurrentPollers);
 
 		// Start multiple polling tasks for increased throughput
-		for (var i = 0; i < _options.ConcurrentPollers; i++)
+		for (var i = 0; i < _options.Polling.ConcurrentPollers; i++)
 		{
 			var pollerIndex = i;
 			var pollingTask = StartBackgroundTask(
@@ -220,8 +222,8 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 							var messageContext = new MessageContext(memoryMessage, _serviceProvider)
 							{
 								MessageId = message.MessageId,
-								ReceivedTimestampUtc = DateTimeOffset.UtcNow,
 							};
+							messageContext.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
 
 							// Add SQS-specific attributes to the context
 							if (message.Attributes != null)
@@ -236,7 +238,7 @@ public sealed partial class HighThroughputSqsChannelProcessor : IAsyncDisposable
 							if (message.Attributes?.TryGetValue("ApproximateReceiveCount", out var receiveCount) == true &&
 								int.TryParse(receiveCount, out var count))
 							{
-								messageContext.DeliveryCount = count;
+								messageContext.GetOrCreateProcessingFeature().DeliveryCount = count;
 							}
 
 							// Create the envelope using the constructor

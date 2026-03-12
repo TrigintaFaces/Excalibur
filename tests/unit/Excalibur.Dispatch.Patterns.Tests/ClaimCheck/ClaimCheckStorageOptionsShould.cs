@@ -18,11 +18,11 @@ public sealed class ClaimCheckStorageOptionsShould
 		options.ColdStorageThreshold.ShouldBe(TimeSpan.FromDays(30));
 		options.EnableEncryption.ShouldBeFalse();
 		options.ChunkSize.ShouldBe(1024 * 1024);
-		options.MaxConcurrency.ShouldBe(Environment.ProcessorCount);
-		options.BufferPoolSize.ShouldBe(100);
-		options.OperationTimeout.ShouldBe(TimeSpan.FromSeconds(30));
-		options.MaxRetries.ShouldBe(3);
-		options.RetryDelay.ShouldBe(TimeSpan.FromSeconds(1));
+		options.Operations.MaxConcurrency.ShouldBe(Environment.ProcessorCount);
+		options.Operations.BufferPoolSize.ShouldBe(100);
+		options.Operations.OperationTimeout.ShouldBe(TimeSpan.FromSeconds(30));
+		options.Operations.MaxRetries.ShouldBe(3);
+		options.Operations.RetryDelay.ShouldBe(TimeSpan.FromSeconds(1));
 	}
 
 	[Fact]
@@ -79,19 +79,25 @@ public sealed class ClaimCheckStorageOptionsShould
 	public void Allow_custom_max_concurrency()
 	{
 		// Arrange & Act
-		var options = new ClaimCheckStorageOptions { MaxConcurrency = 8 };
+		var options = new ClaimCheckStorageOptions
+		{
+			Operations = new ClaimCheckOperationOptions { MaxConcurrency = 8 }
+		};
 
 		// Assert
-		options.MaxConcurrency.ShouldBe(8);
+		options.Operations.MaxConcurrency.ShouldBe(8);
 	}
 
 	[Fact]
 	public void Allow_custom_operation_timeout()
 	{
 		// Arrange & Act
-		var options = new ClaimCheckStorageOptions { OperationTimeout = TimeSpan.FromMinutes(2) };
+		var options = new ClaimCheckStorageOptions
+		{
+			Operations = new ClaimCheckOperationOptions { OperationTimeout = TimeSpan.FromMinutes(2) }
+		};
 
 		// Assert
-		options.OperationTimeout.ShouldBe(TimeSpan.FromMinutes(2));
+		options.Operations.OperationTimeout.ShouldBe(TimeSpan.FromMinutes(2));
 	}
 }

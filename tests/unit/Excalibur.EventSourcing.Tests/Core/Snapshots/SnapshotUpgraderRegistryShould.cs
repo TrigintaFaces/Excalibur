@@ -15,12 +15,12 @@ namespace Excalibur.EventSourcing.Tests.Core.Snapshots;
 public sealed class SnapshotUpgraderRegistryShould
 {
 	private readonly SnapshotUpgraderRegistry _sut;
-	private readonly ISnapshotDataSerializer _serializer;
+	private readonly ISnapshotSerializer _serializer;
 
 	public SnapshotUpgraderRegistryShould()
 	{
 		_sut = new SnapshotUpgraderRegistry(NullLogger<SnapshotUpgraderRegistry>.Instance);
-		_serializer = A.Fake<ISnapshotDataSerializer>();
+		_serializer = A.Fake<ISnapshotSerializer>();
 
 		// Default serializer: string round-trip via UTF8
 		A.CallTo(() => _serializer.Serialize(A<string>._))

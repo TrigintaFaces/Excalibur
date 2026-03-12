@@ -416,7 +416,6 @@ builder.Services.AddRabbitMqTransport(options =>
 # dotnet add package NServiceBus
 
 dotnet add package Excalibur.Dispatch
-dotnet add package Excalibur.Dispatch.Abstractions
 dotnet add package Excalibur.EventSourcing
 dotnet add package Excalibur.EventSourcing.SqlServer
 ```

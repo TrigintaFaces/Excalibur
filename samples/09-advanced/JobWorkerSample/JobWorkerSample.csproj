@@ -14,6 +14,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Serilog.Extensions.Hosting" />
+    <PackageReference Include="Serilog.Settings.Configuration" />
     <PackageReference Include="Serilog.Sinks.Console" />
     <PackageReference Include="AspNetCore.HealthChecks.UI" />
     <PackageReference Include="AspNetCore.HealthChecks.UI.InMemory.Storage" />
@@ -22,5 +23,8 @@
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Hosting.Jobs\Excalibur.Hosting.Jobs.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Jobs\Excalibur.Jobs.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Jobs.Redis\Excalibur.Jobs.Redis.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Jobs.Cdc\Excalibur.Jobs.Cdc.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Jobs.DataProcessing\Excalibur.Jobs.DataProcessing.csproj" />
   </ItemGroup>
 </Project>

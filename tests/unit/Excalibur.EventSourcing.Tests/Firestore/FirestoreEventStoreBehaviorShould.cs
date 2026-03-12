@@ -26,7 +26,7 @@ public sealed class FirestoreEventStoreBehaviorShould : UnitTestBase
 	public void ProviderType_ReturnFirestore()
 	{
 		var sut = CreateInitializedStore(withDatabase: false);
-		sut.ProviderType.ShouldBe(CloudProviderType.Firestore);
+		sut.CloudProvider.ShouldBe(CloudProviderType.Firestore);
 	}
 
 	[Fact]

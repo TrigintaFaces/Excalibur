@@ -10,6 +10,6 @@ namespace Excalibur.A3.Authorization.Grants;
 /// Query class for <see cref="Grant" /> aggregates.
 /// </summary>
 /// <remarks>
-/// Provides criteria for querying Grant aggregates via <see cref="IEventSourcedRepository{TAggregate, TKey}.QueryAsync{TQuery}"/>.
+/// Provides criteria for querying Grant aggregates via <see cref="IAggregateQuery{TAggregate}"/>.
 /// </remarks>
 public sealed class GrantQuery : IAggregateQuery<Grant>;

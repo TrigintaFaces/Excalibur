@@ -53,7 +53,7 @@ public sealed class DynamoDbSnapshotStoreExtensionsShould
 		// Act
 		var result = services.AddDynamoDbSnapshotStore(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 			options.TableName = "snapshots";
 		});
 
@@ -70,7 +70,7 @@ public sealed class DynamoDbSnapshotStoreExtensionsShould
 		// Act
 		services.AddDynamoDbSnapshotStore(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 			options.TableName = "snapshots";
 		});
 
@@ -137,7 +137,7 @@ public sealed class DynamoDbSnapshotStoreExtensionsShould
 		// Act
 		var result = services.AddDynamoDbSnapshotStore("primary", options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 			options.TableName = "snapshots";
 		});
 
@@ -154,7 +154,7 @@ public sealed class DynamoDbSnapshotStoreExtensionsShould
 		// Act
 		services.AddDynamoDbSnapshotStore("primary", options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 			options.TableName = "snapshots";
 		});
 

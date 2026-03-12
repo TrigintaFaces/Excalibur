@@ -4,12 +4,10 @@
 
 using Excalibur.Dispatch.Abstractions.Serialization;
 
-using Microsoft.Extensions.DependencyInjection;
-
 namespace Excalibur.Dispatch.Serialization;
 
 /// <summary>
-/// Implementation of <see cref="IPluggableSerializationBuilder"/> that collects
+/// Implementation of <see cref="ISerializationBuilder"/> that collects
 /// registration actions for deferred execution.
 /// </summary>
 /// <remarks>
@@ -23,7 +21,7 @@ namespace Excalibur.Dispatch.Serialization;
 /// during configuration, following the <c>IConfigureOptions</c> pattern instead.
 /// </para>
 /// </remarks>
-internal sealed class PluggableSerializationBuilder : IPluggableSerializationBuilder
+internal sealed class PluggableSerializationBuilder : ISerializationBuilder
 {
 	private readonly PluggableSerializationOptions _options;
 
@@ -37,86 +35,15 @@ internal sealed class PluggableSerializationBuilder : IPluggableSerializationBui
 	}
 
 	/// <inheritdoc />
-	public IPluggableSerializationBuilder RegisterMemoryPack()
-	{
-		_options.AddRegistration(registry =>
-		{
-			if (!registry.IsRegistered(SerializerIds.MemoryPack))
-			{
-				// MemoryPack package is a dependency, so we can always register it
-				registry.Register(
-					SerializerIds.MemoryPack,
-					MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer());
-			}
-		});
-		return this;
-	}
-
-	/// <inheritdoc />
-	public IPluggableSerializationBuilder RegisterSystemTextJson()
-	{
-		_options.AddRegistration(registry =>
-		{
-			if (!registry.IsRegistered(SerializerIds.SystemTextJson))
-			{
-				// System.Text.Json is built into .NET, so we can always register it
-				registry.Register(SerializerIds.SystemTextJson, new SystemTextJsonPluggableSerializer());
-			}
-		});
-		return this;
-	}
-
-	/// <inheritdoc />
-	public IPluggableSerializationBuilder RegisterMessagePack()
-	{
-		_options.AddRegistration(registry =>
-		{
-			if (!registry.IsRegistered(SerializerIds.MessagePack))
-			{
-				throw new InvalidOperationException(
-					"MessagePack serializer not available. " +
-					"Ensure the Excalibur.Dispatch.Serialization.MessagePack package is referenced " +
-					"and call services.AddMessagePackSerialization() before ConfigurePluggableSerialization().");
-			}
-		});
-		return this;
-	}
-
-	/// <inheritdoc />
-	public IPluggableSerializationBuilder RegisterProtobuf()
-	{
-		_options.AddRegistration(registry =>
-		{
-			if (!registry.IsRegistered(SerializerIds.Protobuf))
-			{
-				throw new InvalidOperationException(
-					"Protobuf serializer not available. " +
-					"Ensure the Excalibur.Dispatch.Serialization.Protobuf package is referenced.");
-			}
-		});
-		return this;
-	}
-
-	/// <inheritdoc />
-	public IPluggableSerializationBuilder RegisterCustom(IPluggableSerializer serializer, byte id)
+	public ISerializationBuilder Register(ISerializer serializer, byte id)
 	{
 		ArgumentNullException.ThrowIfNull(serializer);
-
-		// Validate custom range
-		if (!SerializerIds.IsCustomId(id))
-		{
-			throw new ArgumentException(
-				$"Custom serializer IDs must be in range {SerializerIds.CustomRangeStart}-{SerializerIds.CustomRangeEnd}. " +
-				$"Got: {id}. Framework IDs (1-199) are reserved.",
-				nameof(id));
-		}
-
 		_options.AddRegistration(registry => registry.Register(id, serializer));
 		return this;
 	}
 
 	/// <inheritdoc />
-	public IPluggableSerializationBuilder UseCurrent(string serializerName)
+	public ISerializationBuilder UseCurrent(string serializerName)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(serializerName);
 		_options.CurrentSerializerName = serializerName;
@@ -124,23 +51,7 @@ internal sealed class PluggableSerializationBuilder : IPluggableSerializationBui
 	}
 
 	/// <inheritdoc />
-	public IPluggableSerializationBuilder UseMemoryPack()
-		=> UseCurrent("MemoryPack");
-
-	/// <inheritdoc />
-	public IPluggableSerializationBuilder UseSystemTextJson()
-		=> UseCurrent("System.Text.Json");
-
-	/// <inheritdoc />
-	public IPluggableSerializationBuilder UseMessagePack()
-		=> UseCurrent("MessagePack");
-
-	/// <inheritdoc />
-	public IPluggableSerializationBuilder UseProtobuf()
-		=> UseCurrent("Protobuf");
-
-	/// <inheritdoc />
-	public IPluggableSerializationBuilder DisableMemoryPackAutoRegistration()
+	public ISerializationBuilder DisableAutoRegistration()
 	{
 		_options.AutoRegisterMemoryPack = false;
 		return this;

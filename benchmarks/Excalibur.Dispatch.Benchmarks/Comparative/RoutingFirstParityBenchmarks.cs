@@ -5,6 +5,7 @@ using BenchmarkDotNet.Attributes;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Delivery;
@@ -650,7 +651,7 @@ public class RoutingFirstParityBenchmarks
 		ArgumentNullException.ThrowIfNull(_contextFactory);
 
 		var context = _contextFactory.CreateContext();
-		context.RoutingDecision = decision;
+		context.GetOrCreateRoutingFeature().RoutingDecision = decision;
 		configureContext?.Invoke(context);
 		var dispatchTask = _dispatcher.DispatchAsync(message, context, CancellationToken.None);
 		if (dispatchTask.IsCompletedSuccessfully)
@@ -677,7 +678,7 @@ public class RoutingFirstParityBenchmarks
 		ArgumentNullException.ThrowIfNull(_contextFactory);
 
 		var context = _contextFactory.CreateContext();
-		context.RoutingDecision = decision;
+		context.GetOrCreateRoutingFeature().RoutingDecision = decision;
 		var dispatchTask = _dispatcher.DispatchAsync<TMessage, TResponse>(message, context, CancellationToken.None);
 		if (dispatchTask.IsCompletedSuccessfully)
 		{

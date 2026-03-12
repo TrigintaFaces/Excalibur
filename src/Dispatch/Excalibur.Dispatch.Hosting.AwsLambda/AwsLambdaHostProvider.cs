@@ -49,13 +49,13 @@ public partial class AwsLambdaHostProvider(ILogger logger) : IServerlessHostProv
 		}
 
 		// Configure tracing if enabled
-		if (options.EnableDistributedTracing)
+		if (options.Telemetry.EnableDistributedTracing)
 		{
 			ConfigureXRayTracing();
 		}
 
 		// Configure metrics if enabled
-		if (options.EnableMetrics)
+		if (options.Telemetry.EnableMetrics)
 		{
 			ConfigureLambdaMetrics();
 		}

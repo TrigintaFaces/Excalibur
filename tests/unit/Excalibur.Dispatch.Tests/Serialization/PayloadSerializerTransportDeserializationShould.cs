@@ -551,7 +551,7 @@ public sealed class PayloadSerializerTransportDeserializationShould
 	private static SerializerRegistry CreateRegistryWithMemoryPack()
 	{
 		var registry = new SerializerRegistry();
-		var serializer = new MemoryPackPluggableSerializer();
+		var serializer = new MemoryPackSerializer();
 		registry.Register(SerializerIds.MemoryPack, serializer);
 		registry.SetCurrent("MemoryPack");
 		return registry;
@@ -560,7 +560,7 @@ public sealed class PayloadSerializerTransportDeserializationShould
 	private static SerializerRegistry CreateRegistryWithSystemTextJson()
 	{
 		var registry = new SerializerRegistry();
-		var serializer = new SystemTextJsonPluggableSerializer();
+		var serializer = new SystemTextJsonSerializer();
 		registry.Register(SerializerIds.SystemTextJson, serializer);
 		registry.SetCurrent("System.Text.Json");
 		return registry;
@@ -569,8 +569,8 @@ public sealed class PayloadSerializerTransportDeserializationShould
 	private static SerializerRegistry CreateRegistryWithBothSerializers()
 	{
 		var registry = new SerializerRegistry();
-		registry.Register(SerializerIds.MemoryPack, new MemoryPackPluggableSerializer());
-		registry.Register(SerializerIds.SystemTextJson, new SystemTextJsonPluggableSerializer());
+		registry.Register(SerializerIds.MemoryPack, new MemoryPackSerializer());
+		registry.Register(SerializerIds.SystemTextJson, new SystemTextJsonSerializer());
 		registry.SetCurrent("MemoryPack");
 		return registry;
 	}

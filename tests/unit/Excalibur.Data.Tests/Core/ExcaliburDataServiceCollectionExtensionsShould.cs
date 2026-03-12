@@ -19,7 +19,7 @@ public sealed class ExcaliburDataServiceCollectionExtensionsShould
 
 		services.AddExcaliburDataServices();
 
-		services.ShouldContain(sd => sd.ServiceType == typeof(IJsonSerializer));
+		services.ShouldContain(sd => sd.ServiceType == typeof(DispatchJsonSerializer));
 	}
 
 	[Fact]
@@ -42,7 +42,7 @@ public sealed class ExcaliburDataServiceCollectionExtensionsShould
 			config.DefaultProvider = "test";
 		});
 
-		services.ShouldContain(sd => sd.ServiceType == typeof(IJsonSerializer));
+		services.ShouldContain(sd => sd.ServiceType == typeof(DispatchJsonSerializer));
 	}
 
 	[Fact]

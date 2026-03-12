@@ -143,11 +143,11 @@ public sealed class ClaimCheckOptionsShould
 		options.Storage.ColdStorageThreshold.ShouldBe(TimeSpan.FromDays(30));
 		options.Storage.EnableEncryption.ShouldBeFalse();
 		options.Storage.ChunkSize.ShouldBe(1024 * 1024);
-		options.Storage.MaxConcurrency.ShouldBe(Environment.ProcessorCount);
-		options.Storage.BufferPoolSize.ShouldBe(100);
-		options.Storage.OperationTimeout.ShouldBe(TimeSpan.FromSeconds(30));
-		options.Storage.MaxRetries.ShouldBe(3);
-		options.Storage.RetryDelay.ShouldBe(TimeSpan.FromSeconds(1));
+		options.Storage.Operations.MaxConcurrency.ShouldBe(Environment.ProcessorCount);
+		options.Storage.Operations.BufferPoolSize.ShouldBe(100);
+		options.Storage.Operations.OperationTimeout.ShouldBe(TimeSpan.FromSeconds(30));
+		options.Storage.Operations.MaxRetries.ShouldBe(3);
+		options.Storage.Operations.RetryDelay.ShouldBe(TimeSpan.FromSeconds(1));
 	}
 
 	// ============================================================================
@@ -264,7 +264,10 @@ public sealed class ClaimCheckOptionsShould
 				UseHierarchicalStorage = true,
 				ColdStorageThreshold = TimeSpan.FromDays(60),
 				EnableEncryption = true,
-				MaxRetries = 5,
+				Operations =
+				{
+					MaxRetries = 5,
+				},
 			},
 			Compression =
 			{

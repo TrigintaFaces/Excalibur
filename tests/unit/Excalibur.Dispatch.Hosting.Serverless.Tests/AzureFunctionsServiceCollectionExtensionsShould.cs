@@ -48,7 +48,7 @@ public sealed class AzureFunctionsServiceCollectionExtensionsShould : UnitTestBa
 		_ = services.AddLogging();
 		_ = services.AddSingleton<ILogger>(NullLogger.Instance);
 
-		_ = services.AddAzureFunctionsServerless(options => options.EnableMetrics = false);
+		_ = services.AddAzureFunctionsServerless(options => options.Telemetry.EnableMetrics = false);
 		_ = services.AddAzureFunctionsServerless();
 
 		var hostProviderRegistrations = services.Count(sd => sd.ServiceType == typeof(IServerlessHostProvider));
@@ -56,6 +56,6 @@ public sealed class AzureFunctionsServiceCollectionExtensionsShould : UnitTestBa
 
 		using var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<ServerlessHostOptions>>().Value;
-		options.EnableMetrics.ShouldBeFalse();
+		options.Telemetry.EnableMetrics.ShouldBeFalse();
 	}
 }

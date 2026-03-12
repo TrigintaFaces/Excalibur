@@ -68,22 +68,10 @@ public sealed class ElasticSearchMaterializedViewStoreOptions
 	public string RefreshInterval { get; set; } = "1s";
 
 	/// <summary>
-	/// Gets or sets the username for basic authentication.
+	/// Gets or sets the authentication options.
 	/// </summary>
-	/// <value>Defaults to <see langword="null"/> (no authentication).</value>
-	public string? Username { get; set; }
-
-	/// <summary>
-	/// Gets or sets the password for basic authentication.
-	/// </summary>
-	/// <value>Defaults to <see langword="null"/> (no authentication).</value>
-	public string? Password { get; set; }
-
-	/// <summary>
-	/// Gets or sets the API key for API key authentication.
-	/// </summary>
-	/// <value>Defaults to <see langword="null"/> (no API key authentication).</value>
-	public string? ApiKey { get; set; }
+	/// <value>The authentication options for basic auth or API key auth.</value>
+	public ElasticSearchAuthOptions Auth { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to enable debug mode.

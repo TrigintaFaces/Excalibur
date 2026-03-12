@@ -76,10 +76,10 @@ public static class DynamoDbOutboxServiceCollectionExtensions
 		_ = services.AddOptions<DynamoDbOutboxOptions>()
 			.Configure(o =>
 		{
-			o.ServiceUrl = options.ServiceUrl;
-			o.Region = options.Region;
-			o.AccessKey = options.AccessKey;
-			o.SecretKey = options.SecretKey;
+			o.Connection.ServiceUrl = options.Connection.ServiceUrl;
+			o.Connection.Region = options.Connection.Region;
+			o.Connection.AccessKey = options.Connection.AccessKey;
+			o.Connection.SecretKey = options.Connection.SecretKey;
 			o.TableName = options.TableName;
 			o.PartitionKeyAttribute = options.PartitionKeyAttribute;
 			o.SortKeyAttribute = options.SortKeyAttribute;

@@ -68,7 +68,7 @@ public sealed class GoogleCloudFunctionsServiceCollectionExtensionsShould : Unit
 		_ = services.AddExcaliburGoogleCloudFunctionsServerless(options =>
 		{
 			options.EnableColdStartOptimization = true;
-			options.EnableDistributedTracing = false;
+			options.Telemetry.EnableDistributedTracing = false;
 		});
 
 		// Assert

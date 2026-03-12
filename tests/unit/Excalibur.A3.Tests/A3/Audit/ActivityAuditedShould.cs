@@ -2,7 +2,6 @@
 #pragma warning disable IL3050 // Members annotated with RequiresDynamicCodeAttribute
 
 using Excalibur.A3.Audit.Events;
-using Excalibur.A3.Events;
 using Excalibur.Dispatch.Abstractions;
 
 namespace Excalibur.Tests.A3.Audit;
@@ -55,7 +54,7 @@ public sealed class ActivityAuditedShould
 	}
 
 	[Fact]
-	public void Inherit_from_DomainEventBase()
+	public void Inherit_from_DomainEvent()
 	{
 		// Arrange
 		var source = CreateAuditSource();
@@ -64,9 +63,9 @@ public sealed class ActivityAuditedShould
 		var audited = new ActivityAudited(source);
 
 		// Assert
-		audited.ShouldBeAssignableTo<DomainEventBase>();
+		audited.ShouldBeAssignableTo<DomainEvent>();
 		audited.ShouldBeAssignableTo<IDomainEvent>();
-		audited.MessageId.ShouldNotBeNullOrWhiteSpace();
+		audited.EventId.ShouldNotBeNullOrWhiteSpace();
 	}
 
 	[Fact]
@@ -110,30 +109,94 @@ public sealed class ActivityAuditedShould
 	}
 
 	[Fact]
-	public void Allow_setting_status_code()
+	public void Set_status_code_via_constructor()
 	{
 		// Arrange
-		var audited = new ActivityAudited(CreateAuditSource());
+		var source = A.Fake<IActivityAudited>();
+		A.CallTo(() => source.ActivityName).Returns("Test");
+		A.CallTo(() => source.ApplicationName).Returns("App");
+		A.CallTo(() => source.Request).Returns("{}");
+		A.CallTo(() => source.UserId).Returns("user");
+		A.CallTo(() => source.UserName).Returns("name");
+		A.CallTo(() => source.StatusCode).Returns(404);
 
 		// Act
-		audited.StatusCode = 404;
+		var audited = new ActivityAudited(source);
 
 		// Assert
 		audited.StatusCode.ShouldBe(404);
 	}
 
 	[Fact]
-	public void Allow_setting_timestamp()
+	public void Copy_activity_timestamp_from_source()
 	{
 		// Arrange
-		var audited = new ActivityAudited(CreateAuditSource());
-		var newTimestamp = DateTimeOffset.UtcNow.AddHours(-1);
+		var expectedTimestamp = DateTimeOffset.UtcNow.AddHours(-1);
+		var source = CreateAuditSource();
+		A.CallTo(() => source.Timestamp).Returns(expectedTimestamp);
 
 		// Act
-		audited.Timestamp = newTimestamp;
+		var audited = new ActivityAudited(source);
 
 		// Assert
-		audited.Timestamp.ShouldBe(newTimestamp);
+		audited.ActivityTimestamp.ShouldBe(expectedTimestamp);
+		((IActivityAudited)audited).Timestamp.ShouldBe(expectedTimestamp);
+	}
+
+	[Fact]
+	public void Have_Correct_EventType()
+	{
+		// Arrange
+		var source = CreateAuditSource();
+
+		// Act
+		var audited = new ActivityAudited(source);
+
+		// Assert
+		audited.EventType.ShouldBe(nameof(ActivityAudited));
+	}
+
+	[Fact]
+	public void Generate_Valid_Uuid7_EventId()
+	{
+		// Arrange
+		var source = CreateAuditSource();
+
+		// Act
+		var audited = new ActivityAudited(source);
+
+		// Assert
+		Guid.TryParse(audited.EventId, out _).ShouldBeTrue("EventId must be a valid UUID v7");
+	}
+
+	[Fact]
+	public void Generate_Unique_EventIds()
+	{
+		// Arrange
+		var source = CreateAuditSource();
+
+		// Act
+		var audit1 = new ActivityAudited(source);
+		var audit2 = new ActivityAudited(source);
+
+		// Assert
+		audit1.EventId.ShouldNotBe(audit2.EventId);
+	}
+
+	[Fact]
+	public void Expose_ActivityTimestamp_Distinct_From_OccurredAt()
+	{
+		// Arrange — activity happened 1 hour ago, event created now
+		var activityTime = DateTimeOffset.UtcNow.AddHours(-1);
+		var source = CreateAuditSource();
+		A.CallTo(() => source.Timestamp).Returns(activityTime);
+
+		// Act
+		var audited = new ActivityAudited(source);
+
+		// Assert — OccurredAt is event creation time, ActivityTimestamp is the activity time
+		audited.ActivityTimestamp.ShouldBe(activityTime);
+		audited.OccurredAt.ShouldNotBe(activityTime, "OccurredAt should be event creation time, not activity time");
 	}
 
 	private static IActivityAudited CreateAuditSource()

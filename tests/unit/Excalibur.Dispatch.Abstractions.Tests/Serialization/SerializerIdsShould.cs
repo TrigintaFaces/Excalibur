@@ -47,10 +47,17 @@ public sealed class SerializerIdsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void FrameworkReservedStart_IsFive()
+	public void Avro_IsFive()
 	{
 		// Assert
-		SerializerIds.FrameworkReservedStart.ShouldBe((byte)5);
+		SerializerIds.Avro.ShouldBe((byte)5);
+	}
+
+	[Fact]
+	public void FrameworkReservedStart_IsSix()
+	{
+		// Assert
+		SerializerIds.FrameworkReservedStart.ShouldBe((byte)6);
 	}
 
 	[Fact]

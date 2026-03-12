@@ -227,9 +227,9 @@ public sealed class MultiTransportIntegrationShould
 		// Arrange
 		var adapter1 = CreateMockAdapter("rabbitmq", isConnected: true);
 		var adapter2 = CreateMockAdapter("kafka", isConnected: true);
-		_ = A.CallTo(() => adapter1.CheckHealthAsync(A<CancellationToken>._))
+		_ = A.CallTo(() => ((IMessageBusAdapterLifecycle)adapter1).CheckHealthAsync(A<CancellationToken>._))
 			.Returns(new TransportHealthCheckResult(true, "RabbitMQ healthy"));
-		_ = A.CallTo(() => adapter2.CheckHealthAsync(A<CancellationToken>._))
+		_ = A.CallTo(() => ((IMessageBusAdapterLifecycle)adapter2).CheckHealthAsync(A<CancellationToken>._))
 			.Returns(new TransportHealthCheckResult(true, "Kafka healthy"));
 
 		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 });
@@ -248,9 +248,9 @@ public sealed class MultiTransportIntegrationShould
 		// Arrange
 		var adapter1 = CreateMockAdapter("rabbitmq", isConnected: true);
 		var adapter2 = CreateMockAdapter("kafka", isConnected: false);
-		_ = A.CallTo(() => adapter1.CheckHealthAsync(A<CancellationToken>._))
+		_ = A.CallTo(() => ((IMessageBusAdapterLifecycle)adapter1).CheckHealthAsync(A<CancellationToken>._))
 			.Returns(new TransportHealthCheckResult(true, "RabbitMQ healthy"));
-		_ = A.CallTo(() => adapter2.CheckHealthAsync(A<CancellationToken>._))
+		_ = A.CallTo(() => ((IMessageBusAdapterLifecycle)adapter2).CheckHealthAsync(A<CancellationToken>._))
 			.Returns(new TransportHealthCheckResult(false, "Kafka disconnected"));
 
 		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1, adapter2 });
@@ -268,7 +268,7 @@ public sealed class MultiTransportIntegrationShould
 		// Arrange
 		var adapter1 = CreateMockAdapter("rabbitmq");
 		var healthData = new Dictionary<string, object> { ["rabbitmq_healthy"] = true };
-		_ = A.CallTo(() => adapter1.CheckHealthAsync(A<CancellationToken>._))
+		_ = A.CallTo(() => ((IMessageBusAdapterLifecycle)adapter1).CheckHealthAsync(A<CancellationToken>._))
 			.Returns(new TransportHealthCheckResult(true, "RabbitMQ OK", healthData));
 
 		var multiAdapter = new MultiTransportMessageBusAdapter(new[] { adapter1 });
@@ -313,8 +313,8 @@ public sealed class MultiTransportIntegrationShould
 		await multiAdapter.StartAsync(CancellationToken.None);
 
 		// Assert
-		_ = A.CallTo(() => adapter1.StartAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
-		_ = A.CallTo(() => adapter2.StartAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		_ = A.CallTo(() => ((IMessageBusAdapterLifecycle)adapter1).StartAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		_ = A.CallTo(() => ((IMessageBusAdapterLifecycle)adapter2).StartAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -329,8 +329,8 @@ public sealed class MultiTransportIntegrationShould
 		await multiAdapter.StopAsync(CancellationToken.None);
 
 		// Assert
-		_ = A.CallTo(() => adapter1.StopAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
-		_ = A.CallTo(() => adapter2.StopAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		_ = A.CallTo(() => ((IMessageBusAdapterLifecycle)adapter1).StopAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		_ = A.CallTo(() => ((IMessageBusAdapterLifecycle)adapter2).StopAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -459,11 +459,11 @@ public sealed class MultiTransportIntegrationShould
 		bool supportsTransactions = false,
 		bool isConnected = true)
 	{
-		var adapter = A.Fake<IMessageBusAdapter>();
+		var adapter = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>().Implements<IMessageBusAdapterCapabilities>());
 		_ = A.CallTo(() => adapter.Name).Returns(name);
-		_ = A.CallTo(() => adapter.SupportsPublishing).Returns(supportsPublishing);
-		_ = A.CallTo(() => adapter.SupportsSubscription).Returns(supportsSubscription);
-		_ = A.CallTo(() => adapter.SupportsTransactions).Returns(supportsTransactions);
+		_ = A.CallTo(() => ((IMessageBusAdapterCapabilities)adapter).SupportsPublishing).Returns(supportsPublishing);
+		_ = A.CallTo(() => ((IMessageBusAdapterCapabilities)adapter).SupportsSubscription).Returns(supportsSubscription);
+		_ = A.CallTo(() => ((IMessageBusAdapterCapabilities)adapter).SupportsTransactions).Returns(supportsTransactions);
 		_ = A.CallTo(() => adapter.IsConnected).Returns(isConnected);
 		return adapter;
 	}

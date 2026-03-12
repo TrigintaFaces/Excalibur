@@ -24,7 +24,7 @@ public static class ExcaliburTestingServiceCollectionExtensions
 	/// <list type="bullet">
 	///   <item><description><see cref="Excalibur.EventSourcing.InMemory.InMemoryEventStore"/> as <see cref="Excalibur.EventSourcing.Abstractions.IEventStore"/></description></item>
 	///   <item><description><see cref="Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore"/> as <see cref="Excalibur.EventSourcing.Abstractions.ISnapshotStore"/></description></item>
-	///   <item><description><see cref="Excalibur.Data.InMemory.Inbox.InMemoryInboxStore"/> as <see cref="Excalibur.Dispatch.Abstractions.IInboxStore"/></description></item>
+	///   <item><description><see cref="Excalibur.Inbox.InMemory.InMemoryInboxStore"/> as <see cref="Excalibur.Dispatch.Abstractions.IInboxStore"/></description></item>
 	/// </list>
 	/// </para>
 	/// <para>

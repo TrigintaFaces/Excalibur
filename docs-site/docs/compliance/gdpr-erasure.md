@@ -438,6 +438,103 @@ public async Task Should_Block_Erasure_With_Legal_Hold()
 }
 ```
 
+## Event Store Erasure
+
+When using event sourcing, GDPR erasure must extend to event stores. The `IEventStoreErasure` interface (in `Excalibur.EventSourcing.Abstractions`) enables cryptographic erasure at the event store level.
+
+### IEventStoreErasure Interface
+
+```csharp
+namespace Excalibur.EventSourcing.Abstractions;
+
+public interface IEventStoreErasure
+{
+    /// <summary>
+    /// Erases all event payloads for the specified aggregate, replacing them
+    /// with a tombstone marker. The stream is retained for referential integrity.
+    /// </summary>
+    Task<int> EraseEventsAsync(
+        string aggregateId,
+        string aggregateType,
+        Guid erasureRequestId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Checks whether erasure has been performed for the specified aggregate.
+    /// </summary>
+    Task<bool> IsErasedAsync(
+        string aggregateId,
+        string aggregateType,
+        CancellationToken cancellationToken);
+}
+```
+
+Event store providers that support GDPR erasure implement this interface. Use `GetService(typeof(IEventStoreErasure))` to probe for erasure capability at runtime:
+
+```csharp
+if (eventStore is IEventStoreErasure erasure)
+{
+    var count = await erasure.EraseEventsAsync(
+        aggregateId: "user-12345",
+        aggregateType: "UserProfile",
+        erasureRequestId: requestId,
+        cancellationToken);
+
+    logger.LogInformation("Erased {Count} events for aggregate {AggregateId}", count, "user-12345");
+}
+```
+
+### DataSubjectHasher
+
+All GDPR components use `DataSubjectHasher` for consistent SHA-256 hashing of data subject identifiers:
+
+```csharp
+using Excalibur.Dispatch.Compliance;
+
+// Hash a data subject ID for lookup/storage
+var hashedId = DataSubjectHasher.HashDataSubjectId("user-12345");
+// Returns uppercase hex-encoded SHA-256 hash
+```
+
+This ensures that plain-text data subject IDs are never stored in erasure request tables or audit logs.
+
+### Implementing Custom Event Store Erasure
+
+If you have a custom event store, implement `IEventStoreErasure` alongside your `IEventStore`:
+
+```csharp
+public class MyEventStore : IEventStore, IEventStoreErasure
+{
+    public async Task<int> EraseEventsAsync(
+        string aggregateId,
+        string aggregateType,
+        Guid erasureRequestId,
+        CancellationToken cancellationToken)
+    {
+        // Replace event payloads with tombstone markers
+        // Retain the stream and event metadata for referential integrity
+        var count = await ReplacePayloadsWithTombstone(aggregateId, aggregateType, cancellationToken);
+
+        // Log the erasure for audit
+        await RecordErasureAudit(aggregateId, erasureRequestId, count, cancellationToken);
+
+        return count;
+    }
+
+    public async Task<bool> IsErasedAsync(
+        string aggregateId,
+        string aggregateType,
+        CancellationToken cancellationToken)
+    {
+        return await CheckForTombstoneMarker(aggregateId, aggregateType, cancellationToken);
+    }
+}
+```
+
+:::tip Key Design Decision
+Event store erasure uses **tombstoning** (replacing payloads) rather than **deletion** (removing events). This preserves the event sequence and version numbers for other aggregates that may reference these events, while making the personal data irrecoverable.
+:::
+
 ## Best Practices
 
 | Practice | Recommendation |

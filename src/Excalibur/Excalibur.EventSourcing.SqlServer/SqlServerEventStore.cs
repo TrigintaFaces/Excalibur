@@ -48,7 +48,7 @@ public sealed class SqlServerEventStore : IEventStore
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly ILogger<SqlServerEventStore> _logger;
 	private readonly JsonSerializerOptions _jsonOptions;
-	private readonly IInternalSerializer? _internalSerializer;
+	private readonly ISerializer? _internalSerializer;
 	private readonly IPayloadSerializer? _payloadSerializer;
 
 	/// <summary>
@@ -58,7 +58,7 @@ public sealed class SqlServerEventStore : IEventStore
 	/// <param name="logger">The logger instance.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="SqlServerEventStore(Func{SqlConnection}, ILogger{SqlServerEventStore}, IInternalSerializer?, IPayloadSerializer?)"/>
+	/// Use <see cref="SqlServerEventStore(Func{SqlConnection}, ILogger{SqlServerEventStore}, ISerializer?, IPayloadSerializer?)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public SqlServerEventStore(string connectionString, ILogger<SqlServerEventStore> logger)
@@ -74,13 +74,13 @@ public sealed class SqlServerEventStore : IEventStore
 	/// <param name="internalSerializer">Optional internal serializer for high-performance binary envelope serialization.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="SqlServerEventStore(Func{SqlConnection}, ILogger{SqlServerEventStore}, IInternalSerializer?, IPayloadSerializer?)"/>
+	/// Use <see cref="SqlServerEventStore(Func{SqlConnection}, ILogger{SqlServerEventStore}, ISerializer?, IPayloadSerializer?)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public SqlServerEventStore(
 		string connectionString,
 		ILogger<SqlServerEventStore> logger,
-		IInternalSerializer? internalSerializer)
+		ISerializer? internalSerializer)
 		: this(CreateConnectionFactory(connectionString), logger, internalSerializer, payloadSerializer: null)
 	{
 	}
@@ -94,13 +94,13 @@ public sealed class SqlServerEventStore : IEventStore
 	/// <param name="payloadSerializer">Optional pluggable serializer for event payloads.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="SqlServerEventStore(Func{SqlConnection}, ILogger{SqlServerEventStore}, IInternalSerializer?, IPayloadSerializer?)"/>
+	/// Use <see cref="SqlServerEventStore(Func{SqlConnection}, ILogger{SqlServerEventStore}, ISerializer?, IPayloadSerializer?)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public SqlServerEventStore(
 		string connectionString,
 		ILogger<SqlServerEventStore> logger,
-		IInternalSerializer? internalSerializer,
+		ISerializer? internalSerializer,
 		IPayloadSerializer? payloadSerializer)
 		: this(CreateConnectionFactory(connectionString), logger, internalSerializer, payloadSerializer)
 	{
@@ -139,7 +139,7 @@ public sealed class SqlServerEventStore : IEventStore
 	public SqlServerEventStore(
 		Func<SqlConnection> connectionFactory,
 		ILogger<SqlServerEventStore> logger,
-		IInternalSerializer? internalSerializer = null,
+		ISerializer? internalSerializer = null,
 		IPayloadSerializer? payloadSerializer = null)
 	{
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
@@ -558,7 +558,7 @@ public sealed class SqlServerEventStore : IEventStore
 			SchemaVersion = 1,
 		};
 
-		var envelopeData = _internalSerializer.Serialize(envelope);
+		var envelopeData = _internalSerializer.SerializeToBytes(envelope);
 
 		// Prepend format marker
 		var result = new byte[envelopeData.Length + 1];

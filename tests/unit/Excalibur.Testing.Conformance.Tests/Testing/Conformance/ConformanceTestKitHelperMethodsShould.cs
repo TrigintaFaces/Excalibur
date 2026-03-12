@@ -3,8 +3,8 @@
 
 using System.Text;
 
-using Excalibur.Data.InMemory.Inbox;
-using Excalibur.Data.InMemory.Outbox;
+using Excalibur.Inbox.InMemory;
+using Excalibur.Outbox.InMemory;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Testing.Conformance;
 
@@ -15,8 +15,8 @@ using Shouldly;
 
 using Xunit;
 
-using InMemoryInboxStoreOptions = Excalibur.Data.InMemory.Inbox.InMemoryInboxOptions;
-using InMemoryOutboxStoreOptions = Excalibur.Data.InMemory.Outbox.InMemoryOutboxOptions;
+using InMemoryInboxStoreOptions = Excalibur.Inbox.InMemory.InMemoryInboxOptions;
+using InMemoryOutboxStoreOptions = Excalibur.Outbox.InMemory.InMemoryOutboxOptions;
 
 namespace Excalibur.Tests.Testing.Conformance;
 

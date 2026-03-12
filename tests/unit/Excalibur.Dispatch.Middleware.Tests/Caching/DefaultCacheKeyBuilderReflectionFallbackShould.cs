@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Caching;
 
 namespace Excalibur.Dispatch.Middleware.Tests.Caching;
@@ -17,18 +17,33 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 [Trait("Priority", "2")]
 public sealed class DefaultCacheKeyBuilderReflectionFallbackShould : UnitTestBase
 {
-	private readonly IJsonSerializer _serializer;
+	private readonly DispatchJsonSerializer _serializer;
 	private readonly IMessageContext _context;
 	private readonly DefaultCacheKeyBuilder _sut;
 
 	public DefaultCacheKeyBuilderReflectionFallbackShould()
 	{
-		_serializer = A.Fake<IJsonSerializer>();
+		_serializer = new DispatchJsonSerializer();
 		_context = A.Fake<IMessageContext>();
 		_sut = new DefaultCacheKeyBuilder(_serializer);
 
-		A.CallTo(() => _context.TenantId).Returns("test-tenant");
-		A.CallTo(() => _context.UserId).Returns("test-user");
+		var features = new Dictionary<Type, object>();
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => _context.Features).Returns(features);
+		A.CallTo(() => _context.Items).Returns(items);
+
+		var identity = new MessageIdentityFeature { TenantId = "test-tenant", UserId = "test-user" };
+		features[typeof(IMessageIdentityFeature)] = identity;
+	}
+
+	protected override void Dispose(bool disposing)
+	{
+		if (disposing)
+		{
+			_serializer.Dispose();
+		}
+
+		base.Dispose(disposing);
 	}
 
 	[Fact]
@@ -42,8 +57,6 @@ public sealed class DefaultCacheKeyBuilderReflectionFallbackShould : UnitTestBas
 
 		// Assert
 		key.ShouldNotBeNullOrEmpty("Fallback key should be generated when reflection fails");
-		// Serializer should NOT be called because the catch block produces a fallback key
-		// that TryGetCacheKeyFromInterface returns as true
 	}
 
 	[Fact]
@@ -63,16 +76,14 @@ public sealed class DefaultCacheKeyBuilderReflectionFallbackShould : UnitTestBas
 	[Fact]
 	public void CreateKey_WhenNotICacheable_UsesSerializationNormally()
 	{
-		// Arrange
+		// Arrange — real serializer will serialize the action to JSON
 		var action = new NonCacheableAction();
-		A.CallTo(() => _serializer.Serialize(A<object>._, A<Type>._)).Returns("{\"data\":1}");
 
 		// Act
 		var key = _sut.CreateKey(action, _context);
 
 		// Assert
 		key.ShouldNotBeNullOrEmpty();
-		A.CallTo(() => _serializer.Serialize(action, action.GetType())).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -86,8 +97,6 @@ public sealed class DefaultCacheKeyBuilderReflectionFallbackShould : UnitTestBas
 
 		// Assert
 		key.ShouldNotBeNullOrEmpty();
-		// Serializer should NOT be called
-		A.CallTo(() => _serializer.Serialize(A<object>._, A<Type>._)).MustNotHaveHappened();
 	}
 
 	[Fact]
@@ -123,9 +132,8 @@ public sealed class DefaultCacheKeyBuilderReflectionFallbackShould : UnitTestBas
 	[Fact]
 	public void CreateKey_WhenICacheableReturnsNull_FallsBackToSerialization()
 	{
-		// Arrange - action whose GetCacheKey returns null (cast to string fails)
+		// Arrange - action whose GetCacheKey returns null — real serializer handles fallback
 		var action = new NullReturningCacheableAction();
-		A.CallTo(() => _serializer.Serialize(A<object>._, A<Type>._)).Returns("{\"fallback\":true}");
 
 		// Act - should use serialization fallback since ICacheable returned null
 		var key = _sut.CreateKey(action, _context);

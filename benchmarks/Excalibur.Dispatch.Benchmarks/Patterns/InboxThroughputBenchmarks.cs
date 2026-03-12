@@ -4,7 +4,7 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 
-using Excalibur.Data.SqlServer.Inbox;
+using Excalibur.Inbox.SqlServer;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;

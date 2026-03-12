@@ -103,7 +103,7 @@ public sealed class DeliveryInboxOptionsShould
 		var options = new InboxOptions();
 
 		// Assert
-		options.ParallelProcessingDegree.ShouldBe(1);
+		options.BatchProcessing.ParallelProcessingDegree.ShouldBe(1);
 	}
 
 	[Fact]
@@ -113,7 +113,7 @@ public sealed class DeliveryInboxOptionsShould
 		var options = new InboxOptions();
 
 		// Assert
-		options.EnableDynamicBatchSizing.ShouldBeFalse();
+		options.BatchProcessing.EnableDynamicBatchSizing.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -123,7 +123,7 @@ public sealed class DeliveryInboxOptionsShould
 		var options = new InboxOptions();
 
 		// Assert
-		options.MinBatchSize.ShouldBe(10);
+		options.BatchProcessing.MinBatchSize.ShouldBe(10);
 	}
 
 	[Fact]
@@ -133,7 +133,7 @@ public sealed class DeliveryInboxOptionsShould
 		var options = new InboxOptions();
 
 		// Assert
-		options.MaxBatchSize.ShouldBe(1000);
+		options.BatchProcessing.MaxBatchSize.ShouldBe(1000);
 	}
 
 	[Fact]
@@ -143,7 +143,7 @@ public sealed class DeliveryInboxOptionsShould
 		var options = new InboxOptions();
 
 		// Assert
-		options.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(5));
+		options.BatchProcessing.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(5));
 	}
 
 	[Fact]
@@ -193,10 +193,10 @@ public sealed class DeliveryInboxOptionsShould
 		var options = new InboxOptions();
 
 		// Act
-		options.ParallelProcessingDegree = 4;
+		options.BatchProcessing.ParallelProcessingDegree = 4;
 
 		// Assert
-		options.ParallelProcessingDegree.ShouldBe(4);
+		options.BatchProcessing.ParallelProcessingDegree.ShouldBe(4);
 	}
 
 	#endregion
@@ -214,8 +214,7 @@ public sealed class DeliveryInboxOptionsShould
 			ProducerBatchSize = 50,
 			ConsumerBatchSize = 50,
 			MaxAttempts = 3,
-			ParallelProcessingDegree = 1,
-			BatchProcessingTimeout = TimeSpan.FromMinutes(1),
+			BatchProcessing = { ParallelProcessingDegree = 1, BatchProcessingTimeout = TimeSpan.FromMinutes(1) },
 		};
 
 		// Act
@@ -257,8 +256,7 @@ public sealed class DeliveryInboxOptionsShould
 			ProducerBatchSize = 100,
 			ConsumerBatchSize = 50,
 			MaxAttempts = 3,
-			ParallelProcessingDegree = 1,
-			BatchProcessingTimeout = TimeSpan.FromMinutes(1),
+			BatchProcessing = { ParallelProcessingDegree = 1, BatchProcessingTimeout = TimeSpan.FromMinutes(1) },
 		};
 
 		// Act
@@ -280,11 +278,14 @@ public sealed class DeliveryInboxOptionsShould
 			ProducerBatchSize = 50,
 			ConsumerBatchSize = 50,
 			MaxAttempts = 3,
-			ParallelProcessingDegree = 1,
-			EnableDynamicBatchSizing = true,
-			MinBatchSize = 100,
-			MaxBatchSize = 50,
-			BatchProcessingTimeout = TimeSpan.FromMinutes(1),
+			BatchProcessing =
+			{
+				ParallelProcessingDegree = 1,
+				EnableDynamicBatchSizing = true,
+				MinBatchSize = 100,
+				MaxBatchSize = 50,
+				BatchProcessingTimeout = TimeSpan.FromMinutes(1),
+			},
 		};
 
 		// Act
@@ -310,12 +311,12 @@ public sealed class DeliveryInboxOptionsShould
 			ProducerBatchSize = 1000,
 			ConsumerBatchSize = 1000,
 			MaxAttempts = 3,
-			ParallelProcessingDegree = 8,
+			BatchProcessing = { ParallelProcessingDegree = 8 },
 		};
 
 		// Assert
 		options.ProducerBatchSize.ShouldBeGreaterThan(100);
-		options.ParallelProcessingDegree.ShouldBeGreaterThan(1);
+		options.BatchProcessing.ParallelProcessingDegree.ShouldBeGreaterThan(1);
 	}
 
 	[Fact]
@@ -329,7 +330,7 @@ public sealed class DeliveryInboxOptionsShould
 			ProducerBatchSize = 10,
 			ConsumerBatchSize = 10,
 			MaxAttempts = 10,
-			ParallelProcessingDegree = 1,
+			BatchProcessing = { ParallelProcessingDegree = 1 },
 		};
 
 		// Assert

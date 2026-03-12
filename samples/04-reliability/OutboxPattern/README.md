@@ -40,22 +40,18 @@ The outbox pattern solves a common distributed systems problem: how to reliably 
 
 ### Outbox Configuration
 
+Uses the preset-based fluent API (ADR-098). Start with a preset (`Balanced`, `HighThroughput`, `HighReliability`) then override specific settings:
+
 ```csharp
-builder.Services.AddExcaliburOutbox(options =>
-{
-    // Processing
-    options.BatchSize = 100;                              // Messages per batch
-    options.PollingInterval = TimeSpan.FromSeconds(5);    // Check interval
-
-    // Retry policy
-    options.MaxRetryCount = 3;                            // Max retries
-    options.RetryDelay = TimeSpan.FromMinutes(5);         // Retry delay
-
-    // Cleanup
-    options.EnableAutomaticCleanup = true;
-    options.MessageRetentionPeriod = TimeSpan.FromDays(7);
-    options.CleanupInterval = TimeSpan.FromHours(1);
-});
+builder.Services.AddExcaliburOutbox(
+    OutboxOptions.Balanced()                                    // Sensible defaults
+        .WithBatchSize(50)                                      // Messages per batch
+        .WithPollingInterval(TimeSpan.FromSeconds(2))           // Check interval
+        .WithMaxRetries(3)                                      // Max retries
+        .WithRetryDelay(TimeSpan.FromSeconds(10))               // Retry delay
+        .WithRetentionPeriod(TimeSpan.FromHours(1))             // Keep messages for 1 hour
+        .WithCleanupInterval(TimeSpan.FromMinutes(5))           // Cleanup every 5 minutes
+        .Build());
 ```
 
 ### Store Registration

@@ -379,10 +379,10 @@ public static class ServiceCollectionExtensions
 		}
 
 		// Configure authentication
-		settings = ConfigureAuthentication(settings, config);
+		settings = ConfigureAuthentication(settings, config.Connection);
 
 		// Configure SSL/TLS
-		settings = ConfigureSslSettings(settings, config);
+		settings = ConfigureSslSettings(settings, config.Connection);
 
 		// Configure timeouts and connection limits
 		settings = ConfigureConnectionSettings(settings, config);
@@ -394,24 +394,24 @@ public static class ServiceCollectionExtensions
 	/// Configures authentication settings for the Elasticsearch client.
 	/// </summary>
 	/// <param name="settings"> The Elasticsearch client settings to configure. </param>
-	/// <param name="config"> The configuration containing authentication options. </param>
+	/// <param name="connection"> The connection options containing authentication settings. </param>
 	private static ElasticsearchClientSettings ConfigureAuthentication(
 			ElasticsearchClientSettings settings,
-			ElasticsearchConfigurationOptions config)
+			ElasticsearchConnectionOptions connection)
 	{
-		if (!string.IsNullOrWhiteSpace(config.Base64ApiKey))
+		if (!string.IsNullOrWhiteSpace(connection.Base64ApiKey))
 		{
-			return settings.Authentication(new Base64ApiKey(config.Base64ApiKey));
+			return settings.Authentication(new Base64ApiKey(connection.Base64ApiKey));
 		}
 
-		if (!string.IsNullOrWhiteSpace(config.ApiKey))
+		if (!string.IsNullOrWhiteSpace(connection.ApiKey))
 		{
-			return settings.Authentication(new ApiKey(config.ApiKey));
+			return settings.Authentication(new ApiKey(connection.ApiKey));
 		}
 
-		if (!string.IsNullOrWhiteSpace(config.Username) && !string.IsNullOrWhiteSpace(config.Password))
+		if (!string.IsNullOrWhiteSpace(connection.Username) && !string.IsNullOrWhiteSpace(connection.Password))
 		{
-			return settings.Authentication(new BasicAuthentication(config.Username, config.Password));
+			return settings.Authentication(new BasicAuthentication(connection.Username, connection.Password));
 		}
 
 		return settings;
@@ -421,17 +421,17 @@ public static class ServiceCollectionExtensions
 	/// Configures SSL/TLS settings for the Elasticsearch client.
 	/// </summary>
 	/// <param name="settings"> The Elasticsearch client settings to configure. </param>
-	/// <param name="config"> The configuration containing SSL/TLS options. </param>
+	/// <param name="connection"> The connection options containing SSL/TLS settings. </param>
 	private static ElasticsearchClientSettings ConfigureSslSettings(
 			ElasticsearchClientSettings settings,
-			ElasticsearchConfigurationOptions config)
+			ElasticsearchConnectionOptions connection)
 	{
-		if (!string.IsNullOrWhiteSpace(config.CertificateFingerprint))
+		if (!string.IsNullOrWhiteSpace(connection.CertificateFingerprint))
 		{
-			settings = settings.CertificateFingerprint(config.CertificateFingerprint);
+			settings = settings.CertificateFingerprint(connection.CertificateFingerprint);
 		}
 
-		if (config.DisableCertificateValidation)
+		if (connection.DisableCertificateValidation)
 		{
 			settings = settings.ServerCertificateValidationCallback((_, _, _, _) => true);
 		}
@@ -449,16 +449,16 @@ public static class ServiceCollectionExtensions
 			ElasticsearchConfigurationOptions config)
 	{
 		settings = settings
-				.RequestTimeout(config.RequestTimeout)
-				.PingTimeout(config.PingTimeout)
-				.ConnectionLimit(config.MaximumConnectionsPerNode);
+				.RequestTimeout(config.Connection.RequestTimeout)
+				.PingTimeout(config.Connection.PingTimeout)
+				.ConnectionLimit(config.Connection.MaximumConnectionsPerNode);
 
 		if (config.ConnectionPoolType == ConnectionPoolType.Sniffing && config.EnableSniffing)
 		{
 			settings = settings
 					.SniffOnStartup(true)
 					.SniffOnConnectionFault(true)
-					.SniffLifeSpan(config.SniffingInterval);
+					.SniffLifeSpan(config.Connection.SniffingInterval);
 		}
 
 		return settings;

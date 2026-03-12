@@ -90,9 +90,9 @@ public sealed partial class PollyRetryPolicyFactory
 		var retryOptions = new RetryOptions
 		{
 			MaxRetries = _options.MaxRetryAttempts,
-			BaseDelay = _options.BaseDelay,
+			BaseDelay = _options.Backoff.BaseDelay,
 			BackoffStrategy = BackoffStrategy.Exponential,
-			UseJitter = _options.EnableJitter,
+			UseJitter = _options.Backoff.EnableJitter,
 		};
 
 		return new PollyRetryPolicyAdapter(retryOptions, _logger);
@@ -115,7 +115,7 @@ public sealed partial class PollyRetryPolicyFactory
 	private AsyncRetryPolicy CreateRetryPolicyInternal(IMessageBusOptions busOptions)
 	{
 		var retryCount = _options.MaxRetryAttempts;
-		var delay = _options.BaseDelay;
+		var delay = _options.Backoff.BaseDelay;
 
 		return Policy
 			.Handle<Exception>(IsTransientException)
@@ -135,8 +135,8 @@ public sealed partial class PollyRetryPolicyFactory
 			.AdvancedCircuitBreakerAsync(
 				failureThreshold: 0.5, // 50% failure rate
 				samplingDuration: TimeSpan.FromSeconds(10),
-				minimumThroughput: _options.CircuitBreakerThreshold,
-				durationOfBreak: _options.CircuitBreakerDuration,
+				minimumThroughput: _options.CircuitBreaker.CircuitBreakerThreshold,
+				durationOfBreak: _options.CircuitBreaker.CircuitBreakerDuration,
 				onBreak: (result, state, duration, context) => LogCircuitBreakerOpened(
 					duration.TotalSeconds,
 					busOptions.Name ?? "Default"),

@@ -5,6 +5,8 @@
 using System.Diagnostics;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Validation;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -39,11 +41,13 @@ public sealed partial class TraceContextValidator(ILogger<TraceContextValidator>
 		// Get current activity
 		var currentActivity = Activity.Current;
 
+		var traceParent = context.GetTraceParent();
+
 		// Check if we have an activity when we should
-		if (currentActivity == null && !string.IsNullOrWhiteSpace(context.TraceParent))
+		if (currentActivity == null && !string.IsNullOrWhiteSpace(traceParent))
 		{
 			issues.Add("Activity.Current is null but context has TraceParent");
-			details["Expected_TraceParent"] = context.TraceParent;
+			details["Expected_TraceParent"] = traceParent;
 			details["Activity_Missing"] = true;
 		}
 
@@ -53,10 +57,10 @@ public sealed partial class TraceContextValidator(ILogger<TraceContextValidator>
 			// Check if trace IDs match
 			var activityTraceId = currentActivity.TraceId.ToString();
 
-			if (!string.IsNullOrWhiteSpace(context.TraceParent))
+			if (!string.IsNullOrWhiteSpace(traceParent))
 			{
 				// Extract trace ID from W3C format
-				var contextTraceId = ExtractTraceIdFromTraceParent(context.TraceParent);
+				var contextTraceId = ExtractTraceIdFromTraceParent(traceParent);
 
 				if (!string.IsNullOrWhiteSpace(contextTraceId) && !string.Equals(activityTraceId, contextTraceId, StringComparison.Ordinal))
 				{
@@ -77,7 +81,7 @@ public sealed partial class TraceContextValidator(ILogger<TraceContextValidator>
 		}
 
 		// Check for orphaned trace contexts
-		if (!string.IsNullOrWhiteSpace(context.TraceParent) && string.IsNullOrWhiteSpace(context.MessageId))
+		if (!string.IsNullOrWhiteSpace(traceParent) && string.IsNullOrWhiteSpace(context.MessageId))
 		{
 			issues.Add("TraceParent present but MessageId is missing");
 			details["Orphaned_Trace"] = true;
@@ -153,20 +157,22 @@ public sealed partial class TraceContextValidator(ILogger<TraceContextValidator>
 			details["Context_correlation-id"] = context.CorrelationId;
 		}
 
-		if (context.TenantId != null &&
-			!string.Equals(tenantBaggage, context.TenantId, StringComparison.Ordinal))
+		var tenantId = context.GetTenantId();
+		if (tenantId != null &&
+			!string.Equals(tenantBaggage, tenantId, StringComparison.Ordinal))
 		{
 			issues.Add("Baggage mismatch for tenant-id");
 			details["Baggage_tenant-id"] = tenantBaggage;
-			details["Context_tenant-id"] = context.TenantId;
+			details["Context_tenant-id"] = tenantId;
 		}
 
-		if (!string.IsNullOrWhiteSpace(context.UserId) &&
-			!string.Equals(userBaggage, context.UserId, StringComparison.Ordinal))
+		var userId = context.GetUserId();
+		if (!string.IsNullOrWhiteSpace(userId) &&
+			!string.Equals(userBaggage, userId, StringComparison.Ordinal))
 		{
 			issues.Add("Baggage mismatch for user-id");
 			details["Baggage_user-id"] = userBaggage;
-			details["Context_user-id"] = context.UserId;
+			details["Context_user-id"] = userId;
 		}
 	}
 
@@ -200,7 +206,7 @@ public sealed partial class TraceContextValidator(ILogger<TraceContextValidator>
 		}
 
 		// Validate activity kind matches message type
-		if (activity.Kind == ActivityKind.Producer && string.IsNullOrWhiteSpace(context.MessageType))
+		if (activity.Kind == ActivityKind.Producer && string.IsNullOrWhiteSpace(context.GetMessageType()))
 		{
 			issues.Add("Producer activity but no MessageType in context");
 			details["Activity_Kind"] = activity.Kind.ToString();
@@ -225,12 +231,13 @@ public sealed partial class TraceContextValidator(ILogger<TraceContextValidator>
 			details["Context_MessageId"] = context.MessageId;
 		}
 
+		var messageType = context.GetMessageType();
 		var messageTypeTag = activity.GetTagItem("messaging.message_type")?.ToString();
-		if (messageTypeTag != null && !string.Equals(messageTypeTag, context.MessageType, StringComparison.Ordinal))
+		if (messageTypeTag != null && !string.Equals(messageTypeTag, messageType, StringComparison.Ordinal))
 		{
 			issues.Add("Activity tag 'messaging.message_type' doesn't match context");
 			details["Tag_MessageType"] = messageTypeTag;
-			details["Context_MessageType"] = context.MessageType;
+			details["Context_MessageType"] = messageType;
 		}
 
 		// Check custom tags

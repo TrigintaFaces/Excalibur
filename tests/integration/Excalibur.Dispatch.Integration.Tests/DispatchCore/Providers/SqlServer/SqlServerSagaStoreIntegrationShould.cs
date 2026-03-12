@@ -3,7 +3,7 @@
 
 using Dapper;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 
 using Excalibur.Saga.SqlServer;
 using Excalibur.Testing.Conformance;
@@ -320,7 +320,7 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 	private SqlServerSagaStore CreateSagaStore()
 	{
 		var logger = NullLogger<SqlServerSagaStore>.Instance;
-		var serializer = new SystemTextJsonSerializer();
+		var serializer = new DispatchJsonSerializer();
 		return new SqlServerSagaStore(_sqlFixture.ConnectionString, logger, serializer);
 	}
 
@@ -352,28 +352,5 @@ public sealed class SqlServerSagaStoreIntegrationShould : IntegrationTestBase
 
 		_ = await connection.ExecuteAsync(createSchemaSql).ConfigureAwait(true);
 		_ = await connection.ExecuteAsync(createTableSql).ConfigureAwait(true);
-	}
-
-	/// <summary>
-	/// Simple JSON serializer for testing.
-	/// </summary>
-	private sealed class SystemTextJsonSerializer : IJsonSerializer
-	{
-		private static readonly System.Text.Json.JsonSerializerOptions Options = new()
-		{
-			PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
-		};
-
-		public string Serialize(object value, Type type) =>
-			System.Text.Json.JsonSerializer.Serialize(value, type, Options);
-
-		public object? Deserialize(string json, Type type) =>
-			System.Text.Json.JsonSerializer.Deserialize(json, type, Options);
-
-		public Task<string> SerializeAsync(object value, Type type) =>
-			Task.FromResult(Serialize(value, type));
-
-		public Task<object?> DeserializeAsync(string json, Type type) =>
-			Task.FromResult(Deserialize(json, type));
 	}
 }

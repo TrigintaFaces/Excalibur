@@ -359,11 +359,14 @@ public sealed class ExponentialBackoffCalculatorShould
 		// Arrange
 		var options = new RetryPolicyOptions
 		{
-			BaseDelay = TimeSpan.FromSeconds(2),
-			MaxDelay = TimeSpan.FromSeconds(60),
-			BackoffMultiplier = 1.5,
-			EnableJitter = false,
-			JitterFactor = 0.2,
+			Backoff =
+			{
+				BaseDelay = TimeSpan.FromSeconds(2),
+				MaxDelay = TimeSpan.FromSeconds(60),
+				BackoffMultiplier = 1.5,
+				EnableJitter = false,
+				JitterFactor = 0.2,
+			},
 		};
 
 		// Act

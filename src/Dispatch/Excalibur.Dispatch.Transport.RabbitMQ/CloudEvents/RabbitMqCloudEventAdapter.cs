@@ -121,7 +121,7 @@ public sealed class RabbitMqCloudEventAdapter : IRabbitMqCloudEventAdapter
 		var properties = new CloudEventBasicProperties
 		{
 			Headers = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase),
-			DeliveryMode = (DeliveryModes)(RabbitMqOptions.Persistence == RabbitMqPersistence.Persistent ? (byte)2 : (byte)1),
+			DeliveryMode = (DeliveryModes)(RabbitMqOptions.Exchange.Persistence == RabbitMqPersistence.Persistent ? (byte)2 : (byte)1),
 		};
 
 		ApplyStandardProperties(properties, cloudEvent);

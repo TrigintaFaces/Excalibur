@@ -72,7 +72,7 @@ public sealed class CustomerAggregate : AggregateRoot<Guid>
 		ArgumentException.ThrowIfNullOrWhiteSpace(email);
 
 		var customer = new CustomerAggregate(id);
-		customer.RaiseEvent(new CustomerCreated(id, externalId, name, email, phone, customer.Version));
+		customer.RaiseEvent(new CustomerCreated(id, externalId, name, email, phone));
 		return customer;
 	}
 
@@ -90,7 +90,7 @@ public sealed class CustomerAggregate : AggregateRoot<Guid>
 			return; // No change
 		}
 
-		RaiseEvent(new CustomerInfoUpdated(Id, name, email, phone, Version));
+		RaiseEvent(new CustomerInfoUpdated(Id, name, email, phone));
 	}
 
 	/// <summary>
@@ -101,7 +101,7 @@ public sealed class CustomerAggregate : AggregateRoot<Guid>
 		EnsureActive();
 		ArgumentOutOfRangeException.ThrowIfNegativeOrZero(amount);
 
-		RaiseEvent(new CustomerOrderPlaced(Id, orderId, amount, Version));
+		RaiseEvent(new CustomerOrderPlaced(Id, orderId, amount));
 	}
 
 	/// <summary>
@@ -110,7 +110,7 @@ public sealed class CustomerAggregate : AggregateRoot<Guid>
 	public void Deactivate(string reason)
 	{
 		EnsureActive();
-		RaiseEvent(new CustomerDeactivated(Id, reason, Version));
+		RaiseEvent(new CustomerDeactivated(Id, reason));
 	}
 
 	/// <inheritdoc/>
@@ -201,119 +201,51 @@ public enum CustomerTier
 /// <summary>
 /// Event raised when a customer is created.
 /// </summary>
-public sealed record CustomerCreated : DomainEvent
+public sealed record CustomerCreated(
+	Guid CustomerId,
+	string ExternalId,
+	string Name,
+	string Email,
+	string? Phone) : DomainEvent
 {
-	/// <summary>
-	/// Initializes a new instance of the <see cref="CustomerCreated"/> class.
-	/// </summary>
-	public CustomerCreated(
-		Guid customerId,
-		string externalId,
-		string name,
-		string email,
-		string? phone,
-		long version)
-		: base(customerId.ToString(), version)
-	{
-		CustomerId = customerId;
-		ExternalId = externalId;
-		Name = name;
-		Email = email;
-		Phone = phone;
-	}
-
-	/// <summary>Gets the customer identifier.</summary>
-	public Guid CustomerId { get; init; }
-
-	/// <summary>Gets the external ID from the legacy system.</summary>
-	public string ExternalId { get; init; }
-
-	/// <summary>Gets the customer name.</summary>
-	public string Name { get; init; }
-
-	/// <summary>Gets the customer email.</summary>
-	public string Email { get; init; }
-
-	/// <summary>Gets the customer phone.</summary>
-	public string? Phone { get; init; }
+	/// <inheritdoc/>
+	public override string AggregateId => CustomerId.ToString();
 }
 
 /// <summary>
 /// Event raised when customer information is updated.
 /// </summary>
-public sealed record CustomerInfoUpdated : DomainEvent
+public sealed record CustomerInfoUpdated(
+	Guid CustomerId,
+	string Name,
+	string Email,
+	string? Phone) : DomainEvent
 {
-	/// <summary>
-	/// Initializes a new instance of the <see cref="CustomerInfoUpdated"/> class.
-	/// </summary>
-	public CustomerInfoUpdated(Guid customerId, string name, string email, string? phone, long version)
-		: base(customerId.ToString(), version)
-	{
-		CustomerId = customerId;
-		Name = name;
-		Email = email;
-		Phone = phone;
-	}
-
-	/// <summary>Gets the customer identifier.</summary>
-	public Guid CustomerId { get; init; }
-
-	/// <summary>Gets the updated name.</summary>
-	public string Name { get; init; }
-
-	/// <summary>Gets the updated email.</summary>
-	public string Email { get; init; }
-
-	/// <summary>Gets the updated phone.</summary>
-	public string? Phone { get; init; }
+	/// <inheritdoc/>
+	public override string AggregateId => CustomerId.ToString();
 }
 
 /// <summary>
 /// Event raised when a customer places an order.
 /// </summary>
-public sealed record CustomerOrderPlaced : DomainEvent
+public sealed record CustomerOrderPlaced(
+	Guid CustomerId,
+	Guid OrderId,
+	decimal Amount) : DomainEvent
 {
-	/// <summary>
-	/// Initializes a new instance of the <see cref="CustomerOrderPlaced"/> class.
-	/// </summary>
-	public CustomerOrderPlaced(Guid customerId, Guid orderId, decimal amount, long version)
-		: base(customerId.ToString(), version)
-	{
-		CustomerId = customerId;
-		OrderId = orderId;
-		Amount = amount;
-	}
-
-	/// <summary>Gets the customer identifier.</summary>
-	public Guid CustomerId { get; init; }
-
-	/// <summary>Gets the order identifier.</summary>
-	public Guid OrderId { get; init; }
-
-	/// <summary>Gets the order amount.</summary>
-	public decimal Amount { get; init; }
+	/// <inheritdoc/>
+	public override string AggregateId => CustomerId.ToString();
 }
 
 /// <summary>
 /// Event raised when a customer is deactivated.
 /// </summary>
-public sealed record CustomerDeactivated : DomainEvent
+public sealed record CustomerDeactivated(
+	Guid CustomerId,
+	string Reason) : DomainEvent
 {
-	/// <summary>
-	/// Initializes a new instance of the <see cref="CustomerDeactivated"/> class.
-	/// </summary>
-	public CustomerDeactivated(Guid customerId, string reason, long version)
-		: base(customerId.ToString(), version)
-	{
-		CustomerId = customerId;
-		Reason = reason;
-	}
-
-	/// <summary>Gets the customer identifier.</summary>
-	public Guid CustomerId { get; init; }
-
-	/// <summary>Gets the deactivation reason.</summary>
-	public string Reason { get; init; }
+	/// <inheritdoc/>
+	public override string AggregateId => CustomerId.ToString();
 }
 
 #endregion

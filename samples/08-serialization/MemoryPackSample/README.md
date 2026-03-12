@@ -154,14 +154,19 @@ All serialization code is source-generated at compile time - no runtime reflecti
 
 ## Configuration
 
-MemoryPack is the default serializer for Excalibur.Dispatch. It's automatically registered when using `AddDispatch()`:
+MemoryPack can be registered as the binary serializer for outbox/inbox persistence:
 
 ```csharp
-// MemoryPack is auto-registered as the default
-services.AddDispatch();
+// Register Dispatch with JSON serializer for messaging
+services.AddDispatch(dispatch =>
+{
+    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+    dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+});
 
-// Or explicitly add internal serialization
-services.AddMemoryPackInternalSerialization();
+// Register MemoryPack as the ISerializer for binary serialization (Outbox/Inbox)
+services.AddSingleton<ISerializer>(
+    MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer());
 ```
 
 ## Related Samples

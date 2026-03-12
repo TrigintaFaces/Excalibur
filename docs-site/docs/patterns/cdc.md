@@ -13,7 +13,7 @@ CDC captures row-level changes from your database and publishes them as events, 
 - **.NET 8.0+** (or .NET 9/10 for latest features)
 - Install the required packages:
   ```bash
-  dotnet add package Excalibur.Data.SqlServer  # or Excalibur.Data.Postgres
+  dotnet add package Excalibur.Cdc.SqlServer  # or Excalibur.Cdc.Postgres
   ```
 - SQL Server CDC must be enabled on the database and target tables
 - Familiarity with [event sourcing concepts](../event-sourcing/index.md) and [outbox pattern](./outbox.md)
@@ -136,7 +136,7 @@ services.AddCdcProcessor(cdc =>
 For advanced scenarios requiring custom processing logic, implement `IDataChangeHandler`:
 
 ```csharp
-using Excalibur.Data.SqlServer.Cdc;
+using Excalibur.Cdc.SqlServer;
 
 public class OrderCdcHandler : IDataChangeHandler
 {

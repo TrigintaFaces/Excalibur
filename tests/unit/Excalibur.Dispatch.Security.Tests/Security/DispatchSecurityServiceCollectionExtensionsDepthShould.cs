@@ -62,13 +62,11 @@ public sealed class DispatchSecurityServiceCollectionExtensionsDepthShould
 		// Act — use fully-qualified call to target DispatchSecurityServiceCollectionExtensions
 		DispatchSecurityServiceCollectionExtensions.AddDispatchSecurity(services, config);
 
-		// Assert — credential management, input validation, auditing, cloud validators
+		// Assert — credential management, input validation, auditing
 		services.ShouldContain(sd => sd.ServiceType == typeof(ISecureCredentialProvider));
 		services.ShouldContain(sd => sd.ServiceType == typeof(ISecurityEventLogger));
 		services.ShouldContain(sd => sd.ServiceType == typeof(ISecurityEventStore));
 		services.ShouldContain(sd => sd.ServiceType == typeof(IInputValidator));
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IValidateOptions<RabbitMqOptions>));
 	}
 
 	[Fact]
@@ -266,43 +264,6 @@ public sealed class DispatchSecurityServiceCollectionExtensionsDepthShould
 		services.ShouldContain(sd =>
 			sd.ServiceType == typeof(ISecurityEventStore) &&
 			sd.ImplementationType == typeof(InMemorySecurityEventStore));
-	}
-
-	[Fact]
-	public void AddCloudProviderSecurityValidators_RegistersAllFourValidators()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddCloudProviderSecurityValidators();
-
-		// Assert
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IValidateOptions<RabbitMqOptions>));
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IValidateOptions<AwsSqsOptions>));
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IValidateOptions<KafkaOptions>));
-		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IValidateOptions<GooglePubSubOptions>));
-	}
-
-	[Fact]
-	public void AddCloudProviderSecurityValidators_DoesNotDuplicateOnMultipleCalls()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act — call twice
-		services.AddCloudProviderSecurityValidators();
-		services.AddCloudProviderSecurityValidators();
-
-		// Assert — TryAddEnumerable prevents duplicates
-		var rabbitMqValidators = services
-			.Where(sd => sd.ServiceType == typeof(IValidateOptions<RabbitMqOptions>))
-			.ToList();
-		rabbitMqValidators.Count.ShouldBe(1);
 	}
 
 	[Fact]

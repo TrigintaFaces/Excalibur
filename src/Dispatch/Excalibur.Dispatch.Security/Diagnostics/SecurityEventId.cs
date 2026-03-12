@@ -182,6 +182,59 @@ public static class SecurityEventId
 	/// <summary>Message signing middleware signature verification failed.</summary>
 	public const int SigningMiddlewareSignatureVerificationFailed = 70229;
 
+	// Asymmetric Signing (70230-70249)
+
+	/// <summary>ECDSA message signed successfully.</summary>
+	public const int EcdsaMessageSigned = 70230;
+
+	/// <summary>ECDSA signing operation failed.</summary>
+	public const int EcdsaSigningFailed = 70231;
+
+	/// <summary>ECDSA signature verification successful.</summary>
+	public const int EcdsaVerificationSuccessful = 70232;
+
+	/// <summary>ECDSA signature verification failed.</summary>
+	public const int EcdsaVerificationFailed = 70233;
+
+	/// <summary>Ed25519 message signed successfully.</summary>
+	public const int Ed25519MessageSigned = 70234;
+
+	/// <summary>Ed25519 signing operation failed.</summary>
+	public const int Ed25519SigningFailed = 70235;
+
+	/// <summary>Ed25519 signature verification successful.</summary>
+	public const int Ed25519VerificationSuccessful = 70236;
+
+	/// <summary>Ed25519 signature verification failed.</summary>
+	public const int Ed25519VerificationFailed = 70237;
+
+	/// <summary>Composite signing service created.</summary>
+	public const int CompositeSigningServiceCreated = 70238;
+
+	/// <summary>Unsupported algorithm requested from composite signing service.</summary>
+	public const int UnsupportedAlgorithmRequested = 70239;
+
+	/// <summary>Asymmetric key material retrieved.</summary>
+	public const int AsymmetricKeyRetrieved = 70240;
+
+	/// <summary>Asymmetric key material not found.</summary>
+	public const int AsymmetricKeyNotFound = 70241;
+
+	/// <summary>Composite service signed message successfully.</summary>
+	public const int CompositeMessageSigned = 70242;
+
+	/// <summary>Composite service signing failed.</summary>
+	public const int CompositeSigningFailed = 70243;
+
+	/// <summary>Composite service verification successful.</summary>
+	public const int CompositeVerificationSuccessful = 70244;
+
+	/// <summary>Composite service verification failed.</summary>
+	public const int CompositeVerificationFailed = 70245;
+
+	/// <summary>Composite service verification error.</summary>
+	public const int CompositeVerificationError = 70246;
+
 	// ========================================
 	// 70300-70399: Encryption Core
 	// ========================================

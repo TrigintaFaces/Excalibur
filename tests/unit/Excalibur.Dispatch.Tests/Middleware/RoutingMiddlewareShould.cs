@@ -4,6 +4,7 @@
 #pragma warning disable CA2012 // FakeItEasy .Returns() stores ValueTask
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Routing;
 
@@ -35,9 +36,8 @@ public sealed class RoutingMiddlewareShould : UnitTestBase
 		_context = new TestMessageContext
 		{
 			MessageId = Guid.NewGuid().ToString(),
-			MessageType = "TestMessage",
-			RoutingDecision = null,
 		};
+		_context.SetMessageType("TestMessage");
 	}
 
 	[Fact]
@@ -62,7 +62,7 @@ public sealed class RoutingMiddlewareShould : UnitTestBase
 		// Assert
 		result.Succeeded.ShouldBeTrue();
 		nextInvoked.ShouldBeTrue();
-		_context.RoutingDecision.ShouldBe(decision);
+		_context.GetRoutingDecision().ShouldBe(decision);
 		_context.Items.ContainsKey("routing:transport").ShouldBeFalse();
 	}
 
@@ -109,7 +109,7 @@ public sealed class RoutingMiddlewareShould : UnitTestBase
 			.ConfigureAwait(false);
 
 		// Assert
-		_context.RoutingDecision.ShouldBe(decision);
+		_context.GetRoutingDecision().ShouldBe(decision);
 		_context.Items.ContainsKey("routing:decision").ShouldBeFalse();
 		_context.Items.ContainsKey("routing:transport").ShouldBeFalse();
 		_context.Items.ContainsKey("routing:endpoints").ShouldBeFalse();
@@ -159,7 +159,7 @@ public sealed class RoutingMiddlewareShould : UnitTestBase
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
-		_context.RoutingDecision.ShouldNotBeNull();
-		_context.RoutingDecision.Endpoints.Count.ShouldBe(3);
+		_context.GetRoutingDecision().ShouldNotBeNull();
+		_context.GetRoutingDecision().Endpoints.Count.ShouldBe(3);
 	}
 }

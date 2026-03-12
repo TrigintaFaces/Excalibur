@@ -8,17 +8,17 @@ using Excalibur.Dispatch.Serialization.MemoryPack;
 namespace Excalibur.Dispatch.Serialization.Tests.MemoryPack;
 
 /// <summary>
-/// Unit tests for <see cref="MemoryPackPluggableSerializer" />.
+/// Unit tests for <see cref="MemoryPackSerializer" />.
 /// </summary>
 [Trait("Component", "Serialization")]
 [Trait("Category", "Unit")]
 public sealed class MemoryPackPluggableSerializerShould
 {
-	private readonly MemoryPackPluggableSerializer _sut;
+	private readonly MemoryPackSerializer _sut;
 
 	public MemoryPackPluggableSerializerShould()
 	{
-		_sut = new MemoryPackPluggableSerializer();
+		_sut = new MemoryPackSerializer();
 	}
 
 	#region Property Tests
@@ -62,7 +62,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		var value = new TestPayload { Id = 42, Name = "Test" };
 
 		// Act
-		var result = _sut.Serialize(value);
+		var result = _sut.SerializeToBytes(value);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -70,11 +70,13 @@ public sealed class MemoryPackPluggableSerializerShould
 	}
 
 	[Fact]
-	public void Serialize_WithNullValue_ThrowsArgumentNullException()
+	public void Serialize_WithNullValue_ProducesValidOutput()
 	{
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			_sut.Serialize<TestPayload>(null!));
+		// Act - New consolidated serializer follows STJ pattern: null is serializable
+		var result = _sut.SerializeToBytes<TestPayload>(null!);
+
+		// Assert - MemoryPack serializes null as a valid nil representation
+		_ = result.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -84,7 +86,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		var value = new TestPayload { Id = 1, Name = string.Empty };
 
 		// Act
-		var result = _sut.Serialize(value);
+		var result = _sut.SerializeToBytes(value);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -99,7 +101,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		var value = new TestPayload { Id = 999, Name = largeString };
 
 		// Act
-		var result = _sut.Serialize(value);
+		var result = _sut.SerializeToBytes(value);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -113,7 +115,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		var value = new TestPayload { Id = 0, Name = "Zero" };
 
 		// Act
-		var result = _sut.Serialize(value);
+		var result = _sut.SerializeToBytes(value);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -126,7 +128,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		var value = new TestPayload { Id = -999, Name = "Negative" };
 
 		// Act
-		var result = _sut.Serialize(value);
+		var result = _sut.SerializeToBytes(value);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -135,18 +137,16 @@ public sealed class MemoryPackPluggableSerializerShould
 	[Fact]
 	[RequiresUnreferencedCode("Test")]
 	[RequiresDynamicCode("Test")]
-	public void Serialize_WhenMemoryPackThrows_WrapsInSerializationException()
+	public void Serialize_WhenMemoryPackThrows_PropagatesException()
 	{
 		// Arrange - Use a type that is NOT registered with MemoryPack (no [MemoryPackable] attribute)
 		var unregisteredValue = new UnregisteredType { Value = "test" };
 
-		// Act & Assert - MemoryPack will throw because the type has no formatter
-		var ex = Should.Throw<SerializationException>(() =>
-			_sut.Serialize(unregisteredValue));
-
-		_ = ex.InnerException.ShouldNotBeNull();
-		ex.Message.ShouldContain("serialize");
-		ex.Message.ShouldContain(nameof(UnregisteredType));
+		// Act & Assert - MemoryPack will throw because the type has no formatter.
+		// The consolidated ISerializer.Serialize path propagates the native exception
+		// (exception wrapping is in Deserialize path only).
+		Should.Throw<Exception>(() =>
+			_sut.SerializeToBytes(unregisteredValue));
 	}
 
 	#endregion Serialize<T> Tests
@@ -158,7 +158,7 @@ public sealed class MemoryPackPluggableSerializerShould
 	{
 		// Arrange
 		var original = new TestPayload { Id = 123, Name = "Deserialize Test" };
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<TestPayload>(bytes.AsSpan());
@@ -174,7 +174,7 @@ public sealed class MemoryPackPluggableSerializerShould
 	{
 		// Arrange
 		var original = new TestPayload { Id = 1, Name = "Unicode: \u00e9\u00e0\u00fc\u4e2d\u6587" };
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<TestPayload>(bytes.AsSpan());
@@ -188,7 +188,7 @@ public sealed class MemoryPackPluggableSerializerShould
 	{
 		// Arrange
 		var original = new TestPayload { Id = 2, Name = "Special: \t\n\r\"'\\/" };
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<TestPayload>(bytes.AsSpan());
@@ -356,7 +356,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		var original = new TestPayload { Id = 789, Name = "RoundTrip Test" };
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var deserialized = _sut.Deserialize<TestPayload>(serialized);
 
 		// Assert
@@ -388,7 +388,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		var original = new TestPayload { Id = int.MaxValue, Name = "Max" };
 
 		// Act
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<TestPayload>(bytes);
 
 		// Assert
@@ -402,7 +402,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		var original = new TestPayload { Id = int.MinValue, Name = "Min" };
 
 		// Act
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<TestPayload>(bytes);
 
 		// Assert
@@ -414,10 +414,10 @@ public sealed class MemoryPackPluggableSerializerShould
 	#region Interface Implementation Tests
 
 	[Fact]
-	public void ImplementsIPluggableSerializer()
+	public void ImplementsISerializer()
 	{
 		// Assert
-		_ = _sut.ShouldBeAssignableTo<IPluggableSerializer>();
+		_ = _sut.ShouldBeAssignableTo<ISerializer>();
 	}
 
 	#endregion Interface Implementation Tests
@@ -440,7 +440,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		};
 
 		// Act
-		var bytes = _sut.Serialize(value);
+		var bytes = _sut.SerializeToBytes(value);
 		var result = _sut.Deserialize<TestPayloadWithCollections>(bytes);
 
 		// Assert
@@ -461,7 +461,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		};
 
 		// Act
-		var bytes = _sut.Serialize(value);
+		var bytes = _sut.SerializeToBytes(value);
 		var result = _sut.Deserialize<TestPayloadWithCollections>(bytes);
 
 		// Assert
@@ -482,7 +482,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		};
 
 		// Act
-		var bytes = _sut.Serialize(value);
+		var bytes = _sut.SerializeToBytes(value);
 		var result = _sut.Deserialize<TestPayloadWithNullables>(bytes);
 
 		// Assert
@@ -503,7 +503,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		};
 
 		// Act
-		var bytes = _sut.Serialize(value);
+		var bytes = _sut.SerializeToBytes(value);
 		var result = _sut.Deserialize<TestPayloadWithNullables>(bytes);
 
 		// Assert
@@ -524,7 +524,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		};
 
 		// Act
-		var bytes = _sut.Serialize(value);
+		var bytes = _sut.SerializeToBytes(value);
 		var result = _sut.Deserialize<TestPayloadWithDateTime>(bytes);
 
 		// Assert
@@ -543,7 +543,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		};
 
 		// Act
-		var bytes = _sut.Serialize(value);
+		var bytes = _sut.SerializeToBytes(value);
 		var result = _sut.Deserialize<TestPayloadWithGuid>(bytes);
 
 		// Assert

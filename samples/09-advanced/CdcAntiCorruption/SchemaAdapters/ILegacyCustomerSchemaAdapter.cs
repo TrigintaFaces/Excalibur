@@ -3,7 +3,7 @@
 
 using CdcAntiCorruption.Models;
 
-using Excalibur.Data.SqlServer.Cdc;
+using Excalibur.Cdc.SqlServer;
 
 namespace CdcAntiCorruption.SchemaAdapters;
 

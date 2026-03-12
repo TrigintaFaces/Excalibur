@@ -92,7 +92,7 @@ public sealed class KeyedAggregateRootCoverageShould
         }
     }
 
-    private sealed record TestKeyedEvent : DomainEventBase
+    private sealed record TestKeyedEvent : DomainEvent
     {
         public string Value { get; init; } = string.Empty;
     }

@@ -3,6 +3,7 @@
 
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Transport.GooglePubSub;
@@ -51,7 +52,7 @@ public sealed partial class GooglePubSubMessageBus(
 		var payload = serializer.SerializeObject(action, action.GetType());
 		var body = Convert.ToBase64String(payload);
 
-		var traceParent = context.TraceParent;
+		var traceParent = context.GetTraceParent();
 		var message = new PubsubMessage { Data = ByteString.CopyFromUtf8(body) };
 		if (!string.IsNullOrEmpty(traceParent))
 		{
@@ -76,7 +77,7 @@ public sealed partial class GooglePubSubMessageBus(
 		var payload = serializer.SerializeObject(evt, evt.GetType());
 		var body = Convert.ToBase64String(payload);
 
-		var traceParent = context.TraceParent;
+		var traceParent = context.GetTraceParent();
 		var message = new PubsubMessage { Data = ByteString.CopyFromUtf8(body) };
 		if (!string.IsNullOrEmpty(traceParent))
 		{
@@ -101,7 +102,7 @@ public sealed partial class GooglePubSubMessageBus(
 		var payload = serializer.SerializeObject(doc, doc.GetType());
 		var body = Convert.ToBase64String(payload);
 
-		var traceParent = context.TraceParent;
+		var traceParent = context.GetTraceParent();
 		var message = new PubsubMessage { Data = ByteString.CopyFromUtf8(body) };
 		if (!string.IsNullOrEmpty(traceParent))
 		{

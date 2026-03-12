@@ -26,7 +26,7 @@ public sealed class DynamoDbSnapshotStoreOptionsShould
 		var options = new DynamoDbSnapshotStoreOptions();
 
 		// Assert
-		options.ServiceUrl.ShouldBeNull();
+		options.Connection.ServiceUrl.ShouldBeNull();
 	}
 
 	[Fact]
@@ -36,7 +36,7 @@ public sealed class DynamoDbSnapshotStoreOptionsShould
 		var options = new DynamoDbSnapshotStoreOptions();
 
 		// Assert
-		options.Region.ShouldBeNull();
+		options.Connection.Region.ShouldBeNull();
 	}
 
 	[Fact]
@@ -46,7 +46,7 @@ public sealed class DynamoDbSnapshotStoreOptionsShould
 		var options = new DynamoDbSnapshotStoreOptions();
 
 		// Assert
-		options.AccessKey.ShouldBeNull();
+		options.Connection.AccessKey.ShouldBeNull();
 	}
 
 	[Fact]
@@ -56,7 +56,7 @@ public sealed class DynamoDbSnapshotStoreOptionsShould
 		var options = new DynamoDbSnapshotStoreOptions();
 
 		// Assert
-		options.SecretKey.ShouldBeNull();
+		options.Connection.SecretKey.ShouldBeNull();
 	}
 
 	[Fact]
@@ -139,10 +139,13 @@ public sealed class DynamoDbSnapshotStoreOptionsShould
 		// Act
 		var options = new DynamoDbSnapshotStoreOptions
 		{
-			ServiceUrl = "http://localhost:8000",
-			Region = "us-west-2",
-			AccessKey = "snapshot-access-key",
-			SecretKey = "snapshot-secret-key",
+			Connection =
+			{
+				ServiceUrl = "http://localhost:8000",
+				Region = "us-west-2",
+				AccessKey = "snapshot-access-key",
+				SecretKey = "snapshot-secret-key"
+			},
 			TableName = "custom_snapshots",
 			MaxRetryAttempts = 5,
 			TimeoutInSeconds = 60,
@@ -153,10 +156,10 @@ public sealed class DynamoDbSnapshotStoreOptionsShould
 		};
 
 		// Assert
-		options.ServiceUrl.ShouldBe("http://localhost:8000");
-		options.Region.ShouldBe("us-west-2");
-		options.AccessKey.ShouldBe("snapshot-access-key");
-		options.SecretKey.ShouldBe("snapshot-secret-key");
+		options.Connection.ServiceUrl.ShouldBe("http://localhost:8000");
+		options.Connection.Region.ShouldBe("us-west-2");
+		options.Connection.AccessKey.ShouldBe("snapshot-access-key");
+		options.Connection.SecretKey.ShouldBe("snapshot-secret-key");
 		options.TableName.ShouldBe("custom_snapshots");
 		options.MaxRetryAttempts.ShouldBe(5);
 		options.TimeoutInSeconds.ShouldBe(60);
@@ -174,10 +177,8 @@ public sealed class DynamoDbSnapshotStoreOptionsShould
 	public void Validate_Succeeds_WithServiceUrl()
 	{
 		// Arrange
-		var options = new DynamoDbSnapshotStoreOptions
-		{
-			ServiceUrl = "http://localhost:8000"
-		};
+		var options = new DynamoDbSnapshotStoreOptions();
+		options.Connection.ServiceUrl = "http://localhost:8000";
 
 		// Act & Assert - Should not throw
 		options.Validate();
@@ -187,10 +188,8 @@ public sealed class DynamoDbSnapshotStoreOptionsShould
 	public void Validate_Succeeds_WithRegion()
 	{
 		// Arrange
-		var options = new DynamoDbSnapshotStoreOptions
-		{
-			Region = "ap-northeast-1"
-		};
+		var options = new DynamoDbSnapshotStoreOptions();
+		options.Connection.Region = "ap-northeast-1";
 
 		// Act & Assert - Should not throw
 		options.Validate();
@@ -214,9 +213,9 @@ public sealed class DynamoDbSnapshotStoreOptionsShould
 		// Arrange
 		var options = new DynamoDbSnapshotStoreOptions
 		{
-			ServiceUrl = "http://localhost:8000",
 			TableName = ""
 		};
+		options.Connection.ServiceUrl = "http://localhost:8000";
 
 		// Act & Assert
 		var exception = Should.Throw<InvalidOperationException>(() => options.Validate());
@@ -229,9 +228,9 @@ public sealed class DynamoDbSnapshotStoreOptionsShould
 		// Arrange
 		var options = new DynamoDbSnapshotStoreOptions
 		{
-			ServiceUrl = "http://localhost:8000",
 			TableName = "   "
 		};
+		options.Connection.ServiceUrl = "http://localhost:8000";
 
 		// Act & Assert
 		var exception = Should.Throw<InvalidOperationException>(() => options.Validate());
@@ -246,10 +245,8 @@ public sealed class DynamoDbSnapshotStoreOptionsShould
 	public void GetRegionEndpoint_ReturnsEndpoint_WhenRegionIsSet()
 	{
 		// Arrange
-		var options = new DynamoDbSnapshotStoreOptions
-		{
-			Region = "sa-east-1"
-		};
+		var options = new DynamoDbSnapshotStoreOptions();
+		options.Connection.Region = "sa-east-1";
 
 		// Act
 		var endpoint = options.GetRegionEndpoint();
@@ -276,10 +273,8 @@ public sealed class DynamoDbSnapshotStoreOptionsShould
 	public void GetRegionEndpoint_ReturnsNull_WhenRegionIsEmpty()
 	{
 		// Arrange
-		var options = new DynamoDbSnapshotStoreOptions
-		{
-			Region = ""
-		};
+		var options = new DynamoDbSnapshotStoreOptions();
+		options.Connection.Region = "";
 
 		// Act
 		var endpoint = options.GetRegionEndpoint();

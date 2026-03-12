@@ -11,6 +11,7 @@ namespace Excalibur.Dispatch.Security.Tests.Compliance.KeyRotation;
 public sealed class KeyRotationServiceShould : IDisposable
 {
 	private readonly IKeyManagementProvider _keyProvider;
+	private readonly IKeyManagementAdmin _keyAdmin;
 	private readonly IOptions<KeyRotationOptions> _options;
 	private readonly ILogger<KeyRotationService> _logger;
 	private KeyRotationService? _sut;
@@ -18,6 +19,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 	public KeyRotationServiceShould()
 	{
 		_keyProvider = A.Fake<IKeyManagementProvider>();
+		_keyAdmin = A.Fake<IKeyManagementAdmin>();
 		_options = Microsoft.Extensions.Options.Options.Create(new KeyRotationOptions
 		{
 			Enabled = true,
@@ -38,7 +40,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new KeyRotationService(null!, _options, _logger));
+			new KeyRotationService(null!, _keyAdmin, _options, _logger));
 	}
 
 	[Fact]
@@ -46,7 +48,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new KeyRotationService(_keyProvider, null!, _logger));
+			new KeyRotationService(_keyProvider, _keyAdmin, null!, _logger));
 	}
 
 	[Fact]
@@ -54,17 +56,17 @@ public sealed class KeyRotationServiceShould : IDisposable
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new KeyRotationService(_keyProvider, _options, null!));
+			new KeyRotationService(_keyProvider, _keyAdmin, _options, null!));
 	}
 
 	[Fact]
 	public async Task CheckAndRotateAsync_ReturnEmptyResult_WhenNoActiveKeys()
 	{
 		// Arrange
-		_ = A.CallTo(() => _keyProvider.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
+		_ = A.CallTo(() => _keyAdmin.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<KeyMetadata>>([]));
 
-		_sut = new KeyRotationService(_keyProvider, _options, _logger);
+		_sut = new KeyRotationService(_keyProvider, _keyAdmin, _options, _logger);
 
 		// Act
 		var result = await _sut.CheckAndRotateAsync(CancellationToken.None);
@@ -98,7 +100,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 			Algorithm = EncryptionAlgorithm.Aes256Gcm
 		};
 
-		_ = A.CallTo(() => _keyProvider.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
+		_ = A.CallTo(() => _keyAdmin.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<KeyMetadata>>([oldKey]));
 
 		_ = A.CallTo(() => _keyProvider.RotateKeyAsync(
@@ -109,7 +111,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 				A<CancellationToken>._))
 			.Returns(Task.FromResult(KeyRotationResult.Succeeded(newKey)));
 
-		_sut = new KeyRotationService(_keyProvider, _options, _logger);
+		_sut = new KeyRotationService(_keyProvider, _keyAdmin, _options, _logger);
 
 		// Act
 		var result = await _sut.CheckAndRotateAsync(CancellationToken.None);
@@ -135,10 +137,10 @@ public sealed class KeyRotationServiceShould : IDisposable
 			Algorithm = EncryptionAlgorithm.Aes256Gcm
 		};
 
-		_ = A.CallTo(() => _keyProvider.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
+		_ = A.CallTo(() => _keyAdmin.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<KeyMetadata>>([recentKey]));
 
-		_sut = new KeyRotationService(_keyProvider, _options, _logger);
+		_sut = new KeyRotationService(_keyProvider, _keyAdmin, _options, _logger);
 
 		// Act
 		var result = await _sut.CheckAndRotateAsync(CancellationToken.None);
@@ -182,7 +184,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 			}
 		};
 
-		_ = A.CallTo(() => _keyProvider.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
+		_ = A.CallTo(() => _keyAdmin.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<KeyMetadata>>(keys));
 
 		// First key fails
@@ -210,7 +212,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 				Algorithm = EncryptionAlgorithm.Aes256Gcm
 			})));
 
-		_sut = new KeyRotationService(_keyProvider, _options, _logger);
+		_sut = new KeyRotationService(_keyProvider, _keyAdmin, _options, _logger);
 
 		// Act
 		var result = await _sut.CheckAndRotateAsync(CancellationToken.None);
@@ -230,7 +232,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 		_ = A.CallTo(() => _keyProvider.GetKeyAsync("non-existent", A<CancellationToken>._))
 			.Returns(Task.FromResult<KeyMetadata?>(null));
 
-		_sut = new KeyRotationService(_keyProvider, _options, _logger);
+		_sut = new KeyRotationService(_keyProvider, _keyAdmin, _options, _logger);
 
 		// Act
 		var result = await _sut.IsRotationDueAsync("non-existent", CancellationToken.None);
@@ -255,7 +257,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 		_ = A.CallTo(() => _keyProvider.GetKeyAsync("key-1", A<CancellationToken>._))
 			.Returns(Task.FromResult<KeyMetadata?>(oldKey));
 
-		_sut = new KeyRotationService(_keyProvider, _options, _logger);
+		_sut = new KeyRotationService(_keyProvider, _keyAdmin, _options, _logger);
 
 		// Act
 		var result = await _sut.IsRotationDueAsync("key-1", CancellationToken.None);
@@ -268,7 +270,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 	public async Task IsRotationDueAsync_ThrowOnNullKeyId()
 	{
 		// Arrange
-		_sut = new KeyRotationService(_keyProvider, _options, _logger);
+		_sut = new KeyRotationService(_keyProvider, _keyAdmin, _options, _logger);
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(() => _sut.IsRotationDueAsync(null!, CancellationToken.None));
@@ -278,7 +280,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 	public async Task IsRotationDueAsync_ThrowOnEmptyKeyId()
 	{
 		// Arrange
-		_sut = new KeyRotationService(_keyProvider, _options, _logger);
+		_sut = new KeyRotationService(_keyProvider, _keyAdmin, _options, _logger);
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(() => _sut.IsRotationDueAsync("", CancellationToken.None));
@@ -317,7 +319,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 				A<CancellationToken>._))
 			.Returns(Task.FromResult(KeyRotationResult.Succeeded(newKey)));
 
-		_sut = new KeyRotationService(_keyProvider, _options, _logger);
+		_sut = new KeyRotationService(_keyProvider, _keyAdmin, _options, _logger);
 
 		// Act
 		var result = await _sut.ForceRotateAsync("key-1", "Security incident", CancellationToken.None);
@@ -335,7 +337,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 		_ = A.CallTo(() => _keyProvider.GetKeyAsync("non-existent", A<CancellationToken>._))
 			.Returns(Task.FromResult<KeyMetadata?>(null));
 
-		_sut = new KeyRotationService(_keyProvider, _options, _logger);
+		_sut = new KeyRotationService(_keyProvider, _keyAdmin, _options, _logger);
 
 		// Act
 		var result = await _sut.ForceRotateAsync("non-existent", "Testing", CancellationToken.None);
@@ -349,7 +351,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 	public async Task ForceRotateAsync_ThrowOnNullKeyId()
 	{
 		// Arrange
-		_sut = new KeyRotationService(_keyProvider, _options, _logger);
+		_sut = new KeyRotationService(_keyProvider, _keyAdmin, _options, _logger);
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(() => _sut.ForceRotateAsync(null!, "reason", CancellationToken.None));
@@ -359,7 +361,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 	public async Task ForceRotateAsync_ThrowOnNullReason()
 	{
 		// Arrange
-		_sut = new KeyRotationService(_keyProvider, _options, _logger);
+		_sut = new KeyRotationService(_keyProvider, _keyAdmin, _options, _logger);
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(() => _sut.ForceRotateAsync("key-1", null!, CancellationToken.None));
@@ -372,7 +374,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 		_ = A.CallTo(() => _keyProvider.GetKeyAsync("non-existent", A<CancellationToken>._))
 			.Returns(Task.FromResult<KeyMetadata?>(null));
 
-		_sut = new KeyRotationService(_keyProvider, _options, _logger);
+		_sut = new KeyRotationService(_keyProvider, _keyAdmin, _options, _logger);
 
 		// Act
 		var result = await _sut.GetNextRotationTimeAsync("non-existent", CancellationToken.None);
@@ -397,7 +399,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 		_ = A.CallTo(() => _keyProvider.GetKeyAsync("key-1", A<CancellationToken>._))
 			.Returns(Task.FromResult<KeyMetadata?>(key));
 
-		_sut = new KeyRotationService(_keyProvider, _options, _logger);
+		_sut = new KeyRotationService(_keyProvider, _keyAdmin, _options, _logger);
 
 		// Act
 		var result = await _sut.GetNextRotationTimeAsync("key-1", CancellationToken.None);
@@ -433,7 +435,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 			}
 		});
 
-		_sut = new KeyRotationService(_keyProvider, disabledOptions, _logger);
+		_sut = new KeyRotationService(_keyProvider, _keyAdmin, disabledOptions, _logger);
 
 		// Act
 		var result = await _sut.GetNextRotationTimeAsync("key-1", CancellationToken.None);
@@ -463,7 +465,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 			DefaultPolicy = KeyRotationPolicy.Default // 90 days
 		}.AddHighSecurityPolicy("high-security")); // 30 days
 
-		_ = A.CallTo(() => _keyProvider.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
+		_ = A.CallTo(() => _keyAdmin.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<KeyMetadata>>([key]));
 
 		_ = A.CallTo(() => _keyProvider.RotateKeyAsync(
@@ -482,7 +484,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 				Algorithm = EncryptionAlgorithm.Aes256Gcm
 			})));
 
-		_sut = new KeyRotationService(_keyProvider, options, _logger);
+		_sut = new KeyRotationService(_keyProvider, _keyAdmin, options, _logger);
 
 		// Act
 		var result = await _sut.CheckAndRotateAsync(CancellationToken.None);

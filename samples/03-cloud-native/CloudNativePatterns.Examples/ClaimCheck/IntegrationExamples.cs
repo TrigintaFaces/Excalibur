@@ -231,10 +231,10 @@ public sealed partial class IntegrationExamples
 	/// <summary>
 	/// Example 2: Integration with message processor pipeline.
 	/// </summary>
-	public class MessageProcessorIntegration(IClaimCheckProvider claimCheckProvider, IBinaryMessageSerializer baseSerializer)
+	public class MessageProcessorIntegration(IClaimCheckProvider claimCheckProvider, ISerializer baseSerializer)
 	{
 		private readonly IClaimCheckProvider _claimCheckProvider = claimCheckProvider;
-		private readonly IBinaryMessageSerializer _baseSerializer = baseSerializer;
+		private readonly ISerializer _baseSerializer = baseSerializer;
 
 		/// <summary>
 		/// Create a message processor with automatic claim check handling.

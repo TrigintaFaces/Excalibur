@@ -211,8 +211,8 @@ pwsh eng/validate-samples.ps1 -Detailed
 ```
 
 **P0/P1 Samples (14):** These are validated and must always build:
-- Core: `DispatchMinimal`, `QuickDemo`, `MinimalSample`
-- Feature: `MultiBusSample`, `RemoteBusSample`, `ExcaliburCqrs`, `SagaOrchestration`
+- Core: `DispatchOnly`, `InteractiveDemo`, `HelloDispatch`
+- Feature: `MultiBusSample`, `RemoteBusSample`, `EventSourcingIntro`, `SagaOrchestration`
 - BackgroundServices: `AtLeastOnceWithInbox`, `MinimizedWindow`, `PerformanceComparison`, `TransactionalWhenApplicable`
 - Jobs: `MinimalJobSample`, `MultiTransport`
 - Contracts: `WebWorkerSample/Contracts`
@@ -231,7 +231,7 @@ pwsh eng/validate-samples.ps1 -Detailed
 
 - **Dispatch vs Excalibur:** Dispatch owns the messaging pipeline, while Excalibur layers CQRS + hosting. Before adding a feature. Dispatch's `Excalibur.Dispatch.Hosting.AspNetCore` MUST remain a thin bridge; advanced hosting belongs in `Excalibur.Hosting.*`.
 - **Event type names:** All event stores must persist serializer-generated type names. Use `EventTypeNameHelper.GetEventTypeName(type)` (or the `IEventSerializer.GetTypeName` wrapper) instead of storing `@event.EventType` directly. This keeps replay consistent across providers.
-- **Samples:** Keep Dispatch-only samples free of Excalibur package references so consumers can see the minimal footprint. Mirror those samples with Excalibur siblings (e.g., `DispatchMinimal` vs `ExcaliburCqrs`) to document the upgrade path.
+- **Samples:** Keep Dispatch-only samples free of Excalibur package references so consumers can see the minimal footprint. Mirror those samples with Excalibur siblings (e.g., `DispatchOnly` vs `EventSourcingIntro`) to document the upgrade path.
 
 ### Where Does My Code Belong?
 

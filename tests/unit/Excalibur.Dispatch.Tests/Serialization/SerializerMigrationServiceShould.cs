@@ -141,9 +141,9 @@ public sealed class SerializerMigrationServiceShould
 		var store = A.Fake<IMigrationStore>();
 
 		// Create a test payload serialized with MemoryPack
-		var memoryPackSerializer = registry.GetById(SerializerIds.MemoryPack);
+		var memoryPackSerializer = registry.GetById(SerializerIds.MemoryPack)!;
 		var testMessage = new TestMessage { Name = "Test", Value = 42 };
-		var payload = memoryPackSerializer.Serialize(testMessage);
+		var payload = memoryPackSerializer.SerializeToBytes(testMessage);
 		var fullPayload = new byte[payload.Length + 1];
 		fullPayload[0] = SerializerIds.MemoryPack;
 		Buffer.BlockCopy(payload, 0, fullPayload, 1, payload.Length);
@@ -190,10 +190,10 @@ public sealed class SerializerMigrationServiceShould
 		var store = A.Fake<IMigrationStore>();
 
 		// Create payloads
-		var memoryPackSerializer = registry.GetById(SerializerIds.MemoryPack);
-		var payload1 = CreateMemoryPackPayload(memoryPackSerializer, "Test1", 1);
-		var payload2 = CreateMemoryPackPayload(memoryPackSerializer, "Test2", 2);
-		var payload3 = CreateMemoryPackPayload(memoryPackSerializer, "Test3", 3);
+		var memoryPackSerializer = registry.GetById(SerializerIds.MemoryPack)!;
+		var payload1 = CreateSerializerPayload(memoryPackSerializer, "Test1", 1);
+		var payload2 = CreateSerializerPayload(memoryPackSerializer, "Test2", 2);
+		var payload3 = CreateSerializerPayload(memoryPackSerializer, "Test3", 3);
 
 		var batch1 = new List<IMigrationRecord>
 		{
@@ -241,9 +241,9 @@ public sealed class SerializerMigrationServiceShould
 		var store = A.Fake<IMigrationStore>();
 
 		// Create a payload already in target format (STJ)
-		var stjSerializer = registry.GetById(SerializerIds.SystemTextJson);
+		var stjSerializer = registry.GetById(SerializerIds.SystemTextJson)!;
 		var testMessage = new TestMessage { Name = "AlreadyMigrated", Value = 100 };
-		var payload = stjSerializer.Serialize(testMessage);
+		var payload = stjSerializer.SerializeToBytes(testMessage);
 		var fullPayload = new byte[payload.Length + 1];
 		fullPayload[0] = SerializerIds.SystemTextJson; // Already in target format
 		Buffer.BlockCopy(payload, 0, fullPayload, 1, payload.Length);
@@ -323,8 +323,8 @@ public sealed class SerializerMigrationServiceShould
 		var reportedProgress = new List<EncryptionMigrationProgress>();
 		var progressReported = new TaskCompletionSource<bool>();
 
-		var memoryPackSerializer = registry.GetById(SerializerIds.MemoryPack);
-		var payload = CreateMemoryPackPayload(memoryPackSerializer, "Test", 1);
+		var memoryPackSerializer = registry.GetById(SerializerIds.MemoryPack)!;
+		var payload = CreateSerializerPayload(memoryPackSerializer, "Test", 1);
 
 		var records = new List<IMigrationRecord>
 		{
@@ -378,13 +378,13 @@ public sealed class SerializerMigrationServiceShould
 		var sut = new SerializerMigrationService(registry, _logger);
 		var store = A.Fake<IMigrationStore>();
 
-		var memoryPackSerializer = registry.GetById(SerializerIds.MemoryPack);
-		var stjSerializer = registry.GetById(SerializerIds.SystemTextJson);
-		var sourcePayload = CreateMemoryPackPayload(memoryPackSerializer, "Test", 42);
+		var memoryPackSerializer = registry.GetById(SerializerIds.MemoryPack)!;
+		var stjSerializer = registry.GetById(SerializerIds.SystemTextJson)!;
+		var sourcePayload = CreateSerializerPayload(memoryPackSerializer, "Test", 42);
 
 		// Create expected target payload for verification
 		var testMessage = new TestMessage { Name = "Test", Value = 42 };
-		var targetContent = stjSerializer.Serialize(testMessage);
+		var targetContent = stjSerializer.SerializeToBytes(testMessage);
 		var targetPayload = new byte[targetContent.Length + 1];
 		targetPayload[0] = SerializerIds.SystemTextJson;
 		Buffer.BlockCopy(targetContent, 0, targetPayload, 1, targetContent.Length);
@@ -428,8 +428,8 @@ public sealed class SerializerMigrationServiceShould
 		var sut = new SerializerMigrationService(registry, _logger);
 		var store = A.Fake<IMigrationStore>();
 
-		var memoryPackSerializer = registry.GetById(SerializerIds.MemoryPack);
-		var sourcePayload = CreateMemoryPackPayload(memoryPackSerializer, "Test", 42);
+		var memoryPackSerializer = registry.GetById(SerializerIds.MemoryPack)!;
+		var sourcePayload = CreateSerializerPayload(memoryPackSerializer, "Test", 42);
 
 		// Return wrong magic byte on verification
 		var wrongPayload = new byte[] { SerializerIds.MemoryPack, 1, 2, 3 };
@@ -476,8 +476,8 @@ public sealed class SerializerMigrationServiceShould
 		var sut = new SerializerMigrationService(registry, _logger);
 		var store = A.Fake<IMigrationStore>();
 
-		var memoryPackSerializer = registry.GetById(SerializerIds.MemoryPack);
-		var goodPayload = CreateMemoryPackPayload(memoryPackSerializer, "Good", 1);
+		var memoryPackSerializer = registry.GetById(SerializerIds.MemoryPack)!;
+		var goodPayload = CreateSerializerPayload(memoryPackSerializer, "Good", 1);
 		var badPayload = new byte[] { SerializerIds.MemoryPack, 0xFF, 0xFF }; // Corrupt
 
 		var records = new List<IMigrationRecord>
@@ -554,8 +554,8 @@ public sealed class SerializerMigrationServiceShould
 		var sut = new SerializerMigrationService(registry, _logger);
 		var store = A.Fake<IMigrationStore>();
 
-		var memoryPackSerializer = registry.GetById(SerializerIds.MemoryPack);
-		var payload = CreateMemoryPackPayload(memoryPackSerializer, "Test", 1);
+		var memoryPackSerializer = registry.GetById(SerializerIds.MemoryPack)!;
+		var payload = CreateSerializerPayload(memoryPackSerializer, "Test", 1);
 
 		var records = new List<IMigrationRecord>
 		{
@@ -705,7 +705,7 @@ public sealed class SerializerMigrationServiceShould
 	private static SerializerRegistry CreateRegistryWithMemoryPack()
 	{
 		var registry = new SerializerRegistry();
-		registry.Register(SerializerIds.MemoryPack, new MemoryPackPluggableSerializer());
+		registry.Register(SerializerIds.MemoryPack, new MemoryPackSerializer());
 		registry.SetCurrent("MemoryPack");
 		return registry;
 	}
@@ -713,16 +713,16 @@ public sealed class SerializerMigrationServiceShould
 	private static SerializerRegistry CreateRegistryWithBothSerializers()
 	{
 		var registry = new SerializerRegistry();
-		registry.Register(SerializerIds.MemoryPack, new MemoryPackPluggableSerializer());
-		registry.Register(SerializerIds.SystemTextJson, new SystemTextJsonPluggableSerializer());
+		registry.Register(SerializerIds.MemoryPack, new MemoryPackSerializer());
+		registry.Register(SerializerIds.SystemTextJson, new SystemTextJsonSerializer());
 		registry.SetCurrent("MemoryPack");
 		return registry;
 	}
 
-	private static byte[] CreateMemoryPackPayload(IPluggableSerializer serializer, string name, int value)
+	private static byte[] CreateSerializerPayload(ISerializer serializer, string name, int value)
 	{
 		var testMessage = new TestMessage { Name = name, Value = value };
-		var content = serializer.Serialize(testMessage);
+		var content = serializer.SerializeToBytes(testMessage);
 		var payload = new byte[content.Length + 1];
 		payload[0] = SerializerIds.MemoryPack;
 		Buffer.BlockCopy(content, 0, payload, 1, content.Length);
@@ -752,4 +752,3 @@ public sealed class SerializerMigrationServiceShould
 
 	#endregion Fake Implementation
 }
-

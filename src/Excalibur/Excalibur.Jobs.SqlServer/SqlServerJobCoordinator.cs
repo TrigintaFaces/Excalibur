@@ -5,7 +5,7 @@ using System.Text.Json;
 
 using Dapper;
 
-using Excalibur.Jobs.Coordination;
+using Excalibur.Jobs.Abstractions.Coordination;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
@@ -14,10 +14,11 @@ using Microsoft.Extensions.Options;
 namespace Excalibur.Jobs.SqlServer;
 
 /// <summary>
-/// SQL Server-based implementation of <see cref="IJobCoordinator"/> for distributed job coordination.
+/// SQL Server-based implementation of <see cref="IJobLockProvider"/>, <see cref="IJobRegistry"/>,
+/// and <see cref="IJobDistributor"/> for distributed job coordination.
 /// Uses Dapper for all data access operations.
 /// </summary>
-public sealed partial class SqlServerJobCoordinator : IJobCoordinator
+public sealed partial class SqlServerJobCoordinator : IJobLockProvider, IJobRegistry, IJobDistributor
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly SqlServerJobCoordinatorOptions _options;

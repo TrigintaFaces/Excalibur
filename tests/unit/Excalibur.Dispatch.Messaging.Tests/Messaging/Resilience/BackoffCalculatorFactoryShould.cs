@@ -15,10 +15,13 @@ public sealed class BackoffCalculatorFactoryShould
 {
 	private static RetryPolicyOptions CreateDefaultOptions() => new()
 	{
-		BaseDelay = TimeSpan.FromSeconds(1),
-		MaxDelay = TimeSpan.FromMinutes(5),
-		BackoffMultiplier = 2.0,
-		JitterFactor = 0.1,
+		Backoff =
+		{
+			BaseDelay = TimeSpan.FromSeconds(1),
+			MaxDelay = TimeSpan.FromMinutes(5),
+			BackoffMultiplier = 2.0,
+			JitterFactor = 0.1,
+		},
 	};
 
 	[Fact]
@@ -89,7 +92,7 @@ public sealed class BackoffCalculatorFactoryShould
 	public void CreateExponentialWithJitterWhenEnabledInOptions()
 	{
 		var options = CreateDefaultOptions();
-		options.EnableJitter = true;
+		options.Backoff.EnableJitter = true;
 
 		var result = BackoffCalculatorFactory.Create(RetryStrategy.ExponentialBackoff, options);
 

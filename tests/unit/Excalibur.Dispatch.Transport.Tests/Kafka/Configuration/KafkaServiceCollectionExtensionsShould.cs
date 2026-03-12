@@ -69,10 +69,10 @@ public sealed class KafkaServiceCollectionExtensionsShould : UnitTestBase
 		using var provider = services.BuildServiceProvider();
 		var cloudEventOptions = provider.GetRequiredService<IOptions<KafkaCloudEventOptions>>().Value;
 
-		cloudEventOptions.EnableTransactions.ShouldBeTrue();
-		cloudEventOptions.TransactionalId.ShouldBe("dispatch-txn");
-		cloudEventOptions.CompressionType.ShouldBe(KafkaCompressionType.Gzip);
-		cloudEventOptions.AcknowledgmentLevel.ShouldBe(KafkaAckLevel.Leader);
+		cloudEventOptions.Producer.EnableTransactions.ShouldBeTrue();
+		cloudEventOptions.Producer.TransactionalId.ShouldBe("dispatch-txn");
+		cloudEventOptions.Producer.CompressionType.ShouldBe(KafkaCompressionType.Gzip);
+		cloudEventOptions.Producer.AcknowledgmentLevel.ShouldBe(KafkaAckLevel.Leader);
 		cloudEventOptions.ConsumerGroupId.ShouldBe("dispatch-group");
 		cloudEventOptions.OffsetReset.ShouldBe(KafkaOffsetReset.Earliest);
 	}

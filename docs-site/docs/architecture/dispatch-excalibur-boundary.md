@@ -12,7 +12,7 @@ Excalibur is organized into focused package families. Each family has a clear re
 
 | Family | What it solves | Install |
 |--------|----------------|---------|
-| **Excalibur.Dispatch** | Message contracts, handlers, middleware, transports, ASP.NET Core bridge | `dotnet add package Excalibur.Dispatch` + `Excalibur.Dispatch.Abstractions` |
+| **Excalibur.Dispatch** | Message contracts, handlers, middleware, transports, ASP.NET Core bridge | `dotnet add package Excalibur.Dispatch` |
 | **Excalibur.Domain** | Aggregates, entities, value objects, domain patterns | `dotnet add package Excalibur.Domain` |
 | **Excalibur.EventSourcing** | Event stores, snapshots, repositories, persistence | `dotnet add package Excalibur.EventSourcing` + provider package |
 | **Excalibur.Saga** | Sagas, process managers, orchestration | `dotnet add package Excalibur.Saga` + store package |
@@ -30,7 +30,6 @@ Use when you want a MediatR-class dispatcher with minimal dependencies.
 
 ```bash
 dotnet add package Excalibur.Dispatch
-dotnet add package Excalibur.Dispatch.Abstractions
 ```
 
 ```csharp
@@ -122,11 +121,11 @@ Ownership/API changes are required to update governance source and architecture 
 
 ## Adoption Path
 
-1. **Start with `Excalibur.Dispatch`** for MediatR-style usage (`samples/01-getting-started/DispatchMinimal` shows how).
+1. **Start with `Excalibur.Dispatch`** for MediatR-style usage (`samples/01-getting-started/DispatchOnly` shows how).
 2. **Add transports + observability** using `Excalibur.Dispatch.Transport.*` and `Excalibur.Dispatch.Observability`.
 3. **Add `Excalibur.Domain`** when you need aggregates and rich domain modeling.
 4. **Add `Excalibur.EventSourcing`** when you need event stores and persistence.
-5. **Adopt full stack** – `samples/01-getting-started/ExcaliburCqrs` mirrors the Dispatch sample with full CQRS.
+5. **Adopt full stack** – `samples/01-getting-started/EventSourcingIntro` mirrors the Dispatch sample with full CQRS.
 
 Because all packages share the `Excalibur.*` namespace, you never rewrite handlers when adding capabilities.
 

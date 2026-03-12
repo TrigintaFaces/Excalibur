@@ -5,22 +5,10 @@
 namespace Excalibur.Dispatch.Transport.RabbitMQ;
 
 /// <summary>
-/// RabbitMQ-specific CloudEvent configuration options.
+/// Exchange configuration for RabbitMQ CloudEvents.
 /// </summary>
-public sealed class RabbitMqCloudEventOptions
+public sealed class RabbitMqCloudEventExchangeOptions
 {
-	/// <summary>
-	/// Gets the consumer options for message consumption behavior.
-	/// </summary>
-	/// <value>The consumer options.</value>
-	public RabbitMqConsumerOptions Consumer { get; } = new();
-
-	/// <summary>
-	/// Gets the publisher options for message publishing behavior.
-	/// </summary>
-	/// <value>The publisher options.</value>
-	public RabbitMqPublisherOptions Publisher { get; } = new();
-
 	/// <summary>
 	/// Gets or sets the default exchange name for publishing CloudEvents.
 	/// </summary>
@@ -44,23 +32,6 @@ public sealed class RabbitMqCloudEventOptions
 	/// The routing key strategy for CloudEvents.
 	/// </value>
 	public RabbitMqRoutingStrategy RoutingStrategy { get; set; } = RabbitMqRoutingStrategy.EventType;
-
-	/// <summary>
-	/// Gets or sets the default queue name for consuming CloudEvents.
-	/// </summary>
-	/// <value>
-	/// The default queue name for consuming CloudEvents.
-	/// </value>
-	public string? DefaultQueue { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether queues should be durable.
-	/// </summary>
-	/// <remarks> Durable queues survive broker restarts. Recommended for production environments. </remarks>
-	/// <value>
-	/// A value indicating whether queues should be durable.
-	/// </value>
-	public bool DurableQueues { get; set; } = true;
 
 	/// <summary>
 	/// Gets or sets a value indicating whether exchanges should be durable.
@@ -112,7 +83,13 @@ public sealed class RabbitMqCloudEventOptions
 	/// The maximum message size for RabbitMQ CloudEvents.
 	/// </value>
 	public long MaxMessageSizeBytes { get; set; } = 128 * 1024 * 1024; // 128MB
+}
 
+/// <summary>
+/// Dead letter configuration for RabbitMQ CloudEvents.
+/// </summary>
+public sealed class RabbitMqCloudEventDeadLetterOptions
+{
 	/// <summary>
 	/// Gets or sets a value indicating whether to enable dead letter exchange for failed CloudEvents.
 	/// </summary>
@@ -144,6 +121,81 @@ public sealed class RabbitMqCloudEventOptions
 	/// The delay between retry attempts.
 	/// </value>
 	public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(30);
+}
+
+/// <summary>
+/// Connection recovery configuration for RabbitMQ CloudEvents.
+/// </summary>
+public sealed class RabbitMqCloudEventRecoveryOptions
+{
+	/// <summary>
+	/// Gets or sets a value indicating whether to enable automatic recovery from connection failures.
+	/// </summary>
+	/// <value>
+	/// A value indicating whether to enable automatic recovery from connection failures.
+	/// </value>
+	public bool AutomaticRecoveryEnabled { get; set; } = true;
+
+	/// <summary>
+	/// Gets or sets the connection recovery interval.
+	/// </summary>
+	/// <value>
+	/// The connection recovery interval.
+	/// </value>
+	public TimeSpan NetworkRecoveryInterval { get; set; } = TimeSpan.FromSeconds(5);
+}
+
+/// <summary>
+/// RabbitMQ-specific CloudEvent configuration options.
+/// </summary>
+public sealed class RabbitMqCloudEventOptions
+{
+	/// <summary>
+	/// Gets the consumer options for message consumption behavior.
+	/// </summary>
+	/// <value>The consumer options.</value>
+	public RabbitMqConsumerOptions Consumer { get; } = new();
+
+	/// <summary>
+	/// Gets the publisher options for message publishing behavior.
+	/// </summary>
+	/// <value>The publisher options.</value>
+	public RabbitMqPublisherOptions Publisher { get; } = new();
+
+	/// <summary>
+	/// Gets or sets the exchange configuration for CloudEvent publishing.
+	/// </summary>
+	/// <value>The exchange configuration options.</value>
+	public RabbitMqCloudEventExchangeOptions Exchange { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the dead letter configuration for failed CloudEvents.
+	/// </summary>
+	/// <value>The dead letter configuration options.</value>
+	public RabbitMqCloudEventDeadLetterOptions DeadLetter { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the connection recovery configuration.
+	/// </summary>
+	/// <value>The connection recovery configuration options.</value>
+	public RabbitMqCloudEventRecoveryOptions Recovery { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the default queue name for consuming CloudEvents.
+	/// </summary>
+	/// <value>
+	/// The default queue name for consuming CloudEvents.
+	/// </value>
+	public string? DefaultQueue { get; set; }
+
+	/// <summary>
+	/// Gets or sets a value indicating whether queues should be durable.
+	/// </summary>
+	/// <remarks> Durable queues survive broker restarts. Recommended for production environments. </remarks>
+	/// <value>
+	/// A value indicating whether queues should be durable.
+	/// </value>
+	public bool DurableQueues { get; set; } = true;
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to use quorum queues for high availability.
@@ -172,20 +224,4 @@ public sealed class RabbitMqCloudEventOptions
 	/// A value indicating whether to enable consumer acknowledgments.
 	/// </value>
 	public bool EnableConsumerAcks { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable automatic recovery from connection failures.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether to enable automatic recovery from connection failures.
-	/// </value>
-	public bool AutomaticRecoveryEnabled { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the connection recovery interval.
-	/// </summary>
-	/// <value>
-	/// The connection recovery interval.
-	/// </value>
-	public TimeSpan NetworkRecoveryInterval { get; set; } = TimeSpan.FromSeconds(5);
 }

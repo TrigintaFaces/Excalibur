@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Bus;
 /// <summary>
 /// Message bus adapter that can route messages across multiple transport adapters.
 /// </summary>
-public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter
+public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter, IMessageBusAdapterCapabilities, IMessageBusAdapterLifecycle
 {
 	private const string AdapterQualifierDelimiter = "://";
 	private readonly FrozenDictionary<string, IMessageBusAdapter> _adapters;
@@ -49,7 +49,7 @@ public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter
 		{
 			for (var i = 0; i < _adapterArray.Length; i++)
 			{
-				if (_adapterArray[i].SupportsPublishing)
+				if (_adapterArray[i] is IMessageBusAdapterCapabilities capabilities && capabilities.SupportsPublishing)
 				{
 					return true;
 				}
@@ -66,7 +66,7 @@ public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter
 		{
 			for (var i = 0; i < _adapterArray.Length; i++)
 			{
-				if (_adapterArray[i].SupportsSubscription)
+				if (_adapterArray[i] is IMessageBusAdapterCapabilities capabilities && capabilities.SupportsSubscription)
 				{
 					return true;
 				}
@@ -83,7 +83,7 @@ public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter
 		{
 			for (var i = 0; i < _adapterArray.Length; i++)
 			{
-				if (_adapterArray[i].SupportsTransactions)
+				if (_adapterArray[i] is IMessageBusAdapterCapabilities capabilities && capabilities.SupportsTransactions)
 				{
 					return true;
 				}
@@ -217,10 +217,17 @@ public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter
 	/// <inheritdoc />
 	public async Task<HealthCheckResult> CheckHealthAsync(CancellationToken cancellationToken)
 	{
-		var healthChecks = new Task<HealthCheckResult>[_adapterArray.Length];
-		for (var i = 0; i < _adapterArray.Length; i++)
+		var lifecycleAdapters = GetLifecycleAdapters();
+
+		if (lifecycleAdapters.Count == 0)
 		{
-			healthChecks[i] = _adapterArray[i].CheckHealthAsync(cancellationToken);
+			return new HealthCheckResult(true, "No adapters support lifecycle health checking");
+		}
+
+		var healthChecks = new Task<HealthCheckResult>[lifecycleAdapters.Count];
+		for (var i = 0; i < lifecycleAdapters.Count; i++)
+		{
+			healthChecks[i] = lifecycleAdapters[i].Lifecycle.CheckHealthAsync(cancellationToken);
 		}
 
 		var results = await Task.WhenAll(healthChecks).ConfigureAwait(false);
@@ -229,7 +236,7 @@ public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter
 
 		for (var i = 0; i < results.Length; i++)
 		{
-			var adapterName = _adapterArray[i].Name;
+			var adapterName = lifecycleAdapters[i].Name;
 			var result = results[i];
 			if (!result.IsHealthy)
 			{
@@ -252,15 +259,17 @@ public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter
 	/// <inheritdoc />
 	public Task StartAsync(CancellationToken cancellationToken)
 	{
-		if (_adapterArray.Length == 0)
+		var lifecycleAdapters = GetLifecycleAdapters();
+
+		if (lifecycleAdapters.Count == 0)
 		{
 			return Task.CompletedTask;
 		}
 
-		var tasks = new Task[_adapterArray.Length];
-		for (var i = 0; i < _adapterArray.Length; i++)
+		var tasks = new Task[lifecycleAdapters.Count];
+		for (var i = 0; i < lifecycleAdapters.Count; i++)
 		{
-			tasks[i] = _adapterArray[i].StartAsync(cancellationToken);
+			tasks[i] = lifecycleAdapters[i].Lifecycle.StartAsync(cancellationToken);
 		}
 
 		return Task.WhenAll(tasks);
@@ -269,15 +278,17 @@ public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter
 	/// <inheritdoc />
 	public Task StopAsync(CancellationToken cancellationToken)
 	{
-		if (_adapterArray.Length == 0)
+		var lifecycleAdapters = GetLifecycleAdapters();
+
+		if (lifecycleAdapters.Count == 0)
 		{
 			return Task.CompletedTask;
 		}
 
-		var tasks = new Task[_adapterArray.Length];
-		for (var i = 0; i < _adapterArray.Length; i++)
+		var tasks = new Task[lifecycleAdapters.Count];
+		for (var i = 0; i < lifecycleAdapters.Count; i++)
 		{
-			tasks[i] = _adapterArray[i].StopAsync(cancellationToken);
+			tasks[i] = lifecycleAdapters[i].Lifecycle.StopAsync(cancellationToken);
 		}
 
 		return Task.WhenAll(tasks);
@@ -290,6 +301,20 @@ public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter
 		{
 			_adapterArray[i].Dispose();
 		}
+	}
+
+	private List<(string Name, IMessageBusAdapterLifecycle Lifecycle)> GetLifecycleAdapters()
+	{
+		var result = new List<(string Name, IMessageBusAdapterLifecycle Lifecycle)>(_adapterArray.Length);
+		for (var i = 0; i < _adapterArray.Length; i++)
+		{
+			if (_adapterArray[i] is IMessageBusAdapterLifecycle lifecycle)
+			{
+				result.Add((_adapterArray[i].Name, lifecycle));
+			}
+		}
+
+		return result;
 	}
 
 	private static bool TrySplitQualifiedSubscriptionName(

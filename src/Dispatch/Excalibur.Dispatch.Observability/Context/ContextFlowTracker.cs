@@ -10,6 +10,7 @@ using System.Text;
 using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 
 using Excalibur.Dispatch.Observability.Diagnostics;
 
@@ -259,18 +260,18 @@ public sealed partial class ContextFlowTracker : IContextFlowTracker, IDisposabl
 
 		var requiredFields = _options.Fields.RequiredContextFields ??
 		[
-			nameof(context.MessageId),
-			nameof(context.CorrelationId),
-			nameof(context.MessageType),
+			"MessageId",
+			"CorrelationId",
+			"MessageType",
 		];
 
 		foreach (var field in requiredFields)
 		{
 			var value = field switch
 			{
-				nameof(context.MessageId) => context.MessageId,
-				nameof(context.CorrelationId) => context.CorrelationId,
-				nameof(context.MessageType) => context.MessageType,
+				"MessageId" => context.MessageId,
+				"CorrelationId" => context.CorrelationId,
+				"MessageType" => context.GetMessageType(),
 				_ => context.Items.TryGetValue(field, out var v) ? v : null,
 			};
 
@@ -452,24 +453,24 @@ public sealed partial class ContextFlowTracker : IContextFlowTracker, IDisposabl
 		{
 			// Capture all context properties
 			["MessageId"] = context.MessageId,
-			["ExternalId"] = context.ExternalId,
-			["UserId"] = context.UserId,
+			["ExternalId"] = context.GetExternalId(),
+			["UserId"] = context.GetUserId(),
 			["CorrelationId"] = context.CorrelationId,
 			["CausationId"] = context.CausationId,
-			["TraceParent"] = context.TraceParent,
+			["TraceParent"] = context.GetTraceParent(),
 			["SerializerVersion"] = context.SerializerVersion(),
 			["MessageVersion"] = context.MessageVersion(),
 			["ContractVersion"] = context.ContractVersion(),
 			["DesiredVersion"] = context.DesiredVersion(),
-			["TenantId"] = context.TenantId,
-			["Source"] = context.Source,
-			["MessageType"] = context.MessageType,
-			["ContentType"] = context.ContentType,
-			["DeliveryCount"] = context.DeliveryCount,
+			["TenantId"] = context.GetTenantId(),
+			["Source"] = context.GetSource(),
+			["MessageType"] = context.GetMessageType(),
+			["ContentType"] = context.GetContentType(),
+			["DeliveryCount"] = context.GetDeliveryCount(),
 			["PartitionKey"] = context.PartitionKey(),
 			["ReplyTo"] = context.ReplyTo(),
-			["ReceivedTimestampUtc"] = context.ReceivedTimestampUtc,
-			["SentTimestampUtc"] = context.SentTimestampUtc,
+			["ReceivedTimestampUtc"] = context.GetReceivedTimestampUtc(),
+			["SentTimestampUtc"] = context.GetSentTimestampUtc(),
 		};
 
 		// Capture custom items (with size limit)

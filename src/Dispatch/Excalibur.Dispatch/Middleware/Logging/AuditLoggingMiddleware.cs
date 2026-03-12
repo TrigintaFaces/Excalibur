@@ -167,14 +167,14 @@ public sealed partial class AuditLoggingMiddleware(IOptions<AuditLoggingOptions>
 			return _options.UserIdExtractor(context);
 		}
 
-		// Try to get from context properties
-		if (context.Properties.TryGetValue("UserId", out var userIdObj) && userIdObj is string userId)
+		// Try to get from context items
+		if (context.Items.TryGetValue("UserId", out var userIdObj) && userIdObj is string userId)
 		{
 			return userId;
 		}
 
 		// Try to get from headers
-		if (context.Properties.TryGetValue("Headers", out var headersObj) &&
+		if (context.Items.TryGetValue("Headers", out var headersObj) &&
 			headersObj is Dictionary<string, object> headers && headers.TryGetValue("UserId", out var headerUserId) &&
 			headerUserId is string headerUserIdStr)
 		{
@@ -191,14 +191,14 @@ public sealed partial class AuditLoggingMiddleware(IOptions<AuditLoggingOptions>
 			return _options.CorrelationIdExtractor(context);
 		}
 
-		// Try to get from context properties
-		if (context.Properties.TryGetValue("CorrelationId", out var correlationIdObj) && correlationIdObj is string correlationId)
+		// Try to get from context items
+		if (context.Items.TryGetValue("CorrelationId", out var correlationIdObj) && correlationIdObj is string correlationId)
 		{
 			return correlationId;
 		}
 
 		// Try to get from headers
-		if (context.Properties.TryGetValue("Headers", out var headersObj) &&
+		if (context.Items.TryGetValue("Headers", out var headersObj) &&
 			headersObj is Dictionary<string, object> headers && headers.TryGetValue("CorrelationId", out var headerCorrelationId) &&
 			headerCorrelationId is string headerCorrelationIdStr)
 		{

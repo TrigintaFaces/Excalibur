@@ -1,8 +1,8 @@
-﻿using Company.DispatchApi.Actions;
+using Company.DispatchApi.Actions;
 using Company.DispatchApi.Handlers;
-using Excalibur.Dispatch.Abstractions;
-using FakeItEasy;
+using Company.DispatchApi.Infrastructure;
 using Microsoft.Extensions.Logging;
+using FakeItEasy;
 using Shouldly;
 using Xunit;
 
@@ -11,19 +11,18 @@ namespace Company.DispatchApi.Tests.Handlers;
 public class CreateOrderHandlerShould
 {
     [Fact]
-    public async Task SetResultWithNewOrderId()
+    public async Task ReturnNewOrderId()
     {
         // Arrange
+        var orderStore = new InMemoryOrderStore();
         var logger = A.Fake<ILogger<CreateOrderHandler>>();
-        var context = A.Fake<IMessageContext>();
-        var handler = new CreateOrderHandler(logger);
+        var handler = new CreateOrderHandler(orderStore, logger);
         var action = new CreateOrderAction("PROD-001", 5);
 
         // Act
-        await handler.HandleAsync(action, context, CancellationToken.None);
+        var orderId = await handler.HandleAsync(action, CancellationToken.None);
 
         // Assert
-        A.CallTo(() => context.SetResult(A<Guid>.That.Not.IsEqualTo(Guid.Empty)))
-            .MustHaveHappenedOnceExactly();
+        orderId.ShouldNotBe(Guid.Empty);
     }
 }

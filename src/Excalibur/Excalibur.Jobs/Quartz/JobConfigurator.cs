@@ -87,36 +87,6 @@ public sealed class JobConfigurator(IServiceCollection services) : IJobConfigura
 	}
 
 	/// <inheritdoc />
-	public IJobConfigurator AddRecurringJob<TJob>(TimeSpan interval, string? jobKey = null)
-		where TJob : class, IBackgroundJob
-	{
-		var key = jobKey ?? typeof(TJob).Name;
-
-		// Register the job type
-		_ = _services.AddTransient<TJob>();
-
-		// Configure the job in Quartz
-		_ = _services.AddQuartz(q =>
-		{
-			var quartzJobKey = new JobKey(key);
-
-			_ = q.AddJob<QuartzJobAdapter>(opts =>
-			{
-				_ = opts.WithIdentity(quartzJobKey);
-				_ = opts.UsingJobData("JobType", typeof(TJob).AssemblyQualifiedName ?? typeof(TJob).FullName ?? typeof(TJob).Name);
-			});
-
-			_ = q.AddTrigger(opts => _ = opts.ForJob(quartzJobKey)
-				.WithIdentity($"{key}-trigger")
-				.WithSimpleSchedule(x => x
-					.WithInterval(interval)
-					.RepeatForever()));
-		});
-
-		return this;
-	}
-
-	/// <inheritdoc />
 	public IJobConfigurator AddOneTimeJob<TJob>(string? jobKey = null)
 		where TJob : class, IBackgroundJob
 	{
@@ -172,30 +142,4 @@ public sealed class JobConfigurator(IServiceCollection services) : IJobConfigura
 		return this;
 	}
 
-	/// <inheritdoc />
-	public IJobConfigurator AddJobIf(bool condition, Action<IJobConfigurator> configureJob)
-	{
-		ArgumentNullException.ThrowIfNull(configureJob);
-
-		if (condition)
-		{
-			configureJob(this);
-		}
-
-		return this;
-	}
-
-	/// <inheritdoc />
-	public IJobConfigurator AddJobInstances<TJob>(params JobConfiguration[] configurations)
-		where TJob : class, IBackgroundJob
-	{
-		ArgumentNullException.ThrowIfNull(configurations);
-
-		foreach (var config in configurations.Where(static c => c.Enabled))
-		{
-			_ = AddJob<TJob>(config.CronExpression, config.JobKey);
-		}
-
-		return this;
-	}
 }

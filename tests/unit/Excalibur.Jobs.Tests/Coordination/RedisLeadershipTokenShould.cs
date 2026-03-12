@@ -25,8 +25,8 @@ public sealed class RedisLeadershipTokenShould
 		DateTimeOffset? expiresAt = null)
 	{
 		var now = DateTimeOffset.UtcNow;
-		var type = typeof(Excalibur.Jobs.Core.JobConfigHostedWatcherServiceFactory).Assembly
-			.GetType("Excalibur.Jobs.Coordination.RedisLeadershipToken")!;
+		var type = typeof(Excalibur.Jobs.Redis.Coordination.RedisJobCoordinator).Assembly
+			.GetType("Excalibur.Jobs.Redis.Coordination.RedisLeadershipToken")!;
 
 		return (IAsyncDisposable)Activator.CreateInstance(
 			type,

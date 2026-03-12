@@ -63,17 +63,35 @@ public enum CloudBatchOperationType
 }
 
 /// <summary>
-/// Defines persistence operations specific to cloud-native document databases.
+/// Provides cloud provider identity metadata for cloud-native persistence providers and event stores.
+/// Obtain via <see cref="IDocumentPersistenceProvider.GetService"/> on an
+/// <see cref="ICloudNativePersistenceProvider"/> instance, or via
+/// <see cref="ICloudNativeEventStore.GetService"/> on an event store instance.
+/// </summary>
+public interface ICloudNativeProviderInfo
+{
+	/// <summary>
+	/// Gets the cloud provider type.
+	/// </summary>
+	CloudProviderType CloudProvider { get; }
+}
+
+/// <summary>
+/// Defines core persistence operations for cloud-native document databases.
 /// </summary>
 /// <remarks>
 /// <para>
 /// This interface extends <see cref="IDocumentPersistenceProvider"/> with cloud-native
-/// specific capabilities including:
+/// specific capabilities including partition key management and configurable consistency levels.
+/// </para>
+/// <para>
+/// Advanced features are available as ISP sub-interfaces via
+/// <see cref="IDocumentPersistenceProvider.GetService"/>:
 /// <list type="bullet">
-/// <item>Partition key management for data distribution</item>
-/// <item>Configurable consistency levels per operation</item>
-/// <item>Change feed subscriptions for real-time updates</item>
-/// <item>Cost-aware operations (RU tracking, capacity hints)</item>
+/// <item><see cref="ICloudNativeProviderInfo"/> -- cloud provider type metadata</item>
+/// <item><see cref="ICloudNativePersistenceQueryOperations"/> -- partition-scoped queries</item>
+/// <item><see cref="ICloudNativePersistenceBatchOperations"/> -- transactional batch execution</item>
+/// <item><see cref="ICloudNativePersistenceChangeFeed"/> -- change feed subscriptions and capability flags</item>
 /// </list>
 /// </para>
 /// <para>
@@ -87,21 +105,6 @@ public enum CloudBatchOperationType
 /// </remarks>
 public interface ICloudNativePersistenceProvider : IDocumentPersistenceProvider
 {
-	/// <summary>
-	/// Gets the cloud provider type.
-	/// </summary>
-	CloudProviderType CloudProvider { get; }
-
-	/// <summary>
-	/// Gets a value indicating whether the provider supports multi-region writes.
-	/// </summary>
-	bool SupportsMultiRegionWrites { get; }
-
-	/// <summary>
-	/// Gets a value indicating whether the provider supports change feed.
-	/// </summary>
-	bool SupportsChangeFeed { get; }
-
 	/// <summary>
 	/// Gets a document by ID with partition key and consistency options.
 	/// </summary>
@@ -161,7 +164,15 @@ public interface ICloudNativePersistenceProvider : IDocumentPersistenceProvider
 		IPartitionKey partitionKey,
 		string? etag,
 		CancellationToken cancellationToken);
+}
 
+/// <summary>
+/// Provides partition-scoped query capabilities for cloud-native document databases.
+/// Obtain via <see cref="IDocumentPersistenceProvider.GetService"/> on an
+/// <see cref="ICloudNativePersistenceProvider"/> instance.
+/// </summary>
+public interface ICloudNativePersistenceQueryOperations
+{
 	/// <summary>
 	/// Queries documents within a partition.
 	/// </summary>
@@ -179,7 +190,15 @@ public interface ICloudNativePersistenceProvider : IDocumentPersistenceProvider
 		IConsistencyOptions? consistencyOptions,
 		CancellationToken cancellationToken)
 		where TDocument : class;
+}
 
+/// <summary>
+/// Provides transactional batch operation capabilities for cloud-native document databases.
+/// Obtain via <see cref="IDocumentPersistenceProvider.GetService"/> on an
+/// <see cref="ICloudNativePersistenceProvider"/> instance.
+/// </summary>
+public interface ICloudNativePersistenceBatchOperations
+{
 	/// <summary>
 	/// Executes a transactional batch of operations within a partition.
 	/// </summary>
@@ -191,6 +210,25 @@ public interface ICloudNativePersistenceProvider : IDocumentPersistenceProvider
 		IPartitionKey partitionKey,
 		IEnumerable<ICloudBatchOperation> operations,
 		CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Provides change feed subscription capabilities and advanced capability flags
+/// for cloud-native document databases. Obtain via
+/// <see cref="IDocumentPersistenceProvider.GetService"/> on an
+/// <see cref="ICloudNativePersistenceProvider"/> instance.
+/// </summary>
+public interface ICloudNativePersistenceChangeFeed
+{
+	/// <summary>
+	/// Gets a value indicating whether the provider supports change feed.
+	/// </summary>
+	bool SupportsChangeFeed { get; }
+
+	/// <summary>
+	/// Gets a value indicating whether the provider supports multi-region writes.
+	/// </summary>
+	bool SupportsMultiRegionWrites { get; }
 
 	/// <summary>
 	/// Creates a change feed subscription for real-time updates.

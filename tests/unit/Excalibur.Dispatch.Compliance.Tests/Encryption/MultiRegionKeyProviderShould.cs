@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Compliance.Tests.Encryption;
 [Trait("Component", "Compliance")]
 public sealed class MultiRegionKeyProviderShould : IDisposable
 {
-	private readonly IKeyManagementProvider _primary = A.Fake<IKeyManagementProvider>();
-	private readonly IKeyManagementProvider _secondary = A.Fake<IKeyManagementProvider>();
+	private readonly IKeyManagementProvider _primary = A.Fake<IKeyManagementProvider>(o => o.Implements<IKeyManagementAdmin>());
+	private readonly IKeyManagementProvider _secondary = A.Fake<IKeyManagementProvider>(o => o.Implements<IKeyManagementAdmin>());
 	private readonly MultiRegionOptions _options;
 	private readonly MultiRegionKeyProvider _sut;
 
@@ -28,14 +28,17 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 				RegionId = "us-west-2",
 				Endpoint = new Uri("https://secondary.example.com"),
 			},
-			HealthCheckInterval = TimeSpan.FromHours(1), // Very long to avoid background noise in tests
-			EnableAutomaticFailover = false,
+			Failover =
+			{
+				HealthCheckInterval = TimeSpan.FromHours(1), // Very long to avoid background noise in tests
+				EnableAutomaticFailover = false,
+			},
 		};
 
 		// Allow health check to succeed for both
-		A.CallTo(() => _primary.ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
+		A.CallTo(() => ((IKeyManagementAdmin)_primary).ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<KeyMetadata>>([]));
-		A.CallTo(() => _secondary.ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
+		A.CallTo(() => ((IKeyManagementAdmin)_secondary).ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<KeyMetadata>>([]));
 
 		_sut = new MultiRegionKeyProvider(
@@ -118,11 +121,11 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 	{
 		// Arrange
 		IReadOnlyList<KeyMetadata> expected = [];
-		A.CallTo(() => _primary.ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
+		A.CallTo(() => ((IKeyManagementAdmin)_primary).ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(expected));
 
 		// Act
-		var result = await _sut.ListKeysAsync(null, null, CancellationToken.None)
+		var result = await ((IKeyManagementAdmin)_sut).ListKeysAsync(null, null, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert
@@ -133,11 +136,11 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 	public async Task Delegate_delete_key_to_active_provider()
 	{
 		// Arrange
-		A.CallTo(() => _primary.DeleteKeyAsync("k1", 90, A<CancellationToken>._))
+		A.CallTo(() => ((IKeyManagementAdmin)_primary).DeleteKeyAsync("k1", 90, A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
 
 		// Act
-		var result = await _sut.DeleteKeyAsync("k1", 90, CancellationToken.None)
+		var result = await ((IKeyManagementAdmin)_sut).DeleteKeyAsync("k1", 90, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert
@@ -148,11 +151,11 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 	public async Task Delegate_suspend_key_to_active_provider()
 	{
 		// Arrange
-		A.CallTo(() => _primary.SuspendKeyAsync("k1", "test", A<CancellationToken>._))
+		A.CallTo(() => ((IKeyManagementAdmin)_primary).SuspendKeyAsync("k1", "test", A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
 
 		// Act
-		var result = await _sut.SuspendKeyAsync("k1", "test", CancellationToken.None)
+		var result = await ((IKeyManagementAdmin)_sut).SuspendKeyAsync("k1", "test", CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert
@@ -163,7 +166,7 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 	public async Task Return_replication_status()
 	{
 		// Act
-		var status = await _sut.GetReplicationStatusAsync(CancellationToken.None)
+		var status = await ((IMultiRegionHealthMonitor)_sut).GetReplicationStatusAsync(CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert
@@ -263,8 +266,8 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 	public void Dispose_waits_for_health_check_task_with_bounded_spin_wait()
 	{
 		// Arrange
-		var primary = A.Fake<IKeyManagementProvider>();
-		var secondary = A.Fake<IKeyManagementProvider>();
+		var primary = A.Fake<IKeyManagementProvider>(o => o.Implements<IKeyManagementAdmin>());
+		var secondary = A.Fake<IKeyManagementProvider>(o => o.Implements<IKeyManagementAdmin>());
 		var options = new MultiRegionOptions
 		{
 			Primary = new RegionConfiguration
@@ -277,18 +280,21 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 				RegionId = "us-west-2",
 				Endpoint = new Uri("https://secondary.example.com"),
 			},
-			HealthCheckInterval = TimeSpan.FromMilliseconds(1),
+			Failover =
+			{
+				HealthCheckInterval = TimeSpan.FromMilliseconds(1),
+				EnableAutomaticFailover = false,
+			},
 			OperationTimeout = TimeSpan.FromSeconds(2),
-			EnableAutomaticFailover = false,
 		};
 
-		_ = A.CallTo(() => primary.ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
+		_ = A.CallTo(() => ((IKeyManagementAdmin)primary).ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
 			.ReturnsLazily(async call =>
 			{
 				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(250, call.GetArgument<CancellationToken>(2));
 				return (IReadOnlyList<KeyMetadata>)[];
 			});
-		_ = A.CallTo(() => secondary.ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
+		_ = A.CallTo(() => ((IKeyManagementAdmin)secondary).ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
 			.ReturnsLazily(async call =>
 			{
 				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(250, call.GetArgument<CancellationToken>(2));
@@ -358,9 +364,9 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 		options.OperationTimeout.ShouldBe(TimeSpan.FromSeconds(10));
 		options.EnableMetrics.ShouldBeTrue();
 		options.EnableAuditEvents.ShouldBeTrue();
-		options.HealthCheckInterval.ShouldBe(TimeSpan.FromSeconds(30));
-		options.FailoverThreshold.ShouldBe(3);
-		options.EnableAutomaticFailover.ShouldBeTrue();
+		options.Failover.HealthCheckInterval.ShouldBe(TimeSpan.FromSeconds(30));
+		options.Failover.FailoverThreshold.ShouldBe(3);
+		options.Failover.EnableAutomaticFailover.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -405,4 +411,3 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 		return (Task)(value ?? throw new InvalidOperationException("Health check task field should not be null."));
 	}
 }
-

@@ -23,13 +23,28 @@ public sealed class MetricsMiddlewareDepthCoverageShould
 		_sut = new MetricsMiddleware(_metrics);
 	}
 
+	/// <summary>
+	/// Creates a fake <see cref="IMessageContext"/> backed by a real Items dictionary.
+	/// </summary>
+	private static IMessageContext CreateFakeContext(Dictionary<string, object>? items = null)
+	{
+		var context = A.Fake<IMessageContext>();
+		var itemsDict = items ?? new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Items).Returns(itemsDict);
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
+		return context;
+	}
+
 	[Fact]
 	public async Task ExtractHandlerType_WhenAvailableInContext()
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.GetItem<Type>("HandlerType")).Returns(typeof(string));
+		var items = new Dictionary<string, object>(StringComparer.Ordinal)
+		{
+			["HandlerType"] = typeof(string),
+		};
+		var context = CreateFakeContext(items);
 
 		var result = A.Fake<IMessageResult>();
 		A.CallTo(() => result.IsSuccess).Returns(true);
@@ -50,8 +65,8 @@ public sealed class MetricsMiddlewareDepthCoverageShould
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.GetItem<Type>("HandlerType")).Returns(null);
+		var context = CreateFakeContext();
+		// No HandlerType in Items
 
 		var result = A.Fake<IMessageResult>();
 		A.CallTo(() => result.IsSuccess).Returns(true);
@@ -72,7 +87,7 @@ public sealed class MetricsMiddlewareDepthCoverageShould
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
+		var context = CreateFakeContext();
 		var failedResult = A.Fake<IMessageResult>();
 		A.CallTo(() => failedResult.IsSuccess).Returns(false);
 		var pd = A.Fake<IMessageProblemDetails>();
@@ -93,7 +108,7 @@ public sealed class MetricsMiddlewareDepthCoverageShould
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
+		var context = CreateFakeContext();
 		var failedResult = A.Fake<IMessageResult>();
 		A.CallTo(() => failedResult.IsSuccess).Returns(false);
 		var pd = A.Fake<IMessageProblemDetails>();
@@ -114,7 +129,7 @@ public sealed class MetricsMiddlewareDepthCoverageShould
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
+		var context = CreateFakeContext();
 		var failedResult = A.Fake<IMessageResult>();
 		A.CallTo(() => failedResult.IsSuccess).Returns(false);
 		A.CallTo(() => failedResult.ProblemDetails).Returns(null);
@@ -133,7 +148,7 @@ public sealed class MetricsMiddlewareDepthCoverageShould
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
+		var context = CreateFakeContext();
 		DispatchRequestDelegate next = (_, _, _) => throw new TimeoutException("timed out");
 
 		// Act & Assert
@@ -152,7 +167,7 @@ public sealed class MetricsMiddlewareDepthCoverageShould
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
+		var context = CreateFakeContext();
 		var result = A.Fake<IMessageResult>();
 		A.CallTo(() => result.IsSuccess).Returns(true);
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(result);

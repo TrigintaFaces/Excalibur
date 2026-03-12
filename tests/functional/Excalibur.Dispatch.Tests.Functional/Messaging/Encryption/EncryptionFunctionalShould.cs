@@ -1,14 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Buffers;
 using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions.Encryption;
+using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Messaging.Encryption;
 
 using Tests.Shared.TestTypes.Infrastructure;
-
-using IMessageSerializer = Excalibur.Dispatch.Abstractions.Serialization.IMessageSerializer;
 
 namespace Excalibur.Dispatch.Tests.Functional.Messaging.Encryption;
 
@@ -25,7 +25,7 @@ public sealed class EncryptionFunctionalShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		_ = services.AddSingleton<IMessageSerializer, TestSerializer>();
+		_ = services.AddSingleton<ISerializer, TestSerializer>();
 		_ = services.AddEncryptionProvider(new RecordingEncryptionProvider(0x5a));
 		_ = services.AddSingleton(new RabbitMqOptions
 		{
@@ -41,7 +41,7 @@ public sealed class EncryptionFunctionalShould
 				"test",
 				isRemote: false,
 				static sp => new RecordingBus(
-						sp.GetRequiredService<IMessageSerializer>(),
+						sp.GetRequiredService<ISerializer>(),
 						sp.GetRequiredService<RabbitMqOptions>(),
 						sp.GetRequiredService<IEncryptionProvider>()));
 
@@ -49,7 +49,7 @@ public sealed class EncryptionFunctionalShould
 		await using var disposable = provider.ConfigureAwait(true);
 		var bus = (RecordingBus)provider.GetRequiredKeyedService<IMessageBus>("test");
 		var encryption = (RecordingEncryptionProvider)provider.GetRequiredService<IEncryptionProvider>();
-		var serializer = provider.GetRequiredService<IMessageSerializer>();
+		var serializer = provider.GetRequiredService<ISerializer>();
 		var message = new TestEvent { MessageId = Guid.NewGuid().ToString(), Text = "hello" };
 		var context = new MessageContext(message, provider);
 
@@ -58,7 +58,7 @@ public sealed class EncryptionFunctionalShould
 
 		// Assert
 		encryption.EncryptCalls.ShouldBe(1);
-		var serialized = serializer.Serialize(message);
+		var serialized = serializer.SerializeToBytes(message);
 		var base64 = Convert.ToBase64String(serialized);
 		bus.CapturedPayload.ShouldNotBe(base64);
 		var decryptedBase64 = encryption.Decrypt(bus.CapturedPayload);
@@ -92,7 +92,7 @@ public sealed class EncryptionFunctionalShould
 	}
 
 	private sealed class RecordingBus(
-		IMessageSerializer serializer,
+		ISerializer serializer,
 		RabbitMqOptions options,
 		IEncryptionProvider provider) : IMessageBus
 	{
@@ -102,19 +102,19 @@ public sealed class EncryptionFunctionalShould
 
 		public Task PublishAsync(IDispatchAction action, IMessageContext context, CancellationToken cancellationToken)
 		{
-			Capture(serializer.Serialize(action));
+			Capture(serializer.SerializeObject(action, action.GetType()));
 			return Task.CompletedTask;
 		}
 
 		public Task PublishAsync(IDispatchEvent evt, IMessageContext context, CancellationToken cancellationToken)
 		{
-			Capture(serializer.Serialize(evt));
+			Capture(serializer.SerializeObject(evt, evt.GetType()));
 			return Task.CompletedTask;
 		}
 
 		public Task PublishAsync(IDispatchDocument doc, IMessageContext context, CancellationToken cancellationToken)
 		{
-			Capture(serializer.Serialize(doc));
+			Capture(serializer.SerializeObject(doc, doc.GetType()));
 			return Task.CompletedTask;
 		}
 
@@ -130,16 +130,27 @@ public sealed class EncryptionFunctionalShould
 		}
 	}
 
-	private sealed class TestSerializer : IMessageSerializer
+	private sealed class TestSerializer : ISerializer
 	{
-		public string SerializerName => "test";
+		public string Name => "test";
 
-		public string SerializerVersion => "1.0";
+		public string Version => "1.0";
 
-		public byte[] Serialize<T>(T message)
-			=> JsonSerializer.SerializeToUtf8Bytes(message, message.GetType());
+		public string ContentType => "application/json";
 
-		public T Deserialize<T>(byte[] data)
+		public void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
+		{
+			var bytes = JsonSerializer.SerializeToUtf8Bytes(value, typeof(T));
+			bufferWriter.Write(bytes);
+		}
+
+		public T Deserialize<T>(ReadOnlySpan<byte> data)
 			=> JsonSerializer.Deserialize<T>(data)!;
+
+		public byte[] SerializeObject(object value, Type type)
+			=> JsonSerializer.SerializeToUtf8Bytes(value, type);
+
+		public object DeserializeObject(ReadOnlySpan<byte> data, Type type)
+			=> JsonSerializer.Deserialize(data, type)!;
 	}
 }

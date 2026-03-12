@@ -72,12 +72,11 @@ Domain building blocks are in namespace `Excalibur.Domain.Model`.
 | `EntityBase<TKey>` | Entity base | Abstract `Key` property, equality by type + key |
 | `EntityBase` | String-key shorthand | Extends `EntityBase<string>` |
 | `ValueObjectBase` | Value object base | Abstract `GetEqualityComponents()`, component-based equality, `==`/`!=` operators |
-| `DomainEventBase` | Domain event base | Abstract record. Auto-generates `EventId` (GUID), `OccurredAt` (UTC), `EventType` (class name). Override `AggregateId`. Namespace: `Excalibur.Domain.Model`. |
+| `DomainEvent` | Domain event base | Abstract record. Auto-generates `EventId` (UUID v7), `OccurredAt` (UTC via `TimeProvider`), `EventType` (class name). Override `AggregateId`. Fluent API: `WithMetadata()`, `WithCorrelationId()`, `WithCausationId()`. Namespace: `Excalibur.Dispatch.Abstractions`. |
 | `ISnapshot` | Snapshot interface | `SnapshotId`, `AggregateId`, `AggregateType`, `Version`, `CreatedAt`, `Data` |
 
 :::note Two DomainEvent base types
-- `DomainEvent` in `Excalibur.Dispatch.Abstractions` — constructor takes `(aggregateId, version)`, uses UUID v7 EventId
-- `DomainEventBase` in `Excalibur.Domain.Model` — parameterless, override `AggregateId` property, uses standard GUID EventId
+- `DomainEvent` in `Excalibur.Dispatch.Abstractions` — parameterless construction, override `AggregateId` property, uses UUID v7 EventId, fluent metadata API
 
 Both implement `IDomainEvent`. Use whichever fits your project.
 :::
@@ -105,7 +104,7 @@ Event sourcing types are in `Excalibur.EventSourcing.Abstractions`.
 | Type | Kind | Key Members |
 |---|---|---|
 | `IEventStore` | Event persistence | 5 methods: `LoadAsync` (2 overloads), `AppendAsync` (optimistic concurrency via `expectedVersion`), `GetUndispatchedEventsAsync`, `MarkEventAsDispatchedAsync` |
-| `IEventSourcedRepository<TAggregate, TKey>` | Repository | 7 methods: `GetByIdAsync`, `SaveAsync` (2 overloads: with/without ETag), `ExistsAsync`, `DeleteAsync`, `QueryAsync<TQuery>`, `FindAsync<TQuery>` |
+| `IEventSourcedRepository<TAggregate, TKey>` | Repository | 5 methods: `GetByIdAsync`, `SaveAsync` (2 overloads: with/without ETag), `ExistsAsync`, `DeleteAsync` |
 | `IEventSourcedRepository<TAggregate>` | String-key shorthand | Extends `IEventSourcedRepository<TAggregate, string>` |
 | `ISnapshotStore` | Snapshot persistence | `GetLatestAsync`, `SaveAsync` |
 | `ISnapshotStrategy` | When to snapshot | `ShouldCreateSnapshot(aggregate)` |
@@ -286,12 +285,12 @@ using Excalibur.Domain.Model;
 using Excalibur.Dispatch.Abstractions;
 
 // 1. Define domain events
-public record OrderCreated(string OrderId, string CustomerId) : DomainEventBase
+public record OrderCreated(string OrderId, string CustomerId) : DomainEvent
 {
     public override string AggregateId => OrderId;
 }
 
-public record ItemAdded(string OrderId, string ItemId) : DomainEventBase
+public record ItemAdded(string OrderId, string ItemId) : DomainEvent
 {
     public override string AggregateId => OrderId;
 }
@@ -362,8 +361,8 @@ Key points:
 3. **Missing ConfigureAwait**: Library code must use `await task.ConfigureAwait(false)`.
 4. **Confusing Action vs Event**: `IDispatchAction` routes to exactly 1 handler. `IDispatchEvent` supports multiple handlers (pub/sub).
 5. **Explicit context creation**: Most code should use the 2-parameter `DispatchAsync(message, ct)` extensions. Only create `IMessageContext` explicitly when you need to set correlation IDs or tenant context.
-6. **Wrong DomainEvent constructor**: `DomainEvent(aggregateId, version)` takes the aggregate ID and version, not event-specific data. Put event data in your record's own properties.
-7. **Confusing the two DomainEvent bases**: `DomainEvent` (Dispatch.Abstractions, constructor args) vs `DomainEventBase` (Domain.Model, property overrides). Both implement `IDomainEvent`.
+6. **DomainEvent is parameterless**: `DomainEvent` uses `virtual init` properties with sensible defaults. Override `AggregateId` in derived records. Put event data in your record's own properties.
+7. **Only ONE DomainEvent base**: `DomainEvent` in `Excalibur.Dispatch.Abstractions`. The old `DomainEventBase` from `Excalibur.Domain.Model` was removed (ADR-201).
 8. **No EntityFramework**: This framework uses **Dapper** for SQL, not EF Core. Never suggest EF migrations or DbContext.
 9. **Blocking async in Dispose**: Use `IAsyncDisposable` with `DisposeAsync()`, never `task.GetAwaiter().GetResult()`.
 10. **Missing aggregate factory**: `AddRepository` requires a factory function: `es.AddRepository<MyAggregate>(key => new MyAggregate(key))`.

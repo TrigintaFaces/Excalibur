@@ -6,17 +6,18 @@ Foundational samples for learning Dispatch and Excalibur basics.
 
 | Sample | Description | Difficulty |
 |--------|-------------|------------|
-| [GettingStarted](GettingStarted/) | ASP.NET Core API with commands, queries, events, and `[AutoRegister]` | Beginner |
-| [DispatchMinimal](DispatchMinimal/) | Lightweight Dispatch-only console app with custom middleware | Beginner |
-| [MinimalSample](MinimalSample/) | Simplest possible Dispatch setup | Beginner |
-| [QuickDemo](QuickDemo/) | Rapid demonstration of core concepts | Beginner |
-| [ExcaliburCqrs](ExcaliburCqrs/) | CQRS pattern with Excalibur domain modeling | Intermediate |
+| [WebApiQuickStart](WebApiQuickStart/) | ASP.NET Core API with commands, queries, events, and `[AutoRegister]` | Beginner |
+| [DispatchOnly](DispatchOnly/) | Lightweight Dispatch-only console app with custom middleware | Beginner |
+| [HelloDispatch](HelloDispatch/) | Simplest possible Dispatch setup | Beginner |
+| [InteractiveDemo](InteractiveDemo/) | Interactive walkthrough of core concepts | Beginner |
+| [EventSourcingIntro](EventSourcingIntro/) | CQRS pattern with Excalibur domain modeling | Intermediate |
 
 ## Recommended Learning Path
 
-1. **[GettingStarted](GettingStarted/)** - Start here to understand the full messaging pattern
-2. **[DispatchMinimal](DispatchMinimal/)** - See Dispatch without Excalibur dependencies
-3. **[ExcaliburCqrs](ExcaliburCqrs/)** - Learn CQRS with aggregate roots
+1. **[HelloDispatch](HelloDispatch/)** - Simplest possible Dispatch setup
+2. **[WebApiQuickStart](WebApiQuickStart/)** - ASP.NET Core API with full messaging pattern
+3. **[DispatchOnly](DispatchOnly/)** - See Dispatch without Excalibur dependencies
+4. **[EventSourcingIntro](EventSourcingIntro/)** - Learn CQRS with aggregate roots
 
 ## Key Concepts Covered
 
@@ -46,15 +47,15 @@ public class OrderStore : IOrderStore { }
 ## Running the Samples
 
 ```bash
-# GettingStarted (ASP.NET Core API)
-dotnet run --project samples/01-getting-started/GettingStarted
+# WebApiQuickStart (ASP.NET Core API)
+dotnet run --project samples/01-getting-started/WebApiQuickStart
 # Test with: curl http://localhost:5000/
 
-# DispatchMinimal (Console)
-dotnet run --project samples/01-getting-started/DispatchMinimal
+# DispatchOnly (Console)
+dotnet run --project samples/01-getting-started/DispatchOnly
 
-# ExcaliburCqrs (Console)
-dotnet run --project samples/01-getting-started/ExcaliburCqrs
+# EventSourcingIntro (Console)
+dotnet run --project samples/01-getting-started/EventSourcingIntro
 ```
 
 ## What's Next?
@@ -67,4 +68,4 @@ After completing these samples, explore:
 
 ---
 
-*Category: Getting Started | Sprint 428*
+*Category: Getting Started | Sprint 607*

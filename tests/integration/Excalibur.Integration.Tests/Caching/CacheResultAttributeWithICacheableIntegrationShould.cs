@@ -62,7 +62,7 @@ public sealed class CacheResultAttributeWithICacheableIntegrationShould
 		_ = services.AddMetrics();
 		_ = services.AddMemoryCache();
 		_ = services.AddDistributedMemoryCache();
-		_ = services.AddSingleton<IJsonSerializer, JsonMessageSerializer>();
+		_ = services.AddSingleton<DispatchJsonSerializer>();
 
 		// Register the test handler explicitly
 		_ = services.AddTransient<IActionHandler<CacheTestQuery, CacheTestResult>, CacheTestQueryHandler>();

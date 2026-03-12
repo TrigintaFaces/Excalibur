@@ -19,6 +19,8 @@ public sealed class ContextObservabilityMiddlewareShould : IDisposable
 	private readonly ContextObservabilityOptions _options;
 	private readonly ContextObservabilityMiddleware _sut;
 
+	private readonly IDictionary<string, object> _items;
+
 	public ContextObservabilityMiddlewareShould()
 	{
 		_fakeTracker = A.Fake<IContextFlowTracker>();
@@ -27,11 +29,11 @@ public sealed class ContextObservabilityMiddlewareShould : IDisposable
 		_fakeMessage = A.Fake<IDispatchMessage>();
 		_fakeContext = A.Fake<IMessageContext>();
 		_fakeResult = A.Fake<IMessageResult>();
+		_items = new Dictionary<string, object>();
 
 		A.CallTo(() => _fakeContext.MessageId).Returns("test-msg-001");
 		A.CallTo(() => _fakeContext.CorrelationId).Returns("test-corr-001");
-		A.CallTo(() => _fakeContext.Items).Returns(new Dictionary<string, object>());
-		A.CallTo(() => _fakeContext.ContainsItem("PipelineStage")).Returns(false);
+		A.CallTo(() => _fakeContext.Items).Returns(_items);
 		A.CallTo(() => _fakeTracker.ValidateContextIntegrity(_fakeContext)).Returns(true);
 
 		_options = new ContextObservabilityOptions();
@@ -388,8 +390,7 @@ public sealed class ContextObservabilityMiddlewareShould : IDisposable
 	[Fact]
 	public async Task UsePipelineStageFromContextItemsWhenAvailable()
 	{
-		A.CallTo(() => _fakeContext.ContainsItem("PipelineStage")).Returns(true);
-		A.CallTo(() => _fakeContext.GetItem<string>("PipelineStage")).Returns("CustomStage");
+		_items["PipelineStage"] = "CustomStage";
 
 		await _sut.InvokeAsync(
 			_fakeMessage,
@@ -408,7 +409,7 @@ public sealed class ContextObservabilityMiddlewareShould : IDisposable
 	[Fact]
 	public async Task FallbackToMiddlewareStageWhenNoContextItem()
 	{
-		A.CallTo(() => _fakeContext.ContainsItem("PipelineStage")).Returns(false);
+		// Items dictionary has no "PipelineStage" key by default
 
 		await _sut.InvokeAsync(
 			_fakeMessage,

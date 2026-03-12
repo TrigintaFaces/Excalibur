@@ -57,7 +57,10 @@ public static class RedisLeaderElectionExtensions
 		ArgumentException.ThrowIfNullOrWhiteSpace(lockKey);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.Configure(configure);
+		_ = services.AddOptions<LeaderElectionOptions>()
+			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
 
 		services.TryAddSingleton(sp =>
 		{

@@ -8,6 +8,7 @@ public sealed class ErasureServiceShould
 {
 	private readonly IErasureStore _store = A.Fake<IErasureStore>();
 	private readonly IKeyManagementProvider _keyProvider = A.Fake<IKeyManagementProvider>();
+	private readonly IKeyManagementAdmin _keyAdmin = A.Fake<IKeyManagementAdmin>();
 	private readonly ILegalHoldService _legalHoldService = A.Fake<ILegalHoldService>();
 	private readonly IDataInventoryService _dataInventoryService = A.Fake<IDataInventoryService>();
 	private readonly ErasureService _sut;
@@ -23,6 +24,7 @@ public sealed class ErasureServiceShould
 		_sut = new ErasureService(
 			_store,
 			_keyProvider,
+			_keyAdmin,
 			options,
 			signingOptions,
 			NullLogger<ErasureService>.Instance,
@@ -297,7 +299,7 @@ public sealed class ErasureServiceShould
 		A.CallTo(() => _dataInventoryService.DiscoverAsync(
 				A<string>._, DataSubjectIdType.Hash, A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(inventory));
-		A.CallTo(() => _keyProvider.DeleteKeyAsync(A<string>._, A<int>._, A<CancellationToken>._))
+		A.CallTo(() => _keyAdmin.DeleteKeyAsync(A<string>._, A<int>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
 
 		SetupNoLegalHolds();
@@ -488,7 +490,7 @@ public sealed class ErasureServiceShould
 		var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions());
 		var signingOptions = Microsoft.Extensions.Options.Options.Create(new ErasureSigningOptions { SigningKey = new byte[32] });
 		var sut = new ErasureService(
-			_store, _keyProvider, options, signingOptions,
+			_store, _keyProvider, _keyAdmin, options, signingOptions,
 			NullLogger<ErasureService>.Instance,
 			null, // no legal hold service
 			null); // no data inventory service
@@ -507,7 +509,7 @@ public sealed class ErasureServiceShould
 	public void Throw_for_null_store()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new ErasureService(null!, _keyProvider,
+			new ErasureService(null!, _keyProvider, _keyAdmin,
 				Microsoft.Extensions.Options.Options.Create(new ErasureOptions()),
 				Microsoft.Extensions.Options.Options.Create(new ErasureSigningOptions()),
 				NullLogger<ErasureService>.Instance,
@@ -518,7 +520,7 @@ public sealed class ErasureServiceShould
 	public void Throw_for_null_key_provider()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new ErasureService(_store, null!,
+			new ErasureService(_store, null!, _keyAdmin,
 				Microsoft.Extensions.Options.Options.Create(new ErasureOptions()),
 				Microsoft.Extensions.Options.Options.Create(new ErasureSigningOptions()),
 				NullLogger<ErasureService>.Instance,
@@ -529,7 +531,7 @@ public sealed class ErasureServiceShould
 	public void Throw_for_null_options()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new ErasureService(_store, _keyProvider,
+			new ErasureService(_store, _keyProvider, _keyAdmin,
 				null!,
 				Microsoft.Extensions.Options.Options.Create(new ErasureSigningOptions()),
 				NullLogger<ErasureService>.Instance,
@@ -540,7 +542,7 @@ public sealed class ErasureServiceShould
 	public void Throw_for_null_signing_options()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new ErasureService(_store, _keyProvider,
+			new ErasureService(_store, _keyProvider, _keyAdmin,
 				Microsoft.Extensions.Options.Options.Create(new ErasureOptions()),
 				null!,
 				NullLogger<ErasureService>.Instance,
@@ -551,7 +553,7 @@ public sealed class ErasureServiceShould
 	public void Throw_for_null_logger()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new ErasureService(_store, _keyProvider,
+			new ErasureService(_store, _keyProvider, _keyAdmin,
 				Microsoft.Extensions.Options.Options.Create(new ErasureOptions()),
 				Microsoft.Extensions.Options.Options.Create(new ErasureSigningOptions()),
 				null!,
@@ -580,7 +582,7 @@ public sealed class ErasureServiceShould
 		A.CallTo(() => _dataInventoryService.DiscoverAsync(
 				A<string>._, DataSubjectIdType.Hash, A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(inventory));
-		A.CallTo(() => _keyProvider.DeleteKeyAsync("key-1", A<int>._, A<CancellationToken>._))
+		A.CallTo(() => _keyAdmin.DeleteKeyAsync("key-1", A<int>._, A<CancellationToken>._))
 			.Throws(new InvalidOperationException("KMS unavailable"));
 
 		SetupNoLegalHolds();
@@ -609,7 +611,7 @@ public sealed class ErasureServiceShould
 		var options = Microsoft.Extensions.Options.Options.Create(new ErasureOptions());
 		var signingOptions = Microsoft.Extensions.Options.Options.Create(new ErasureSigningOptions { SigningKey = new byte[32] });
 		var sut = new ErasureService(
-			_store, _keyProvider, options, signingOptions,
+			_store, _keyProvider, _keyAdmin, options, signingOptions,
 			NullLogger<ErasureService>.Instance,
 			_legalHoldService, null,
 			[contributor]);

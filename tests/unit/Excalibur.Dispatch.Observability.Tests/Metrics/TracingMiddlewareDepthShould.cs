@@ -20,6 +20,27 @@ namespace Excalibur.Dispatch.Observability.Tests.Metrics;
 public sealed class TracingMiddlewareDepthShould
 {
 	/// <summary>
+	/// Creates a fake <see cref="IMessageContext"/> backed by a real Items dictionary
+	/// so that extension methods (GetItem, SetItem, ContainsItem) work correctly.
+	/// </summary>
+	private static IMessageContext CreateFakeContext(string? messageId = null, string? correlationId = null, Dictionary<string, object>? items = null)
+	{
+		var context = A.Fake<IMessageContext>();
+		var itemsDict = items ?? new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Items).Returns(itemsDict);
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
+		if (messageId is not null)
+		{
+			A.CallTo(() => context.MessageId).Returns(messageId);
+		}
+		if (correlationId is not null)
+		{
+			A.CallTo(() => context.CorrelationId).Returns(correlationId);
+		}
+		return context;
+	}
+
+	/// <summary>
 	/// Creates a per-test activity listener that captures dispatch activities,
 	/// invokes the middleware, and returns the captured activity for assertions.
 	/// Uses a unique message ID to isolate from parallel test contamination.
@@ -54,10 +75,8 @@ public sealed class TracingMiddlewareDepthShould
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
 		var uniqueId = Guid.NewGuid().ToString();
-		A.CallTo(() => context.MessageId).Returns(uniqueId);
-		A.CallTo(() => context.CorrelationId).Returns("corr-1");
+		var context = CreateFakeContext(messageId: uniqueId, correlationId: "corr-1");
 
 		var result = A.Fake<IMessageResult>();
 		A.CallTo(() => result.IsSuccess).Returns(true);
@@ -78,9 +97,8 @@ public sealed class TracingMiddlewareDepthShould
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
 		var uniqueId = Guid.NewGuid().ToString();
-		A.CallTo(() => context.MessageId).Returns(uniqueId);
+		var context = CreateFakeContext(messageId: uniqueId);
 
 		var failedResult = A.Fake<IMessageResult>();
 		A.CallTo(() => failedResult.IsSuccess).Returns(false);
@@ -107,9 +125,8 @@ public sealed class TracingMiddlewareDepthShould
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
 		var uniqueId = Guid.NewGuid().ToString();
-		A.CallTo(() => context.MessageId).Returns(uniqueId);
+		var context = CreateFakeContext(messageId: uniqueId);
 
 		var failedResult = A.Fake<IMessageResult>();
 		A.CallTo(() => failedResult.IsSuccess).Returns(false);
@@ -140,9 +157,8 @@ public sealed class TracingMiddlewareDepthShould
 
 		var middleware = new TracingMiddleware(A.Fake<ITelemetrySanitizer>());
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
 		var uniqueId = Guid.NewGuid().ToString();
-		A.CallTo(() => context.MessageId).Returns(uniqueId);
+		var context = CreateFakeContext(messageId: uniqueId);
 
 		// Act & Assert
 		await Should.ThrowAsync<InvalidOperationException>(async () =>
@@ -161,9 +177,8 @@ public sealed class TracingMiddlewareDepthShould
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
 		var uniqueId = Guid.NewGuid().ToString();
-		A.CallTo(() => context.MessageId).Returns(uniqueId);
+		var context = CreateFakeContext(messageId: uniqueId);
 
 		var result = A.Fake<IMessageResult>();
 		A.CallTo(() => result.IsSuccess).Returns(true);
@@ -184,10 +199,12 @@ public sealed class TracingMiddlewareDepthShould
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
 		var uniqueId = Guid.NewGuid().ToString();
-		A.CallTo(() => context.MessageId).Returns(uniqueId);
-		A.CallTo(() => context.GetItem<Type>("HandlerType")).Returns(typeof(string));
+		var items = new Dictionary<string, object>(StringComparer.Ordinal)
+		{
+			["HandlerType"] = typeof(string),
+		};
+		var context = CreateFakeContext(messageId: uniqueId, items: items);
 
 		var result = A.Fake<IMessageResult>();
 		A.CallTo(() => result.IsSuccess).Returns(true);
@@ -207,9 +224,8 @@ public sealed class TracingMiddlewareDepthShould
 	{
 		// Arrange
 		var message = A.Fake<IDispatchAction>();
-		var context = A.Fake<IMessageContext>();
 		var uniqueId = Guid.NewGuid().ToString();
-		A.CallTo(() => context.MessageId).Returns(uniqueId);
+		var context = CreateFakeContext(messageId: uniqueId);
 
 		var result = A.Fake<IMessageResult>();
 		A.CallTo(() => result.IsSuccess).Returns(true);
@@ -229,9 +245,8 @@ public sealed class TracingMiddlewareDepthShould
 	{
 		// Arrange
 		var message = A.Fake<IDispatchEvent>();
-		var context = A.Fake<IMessageContext>();
 		var uniqueId = Guid.NewGuid().ToString();
-		A.CallTo(() => context.MessageId).Returns(uniqueId);
+		var context = CreateFakeContext(messageId: uniqueId);
 
 		var result = A.Fake<IMessageResult>();
 		A.CallTo(() => result.IsSuccess).Returns(true);
@@ -251,9 +266,8 @@ public sealed class TracingMiddlewareDepthShould
 	{
 		// Arrange
 		var message = A.Fake<IDispatchDocument>();
-		var context = A.Fake<IMessageContext>();
 		var uniqueId = Guid.NewGuid().ToString();
-		A.CallTo(() => context.MessageId).Returns(uniqueId);
+		var context = CreateFakeContext(messageId: uniqueId);
 
 		var result = A.Fake<IMessageResult>();
 		A.CallTo(() => result.IsSuccess).Returns(true);
@@ -273,9 +287,8 @@ public sealed class TracingMiddlewareDepthShould
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
 		var uniqueId = Guid.NewGuid().ToString();
-		A.CallTo(() => context.MessageId).Returns(uniqueId);
+		var context = CreateFakeContext(messageId: uniqueId);
 
 		var result = A.Fake<IMessageResult>();
 		A.CallTo(() => result.IsSuccess).Returns(true);

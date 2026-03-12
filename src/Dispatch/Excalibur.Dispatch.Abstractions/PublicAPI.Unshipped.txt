@@ -1,1 +1,2 @@
 #nullable enable
+static Excalibur.Dispatch.Abstractions.Routing.RoutingDecision.Local.get -> Excalibur.Dispatch.Abstractions.Routing.RoutingDecision!

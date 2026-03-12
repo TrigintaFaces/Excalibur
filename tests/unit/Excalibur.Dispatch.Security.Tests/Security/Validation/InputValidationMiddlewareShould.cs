@@ -39,11 +39,14 @@ public sealed class InputValidationMiddlewareShould
         A.CallTo(() => _nextDelegate(_message, _context, A<CancellationToken>._))
             .Returns(new ValueTask<IMessageResult>(_successResult));
 
-        // Setup default context values
+        // Setup default context values -- use real Items dict for extension methods
+        var items = new Dictionary<string, object>(StringComparer.Ordinal);
         A.CallTo(() => _context.CorrelationId).Returns(Guid.NewGuid().ToString());
         A.CallTo(() => _context.MessageId).Returns(Guid.NewGuid().ToString());
-        A.CallTo(() => _context.SentTimestampUtc).Returns(DateTimeOffset.UtcNow);
-        A.CallTo(() => _context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+        A.CallTo(() => _context.Items).Returns(items);
+
+        // Set timestamp via Items-based extension method
+        _context.SetSentTimestampUtc(DateTimeOffset.UtcNow);
 
         A.CallTo(() => _securityEventLogger.LogSecurityEventAsync(
             A<SecurityEventType>._, A<string>._, A<SecuritySeverity>._, A<CancellationToken>._, A<IMessageContext?>._))
@@ -153,13 +156,16 @@ public sealed class InputValidationMiddlewareShould
             EnableValidation = true,
             AllowNullProperties = true,
             AllowEmptyStrings = true,
-            BlockSqlInjection = false,
-            BlockNoSqlInjection = false,
-            BlockCommandInjection = false,
-            BlockPathTraversal = false,
-            BlockLdapInjection = false,
-            BlockHtmlContent = false,
-            BlockControlCharacters = false,
+            InjectionPrevention = new InputInjectionPreventionOptions
+            {
+                BlockSqlInjection = false,
+                BlockNoSqlInjection = false,
+                BlockCommandInjection = false,
+                BlockPathTraversal = false,
+                BlockLdapInjection = false,
+                BlockHtmlContent = false,
+                BlockControlCharacters = false,
+            },
             RequireCorrelationId = false,
             MaxMessageSizeBytes = int.MaxValue,
             MaxObjectDepth = 100,

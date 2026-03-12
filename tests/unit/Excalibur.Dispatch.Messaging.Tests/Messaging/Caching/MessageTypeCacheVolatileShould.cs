@@ -12,10 +12,35 @@ namespace Excalibur.Dispatch.Tests.Messaging.Caching;
 /// Tests for Sprint 542 P0 fix S542.8 (bd-dcolc):
 /// MessageTypeCache._initialized must be volatile to prevent init race on multi-core CPUs.
 /// </summary>
+[Collection("MessageTypeCacheTests")]
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
-public sealed class MessageTypeCacheVolatileShould
+public sealed class MessageTypeCacheVolatileShould : IDisposable
 {
+	public MessageTypeCacheVolatileShould()
+	{
+		ResetCache();
+	}
+
+	public void Dispose()
+	{
+		ResetCache();
+	}
+
+	private static void ResetCache()
+	{
+		var flags = BindingFlags.NonPublic | BindingFlags.Static;
+
+		var initializedField = typeof(MessageTypeCache).GetField("_initialized", flags);
+		initializedField?.SetValue(null, false);
+
+		var typeCacheField = typeof(MessageTypeCache).GetField("_typeCache", flags);
+		typeCacheField?.SetValue(null, System.Collections.Frozen.FrozenDictionary<Type, MessageTypeMetadata>.Empty);
+
+		var nameCacheField = typeof(MessageTypeCache).GetField("_nameToTypeCache", flags);
+		nameCacheField?.SetValue(null, System.Collections.Frozen.FrozenDictionary<string, Type>.Empty);
+	}
+
 	[Fact]
 	public void HaveVolatileInitializedField()
 	{

@@ -260,4 +260,4 @@ EventUpcasting/
 
 - [SnapshotStrategies](../SnapshotStrategies/) - Snapshot optimization
 - [SqlServerEventStore](../SqlServerEventStore/) - SQL Server persistence
-- [ExcaliburCqrs](../../01-getting-started/ExcaliburCqrs/) - Basic event sourcing
+- [EventSourcingIntro](../../01-getting-started/EventSourcingIntro/) - Basic event sourcing

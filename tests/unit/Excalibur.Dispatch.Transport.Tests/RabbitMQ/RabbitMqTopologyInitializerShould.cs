@@ -22,16 +22,22 @@ public sealed class RabbitMqTopologyInitializerShould : UnitTestBase
 		var options = new RabbitMqOptions
 		{
 			Exchange = "dispatch.exchange",
-			QueueName = "dispatch.queue",
-			DeadLetterRoutingKey = "dlq-route",
+			Queue = new RabbitMqQueueOptions { QueueName = "dispatch.queue" },
+			DeadLetter = new RabbitMqDeadLetterExchangeOptions { DeadLetterRoutingKey = "dlq-route" },
 		};
 		var cloudEventOptions = new RabbitMqCloudEventOptions
 		{
-			DefaultExchange = "cloud.exchange",
+			Exchange = new RabbitMqCloudEventExchangeOptions
+			{
+				DefaultExchange = "cloud.exchange",
+			},
 			DefaultQueue = "cloud.queue",
 			UseQuorumQueues = true,
-			EnableDeadLetterExchange = true,
-			DeadLetterExchange = "dispatch.dlx",
+			DeadLetter = new RabbitMqCloudEventDeadLetterOptions
+			{
+				EnableDeadLetterExchange = true,
+				DeadLetterExchange = "dispatch.dlx",
+			},
 		};
 
 		var channel = A.Fake<IChannel>();
@@ -69,7 +75,7 @@ public sealed class RabbitMqTopologyInitializerShould : UnitTestBase
 				{
 					capturedArguments = arguments;
 				})
-				.Returns(Task.FromResult(new QueueDeclareOk(options.QueueName, 0, 0)));
+				.Returns(Task.FromResult(new QueueDeclareOk(options.Queue.QueueName, 0, 0)));
 
 		_ = A.CallTo(() => channel.QueueBindAsync(
 						A<string>._,

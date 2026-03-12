@@ -1,11 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-#pragma warning disable CA2012 // FakeItEasy .Returns() stores ValueTask
-
-using Excalibur.Data.Postgres.Saga;
+using Excalibur.Saga.Postgres;
 using Excalibur.Dispatch.Abstractions.Messaging;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 
 namespace Excalibur.Data.Tests.Postgres.Requests.Saga;
 
@@ -15,8 +13,12 @@ namespace Excalibur.Data.Tests.Postgres.Requests.Saga;
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Postgres")]
-public sealed class SaveSagaRequestShould
+public sealed class SaveSagaRequestShould : IDisposable
 {
+	private readonly DispatchJsonSerializer _serializer = new();
+
+	public void Dispose() => _serializer.Dispose();
+
 	private static PostgresSagaOptions CreateOptions() => new()
 	{
 		ConnectionString = "Host=localhost;Database=test;",
@@ -38,12 +40,10 @@ public sealed class SaveSagaRequestShould
 		// Arrange
 		var state = CreateTestState();
 		var options = CreateOptions();
-		var serializer = A.Fake<IJsonSerializer>();
-		A.CallTo(() => serializer.Serialize(A<object>._, A<Type>._)).Returns("{}");
 
 		// Act
 		var request = new SaveSagaRequest<TestSagaState>(
-			state, options, serializer, CancellationToken.None);
+			state, options, _serializer, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandText.ShouldNotBeNullOrWhiteSpace();
@@ -56,12 +56,10 @@ public sealed class SaveSagaRequestShould
 		// Arrange
 		var state = CreateTestState();
 		var options = CreateOptions();
-		var serializer = A.Fake<IJsonSerializer>();
-		A.CallTo(() => serializer.Serialize(A<object>._, A<Type>._)).Returns("{}");
 
 		// Act
 		var request = new SaveSagaRequest<TestSagaState>(
-			state, options, serializer, CancellationToken.None);
+			state, options, _serializer, CancellationToken.None);
 
 		// Assert
 		var sql = request.Command.CommandText;
@@ -74,12 +72,10 @@ public sealed class SaveSagaRequestShould
 		// Arrange
 		var state = CreateTestState();
 		var options = CreateOptions();
-		var serializer = A.Fake<IJsonSerializer>();
-		A.CallTo(() => serializer.Serialize(A<object>._, A<Type>._)).Returns("{}");
 
 		// Act
 		var request = new SaveSagaRequest<TestSagaState>(
-			state, options, serializer, CancellationToken.None);
+			state, options, _serializer, CancellationToken.None);
 
 		// Assert
 		var sql = request.Command.CommandText;
@@ -92,12 +88,10 @@ public sealed class SaveSagaRequestShould
 		// Arrange
 		var state = CreateTestState();
 		var options = CreateOptions();
-		var serializer = A.Fake<IJsonSerializer>();
-		A.CallTo(() => serializer.Serialize(A<object>._, A<Type>._)).Returns("{}");
 
 		// Act
 		var request = new SaveSagaRequest<TestSagaState>(
-			state, options, serializer, CancellationToken.None);
+			state, options, _serializer, CancellationToken.None);
 
 		// Assert
 		var sql = request.Command.CommandText;
@@ -115,12 +109,10 @@ public sealed class SaveSagaRequestShould
 		// Arrange
 		var state = CreateTestState();
 		var options = CreateOptions();
-		var serializer = A.Fake<IJsonSerializer>();
-		A.CallTo(() => serializer.Serialize(A<object>._, A<Type>._)).Returns("{}");
 
 		// Act
 		var request = new SaveSagaRequest<TestSagaState>(
-			state, options, serializer, CancellationToken.None);
+			state, options, _serializer, CancellationToken.None);
 
 		// Assert
 		var sql = request.Command.CommandText;
@@ -133,12 +125,10 @@ public sealed class SaveSagaRequestShould
 		// Arrange
 		var state = CreateTestState();
 		var options = CreateOptions();
-		var serializer = A.Fake<IJsonSerializer>();
-		A.CallTo(() => serializer.Serialize(A<object>._, A<Type>._)).Returns("{}");
 
 		// Act
 		var request = new SaveSagaRequest<TestSagaState>(
-			state, options, serializer, CancellationToken.None);
+			state, options, _serializer, CancellationToken.None);
 
 		// Assert
 		var paramNames = request.Parameters.ParameterNames.ToList();
@@ -156,12 +146,10 @@ public sealed class SaveSagaRequestShould
 		var state = CreateTestState();
 		var options = CreateOptions();
 		options.CommandTimeoutSeconds = 45;
-		var serializer = A.Fake<IJsonSerializer>();
-		A.CallTo(() => serializer.Serialize(A<object>._, A<Type>._)).Returns("{}");
 
 		// Act
 		var request = new SaveSagaRequest<TestSagaState>(
-			state, options, serializer, CancellationToken.None);
+			state, options, _serializer, CancellationToken.None);
 
 		// Assert
 		request.Command.CommandTimeout.ShouldBe(45);
@@ -172,34 +160,33 @@ public sealed class SaveSagaRequestShould
 	{
 		// Arrange
 		var state = CreateTestState();
+		state.OrderId = "order-123";
 		var options = CreateOptions();
-		var serializer = A.Fake<IJsonSerializer>();
-		A.CallTo(() => serializer.Serialize(A<object>._, A<Type>._)).Returns("{\"orderId\":\"order-123\"}");
 
 		// Act
-		_ = new SaveSagaRequest<TestSagaState>(
-			state, options, serializer, CancellationToken.None);
+		var request = new SaveSagaRequest<TestSagaState>(
+			state, options, _serializer, CancellationToken.None);
 
-		// Assert
-		A.CallTo(() => serializer.Serialize(A<object>._, A<Type>._)).MustHaveHappenedOnceExactly();
+		// Assert — verify serializer produced valid JSON containing the saga state
+		var stateJson = request.Parameters.Get<string>("StateJson");
+		stateJson.ShouldNotBeNullOrWhiteSpace();
+		stateJson.ShouldContain("order-123");
 	}
 
 	[Fact]
 	public void ThrowArgumentNullException_WhenSagaStateIsNull()
 	{
 		var options = CreateOptions();
-		var serializer = A.Fake<IJsonSerializer>();
 		Should.Throw<ArgumentNullException>(() => new SaveSagaRequest<TestSagaState>(
-			null!, options, serializer, CancellationToken.None));
+			null!, options, _serializer, CancellationToken.None));
 	}
 
 	[Fact]
 	public void ThrowArgumentNullException_WhenOptionsIsNull()
 	{
 		var state = CreateTestState();
-		var serializer = A.Fake<IJsonSerializer>();
 		Should.Throw<ArgumentNullException>(() => new SaveSagaRequest<TestSagaState>(
-			state, null!, serializer, CancellationToken.None));
+			state, null!, _serializer, CancellationToken.None));
 	}
 
 	[Fact]

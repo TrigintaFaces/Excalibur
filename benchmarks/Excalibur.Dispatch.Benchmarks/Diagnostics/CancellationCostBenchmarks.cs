@@ -3,6 +3,7 @@
 
 using BenchmarkDotNet.Attributes;
 
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Benchmarks.Diagnostics.Support;
 
 namespace Excalibur.Dispatch.Benchmarks.Diagnostics;

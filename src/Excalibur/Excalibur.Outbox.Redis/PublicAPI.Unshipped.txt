@@ -1,0 +1,5 @@
+#nullable enable
+Microsoft.Extensions.DependencyInjection.OutboxBuilderRedisExtensions
+static Microsoft.Extensions.DependencyInjection.OutboxBuilderRedisExtensions.UseRedis(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.Redis.RedisOutboxOptions!>! configure) -> Excalibur.Outbox.IOutboxBuilder!
+static Microsoft.Extensions.DependencyInjection.OutboxBuilderRedisExtensions.UseRedis(this Excalibur.Outbox.IOutboxBuilder! builder, string! connectionString) -> Excalibur.Outbox.IOutboxBuilder!
+static Microsoft.Extensions.DependencyInjection.OutboxBuilderRedisExtensions.UseRedis(this Excalibur.Outbox.IOutboxBuilder! builder, System.Func<System.IServiceProvider!, StackExchange.Redis.ConnectionMultiplexer!>! connectionProvider, System.Action<Excalibur.Outbox.Redis.RedisOutboxOptions!>! configure) -> Excalibur.Outbox.IOutboxBuilder!

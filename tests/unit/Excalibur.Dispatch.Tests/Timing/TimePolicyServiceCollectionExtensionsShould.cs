@@ -125,8 +125,8 @@ public sealed class TimePolicyServiceCollectionExtensionsShould
 		var options = provider.GetRequiredService<IOptions<TimePolicyOptions>>().Value;
 
 		// Assert
-		options.UseAdaptiveTimeouts.ShouldBeTrue();
-		options.IncludeTimeoutMetrics.ShouldBeTrue();
+		options.Adaptive.UseAdaptiveTimeouts.ShouldBeTrue();
+		options.Observability.IncludeTimeoutMetrics.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -138,14 +138,14 @@ public sealed class TimePolicyServiceCollectionExtensionsShould
 		// Act
 		services.AddAdaptiveTimeouts(opts =>
 		{
-			opts.AdaptiveTimeoutPercentile = 90;
+			opts.Adaptive.AdaptiveTimeoutPercentile = 90;
 		});
 		var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<TimePolicyOptions>>().Value;
 
 		// Assert
-		options.UseAdaptiveTimeouts.ShouldBeTrue();
-		options.AdaptiveTimeoutPercentile.ShouldBe(90);
+		options.Adaptive.UseAdaptiveTimeouts.ShouldBeTrue();
+		options.Adaptive.AdaptiveTimeoutPercentile.ShouldBe(90);
 	}
 
 	[Fact]

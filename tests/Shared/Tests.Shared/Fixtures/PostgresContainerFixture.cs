@@ -13,6 +13,16 @@ public sealed class PostgresContainerFixture : ContainerFixtureBase, IDatabaseCo
 {
 	private PostgreSqlContainer? _container;
 
+	/// <summary>
+	/// Enables Npgsql legacy timestamp behavior so TIMESTAMPTZ maps to DateTimeOffset.
+	/// Required for Dapper to materialize records with DateTimeOffset properties correctly.
+	/// Must be set before any Npgsql connection is opened.
+	/// </summary>
+	static PostgresContainerFixture()
+	{
+		AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+	}
+
 	protected override TimeSpan ContainerStartTimeout => TimeSpan.FromMinutes(4);
 
 	/// <inheritdoc/>

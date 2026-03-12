@@ -32,6 +32,7 @@ public sealed class ValidationMiddlewareShould
 	private readonly ILogger<ValidationMiddleware> _logger;
 	private readonly IValidationService _validationService;
 	private readonly IMessageContext _context;
+	private readonly IDictionary<string, object> _contextItems;
 	private readonly DispatchRequestDelegate _successDelegate;
 
 	public ValidationMiddlewareShould()
@@ -41,6 +42,11 @@ public sealed class ValidationMiddlewareShould
 		_context = A.Fake<IMessageContext>();
 
 		_ = A.CallTo(() => _context.MessageId).Returns("test-message-id");
+
+		// Set up Items and Features dictionaries so extension methods (GetItem, GetTenantId, etc.) work
+		_contextItems = new Dictionary<string, object>();
+		_ = A.CallTo(() => _context.Items).Returns(_contextItems);
+		_ = A.CallTo(() => _context.Features).Returns(new Dictionary<Type, object>());
 
 		_successDelegate = (msg, ctx, ct) => new ValueTask<IMessageResult>(MessageResult.Success());
 	}
@@ -379,7 +385,9 @@ public sealed class ValidationMiddlewareShould
 		var middleware = new ValidationMiddleware(options, _validationService, _logger);
 		var message = A.Fake<IDispatchMessage>();
 
-		_ = A.CallTo(() => _context.GetItem<object>("TenantId")).Returns("tenant-123");
+		// GetItem<object>("TenantId") is an extension method reading from Items dictionary.
+		// The middleware falls back to Items["TenantId"] when GetTenantId() (Features) returns null.
+		_contextItems["TenantId"] = "tenant-123";
 
 		MessageValidationContext? capturedContext = null;
 		_ = A.CallTo(() => _validationService.ValidateAsync(
@@ -411,7 +419,8 @@ public sealed class ValidationMiddlewareShould
 		var middleware = new ValidationMiddleware(options, _validationService, _logger);
 		var message = A.Fake<IDispatchMessage>();
 
-		_ = A.CallTo(() => _context.GetItem<object>("UserId")).Returns("user-456");
+		// GetItem<object>("UserId") is an extension method reading from Items dictionary.
+		_contextItems["UserId"] = "user-456";
 
 		MessageValidationContext? capturedContext = null;
 		_ = A.CallTo(() => _validationService.ValidateAsync(
@@ -443,7 +452,8 @@ public sealed class ValidationMiddlewareShould
 		var middleware = new ValidationMiddleware(options, _validationService, _logger);
 		var message = A.Fake<IDispatchMessage>();
 
-		_ = A.CallTo(() => _context.GetItem<object>("CorrelationId")).Returns("correlation-789");
+		// CorrelationId is a direct property on IMessageContext, not from Items
+		_ = A.CallTo(() => _context.CorrelationId).Returns("correlation-789");
 
 		MessageValidationContext? capturedContext = null;
 		_ = A.CallTo(() => _validationService.ValidateAsync(

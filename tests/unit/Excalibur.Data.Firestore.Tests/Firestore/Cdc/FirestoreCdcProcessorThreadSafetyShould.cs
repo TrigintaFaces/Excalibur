@@ -4,7 +4,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Data.Firestore.Cdc;
+using Excalibur.Cdc.Firestore;
 
 namespace Excalibur.Data.Tests.Firestore.Cdc;
 

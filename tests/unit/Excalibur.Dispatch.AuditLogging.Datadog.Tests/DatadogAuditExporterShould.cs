@@ -18,7 +18,7 @@ public sealed class DatadogAuditExporterShould : IDisposable
 		Site = "datadoghq.com",
 		Service = "test-service",
 		Source = "test-source",
-		MaxRetryAttempts = 0,
+		Retry = new() { MaxRetryAttempts = 0 },
 		UseCompression = false
 	};
 

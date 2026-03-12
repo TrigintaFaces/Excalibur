@@ -7,7 +7,6 @@ using BenchmarkDotNet.Attributes;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport;
@@ -28,7 +27,7 @@ public class TransportAdapterPhaseBenchmarks
 	private IDispatcher? _dispatcher;
 	private InMemoryTransportAdapter? _adapter;
 	private IMessageMapper? _mapper;
-	private IUtf8JsonSerializer? _serializer;
+	private DispatchJsonSerializer? _serializer;
 	private ITransportMessageContext? _sourceContext;
 	private TransportBenchmarkCommand _command = null!;
 	private Dictionary<string, string> _serializationPayload = null!;

@@ -6,9 +6,9 @@ using System.ComponentModel.DataAnnotations;
 namespace Excalibur.Dispatch.Transport;
 
 /// <summary>
-/// Options for batch processing.
+/// Options controlling how messages are collected into batches before processing.
 /// </summary>
-public sealed class BatchProcessingOptions
+public sealed class BatchCollectionOptions
 {
 	/// <summary>
 	/// Gets or sets the maximum batch size.
@@ -16,6 +16,37 @@ public sealed class BatchProcessingOptions
 	/// <value>The upper bound on the number of messages processed in a single batch.</value>
 	[Range(1, int.MaxValue)]
 	public int MaxBatchSize { get; set; } = 100;
+
+	/// <summary>
+	/// Gets or sets the minimum batch size for processing.
+	/// </summary>
+	/// <value>The number of messages that must be collected before a batch can be dispatched.</value>
+	[Range(1, int.MaxValue)]
+	public int MinBatchSize { get; set; } = 1;
+
+	/// <summary>
+	/// Gets or sets the batch collection timeout.
+	/// </summary>
+	/// <value>The <see cref="TimeSpan"/> allowed for aggregating messages before a partial dispatch.</value>
+	public TimeSpan CollectionTimeout { get; set; } = TimeSpan.FromSeconds(5);
+
+	/// <summary>
+	/// Gets or sets the batch completion strategy.
+	/// </summary>
+	/// <value>The strategy used to determine when the batch is ready to be processed.</value>
+	public BatchCompletionStrategy CompletionStrategy { get; set; } = BatchCompletionStrategy.Size;
+}
+
+/// <summary>
+/// Options for batch processing.
+/// </summary>
+public sealed class BatchProcessingOptions
+{
+	/// <summary>
+	/// Gets or sets the batch collection options.
+	/// </summary>
+	/// <value>Options controlling how messages are collected into batches.</value>
+	public BatchCollectionOptions Collection { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets the batch timeout.
@@ -59,25 +90,6 @@ public sealed class BatchProcessingOptions
 	/// </summary>
 	/// <value><see langword="true"/> to route failed messages to the configured dead letter queue.</value>
 	public bool EnableDeadLetter { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the batch completion strategy.
-	/// </summary>
-	/// <value>The strategy used to determine when the batch is ready to be processed.</value>
-	public BatchCompletionStrategy CompletionStrategy { get; set; } = BatchCompletionStrategy.Size;
-
-	/// <summary>
-	/// Gets or sets the minimum batch size for processing.
-	/// </summary>
-	/// <value>The number of messages that must be collected before a batch can be dispatched.</value>
-	[Range(1, int.MaxValue)]
-	public int MinBatchSize { get; set; } = 1;
-
-	/// <summary>
-	/// Gets or sets the batch collection timeout.
-	/// </summary>
-	/// <value>The <see cref="TimeSpan"/> allowed for aggregating messages before a partial dispatch.</value>
-	public TimeSpan CollectionTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to preserve message order.

@@ -4,7 +4,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
@@ -12,28 +12,23 @@ using Google.Protobuf;
 namespace Excalibur.Dispatch.Transport.Google;
 
 /// <summary>
-/// Extension methods for <see cref="IMessageSerializer"/> to support Google Cloud Pub/Sub message conversion.
+/// Extension methods for <see cref="DispatchJsonSerializer"/> to support Google Cloud Pub/Sub message conversion.
 /// </summary>
 internal static class MessageSerializerExtensions
 {
 	/// <summary>
 	/// Serializes a message to a <see cref="PubsubMessage"/> with optional attributes.
 	/// </summary>
-	/// <typeparam name="T">The type of message to serialize.</typeparam>
-	/// <param name="serializer">The message serializer.</param>
-	/// <param name="message">The message to serialize.</param>
-	/// <param name="attributes">Optional message attributes.</param>
-	/// <returns>A <see cref="PubsubMessage"/> containing the serialized data.</returns>
-	[RequiresUnreferencedCode("Calls Excalibur.Dispatch.Abstractions.Serialization.IMessageSerializer.Serialize<T>(T)")]
+	[RequiresUnreferencedCode("Calls DispatchJsonSerializer.SerializeToUtf8Bytes")]
 	public static PubsubMessage SerializeToPubSubMessage<T>(
-		this IMessageSerializer serializer,
+		this DispatchJsonSerializer serializer,
 		T message,
 		Dictionary<string, string>? attributes = null)
 	{
 		ArgumentNullException.ThrowIfNull(serializer);
 		ArgumentNullException.ThrowIfNull(message);
 
-		var data = serializer.Serialize(message);
+		var data = serializer.SerializeToUtf8Bytes(message, typeof(T));
 		var pubsubMessage = new PubsubMessage
 		{
 			Data = ByteString.CopyFrom(data),
@@ -53,29 +48,15 @@ internal static class MessageSerializerExtensions
 	/// <summary>
 	/// Serializes a non-generic message to a <see cref="PubsubMessage"/> with optional attributes.
 	/// </summary>
-	/// <param name="serializer">The message serializer.</param>
-	/// <param name="message">The message to serialize.</param>
-	/// <param name="attributes">Optional message attributes.</param>
-	/// <returns>A <see cref="PubsubMessage"/> containing the serialized data.</returns>
-	/// <exception cref="InvalidOperationException">Thrown when the operation fails.</exception>
-	[RequiresDynamicCode("Calls System.Reflection.MethodInfo.MakeGenericMethod(params Type[])")]
-	[RequiresUnreferencedCode("Calls System.Type.GetMethod(String)")]
 	public static PubsubMessage SerializeToPubSubMessage(
-		this IMessageSerializer serializer,
+		this DispatchJsonSerializer serializer,
 		object message,
 		Dictionary<string, string>? attributes = null)
 	{
 		ArgumentNullException.ThrowIfNull(serializer);
 		ArgumentNullException.ThrowIfNull(message);
 
-		// Use reflection to call the generic Serialize method
-		var messageType = message.GetType();
-		var serializeMethod = typeof(IMessageSerializer).GetMethod(nameof(IMessageSerializer.Serialize))
-			?? throw new InvalidOperationException($"Could not find {nameof(IMessageSerializer.Serialize)} method");
-		var genericMethod = serializeMethod.MakeGenericMethod(messageType);
-		var data = (byte[])(genericMethod.Invoke(serializer, [message])
-			?? throw new InvalidOperationException("Serialization returned null"));
-
+		var data = serializer.SerializeToUtf8Bytes(message, message.GetType());
 		var pubsubMessage = new PubsubMessage
 		{
 			Data = ByteString.CopyFrom(data),
@@ -95,19 +76,17 @@ internal static class MessageSerializerExtensions
 	/// <summary>
 	/// Deserializes a <see cref="ReceivedMessage"/> to the specified type.
 	/// </summary>
-	/// <typeparam name="T">The type to deserialize to.</typeparam>
-	/// <param name="serializer">The message serializer.</param>
-	/// <param name="message">The received message containing the serialized data.</param>
-	/// <returns>The deserialized message.</returns>
-	[RequiresUnreferencedCode("Calls Excalibur.Dispatch.Abstractions.Serialization.IMessageSerializer.Deserialize<T>(Byte[])")]
+	[RequiresUnreferencedCode("Calls DispatchJsonSerializer.DeserializeFromBytes")]
 	public static T DeserializeFromPubSubMessage<T>(
-		this IMessageSerializer serializer,
+		this DispatchJsonSerializer serializer,
 		ReceivedMessage message)
 	{
 		ArgumentNullException.ThrowIfNull(serializer);
 		ArgumentNullException.ThrowIfNull(message);
 
 		var data = message.Message.Data.ToByteArray();
-		return serializer.Deserialize<T>(data);
+		var result = (T?)serializer.DeserializeFromBytes(data, typeof(T));
+		return result ?? throw new InvalidOperationException(
+			$"Failed to deserialize PubSub message to {typeof(T).Name}");
 	}
 }

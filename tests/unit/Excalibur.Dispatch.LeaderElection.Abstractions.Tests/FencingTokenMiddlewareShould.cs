@@ -105,7 +105,8 @@ public sealed class FencingTokenMiddlewareShould : UnitTestBase
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.ContainsItem(FencingTokenMiddleware.FencingTokenKey)).Returns(false);
+		var items = new Dictionary<string, object>();
+		A.CallTo(() => context.Items).Returns(items);
 
 		var nextCalled = false;
 		DispatchRequestDelegate next = (_, _, _) =>
@@ -127,8 +128,11 @@ public sealed class FencingTokenMiddlewareShould : UnitTestBase
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.ContainsItem(FencingTokenMiddleware.FencingTokenKey)).Returns(true);
-		A.CallTo(() => context.ContainsItem(FencingTokenMiddleware.FencingResourceIdKey)).Returns(false);
+		var items = new Dictionary<string, object>
+		{
+			[FencingTokenMiddleware.FencingTokenKey] = 42L,
+		};
+		A.CallTo(() => context.Items).Returns(items);
 
 		var nextCalled = false;
 		DispatchRequestDelegate next = (_, _, _) =>
@@ -149,10 +153,12 @@ public sealed class FencingTokenMiddlewareShould : UnitTestBase
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.ContainsItem(FencingTokenMiddleware.FencingTokenKey)).Returns(true);
-		A.CallTo(() => context.ContainsItem(FencingTokenMiddleware.FencingResourceIdKey)).Returns(true);
-		A.CallTo(() => context.GetItem<long>(FencingTokenMiddleware.FencingTokenKey)).Returns(42L);
-		A.CallTo(() => context.GetItem<string>(FencingTokenMiddleware.FencingResourceIdKey)).Returns(string.Empty);
+		var items = new Dictionary<string, object>
+		{
+			[FencingTokenMiddleware.FencingTokenKey] = 42L,
+			[FencingTokenMiddleware.FencingResourceIdKey] = string.Empty,
+		};
+		A.CallTo(() => context.Items).Returns(items);
 
 		var nextCalled = false;
 		DispatchRequestDelegate next = (_, _, _) =>
@@ -173,10 +179,12 @@ public sealed class FencingTokenMiddlewareShould : UnitTestBase
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.ContainsItem(FencingTokenMiddleware.FencingTokenKey)).Returns(true);
-		A.CallTo(() => context.ContainsItem(FencingTokenMiddleware.FencingResourceIdKey)).Returns(true);
-		A.CallTo(() => context.GetItem<long>(FencingTokenMiddleware.FencingTokenKey)).Returns(42L);
-		A.CallTo(() => context.GetItem<string>(FencingTokenMiddleware.FencingResourceIdKey)).Returns("resource-1");
+		var items = new Dictionary<string, object>
+		{
+			[FencingTokenMiddleware.FencingTokenKey] = 42L,
+			[FencingTokenMiddleware.FencingResourceIdKey] = "resource-1",
+		};
+		A.CallTo(() => context.Items).Returns(items);
 		A.CallTo(() => context.MessageId).Returns("msg-1");
 
 #pragma warning disable CA2012
@@ -204,10 +212,12 @@ public sealed class FencingTokenMiddlewareShould : UnitTestBase
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.ContainsItem(FencingTokenMiddleware.FencingTokenKey)).Returns(true);
-		A.CallTo(() => context.ContainsItem(FencingTokenMiddleware.FencingResourceIdKey)).Returns(true);
-		A.CallTo(() => context.GetItem<long>(FencingTokenMiddleware.FencingTokenKey)).Returns(10L);
-		A.CallTo(() => context.GetItem<string>(FencingTokenMiddleware.FencingResourceIdKey)).Returns("resource-1");
+		var items = new Dictionary<string, object>
+		{
+			[FencingTokenMiddleware.FencingTokenKey] = 10L,
+			[FencingTokenMiddleware.FencingResourceIdKey] = "resource-1",
+		};
+		A.CallTo(() => context.Items).Returns(items);
 		A.CallTo(() => context.MessageId).Returns("msg-1");
 
 #pragma warning disable CA2012

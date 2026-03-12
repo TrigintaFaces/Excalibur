@@ -45,13 +45,13 @@ public sealed partial class GoogleCloudFunctionsHostProvider(ILogger<GoogleCloud
 		}
 
 		// Configure distributed tracing if enabled
-		if (options.EnableDistributedTracing)
+		if (options.Telemetry.EnableDistributedTracing)
 		{
 			ConfigureGoogleCloudTracing(services, options);
 		}
 
 		// Configure metrics if enabled
-		if (options.EnableMetrics)
+		if (options.Telemetry.EnableMetrics)
 		{
 			ConfigureGoogleCloudMetrics(services, options);
 		}

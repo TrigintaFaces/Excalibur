@@ -7,35 +7,21 @@ using System.Text;
 
 using Excalibur.Data.CosmosDb.Resources;
 
-using Microsoft.Azure.Cosmos;
-
 namespace Excalibur.Data.CosmosDb.Authorization;
 
 /// <summary>
 /// Configuration options for Cosmos DB authorization stores.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Client/connection properties are delegated to <see cref="Client"/>.
+/// This follows the <c>CosmosClientOptions</c> pattern of reusing shared client configuration.
+/// </para>
+/// </remarks>
 public sealed class CosmosDbAuthorizationOptions
 {
 	private static readonly CompositeFormat PropertyRequiredFormat =
 		CompositeFormat.Parse(ErrorMessages.PropertyIsRequired);
-
-	/// <summary>
-	/// Gets or sets the Cosmos DB account endpoint URI.
-	/// </summary>
-	/// <value>The account endpoint. Required if ConnectionString is not provided.</value>
-	public string? AccountEndpoint { get; set; }
-
-	/// <summary>
-	/// Gets or sets the Cosmos DB account key.
-	/// </summary>
-	/// <value>The account key. Required if ConnectionString is not provided.</value>
-	public string? AccountKey { get; set; }
-
-	/// <summary>
-	/// Gets or sets the connection string (alternative to AccountEndpoint + AccountKey).
-	/// </summary>
-	/// <value>The connection string.</value>
-	public string? ConnectionString { get; set; }
 
 	/// <summary>
 	/// Gets or sets the database name.
@@ -59,62 +45,10 @@ public sealed class CosmosDbAuthorizationOptions
 	public string ActivityGroupsContainerName { get; set; } = "activity-groups";
 
 	/// <summary>
-	/// Gets or sets the consistency level for operations.
+	/// Gets or sets the shared client/connection options.
 	/// </summary>
-	/// <value>The consistency level. Defaults to null (use account default).</value>
-	public ConsistencyLevel? ConsistencyLevel { get; set; }
-
-	/// <summary>
-	/// Gets or sets the maximum retry attempts for transient failures.
-	/// </summary>
-	/// <value>The maximum retry attempts. Defaults to 9.</value>
-	[Range(0, int.MaxValue)]
-	public int MaxRetryAttempts { get; set; } = 9;
-
-	/// <summary>
-	/// Gets or sets the maximum retry wait time in seconds.
-	/// </summary>
-	/// <value>The maximum retry wait time. Defaults to 30 seconds.</value>
-	[Range(1, int.MaxValue)]
-	public int MaxRetryWaitTimeInSeconds { get; set; } = 30;
-
-	/// <summary>
-	/// Gets or sets the request timeout in seconds.
-	/// </summary>
-	/// <value>The request timeout. Defaults to 60 seconds.</value>
-	[Range(1, int.MaxValue)]
-	public int RequestTimeoutInSeconds { get; set; } = 60;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to use direct connection mode.
-	/// </summary>
-	/// <value><see langword="true"/> to use direct mode; otherwise, <see langword="false"/>. Defaults to true.</value>
-	public bool UseDirectMode { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the preferred regions for geo-redundant operations.
-	/// </summary>
-	/// <value>The list of preferred regions.</value>
-	public IReadOnlyList<string>? PreferredRegions { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable content response on write operations.
-	/// </summary>
-	/// <value><see langword="true"/> to enable content response on write; otherwise, <see langword="false"/>.</value>
-	/// <remarks>
-	/// Setting this to false reduces RU consumption for write operations.
-	/// </remarks>
-	public bool EnableContentResponseOnWrite { get; set; }
-
-	/// <summary>
-	/// Gets or sets the HTTP client factory for custom HTTP client configuration.
-	/// </summary>
-	/// <value>The HTTP client factory function.</value>
-	/// <remarks>
-	/// Use this to customize the HTTP client, such as disabling SSL validation
-	/// for local development with the Cosmos DB emulator.
-	/// </remarks>
-	public Func<HttpClient>? HttpClientFactory { get; set; }
+	/// <value> The Cosmos DB client options. </value>
+	public CosmosDbClientOptions Client { get; set; } = new();
 
 	/// <summary>
 	/// Validates the configuration options.
@@ -122,14 +56,7 @@ public sealed class CosmosDbAuthorizationOptions
 	/// <exception cref="InvalidOperationException">Thrown when required configuration is missing.</exception>
 	public void Validate()
 	{
-		var hasConnectionString = !string.IsNullOrWhiteSpace(ConnectionString);
-		var hasEndpointAndKey = !string.IsNullOrWhiteSpace(AccountEndpoint) && !string.IsNullOrWhiteSpace(AccountKey);
-
-		if (!hasConnectionString && !hasEndpointAndKey)
-		{
-			throw new InvalidOperationException(
-				ErrorMessages.EitherConnectionStringOrAccountEndpointRequired);
-		}
+		Client.Validate();
 
 		if (string.IsNullOrWhiteSpace(DatabaseName))
 		{

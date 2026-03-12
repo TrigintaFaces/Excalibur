@@ -71,7 +71,7 @@ internal sealed partial class SqlServerRequestExecutor
 			var result = await request.ResolveAsync(connection).ConfigureAwait(false);
 			_metrics.RecordDataRequestExecution((long)stopwatch.Elapsed.TotalMilliseconds, success: true);
 
-			if (_options.EnableDetailedLogging)
+			if (_options.Observability.EnableDetailedLogging)
 			{
 				LogDataRequestExecuted(_logger, request.GetType().Name, transactionScope.TransactionId,
 					(long)stopwatch.Elapsed.TotalMilliseconds);

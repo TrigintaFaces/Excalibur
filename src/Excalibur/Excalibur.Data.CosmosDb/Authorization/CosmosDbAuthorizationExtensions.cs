@@ -54,7 +54,7 @@ public static class CosmosDbAuthorizationExtensions
 
 		return services.AddCosmosDbAuthorization(options =>
 		{
-			options.ConnectionString = connectionString;
+			options.Client.ConnectionString = connectionString;
 			options.DatabaseName = databaseName;
 		});
 	}
@@ -96,9 +96,9 @@ public static class CosmosDbAuthorizationExtensions
 
 		return services.AddCosmosDbAuthorization(options =>
 		{
-			options.ConnectionString = connectionString;
+			options.Client.ConnectionString = connectionString;
 			options.DatabaseName = databaseName;
-			options.HttpClientFactory = httpClientFactory;
+			options.Client.HttpClientFactory = httpClientFactory;
 		});
 	}
 
@@ -150,9 +150,9 @@ public static class CosmosDbAuthorizationExtensions
 
 		return services.AddCosmosDbGrantStore(options =>
 		{
-			options.ConnectionString = connectionString;
+			options.Client.ConnectionString = connectionString;
 			options.DatabaseName = databaseName;
-			options.HttpClientFactory = httpClientFactory;
+			options.Client.HttpClientFactory = httpClientFactory;
 		});
 	}
 
@@ -204,9 +204,9 @@ public static class CosmosDbAuthorizationExtensions
 
 		return services.AddCosmosDbActivityGroupGrantStore(options =>
 		{
-			options.ConnectionString = connectionString;
+			options.Client.ConnectionString = connectionString;
 			options.DatabaseName = databaseName;
-			options.HttpClientFactory = httpClientFactory;
+			options.Client.HttpClientFactory = httpClientFactory;
 		});
 	}
 }

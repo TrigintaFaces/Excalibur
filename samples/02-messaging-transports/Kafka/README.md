@@ -50,22 +50,26 @@ var reading = new SensorReadingEvent(
     Humidity: 45.0,
     Timestamp: DateTimeOffset.UtcNow);
 
-await dispatcher.DispatchAsync(reading, context);
+await dispatcher.DispatchAsync(reading, context, cancellationToken: default);
 ```
 
 ### Kafka Configuration
 
 ```csharp
-builder.Services.AddKafkaMessageBus(options =>
+builder.Services.AddKafkaTransport("kafka", kafka =>
 {
-    options.BootstrapServers = "localhost:9092";
-    options.ProducerClientId = "dispatch-sensor-producer";
-    options.ConsumerGroupId = "dispatch-sensor-consumer";
-    options.DefaultTopic = "sensor-readings";
-    options.AutoCreateTopics = true;
-    options.CompressionType = KafkaCompressionType.Snappy;
-    options.AckLevel = KafkaAckLevel.All;
-    options.PartitioningStrategy = KafkaPartitioningStrategy.Key;
+    kafka.BootstrapServers(bootstrapServers)
+        .ConfigureProducer(producer =>
+        {
+            producer.ClientId("dispatch-sensor-producer")
+                .Acks(KafkaAckLevel.All)
+                .CompressionType(KafkaCompressionType.Snappy);
+        })
+        .ConfigureConsumer(consumer =>
+        {
+            consumer.GroupId("dispatch-sensor-consumer");
+        })
+        .MapTopic<SensorReadingEvent>("sensor-readings");
 });
 ```
 
@@ -77,15 +81,16 @@ Messages are routed to Kafka based on type:
 builder.Services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    _ = dispatch.WithRoutingRules(rules =>
-        rules.AddRule<SensorReadingEvent>((_, _) => "kafka"));
+
+    dispatch.UseRouting(routing =>
+        routing.Transport.Route<SensorReadingEvent>().To("kafka"));
 });
 ```
 
 ### Consumer Groups
 
 Kafka uses consumer groups for message distribution:
-- Multiple instances with the same `ConsumerGroupId` share the workload
+- Multiple instances with the same consumer group ID share the workload
 - Each partition is consumed by exactly one consumer in the group
 - Enables horizontal scaling of message processing
 
@@ -115,13 +120,13 @@ Kafka/
 
 ### Partitioning
 
-Kafka partitions topics for parallel processing. With `PartitioningStrategy.Key`, messages with the same key (e.g., SensorId) go to the same partition, ensuring ordered processing per sensor.
+Kafka partitions topics for parallel processing. Messages with the same key (e.g., SensorId) go to the same partition, ensuring ordered processing per sensor.
 
 ### Consumer Groups
 
 Multiple application instances can share message processing:
-- Same `ConsumerGroupId` = workload distributed across instances
-- Different `ConsumerGroupId` = each group gets all messages
+- Same consumer group ID = workload distributed across instances
+- Different consumer group ID = each group gets all messages
 
 ### Compression
 
@@ -185,7 +190,6 @@ docker exec kafka-sample kafka-consumer-groups --bootstrap-server localhost:9092
 
 - [RabbitMQ](../RabbitMQ/) - RabbitMQ transport
 - [MultiBusSample](../MultiBusSample/) - Multiple transports in one application
-- [MultiBusSample](../MultiBusSample/) - Multi-transport patterns
 
 ## Learn More
 
@@ -193,4 +197,3 @@ docker exec kafka-sample kafka-consumer-groups --bootstrap-server localhost:9092
 - [Confluent Kafka .NET Client](https://docs.confluent.io/kafka-clients/dotnet/current/overview.html)
 - [Excalibur.Dispatch.Transport.Kafka Package](../../../src/Dispatch/Excalibur.Dispatch.Transport.Kafka/)
 - [CloudEvents Specification](https://cloudevents.io/)
-

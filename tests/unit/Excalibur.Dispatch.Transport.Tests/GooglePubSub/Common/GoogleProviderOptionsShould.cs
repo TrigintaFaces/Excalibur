@@ -17,15 +17,15 @@ public sealed class GoogleProviderOptionsShould
 
 		// Assert
 		options.ProjectId.ShouldBe(string.Empty);
-		options.UseEmulator.ShouldBeFalse();
-		options.EmulatorHost.ShouldBe("localhost:8085");
+		options.Emulator.UseEmulator.ShouldBeFalse();
+		options.Emulator.EmulatorHost.ShouldBe("localhost:8085");
 		options.RequestTimeout.ShouldBe(TimeSpan.FromSeconds(60));
 		options.ValidateOnStartup.ShouldBeTrue();
-		options.MaxMessages.ShouldBe(100);
-		options.AckDeadline.ShouldBe(TimeSpan.FromSeconds(30));
-		options.EnableExactlyOnceDelivery.ShouldBeFalse();
-		options.EnableMessageOrdering.ShouldBeFalse();
-		options.AutoCreateResources.ShouldBeTrue();
+		options.Subscription.MaxMessages.ShouldBe(100);
+		options.Subscription.AckDeadline.ShouldBe(TimeSpan.FromSeconds(30));
+		options.Subscription.EnableExactlyOnceDelivery.ShouldBeFalse();
+		options.Subscription.EnableMessageOrdering.ShouldBeFalse();
+		options.Subscription.AutoCreateResources.ShouldBeTrue();
 		options.FlowControl.ShouldNotBeNull();
 		options.PubSubRetryOptions.ShouldNotBeNull();
 	}
@@ -37,14 +37,17 @@ public sealed class GoogleProviderOptionsShould
 		var options = new GoogleProviderOptions
 		{
 			ProjectId = "my-gcp-project",
-			UseEmulator = true,
-			EmulatorHost = "pubsub-emulator:8085",
+			Emulator =
+			{
+				UseEmulator = true,
+				EmulatorHost = "pubsub-emulator:8085",
+			},
 		};
 
 		// Assert
 		options.ProjectId.ShouldBe("my-gcp-project");
-		options.UseEmulator.ShouldBeTrue();
-		options.EmulatorHost.ShouldBe("pubsub-emulator:8085");
+		options.Emulator.UseEmulator.ShouldBeTrue();
+		options.Emulator.EmulatorHost.ShouldBe("pubsub-emulator:8085");
 	}
 
 	[Fact]
@@ -53,19 +56,22 @@ public sealed class GoogleProviderOptionsShould
 		// Arrange & Act
 		var options = new GoogleProviderOptions
 		{
-			MaxMessages = 500,
-			AckDeadline = TimeSpan.FromMinutes(2),
-			EnableExactlyOnceDelivery = true,
-			EnableMessageOrdering = true,
-			AutoCreateResources = false,
+			Subscription =
+			{
+				MaxMessages = 500,
+				AckDeadline = TimeSpan.FromMinutes(2),
+				EnableExactlyOnceDelivery = true,
+				EnableMessageOrdering = true,
+				AutoCreateResources = false,
+			},
 		};
 
 		// Assert
-		options.MaxMessages.ShouldBe(500);
-		options.AckDeadline.ShouldBe(TimeSpan.FromMinutes(2));
-		options.EnableExactlyOnceDelivery.ShouldBeTrue();
-		options.EnableMessageOrdering.ShouldBeTrue();
-		options.AutoCreateResources.ShouldBeFalse();
+		options.Subscription.MaxMessages.ShouldBe(500);
+		options.Subscription.AckDeadline.ShouldBe(TimeSpan.FromMinutes(2));
+		options.Subscription.EnableExactlyOnceDelivery.ShouldBeTrue();
+		options.Subscription.EnableMessageOrdering.ShouldBeTrue();
+		options.Subscription.AutoCreateResources.ShouldBeFalse();
 	}
 
 	[Fact]

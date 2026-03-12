@@ -1,12 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using MsOptions = Microsoft.Extensions.Options.Options;
-using Excalibur.Data.Postgres.EventSourcing;
 using Excalibur.EventSourcing.Observability;
+using Excalibur.EventSourcing.Postgres;
 
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 
 using Npgsql;
 
@@ -37,7 +35,7 @@ public sealed class PostgresEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 	/// <summary>
 	/// Gets the table name for events.
 	/// </summary>
-	public string TableName { get; } = "event_store_events";
+	public string TableName { get; } = "events";
 
 	/// <summary>
 	/// Gets the schema name for events.
@@ -126,7 +124,7 @@ public sealed class PostgresEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 
 		var createTableSql = $"""
 			CREATE TABLE IF NOT EXISTS {SchemaName}.{TableName} (
-				global_sequence BIGSERIAL PRIMARY KEY,
+				position BIGSERIAL PRIMARY KEY,
 				event_id VARCHAR(255) NOT NULL UNIQUE,
 				aggregate_id VARCHAR(255) NOT NULL,
 				aggregate_type VARCHAR(255) NOT NULL,
@@ -143,7 +141,7 @@ public sealed class PostgresEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 				ON {SchemaName}.{TableName}(aggregate_id, aggregate_type, version);
 
 			CREATE INDEX IF NOT EXISTS idx_events_undispatched
-				ON {SchemaName}.{TableName}(is_dispatched, global_sequence) WHERE is_dispatched = false;
+				ON {SchemaName}.{TableName}(is_dispatched, position) WHERE is_dispatched = false;
 
 			CREATE INDEX IF NOT EXISTS idx_events_type
 				ON {SchemaName}.{TableName}(event_type);
@@ -170,15 +168,8 @@ public sealed class PostgresEventStoreTelemetryTestFixture : IAsyncLifetime, IDi
 			throw new InvalidOperationException("Test fixture not initialized. Postgres container may not be available.");
 		}
 
-		var options = MsOptions.Create(new PostgresEventStoreOptions
-		{
-			SchemaName = SchemaName,
-			EventsTableName = TableName,
-		});
-
 		return new PostgresEventStore(
-			() => CreateConnection(),
-			options,
+			ConnectionString,
 			NullLogger<PostgresEventStore>.Instance);
 	}
 

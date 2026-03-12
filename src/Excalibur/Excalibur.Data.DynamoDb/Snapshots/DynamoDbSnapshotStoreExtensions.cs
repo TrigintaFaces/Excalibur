@@ -22,7 +22,7 @@ public static class DynamoDbSnapshotStoreExtensions
 	/// <code>
 	/// services.AddDynamoDbSnapshotStore(options =>
 	/// {
-	///     options.Region = "us-east-1";
+	///     options.Connection.Region = "us-east-1";
 	///     options.TableName = "snapshots";
 	/// });
 	/// </code>

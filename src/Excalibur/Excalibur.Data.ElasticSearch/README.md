@@ -31,7 +31,7 @@ dotnet add package Excalibur.Data.ElasticSearch
 ### Basic Connection
 
 ```csharp
-services.Configure<ElasticsearchConfigurationSettings>(options =>
+services.Configure<ElasticsearchConfigurationOptions>(options =>
 {
     // Single node
     options.Url = new Uri("https://localhost:9200");
@@ -49,10 +49,10 @@ services.Configure<ElasticsearchConfigurationSettings>(options =>
 ### Elastic Cloud
 
 ```csharp
-services.Configure<ElasticsearchConfigurationSettings>(options =>
+services.Configure<ElasticsearchConfigurationOptions>(options =>
 {
     options.CloudId = "my-deployment:dXMtY2VudHJhbDE...";
-    options.ApiKey = "your-api-key";
+    options.Connection.ApiKey = "your-api-key";
 });
 ```
 
@@ -61,55 +61,55 @@ services.Configure<ElasticsearchConfigurationSettings>(options =>
 #### API Key (Recommended)
 
 ```csharp
-options.ApiKey = "your-api-key";
+options.Connection.ApiKey = "your-api-key";
 // Or Base64-encoded
-options.Base64ApiKey = "base64-encoded-api-key";
+options.Connection.Base64ApiKey = "base64-encoded-api-key";
 ```
 
 #### Basic Authentication
 
 ```csharp
-options.Username = "elastic";
-options.Password = "your-password";
+options.Connection.Username = "elastic";
+options.Connection.Password = "your-password";
 ```
 
 #### Certificate Fingerprint
 
 ```csharp
-options.CertificateFingerprint = "A1:B2:C3:...";
-options.DisableCertificateValidation = false;  // Keep false in production
+options.Connection.CertificateFingerprint = "A1:B2:C3:...";
+options.Connection.DisableCertificateValidation = false;  // Keep false in production
 ```
 
 ### Environment Variables
 
 ```bash
 ELASTICSEARCH__URL=https://localhost:9200
-ELASTICSEARCH__APIKEY=your-api-key
-ELASTICSEARCH__USERNAME=elastic
-ELASTICSEARCH__PASSWORD=your-password
+ELASTICSEARCH__CONNECTION__APIKEY=your-api-key
+ELASTICSEARCH__CONNECTION__USERNAME=elastic
+ELASTICSEARCH__CONNECTION__PASSWORD=your-password
 ```
 
 ```csharp
-services.Configure<ElasticsearchConfigurationSettings>(
+services.Configure<ElasticsearchConfigurationOptions>(
     configuration.GetSection("Elasticsearch"));
 ```
 
 ### Connection Settings
 
 ```csharp
-services.Configure<ElasticsearchConfigurationSettings>(options =>
+services.Configure<ElasticsearchConfigurationOptions>(options =>
 {
     // Timeouts
-    options.RequestTimeout = TimeSpan.FromSeconds(30);
-    options.PingTimeout = TimeSpan.FromSeconds(5);
+    options.Connection.RequestTimeout = TimeSpan.FromSeconds(30);
+    options.Connection.PingTimeout = TimeSpan.FromSeconds(5);
 
     // Connection pooling
     options.ConnectionPoolType = ConnectionPoolType.Sniffing;
-    options.MaximumConnectionsPerNode = 80;
+    options.Connection.MaximumConnectionsPerNode = 80;
 
     // Node discovery
     options.EnableSniffing = true;
-    options.SniffingInterval = TimeSpan.FromHours(1);
+    options.Connection.SniffingInterval = TimeSpan.FromHours(1);
 });
 ```
 
@@ -252,7 +252,7 @@ if (!comparison.IsBackwardsCompatible)
 ### Circuit Breaker
 
 ```csharp
-services.Configure<ElasticsearchConfigurationSettings>(options =>
+services.Configure<ElasticsearchConfigurationOptions>(options =>
 {
     options.Resilience.CircuitBreaker = new CircuitBreakerOptions
     {
@@ -297,7 +297,7 @@ services.Configure<ElasticsearchDeadLetterOptions>(options =>
 ### Multi-Level Caching
 
 ```csharp
-services.Configure<ElasticsearchConfigurationSettings>(options =>
+services.Configure<ElasticsearchConfigurationOptions>(options =>
 {
     options.Performance.Caching = new CachingSettings
     {
@@ -325,7 +325,7 @@ services.Configure<ElasticsearchConfigurationSettings>(options =>
 ### Bulk Operations
 
 ```csharp
-services.Configure<ElasticsearchConfigurationSettings>(options =>
+services.Configure<ElasticsearchConfigurationOptions>(options =>
 {
     options.Performance.BulkOperations = new BulkOperationSettings
     {
@@ -364,7 +364,7 @@ services.AddOpenTelemetry()
 ### Monitoring Settings
 
 ```csharp
-services.Configure<ElasticsearchConfigurationSettings>(options =>
+services.Configure<ElasticsearchConfigurationOptions>(options =>
 {
     options.Monitoring = new ElasticsearchMonitoringOptions
     {
@@ -492,28 +492,24 @@ Elasticsearch.Net.ElasticsearchClientException: index_not_found_exception
 ## Complete Configuration Reference
 
 ```csharp
-services.Configure<ElasticsearchConfigurationSettings>(options =>
+services.Configure<ElasticsearchConfigurationOptions>(options =>
 {
-    // Connection
+    // Endpoint
     options.Url = new Uri("https://localhost:9200");
     options.CloudId = null;
     options.ConnectionPoolType = ConnectionPoolType.Static;
-
-    // Authentication
-    options.Username = null;
-    options.Password = null;
-    options.ApiKey = "your-api-key";
-    options.CertificateFingerprint = null;
-    options.DisableCertificateValidation = false;
-
-    // Timeouts
-    options.RequestTimeout = TimeSpan.FromSeconds(30);
-    options.PingTimeout = TimeSpan.FromSeconds(5);
-
-    // Connection pool
-    options.MaximumConnectionsPerNode = 80;
     options.EnableSniffing = false;
-    options.SniffingInterval = TimeSpan.FromHours(1);
+
+    // Connection (authentication, timeouts, SSL/TLS)
+    options.Connection.Username = null;
+    options.Connection.Password = null;
+    options.Connection.ApiKey = "your-api-key";
+    options.Connection.CertificateFingerprint = null;
+    options.Connection.DisableCertificateValidation = false;
+    options.Connection.RequestTimeout = TimeSpan.FromSeconds(30);
+    options.Connection.PingTimeout = TimeSpan.FromSeconds(5);
+    options.Connection.MaximumConnectionsPerNode = 80;
+    options.Connection.SniffingInterval = TimeSpan.FromHours(1);
 
     // Resilience
     options.Resilience = new ElasticsearchResilienceOptions();
@@ -521,11 +517,8 @@ services.Configure<ElasticsearchConfigurationSettings>(options =>
     // Monitoring
     options.Monitoring = new ElasticsearchMonitoringOptions();
 
-    // Performance
-    options.Performance = new ElasticsearchPerformanceSettings();
-
     // Projections
-    options.Projections = new ProjectionSettings();
+    options.Projections = new ProjectionOptions();
 });
 ```
 

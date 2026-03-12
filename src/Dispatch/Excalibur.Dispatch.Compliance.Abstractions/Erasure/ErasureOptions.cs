@@ -2,9 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Globalization;
-using System.Text;
-
 namespace Excalibur.Dispatch.Compliance;
 
 /// <summary>
@@ -18,12 +15,6 @@ namespace Excalibur.Dispatch.Compliance;
 /// </remarks>
 public sealed class ErasureOptions
 {
-	private static readonly CompositeFormat DefaultGracePeriodLessThanMinimumFormat =
-			CompositeFormat.Parse(Resources.ErasureOptions_DefaultGracePeriodLessThanMinimum);
-
-	private static readonly CompositeFormat DefaultGracePeriodExceedsMaximumFormat =
-			CompositeFormat.Parse(Resources.ErasureOptions_DefaultGracePeriodExceedsMaximum);
-
 	/// <summary>
 	/// Gets or sets the default grace period before key deletion.
 	/// Default: 72 hours.
@@ -84,83 +75,6 @@ public sealed class ErasureOptions
 	/// </summary>
 	public ErasureExecutionOptions Execution { get; set; } = new();
 
-	// --- Backward-compatible shims that delegate to sub-options ---
-
-	/// <summary>
-	/// Gets or sets the retention period for erasure certificates.
-	/// Default: 7 years (regulatory requirement).
-	/// </summary>
-	public TimeSpan CertificateRetentionPeriod { get => Retention.CertificateRetentionPeriod; set => Retention.CertificateRetentionPeriod = value; }
-
-	/// <summary>
-	/// Gets or sets the signing key identifier for certificate signatures.
-	/// </summary>
-	public string? SigningKeyId { get => Retention.SigningKeyId; set => Retention.SigningKeyId = value; }
-
-	/// <summary>
-	/// Gets or sets the batch size for erasure operations.
-	/// Default: 100 keys per batch.
-	/// </summary>
-	public int BatchSize { get => Execution.BatchSize; set => Execution.BatchSize = value; }
-
-	/// <summary>
-	/// Gets or sets the maximum retry attempts for failed erasures.
-	/// Default: 3.
-	/// </summary>
-	public int MaxRetryAttempts { get => Execution.MaxRetryAttempts; set => Execution.MaxRetryAttempts = value; }
-
-	/// <summary>
-	/// Gets or sets the delay between retry attempts.
-	/// Default: 30 seconds.
-	/// </summary>
-	public TimeSpan RetryDelay { get => Execution.RetryDelay; set => Execution.RetryDelay = value; }
-
-	/// <summary>
-	/// Validates the configured options.
-	/// </summary>
-	/// <exception cref="InvalidOperationException">Thrown when options are invalid.</exception>
-	public void Validate()
-	{
-		if (MinimumGracePeriod < TimeSpan.Zero)
-		{
-			throw new InvalidOperationException(Resources.ErasureOptions_MinimumGracePeriodNegative);
-		}
-
-		if (DefaultGracePeriod < MinimumGracePeriod)
-		{
-			throw new InvalidOperationException(
-					string.Format(
-							CultureInfo.CurrentCulture,
-							DefaultGracePeriodLessThanMinimumFormat,
-							DefaultGracePeriod,
-							MinimumGracePeriod));
-		}
-
-		if (DefaultGracePeriod > MaximumGracePeriod)
-		{
-			throw new InvalidOperationException(
-					string.Format(
-							CultureInfo.CurrentCulture,
-							DefaultGracePeriodExceedsMaximumFormat,
-							DefaultGracePeriod,
-							MaximumGracePeriod));
-		}
-
-		if (MaximumGracePeriod > TimeSpan.FromDays(30))
-		{
-			throw new InvalidOperationException(Resources.ErasureOptions_MaximumGracePeriodExceedsDeadline);
-		}
-
-		if (Execution.BatchSize < 1)
-		{
-			throw new InvalidOperationException(Resources.ErasureOptions_BatchSizeTooSmall);
-		}
-
-		if (Execution.MaxRetryAttempts < 0)
-		{
-			throw new InvalidOperationException(Resources.ErasureOptions_MaxRetryAttemptsNegative);
-		}
-	}
 }
 
 /// <summary>

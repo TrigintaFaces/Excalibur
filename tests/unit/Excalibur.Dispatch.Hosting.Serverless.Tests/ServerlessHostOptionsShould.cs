@@ -19,9 +19,9 @@ public sealed class ServerlessHostOptionsShould : UnitTestBase
 		// Assert
 		options.PreferredPlatform.ShouldBeNull();
 		options.EnableColdStartOptimization.ShouldBeTrue();
-		options.EnableDistributedTracing.ShouldBeTrue();
-		options.EnableMetrics.ShouldBeTrue();
-		options.EnableStructuredLogging.ShouldBeTrue();
+		options.Telemetry.EnableDistributedTracing.ShouldBeTrue();
+		options.Telemetry.EnableMetrics.ShouldBeTrue();
+		options.Telemetry.EnableStructuredLogging.ShouldBeTrue();
 		options.ExecutionTimeout.ShouldBeNull();
 		options.MemoryLimitMB.ShouldBeNull();
 		options.EnvironmentVariables.ShouldNotBeNull();
@@ -41,6 +41,16 @@ public sealed class ServerlessHostOptionsShould : UnitTestBase
 	}
 
 	[Fact]
+	public void Telemetry_SubOptionsAreInitialized()
+	{
+		// Act
+		var options = new ServerlessHostOptions();
+
+		// Assert
+		options.Telemetry.ShouldNotBeNull();
+	}
+
+	[Fact]
 	public void AllProperties_CanBeSetAndRetrieved()
 	{
 		// Arrange
@@ -48,19 +58,19 @@ public sealed class ServerlessHostOptionsShould : UnitTestBase
 		{
 			PreferredPlatform = ServerlessPlatform.AwsLambda,
 			EnableColdStartOptimization = false,
-			EnableDistributedTracing = false,
-			EnableMetrics = false,
-			EnableStructuredLogging = false,
 			ExecutionTimeout = TimeSpan.FromMinutes(5),
 			MemoryLimitMB = 1024,
 		};
+		options.Telemetry.EnableDistributedTracing = false;
+		options.Telemetry.EnableMetrics = false;
+		options.Telemetry.EnableStructuredLogging = false;
 
 		// Assert
 		options.PreferredPlatform.ShouldBe(ServerlessPlatform.AwsLambda);
 		options.EnableColdStartOptimization.ShouldBeFalse();
-		options.EnableDistributedTracing.ShouldBeFalse();
-		options.EnableMetrics.ShouldBeFalse();
-		options.EnableStructuredLogging.ShouldBeFalse();
+		options.Telemetry.EnableDistributedTracing.ShouldBeFalse();
+		options.Telemetry.EnableMetrics.ShouldBeFalse();
+		options.Telemetry.EnableStructuredLogging.ShouldBeFalse();
 		options.ExecutionTimeout.ShouldBe(TimeSpan.FromMinutes(5));
 		options.MemoryLimitMB.ShouldBe(1024);
 	}

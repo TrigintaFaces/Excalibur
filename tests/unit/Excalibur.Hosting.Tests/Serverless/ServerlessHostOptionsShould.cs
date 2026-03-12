@@ -18,9 +18,9 @@ public sealed class ServerlessHostOptionsShould : UnitTestBase
 		// Assert
 		options.PreferredPlatform.ShouldBeNull();
 		options.EnableColdStartOptimization.ShouldBeTrue();
-		options.EnableDistributedTracing.ShouldBeTrue();
-		options.EnableMetrics.ShouldBeTrue();
-		options.EnableStructuredLogging.ShouldBeTrue();
+		options.Telemetry.EnableDistributedTracing.ShouldBeTrue();
+		options.Telemetry.EnableMetrics.ShouldBeTrue();
+		options.Telemetry.EnableStructuredLogging.ShouldBeTrue();
 		options.ExecutionTimeout.ShouldBeNull();
 		options.MemoryLimitMB.ShouldBeNull();
 		_ = options.EnvironmentVariables.ShouldNotBeNull();
@@ -81,6 +81,16 @@ public sealed class ServerlessHostOptionsShould : UnitTestBase
 
 		// Assert
 		_ = options.GoogleCloudFunctions.ShouldNotBeNull();
+	}
+
+	[Fact]
+	public void Telemetry_SubOptionsAreInitialized()
+	{
+		// Act
+		var options = new ServerlessHostOptions();
+
+		// Assert
+		_ = options.Telemetry.ShouldNotBeNull();
 	}
 
 	[Fact]

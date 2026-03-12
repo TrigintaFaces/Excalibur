@@ -1,1 +1,8 @@
 #nullable enable
+Excalibur.Jobs.Jobs.ProjectionRebuildJob
+Excalibur.Jobs.Jobs.ProjectionRebuildJob.ExecuteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.Jobs.ProjectionRebuildJob.ProjectionRebuildJob(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Jobs.ProjectionRebuildJob!>! logger) -> void
+Excalibur.Jobs.Jobs.SnapshotCreationJob<TAggregate, TKey>
+Excalibur.Jobs.Jobs.SnapshotCreationJob<TAggregate, TKey>.ExecuteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.Jobs.SnapshotCreationJob<TAggregate, TKey>.SnapshotCreationJob(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory! scopeFactory, Microsoft.Extensions.Logging.ILogger! logger) -> void
+abstract Excalibur.Jobs.Jobs.SnapshotCreationJob<TAggregate, TKey>.GetAggregateIdsAsync(System.IServiceProvider! serviceProvider, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TKey>!>!

@@ -184,7 +184,7 @@ public sealed class InMemoryLeaderElectionExtendedShould
 		le.LostLeadership += (_, _) => lostLeadership = true;
 
 		// Act
-		await le.UpdateHealthAsync(isHealthy: false, metadata: null);
+		await le.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
 
 		// Assert
 		le.IsLeader.ShouldBeFalse();
@@ -200,7 +200,7 @@ public sealed class InMemoryLeaderElectionExtendedShould
 		await le.StartAsync(CancellationToken.None);
 
 		// Act
-		await le.UpdateHealthAsync(true, new Dictionary<string, string> { ["key"] = "value" });
+		await le.UpdateHealthAsync(true, new Dictionary<string, string> { ["key"] = "value" }, CancellationToken.None);
 
 		// Assert
 		var healthList = await le.GetCandidateHealthAsync(CancellationToken.None);
@@ -229,7 +229,7 @@ public sealed class InMemoryLeaderElectionExtendedShould
 		await using var le = CreateInstance("resource-1", "candidate-1", sharedState);
 
 		// Act & Assert - should not throw
-		await le.UpdateHealthAsync(true, null);
+		await le.UpdateHealthAsync(true, null, CancellationToken.None);
 	}
 
 	private static InMemoryLeaderElection CreateInstance(

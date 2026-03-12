@@ -54,6 +54,30 @@ public sealed class ContextObservabilityMiddlewareDepthCoverageShould : IDisposa
 
 	public void Dispose() => _sut.Dispose();
 
+	/// <summary>
+	/// Creates a fake <see cref="IMessageContext"/> backed by a real Items dictionary
+	/// so that extension methods (GetItem, SetItem, ContainsItem) work correctly.
+	/// </summary>
+	private static IMessageContext CreateFakeContext(
+		string? messageId = null,
+		string? correlationId = null,
+		Dictionary<string, object>? items = null)
+	{
+		var context = A.Fake<IMessageContext>();
+		var itemsDict = items ?? new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Items).Returns(itemsDict);
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
+		if (messageId is not null)
+		{
+			A.CallTo(() => context.MessageId).Returns(messageId);
+		}
+		if (correlationId is not null)
+		{
+			A.CallTo(() => context.CorrelationId).Returns(correlationId);
+		}
+		return context;
+	}
+
 	[Fact]
 	public async Task PassThrough_WhenDisabled()
 	{
@@ -82,10 +106,7 @@ public sealed class ContextObservabilityMiddlewareDepthCoverageShould : IDisposa
 		A.CallTo(() => _tracker.ValidateContextIntegrity(A<IMessageContext>._)).Returns(true);
 
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.CorrelationId).Returns("corr-1");
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		var context = CreateFakeContext(messageId: "msg-1", correlationId: "corr-1");
 
 		var successResult = A.Fake<IMessageResult>();
 		A.CallTo(() => successResult.IsSuccess).Returns(true);
@@ -117,8 +138,7 @@ public sealed class ContextObservabilityMiddlewareDepthCoverageShould : IDisposa
 		A.CallTo(() => _tracker.ValidateContextIntegrity(A<IMessageContext>._)).Returns(true);
 
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		var context = CreateFakeContext();
 
 		var result = A.Fake<IMessageResult>();
 		A.CallTo(() => result.IsSuccess).Returns(true);
@@ -143,8 +163,7 @@ public sealed class ContextObservabilityMiddlewareDepthCoverageShould : IDisposa
 		A.CallTo(() => _tracker.ValidateContextIntegrity(A<IMessageContext>._)).Returns(true);
 
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		var context = CreateFakeContext();
 
 		// Act & Assert
 		await Should.ThrowAsync<InvalidOperationException>(async () =>
@@ -164,8 +183,7 @@ public sealed class ContextObservabilityMiddlewareDepthCoverageShould : IDisposa
 		A.CallTo(() => _tracker.ValidateContextIntegrity(A<IMessageContext>._)).Returns(true);
 
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		var context = CreateFakeContext();
 
 		// Act & Assert
 		await Should.ThrowAsync<InvalidOperationException>(async () =>
@@ -189,8 +207,7 @@ public sealed class ContextObservabilityMiddlewareDepthCoverageShould : IDisposa
 		A.CallTo(() => _tracker.ValidateContextIntegrity(A<IMessageContext>._)).Returns(false);
 
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		var context = CreateFakeContext();
 
 		var result = A.Fake<IMessageResult>();
 		A.CallTo(() => result.IsSuccess).Returns(true);
@@ -214,8 +231,7 @@ public sealed class ContextObservabilityMiddlewareDepthCoverageShould : IDisposa
 		A.CallTo(() => _tracker.ValidateContextIntegrity(A<IMessageContext>._)).Returns(false);
 
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		var context = CreateFakeContext();
 
 		// Act & Assert
 		await Should.ThrowAsync<ContextIntegrityException>(async () =>
@@ -272,10 +288,12 @@ public sealed class ContextObservabilityMiddlewareDepthCoverageShould : IDisposa
 		A.CallTo(() => _tracker.ValidateContextIntegrity(A<IMessageContext>._)).Returns(true);
 
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.ContainsItem("PipelineStage")).Returns(true);
-		A.CallTo(() => context.GetItem<string>("PipelineStage")).Returns("CustomStage");
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		// Place PipelineStage directly in Items so extension method ContainsItem/GetItem works
+		var items = new Dictionary<string, object>(StringComparer.Ordinal)
+		{
+			["PipelineStage"] = "CustomStage",
+		};
+		var context = CreateFakeContext(items: items);
 
 		var result = A.Fake<IMessageResult>();
 		A.CallTo(() => result.IsSuccess).Returns(true);

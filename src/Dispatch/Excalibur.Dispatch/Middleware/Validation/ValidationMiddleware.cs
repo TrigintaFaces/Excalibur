@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Middleware;
 
@@ -177,13 +178,18 @@ public sealed partial class ValidationMiddleware : IDispatchMiddleware
 	/// </summary>
 	private static MessageValidationContext CreateValidationContext(
 		IDispatchMessage message,
-		IMessageContext context) =>
-		new(
+		IMessageContext context)
+	{
+		var contextTenantId = context.GetTenantId();
+		var contextUserId = context.GetUserId();
+
+		return new(
 			message, // Cast to IDispatchMessage
 			context,
-			string.IsNullOrEmpty(context.TenantId) ? GetPropertyValue(context, "TenantId") : context.TenantId,
-			string.IsNullOrEmpty(context.UserId) ? GetPropertyValue(context, "UserId") : context.UserId,
+			string.IsNullOrEmpty(contextTenantId) ? GetPropertyValue(context, "TenantId") : contextTenantId,
+			string.IsNullOrEmpty(contextUserId) ? GetPropertyValue(context, "UserId") : contextUserId,
 			string.IsNullOrEmpty(context.CorrelationId) ? GetPropertyValue(context, "CorrelationId") : context.CorrelationId);
+	}
 
 	/// <summary>
 	/// Validates the message using Data Annotations.

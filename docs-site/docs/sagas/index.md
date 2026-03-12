@@ -44,6 +44,11 @@ Start with **[Building Your First Saga](building-your-first-saga.md)** to learn 
 |---------|---------|
 | `Excalibur.Saga` | Core saga engine, orchestrator, coordinator |
 | `Excalibur.Saga.SqlServer` | SQL Server saga state persistence |
+| `Excalibur.Saga.Postgres` | PostgreSQL saga state persistence |
+| `Excalibur.Saga.CosmosDb` | Azure Cosmos DB saga state persistence |
+| `Excalibur.Saga.DynamoDb` | AWS DynamoDB saga state persistence |
+| `Excalibur.Saga.MongoDB` | MongoDB saga state persistence |
+| `Excalibur.Saga.Firestore` | Google Firestore saga state persistence |
 
 ## Quick Start
 
@@ -75,8 +80,8 @@ public class OrderSaga : ISagaDefinition<OrderSagaData>
     };
 
     // RetryPolicy is optional - return null for no retries
-    // To implement custom retry logic, implement IRetryPolicy
-    public IRetryPolicy? RetryPolicy => null;
+    // To implement custom retry logic, implement ISagaRetryPolicy
+    public ISagaRetryPolicy? RetryPolicy => null;
 
     public Task OnCompletedAsync(
         ISagaContext<OrderSagaData> context,
@@ -181,10 +186,59 @@ public class ShipOrderStep : ISagaStep<OrderSagaData>
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-// Registration
-services.AddExcaliburSaga(options =>
+// Registration with SQL Server persistence
+services.AddExcaliburSaga(saga =>
 {
-    // Configure saga options
+    saga.UseSqlServer(connectionString)
+        .WithOrchestration()
+        .WithTimeouts();
+});
+
+// Or with Postgres persistence
+services.AddExcaliburSaga(saga =>
+{
+    saga.UsePostgres(connectionString)
+        .WithOrchestration()
+        .WithTimeouts();
+});
+
+// Cloud providers
+services.AddExcaliburSaga(saga =>
+{
+    saga.UseCosmosDb(options =>
+    {
+        options.Client.ConnectionString = "AccountEndpoint=...;AccountKey=...";
+        options.DatabaseName = "myapp";
+        options.ContainerName = "sagas";
+    });
+});
+
+services.AddExcaliburSaga(saga =>
+{
+    saga.UseDynamoDb(options =>
+    {
+        options.Connection.Region = "us-east-1";
+        options.TableName = "sagas";
+    });
+});
+
+services.AddExcaliburSaga(saga =>
+{
+    saga.UseMongoDB(options =>
+    {
+        options.ConnectionString = "mongodb://localhost:27017";
+        options.DatabaseName = "myapp";
+        options.CollectionName = "sagas";
+    });
+});
+
+services.AddExcaliburSaga(saga =>
+{
+    saga.UseFirestore(options =>
+    {
+        options.ProjectId = "my-project";
+        options.CollectionName = "sagas";
+    });
 });
 
 // Execution via ISagaOrchestrator
@@ -328,27 +382,68 @@ public class OrderEventHandler : IEventHandler<OrderPlaced>
 Persist saga state to SQL Server for durability:
 
 ```csharp
-services.AddExcaliburSaga(options =>
+services.AddExcaliburSaga(saga =>
 {
-    // Configure SQL Server persistence
+    saga.UseSqlServer(connectionString)
+        .WithOrchestration()
+        .WithTimeouts();
 });
 ```
 
 The SQL Server store provides:
 - Durable saga state persistence
 - Concurrent saga execution safety
-- Query support for saga status and history
+- Idempotency checking via `SqlServerSagaIdempotencyProvider`
+- Correlation queries for saga lookup by business identifiers
+
+### Correlation Queries
+
+Look up saga instances by business identifiers using `ISagaCorrelationQuery`:
+
+```csharp
+// Find sagas by correlation ID (uses indexed computed column)
+var sagas = await correlationQuery.FindByCorrelationIdAsync("order-123", ct);
+
+// Find sagas by arbitrary JSON property (uses JSON_VALUE)
+var sagas = await correlationQuery.FindByPropertyAsync("CustomerId", "cust-456", ct);
+```
+
+Register the SQL Server correlation query via the builder:
+
+```csharp
+services.AddExcaliburSaga(saga =>
+{
+    saga.UseSqlServer(connectionString)
+        .WithCorrelationQuery();
+});
+```
+
+The SQL Server implementation requires the `02-SagaCorrelationIndex.sql` migration for optimal performance. Property names in `FindByPropertyAsync` are validated against a `[GeneratedRegex]` whitelist to prevent JSON path injection.
+
+### Compensation Idempotency
+
+The saga engine checks `ISagaIdempotencyProvider` before executing compensation steps to prevent duplicate compensation during retries or event redelivery. This is wired automatically when using `AdvancedSagaMiddleware`.
+
+For SQL Server persistence, register the idempotency provider:
+
+```csharp
+services.AddExcaliburSaga(saga =>
+{
+    saga.UseSqlServer(connectionString)
+        .WithSqlServerIdempotency();
+});
+```
 
 ## Retry Policies
 
-Configure retry behavior by implementing `IRetryPolicy`:
+Configure retry behavior by implementing `ISagaRetryPolicy`:
 
 ```csharp
 // No retries (default)
-public IRetryPolicy? RetryPolicy => null;
+public ISagaRetryPolicy? RetryPolicy => null;
 
-// Custom retry policy - implement IRetryPolicy
-public class ExponentialBackoffRetryPolicy : IRetryPolicy
+// Custom retry policy - implement ISagaRetryPolicy
+public class ExponentialBackoffRetryPolicy : ISagaRetryPolicy
 {
     public int MaxAttempts { get; init; } = 3;
     public TimeSpan Delay { get; init; } = TimeSpan.FromSeconds(2);
@@ -361,14 +456,14 @@ public class ExponentialBackoffRetryPolicy : IRetryPolicy
 }
 
 // Use in saga definition
-public IRetryPolicy? RetryPolicy => new ExponentialBackoffRetryPolicy
+public ISagaRetryPolicy? RetryPolicy => new ExponentialBackoffRetryPolicy
 {
     MaxAttempts = 3,
     Delay = TimeSpan.FromSeconds(2)
 };
 ```
 
-The `IRetryPolicy` interface defines:
+The `ISagaRetryPolicy` interface defines:
 
 | Member | Description |
 |--------|-------------|

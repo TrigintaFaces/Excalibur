@@ -1,13 +1,13 @@
-﻿using Company.DispatchApi.Actions;
+using Company.DispatchApi.Actions;
 using Company.DispatchApi.Infrastructure;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Delivery;
 
 namespace Company.DispatchApi.Handlers;
 
 /// <summary>
 /// Handles <see cref="GetOrderAction"/> requests.
 /// </summary>
-public sealed class GetOrderHandler : IMessageHandler<GetOrderAction>
+public sealed class GetOrderHandler : IActionHandler<GetOrderAction, OrderResult?>
 {
     private readonly InMemoryOrderStore _orderStore;
     private readonly ILogger<GetOrderHandler> _logger;
@@ -19,20 +19,18 @@ public sealed class GetOrderHandler : IMessageHandler<GetOrderAction>
     }
 
     /// <inheritdoc />
-    public Task HandleAsync(GetOrderAction message, IMessageContext context, CancellationToken cancellationToken)
+    public Task<OrderResult?> HandleAsync(GetOrderAction action, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Retrieving order {OrderId}", message.OrderId);
+        _logger.LogInformation("Retrieving order {OrderId}", action.OrderId);
 
-        var order = _orderStore.GetById(message.OrderId);
+        var order = _orderStore.GetById(action.OrderId);
 
         if (order is null)
         {
-            _logger.LogWarning("Order {OrderId} not found", message.OrderId);
-            context.SetResult<object?>(null);
-            return Task.CompletedTask;
+            _logger.LogWarning("Order {OrderId} not found", action.OrderId);
+            return Task.FromResult<OrderResult?>(null);
         }
 
-        context.SetResult(new { order.Id, order.ProductId, order.Quantity, order.Status });
-        return Task.CompletedTask;
+        return Task.FromResult<OrderResult?>(new OrderResult(order.Id, order.ProductId, order.Quantity, order.Status));
     }
 }

@@ -80,6 +80,27 @@ public sealed class InputValidationOptions
 	public bool RequireCorrelationId { get; set; } = true;
 
 	/// <summary>
+	/// Gets or sets a value indicating whether validation should fail when a custom validator throws an exception.
+	/// </summary>
+	/// <value>
+	/// <see langword="true"/> if validation should fail when a custom validator throws an exception; otherwise, <see langword="false"/>. The default is <see langword="true"/>.
+	/// </value>
+	public bool FailOnValidatorException { get; set; } = true;
+
+	/// <summary>
+	/// Gets or sets the injection prevention configuration.
+	/// </summary>
+	/// <value>The injection prevention options.</value>
+	public InputInjectionPreventionOptions InjectionPrevention { get; set; } = new();
+
+}
+
+/// <summary>
+/// Configuration options for injection prevention in input validation.
+/// </summary>
+public sealed class InputInjectionPreventionOptions
+{
+	/// <summary>
 	/// Gets or sets a value indicating whether control characters are blocked in string properties.
 	/// </summary>
 	/// <value>
@@ -134,12 +155,4 @@ public sealed class InputValidationOptions
 	/// <see langword="true"/> if LDAP injection patterns are blocked; otherwise, <see langword="false"/>. The default is <see langword="true"/>.
 	/// </value>
 	public bool BlockLdapInjection { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether validation should fail when a custom validator throws an exception.
-	/// </summary>
-	/// <value>
-	/// <see langword="true"/> if validation should fail when a custom validator throws an exception; otherwise, <see langword="false"/>. The default is <see langword="true"/>.
-	/// </value>
-	public bool FailOnValidatorException { get; set; } = true;
 }

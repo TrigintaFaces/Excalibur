@@ -5,6 +5,7 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Routing;
@@ -130,10 +131,8 @@ public sealed class RoutingMiddlewareShould
 		var router = A.Fake<IDispatchRouter>();
 		var middleware = CreateMiddleware(router);
 		var message = CreateMockMessage();
-		var context = new MessageContext
-		{
-			RoutingDecision = RoutingDecision.Success("local", ["local"]),
-		};
+		var context = CreateMockMessageContext();
+		context.GetOrCreateRoutingFeature().RoutingDecision = RoutingDecision.Success("local", ["local"]);
 		var nextDelegate = CreateSuccessfulNextDelegate();
 
 		// Act
@@ -143,8 +142,8 @@ public sealed class RoutingMiddlewareShould
 		result.Succeeded.ShouldBeTrue();
 		A.CallTo(() => router.RouteAsync(A<IDispatchMessage>._, A<IMessageContext>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
-		context.RoutingDecision.ShouldNotBeNull();
-		context.RoutingDecision.Transport.ShouldBe("local");
+		context.GetRoutingDecision().ShouldNotBeNull();
+		context.GetRoutingDecision()!.Transport.ShouldBe("local");
 		context.Items.ShouldNotContainKey("routing:decision");
 		context.Items.ShouldNotContainKey("routing:transport");
 		context.Items.ShouldNotContainKey("routing:endpoints");
@@ -157,10 +156,8 @@ public sealed class RoutingMiddlewareShould
 		var router = A.Fake<IDispatchRouter>();
 		var middleware = CreateMiddleware(router);
 		var message = CreateMockMessage();
-		var context = new MessageContext
-		{
-			RoutingDecision = RoutingDecision.Failure("No route"),
-		};
+		var context = CreateMockMessageContext();
+		context.GetOrCreateRoutingFeature().RoutingDecision = RoutingDecision.Failure("No route");
 		var nextCalled = false;
 		DispatchRequestDelegate nextDelegate = (_, _, _) =>
 		{
@@ -190,12 +187,8 @@ public sealed class RoutingMiddlewareShould
 		var middleware = CreateMiddleware(router);
 		var message = CreateMockMessage();
 
-		// Use a real context with a settable property to verify assignment
-		RoutingDecision? capturedRoutingDecision = null;
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
-		A.CallToSet(() => context.RoutingDecision)
-			.Invokes((RoutingDecision? r) => capturedRoutingDecision = r);
+		// Use a context with real Features dictionary to verify assignment via feature pattern
+		var context = CreateMockMessageContext();
 
 		var nextDelegate = CreateSuccessfulNextDelegate();
 
@@ -203,6 +196,7 @@ public sealed class RoutingMiddlewareShould
 		await middleware.InvokeAsync(message, context, nextDelegate, CancellationToken.None);
 
 		// Assert
+		var capturedRoutingDecision = context.GetRoutingDecision();
 		capturedRoutingDecision.ShouldNotBeNull();
 		capturedRoutingDecision.IsSuccess.ShouldBeTrue();
 	}
@@ -219,11 +213,7 @@ public sealed class RoutingMiddlewareShould
 		var middleware = CreateMiddleware(router);
 		var message = CreateMockMessage();
 
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
-		RoutingDecision? capturedRoutingDecision = null;
-		A.CallToSet(() => context.RoutingDecision)
-			.Invokes((RoutingDecision? decision) => capturedRoutingDecision = decision);
+		var context = CreateMockMessageContext();
 
 		var nextDelegate = CreateSuccessfulNextDelegate();
 
@@ -231,6 +221,7 @@ public sealed class RoutingMiddlewareShould
 		await middleware.InvokeAsync(message, context, nextDelegate, CancellationToken.None);
 
 		// Assert
+		var capturedRoutingDecision = context.GetRoutingDecision();
 		capturedRoutingDecision.ShouldNotBeNull();
 		capturedRoutingDecision.Transport.ShouldBe("rabbitmq");
 		capturedRoutingDecision.Endpoints.Count.ShouldBe(2);
@@ -338,7 +329,7 @@ public sealed class RoutingMiddlewareShould
 		await middleware.InvokeAsync(message, context, nextDelegate, CancellationToken.None);
 
 		// Assert
-		var decision = context.RoutingDecision;
+		var decision = context.GetRoutingDecision();
 		decision.ShouldNotBeNull();
 		decision.Transport.ShouldBe("local");
 	}
@@ -362,7 +353,7 @@ public sealed class RoutingMiddlewareShould
 		await middleware.InvokeAsync(message, context, nextDelegate, CancellationToken.None);
 
 		// Assert
-		var decision = context.RoutingDecision;
+		var decision = context.GetRoutingDecision();
 		decision.ShouldNotBeNull();
 		decision.Endpoints.Count.ShouldBe(3);
 		decision.Endpoints.ShouldContain("billing-service");
@@ -399,6 +390,7 @@ public sealed class RoutingMiddlewareShould
 	{
 		var context = A.Fake<IMessageContext>();
 		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
 		return context;
 	}
 

@@ -99,24 +99,36 @@ public abstract class DynamoDbDataProviderTestBase : IAsyncDisposable
 	}
 
 	/// <summary>
-	/// Verifies that the provider supports multi-region writes (Global Tables).
+	/// Verifies that the provider supports multi-region writes (Global Tables) via the change feed sub-interface.
 	/// </summary>
 	protected virtual void Provider_ShouldSupportMultiRegionWrites()
 	{
 		var provider = CreateProvider();
-		if (!provider.SupportsMultiRegionWrites)
+		var changeFeed = provider.GetService(typeof(ICloudNativePersistenceChangeFeed)) as ICloudNativePersistenceChangeFeed;
+		if (changeFeed is null)
+		{
+			throw new InvalidOperationException("DynamoDB provider should expose ICloudNativePersistenceChangeFeed via GetService.");
+		}
+
+		if (!changeFeed.SupportsMultiRegionWrites)
 		{
 			throw new InvalidOperationException("DynamoDB provider should support multi-region writes.");
 		}
 	}
 
 	/// <summary>
-	/// Verifies that the provider supports change feed (DynamoDB Streams).
+	/// Verifies that the provider supports change feed (DynamoDB Streams) via the change feed sub-interface.
 	/// </summary>
 	protected virtual void Provider_ShouldSupportChangeFeed()
 	{
 		var provider = CreateProvider();
-		if (!provider.SupportsChangeFeed)
+		var changeFeed = provider.GetService(typeof(ICloudNativePersistenceChangeFeed)) as ICloudNativePersistenceChangeFeed;
+		if (changeFeed is null)
+		{
+			throw new InvalidOperationException("DynamoDB provider should expose ICloudNativePersistenceChangeFeed via GetService.");
+		}
+
+		if (!changeFeed.SupportsChangeFeed)
 		{
 			throw new InvalidOperationException("DynamoDB provider should support change feed (Streams).");
 		}
@@ -215,7 +227,7 @@ public abstract class DynamoDbDataProviderTestBase : IAsyncDisposable
 	#region Query Tests
 
 	/// <summary>
-	/// Verifies that query returns results.
+	/// Verifies that query returns results via the query sub-interface.
 	/// </summary>
 	protected virtual async Task Query_ShouldReturnResults()
 	{
@@ -225,7 +237,11 @@ public abstract class DynamoDbDataProviderTestBase : IAsyncDisposable
 
 		_ = await provider.CreateAsync(doc, partitionKey, CancellationToken.None).ConfigureAwait(false);
 
-		var results = await provider.QueryAsync<TestDocument>(
+		var queryOps = provider.GetService(typeof(ICloudNativePersistenceQueryOperations))
+			as ICloudNativePersistenceQueryOperations
+			?? throw new InvalidOperationException("Provider should expose ICloudNativePersistenceQueryOperations via GetService.");
+
+		var results = await queryOps.QueryAsync<TestDocument>(
 			"*", partitionKey, null, null, CancellationToken.None).ConfigureAwait(false);
 
 		if (results.Documents.Count == 0)

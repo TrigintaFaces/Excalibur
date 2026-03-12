@@ -77,7 +77,7 @@ public sealed partial class FinalDispatchHandler(
 		ArgumentNullException.ThrowIfNull(message);
 		ArgumentNullException.ThrowIfNull(context);
 
-		var routingDecision = context.RoutingDecision;
+		var routingDecision = RoutingDecisionAccessor.GetRoutingDecisionFast(context);
 		if (message is IDispatchAction actionMessage && routingDecision?.Endpoints is not { Count: > 0 })
 		{
 			return HandleLocalActionFastPathAsync(actionMessage, context, routingDecision, cancellationToken);
@@ -285,7 +285,7 @@ public sealed partial class FinalDispatchHandler(
 		return new Messaging.MessageResult(
 			succeeded: false,
 			problemDetails: unsupported,
-			routingDecision: context.RoutingDecision,
+			routingDecision: RoutingDecisionAccessor.GetRoutingDecisionFast(context),
 			validationResult: context.ValidationResult() as IValidationResult,
 			authorizationResult: context.AuthorizationResult() as IAuthorizationResult);
 	}
@@ -695,7 +695,7 @@ public sealed partial class FinalDispatchHandler(
 		return new Messaging.MessageResult(
 			succeeded: false,
 			problemDetails: unsupported,
-			routingDecision: context.RoutingDecision,
+			routingDecision: RoutingDecisionAccessor.GetRoutingDecisionFast(context),
 			validationResult: context.ValidationResult() as IValidationResult,
 			authorizationResult: context.AuthorizationResult() as IAuthorizationResult);
 	}
@@ -1202,7 +1202,7 @@ public sealed partial class FinalDispatchHandler(
 			// Fast path for non-response actions: avoid reflective generic result factory.
 			if (resultType is null)
 			{
-				return CreateSuccessResult(context, context.RoutingDecision);
+				return CreateSuccessResult(context, RoutingDecisionAccessor.GetRoutingDecisionFast(context));
 			}
 		}
 
@@ -1217,7 +1217,7 @@ public sealed partial class FinalDispatchHandler(
 
 		// Read cache hit flag from context
 		var cacheHit = IsCacheHit(context);
-		var routing = context.RoutingDecision;
+		var routing = RoutingDecisionAccessor.GetRoutingDecisionFast(context);
 		var validation = GetValidationResultFast(context);
 		var authorization = GetAuthorizationResultFast(context);
 

@@ -13,6 +13,8 @@
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Outbox\Excalibur.Outbox.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Inbox.InMemory\Excalibur.Inbox.InMemory.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Outbox.InMemory\Excalibur.Outbox.InMemory.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
   </ItemGroup>
 </Project>

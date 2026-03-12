@@ -9,12 +9,13 @@ using Excalibur.Dispatch.Compliance;
 namespace Excalibur.Testing.Conformance;
 
 /// <summary>
-/// Abstract base class for IKeyManagementProvider conformance testing.
+/// Abstract base class for IKeyManagementProvider and IKeyManagementAdmin conformance testing.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Inherit from this class and implement <see cref="CreateProvider"/> to verify that
-/// your key management provider implementation conforms to the IKeyManagementProvider contract.
+/// your key management provider implementation conforms to the IKeyManagementProvider
+/// and IKeyManagementAdmin contracts.
 /// </para>
 /// <para>
 /// The test kit verifies core key management operations including:
@@ -22,17 +23,17 @@ namespace Excalibur.Testing.Conformance;
 /// <item><description>Key creation via RotateKeyAsync (first call creates new key)</description></item>
 /// <item><description>Key rotation with version management (creates new version, marks old as DecryptOnly)</description></item>
 /// <item><description>Key retrieval by ID and by version</description></item>
-/// <item><description>Key listing with status and purpose filtering</description></item>
-/// <item><description>Key deletion with retention period (crypto-shredding for GDPR)</description></item>
-/// <item><description>Key suspension for security incidents</description></item>
+/// <item><description>Key listing with status and purpose filtering (via IKeyManagementAdmin)</description></item>
+/// <item><description>Key deletion with retention period -- crypto-shredding for GDPR (via IKeyManagementAdmin)</description></item>
+/// <item><description>Key suspension for security incidents (via IKeyManagementAdmin)</description></item>
 /// <item><description>Active key retrieval with purpose filtering</description></item>
 /// </list>
 /// </para>
 /// <para>
-/// <strong>COMPLIANCE-CRITICAL:</strong> IKeyManagementProvider implements key lifecycle management
-/// for encryption and GDPR Right to Erasure via crypto-shredding:
+/// <strong>COMPLIANCE-CRITICAL:</strong> IKeyManagementProvider and IKeyManagementAdmin implement
+/// key lifecycle management for encryption and GDPR Right to Erasure via crypto-shredding:
 /// <list type="bullet">
-/// <item><description>Keys follow lifecycle: Active → DecryptOnly → PendingDestruction → Destroyed</description></item>
+/// <item><description>Keys follow lifecycle: Active -> DecryptOnly -> PendingDestruction -> Destroyed</description></item>
 /// <item><description>RotateKeyAsync creates new version, does NOT throw on existing key</description></item>
 /// <item><description>DeleteKeyAsync schedules deletion with retention period (crypto-shredding)</description></item>
 /// <item><description>SuspendKeyAsync immediately prevents key usage for security incidents</description></item>
@@ -75,6 +76,21 @@ public abstract class KeyManagementProviderConformanceTestKit
 	/// </code>
 	/// </remarks>
 	protected abstract IKeyManagementProvider CreateProvider();
+
+	/// <summary>
+	/// Creates a fresh key management admin instance for testing admin operations
+	/// (listing, deletion, suspension).
+	/// </summary>
+	/// <returns>An IKeyManagementAdmin implementation to test.</returns>
+	/// <remarks>
+	/// <para>
+	/// The default implementation casts the result of <see cref="CreateProvider"/> to
+	/// <see cref="IKeyManagementAdmin"/>, which works for all built-in providers since
+	/// they implement both interfaces. Override this method if your provider uses a
+	/// separate admin implementation.
+	/// </para>
+	/// </remarks>
+	protected virtual IKeyManagementAdmin CreateAdmin() => (IKeyManagementAdmin)CreateProvider();
 
 	/// <summary>
 	/// Optional cleanup after each test.
@@ -319,11 +335,11 @@ public abstract class KeyManagementProviderConformanceTestKit
 	protected virtual async Task ListKeysAsync_NoKeys_ShouldReturnEmptyList()
 	{
 		// Arrange
-		var provider = CreateProvider();
+		var admin = CreateAdmin();
 		try
 		{
 			// Act
-			var result = await provider.ListKeysAsync(null, null, CancellationToken.None).ConfigureAwait(false);
+			var result = await admin.ListKeysAsync(null, null, CancellationToken.None).ConfigureAwait(false);
 
 			// Assert
 			if (result is null)
@@ -340,7 +356,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 		finally
 		{
 			await CleanupAsync().ConfigureAwait(false);
-			(provider as IDisposable)?.Dispose();
+			(admin as IDisposable)?.Dispose();
 		}
 	}
 
@@ -351,6 +367,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	{
 		// Arrange
 		var provider = CreateProvider();
+		var admin = (provider is IKeyManagementAdmin a) ? a : CreateAdmin();
 		try
 		{
 			var keyId1 = GenerateKeyId();
@@ -363,10 +380,10 @@ public abstract class KeyManagementProviderConformanceTestKit
 				.ConfigureAwait(false);
 
 			// Suspend one key
-			_ = await provider.SuspendKeyAsync(keyId1, "test-suspension", CancellationToken.None).ConfigureAwait(false);
+			_ = await admin.SuspendKeyAsync(keyId1, "test-suspension", CancellationToken.None).ConfigureAwait(false);
 
 			// Act - filter by Active
-			var activeKeys = await provider.ListKeysAsync(KeyStatus.Active, null, CancellationToken.None).ConfigureAwait(false);
+			var activeKeys = await admin.ListKeysAsync(KeyStatus.Active, null, CancellationToken.None).ConfigureAwait(false);
 
 			// Assert
 			if (activeKeys.Count != 1)
@@ -395,6 +412,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	{
 		// Arrange
 		var provider = CreateProvider();
+		var admin = (provider is IKeyManagementAdmin a) ? a : CreateAdmin();
 		try
 		{
 			var keyId1 = GenerateKeyId();
@@ -407,7 +425,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 				.ConfigureAwait(false);
 
 			// Act - filter by purpose
-			var encryptionKeys = await provider.ListKeysAsync(null, "encryption", CancellationToken.None).ConfigureAwait(false);
+			var encryptionKeys = await admin.ListKeysAsync(null, "encryption", CancellationToken.None).ConfigureAwait(false);
 
 			// Assert
 			if (encryptionKeys.Count != 1)
@@ -603,11 +621,11 @@ public abstract class KeyManagementProviderConformanceTestKit
 	protected virtual async Task DeleteKeyAsync_NonExistent_ShouldReturnFalse()
 	{
 		// Arrange
-		var provider = CreateProvider();
+		var admin = CreateAdmin();
 		try
 		{
 			// Act
-			var result = await provider.DeleteKeyAsync("non-existent-key", 30, CancellationToken.None).ConfigureAwait(false);
+			var result = await admin.DeleteKeyAsync("non-existent-key", 30, CancellationToken.None).ConfigureAwait(false);
 
 			// Assert
 			if (result)
@@ -619,7 +637,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 		finally
 		{
 			await CleanupAsync().ConfigureAwait(false);
-			(provider as IDisposable)?.Dispose();
+			(admin as IDisposable)?.Dispose();
 		}
 	}
 
@@ -630,6 +648,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	{
 		// Arrange
 		var provider = CreateProvider();
+		var admin = (provider is IKeyManagementAdmin a) ? a : CreateAdmin();
 		try
 		{
 			var keyId = GenerateKeyId();
@@ -639,7 +658,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 				.ConfigureAwait(false);
 
 			// Act
-			var result = await provider.DeleteKeyAsync(keyId, 30, CancellationToken.None).ConfigureAwait(false);
+			var result = await admin.DeleteKeyAsync(keyId, 30, CancellationToken.None).ConfigureAwait(false);
 
 			// Assert
 			if (!result)
@@ -677,11 +696,11 @@ public abstract class KeyManagementProviderConformanceTestKit
 	protected virtual async Task SuspendKeyAsync_NonExistent_ShouldReturnFalse()
 	{
 		// Arrange
-		var provider = CreateProvider();
+		var admin = CreateAdmin();
 		try
 		{
 			// Act
-			var result = await provider.SuspendKeyAsync("non-existent-key", "security-reason", CancellationToken.None)
+			var result = await admin.SuspendKeyAsync("non-existent-key", "security-reason", CancellationToken.None)
 				.ConfigureAwait(false);
 
 			// Assert
@@ -694,7 +713,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 		finally
 		{
 			await CleanupAsync().ConfigureAwait(false);
-			(provider as IDisposable)?.Dispose();
+			(admin as IDisposable)?.Dispose();
 		}
 	}
 
@@ -705,6 +724,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	{
 		// Arrange
 		var provider = CreateProvider();
+		var admin = (provider is IKeyManagementAdmin a) ? a : CreateAdmin();
 		try
 		{
 			var keyId = GenerateKeyId();
@@ -716,7 +736,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 				.ConfigureAwait(false);
 
 			// Act
-			var result = await provider.SuspendKeyAsync(keyId, "security-incident", CancellationToken.None).ConfigureAwait(false);
+			var result = await admin.SuspendKeyAsync(keyId, "security-incident", CancellationToken.None).ConfigureAwait(false);
 
 			// Assert
 			if (!result)
@@ -759,6 +779,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	{
 		// Arrange
 		var provider = CreateProvider();
+		var admin = (provider is IKeyManagementAdmin a) ? a : CreateAdmin();
 		try
 		{
 			var keyId = GenerateKeyId();
@@ -769,7 +790,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 			var caughtException = false;
 			try
 			{
-				_ = await provider.SuspendKeyAsync(keyId, null!, CancellationToken.None).ConfigureAwait(false);
+				_ = await admin.SuspendKeyAsync(keyId, null!, CancellationToken.None).ConfigureAwait(false);
 			}
 			catch (ArgumentException)
 			{
@@ -909,6 +930,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 	{
 		// Arrange
 		var provider = CreateProvider();
+		var admin = (provider is IKeyManagementAdmin a) ? a : CreateAdmin();
 		try
 		{
 			var keyId = GenerateKeyId();
@@ -916,7 +938,7 @@ public abstract class KeyManagementProviderConformanceTestKit
 			// Create and suspend key
 			_ = await provider.RotateKeyAsync(keyId, EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None)
 				.ConfigureAwait(false);
-			_ = await provider.SuspendKeyAsync(keyId, "test-suspension", CancellationToken.None).ConfigureAwait(false);
+			_ = await admin.SuspendKeyAsync(keyId, "test-suspension", CancellationToken.None).ConfigureAwait(false);
 
 			// Act
 			var result = await provider.GetActiveKeyAsync(null, CancellationToken.None).ConfigureAwait(false);

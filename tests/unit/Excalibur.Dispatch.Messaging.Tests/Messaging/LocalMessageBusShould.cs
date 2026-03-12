@@ -157,7 +157,10 @@ public sealed class LocalMessageBusShould
 		var action = A.Fake<IDispatchAction>();
 		var context = A.Fake<IMessageContext>();
 		_ = A.CallTo(() => context.RequestServices).Returns(_serviceProvider);
-		_ = A.CallTo(() => context.GetItem("Dispatch:CacheHit", false)).Returns(true);
+
+		// GetItem("Dispatch:CacheHit", false) is an extension method that reads from Items dictionary
+		var items = new Dictionary<string, object> { ["Dispatch:CacheHit"] = true };
+		_ = A.CallTo(() => context.Items).Returns(items);
 		_ = A.CallTo(() => context.Result).Returns("cached-result");
 
 		// Act
@@ -587,7 +590,8 @@ public sealed class LocalMessageBusShould
 		_ = A.CallTo(() => context.RequestServices).Returns(_serviceProvider);
 		var items = new Dictionary<string, object>();
 		_ = A.CallTo(() => context.Items).Returns(items);
-		_ = A.CallTo(() => context.GetItem("Dispatch:CacheHit", false)).Returns(false);
+		// GetItem("Dispatch:CacheHit", false) is an extension method reading from Items.
+		// An empty Items dict means no cache hit (returns default false).
 
 		var handler = new SingletonNoContextHandler();
 		var provider = new CountingServiceProvider(typeof(SingletonNoContextHandler), handler);
@@ -623,7 +627,8 @@ public sealed class LocalMessageBusShould
 		_ = A.CallTo(() => context.RequestServices).Returns(_serviceProvider);
 		var items = new Dictionary<string, object>();
 		_ = A.CallTo(() => context.Items).Returns(items);
-		_ = A.CallTo(() => context.GetItem("Dispatch:CacheHit", false)).Returns(false);
+		// GetItem("Dispatch:CacheHit", false) is an extension method reading from Items.
+		// An empty Items dict means no cache hit (returns default false).
 
 		var handler = new SingletonWithContextHandler();
 		var provider = new CountingServiceProvider(typeof(SingletonWithContextHandler), handler);
@@ -834,5 +839,3 @@ public sealed class LocalMessageBusShould
 
 	#endregion
 }
-
-

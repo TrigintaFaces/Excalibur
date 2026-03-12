@@ -42,7 +42,7 @@ public sealed class DeliveryOutboxOptionsShould
 		var options = new OutboxOptions();
 
 		// Assert
-		options.ParallelProcessingDegree.ShouldBe(1);
+		options.BatchProcessing.ParallelProcessingDegree.ShouldBe(1);
 	}
 
 	[Fact]
@@ -52,7 +52,7 @@ public sealed class DeliveryOutboxOptionsShould
 		var options = new OutboxOptions();
 
 		// Assert
-		options.EnableDynamicBatchSizing.ShouldBeFalse();
+		options.BatchProcessing.EnableDynamicBatchSizing.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -62,7 +62,7 @@ public sealed class DeliveryOutboxOptionsShould
 		var options = new OutboxOptions();
 
 		// Assert
-		options.MinBatchSize.ShouldBe(10);
+		options.BatchProcessing.MinBatchSize.ShouldBe(10);
 	}
 
 	[Fact]
@@ -72,7 +72,7 @@ public sealed class DeliveryOutboxOptionsShould
 		var options = new OutboxOptions();
 
 		// Assert
-		options.MaxBatchSize.ShouldBe(1000);
+		options.BatchProcessing.MaxBatchSize.ShouldBe(1000);
 	}
 
 	[Fact]
@@ -82,7 +82,7 @@ public sealed class DeliveryOutboxOptionsShould
 		var options = new OutboxOptions();
 
 		// Assert
-		options.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(5));
+		options.BatchProcessing.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(5));
 	}
 
 	[Fact]
@@ -120,8 +120,8 @@ public sealed class DeliveryOutboxOptionsShould
 		options.QueueCapacity.ShouldBe(10000);
 		options.ProducerBatchSize.ShouldBe(1000);
 		options.ConsumerBatchSize.ShouldBe(1000);
-		options.ParallelProcessingDegree.ShouldBe(8);
-		options.EnableDynamicBatchSizing.ShouldBeTrue();
+		options.BatchProcessing.ParallelProcessingDegree.ShouldBe(8);
+		options.BatchProcessing.EnableDynamicBatchSizing.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -135,7 +135,7 @@ public sealed class DeliveryOutboxOptionsShould
 		options.QueueCapacity.ShouldBe(1000);
 		options.ProducerBatchSize.ShouldBe(100);
 		options.ConsumerBatchSize.ShouldBe(100);
-		options.ParallelProcessingDegree.ShouldBe(4);
+		options.BatchProcessing.ParallelProcessingDegree.ShouldBe(4);
 	}
 
 	[Fact]
@@ -149,7 +149,7 @@ public sealed class DeliveryOutboxOptionsShould
 		options.QueueCapacity.ShouldBe(100);
 		options.ProducerBatchSize.ShouldBe(10);
 		options.ConsumerBatchSize.ShouldBe(10);
-		options.ParallelProcessingDegree.ShouldBe(1);
+		options.BatchProcessing.ParallelProcessingDegree.ShouldBe(1);
 		options.DeliveryGuarantee.ShouldBe(OutboxDeliveryGuarantee.MinimizedWindow);
 	}
 
@@ -182,8 +182,8 @@ public sealed class DeliveryOutboxOptionsShould
 		var modified = original.WithParallelDegree(8);
 
 		// Assert
-		modified.ParallelProcessingDegree.ShouldBe(8);
-		original.ParallelProcessingDegree.ShouldBe(4); // Original unchanged
+		modified.BatchProcessing.ParallelProcessingDegree.ShouldBe(8);
+		original.BatchProcessing.ParallelProcessingDegree.ShouldBe(4); // Original unchanged
 	}
 
 	[Fact]
@@ -224,8 +224,8 @@ public sealed class DeliveryOutboxOptionsShould
 		var modified = original.WithTimeout(TimeSpan.FromMinutes(15));
 
 		// Assert
-		modified.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(15));
-		original.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(5)); // Original unchanged
+		modified.BatchProcessing.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(15));
+		original.BatchProcessing.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(5)); // Original unchanged
 	}
 
 	[Fact]
@@ -239,7 +239,7 @@ public sealed class DeliveryOutboxOptionsShould
 
 		// Assert
 		options.ProducerBatchSize.ShouldBe(500);
-		options.ParallelProcessingDegree.ShouldBe(4);
+		options.BatchProcessing.ParallelProcessingDegree.ShouldBe(4);
 		options.MaxAttempts.ShouldBe(5);
 	}
 
@@ -286,7 +286,7 @@ public sealed class DeliveryOutboxOptionsShould
 	{
 		// Arrange
 		var options = OutboxOptions.Balanced();
-		options.BatchProcessingTimeout = TimeSpan.Zero;
+		options.BatchProcessing.BatchProcessingTimeout = TimeSpan.Zero;
 
 		// Act
 		var result = OutboxOptions.Validate(options);

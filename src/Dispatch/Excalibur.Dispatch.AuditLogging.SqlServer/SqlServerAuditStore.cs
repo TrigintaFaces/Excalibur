@@ -368,7 +368,7 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 			deleted = await connection.ExecuteAsync(
 					new CommandDefinition(
 						sql,
-						new { BatchSize = _options.RetentionCleanupBatchSize, CutoffDate = cutoffDate },
+						new { BatchSize = _options.Retention.CleanupBatchSize, CutoffDate = cutoffDate },
 						commandTimeout: _options.CommandTimeoutSeconds,
 						cancellationToken: cancellationToken))
 				.ConfigureAwait(false);
@@ -379,7 +379,7 @@ public sealed partial class SqlServerAuditStore : IAuditStore, IDisposable
 			{
 				LogDeletedExpiredEvents(deleted, cutoffDate);
 			}
-		} while (deleted == _options.RetentionCleanupBatchSize);
+		} while (deleted == _options.Retention.CleanupBatchSize);
 
 		return totalDeleted;
 	}

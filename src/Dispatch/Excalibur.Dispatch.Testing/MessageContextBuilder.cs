@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Routing;
+using Excalibur.Dispatch.Abstractions.Features;
 
 namespace Excalibur.Dispatch.Testing;
 
@@ -27,7 +27,6 @@ public sealed class MessageContextBuilder
 	private string? _traceParent;
 	private string? _externalId;
 	private int _deliveryCount;
-	private CancellationToken _cancellationToken;
 	private IServiceProvider? _requestServices;
 	private IDispatchMessage? _message;
 
@@ -158,15 +157,6 @@ public sealed class MessageContextBuilder
 	}
 
 	/// <summary>
-	/// Sets the cancellation token for the message context.
-	/// </summary>
-	public MessageContextBuilder WithCancellationToken(CancellationToken cancellationToken)
-	{
-		_cancellationToken = cancellationToken;
-		return this;
-	}
-
-	/// <summary>
 	/// Sets the service provider for resolving dependencies.
 	/// </summary>
 	public MessageContextBuilder WithRequestServices(IServiceProvider requestServices)
@@ -204,26 +194,52 @@ public sealed class MessageContextBuilder
 			MessageId = _messageId ?? Guid.NewGuid().ToString(),
 			CorrelationId = _correlationId ?? Guid.NewGuid().ToString(),
 			CausationId = _causationId,
-			TenantId = _tenantId,
-			UserId = _userId,
-			SessionId = _sessionId,
-			WorkflowId = _workflowId,
-			PartitionKey = _partitionKey,
-			Source = _source,
-			MessageType = _messageType,
-			ContentType = _contentType,
-			TraceParent = _traceParent,
-			ExternalId = _externalId,
-			DeliveryCount = _deliveryCount,
-			CancellationToken = _cancellationToken,
-			RequestServices = _requestServices!,
 			Message = _message,
-			ReceivedTimestampUtc = DateTimeOffset.UtcNow,
+			Result = null,
+			RequestServices = _requestServices!,
 		};
+
+		// Set identity feature if any identity fields were configured
+		if (_userId is not null || _tenantId is not null || _sessionId is not null ||
+			_workflowId is not null || _externalId is not null || _traceParent is not null)
+		{
+			context.GetOrCreateIdentityFeature().UserId = _userId;
+			context.GetOrCreateIdentityFeature().TenantId = _tenantId;
+			context.GetOrCreateIdentityFeature().SessionId = _sessionId;
+			context.GetOrCreateIdentityFeature().WorkflowId = _workflowId;
+			context.GetOrCreateIdentityFeature().ExternalId = _externalId;
+			context.GetOrCreateIdentityFeature().TraceParent = _traceParent;
+		}
+
+		// Set routing feature if any routing fields were configured
+		if (_source is not null || _partitionKey is not null)
+		{
+			context.GetOrCreateRoutingFeature().Source = _source;
+			context.GetOrCreateRoutingFeature().PartitionKey = _partitionKey;
+		}
+
+		// Set processing feature if delivery count was configured
+		if (_deliveryCount != 0)
+		{
+			context.GetOrCreateProcessingFeature().DeliveryCount = _deliveryCount;
+		}
+
+		// Set Items-based properties
+		if (_messageType is not null)
+		{
+			context.SetMessageType(_messageType);
+		}
+
+		if (_contentType is not null)
+		{
+			context.SetContentType(_contentType);
+		}
+
+		context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
 
 		foreach (var item in _items)
 		{
-			context.SetItem(item.Key, item.Value);
+			context.Items[item.Key] = item.Value;
 		}
 
 		return context;
@@ -235,66 +251,15 @@ public sealed class MessageContextBuilder
 	private sealed class TestMessageContext : IMessageContext
 	{
 		private readonly Dictionary<string, object> _items = [];
+		private readonly Dictionary<Type, object> _features = [];
 
 		public string? MessageId { get; set; }
-		public string? ExternalId { get; set; }
-		public string? UserId { get; set; }
 		public string? CorrelationId { get; set; }
 		public string? CausationId { get; set; }
-		public string? TraceParent { get; set; }
-		public string? TenantId { get; set; }
-		public string? SessionId { get; set; }
-		public string? WorkflowId { get; set; }
-		public string? PartitionKey { get; set; }
-		public string? Source { get; set; }
-		public string? MessageType { get; set; }
-		public string? ContentType { get; set; }
-		public int DeliveryCount { get; set; }
 		public IDispatchMessage? Message { get; set; }
 		public object? Result { get; set; }
-		public RoutingDecision? RoutingDecision { get; set; } = RoutingDecision.Success("local", []);
 		public IServiceProvider RequestServices { get; set; } = null!;
-		public DateTimeOffset ReceivedTimestampUtc { get; set; } = DateTimeOffset.UtcNow;
-		public DateTimeOffset? SentTimestampUtc { get; set; }
 		public IDictionary<string, object> Items => _items;
-		public IDictionary<string, object?> Properties => _items!;
-		public int ProcessingAttempts { get; set; }
-		public DateTimeOffset? FirstAttemptTime { get; set; }
-		public bool IsRetry { get; set; }
-		public bool ValidationPassed { get; set; }
-		public DateTimeOffset? ValidationTimestamp { get; set; }
-		public object? Transaction { get; set; }
-		public string? TransactionId { get; set; }
-		public bool TimeoutExceeded { get; set; }
-		public TimeSpan? TimeoutElapsed { get; set; }
-		public bool RateLimitExceeded { get; set; }
-		public TimeSpan? RateLimitRetryAfter { get; set; }
-		public CancellationToken CancellationToken { get; set; } = CancellationToken.None;
-
-		public bool ContainsItem(string key) => _items.ContainsKey(key);
-
-		public T? GetItem<T>(string key) => _items.TryGetValue(key, out var value) && value is T typedValue ? typedValue : default;
-
-		public T GetItem<T>(string key, T defaultValue) =>
-			_items.TryGetValue(key, out var value) && value is T typedValue ? typedValue : defaultValue;
-
-		public void RemoveItem(string key) => _items.Remove(key);
-
-		public void SetItem<T>(string key, T value) => _items[key] = value!;
-
-		public IMessageContext CreateChildContext() =>
-			new TestMessageContext
-			{
-				CorrelationId = CorrelationId,
-				CausationId = MessageId ?? CorrelationId,
-				TenantId = TenantId,
-				UserId = UserId,
-				SessionId = SessionId,
-				WorkflowId = WorkflowId,
-				TraceParent = TraceParent,
-				Source = Source,
-				RequestServices = RequestServices,
-				MessageId = Guid.NewGuid().ToString(),
-			};
+		public IDictionary<Type, object> Features => _features;
 	}
 }

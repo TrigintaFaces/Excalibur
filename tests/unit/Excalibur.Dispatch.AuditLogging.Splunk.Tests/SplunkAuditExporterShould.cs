@@ -12,10 +12,12 @@ public sealed class SplunkAuditExporterShould : IDisposable
 {
 	private readonly SplunkExporterOptions _options = new()
 	{
-		HecEndpoint = new Uri("https://splunk.local:8088/services/collector"),
-		HecToken = "test-token",
-		MaxRetryAttempts = 0,
-		MaxBatchSize = 100,
+		Connection = new()
+		{
+			HecEndpoint = new Uri("https://splunk.local:8088/services/collector"),
+			HecToken = "test-token"
+		},
+		Batch = new() { MaxRetryAttempts = 0, MaxBatchSize = 100 },
 		UseAck = false
 	};
 
@@ -253,7 +255,7 @@ public sealed class SplunkAuditExporterShould : IDisposable
 	[Fact]
 	public async Task Chunk_large_batches()
 	{
-		_options.MaxBatchSize = 2;
+		_options.Batch.MaxBatchSize = 2;
 		_handler.SetResponse(HttpStatusCode.OK);
 		var sut = CreateExporter();
 		var events = new List<AuditEvent>

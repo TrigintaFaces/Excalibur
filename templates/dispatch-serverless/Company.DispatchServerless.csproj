@@ -1,0 +1,124 @@
+<!--#if (UseAzure) -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AzureFunctionsVersion>v4</AzureFunctionsVersion>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ExcaliburDispatchVersion Condition="'$(ExcaliburDispatchVersion)' == ''">0.1.0-*</ExcaliburDispatchVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Excalibur.Dispatch" Version="$(ExcaliburDispatchVersion)" />
+    <PackageReference Include="Excalibur.Dispatch.Hosting.AzureFunctions" Version="$(ExcaliburDispatchVersion)" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.*" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http" Version="3.*" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http.AspNetCore" Version="2.*" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.*" OutputItemType="Analyzer" />
+    <!--#if (UseKafka) -->
+    <PackageReference Include="Excalibur.Dispatch.Transport.Kafka" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+    <!--#if (UseRabbitMQ) -->
+    <PackageReference Include="Excalibur.Dispatch.Transport.RabbitMQ" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+    <!--#if (UseAzureServiceBus) -->
+    <PackageReference Include="Excalibur.Dispatch.Transport.AzureServiceBus" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+    <!--#if (UseAwsSqs) -->
+    <PackageReference Include="Excalibur.Dispatch.Transport.AwsSqs" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+    <!--#if (UseGooglePubSub) -->
+    <PackageReference Include="Excalibur.Dispatch.Transport.GooglePubSub" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="host.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="local.settings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
+<!--#elif (UseAws) -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <AWSProjectType>Lambda</AWSProjectType>
+    <ExcaliburDispatchVersion Condition="'$(ExcaliburDispatchVersion)' == ''">0.1.0-*</ExcaliburDispatchVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Excalibur.Dispatch" Version="$(ExcaliburDispatchVersion)" />
+    <PackageReference Include="Excalibur.Dispatch.Hosting.AwsLambda" Version="$(ExcaliburDispatchVersion)" />
+    <PackageReference Include="Amazon.Lambda.Core" Version="2.*" />
+    <PackageReference Include="Amazon.Lambda.Serialization.SystemTextJson" Version="2.*" />
+    <PackageReference Include="Amazon.Lambda.APIGatewayEvents" Version="2.*" />
+    <PackageReference Include="Amazon.Lambda.SQSEvents" Version="2.*" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.*" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.*" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.*" />
+    <!--#if (UseKafka) -->
+    <PackageReference Include="Excalibur.Dispatch.Transport.Kafka" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+    <!--#if (UseRabbitMQ) -->
+    <PackageReference Include="Excalibur.Dispatch.Transport.RabbitMQ" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+    <!--#if (UseAzureServiceBus) -->
+    <PackageReference Include="Excalibur.Dispatch.Transport.AzureServiceBus" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+    <!--#if (UseAwsSqs) -->
+    <PackageReference Include="Excalibur.Dispatch.Transport.AwsSqs" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+    <!--#if (UseGooglePubSub) -->
+    <PackageReference Include="Excalibur.Dispatch.Transport.GooglePubSub" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+  </ItemGroup>
+
+</Project>
+<!--#else -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ExcaliburDispatchVersion Condition="'$(ExcaliburDispatchVersion)' == ''">0.1.0-*</ExcaliburDispatchVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Excalibur.Dispatch" Version="$(ExcaliburDispatchVersion)" />
+    <PackageReference Include="Excalibur.Dispatch.Hosting.GoogleCloudFunctions" Version="$(ExcaliburDispatchVersion)" />
+    <PackageReference Include="Google.Cloud.Functions.Framework" Version="2.*" />
+    <PackageReference Include="Google.Cloud.Functions.Hosting" Version="2.*" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.*" />
+    <!--#if (UseKafka) -->
+    <PackageReference Include="Excalibur.Dispatch.Transport.Kafka" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+    <!--#if (UseRabbitMQ) -->
+    <PackageReference Include="Excalibur.Dispatch.Transport.RabbitMQ" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+    <!--#if (UseAzureServiceBus) -->
+    <PackageReference Include="Excalibur.Dispatch.Transport.AzureServiceBus" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+    <!--#if (UseAwsSqs) -->
+    <PackageReference Include="Excalibur.Dispatch.Transport.AwsSqs" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+    <!--#if (UseGooglePubSub) -->
+    <PackageReference Include="Excalibur.Dispatch.Transport.GooglePubSub" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
+  </ItemGroup>
+
+</Project>
+<!--#endif -->

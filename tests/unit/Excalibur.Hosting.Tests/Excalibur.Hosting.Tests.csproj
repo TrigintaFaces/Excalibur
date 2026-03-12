@@ -21,6 +21,11 @@
     <!-- ProjectReferences from all merged Excalibur hosting test projects -->
     <!-- From Excalibur.Hosting.Tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting\Excalibur.Hosting.csproj" />
+    <!-- New Hosting sub-packages (S597 M.1 pay-for-play split) -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.Observability\Excalibur.Hosting.Observability.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.Logging.Serilog\Excalibur.Hosting.Logging.Serilog.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.Aws\Excalibur.Hosting.Aws.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.HealthChecks\Excalibur.Hosting.HealthChecks.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox\Excalibur.Outbox.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Cdc\Excalibur.Cdc.csproj" />

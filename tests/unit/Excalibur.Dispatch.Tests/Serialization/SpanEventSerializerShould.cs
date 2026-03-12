@@ -17,41 +17,41 @@ namespace Excalibur.Dispatch.Tests.Serialization;
 /// Span-based operations, backward compatibility with byte[] APIs, type resolution, and error handling.
 /// </summary>
 /// <remarks>
-/// Sprint 415 - Task T415.1: SpanEventSerializer tests (0% → 80%).
+/// Sprint 415 - Task T415.1: SpanEventSerializer tests (0% to 80%).
 /// Tests critical infrastructure for event sourcing serialization.
 /// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Serialization")]
 public sealed class SpanEventSerializerShould
 {
-	private readonly IPluggableSerializer _pluggableSerializer;
+	private readonly ISerializer _serializer;
 	private readonly ISerializerRegistry _registry;
 
 	public SpanEventSerializerShould()
 	{
-		_pluggableSerializer = A.Fake<IPluggableSerializer>();
+		_serializer = A.Fake<ISerializer>();
 		_registry = A.Fake<ISerializerRegistry>();
 
-		// Default setup for pluggable serializer
-		_ = A.CallTo(() => _pluggableSerializer.Name).Returns("FakeSerializer");
-		_ = A.CallTo(() => _pluggableSerializer.Version).Returns("1.0.0");
+		// Default setup for serializer
+		_ = A.CallTo(() => _serializer.Name).Returns("FakeSerializer");
+		_ = A.CallTo(() => _serializer.Version).Returns("1.0.0");
 	}
 
-	#region Constructor Tests - IPluggableSerializer
+	#region Constructor Tests - ISerializer
 
 	[Fact]
 	public void ThrowArgumentNullException_WhenPluggableSerializerIsNull()
 	{
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
-			new SpanEventSerializer((IPluggableSerializer)null!));
+			new SpanEventSerializer((ISerializer)null!));
 	}
 
 	[Fact]
 	public void CreateInstance_WithValidPluggableSerializer()
 	{
 		// Act
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 
 		// Assert
 		_ = serializer.ShouldNotBeNull();
@@ -73,7 +73,7 @@ public sealed class SpanEventSerializerShould
 	public void UseMemoryPackFromRegistry_WhenAvailableByName()
 	{
 		// Arrange
-		var memoryPackSerializer = A.Fake<IPluggableSerializer>();
+		var memoryPackSerializer = A.Fake<ISerializer>();
 		_ = A.CallTo(() => memoryPackSerializer.Name).Returns("MemoryPack");
 		_ = A.CallTo(() => _registry.GetAll()).Returns(
 			[(SerializerIds.MemoryPack, "MemoryPack", memoryPackSerializer)]);
@@ -89,9 +89,9 @@ public sealed class SpanEventSerializerShould
 	public void UseMemoryPackFromRegistry_WhenAvailableById()
 	{
 		// Arrange
-		var memoryPackSerializer = A.Fake<IPluggableSerializer>();
+		var memoryPackSerializer = A.Fake<ISerializer>();
 		_ = A.CallTo(() => _registry.GetAll())
-			.Returns(Array.Empty<(byte, string, IPluggableSerializer)>());
+			.Returns(Array.Empty<(byte, string, ISerializer)>());
 		_ = A.CallTo(() => _registry.GetById(SerializerIds.MemoryPack)).Returns(memoryPackSerializer);
 
 		// Act
@@ -105,9 +105,9 @@ public sealed class SpanEventSerializerShould
 	public void FallBackToCurrentSerializer_WhenMemoryPackNotAvailable()
 	{
 		// Arrange
-		var currentSerializer = A.Fake<IPluggableSerializer>();
+		var currentSerializer = A.Fake<ISerializer>();
 		_ = A.CallTo(() => _registry.GetAll())
-			.Returns(Array.Empty<(byte, string, IPluggableSerializer)>());
+			.Returns(Array.Empty<(byte, string, ISerializer)>());
 		_ = A.CallTo(() => _registry.GetById(SerializerIds.MemoryPack)).Returns(null);
 		_ = A.CallTo(() => _registry.GetCurrent()).Returns((SerializerIds.SystemTextJson, currentSerializer));
 
@@ -123,9 +123,9 @@ public sealed class SpanEventSerializerShould
 	{
 		// Arrange
 		_ = A.CallTo(() => _registry.GetAll())
-			.Returns(Array.Empty<(byte, string, IPluggableSerializer)>());
+			.Returns(Array.Empty<(byte, string, ISerializer)>());
 		_ = A.CallTo(() => _registry.GetById(SerializerIds.MemoryPack)).Returns(null);
-		_ = A.CallTo(() => _registry.GetCurrent()).Returns((SerializerIds.Unknown, (IPluggableSerializer)null!));
+		_ = A.CallTo(() => _registry.GetCurrent()).Returns((SerializerIds.Unknown, (ISerializer)null!));
 
 		// Act & Assert
 		var ex = Should.Throw<InvalidOperationException>(() =>
@@ -141,7 +141,7 @@ public sealed class SpanEventSerializerShould
 	public void ThrowArgumentNullException_WhenSerializeEventCalledWithNullEvent()
 	{
 		// Arrange
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act & Assert
 		var ex = Assert.Throws<ArgumentNullException>(() =>
@@ -159,10 +159,10 @@ public sealed class SpanEventSerializerShould
 		var testEvent = new TestDomainEvent("agg-123", 1);
 		var expectedBytes = Encoding.UTF8.GetBytes("serialized-event-data");
 
-		_ = A.CallTo(() => _pluggableSerializer.SerializeObject(testEvent, A<Type>._))
+		_ = A.CallTo(() => _serializer.SerializeObject(testEvent, A<Type>._))
 			.Returns(expectedBytes);
 
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 		var buffer = new byte[256];
 
 		// Act
@@ -179,10 +179,10 @@ public sealed class SpanEventSerializerShould
 		var testEvent = new TestDomainEvent("agg-123", 1);
 		var expectedBytes = new byte[] { 1, 2, 3, 4, 5 };
 
-		_ = A.CallTo(() => _pluggableSerializer.SerializeObject(testEvent, A<Type>._))
+		_ = A.CallTo(() => _serializer.SerializeObject(testEvent, A<Type>._))
 			.Returns(expectedBytes);
 
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 		var buffer = new byte[256];
 
 		// Act
@@ -199,10 +199,10 @@ public sealed class SpanEventSerializerShould
 		var testEvent = new TestDomainEvent("agg-123", 1);
 		var largeData = new byte[100];
 
-		_ = A.CallTo(() => _pluggableSerializer.SerializeObject(testEvent, A<Type>._))
+		_ = A.CallTo(() => _serializer.SerializeObject(testEvent, A<Type>._))
 			.Returns(largeData);
 
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act & Assert
 		var ex = Assert.Throws<ArgumentException>(() =>
@@ -222,7 +222,7 @@ public sealed class SpanEventSerializerShould
 	public void ThrowArgumentNullException_WhenDeserializeEventCalledWithNullType()
 	{
 		// Arrange
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act & Assert
 		var ex = Assert.Throws<ArgumentNullException>(() =>
@@ -237,7 +237,7 @@ public sealed class SpanEventSerializerShould
 	public void DeserializeEvent_FromSpan_ReturnsEvent()
 	{
 		// Arrange - Use real serializer for Span-based deserialization
-		var realSerializer = new SystemTextJsonPluggableSerializer();
+		var realSerializer = new SystemTextJsonSerializer();
 		var serializer = new SpanEventSerializer(realSerializer);
 
 		var testEvent = new TestDomainEvent("agg-123", 1);
@@ -256,7 +256,7 @@ public sealed class SpanEventSerializerShould
 	public void ThrowSerializationException_WhenDeserializedObjectIsNotIDomainEvent()
 	{
 		// Arrange - Use real serializer
-		var realSerializer = new SystemTextJsonPluggableSerializer();
+		var realSerializer = new SystemTextJsonSerializer();
 		var serializer = new SpanEventSerializer(realSerializer);
 
 		// Serialize a non-event object
@@ -280,7 +280,7 @@ public sealed class SpanEventSerializerShould
 	public void ThrowArgumentNullException_WhenGetEventSizeCalledWithNullEvent()
 	{
 		// Arrange
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
@@ -294,10 +294,10 @@ public sealed class SpanEventSerializerShould
 		var testEvent = new TestDomainEvent("agg-123", 1);
 		var serializedBytes = new byte[100];
 
-		_ = A.CallTo(() => _pluggableSerializer.SerializeObject(testEvent, A<Type>._))
+		_ = A.CallTo(() => _serializer.SerializeObject(testEvent, A<Type>._))
 			.Returns(serializedBytes);
 
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act
 		var size = serializer.GetEventSize(testEvent);
@@ -313,10 +313,10 @@ public sealed class SpanEventSerializerShould
 		var testEvent = new TestDomainEvent("agg-123", 1);
 		var serializedBytes = new byte[50];
 
-		_ = A.CallTo(() => _pluggableSerializer.SerializeObject(testEvent, A<Type>._))
+		_ = A.CallTo(() => _serializer.SerializeObject(testEvent, A<Type>._))
 			.Returns(serializedBytes);
 
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act
 		var estimatedSize = serializer.GetEventSize(testEvent);
@@ -333,7 +333,7 @@ public sealed class SpanEventSerializerShould
 	public void ThrowArgumentNullException_WhenSerializeSnapshotCalledWithNullSnapshot()
 	{
 		// Arrange
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act & Assert
 		var ex = Assert.Throws<ArgumentNullException>(() =>
@@ -351,10 +351,10 @@ public sealed class SpanEventSerializerShould
 		var snapshot = new TestSnapshot("state-data", 42);
 		var expectedBytes = new byte[] { 10, 20, 30, 40, 50 };
 
-		_ = A.CallTo(() => _pluggableSerializer.SerializeObject(snapshot, A<Type>._))
+		_ = A.CallTo(() => _serializer.SerializeObject(snapshot, A<Type>._))
 			.Returns(expectedBytes);
 
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 		var buffer = new byte[256];
 
 		// Act
@@ -371,10 +371,10 @@ public sealed class SpanEventSerializerShould
 		var snapshot = new TestSnapshot("state-data", 42);
 		var largeData = new byte[200];
 
-		_ = A.CallTo(() => _pluggableSerializer.SerializeObject(snapshot, A<Type>._))
+		_ = A.CallTo(() => _serializer.SerializeObject(snapshot, A<Type>._))
 			.Returns(largeData);
 
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act & Assert
 		var ex = Assert.Throws<ArgumentException>(() =>
@@ -394,7 +394,7 @@ public sealed class SpanEventSerializerShould
 	public void ThrowArgumentNullException_WhenDeserializeSnapshotCalledWithNullType()
 	{
 		// Arrange
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act & Assert
 		var ex = Assert.Throws<ArgumentNullException>(() =>
@@ -409,7 +409,7 @@ public sealed class SpanEventSerializerShould
 	public void DeserializeSnapshot_FromSpan_ReturnsSnapshot()
 	{
 		// Arrange - Use real serializer
-		var realSerializer = new SystemTextJsonPluggableSerializer();
+		var realSerializer = new SystemTextJsonSerializer();
 		var serializer = new SpanEventSerializer(realSerializer);
 
 		var expectedSnapshot = new TestSnapshot("state-data", 42);
@@ -432,7 +432,7 @@ public sealed class SpanEventSerializerShould
 	public void ThrowArgumentNullException_WhenGetSnapshotSizeCalledWithNullSnapshot()
 	{
 		// Arrange
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
@@ -446,10 +446,10 @@ public sealed class SpanEventSerializerShould
 		var snapshot = new TestSnapshot("state-data", 42);
 		var serializedBytes = new byte[80];
 
-		_ = A.CallTo(() => _pluggableSerializer.SerializeObject(snapshot, A<Type>._))
+		_ = A.CallTo(() => _serializer.SerializeObject(snapshot, A<Type>._))
 			.Returns(serializedBytes);
 
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act
 		var size = serializer.GetSnapshotSize(snapshot);
@@ -466,7 +466,7 @@ public sealed class SpanEventSerializerShould
 	public void ThrowArgumentNullException_WhenByteArraySerializeEventCalledWithNullEvent()
 	{
 		// Arrange
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
@@ -480,10 +480,10 @@ public sealed class SpanEventSerializerShould
 		var testEvent = new TestDomainEvent("agg-123", 1);
 		var expectedBytes = new byte[] { 1, 2, 3, 4, 5 };
 
-		_ = A.CallTo(() => _pluggableSerializer.SerializeObject(testEvent, A<Type>._))
+		_ = A.CallTo(() => _serializer.SerializeObject(testEvent, A<Type>._))
 			.Returns(expectedBytes);
 
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act
 		var result = serializer.SerializeEvent(testEvent);
@@ -500,7 +500,7 @@ public sealed class SpanEventSerializerShould
 	public void ThrowArgumentNullException_WhenByteArrayDeserializeEventCalledWithNullData()
 	{
 		// Arrange
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
@@ -511,7 +511,7 @@ public sealed class SpanEventSerializerShould
 	public void ThrowArgumentNullException_WhenByteArrayDeserializeEventCalledWithNullType()
 	{
 		// Arrange
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
@@ -522,7 +522,7 @@ public sealed class SpanEventSerializerShould
 	public void DeserializeEvent_ByteArray_ReturnsEvent()
 	{
 		// Arrange - Use real serializer to avoid FakeItEasy byte[] issues
-		var realSerializer = new SystemTextJsonPluggableSerializer();
+		var realSerializer = new SystemTextJsonSerializer();
 		var serializer = new SpanEventSerializer(realSerializer);
 
 		var testEvent = new TestDomainEvent("agg-123", 1);
@@ -541,7 +541,7 @@ public sealed class SpanEventSerializerShould
 	public void ThrowSerializationException_WhenByteArrayDeserializedObjectIsNotIDomainEvent()
 	{
 		// Arrange - Use real serializer
-		var realSerializer = new SystemTextJsonPluggableSerializer();
+		var realSerializer = new SystemTextJsonSerializer();
 		var serializer = new SpanEventSerializer(realSerializer);
 
 		// Serialize a non-event object
@@ -562,7 +562,7 @@ public sealed class SpanEventSerializerShould
 	public void ThrowArgumentNullException_WhenGetTypeNameCalledWithNullType()
 	{
 		// Arrange
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
@@ -573,7 +573,7 @@ public sealed class SpanEventSerializerShould
 	public void GetTypeName_ReturnsAssemblyQualifiedName()
 	{
 		// Arrange
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 		var type = typeof(TestDomainEvent);
 
 		// Act
@@ -587,7 +587,7 @@ public sealed class SpanEventSerializerShould
 	public void ThrowArgumentNullException_WhenResolveTypeCalledWithNullTypeName()
 	{
 		// Arrange
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
@@ -598,7 +598,7 @@ public sealed class SpanEventSerializerShould
 	public void ResolveType_ReturnsCorrectType()
 	{
 		// Arrange
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 		var expectedType = typeof(TestDomainEvent);
 		var typeName = expectedType.AssemblyQualifiedName;
 
@@ -613,7 +613,7 @@ public sealed class SpanEventSerializerShould
 	public void ThrowSerializationException_WhenResolveTypeCannotResolve()
 	{
 		// Arrange
-		var serializer = new SpanEventSerializer(_pluggableSerializer);
+		var serializer = new SpanEventSerializer(_serializer);
 
 		// Act & Assert
 		var ex = Should.Throw<SerializationException>(() =>
@@ -629,7 +629,7 @@ public sealed class SpanEventSerializerShould
 	public void RoundTrip_Event_WithSystemTextJson()
 	{
 		// Arrange
-		var realSerializer = new SystemTextJsonPluggableSerializer();
+		var realSerializer = new SystemTextJsonSerializer();
 		var serializer = new SpanEventSerializer(realSerializer);
 
 		var originalEvent = new TestDomainEvent("agg-roundtrip", 42);
@@ -652,7 +652,7 @@ public sealed class SpanEventSerializerShould
 	public void RoundTrip_Snapshot_WithSystemTextJson()
 	{
 		// Arrange
-		var realSerializer = new SystemTextJsonPluggableSerializer();
+		var realSerializer = new SystemTextJsonSerializer();
 		var serializer = new SpanEventSerializer(realSerializer);
 
 		var originalSnapshot = new TestSnapshot("snapshot-state", 999);
@@ -675,7 +675,7 @@ public sealed class SpanEventSerializerShould
 	public void RoundTrip_ByteArray_PreservesData()
 	{
 		// Arrange
-		var realSerializer = new SystemTextJsonPluggableSerializer();
+		var realSerializer = new SystemTextJsonSerializer();
 		var serializer = new SpanEventSerializer(realSerializer);
 
 		var originalEvent = new TestDomainEvent("agg-bytearray", 7);
@@ -700,7 +700,7 @@ public sealed class SpanEventSerializerShould
 	public void GetEventSize_AllowsArrayPoolUsage()
 	{
 		// Arrange
-		var realSerializer = new SystemTextJsonPluggableSerializer();
+		var realSerializer = new SystemTextJsonSerializer();
 		var serializer = new SpanEventSerializer(realSerializer);
 		var testEvent = new TestDomainEvent("agg-pool", 100);
 
@@ -725,7 +725,7 @@ public sealed class SpanEventSerializerShould
 	public void GetSnapshotSize_AllowsArrayPoolUsage()
 	{
 		// Arrange
-		var realSerializer = new SystemTextJsonPluggableSerializer();
+		var realSerializer = new SystemTextJsonSerializer();
 		var serializer = new SpanEventSerializer(realSerializer);
 		var snapshot = new TestSnapshot("pool-state", 200);
 
@@ -754,7 +754,7 @@ public sealed class SpanEventSerializerShould
 	public async Task ConcurrentSerialization_AllSucceed()
 	{
 		// Arrange
-		var realSerializer = new SystemTextJsonPluggableSerializer();
+		var realSerializer = new SystemTextJsonSerializer();
 		var serializer = new SpanEventSerializer(realSerializer);
 		var events = Enumerable.Range(0, 100)
 			.Select(i => new TestDomainEvent($"agg-{i}", i))
@@ -780,7 +780,7 @@ public sealed class SpanEventSerializerShould
 	public async Task ConcurrentDeserialization_AllSucceed()
 	{
 		// Arrange
-		var realSerializer = new SystemTextJsonPluggableSerializer();
+		var realSerializer = new SystemTextJsonSerializer();
 		var serializer = new SpanEventSerializer(realSerializer);
 		var events = Enumerable.Range(0, 100)
 			.Select(i => new TestDomainEvent($"agg-{i}", i))

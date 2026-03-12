@@ -18,12 +18,12 @@ namespace Excalibur.Jobs.Tests.Coordination;
 [Trait("Component", "Jobs")]
 public sealed class RedisDisposeAsyncShould
 {
-	private static readonly Assembly JobsAssembly = typeof(Excalibur.Jobs.Coordination.IDistributedJobLock).Assembly;
+	private static readonly Assembly JobsRedisAssembly = typeof(Excalibur.Jobs.Redis.Coordination.RedisJobCoordinator).Assembly;
 
 	private static Type GetInternalType(string fullName)
 	{
-		var type = JobsAssembly.GetType(fullName);
-		type.ShouldNotBeNull($"Type '{fullName}' should exist in Excalibur.Jobs assembly");
+		var type = JobsRedisAssembly.GetType(fullName);
+		type.ShouldNotBeNull($"Type '{fullName}' should exist in Excalibur.Jobs.Redis assembly");
 		return type;
 	}
 
@@ -32,7 +32,7 @@ public sealed class RedisDisposeAsyncShould
 	[Fact]
 	public void RedisDistributedJobLock_ImplementsIAsyncDisposable()
 	{
-		var type = GetInternalType("Excalibur.Jobs.Coordination.RedisDistributedJobLock");
+		var type = GetInternalType("Excalibur.Jobs.Redis.Coordination.RedisDistributedJobLock");
 		typeof(IAsyncDisposable).IsAssignableFrom(type).ShouldBeTrue(
 			"RedisDistributedJobLock should implement IAsyncDisposable");
 	}
@@ -40,7 +40,7 @@ public sealed class RedisDisposeAsyncShould
 	[Fact]
 	public void RedisDistributedJobLock_HasDisposeAsyncMethod()
 	{
-		var type = GetInternalType("Excalibur.Jobs.Coordination.RedisDistributedJobLock");
+		var type = GetInternalType("Excalibur.Jobs.Redis.Coordination.RedisDistributedJobLock");
 		var method = type.GetMethod("DisposeAsync", BindingFlags.Public | BindingFlags.Instance);
 
 		method.ShouldNotBeNull("RedisDistributedJobLock should have DisposeAsync method");
@@ -50,7 +50,7 @@ public sealed class RedisDisposeAsyncShould
 	[Fact]
 	public void RedisDistributedJobLock_DisposeAsyncIsAsync()
 	{
-		var type = GetInternalType("Excalibur.Jobs.Coordination.RedisDistributedJobLock");
+		var type = GetInternalType("Excalibur.Jobs.Redis.Coordination.RedisDistributedJobLock");
 		var method = type.GetMethod("DisposeAsync", BindingFlags.Public | BindingFlags.Instance);
 
 		method.ShouldNotBeNull();
@@ -62,7 +62,7 @@ public sealed class RedisDisposeAsyncShould
 	[Fact]
 	public void RedisDistributedJobLock_DisposeAsyncCatchesOperationCanceledException()
 	{
-		var type = GetInternalType("Excalibur.Jobs.Coordination.RedisDistributedJobLock");
+		var type = GetInternalType("Excalibur.Jobs.Redis.Coordination.RedisDistributedJobLock");
 		var method = type.GetMethod("DisposeAsync", BindingFlags.Public | BindingFlags.Instance);
 
 		method.ShouldNotBeNull();
@@ -91,7 +91,7 @@ public sealed class RedisDisposeAsyncShould
 	[Fact]
 	public void RedisLeadershipToken_ImplementsIAsyncDisposable()
 	{
-		var type = GetInternalType("Excalibur.Jobs.Coordination.RedisLeadershipToken");
+		var type = GetInternalType("Excalibur.Jobs.Redis.Coordination.RedisLeadershipToken");
 		typeof(IAsyncDisposable).IsAssignableFrom(type).ShouldBeTrue(
 			"RedisLeadershipToken should implement IAsyncDisposable");
 	}
@@ -99,7 +99,7 @@ public sealed class RedisDisposeAsyncShould
 	[Fact]
 	public void RedisLeadershipToken_HasDisposeAsyncMethod()
 	{
-		var type = GetInternalType("Excalibur.Jobs.Coordination.RedisLeadershipToken");
+		var type = GetInternalType("Excalibur.Jobs.Redis.Coordination.RedisLeadershipToken");
 		var method = type.GetMethod("DisposeAsync", BindingFlags.Public | BindingFlags.Instance);
 
 		method.ShouldNotBeNull("RedisLeadershipToken should have DisposeAsync method");
@@ -109,7 +109,7 @@ public sealed class RedisDisposeAsyncShould
 	[Fact]
 	public void RedisLeadershipToken_DisposeAsyncIsAsync()
 	{
-		var type = GetInternalType("Excalibur.Jobs.Coordination.RedisLeadershipToken");
+		var type = GetInternalType("Excalibur.Jobs.Redis.Coordination.RedisLeadershipToken");
 		var method = type.GetMethod("DisposeAsync", BindingFlags.Public | BindingFlags.Instance);
 
 		method.ShouldNotBeNull();
@@ -121,7 +121,7 @@ public sealed class RedisDisposeAsyncShould
 	[Fact]
 	public void RedisLeadershipToken_DisposeAsyncCatchesOperationCanceledException()
 	{
-		var type = GetInternalType("Excalibur.Jobs.Coordination.RedisLeadershipToken");
+		var type = GetInternalType("Excalibur.Jobs.Redis.Coordination.RedisLeadershipToken");
 		var method = type.GetMethod("DisposeAsync", BindingFlags.Public | BindingFlags.Instance);
 
 		method.ShouldNotBeNull();

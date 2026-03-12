@@ -2,13 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Serialization;
 
-using Excalibur.Data.Postgres.Saga;
+using Excalibur.Saga.Postgres;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
-using Tests.Shared.TestTypes;
 
 namespace Excalibur.Integration.Tests.Data.Saga;
 
@@ -47,7 +46,7 @@ public sealed class PostgresSagaStoreConformanceShould : IAsyncLifetime
 			CommandTimeoutSeconds = 30
 		});
 
-		var serializer = new JsonMessageSerializer();
+		var serializer = new DispatchJsonSerializer();
 
 		_sagaStore = new PostgresSagaStore(
 			options,

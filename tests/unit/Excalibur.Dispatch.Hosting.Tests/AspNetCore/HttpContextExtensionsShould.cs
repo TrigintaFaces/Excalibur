@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Hosting.AspNetCore;
 using Excalibur.Dispatch.Messaging;
 
@@ -178,13 +179,19 @@ public sealed class HttpContextExtensionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void CreateDispatchMessageContext_WithUnauthenticatedUser_ThrowsUnauthorizedAccessException()
+	public void CreateDispatchMessageContext_WithUnauthenticatedUser_SetsAnonymousUserId()
 	{
 		// Arrange
-		var httpContext = new DefaultHttpContext();
+		var services = new ServiceCollection();
+		var serviceProvider = services.BuildServiceProvider();
+		var httpContext = new DefaultHttpContext { RequestServices = serviceProvider };
 
-		// Act & Assert
-		_ = Should.Throw<UnauthorizedAccessException>(httpContext.CreateDispatchMessageContext);
+		// Act
+		var result = httpContext.CreateDispatchMessageContext();
+
+		// Assert
+		result.ShouldNotBeNull();
+		result.GetUserId().ShouldBe("anonymous");
 	}
 
 	[Fact]
@@ -209,9 +216,9 @@ public sealed class HttpContextExtensionsShould : UnitTestBase
 
 		// Assert
 		result.ShouldNotBeNull();
-		result.Source.ShouldBe("WebRequest");
+		result.GetSource().ShouldBe("WebRequest");
 		result.CorrelationId.ShouldBe(correlationGuid.ToString());
-		result.UserId.ShouldBe("user-123");
+		result.GetUserId().ShouldBe("user-123");
 	}
 
 	[Fact]

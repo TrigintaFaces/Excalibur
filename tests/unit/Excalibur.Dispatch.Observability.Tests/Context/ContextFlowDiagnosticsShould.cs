@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Observability.Context;
 
 using Microsoft.Extensions.Logging;
@@ -116,9 +117,7 @@ public sealed class ContextFlowDiagnosticsShould : IDisposable
 	{
 		// Arrange
 		_diagnostics = CreateDiagnostics();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.DeliveryCount).Returns(10);
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		var context = CreateFakeContext(deliveryCount: 10);
 
 		// Act
 		var issues = _diagnostics.AnalyzeContextHealth(context).ToList();
@@ -132,9 +131,8 @@ public sealed class ContextFlowDiagnosticsShould : IDisposable
 	{
 		// Arrange
 		_diagnostics = CreateDiagnostics();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.SentTimestampUtc).Returns(DateTimeOffset.UtcNow.AddHours(-2));
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		var context = CreateFakeContext();
+		context.SetSentTimestampUtc(DateTimeOffset.UtcNow.AddHours(-2));
 
 		// Act
 		var issues = _diagnostics.AnalyzeContextHealth(context).ToList();
@@ -156,12 +154,7 @@ public sealed class ContextFlowDiagnosticsShould : IDisposable
 	{
 		// Arrange
 		_diagnostics = CreateDiagnostics();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.DeliveryCount).Returns(2);
-		A.CallTo(() => context.CorrelationId).Returns((string?)null);
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.CausationId).Returns((string?)null);
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		var context = CreateFakeContext(messageId: "msg-1", correlationId: null, deliveryCount: 2);
 
 		// Act
 		var anomalies = _diagnostics.DetectAnomalies(context).ToList();
@@ -175,10 +168,7 @@ public sealed class ContextFlowDiagnosticsShould : IDisposable
 	{
 		// Arrange
 		_diagnostics = CreateDiagnostics();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.CausationId).Returns("msg-1"); // Same as MessageId = circular
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		var context = CreateFakeContext(messageId: "msg-1", causationId: "msg-1");
 
 		// Act
 		var anomalies = _diagnostics.DetectAnomalies(context).ToList();
@@ -192,12 +182,8 @@ public sealed class ContextFlowDiagnosticsShould : IDisposable
 	{
 		// Arrange
 		_diagnostics = CreateDiagnostics();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>
-		{
-			["user_email_address"] = "test@example.com",
-		});
+		var context = CreateFakeContext(messageId: "msg-1");
+		context.Items["user_email_address"] = "test@example.com";
 
 		// Act
 		var anomalies = _diagnostics.DetectAnomalies(context).ToList();
@@ -219,9 +205,7 @@ public sealed class ContextFlowDiagnosticsShould : IDisposable
 	{
 		// Arrange
 		_diagnostics = CreateDiagnostics();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		var context = CreateFakeContext(messageId: "msg-1");
 
 		// Act
 		_diagnostics.TrackContextHistory(context, "Created", "Initial creation");
@@ -294,6 +278,36 @@ public sealed class ContextFlowDiagnosticsShould : IDisposable
 	{
 		_diagnostics = CreateDiagnostics();
 		_diagnostics.ShouldBeAssignableTo<IDisposable>();
+	}
+
+	/// <summary>
+	/// Creates a fake <see cref="IMessageContext"/> with real Items and Features dictionaries.
+	/// </summary>
+	private static IMessageContext CreateFakeContext(
+		string? messageId = "msg-default",
+		string? correlationId = "corr-default",
+		string? causationId = null,
+		int deliveryCount = 0)
+	{
+		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		var features = new Dictionary<Type, object>();
+
+		A.CallTo(() => context.MessageId).Returns(messageId);
+		A.CallTo(() => context.CorrelationId).Returns(correlationId);
+		A.CallTo(() => context.CausationId).Returns(causationId);
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
+
+		if (deliveryCount > 0)
+		{
+			features[typeof(IMessageProcessingFeature)] = new MessageProcessingFeature
+			{
+				DeliveryCount = deliveryCount,
+			};
+		}
+
+		return context;
 	}
 
 	private ContextFlowDiagnostics CreateDiagnostics()

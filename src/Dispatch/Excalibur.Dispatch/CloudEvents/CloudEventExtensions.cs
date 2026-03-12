@@ -8,6 +8,7 @@ using System.Text.Json;
 using CloudNative.CloudEvents;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 
 namespace Excalibur.Dispatch.CloudEvents;
 
@@ -27,27 +28,32 @@ public static class CloudEventExtensions
 		ArgumentNullException.ThrowIfNull(evt);
 		ArgumentNullException.ThrowIfNull(context);
 
+		var source = context.GetSource();
+		var sentTimestamp = context.GetSentTimestampUtc();
+
 		var ce = new CloudEvent(CloudEventsSpecVersion.V1_0)
 		{
 			Id = context.MessageId ?? Guid.NewGuid().ToString(),
-			Source = !string.IsNullOrWhiteSpace(context.Source) ? new Uri(context.Source) : new Uri("urn:dispatch"),
+			Source = !string.IsNullOrWhiteSpace(source) ? new Uri(source) : new Uri("urn:dispatch"),
 			Type = evt.GetType().FullName ?? "unknown",
-			Time = context.SentTimestampUtc ?? DateTimeOffset.UtcNow,
+			Time = sentTimestamp ?? DateTimeOffset.UtcNow,
 			Data = evt,
 		};
 
 		// Set DataContentType separately to ensure it's valid
-		var contentType = !string.IsNullOrWhiteSpace(context.ContentType) ? context.ContentType : "application/json";
-		ce.DataContentType = contentType;
+		var contentType = context.GetContentType();
+		var resolvedContentType = !string.IsNullOrWhiteSpace(contentType) ? contentType : "application/json";
+		ce.DataContentType = resolvedContentType;
 
 		if (!string.IsNullOrWhiteSpace(context.CorrelationId))
 		{
 			ce["correlationid"] = context.CorrelationId;
 		}
 
-		if (!string.IsNullOrWhiteSpace(context.TraceParent))
+		var traceParent = context.GetTraceParent();
+		if (!string.IsNullOrWhiteSpace(traceParent))
 		{
-			ce["traceparent"] = context.TraceParent;
+			ce["traceparent"] = traceParent;
 		}
 
 		foreach (var kvp in context.Items)

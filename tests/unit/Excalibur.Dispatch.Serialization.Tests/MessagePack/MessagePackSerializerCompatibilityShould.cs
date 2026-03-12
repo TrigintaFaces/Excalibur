@@ -4,34 +4,33 @@
 using Excalibur.Dispatch.Serialization.MessagePack;
 
 using MessagePack;
-using MessagePack.Resolvers;
+
+using MpkSerializer = Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializer;
 
 namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 
 /// <summary>
 /// Cross-serializer compatibility tests to verify data can be shared between
-/// different MessagePack serializer implementations.
+/// the consolidated <see cref="MpkSerializer"/> and native MessagePack.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Serialization")]
 public sealed class MessagePackSerializerCompatibilityShould : UnitTestBase
 {
-	#region DispatchMessagePackSerializer Compatibility
+	#region Serializer-to-Native Compatibility
 
 	[Fact]
-	public void DispatchSerializer_OutputCompatibleWithNativeMessagePack()
+	public void Serializer_OutputCompatibleWithNativeMessagePack()
 	{
 		// Arrange
-		var serializer = new DispatchMessagePackSerializer();
+		var serializer = new MpkSerializer();
 		var original = new TestMessage { Id = 42, Name = "CrossCompat" };
 
-		// Act - Serialize with DispatchMessagePackSerializer
-		var bytes = serializer.Serialize(original);
+		// Act - Serialize with consolidated serializer
+		var bytes = serializer.SerializeToBytes(original);
 
-		// Deserialize with native MessagePack (using same compression options)
-		var options = MessagePackSerializerOptions.Standard
-			.WithCompression(MessagePackCompression.Lz4BlockArray);
-		var result = global::MessagePack.MessagePackSerializer.Deserialize<TestMessage>(bytes, options);
+		// Deserialize with native MessagePack (using same Standard options)
+		var result = global::MessagePack.MessagePackSerializer.Deserialize<TestMessage>(bytes);
 
 		// Assert
 		result.Id.ShouldBe(original.Id);
@@ -39,18 +38,16 @@ public sealed class MessagePackSerializerCompatibilityShould : UnitTestBase
 	}
 
 	[Fact]
-	public void NativeMessagePack_OutputCompatibleWithDispatchSerializer()
+	public void NativeMessagePack_OutputCompatibleWithSerializer()
 	{
 		// Arrange
-		var serializer = new DispatchMessagePackSerializer();
-		var original = new TestMessage { Id = 55, Name = "NativeToDispatch" };
+		var serializer = new MpkSerializer();
+		var original = new TestMessage { Id = 55, Name = "NativeToSerializer" };
 
-		// Serialize with native MessagePack (same compression)
-		var options = MessagePackSerializerOptions.Standard
-			.WithCompression(MessagePackCompression.Lz4BlockArray);
-		var bytes = global::MessagePack.MessagePackSerializer.Serialize(original, options);
+		// Serialize with native MessagePack (same Standard options)
+		var bytes = global::MessagePack.MessagePackSerializer.Serialize(original);
 
-		// Act - Deserialize with DispatchMessagePackSerializer
+		// Act - Deserialize with consolidated serializer
 		var result = serializer.Deserialize<TestMessage>(bytes);
 
 		// Assert
@@ -60,21 +57,21 @@ public sealed class MessagePackSerializerCompatibilityShould : UnitTestBase
 
 	#endregion
 
-	#region MessagePackMessageSerializer Compatibility
+	#region Compression Compatibility
 
 	[Fact]
-	public void MessagePackMessageSerializer_OutputCompatibleWithNativeMessagePack()
+	public void Serializer_WithCompression_OutputCompatibleWithNative()
 	{
 		// Arrange
-		var msgPackOptions = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions());
-		var serializer = new MessagePackMessageSerializer(msgPackOptions);
-		var original = new TestMessage { Id = 33, Name = "MessageSerializerCompat" };
+		var opts = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4Block);
+		var serializer = new MpkSerializer(opts);
+		var original = new TestMessage { Id = 44, Name = "CompressedCompat" };
 
-		// Act - Serialize
-		var bytes = serializer.Serialize(original);
+		// Act - Serialize with compression
+		var bytes = serializer.SerializeToBytes(original);
 
-		// Deserialize with native MessagePack (standard options, no compression)
-		var result = global::MessagePack.MessagePackSerializer.Deserialize<TestMessage>(bytes);
+		// Deserialize with native MessagePack (Lz4Block compression)
+		var result = global::MessagePack.MessagePackSerializer.Deserialize<TestMessage>(bytes, opts);
 
 		// Assert
 		result.Id.ShouldBe(original.Id);
@@ -82,23 +79,18 @@ public sealed class MessagePackSerializerCompatibilityShould : UnitTestBase
 	}
 
 	[Fact]
-	public void MessagePackMessageSerializer_WithCompression_OutputCompatibleWithNative()
+	public void Serializer_NoCompression_OutputCompatibleWithNative()
 	{
 		// Arrange
-		var msgPackOptions = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions
-		{
-			UseLz4Compression = true
-		});
-		var serializer = new MessagePackMessageSerializer(msgPackOptions);
-		var original = new TestMessage { Id = 44, Name = "CompressedCompat" };
+		var opts = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.None);
+		var serializer = new MpkSerializer(opts);
+		var original = new TestMessage { Id = 33, Name = "NoCompressCompat" };
 
-		// Act - Serialize with compression
-		var bytes = serializer.Serialize(original);
+		// Act - Serialize
+		var bytes = serializer.SerializeToBytes(original);
 
-		// Deserialize with native MessagePack (Lz4Block compression)
-		var nativeOptions = MessagePackSerializerOptions.Standard
-			.WithCompression(MessagePackCompression.Lz4Block);
-		var result = global::MessagePack.MessagePackSerializer.Deserialize<TestMessage>(bytes, nativeOptions);
+		// Deserialize with native MessagePack (standard options, no compression)
+		var result = global::MessagePack.MessagePackSerializer.Deserialize<TestMessage>(bytes);
 
 		// Assert
 		result.Id.ShouldBe(original.Id);
@@ -113,11 +105,11 @@ public sealed class MessagePackSerializerCompatibilityShould : UnitTestBase
 	public void PluggableSerializer_OutputCompatibleWithNativeMessagePack()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var original = new TestPluggableMessage { Value = 88, Text = "PluggableCompat" };
 
 		// Act - Serialize
-		var bytes = serializer.Serialize(original);
+		var bytes = serializer.SerializeToBytes(original);
 
 		// Deserialize with native MessagePack
 		var result = global::MessagePack.MessagePackSerializer.Deserialize<TestPluggableMessage>(bytes);
@@ -131,13 +123,13 @@ public sealed class MessagePackSerializerCompatibilityShould : UnitTestBase
 	public void NativeMessagePack_OutputCompatibleWithPluggableSerializer()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var original = new TestPluggableMessage { Value = 77, Text = "NativeToPluggable" };
 
 		// Serialize with native
 		var bytes = global::MessagePack.MessagePackSerializer.Serialize(original);
 
-		// Act - Deserialize with pluggable
+		// Act - Deserialize with consolidated serializer
 		var result = serializer.Deserialize<TestPluggableMessage>(bytes);
 
 		// Assert
@@ -149,7 +141,7 @@ public sealed class MessagePackSerializerCompatibilityShould : UnitTestBase
 	public void PluggableSerializer_SerializeObject_CompatibleWithNative()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var original = new TestPluggableMessage { Value = 66, Text = "ObjectCompat" };
 
 		// Act - SerializeObject
@@ -165,55 +157,22 @@ public sealed class MessagePackSerializerCompatibilityShould : UnitTestBase
 
 	#endregion
 
-	#region ZeroCopySerializer Compatibility
+	#region Cross-Instance Interop
 
 	[Fact]
-	public void ZeroCopySerializer_DeserializeCompatibleWithContractlessNative()
-	{
-		// Arrange
-		var serializer = new MessagePackZeroCopySerializer();
-		var original = new TestMessage { Id = 99, Name = "ZeroCopyCompat" };
-
-		// Serialize with ContractlessStandardResolver + Lz4 (what ZeroCopy uses)
-		var options = MessagePackSerializerOptions.Standard
-			.WithResolver(ContractlessStandardResolver.Instance)
-			.WithCompression(MessagePackCompression.Lz4BlockArray);
-		var bytes = global::MessagePack.MessagePackSerializer.Serialize(original, options);
-
-		// Act - Deserialize with ZeroCopy
-		var result = serializer.Deserialize<TestMessage>(bytes);
-
-		// Assert
-		result.Id.ShouldBe(original.Id);
-		result.Name.ShouldBe(original.Name);
-	}
-
-	#endregion
-
-	#region Cross-Serializer Interop
-
-	[Fact]
-	public void DispatchSerializer_CanDeserializeFromMessagePackMessageSerializer_NoCompression()
+	public void Serializer_NoCompression_CanDeserializeFromNoCompression()
 	{
 		// Arrange - Both use standard options without compression
-		var msgPackOptions = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions
-		{
-			UseLz4Compression = false
-		});
-		var messageSerializer = new MessagePackMessageSerializer(msgPackOptions);
-
-		// Use no-compression dispatch serializer
-		var dispatchOptions = MessagePackSerializerOptions.Standard
+		var noCompressionOpts = MessagePackSerializerOptions.Standard
 			.WithCompression(MessagePackCompression.None);
-		var dispatchSerializer = new DispatchMessagePackSerializer(dispatchOptions);
+		var serializer1 = new MpkSerializer(noCompressionOpts);
+		var serializer2 = new MpkSerializer(noCompressionOpts);
 
 		var original = new TestMessage { Id = 111, Name = "CrossSerializer" };
 
-		// Act - Serialize with MessagePackMessageSerializer
-		var bytes = messageSerializer.Serialize(original);
-
-		// Deserialize with DispatchMessagePackSerializer
-		var result = dispatchSerializer.Deserialize<TestMessage>(bytes);
+		// Act - Serialize with one, deserialize with another
+		var bytes = serializer1.SerializeToBytes(original);
+		var result = serializer2.Deserialize<TestMessage>(bytes);
 
 		// Assert
 		result.Id.ShouldBe(original.Id);
@@ -221,20 +180,18 @@ public sealed class MessagePackSerializerCompatibilityShould : UnitTestBase
 	}
 
 	[Fact]
-	public void PluggableSerializer_CanSerializeForAotSerializer()
+	public void Serializer_WithSameOptions_CanInteroperate()
 	{
 		// Arrange - Both use standard options
-		var pluggable = new MessagePackPluggableSerializer();
-		var aotOptions = MessagePackSerializerOptions.Standard;
-		var aot = new AotMessagePackSerializer(aotOptions);
+		var opts = MessagePackSerializerOptions.Standard;
+		var serializer1 = new MpkSerializer(opts);
+		var serializer2 = new MpkSerializer(opts);
 
-		var original = new TestPluggableMessage { Value = 222, Text = "PluggableToAot" };
+		var original = new TestPluggableMessage { Value = 222, Text = "Interop" };
 
-		// Act - Serialize with Pluggable
-		var bytes = pluggable.Serialize(original);
-
-		// Deserialize with AOT serializer
-		var result = aot.Deserialize<TestPluggableMessage>(bytes);
+		// Act - Serialize with first, deserialize with second
+		var bytes = serializer1.SerializeToBytes(original);
+		var result = serializer2.Deserialize<TestPluggableMessage>(bytes);
 
 		// Assert
 		result.Value.ShouldBe(original.Value);
@@ -242,20 +199,18 @@ public sealed class MessagePackSerializerCompatibilityShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AotSerializer_CanSerializeForPluggableSerializer()
+	public void Serializer_ReverseDirection_CanInteroperate()
 	{
 		// Arrange
-		var aotOptions = MessagePackSerializerOptions.Standard;
-		var aot = new AotMessagePackSerializer(aotOptions);
-		var pluggable = new MessagePackPluggableSerializer();
+		var opts = MessagePackSerializerOptions.Standard;
+		var serializer1 = new MpkSerializer(opts);
+		var serializer2 = new MpkSerializer();
 
-		var original = new TestPluggableMessage { Value = 333, Text = "AotToPluggable" };
+		var original = new TestPluggableMessage { Value = 333, Text = "Reverse" };
 
-		// Act - Serialize with AOT
-		var bytes = aot.Serialize(original);
-
-		// Deserialize with Pluggable
-		var result = pluggable.Deserialize<TestPluggableMessage>(bytes);
+		// Act - Serialize with second, deserialize with first
+		var bytes = serializer2.SerializeToBytes(original);
+		var result = serializer1.Deserialize<TestPluggableMessage>(bytes);
 
 		// Assert
 		result.Value.ShouldBe(original.Value);
@@ -267,32 +222,31 @@ public sealed class MessagePackSerializerCompatibilityShould : UnitTestBase
 	#region Data Format Verification
 
 	[Fact]
-	public void AllSerializers_ProduceNonEmptyOutput()
+	public void AllSerializerInstances_ProduceNonEmptyOutput()
 	{
 		// Arrange
 		var message = new TestMessage { Id = 1, Name = "Test" };
-		var dispatch = new DispatchMessagePackSerializer();
-		var msgPackOptions = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions());
-		var messageSerializer = new MessagePackMessageSerializer(msgPackOptions);
-		var aotOptions = MessagePackSerializerOptions.Standard;
-		var aot = new AotMessagePackSerializer(aotOptions);
+		var defaultSerializer = new MpkSerializer();
+		var standardSerializer = new MpkSerializer(MessagePackSerializerOptions.Standard);
+		var lz4Serializer = new MpkSerializer(
+			MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4BlockArray));
 
 		// Act & Assert
-		dispatch.Serialize(message).Length.ShouldBeGreaterThan(0);
-		messageSerializer.Serialize(message).Length.ShouldBeGreaterThan(0);
-		aot.Serialize(message).Length.ShouldBeGreaterThan(0);
+		defaultSerializer.SerializeToBytes(message).Length.ShouldBeGreaterThan(0);
+		standardSerializer.SerializeToBytes(message).Length.ShouldBeGreaterThan(0);
+		lz4Serializer.SerializeToBytes(message).Length.ShouldBeGreaterThan(0);
 	}
 
 	[Fact]
-	public void PluggableSerializer_ProducesNonEmptyOutput()
+	public void Serializer_ProducesNonEmptyOutput_ForPluggableMessage()
 	{
 		// Arrange
-		var pluggable = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var message = new TestPluggableMessage { Value = 1, Text = "Test" };
 
 		// Act
-		var bytes = pluggable.Serialize(message);
-		var objectBytes = pluggable.SerializeObject(message, typeof(TestPluggableMessage));
+		var bytes = serializer.SerializeToBytes(message);
+		var objectBytes = serializer.SerializeObject(message, typeof(TestPluggableMessage));
 
 		// Assert
 		bytes.Length.ShouldBeGreaterThan(0);

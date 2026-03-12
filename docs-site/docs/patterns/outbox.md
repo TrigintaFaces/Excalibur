@@ -219,11 +219,14 @@ services.AddExcaliburOutbox(outbox =>
 ### MongoDB
 
 ```csharp
-services.AddMongoDbOutboxStore(options =>
+services.AddExcaliburOutbox(outbox =>
 {
-    options.ConnectionString = connectionString;
-    options.DatabaseName = "myapp";
-    options.CollectionName = "outbox";
+    outbox.UseMongoDB(options =>
+    {
+        options.ConnectionString = connectionString;
+        options.DatabaseName = "myapp";
+        options.CollectionName = "outbox";
+    });
 });
 ```
 

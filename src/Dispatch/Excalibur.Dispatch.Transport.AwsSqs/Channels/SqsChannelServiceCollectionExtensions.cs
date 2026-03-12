@@ -141,31 +141,31 @@ public static class SqsChannelServiceCollectionExtensions
 		_ = services.AddSqsChannelAdapter(options =>
 		{
 			options.QueueUrl = infrastructureOptions.QueueUrl;
-			options.ConcurrentPollers = infrastructureOptions.ConcurrentPollers;
-			options.MaxConcurrentPollers = infrastructureOptions.MaxConcurrentPollers;
-			options.ReceiveChannelCapacity = infrastructureOptions.ReceiveChannelCapacity;
+			options.ConcurrentPollers = infrastructureOptions.ChannelAdapter.ConcurrentPollers;
+			options.MaxConcurrentPollers = infrastructureOptions.ChannelAdapter.MaxConcurrentPollers;
+			options.ReceiveChannelCapacity = infrastructureOptions.ChannelAdapter.ReceiveChannelCapacity;
 			options.VisibilityTimeout = infrastructureOptions.VisibilityTimeout;
-			options.BatchIntervalMs = infrastructureOptions.BatchIntervalMs;
+			options.BatchIntervalMs = infrastructureOptions.ChannelAdapter.BatchIntervalMs;
 		});
 
 		// Add message processor
 		_ = services.AddSqsChannelProcessor<TProcessor>(options =>
 		{
 			options.QueueUrl = infrastructureOptions.QueueUrl;
-			options.ProcessorCount = infrastructureOptions.ProcessorCount;
-			options.MaxConcurrentMessages = infrastructureOptions.MaxConcurrentMessages;
-			options.DeleteBatchIntervalMs = infrastructureOptions.DeleteBatchIntervalMs;
+			options.ProcessorCount = infrastructureOptions.Processing.ProcessorCount;
+			options.MaxConcurrentMessages = infrastructureOptions.Processing.MaxConcurrentMessages;
+			options.DeleteBatchIntervalMs = infrastructureOptions.Processing.DeleteBatchIntervalMs;
 		});
 
 		// Add batch processor
 		_ = services.AddSqsBatchProcessor(options =>
 		{
 			options.QueueUrl = infrastructureOptions.QueueUrl;
-			options.MaxConcurrentReceiveBatches = infrastructureOptions.MaxConcurrentReceiveBatches;
-			options.MaxConcurrentSendBatches = infrastructureOptions.MaxConcurrentSendBatches;
-			options.LongPollingSeconds = infrastructureOptions.LongPollingSeconds;
+			options.MaxConcurrentReceiveBatches = infrastructureOptions.Batch.MaxConcurrentReceiveBatches;
+			options.MaxConcurrentSendBatches = infrastructureOptions.Batch.MaxConcurrentSendBatches;
+			options.LongPollingSeconds = infrastructureOptions.Batch.LongPollingSeconds;
 			options.VisibilityTimeout = infrastructureOptions.VisibilityTimeout;
-			options.BatchFlushIntervalMs = infrastructureOptions.BatchFlushIntervalMs;
+			options.BatchFlushIntervalMs = infrastructureOptions.Batch.BatchFlushIntervalMs;
 		});
 
 		// Add metrics collection

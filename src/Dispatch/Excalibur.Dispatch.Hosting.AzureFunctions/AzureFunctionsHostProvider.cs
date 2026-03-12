@@ -105,13 +105,13 @@ public partial class AzureFunctionsHostProvider(ILogger logger) : IServerlessHos
 		}
 
 		// Configure Application Insights if enabled
-		if (options.EnableDistributedTracing)
+		if (options.Telemetry.EnableDistributedTracing)
 		{
 			ConfigureApplicationInsights(services, options);
 		}
 
 		// Configure metrics if enabled
-		if (options.EnableMetrics)
+		if (options.Telemetry.EnableMetrics)
 		{
 			ConfigureAzureMetrics(services, options);
 		}

@@ -21,7 +21,7 @@ public sealed class A3BuilderCosmosDbExtensionsShould
 		IA3Builder? builder = null;
 
 		Should.Throw<ArgumentNullException>(() =>
-			builder!.UseCosmosDb(options => { options.ConnectionString = "test"; }));
+			builder!.UseCosmosDb(options => { options.Client.ConnectionString = "test"; }));
 	}
 
 	[Fact]
@@ -46,7 +46,7 @@ public sealed class A3BuilderCosmosDbExtensionsShould
 		// Act
 		var result = builder.UseCosmosDb(options =>
 		{
-			options.ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;";
+			options.Client.ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;";
 		});
 
 		// Assert
@@ -63,7 +63,7 @@ public sealed class A3BuilderCosmosDbExtensionsShould
 		// Act
 		services.AddExcaliburA3().UseCosmosDb(options =>
 		{
-			options.ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;";
+			options.Client.ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;";
 		});
 
 		// Assert
@@ -81,7 +81,7 @@ public sealed class A3BuilderCosmosDbExtensionsShould
 		// Act
 		services.AddExcaliburA3().UseCosmosDb(options =>
 		{
-			options.ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;";
+			options.Client.ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;";
 		});
 
 		// Assert

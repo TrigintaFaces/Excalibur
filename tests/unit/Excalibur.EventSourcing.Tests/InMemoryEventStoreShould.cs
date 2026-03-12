@@ -23,27 +23,13 @@ public sealed class InMemoryEventStoreShould
 	internal sealed record TestCreatedEvent : DomainEvent
 	{
 		public string Name { get; init; } = string.Empty;
-
-		public TestCreatedEvent(string aggregateId, long version, string name)
-			: base(aggregateId, version, TimeProvider.System)
-		{
-			Name = name;
-		}
-
-		public TestCreatedEvent() : base("", 0, TimeProvider.System) { }
+		public override string AggregateId { get; init; } = string.Empty;
 	}
 
 	internal sealed record TestUpdatedEvent : DomainEvent
 	{
 		public string Value { get; init; } = string.Empty;
-
-		public TestUpdatedEvent(string aggregateId, long version, string value)
-			: base(aggregateId, version, TimeProvider.System)
-		{
-			Value = value;
-		}
-
-		public TestUpdatedEvent() : base("", 0, TimeProvider.System) { }
+		public override string AggregateId { get; init; } = string.Empty;
 	}
 
 	#endregion Test Events
@@ -59,7 +45,7 @@ public sealed class InMemoryEventStoreShould
 		var aggregateType = "TestAggregate";
 		var events = new List<IDomainEvent>
 		{
-			new TestCreatedEvent(aggregateId, 0, "Test")
+			new TestCreatedEvent { AggregateId = aggregateId, Version = 0, Name = "Test" }
 		};
 
 		// Act
@@ -80,11 +66,11 @@ public sealed class InMemoryEventStoreShould
 		var aggregateType = "TestAggregate";
 
 		// First append succeeds
-		var firstEvents = new List<IDomainEvent> { new TestCreatedEvent(aggregateId, 0, "Test") };
+		var firstEvents = new List<IDomainEvent> { new TestCreatedEvent { AggregateId = aggregateId, Version = 0, Name = "Test" } };
 		_ = await store.AppendAsync(aggregateId, aggregateType, firstEvents, -1, CancellationToken.None);
 
 		// Second append with wrong expected version
-		var secondEvents = new List<IDomainEvent> { new TestUpdatedEvent(aggregateId, 1, "Updated") };
+		var secondEvents = new List<IDomainEvent> { new TestUpdatedEvent { AggregateId = aggregateId, Version = 1, Value = "Updated" } };
 
 		// Act - Expecting version -1 but current is 0
 		var result = await store.AppendAsync(aggregateId, aggregateType, secondEvents, -1, CancellationToken.None);
@@ -103,11 +89,11 @@ public sealed class InMemoryEventStoreShould
 		var aggregateType = "TestAggregate";
 
 		// First append
-		var firstEvents = new List<IDomainEvent> { new TestCreatedEvent(aggregateId, 0, "Test") };
+		var firstEvents = new List<IDomainEvent> { new TestCreatedEvent { AggregateId = aggregateId, Version = 0, Name = "Test" } };
 		_ = await store.AppendAsync(aggregateId, aggregateType, firstEvents, -1, CancellationToken.None);
 
 		// Second append with correct expected version
-		var secondEvents = new List<IDomainEvent> { new TestUpdatedEvent(aggregateId, 1, "Updated") };
+		var secondEvents = new List<IDomainEvent> { new TestUpdatedEvent { AggregateId = aggregateId, Version = 1, Value = "Updated" } };
 
 		// Act
 		var result = await store.AppendAsync(aggregateId, aggregateType, secondEvents, 0, CancellationToken.None);
@@ -142,9 +128,9 @@ public sealed class InMemoryEventStoreShould
 		var aggregateType = "TestAggregate";
 		var events = new List<IDomainEvent>
 		{
-			new TestCreatedEvent(aggregateId, 0, "Event1"),
-			new TestUpdatedEvent(aggregateId, 1, "Event2"),
-			new TestUpdatedEvent(aggregateId, 2, "Event3")
+			new TestCreatedEvent { AggregateId = aggregateId, Version = 0, Name = "Event1" },
+			new TestUpdatedEvent { AggregateId = aggregateId, Version = 1, Value = "Event2" },
+			new TestUpdatedEvent { AggregateId = aggregateId, Version = 2, Value = "Event3" }
 		};
 
 		// Act
@@ -182,8 +168,8 @@ public sealed class InMemoryEventStoreShould
 		var aggregateType = "TestAggregate";
 		var events = new List<IDomainEvent>
 		{
-			new TestCreatedEvent(aggregateId, 0, "Created"),
-			new TestUpdatedEvent(aggregateId, 1, "Updated")
+			new TestCreatedEvent { AggregateId = aggregateId, Version = 0, Name = "Created" },
+			new TestUpdatedEvent { AggregateId = aggregateId, Version = 1, Value = "Updated" }
 		};
 		_ = await store.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None);
 
@@ -205,10 +191,10 @@ public sealed class InMemoryEventStoreShould
 		var aggregateType = "TestAggregate";
 		var events = new List<IDomainEvent>
 		{
-			new TestCreatedEvent(aggregateId, 0, "Event0"),
-			new TestUpdatedEvent(aggregateId, 1, "Event1"),
-			new TestUpdatedEvent(aggregateId, 2, "Event2"),
-			new TestUpdatedEvent(aggregateId, 3, "Event3")
+			new TestCreatedEvent { AggregateId = aggregateId, Version = 0, Name = "Event0" },
+			new TestUpdatedEvent { AggregateId = aggregateId, Version = 1, Value = "Event1" },
+			new TestUpdatedEvent { AggregateId = aggregateId, Version = 2, Value = "Event2" },
+			new TestUpdatedEvent { AggregateId = aggregateId, Version = 3, Value = "Event3" }
 		};
 		_ = await store.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None);
 
@@ -230,9 +216,9 @@ public sealed class InMemoryEventStoreShould
 		var aggregateType = "TestAggregate";
 		var events = new List<IDomainEvent>
 		{
-			new TestCreatedEvent(aggregateId, 0, "First"),
-			new TestUpdatedEvent(aggregateId, 1, "Second"),
-			new TestUpdatedEvent(aggregateId, 2, "Third")
+			new TestCreatedEvent { AggregateId = aggregateId, Version = 0, Name = "First" },
+			new TestUpdatedEvent { AggregateId = aggregateId, Version = 1, Value = "Second" },
+			new TestUpdatedEvent { AggregateId = aggregateId, Version = 2, Value = "Third" }
 		};
 		_ = await store.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None);
 
@@ -257,8 +243,8 @@ public sealed class InMemoryEventStoreShould
 		var store = new InMemoryEventStore();
 		var events = new List<IDomainEvent>
 		{
-			new TestCreatedEvent("agg-1", 0, "Event1"),
-			new TestUpdatedEvent("agg-1", 1, "Event2")
+			new TestCreatedEvent { AggregateId = "agg-1", Version = 0, Name = "Event1" },
+			new TestUpdatedEvent { AggregateId = "agg-1", Version = 1, Value = "Event2" }
 		};
 		_ = await store.AppendAsync("agg-1", "TestAggregate", events, -1, CancellationToken.None);
 
@@ -275,7 +261,7 @@ public sealed class InMemoryEventStoreShould
 	{
 		// Arrange
 		var store = new InMemoryEventStore();
-		var event1 = new TestCreatedEvent("agg-1", 0, "Event1");
+		var event1 = new TestCreatedEvent { AggregateId = "agg-1", Version = 0, Name = "Event1" };
 		_ = await store.AppendAsync("agg-1", "TestAggregate", new List<IDomainEvent> { event1 }, -1, CancellationToken.None);
 
 		var undispatched = await store.GetUndispatchedEventsAsync(10, CancellationToken.None);
@@ -295,11 +281,11 @@ public sealed class InMemoryEventStoreShould
 		var store = new InMemoryEventStore();
 		var events = new List<IDomainEvent>
 		{
-			new TestCreatedEvent("agg-1", 0, "Event1"),
-			new TestUpdatedEvent("agg-1", 1, "Event2"),
-			new TestUpdatedEvent("agg-1", 2, "Event3"),
-			new TestUpdatedEvent("agg-1", 3, "Event4"),
-			new TestUpdatedEvent("agg-1", 4, "Event5")
+			new TestCreatedEvent { AggregateId = "agg-1", Version = 0, Name = "Event1" },
+			new TestUpdatedEvent { AggregateId = "agg-1", Version = 1, Value = "Event2" },
+			new TestUpdatedEvent { AggregateId = "agg-1", Version = 2, Value = "Event3" },
+			new TestUpdatedEvent { AggregateId = "agg-1", Version = 3, Value = "Event4" },
+			new TestUpdatedEvent { AggregateId = "agg-1", Version = 4, Value = "Event5" }
 		};
 		_ = await store.AppendAsync("agg-1", "TestAggregate", events, -1, CancellationToken.None);
 
@@ -321,8 +307,8 @@ public sealed class InMemoryEventStoreShould
 		var store = new InMemoryEventStore();
 		var events = new List<IDomainEvent>
 		{
-			new TestCreatedEvent("agg-1", 0, "Event1"),
-			new TestUpdatedEvent("agg-1", 1, "Event2")
+			new TestCreatedEvent { AggregateId = "agg-1", Version = 0, Name = "Event1" },
+			new TestUpdatedEvent { AggregateId = "agg-1", Version = 1, Value = "Event2" }
 		};
 		_ = await store.AppendAsync("agg-1", "TestAggregate", events, -1, CancellationToken.None);
 		store.GetEventCount().ShouldBe(2);
@@ -354,7 +340,7 @@ public sealed class InMemoryEventStoreShould
 			var aggregateId = $"agg-{i}";
 			var events = new List<IDomainEvent>
 			{
-				new TestCreatedEvent(aggregateId, 0, $"Event{i}")
+				new TestCreatedEvent { AggregateId = aggregateId, Version = 0, Name = $"Event{i}" }
 			};
 			// Convert ValueTask to Task for concurrent execution
 			tasks.Add(store.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None).AsTask());
@@ -376,8 +362,8 @@ public sealed class InMemoryEventStoreShould
 		var aggregateType = "TestAggregate";
 		var events = new List<IDomainEvent>
 		{
-			new TestCreatedEvent(aggregateId, 0, "Event1"),
-			new TestUpdatedEvent(aggregateId, 1, "Event2")
+			new TestCreatedEvent { AggregateId = aggregateId, Version = 0, Name = "Event1" },
+			new TestUpdatedEvent { AggregateId = aggregateId, Version = 1, Value = "Event2" }
 		};
 		_ = await store.AppendAsync(aggregateId, aggregateType, events, -1, CancellationToken.None);
 

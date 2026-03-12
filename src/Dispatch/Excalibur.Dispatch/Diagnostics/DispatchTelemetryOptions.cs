@@ -12,6 +12,11 @@ namespace Excalibur.Dispatch.Diagnostics;
 /// Configuration options for Dispatch telemetry and observability features. Implements R8.21 comprehensive telemetry and R7.17 performance monitoring.
 /// </summary>
 /// <remarks>
+/// <para>
+/// Export/sampling properties are in <see cref="Export"/>.
+/// This follows the <c>OtlpExporterOptions</c> pattern of separating export configuration from feature toggles.
+/// </para>
+/// <para>
 /// Controls the collection and emission of telemetry data including:
 /// <list type="bullet">
 /// <item> OpenTelemetry metrics for performance monitoring </item>
@@ -20,6 +25,7 @@ namespace Excalibur.Dispatch.Diagnostics;
 /// <item> Performance counters for hot-path optimization </item>
 /// <item> Health check integration for operational status </item>
 /// </list>
+/// </para>
 /// </remarks>
 public sealed class DispatchTelemetryOptions
 {
@@ -74,37 +80,16 @@ public sealed class DispatchTelemetryOptions
 	public TimeSpan SlowOperationThreshold { get; set; } = TimeSpan.FromSeconds(2);
 
 	/// <summary>
-	/// Gets or sets the sampling ratio for high-frequency traces.
-	/// </summary>
-	/// <value> The ratio of traces to sample (0.0 to 1.0). Default is 0.1 (10%). </value>
-	[Range(0.0, 1.0)]
-	public double SamplingRatio { get; set; } = 0.1;
-
-	/// <summary>
-	/// Gets or sets the maximum number of active spans per trace.
-	/// </summary>
-	/// <value> Limits the depth of distributed traces to prevent memory issues. Default is 100. </value>
-	[Range(1, 1000)]
-	public int MaxSpansPerTrace { get; set; } = 100;
-
-	/// <summary>
-	/// Gets or sets the batch size for metric exports.
-	/// </summary>
-	/// <value> Number of metrics to batch before export. Default is 512. </value>
-	[Range(1, 10000)]
-	public int MetricBatchSize { get; set; } = 512;
-
-	/// <summary>
-	/// Gets or sets the export timeout for telemetry data.
-	/// </summary>
-	/// <value> Maximum time to wait for telemetry exports. Default is 30 seconds. </value>
-	public TimeSpan ExportTimeout { get; set; } = TimeSpan.FromSeconds(30);
-
-	/// <summary>
 	/// Gets or sets the tags to include with all telemetry data.
 	/// </summary>
 	/// <value> Key-value pairs added to all traces and metrics. Default is empty. </value>
 	public IDictionary<string, string> GlobalTags { get; set; } = new Dictionary<string, string>(StringComparer.Ordinal);
+
+	/// <summary>
+	/// Gets or sets the export and sampling options.
+	/// </summary>
+	/// <value> The telemetry export options. </value>
+	public TelemetryExportOptions Export { get; set; } = new();
 
 	/// <summary>
 	/// Creates a configuration optimized for production environments.
@@ -118,10 +103,13 @@ public sealed class DispatchTelemetryOptions
 			EnableEnhancedStoreObservability = true,
 			EnablePipelineObservability = false, // Reduced overhead
 			EnableHotPathMetrics = false, // Disabled for performance
-			SamplingRatio = 0.01, // 1% sampling
-			MetricBatchSize = 1000,
-			ExportTimeout = TimeSpan.FromSeconds(10),
 			SlowOperationThreshold = TimeSpan.FromSeconds(5),
+			Export = new TelemetryExportOptions
+			{
+				SamplingRatio = 0.01, // 1% sampling
+				MetricBatchSize = 1000,
+				ExportTimeout = TimeSpan.FromSeconds(10),
+			},
 		};
 
 	/// <summary>
@@ -136,10 +124,13 @@ public sealed class DispatchTelemetryOptions
 			EnableEnhancedStoreObservability = true,
 			EnablePipelineObservability = true,
 			EnableHotPathMetrics = true, // Enabled for debugging
-			SamplingRatio = 1.0, // 100% sampling
-			MetricBatchSize = 100,
-			ExportTimeout = TimeSpan.FromSeconds(60),
 			SlowOperationThreshold = TimeSpan.FromSeconds(1),
+			Export = new TelemetryExportOptions
+			{
+				SamplingRatio = 1.0, // 100% sampling
+				MetricBatchSize = 100,
+				ExportTimeout = TimeSpan.FromSeconds(60),
+			},
 		};
 
 	/// <summary>
@@ -154,10 +145,13 @@ public sealed class DispatchTelemetryOptions
 			EnableEnhancedStoreObservability = false, // Disabled for performance
 			EnablePipelineObservability = false, // Disabled for performance
 			EnableHotPathMetrics = false, // Disabled for performance
-			SamplingRatio = 0.001, // 0.1% sampling
-			MetricBatchSize = 2000,
-			ExportTimeout = TimeSpan.FromSeconds(5),
 			SlowOperationThreshold = TimeSpan.FromSeconds(10),
+			Export = new TelemetryExportOptions
+			{
+				SamplingRatio = 0.001, // 0.1% sampling
+				MetricBatchSize = 2000,
+				ExportTimeout = TimeSpan.FromSeconds(5),
+			},
 		};
 
 	/// <summary>
@@ -187,16 +181,16 @@ public sealed class DispatchTelemetryOptions
 					nameof(SlowOperationThreshold));
 		}
 
-		if (ExportTimeout <= TimeSpan.Zero)
+		if (Export.ExportTimeout <= TimeSpan.Zero)
 		{
-			throw new ArgumentException(ErrorMessages.ExportTimeoutMustBePositive, nameof(ExportTimeout));
+			throw new ArgumentException(ErrorMessages.ExportTimeoutMustBePositive, nameof(Export.ExportTimeout));
 		}
 
-		if (SamplingRatio is < 0.0 or > 1.0)
+		if (Export.SamplingRatio is < 0.0 or > 1.0)
 		{
 			throw new ArgumentException(
 					ErrorMessages.SamplingRatioMustBeBetween0And1,
-					nameof(SamplingRatio));
+					nameof(Export.SamplingRatio));
 		}
 	}
 
@@ -217,10 +211,13 @@ public sealed class DispatchTelemetryOptions
 		target.ServiceName = ServiceName;
 		target.ServiceVersion = ServiceVersion;
 		target.SlowOperationThreshold = SlowOperationThreshold;
-		target.SamplingRatio = SamplingRatio;
-		target.MaxSpansPerTrace = MaxSpansPerTrace;
-		target.MetricBatchSize = MetricBatchSize;
-		target.ExportTimeout = ExportTimeout;
 		target.GlobalTags = new Dictionary<string, string>(GlobalTags, StringComparer.Ordinal);
+		target.Export = new TelemetryExportOptions
+		{
+			SamplingRatio = Export.SamplingRatio,
+			MaxSpansPerTrace = Export.MaxSpansPerTrace,
+			MetricBatchSize = Export.MetricBatchSize,
+			ExportTimeout = Export.ExportTimeout,
+		};
 	}
 }

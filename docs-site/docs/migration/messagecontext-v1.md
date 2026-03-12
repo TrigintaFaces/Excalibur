@@ -1,12 +1,12 @@
 ---
 sidebar_position: 5
 title: MessageContext Guide
-description: Using IMessageContext direct properties for type-safe, high-performance message context access
+description: Using IMessageContext with typed feature interfaces for cross-cutting concerns
 ---
 
 # MessageContext Guide
 
-This guide covers the `IMessageContext` interface and how to use its strongly-typed properties for cross-cutting concerns, validation tracking, retry handling, and more.
+This guide covers the `IMessageContext` interface and how to use its typed feature interfaces for cross-cutting concerns, validation tracking, retry handling, and more.
 
 ## Before You Start
 
@@ -15,77 +15,61 @@ This guide covers the `IMessageContext` interface and how to use its strongly-ty
 
 ## Interface Overview
 
-The `IMessageContext` interface provides 25+ direct properties organized by category, offering type safety and performance over dictionary lookups.
+The `IMessageContext` interface provides 8 core properties plus a `Features` dictionary for typed access to cross-cutting concerns. This design follows `Microsoft.AspNetCore.Http.HttpContext`.
 
-### Identity Properties
+### Core Properties
 
 ```csharp
 // Message identification
 string? MessageId { get; set; }        // Unique message instance ID
-string? ExternalId { get; set; }       // External system correlation
-string? MessageType { get; set; }      // CLR type name for routing
-
-// Correlation and causation
 string? CorrelationId { get; set; }    // Business transaction ID
 string? CausationId { get; set; }      // Parent message ID (causality chain)
-```
 
-### Multi-Tenancy & User Context
-
-```csharp
-string? TenantId { get; set; }         // Tenant isolation
-string? UserId { get; set; }           // Authenticated user
-```
-
-### Distributed Tracing
-
-```csharp
-string? TraceParent { get; set; }      // W3C Trace Context
-string? SessionId { get; set; }        // Message grouping
-string? WorkflowId { get; set; }       // Saga orchestration
-string? PartitionKey { get; set; }     // Partition routing
-string? Source { get; set; }           // Origin service
-```
-
-### Processing State (Hot-Path)
-
-```csharp
-// Retry tracking
-int ProcessingAttempts { get; set; }   // Attempt counter
-DateTimeOffset? FirstAttemptTime { get; set; }
-bool IsRetry { get; set; }
-
-// Validation
-bool ValidationPassed { get; set; }
-DateTimeOffset? ValidationTimestamp { get; set; }
-
-// Transactions
-object? Transaction { get; set; }
-string? TransactionId { get; set; }
-
-// Timeout handling
-bool TimeoutExceeded { get; set; }
-TimeSpan? TimeoutElapsed { get; set; }
-
-// Rate limiting
-bool RateLimitExceeded { get; set; }
-TimeSpan? RateLimitRetryAfter { get; set; }
-```
-
-### Message & Routing
-
-```csharp
+// Payload and result
 IDispatchMessage? Message { get; set; }
 object? Result { get; set; }
-IRoutingResult RoutingResult { get; set; }
+
+// Infrastructure
 IServiceProvider RequestServices { get; set; }
+IDictionary<string, object> Items { get; }    // Transport metadata, custom data
+IDictionary<Type, object> Features { get; }   // Typed feature collection
 ```
 
-### Timestamps
+### Feature Interfaces
+
+Cross-cutting concerns are accessed via typed feature interfaces:
 
 ```csharp
-DateTimeOffset ReceivedTimestampUtc { get; set; }
-DateTimeOffset? SentTimestampUtc { get; set; }
+using Excalibur.Dispatch.Abstractions.Features;
+
+// Identity & multi-tenancy (IMessageIdentityFeature)
+var tenantId = context.GetTenantId();
+var userId = context.GetUserId();
+var traceParent = context.GetTraceParent();
+var sessionId = context.GetSessionId();
+var workflowId = context.GetWorkflowId();
+var partitionKey = context.GetPartitionKey();
+
+// Processing state (IMessageProcessingFeature)
+var attempts = context.GetProcessingAttempts();
+var isRetry = context.GetIsRetry();
+var deliveryCount = context.GetDeliveryCount();
+
+// Validation (IMessageValidationFeature)
+var passed = context.GetValidationPassed();
+
+// Timeout (IMessageTimeoutFeature)
+var exceeded = context.GetTimeoutExceeded();
+
+// Rate limiting (IMessageRateLimitFeature)
+var limited = context.GetRateLimitExceeded();
+
+// Routing (IMessageRoutingFeature)
+var decision = context.GetRoutingDecision();
+var source = context.GetSource();
+
+// Transactions (IMessageTransactionFeature)
+var txId = context.GetTransactionId();
 ```
 
 ---
@@ -95,46 +79,56 @@ DateTimeOffset? SentTimestampUtc { get; set; }
 ### Cross-Cutting Concerns
 
 ```csharp
-// Type-safe, performant property access
+// Core properties (direct on interface)
 var correlationId = context.CorrelationId;
-var tenantId = context.TenantId;
-context.UserId = userId;
+
+// Identity via feature extensions
+var tenantId = context.GetTenantId();
+var userId = context.GetUserId();
+
+// Write via feature instance
+var identity = context.GetOrCreateIdentityFeature();
+identity.UserId = userId;
 ```
 
 ### Validation Tracking
 
 ```csharp
-context.ValidationPassed = true;
-context.ValidationTimestamp = DateTimeOffset.UtcNow;
+var validation = context.GetOrCreateValidationFeature();
+validation.ValidationPassed = true;
+validation.ValidationTimestamp = DateTimeOffset.UtcNow;
 
-if (context.ValidationPassed)
+if (context.GetValidationPassed())
 {
-    // Skip validation
+    // Skip re-validation
 }
 ```
 
 ### Retry Handling
 
 ```csharp
-context.ProcessingAttempts++;
-context.IsRetry = context.ProcessingAttempts > 1;
-context.FirstAttemptTime ??= DateTimeOffset.UtcNow;
+var processing = context.GetOrCreateProcessingFeature();
+processing.ProcessingAttempts++;
+processing.IsRetry = processing.ProcessingAttempts > 1;
+processing.FirstAttemptTime ??= DateTimeOffset.UtcNow;
 ```
 
 ### Transaction Management
 
 ```csharp
-context.Transaction = transaction;
-context.TransactionId = transaction.TransactionId;
+var txFeature = context.GetOrCreateTransactionFeature();
+txFeature.Transaction = transaction;
+txFeature.TransactionId = transaction.TransactionId;
 
-var tx = context.Transaction as IDbTransaction;
+var tx = context.GetTransaction() as IDbTransaction;
 ```
 
 ### Rate Limiting
 
 ```csharp
-context.RateLimitExceeded = true;
-context.RateLimitRetryAfter = TimeSpan.FromSeconds(30);
+var rateLimit = context.GetOrCreateRateLimitFeature();
+rateLimit.RateLimitExceeded = true;
+rateLimit.RateLimitRetryAfter = TimeSpan.FromSeconds(30);
 ```
 
 ---
@@ -177,8 +171,8 @@ public class ValidationMiddleware : IDispatchMiddleware
         DispatchRequestDelegate nextDelegate,
         CancellationToken cancellationToken)
     {
-        // Check if already validated (direct property)
-        if (context.ValidationPassed)
+        // Check if already validated (feature extension)
+        if (context.GetValidationPassed())
         {
             return await nextDelegate(message, context, cancellationToken);
         }
@@ -186,8 +180,9 @@ public class ValidationMiddleware : IDispatchMiddleware
         // Perform validation
         var isValid = await ValidateAsync(message);
 
-        context.ValidationPassed = isValid;
-        context.ValidationTimestamp = DateTimeOffset.UtcNow;
+        var validation = context.GetOrCreateValidationFeature();
+        validation.ValidationPassed = isValid;
+        validation.ValidationTimestamp = DateTimeOffset.UtcNow;
 
         if (!isValid)
         {
@@ -213,9 +208,12 @@ public class OrderHandler : IDispatchHandler<PlaceOrderCommand>
         IMessageContext context,
         CancellationToken ct)
     {
-        var userId = context.UserId;
-        var tenantId = context.TenantId;
+        // Core property
         var correlationId = context.CorrelationId;
+
+        // Feature extensions
+        var userId = context.GetUserId();
+        var tenantId = context.GetTenantId();
 
         // ... handle command
     }
@@ -226,31 +224,31 @@ public class OrderHandler : IDispatchHandler<PlaceOrderCommand>
 
 ## Testing
 
-### Using TestMessageContext
-
-`TestMessageContext` is a shared test double in `Tests.Shared`:
+### Using Feature Extensions in Tests
 
 ```csharp
-using Tests.Shared.TestDoubles;
+using Excalibur.Dispatch.Abstractions.Features;
 
 [Fact]
 public async Task Handler_ShouldUseUserIdFromContext()
 {
-    // Arrange
-    var context = new TestMessageContext
+    // Arrange - create context with features
+    var context = new MessageContext
     {
         MessageId = Guid.NewGuid().ToString(),
-        UserId = "user-123",
-        TenantId = "tenant-456",
         CorrelationId = Guid.NewGuid().ToString()
     };
 
-    var contextAccessor = new TestMessageContextAccessor(context);
-    var handler = new OrderHandler(contextAccessor);
+    // Set identity via feature
+    var identity = context.GetOrCreateIdentityFeature();
+    identity.UserId = "user-123";
+    identity.TenantId = "tenant-456";
+
+    var handler = new OrderHandler();
     var command = new CreateOrderCommand("cust-123");
 
     // Act
-    var result = await handler.HandleAsync(command, CancellationToken.None);
+    var result = await handler.HandleAsync(command, context, CancellationToken.None);
 
     // Assert
     result.IsSuccess.ShouldBeTrue();
@@ -264,21 +262,22 @@ public async Task Handler_ShouldUseUserIdFromContext()
 public void CreateChildContext_ShouldPropagateCrossCuttingConcerns()
 {
     // Arrange
-    var parent = new TestMessageContext
+    var parent = new MessageContext
     {
         MessageId = "parent-123",
-        CorrelationId = "correlation-456",
-        TenantId = "tenant-789",
-        UserId = "user-abc"
+        CorrelationId = "correlation-456"
     };
+    var identity = parent.GetOrCreateIdentityFeature();
+    identity.TenantId = "tenant-789";
+    identity.UserId = "user-abc";
 
     // Act
     var child = parent.CreateChildContext();
 
     // Assert
     child.CorrelationId.ShouldBe(parent.CorrelationId);
-    child.TenantId.ShouldBe(parent.TenantId);
-    child.UserId.ShouldBe(parent.UserId);
+    child.GetTenantId().ShouldBe("tenant-789");
+    child.GetUserId().ShouldBe("user-abc");
     child.CausationId.ShouldBe(parent.MessageId); // Causality chain
     child.MessageId.ShouldNotBe(parent.MessageId); // New ID
 }
@@ -294,5 +293,6 @@ public void CreateChildContext_ShouldPropagateCrossCuttingConcerns()
 ## See Also
 
 - [Message Context](../core-concepts/message-context.md) - Full reference for IMessageContext properties and usage patterns
+- [MessageContext Design](../architecture/messagecontext-design.md) - Architectural decisions behind the feature-based design
 - [Version Upgrades](./version-upgrades.md) - Breaking changes and upgrade steps between Dispatch versions
 - [Migration Guides Overview](./index.md) - Index of all migration guides including MediatR, MassTransit, and NServiceBus

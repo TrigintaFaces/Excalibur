@@ -168,26 +168,6 @@ public sealed class DispatchSecurityServiceCollectionExtensionsShould
     }
 
     [Fact]
-    public void RegisterCloudProviderSecurityValidators()
-    {
-        // Arrange
-        var services = new ServiceCollection();
-
-        // Act
-        services.AddCloudProviderSecurityValidators();
-
-        // Assert
-        services.ShouldContain(sd =>
-            sd.ServiceType == typeof(Microsoft.Extensions.Options.IValidateOptions<RabbitMqOptions>));
-        services.ShouldContain(sd =>
-            sd.ServiceType == typeof(Microsoft.Extensions.Options.IValidateOptions<AwsSqsOptions>));
-        services.ShouldContain(sd =>
-            sd.ServiceType == typeof(Microsoft.Extensions.Options.IValidateOptions<KafkaOptions>));
-        services.ShouldContain(sd =>
-            sd.ServiceType == typeof(Microsoft.Extensions.Options.IValidateOptions<GooglePubSubOptions>));
-    }
-
-    [Fact]
     public void RegisterHashiCorpVaultWhenConfigured()
     {
         // Arrange

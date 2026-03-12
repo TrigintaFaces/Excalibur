@@ -123,7 +123,7 @@ public sealed class DatadogServiceCollectionExtensionsShould
 		{
 			options.ApiKey = "test-api-key";
 			options.Site = "datadoghq.com";
-			options.Timeout = expectedTimeout;
+			options.Retry = new DatadogExporterRetryOptions { Timeout = expectedTimeout };
 		});
 		using var provider = services.BuildServiceProvider();
 

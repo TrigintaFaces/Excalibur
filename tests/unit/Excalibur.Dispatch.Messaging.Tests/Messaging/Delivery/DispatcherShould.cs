@@ -5,6 +5,7 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Messaging;
@@ -12,6 +13,7 @@ using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Options.Configuration;
+using Excalibur.Dispatch.Routing;
 
 using Microsoft.Extensions.Options;
 
@@ -297,7 +299,7 @@ public sealed class DispatcherShould
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
-		var context = new MessageContext { MessageType = null };
+		var context = new MessageContext();
 
 		_ = A.CallTo(() => _middlewareInvoker.InvokeAsync(
 				message,
@@ -310,7 +312,7 @@ public sealed class DispatcherShould
 		_ = await _sut.DispatchAsync(message, context, cancellationToken: default).ConfigureAwait(true);
 
 		// Assert - MessageType should be set to the type name
-		context.MessageType.ShouldNotBeNullOrEmpty();
+		context.GetMessageType().ShouldNotBeNullOrEmpty();
 	}
 
 	#endregion Sprint 70 - Context Management Tests
@@ -481,7 +483,7 @@ public sealed class DispatcherShould
 				context,
 				A<Func<IDispatchMessage, IMessageContext, CancellationToken, ValueTask<IMessageResult>>>._,
 				A<CancellationToken>._))
-			.Invokes(() => capturedDecision = context.RoutingDecision)
+			.Invokes(() => capturedDecision = RoutingDecisionAccessor.GetRoutingDecisionFast(context))
 			.Returns(MessageResult.Success());
 
 		// Act
@@ -529,10 +531,8 @@ public sealed class DispatcherShould
 		var router = A.Fake<IDispatchRouter>();
 		var dispatcher = new Dispatcher(_middlewareInvoker, _final, null, null, null, _busOptionsMap, router);
 		var message = A.Fake<IDispatchMessage>();
-		var context = new MessageContext
-		{
-			RoutingDecision = RoutingDecision.Success("local", ["local"]),
-		};
+		var context = new MessageContext();
+		RoutingDecisionAccessor.SetRoutingDecision(context, RoutingDecision.Success("local", ["local"]));
 
 		_ = A.CallTo(() => _middlewareInvoker.InvokeAsync(
 				message,
@@ -894,7 +894,7 @@ public sealed class DispatcherShould
 		context.Message.ShouldBeSameAs(message);
 		context.CorrelationId.ShouldNotBeNullOrWhiteSpace();
 		context.CausationId.ShouldBe(context.CorrelationId);
-		context.MessageType.ShouldNotBeNullOrWhiteSpace();
+		context.GetMessageType().ShouldNotBeNullOrWhiteSpace();
 	}
 
 	[Fact]
@@ -945,10 +945,8 @@ public sealed class DispatcherShould
 	{
 		// Arrange
 		var (dispatcher, _) = CreateTransportAwareTypedDispatcherForFastPath();
-		var context = new MessageContext
-		{
-			RoutingDecision = RoutingDecision.Success("local", ["local"]),
-		};
+		var context = new MessageContext();
+		RoutingDecisionAccessor.SetRoutingDecision(context, RoutingDecision.Success("local", ["local"]));
 		var message = new LocalTransportQuery { Value = 21 };
 
 		// Act
@@ -969,10 +967,8 @@ public sealed class DispatcherShould
 		var options = new DispatchOptions();
 		options.CrossCutting.Performance.EmitDirectLocalResultMetadata = true;
 		var (dispatcher, _) = CreateTransportAwareTypedDispatcherForFastPath(Microsoft.Extensions.Options.Options.Create(options));
-		var context = new MessageContext
-		{
-			RoutingDecision = RoutingDecision.Success("local", ["local"]),
-		};
+		var context = new MessageContext();
+		RoutingDecisionAccessor.SetRoutingDecision(context, RoutingDecision.Success("local", ["local"]));
 		var message = new LocalTransportQuery { Value = 21 };
 
 		// Act
@@ -992,10 +988,8 @@ public sealed class DispatcherShould
 	{
 		// Arrange
 		var (dispatcher, localInvoker, remoteBus) = CreateTransportAwareDispatcherForFastPath();
-		var context = new MessageContext
-		{
-			RoutingDecision = RoutingDecision.Success("rabbitmq", ["rabbitmq"]),
-		};
+		var context = new MessageContext();
+		RoutingDecisionAccessor.SetRoutingDecision(context, RoutingDecision.Success("rabbitmq", ["rabbitmq"]));
 		var message = new LocalTransportAction();
 
 		// Act

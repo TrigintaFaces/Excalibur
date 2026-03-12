@@ -99,7 +99,7 @@ public sealed class InputValidationOptionsShould
 		var options = new InputValidationOptions();
 
 		// Assert
-		options.BlockControlCharacters.ShouldBeTrue();
+		options.InjectionPrevention.BlockControlCharacters.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -109,7 +109,7 @@ public sealed class InputValidationOptionsShould
 		var options = new InputValidationOptions();
 
 		// Assert
-		options.BlockHtmlContent.ShouldBeTrue();
+		options.InjectionPrevention.BlockHtmlContent.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -119,7 +119,7 @@ public sealed class InputValidationOptionsShould
 		var options = new InputValidationOptions();
 
 		// Assert
-		options.BlockSqlInjection.ShouldBeTrue();
+		options.InjectionPrevention.BlockSqlInjection.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -129,7 +129,7 @@ public sealed class InputValidationOptionsShould
 		var options = new InputValidationOptions();
 
 		// Assert
-		options.BlockNoSqlInjection.ShouldBeTrue();
+		options.InjectionPrevention.BlockNoSqlInjection.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -139,7 +139,7 @@ public sealed class InputValidationOptionsShould
 		var options = new InputValidationOptions();
 
 		// Assert
-		options.BlockCommandInjection.ShouldBeTrue();
+		options.InjectionPrevention.BlockCommandInjection.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -149,7 +149,7 @@ public sealed class InputValidationOptionsShould
 		var options = new InputValidationOptions();
 
 		// Assert
-		options.BlockPathTraversal.ShouldBeTrue();
+		options.InjectionPrevention.BlockPathTraversal.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -159,7 +159,7 @@ public sealed class InputValidationOptionsShould
 		var options = new InputValidationOptions();
 
 		// Assert
-		options.BlockLdapInjection.ShouldBeTrue();
+		options.InjectionPrevention.BlockLdapInjection.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -283,10 +283,10 @@ public sealed class InputValidationOptionsShould
 		var options = new InputValidationOptions();
 
 		// Act
-		options.BlockControlCharacters = false;
+		options.InjectionPrevention.BlockControlCharacters = false;
 
 		// Assert
-		options.BlockControlCharacters.ShouldBeFalse();
+		options.InjectionPrevention.BlockControlCharacters.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -296,10 +296,10 @@ public sealed class InputValidationOptionsShould
 		var options = new InputValidationOptions();
 
 		// Act
-		options.BlockHtmlContent = false;
+		options.InjectionPrevention.BlockHtmlContent = false;
 
 		// Assert
-		options.BlockHtmlContent.ShouldBeFalse();
+		options.InjectionPrevention.BlockHtmlContent.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -309,10 +309,10 @@ public sealed class InputValidationOptionsShould
 		var options = new InputValidationOptions();
 
 		// Act
-		options.BlockSqlInjection = false;
+		options.InjectionPrevention.BlockSqlInjection = false;
 
 		// Assert
-		options.BlockSqlInjection.ShouldBeFalse();
+		options.InjectionPrevention.BlockSqlInjection.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -322,10 +322,10 @@ public sealed class InputValidationOptionsShould
 		var options = new InputValidationOptions();
 
 		// Act
-		options.BlockNoSqlInjection = false;
+		options.InjectionPrevention.BlockNoSqlInjection = false;
 
 		// Assert
-		options.BlockNoSqlInjection.ShouldBeFalse();
+		options.InjectionPrevention.BlockNoSqlInjection.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -335,10 +335,10 @@ public sealed class InputValidationOptionsShould
 		var options = new InputValidationOptions();
 
 		// Act
-		options.BlockCommandInjection = false;
+		options.InjectionPrevention.BlockCommandInjection = false;
 
 		// Assert
-		options.BlockCommandInjection.ShouldBeFalse();
+		options.InjectionPrevention.BlockCommandInjection.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -348,10 +348,10 @@ public sealed class InputValidationOptionsShould
 		var options = new InputValidationOptions();
 
 		// Act
-		options.BlockPathTraversal = false;
+		options.InjectionPrevention.BlockPathTraversal = false;
 
 		// Assert
-		options.BlockPathTraversal.ShouldBeFalse();
+		options.InjectionPrevention.BlockPathTraversal.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -361,10 +361,10 @@ public sealed class InputValidationOptionsShould
 		var options = new InputValidationOptions();
 
 		// Act
-		options.BlockLdapInjection = false;
+		options.InjectionPrevention.BlockLdapInjection = false;
 
 		// Assert
-		options.BlockLdapInjection.ShouldBeFalse();
+		options.InjectionPrevention.BlockLdapInjection.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -394,13 +394,16 @@ public sealed class InputValidationOptionsShould
 			MaxObjectDepth = 20,
 			MaxMessageAgeDays = 14,
 			RequireCorrelationId = false,
-			BlockControlCharacters = false,
-			BlockHtmlContent = false,
-			BlockSqlInjection = true,
-			BlockNoSqlInjection = true,
-			BlockCommandInjection = true,
-			BlockPathTraversal = true,
-			BlockLdapInjection = true,
+			InjectionPrevention = new InputInjectionPreventionOptions
+			{
+				BlockControlCharacters = false,
+				BlockHtmlContent = false,
+				BlockSqlInjection = true,
+				BlockNoSqlInjection = true,
+				BlockCommandInjection = true,
+				BlockPathTraversal = true,
+				BlockLdapInjection = true,
+			},
 			FailOnValidatorException = false,
 		};
 
@@ -413,13 +416,13 @@ public sealed class InputValidationOptionsShould
 		options.MaxObjectDepth.ShouldBe(20);
 		options.MaxMessageAgeDays.ShouldBe(14);
 		options.RequireCorrelationId.ShouldBeFalse();
-		options.BlockControlCharacters.ShouldBeFalse();
-		options.BlockHtmlContent.ShouldBeFalse();
-		options.BlockSqlInjection.ShouldBeTrue();
-		options.BlockNoSqlInjection.ShouldBeTrue();
-		options.BlockCommandInjection.ShouldBeTrue();
-		options.BlockPathTraversal.ShouldBeTrue();
-		options.BlockLdapInjection.ShouldBeTrue();
+		options.InjectionPrevention.BlockControlCharacters.ShouldBeFalse();
+		options.InjectionPrevention.BlockHtmlContent.ShouldBeFalse();
+		options.InjectionPrevention.BlockSqlInjection.ShouldBeTrue();
+		options.InjectionPrevention.BlockNoSqlInjection.ShouldBeTrue();
+		options.InjectionPrevention.BlockCommandInjection.ShouldBeTrue();
+		options.InjectionPrevention.BlockPathTraversal.ShouldBeTrue();
+		options.InjectionPrevention.BlockLdapInjection.ShouldBeTrue();
 		options.FailOnValidatorException.ShouldBeFalse();
 	}
 

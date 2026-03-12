@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Validation;
 
 namespace Excalibur.Dispatch.Tests.Abstractions;
@@ -651,7 +652,7 @@ public sealed class MessageEnvelopeShould : IDisposable
 
 		// Assert
 		_ = envelope.RoutingDecision.ShouldNotBeNull();
-		envelope.RoutingDecision.IsSuccess.ShouldBeTrue();
+		envelope.RoutingDecision!.IsSuccess.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -763,12 +764,14 @@ public sealed class MessageEnvelopeShould : IDisposable
 		// Arrange
 		var parent = CreateEnvelope();
 		parent.TenantId = "tenant-abc";
+		// Set identity feature so it propagates through the extension method
+		parent.GetOrCreateIdentityFeature().TenantId = "tenant-abc";
 
 		// Act
 		var child = parent.CreateChildContext();
 
 		// Assert
-		child.TenantId.ShouldBe("tenant-abc");
+		child.GetTenantId().ShouldBe("tenant-abc");
 	}
 
 	[Fact]
@@ -776,13 +779,13 @@ public sealed class MessageEnvelopeShould : IDisposable
 	{
 		// Arrange
 		var parent = CreateEnvelope();
-		parent.UserId = "user-xyz";
+		parent.GetOrCreateIdentityFeature().UserId = "user-xyz";
 
 		// Act
 		var child = parent.CreateChildContext();
 
 		// Assert
-		child.UserId.ShouldBe("user-xyz");
+		child.GetUserId().ShouldBe("user-xyz");
 	}
 
 	[Fact]
@@ -790,13 +793,13 @@ public sealed class MessageEnvelopeShould : IDisposable
 	{
 		// Arrange
 		var parent = CreateEnvelope();
-		parent.SessionId = "session-123";
+		parent.GetOrCreateIdentityFeature().SessionId = "session-123";
 
 		// Act
 		var child = parent.CreateChildContext();
 
 		// Assert
-		(child as MessageEnvelope).SessionId.ShouldBe("session-123");
+		child.GetSessionId().ShouldBe("session-123");
 	}
 
 	[Fact]
@@ -804,13 +807,13 @@ public sealed class MessageEnvelopeShould : IDisposable
 	{
 		// Arrange
 		var parent = CreateEnvelope();
-		parent.WorkflowId = "workflow-456";
+		parent.GetOrCreateIdentityFeature().WorkflowId = "workflow-456";
 
 		// Act
 		var child = parent.CreateChildContext();
 
 		// Assert
-		(child as MessageEnvelope).WorkflowId.ShouldBe("workflow-456");
+		child.GetWorkflowId().ShouldBe("workflow-456");
 	}
 
 	[Fact]
@@ -1148,24 +1151,21 @@ public sealed class MessageEnvelopeShould : IDisposable
 
 	#endregion
 
-	#region Properties Dictionary Tests
+	#region Items As Properties Tests
 
 	[Fact]
-	public void Properties_Should_Return_Items_As_NullableValues()
+	public void Items_Should_Store_And_Retrieve_Values()
 	{
 		// Arrange
 		var envelope = CreateEnvelope();
 		envelope.SetItem("key1", "value1");
 		envelope.SetItem("key2", 42);
 
-		// Act
-		var properties = envelope.Properties;
-
-		// Assert
-		properties.ShouldContainKey("key1");
-		properties["key1"].ShouldBe("value1");
-		properties.ShouldContainKey("key2");
-		properties["key2"].ShouldBe(42);
+		// Act & Assert
+		envelope.Items.ShouldContainKey("key1");
+		envelope.Items["key1"].ShouldBe("value1");
+		envelope.Items.ShouldContainKey("key2");
+		envelope.Items["key2"].ShouldBe(42);
 	}
 
 	#endregion

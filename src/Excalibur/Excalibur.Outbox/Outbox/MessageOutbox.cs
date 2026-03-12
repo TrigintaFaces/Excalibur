@@ -8,8 +8,8 @@ using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Messaging;
-using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Options.Delivery;
+using Excalibur.Dispatch.Serialization;
 
 using Excalibur.Outbox.Diagnostics;
 
@@ -31,7 +31,7 @@ namespace Excalibur.Dispatch.Delivery;
 public sealed partial class MessageOutbox(
 	IOutboxStore outboxStore,
 	IOutboxProcessor outboxProcessor,
-	IJsonSerializer serializer,
+	DispatchJsonSerializer serializer,
 	IOptions<OutboxOptions> options,
 	ILogger<MessageOutbox> logger) : IOutboxDispatcher, IDisposable
 {

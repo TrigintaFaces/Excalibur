@@ -65,10 +65,7 @@ projects:
   - path: samples/09-advanced/Versioning.Examples/EcommerceOrderVersioning/EcommerceOrderVersioning.csproj
   - path: samples/09-advanced/Versioning.Examples/IntegrationEventVersioning/IntegrationEventVersioning.csproj
   - path: samples/09-advanced/Versioning.Examples/UserProfileVersioning/UserProfileVersioning.csproj
-  - path: samples/09-advanced/WebWorkerSample/Contracts/WebWorkerSample.Contracts.csproj
-  - path: samples/09-advanced/WebWorkerSample/WebHost/WebHost.csproj
   - path: samples/13-jobs/CdcJobQuartz/CdcJobQuartz.csproj
-  - path: samples/10-real-world/ECommerce/ECommerceSample.csproj
   - path: samples/10-real-world/EnhancedStores/ECommerceSample/ECommerceSample.csproj
   - path: samples/10-real-world/OrderProcessing/OrderProcessing.csproj
   - path: samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj
@@ -111,6 +108,7 @@ projects:
   - path: src/Dispatch/Excalibur.Dispatch.Serialization.MemoryPack/Excalibur.Dispatch.Serialization.MemoryPack.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Serialization.MessagePack/Excalibur.Dispatch.Serialization.MessagePack.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Serialization.Protobuf/Excalibur.Dispatch.Serialization.Protobuf.csproj
+  - path: src/Dispatch/Excalibur.Dispatch.Serialization.Avro/Excalibur.Dispatch.Serialization.Avro.csproj
   - path: src/Dispatch/Excalibur.Dispatch.SourceGenerators.Analyzers/Excalibur.Dispatch.SourceGenerators.Analyzers.csproj
   - path: src/Dispatch/Excalibur.Dispatch.SourceGenerators/Excalibur.Dispatch.SourceGenerators.csproj
   - path: src/Dispatch/Excalibur.Dispatch.Testing.Shouldly/Excalibur.Dispatch.Testing.Shouldly.csproj
@@ -129,6 +127,12 @@ projects:
   - path: src/Excalibur/Excalibur.Application/Excalibur.Application.csproj
   - path: src/Excalibur/Excalibur.Caching/Excalibur.Caching.csproj
   - path: src/Excalibur/Excalibur.Cdc/Excalibur.Cdc.csproj
+  - path: src/Excalibur/Excalibur.Cdc.CosmosDb/Excalibur.Cdc.CosmosDb.csproj
+  - path: src/Excalibur/Excalibur.Cdc.DynamoDb/Excalibur.Cdc.DynamoDb.csproj
+  - path: src/Excalibur/Excalibur.Cdc.Firestore/Excalibur.Cdc.Firestore.csproj
+  - path: src/Excalibur/Excalibur.Cdc.MongoDB/Excalibur.Cdc.MongoDB.csproj
+  - path: src/Excalibur/Excalibur.Cdc.Postgres/Excalibur.Cdc.Postgres.csproj
+  - path: src/Excalibur/Excalibur.Cdc.SqlServer/Excalibur.Cdc.SqlServer.csproj
   - path: src/Excalibur/Excalibur.Compliance.Postgres/Excalibur.Compliance.Postgres.csproj
   - path: src/Excalibur/Excalibur.Compliance.SqlServer/Excalibur.Compliance.SqlServer.csproj
   - path: src/Excalibur/Excalibur.Data.Abstractions/Excalibur.Data.Abstractions.csproj
@@ -140,7 +144,6 @@ projects:
   - path: src/Excalibur/Excalibur.Data.InMemory/Excalibur.Data.InMemory.csproj
   - path: src/Excalibur/Excalibur.Data.MongoDB/Excalibur.Data.MongoDB.csproj
   - path: src/Excalibur/Excalibur.Data.MySql/Excalibur.Data.MySql.csproj
-  - path: src/Excalibur/Excalibur.Data.Postgres/Excalibur.Data.Postgres.csproj
   - path: src/Excalibur/Excalibur.Data.Postgres/Excalibur.Data.Postgres.csproj
   - path: src/Excalibur/Excalibur.Data.Redis/Excalibur.Data.Redis.csproj
   - path: src/Excalibur/Excalibur.Data.SqlServer/Excalibur.Data.SqlServer.csproj
@@ -154,30 +157,62 @@ projects:
   - path: src/Excalibur/Excalibur.EventSourcing.Postgres/Excalibur.EventSourcing.Postgres.csproj
   - path: src/Excalibur/Excalibur.EventSourcing.Redis/Excalibur.EventSourcing.Redis.csproj
   - path: src/Excalibur/Excalibur.EventSourcing.SqlServer/Excalibur.EventSourcing.SqlServer.csproj
+  - path: src/Excalibur/Excalibur.EventSourcing.MongoDB/Excalibur.EventSourcing.MongoDB.csproj
   - path: src/Excalibur/Excalibur.EventSourcing/Excalibur.EventSourcing.csproj
+  - path: src/Excalibur/Excalibur.Hosting.Aws/Excalibur.Hosting.Aws.csproj
   - path: src/Excalibur/Excalibur.Hosting.AwsLambda/Excalibur.Hosting.AwsLambda.csproj
   - path: src/Excalibur/Excalibur.Hosting.AzureFunctions/Excalibur.Hosting.AzureFunctions.csproj
   - path: src/Excalibur/Excalibur.Hosting.GoogleCloudFunctions/Excalibur.Hosting.GoogleCloudFunctions.csproj
+  - path: src/Excalibur/Excalibur.Hosting.HealthChecks/Excalibur.Hosting.HealthChecks.csproj
   - path: src/Excalibur/Excalibur.Hosting.Jobs/Excalibur.Hosting.Jobs.csproj
+  - path: src/Excalibur/Excalibur.Hosting.Logging.Serilog/Excalibur.Hosting.Logging.Serilog.csproj
+  - path: src/Excalibur/Excalibur.Hosting.Observability/Excalibur.Hosting.Observability.csproj
   - path: src/Excalibur/Excalibur.Hosting.Serverless/Excalibur.Hosting.Serverless.csproj
   - path: src/Excalibur/Excalibur.Hosting.Web/Excalibur.Hosting.Web.csproj
   - path: src/Excalibur/Excalibur.Hosting/Excalibur.Hosting.csproj
+  - path: src/Excalibur/Excalibur.Inbox/Excalibur.Inbox.csproj
+  - path: src/Excalibur/Excalibur.Inbox.CosmosDb/Excalibur.Inbox.CosmosDb.csproj
+  - path: src/Excalibur/Excalibur.Inbox.DynamoDb/Excalibur.Inbox.DynamoDb.csproj
+  - path: src/Excalibur/Excalibur.Inbox.ElasticSearch/Excalibur.Inbox.ElasticSearch.csproj
+  - path: src/Excalibur/Excalibur.Inbox.Firestore/Excalibur.Inbox.Firestore.csproj
+  - path: src/Excalibur/Excalibur.Inbox.InMemory/Excalibur.Inbox.InMemory.csproj
+  - path: src/Excalibur/Excalibur.Inbox.MongoDB/Excalibur.Inbox.MongoDB.csproj
+  - path: src/Excalibur/Excalibur.Inbox.Postgres/Excalibur.Inbox.Postgres.csproj
+  - path: src/Excalibur/Excalibur.Inbox.Redis/Excalibur.Inbox.Redis.csproj
+  - path: src/Excalibur/Excalibur.Inbox.SqlServer/Excalibur.Inbox.SqlServer.csproj
   - path: src/Excalibur/Excalibur.Jobs.Abstractions/Excalibur.Jobs.Abstractions.csproj
-  - path: src/Excalibur/Excalibur.Jobs.CloudProviders/Excalibur.Jobs.CloudProviders.csproj
+  - path: src/Excalibur/Excalibur.Jobs.Aws/Excalibur.Jobs.Aws.csproj
+  - path: src/Excalibur/Excalibur.Jobs.Azure/Excalibur.Jobs.Azure.csproj
+  - path: src/Excalibur/Excalibur.Jobs.Cdc/Excalibur.Jobs.Cdc.csproj
+  - path: src/Excalibur/Excalibur.Jobs.DataProcessing/Excalibur.Jobs.DataProcessing.csproj
+  - path: src/Excalibur/Excalibur.Jobs.GoogleCloud/Excalibur.Jobs.GoogleCloud.csproj
+  - path: src/Excalibur/Excalibur.Jobs.Redis/Excalibur.Jobs.Redis.csproj
   - path: src/Excalibur/Excalibur.Jobs.SqlServer/Excalibur.Jobs.SqlServer.csproj
   - path: src/Excalibur/Excalibur.Jobs/Excalibur.Jobs.csproj
   - path: src/Excalibur/Excalibur.LeaderElection.Consul/Excalibur.LeaderElection.Consul.csproj
+  - path: src/Excalibur/Excalibur.LeaderElection.MongoDB/Excalibur.LeaderElection.MongoDB.csproj
   - path: src/Excalibur/Excalibur.LeaderElection.InMemory/Excalibur.LeaderElection.InMemory.csproj
   - path: src/Excalibur/Excalibur.LeaderElection.Kubernetes/Excalibur.LeaderElection.Kubernetes.csproj
+  - path: src/Excalibur/Excalibur.LeaderElection.Postgres/Excalibur.LeaderElection.Postgres.csproj
   - path: src/Excalibur/Excalibur.LeaderElection.Redis/Excalibur.LeaderElection.Redis.csproj
   - path: src/Excalibur/Excalibur.LeaderElection.SqlServer/Excalibur.LeaderElection.SqlServer.csproj
   - path: src/Excalibur/Excalibur.LeaderElection/Excalibur.LeaderElection.csproj
   - path: src/Excalibur/Excalibur.Migrate.Tool/Excalibur.Migrate.Tool.csproj
   - path: src/Excalibur/Excalibur.Outbox.CosmosDb/Excalibur.Outbox.CosmosDb.csproj
   - path: src/Excalibur/Excalibur.Outbox.DynamoDb/Excalibur.Outbox.DynamoDb.csproj
+  - path: src/Excalibur/Excalibur.Outbox.ElasticSearch/Excalibur.Outbox.ElasticSearch.csproj
   - path: src/Excalibur/Excalibur.Outbox.Firestore/Excalibur.Outbox.Firestore.csproj
+  - path: src/Excalibur/Excalibur.Outbox.InMemory/Excalibur.Outbox.InMemory.csproj
+  - path: src/Excalibur/Excalibur.Outbox.MongoDB/Excalibur.Outbox.MongoDB.csproj
+  - path: src/Excalibur/Excalibur.Outbox.Postgres/Excalibur.Outbox.Postgres.csproj
+  - path: src/Excalibur/Excalibur.Outbox.Redis/Excalibur.Outbox.Redis.csproj
   - path: src/Excalibur/Excalibur.Outbox.SqlServer/Excalibur.Outbox.SqlServer.csproj
   - path: src/Excalibur/Excalibur.Outbox/Excalibur.Outbox.csproj
+  - path: src/Excalibur/Excalibur.Saga.CosmosDb/Excalibur.Saga.CosmosDb.csproj
+  - path: src/Excalibur/Excalibur.Saga.DynamoDb/Excalibur.Saga.DynamoDb.csproj
+  - path: src/Excalibur/Excalibur.Saga.Firestore/Excalibur.Saga.Firestore.csproj
+  - path: src/Excalibur/Excalibur.Saga.MongoDB/Excalibur.Saga.MongoDB.csproj
+  - path: src/Excalibur/Excalibur.Saga.Postgres/Excalibur.Saga.Postgres.csproj
   - path: src/Excalibur/Excalibur.Saga.SqlServer/Excalibur.Saga.SqlServer.csproj
   - path: src/Excalibur/Excalibur.Saga/Excalibur.Saga.csproj
   - path: src/Excalibur/Excalibur.Security.Abstractions/Excalibur.Security.Abstractions.csproj
@@ -210,7 +245,6 @@ projects:
   - path: tests/unit/Excalibur.Data.InMemory.Tests/Excalibur.Data.InMemory.Tests.csproj
   - path: tests/unit/Excalibur.Data.MongoDB.Tests/Excalibur.Data.MongoDB.Tests.csproj
   - path: tests/unit/Excalibur.Data.MySql.Tests/Excalibur.Data.MySql.Tests.csproj
-  - path: tests/unit/Excalibur.Data.Postgres.Tests/Excalibur.Data.Postgres.Tests.csproj
   - path: tests/unit/Excalibur.Data.Postgres.Tests/Excalibur.Data.Postgres.Tests.csproj
   - path: tests/unit/Excalibur.Data.Redis.Tests/Excalibur.Data.Redis.Tests.csproj
   - path: tests/unit/Excalibur.Data.SqlServer.Tests/Excalibur.Data.SqlServer.Tests.csproj

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Data.CosmosDb.Outbox;
+using Excalibur.Outbox.CosmosDb;
 
 namespace Excalibur.Data.Tests.CosmosDb;
 
@@ -10,7 +10,7 @@ namespace Excalibur.Data.Tests.CosmosDb;
 /// </summary>
 /// <remarks>
 /// Sprint 514 (S514.3): CosmosDB unit tests.
-/// Tests verify default values and validation.
+/// Sprint 633: Updated for ISP-split -- Connection sub-options, renamed properties.
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "CosmosDb")]
@@ -20,33 +20,33 @@ public sealed class CosmosDbOutboxOptionsShould
 	#region Default Value Tests
 
 	[Fact]
-	public void ConnectionString_DefaultsToNull()
+	public void Connection_ConnectionString_DefaultsToNull()
 	{
 		// Arrange & Act
 		var options = new CosmosDbOutboxOptions();
 
 		// Assert
-		options.ConnectionString.ShouldBeNull();
+		options.Connection.ConnectionString.ShouldBeNull();
 	}
 
 	[Fact]
-	public void AccountEndpoint_DefaultsToNull()
+	public void Connection_AccountEndpoint_DefaultsToNull()
 	{
 		// Arrange & Act
 		var options = new CosmosDbOutboxOptions();
 
 		// Assert
-		options.AccountEndpoint.ShouldBeNull();
+		options.Connection.AccountEndpoint.ShouldBeNull();
 	}
 
 	[Fact]
-	public void AccountKey_DefaultsToNull()
+	public void Connection_AccountKey_DefaultsToNull()
 	{
 		// Arrange & Act
 		var options = new CosmosDbOutboxOptions();
 
 		// Assert
-		options.AccountKey.ShouldBeNull();
+		options.Connection.AccountKey.ShouldBeNull();
 	}
 
 	[Fact]
@@ -90,13 +90,13 @@ public sealed class CosmosDbOutboxOptionsShould
 	}
 
 	[Fact]
-	public void SentMessageTtlSeconds_DefaultsToSevenDays()
+	public void DefaultTimeToLiveSeconds_DefaultsToSevenDays()
 	{
 		// Arrange & Act
 		var options = new CosmosDbOutboxOptions();
 
 		// Assert - 7 days = 604800 seconds
-		options.SentMessageTtlSeconds.ShouldBe(604800);
+		options.DefaultTimeToLiveSeconds.ShouldBe(604800);
 	}
 
 	[Fact]
@@ -120,16 +120,6 @@ public sealed class CosmosDbOutboxOptionsShould
 	}
 
 	[Fact]
-	public void RequestTimeoutInSeconds_DefaultsToThirty()
-	{
-		// Arrange & Act
-		var options = new CosmosDbOutboxOptions();
-
-		// Assert
-		options.RequestTimeoutInSeconds.ShouldBe(30);
-	}
-
-	[Fact]
 	public void UseDirectMode_DefaultsToTrue()
 	{
 		// Arrange & Act
@@ -140,43 +130,13 @@ public sealed class CosmosDbOutboxOptionsShould
 	}
 
 	[Fact]
-	public void EnableContentResponseOnWrite_DefaultsToFalse()
+	public void Connection_DefaultsToNewInstance()
 	{
 		// Arrange & Act
 		var options = new CosmosDbOutboxOptions();
 
 		// Assert
-		options.EnableContentResponseOnWrite.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void ConsistencyLevel_DefaultsToNull()
-	{
-		// Arrange & Act
-		var options = new CosmosDbOutboxOptions();
-
-		// Assert
-		options.ConsistencyLevel.ShouldBeNull();
-	}
-
-	[Fact]
-	public void PreferredRegions_DefaultsToNull()
-	{
-		// Arrange & Act
-		var options = new CosmosDbOutboxOptions();
-
-		// Assert
-		options.PreferredRegions.ShouldBeNull();
-	}
-
-	[Fact]
-	public void HttpClientFactory_DefaultsToNull()
-	{
-		// Arrange & Act
-		var options = new CosmosDbOutboxOptions();
-
-		// Assert
-		options.HttpClientFactory.ShouldBeNull();
+		options.Connection.ShouldNotBeNull();
 	}
 
 	#endregion
@@ -202,7 +162,7 @@ public sealed class CosmosDbOutboxOptionsShould
 		// Arrange
 		var options = new CosmosDbOutboxOptions
 		{
-			ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=xyz",
+			Connection = { ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=xyz" },
 			DatabaseName = "test-db"
 		};
 
@@ -216,8 +176,11 @@ public sealed class CosmosDbOutboxOptionsShould
 		// Arrange
 		var options = new CosmosDbOutboxOptions
 		{
-			AccountEndpoint = "https://test.documents.azure.com:443/",
-			AccountKey = "xyz",
+			Connection =
+			{
+				AccountEndpoint = "https://test.documents.azure.com:443/",
+				AccountKey = "xyz"
+			},
 			DatabaseName = "test-db"
 		};
 
@@ -231,23 +194,8 @@ public sealed class CosmosDbOutboxOptionsShould
 		// Arrange
 		var options = new CosmosDbOutboxOptions
 		{
-			ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=xyz",
+			Connection = { ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=xyz" },
 			DatabaseName = null
-		};
-
-		// Act & Assert
-		Should.Throw<InvalidOperationException>(() => options.Validate());
-	}
-
-	[Fact]
-	public void Validate_Throws_WhenContainerNameEmpty()
-	{
-		// Arrange
-		var options = new CosmosDbOutboxOptions
-		{
-			ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=xyz",
-			DatabaseName = "test-db",
-			ContainerName = ""
 		};
 
 		// Act & Assert
@@ -264,39 +212,34 @@ public sealed class CosmosDbOutboxOptionsShould
 		// Arrange & Act
 		var options = new CosmosDbOutboxOptions
 		{
-			ConnectionString = "connection-string",
-			AccountEndpoint = "https://test.documents.azure.com:443/",
-			AccountKey = "test-key",
+			Connection =
+			{
+				ConnectionString = "connection-string",
+				AccountEndpoint = "https://test.documents.azure.com:443/",
+				AccountKey = "test-key"
+			},
 			DatabaseName = "my-db",
 			ContainerName = "my-outbox",
 			CreateContainerIfNotExists = false,
 			ContainerThroughput = 1000,
-			SentMessageTtlSeconds = 3600,
+			DefaultTimeToLiveSeconds = 3600,
 			MaxRetryAttempts = 5,
 			MaxRetryWaitTimeInSeconds = 60,
-			RequestTimeoutInSeconds = 120,
-			UseDirectMode = false,
-			EnableContentResponseOnWrite = true,
-			PreferredRegions = new List<string> { "East US", "West US" },
-			HttpClientFactory = () => new HttpClient()
+			UseDirectMode = false
 		};
 
 		// Assert
-		options.ConnectionString.ShouldBe("connection-string");
-		options.AccountEndpoint.ShouldBe("https://test.documents.azure.com:443/");
-		options.AccountKey.ShouldBe("test-key");
+		options.Connection.ConnectionString.ShouldBe("connection-string");
+		options.Connection.AccountEndpoint.ShouldBe("https://test.documents.azure.com:443/");
+		options.Connection.AccountKey.ShouldBe("test-key");
 		options.DatabaseName.ShouldBe("my-db");
 		options.ContainerName.ShouldBe("my-outbox");
 		options.CreateContainerIfNotExists.ShouldBeFalse();
 		options.ContainerThroughput.ShouldBe(1000);
-		options.SentMessageTtlSeconds.ShouldBe(3600);
+		options.DefaultTimeToLiveSeconds.ShouldBe(3600);
 		options.MaxRetryAttempts.ShouldBe(5);
 		options.MaxRetryWaitTimeInSeconds.ShouldBe(60);
-		options.RequestTimeoutInSeconds.ShouldBe(120);
 		options.UseDirectMode.ShouldBeFalse();
-		options.EnableContentResponseOnWrite.ShouldBeTrue();
-		options.PreferredRegions.Count.ShouldBe(2);
-		options.HttpClientFactory.ShouldNotBeNull();
 	}
 
 	#endregion

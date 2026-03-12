@@ -49,7 +49,7 @@ public sealed class PostgresEventStore : IEventStore
 	private readonly NpgsqlDataSource _dataSource;
 	private readonly ILogger<PostgresEventStore> _logger;
 	private readonly JsonSerializerOptions _jsonOptions;
-	private readonly IInternalSerializer? _internalSerializer;
+	private readonly ISerializer? _internalSerializer;
 	private readonly IPayloadSerializer? _payloadSerializer;
 
 	/// <summary>
@@ -59,7 +59,7 @@ public sealed class PostgresEventStore : IEventStore
 	/// <param name="logger">The logger instance.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, IInternalSerializer?, IPayloadSerializer?)"/>
+	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ISerializer?, IPayloadSerializer?)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public PostgresEventStore(string connectionString, ILogger<PostgresEventStore> logger)
@@ -75,13 +75,13 @@ public sealed class PostgresEventStore : IEventStore
 	/// <param name="internalSerializer">Optional internal serializer for high-performance binary envelope serialization.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, IInternalSerializer?, IPayloadSerializer?)"/>
+	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ISerializer?, IPayloadSerializer?)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public PostgresEventStore(
 		string connectionString,
 		ILogger<PostgresEventStore> logger,
-		IInternalSerializer? internalSerializer)
+		ISerializer? internalSerializer)
 		: this(CreateDataSource(connectionString), logger, internalSerializer, payloadSerializer: null)
 	{
 	}
@@ -95,13 +95,13 @@ public sealed class PostgresEventStore : IEventStore
 	/// <param name="payloadSerializer">Optional pluggable serializer for event payloads.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, IInternalSerializer?, IPayloadSerializer?)"/>
+	/// Use <see cref="PostgresEventStore(NpgsqlDataSource, ILogger{PostgresEventStore}, ISerializer?, IPayloadSerializer?)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public PostgresEventStore(
 		string connectionString,
 		ILogger<PostgresEventStore> logger,
-		IInternalSerializer? internalSerializer,
+		ISerializer? internalSerializer,
 		IPayloadSerializer? payloadSerializer)
 		: this(CreateDataSource(connectionString), logger, internalSerializer, payloadSerializer)
 	{
@@ -130,7 +130,7 @@ public sealed class PostgresEventStore : IEventStore
 	public PostgresEventStore(
 		NpgsqlDataSource dataSource,
 		ILogger<PostgresEventStore> logger,
-		IInternalSerializer? internalSerializer = null,
+		ISerializer? internalSerializer = null,
 		IPayloadSerializer? payloadSerializer = null)
 	{
 		_dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
@@ -249,8 +249,11 @@ public sealed class PostgresEventStore : IEventStore
 	{
 		await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
+		// Use ReadCommitted: the UNIQUE constraint (aggregate_id, aggregate_type, version)
+		// provides the real concurrency protection. Serializable causes false-positive
+		// serialization failures under concurrent load to different aggregates.
 		await using var transaction = await connection.BeginTransactionAsync(
-				IsolationLevel.Serializable, cancellationToken)
+				IsolationLevel.ReadCommitted, cancellationToken)
 			.ConfigureAwait(false);
 
 		// Check current version using IDataRequest
@@ -545,7 +548,7 @@ public sealed class PostgresEventStore : IEventStore
 			SchemaVersion = 1,
 		};
 
-		var envelopeData = _internalSerializer.Serialize(envelope);
+		var envelopeData = _internalSerializer.SerializeToBytes(envelope);
 
 		// Prepend format marker
 		var result = new byte[envelopeData.Length + 1];

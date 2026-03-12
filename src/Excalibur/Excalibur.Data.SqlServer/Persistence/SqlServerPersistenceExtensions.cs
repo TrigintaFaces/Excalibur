@@ -4,7 +4,6 @@
 
 using System.Data;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 
 using Excalibur.Data.Abstractions.Persistence;
 
@@ -133,32 +132,6 @@ public static class SqlServerPersistenceExtensions
 	}
 
 	/// <summary>
-	/// Configures SQL Server persistence with CDC support.
-	/// </summary>
-	/// <param name="services"> The service collection. </param>
-	/// <param name="configuration"> The configuration instance. </param>
-	/// <param name="cdcHandlerAssemblies"> Assemblies containing CDC handlers. </param>
-	/// <returns> The service collection for chaining. </returns>
-	[RequiresUnreferencedCode("This method uses reflection and may not work correctly with trimming")]
-	[RequiresDynamicCode("This method uses dynamic code generation and may not work correctly with AOT")]
-	public static IServiceCollection AddSqlServerPersistenceWithCdc(
-		this IServiceCollection services,
-		IConfiguration configuration,
-		params Assembly[] cdcHandlerAssemblies)
-	{
-		// Add base persistence
-		_ = services.AddSqlServerPersistence(configuration);
-
-		// Add CDC processor
-		if (cdcHandlerAssemblies?.Length > 0)
-		{
-			_ = services.AddCdcProcessor(cdcHandlerAssemblies);
-		}
-
-		return services;
-	}
-
-	/// <summary>
 	/// Adds SQL Server transaction scope factory.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>
@@ -224,8 +197,8 @@ public static class SqlServerPersistenceExtensions
 		int retryDelayMilliseconds = 1000) =>
 		services.AddSqlServerPersistence(connectionString, options =>
 		{
-			options.MaxRetryAttempts = maxRetryAttempts;
-			options.RetryDelayMilliseconds = retryDelayMilliseconds;
+			options.Resiliency.MaxRetryAttempts = maxRetryAttempts;
+			options.Resiliency.RetryDelayMilliseconds = retryDelayMilliseconds;
 			options.Resiliency.EnableConnectionResiliency = true;
 			options.Resiliency.ConnectRetryCount = maxRetryAttempts;
 			options.Resiliency.ConnectRetryInterval = retryDelayMilliseconds / 1000;

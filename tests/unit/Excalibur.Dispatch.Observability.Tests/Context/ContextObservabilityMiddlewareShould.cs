@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Observability.Context;
 
 using Microsoft.Extensions.Logging;
@@ -397,11 +398,17 @@ public sealed class ContextObservabilityMiddlewareShould : IDisposable
 	private static IMessageContext CreateFakeContext()
 	{
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>();
+		var features = new Dictionary<Type, object>();
+
 		A.CallTo(() => context.MessageId).Returns("msg-1");
 		A.CallTo(() => context.CorrelationId).Returns("corr-1");
-		A.CallTo(() => context.MessageType).Returns("TestMessage");
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
-		A.CallTo(() => context.ContainsItem(A<string>._)).Returns(false);
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
+
+		// Set MessageType via extension method (stored in Items)
+		context.SetMessageType("TestMessage");
+
 		return context;
 	}
 

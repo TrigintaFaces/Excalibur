@@ -55,11 +55,11 @@ public sealed partial class DefaultRetryPolicy : IRetryPolicy
 		_options = options;
 		_logger = logger ?? NullLogger<DefaultRetryPolicy>.Instance;
 		_backoff = backoff ?? new ExponentialBackoffCalculator(
-			options.BaseDelay,
-			options.MaxDelay,
-			options.BackoffMultiplier,
-			options.EnableJitter,
-			options.JitterFactor);
+			options.Backoff.BaseDelay,
+			options.Backoff.MaxDelay,
+			options.Backoff.BackoffMultiplier,
+			options.Backoff.EnableJitter,
+			options.Backoff.JitterFactor);
 		_hasRetriableFilters = options.RetriableExceptions.Count > 0;
 		_hasNonRetriableFilters = options.NonRetriableExceptions.Count > 0;
 	}

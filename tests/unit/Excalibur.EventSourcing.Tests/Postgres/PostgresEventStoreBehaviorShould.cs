@@ -192,20 +192,23 @@ public sealed class PostgresEventStoreBehaviorShould : UnitTestBase
 		public byte GetCurrentSerializerId() => 1;
 		public string GetCurrentSerializerName() => "stub";
 		public byte[] SerializeObject(object value, Type type) => payload;
-		public T DeserializeTransportMessage<T>(byte[] data) => throw new NotSupportedException();
 	}
 
-	private sealed class StubInternalSerializer(byte[] payload) : IInternalSerializer
+	private sealed class StubInternalSerializer(byte[] payload) : ISerializer
 	{
+		public string Name => "stub";
+		public string Version => "1.0";
+		public string ContentType => "application/octet-stream";
+
 		public void Serialize<T>(T value, IBufferWriter<byte> bufferWriter) =>
+			bufferWriter.Write(payload);
+
+		public T Deserialize<T>(ReadOnlySpan<byte> data) =>
 			throw new NotSupportedException();
 
-		public byte[] Serialize<T>(T value) => payload;
+		public byte[] SerializeObject(object value, Type type) => payload;
 
-		public T Deserialize<T>(ReadOnlySequence<byte> buffer) =>
-			throw new NotSupportedException();
-
-		public T Deserialize<T>(ReadOnlySpan<byte> buffer) =>
+		public object DeserializeObject(ReadOnlySpan<byte> data, Type type) =>
 			throw new NotSupportedException();
 	}
 }

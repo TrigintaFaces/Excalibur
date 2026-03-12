@@ -288,7 +288,7 @@ public sealed class AggregateRootExtendedCoverageShould
         }
     }
 
-    private sealed record TestEvent : DomainEventBase
+    private sealed record TestEvent : DomainEvent
     {
         public string Value { get; init; } = string.Empty;
     }

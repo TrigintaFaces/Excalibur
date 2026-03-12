@@ -3,7 +3,7 @@
 
 using Amazon.DynamoDBv2.Model;
 
-using Excalibur.Data.DynamoDb.Cdc;
+using Excalibur.Cdc.DynamoDb;
 
 namespace Excalibur.Data.Tests.DynamoDb;
 

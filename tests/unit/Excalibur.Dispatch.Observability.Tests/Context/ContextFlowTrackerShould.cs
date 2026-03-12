@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Observability.Context;
 
 using Microsoft.Extensions.Logging;
@@ -63,10 +64,7 @@ public sealed class ContextFlowTrackerShould : IAsyncDisposable
 	{
 		// Arrange
 		_tracker = CreateTracker();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.CorrelationId).Returns("corr-1");
-		A.CallTo(() => context.MessageType).Returns("TestMessage");
+		var context = CreateFakeContext("msg-1", "corr-1", "TestMessage");
 
 		// Act
 		var result = _tracker.ValidateContextIntegrity(context);
@@ -80,10 +78,7 @@ public sealed class ContextFlowTrackerShould : IAsyncDisposable
 	{
 		// Arrange
 		_tracker = CreateTracker();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns((string?)null);
-		A.CallTo(() => context.CorrelationId).Returns("corr-1");
-		A.CallTo(() => context.MessageType).Returns("TestMessage");
+		var context = CreateFakeContext(null, "corr-1", "TestMessage");
 
 		// Act
 		var result = _tracker.ValidateContextIntegrity(context);
@@ -205,5 +200,28 @@ public sealed class ContextFlowTrackerShould : IAsyncDisposable
 			NullLogger<ContextFlowTracker>.Instance,
 			MsOptions.Create(new ContextObservabilityOptions()),
 			metrics ?? A.Fake<IContextFlowMetrics>());
+	}
+
+	private static IMessageContext CreateFakeContext(
+		string? messageId,
+		string? correlationId,
+		string? messageType)
+	{
+		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>();
+		var features = new Dictionary<Type, object>();
+
+		A.CallTo(() => context.MessageId).Returns(messageId);
+		A.CallTo(() => context.CorrelationId).Returns(correlationId);
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
+
+		// MessageType is accessed via extension method (reads from Items)
+		if (messageType != null)
+		{
+			context.SetMessageType(messageType);
+		}
+
+		return context;
 	}
 }

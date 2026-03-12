@@ -12,12 +12,7 @@ namespace Excalibur.Tests.Testing;
 /// </summary>
 internal sealed record CounterIncremented : DomainEvent
 {
-	public CounterIncremented(string aggregateId, long version)
-		: base(aggregateId, version, TimeProvider.System)
-	{
-	}
-
-	public CounterIncremented() : base("", 0, TimeProvider.System) { }
+	public override string AggregateId { get; init; } = string.Empty;
 }
 
 /// <summary>
@@ -26,14 +21,7 @@ internal sealed record CounterIncremented : DomainEvent
 internal sealed record CounterIncrementedBy : DomainEvent
 {
 	public int Amount { get; init; }
-
-	public CounterIncrementedBy(string aggregateId, long version, int amount)
-		: base(aggregateId, version, TimeProvider.System)
-	{
-		Amount = amount;
-	}
-
-	public CounterIncrementedBy() : base("", 0, TimeProvider.System) { }
+	public override string AggregateId { get; init; } = string.Empty;
 }
 
 /// <summary>
@@ -42,14 +30,7 @@ internal sealed record CounterIncrementedBy : DomainEvent
 internal sealed record AggregateInitialized : DomainEvent
 {
 	public string Name { get; init; } = string.Empty;
-
-	public AggregateInitialized(string aggregateId, long version, string name)
-		: base(aggregateId, version, TimeProvider.System)
-	{
-		Name = name;
-	}
-
-	public AggregateInitialized() : base("", 0, TimeProvider.System) { }
+	public override string AggregateId { get; init; } = string.Empty;
 }
 
 /// <summary>
@@ -73,7 +54,7 @@ internal sealed class TestAggregate : AggregateRoot
 	/// </summary>
 	public void Increment()
 	{
-		RaiseEvent(new CounterIncremented(Id, Version));
+		RaiseEvent(new CounterIncremented { AggregateId = Id, Version = Version });
 	}
 
 	/// <summary>
@@ -88,7 +69,7 @@ internal sealed class TestAggregate : AggregateRoot
 			throw new ArgumentException("Amount must be positive", nameof(amount));
 		}
 
-		RaiseEvent(new CounterIncrementedBy(Id, Version, amount));
+		RaiseEvent(new CounterIncrementedBy { AggregateId = Id, Version = Version, Amount = amount });
 	}
 
 	/// <summary>
@@ -103,7 +84,7 @@ internal sealed class TestAggregate : AggregateRoot
 			throw new InvalidOperationException("Aggregate is already initialized");
 		}
 
-		RaiseEvent(new AggregateInitialized(Id, Version, name));
+		RaiseEvent(new AggregateInitialized { AggregateId = Id, Version = Version, Name = name });
 	}
 
 	/// <summary>

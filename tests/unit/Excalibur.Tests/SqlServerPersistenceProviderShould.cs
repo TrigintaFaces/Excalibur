@@ -28,12 +28,18 @@ public sealed class SqlServerPersistenceProviderShould : IDisposable
 		_logger = A.Fake<ILogger<SqlServerPersistenceProvider>>();
 		_optionsValue = new SqlServerProviderOptions
 		{
-			ConnectionString = "Server=localhost;Database=test;User Id=sa;Password=Test123!;",
-			EnablePooling = true,
-			MinPoolSize = 2,
-			MaxPoolSize = 20,
+			Connection =
+			{
+				ConnectionString = "Server=localhost;Database=test;User Id=sa;Password=Test123!;",
+				ApplicationName = "TestApp",
+			},
+			Pooling =
+			{
+				EnablePooling = true,
+				MinPoolSize = 2,
+				MaxPoolSize = 20,
+			},
 			EnableMars = true,
-			ApplicationName = "TestApp",
 			CommandTimeout = 30,
 		};
 		_options = Microsoft.Extensions.Options.Options.Create(_optionsValue);
@@ -204,12 +210,12 @@ public sealed class SqlServerPersistenceProviderShould : IDisposable
 		// Act & Assert
 		Should.NotThrow(() =>
 		{
-			if (string.IsNullOrEmpty(_optionsValue.ConnectionString))
+			if (string.IsNullOrEmpty(_optionsValue.Connection.ConnectionString))
 			{
 				throw new ArgumentException("Connection string cannot be empty");
 			}
 
-			if (_optionsValue.MinPoolSize > _optionsValue.MaxPoolSize)
+			if (_optionsValue.Pooling.MinPoolSize > _optionsValue.Pooling.MaxPoolSize)
 			{
 				throw new ArgumentException("MinPoolSize cannot be greater than MaxPoolSize");
 			}
@@ -226,12 +232,12 @@ public sealed class SqlServerPersistenceProviderShould : IDisposable
 		// Arrange
 		var invalidOptions = new SqlServerProviderOptions
 		{
-			ConnectionString = "", // Invalid empty connection string
+			Connection = { ConnectionString = "" }, // Invalid empty connection string
 		};
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			string.IsNullOrEmpty(invalidOptions.ConnectionString)
+			string.IsNullOrEmpty(invalidOptions.Connection.ConnectionString)
 				? throw new ArgumentException("Connection string cannot be empty")
 				: true);
 	}
@@ -242,14 +248,17 @@ public sealed class SqlServerPersistenceProviderShould : IDisposable
 		// Arrange
 		var invalidOptions = new SqlServerProviderOptions
 		{
-			ConnectionString = "Server=localhost;Database=test;User Id=sa;Password=Test123!;",
-			MinPoolSize = 10,
-			MaxPoolSize = 5, // Invalid: min > max
+			Connection = { ConnectionString = "Server=localhost;Database=test;User Id=sa;Password=Test123!;" },
+			Pooling =
+			{
+				MinPoolSize = 10,
+				MaxPoolSize = 5, // Invalid: min > max
+			},
 		};
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() =>
-			invalidOptions.MinPoolSize > invalidOptions.MaxPoolSize
+			invalidOptions.Pooling.MinPoolSize > invalidOptions.Pooling.MaxPoolSize
 				? throw new ArgumentException("MinPoolSize cannot be greater than MaxPoolSize")
 				: true);
 	}
@@ -260,7 +269,7 @@ public sealed class SqlServerPersistenceProviderShould : IDisposable
 		// Arrange
 		var invalidOptions = new SqlServerProviderOptions
 		{
-			ConnectionString = "Server=localhost;Database=test;User Id=sa;Password=Test123!;",
+			Connection = { ConnectionString = "Server=localhost;Database=test;User Id=sa;Password=Test123!;" },
 			CommandTimeout = -1, // Invalid negative timeout
 		};
 
@@ -274,11 +283,11 @@ public sealed class SqlServerPersistenceProviderShould : IDisposable
 	{
 		// Assert
 		_optionsValue.EnableMars.ShouldBeTrue();
-		_optionsValue.ApplicationName.ShouldBe("TestApp");
+		_optionsValue.Connection.ApplicationName.ShouldBe("TestApp");
 		_optionsValue.CommandTimeout.ShouldBe(30);
-		_optionsValue.MinPoolSize.ShouldBe(2);
-		_optionsValue.MaxPoolSize.ShouldBe(20);
-		_optionsValue.EnablePooling.ShouldBeTrue();
+		_optionsValue.Pooling.MinPoolSize.ShouldBe(2);
+		_optionsValue.Pooling.MaxPoolSize.ShouldBe(20);
+		_optionsValue.Pooling.EnablePooling.ShouldBeTrue();
 	}
 
 	[Fact]

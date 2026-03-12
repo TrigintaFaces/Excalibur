@@ -151,10 +151,13 @@ public sealed class RedisPersistenceProviderIntegrationShould : IntegrationTestB
 			ConnectionString = _redisFixture.ConnectionString,
 			Name = "test-redis",
 			DatabaseId = 0,
-			ConnectTimeout = 5,
-			SyncTimeout = 5,
-			AsyncTimeout = 5,
-			AbortOnConnectFail = false
+			Pool = new RedisConnectionPoolOptions
+			{
+				ConnectTimeout = 5,
+				SyncTimeout = 5,
+				AsyncTimeout = 5,
+				AbortOnConnectFail = false,
+			}
 		});
 		var logger = NullLogger<RedisPersistenceProvider>.Instance;
 		return new RedisPersistenceProvider(options, logger);

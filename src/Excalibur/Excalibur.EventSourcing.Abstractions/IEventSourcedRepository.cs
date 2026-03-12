@@ -15,13 +15,16 @@ namespace Excalibur.EventSourcing.Abstractions;
 /// <typeparam name="TKey">The type of the aggregate identifier.</typeparam>
 /// <remarks>
 /// <para>
-/// This interface provides full event sourcing repository operations including:
+/// This interface provides CQRS write-side event sourcing repository operations:
 /// <list type="bullet">
-/// <item>CRUD operations with strongly-typed keys</item>
+/// <item>Load and save with strongly-typed keys</item>
 /// <item>ETag-based optimistic concurrency control</item>
-/// <item>Query support via <see cref="IAggregateQuery{TAggregate}"/></item>
-/// <item>Soft delete via tombstone events</item>
+/// <item>Existence checks and soft delete via tombstone events</item>
 /// </list>
+/// </para>
+/// <para>
+/// This interface follows CQRS best practice: it provides write-side operations only.
+/// Query operations belong in a separate read model or projection store.
 /// </para>
 /// </remarks>
 /// <example>
@@ -97,30 +100,6 @@ public interface IEventSourcedRepository<TAggregate, TKey>
 	/// The aggregate's event history is preserved for audit purposes.
 	/// </remarks>
 	Task DeleteAsync(TAggregate aggregate, CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Executes a query to find multiple aggregates matching the criteria.
-	/// </summary>
-	/// <typeparam name="TQuery">The query type.</typeparam>
-	/// <param name="query">The query object containing search criteria.</param>
-	/// <param name="cancellationToken">The cancellation token.</param>
-	/// <returns>A collection of aggregates matching the query.</returns>
-	/// <remarks>
-	/// Query execution depends on the underlying event store's query capabilities.
-	/// Some stores may require projections for efficient querying.
-	/// </remarks>
-	Task<IReadOnlyList<TAggregate>> QueryAsync<TQuery>(TQuery query, CancellationToken cancellationToken)
-		where TQuery : IAggregateQuery<TAggregate>;
-
-	/// <summary>
-	/// Executes a query to find a single aggregate matching the criteria.
-	/// </summary>
-	/// <typeparam name="TQuery">The query type.</typeparam>
-	/// <param name="query">The query object containing search criteria.</param>
-	/// <param name="cancellationToken">The cancellation token.</param>
-	/// <returns>The first aggregate matching the query, or <see langword="null"/> if not found.</returns>
-	Task<TAggregate?> FindAsync<TQuery>(TQuery query, CancellationToken cancellationToken)
-		where TQuery : IAggregateQuery<TAggregate>;
 }
 
 /// <summary>

@@ -20,10 +20,17 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs\Excalibur.Jobs.csproj" />
     <!-- From Excalibur.Jobs.Abstractions.Tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs.Abstractions\Excalibur.Jobs.Abstractions.csproj" />
-    <!-- From Excalibur.Jobs.CloudProviders.Tests -->
-    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs.CloudProviders\Excalibur.Jobs.CloudProviders.csproj" />
+    <!-- Per-cloud provider packages (extracted from CloudProviders) -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs.Aws\Excalibur.Jobs.Aws.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs.Azure\Excalibur.Jobs.Azure.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs.GoogleCloud\Excalibur.Jobs.GoogleCloud.csproj" />
     <!-- From Excalibur.Jobs.SqlServer.Tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs.SqlServer\Excalibur.Jobs.SqlServer.csproj" />
+    <!-- New extracted packages -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs.Redis\Excalibur.Jobs.Redis.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs.Cdc\Excalibur.Jobs.Cdc.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Cdc.SqlServer\Excalibur.Cdc.SqlServer.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs.DataProcessing\Excalibur.Jobs.DataProcessing.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />

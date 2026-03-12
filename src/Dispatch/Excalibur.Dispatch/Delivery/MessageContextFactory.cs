@@ -3,6 +3,7 @@
 
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Messaging;
 
 namespace Excalibur.Dispatch.Delivery;

@@ -27,8 +27,8 @@ public sealed class SplunkServiceCollectionExtensionsShould
 		// Act
 		_ = services.AddSplunkAuditExporter(options =>
 		{
-			options.HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector");
-			options.HecToken = "test-token";
+			options.Connection.HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector");
+			options.Connection.HecToken = "test-token";
 		});
 		using var provider = services.BuildServiceProvider();
 
@@ -48,8 +48,8 @@ public sealed class SplunkServiceCollectionExtensionsShould
 		// Act
 		_ = services.AddSplunkAuditExporter(options =>
 		{
-			options.HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector");
-			options.HecToken = "my-token";
+			options.Connection.HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector");
+			options.Connection.HecToken = "my-token";
 			options.Index = "my-index";
 			options.SourceType = "my-sourcetype";
 		});
@@ -57,7 +57,7 @@ public sealed class SplunkServiceCollectionExtensionsShould
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<SplunkExporterOptions>>().Value;
-		options.HecToken.ShouldBe("my-token");
+		options.Connection.HecToken.ShouldBe("my-token");
 		options.Index.ShouldBe("my-index");
 		options.SourceType.ShouldBe("my-sourcetype");
 	}
@@ -91,8 +91,8 @@ public sealed class SplunkServiceCollectionExtensionsShould
 		// Act
 		var result = services.AddSplunkAuditExporter(options =>
 		{
-			options.HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector");
-			options.HecToken = "test-token";
+			options.Connection.HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector");
+			options.Connection.HecToken = "test-token";
 		});
 
 		// Assert
@@ -109,15 +109,15 @@ public sealed class SplunkServiceCollectionExtensionsShould
 		// Act
 		_ = services.AddSplunkAuditExporter(options =>
 		{
-			options.HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector");
-			options.HecToken = "test-token";
-			options.ValidateCertificate = false;
+			options.Connection.HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector");
+			options.Connection.HecToken = "test-token";
+			options.Connection.ValidateCertificate = false;
 		});
 		using var provider = services.BuildServiceProvider();
 
 		// Assert - verify options are configured
 		var options = provider.GetRequiredService<IOptions<SplunkExporterOptions>>().Value;
-		options.ValidateCertificate.ShouldBeFalse();
+		options.Connection.ValidateCertificate.ShouldBeFalse();
 
 		// Trigger the HttpClient factory to exercise the ConfigurePrimaryHttpMessageHandler lambda
 		var factory = provider.GetRequiredService<IHttpClientFactory>();
@@ -135,9 +135,9 @@ public sealed class SplunkServiceCollectionExtensionsShould
 		// Act
 		_ = services.AddSplunkAuditExporter(options =>
 		{
-			options.HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector");
-			options.HecToken = "test-token";
-			options.ValidateCertificate = true; // default, but explicit for coverage
+			options.Connection.HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector");
+			options.Connection.HecToken = "test-token";
+			options.Connection.ValidateCertificate = true; // default, but explicit for coverage
 		});
 		using var provider = services.BuildServiceProvider();
 
@@ -158,9 +158,9 @@ public sealed class SplunkServiceCollectionExtensionsShould
 		// Act
 		_ = services.AddSplunkAuditExporter(options =>
 		{
-			options.HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector");
-			options.HecToken = "test-token";
-			options.RequestTimeout = expectedTimeout;
+			options.Connection.HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector");
+			options.Connection.HecToken = "test-token";
+			options.Batch.RequestTimeout = expectedTimeout;
 		});
 		using var provider = services.BuildServiceProvider();
 
@@ -220,10 +220,10 @@ public sealed class SplunkServiceCollectionExtensionsShould
 		// Arrange
 		var configData = new Dictionary<string, string?>
 		{
-			["Splunk:HecEndpoint"] = "https://splunk.example.com:8088/services/collector",
-			["Splunk:HecToken"] = "test-token",
-			["Splunk:RequestTimeout"] = "00:00:42",
-			["Splunk:ValidateCertificate"] = "true"
+			["Splunk:Connection:HecEndpoint"] = "https://splunk.example.com:8088/services/collector",
+			["Splunk:Connection:HecToken"] = "test-token",
+			["Splunk:Batch:RequestTimeout"] = "00:00:42",
+			["Splunk:Connection:ValidateCertificate"] = "true"
 		};
 		var configuration = new ConfigurationBuilder()
 			.AddInMemoryCollection(configData)
@@ -251,9 +251,9 @@ public sealed class SplunkServiceCollectionExtensionsShould
 		// Arrange
 		var configData = new Dictionary<string, string?>
 		{
-			["Splunk:HecEndpoint"] = "https://splunk.example.com:8088/services/collector",
-			["Splunk:HecToken"] = "test-token",
-			["Splunk:ValidateCertificate"] = "false"
+			["Splunk:Connection:HecEndpoint"] = "https://splunk.example.com:8088/services/collector",
+			["Splunk:Connection:HecToken"] = "test-token",
+			["Splunk:Connection:ValidateCertificate"] = "false"
 		};
 		var configuration = new ConfigurationBuilder()
 			.AddInMemoryCollection(configData)
@@ -274,6 +274,6 @@ public sealed class SplunkServiceCollectionExtensionsShould
 
 		// Verify options reflect disabled validation
 		var options = provider.GetRequiredService<IOptions<SplunkExporterOptions>>().Value;
-		options.ValidateCertificate.ShouldBeFalse();
+		options.Connection.ValidateCertificate.ShouldBeFalse();
 	}
 }

@@ -3,6 +3,7 @@
 
 using System.Diagnostics;
 
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Abstractions.Serialization;
 
@@ -254,7 +255,7 @@ public sealed class MessageContextFunctionalShould : FunctionalTestBase
 				var routingDecision = await router
 						.RouteAsync(message, context, cancellationToken)
 						.ConfigureAwait(true);
-				context.RoutingDecision = routingDecision;
+				context.GetOrCreateRoutingFeature().RoutingDecision = routingDecision;
 
 				if (!routingDecision.IsSuccess)
 				{
@@ -307,11 +308,11 @@ public sealed class MessageContextFunctionalShould : FunctionalTestBase
 			ArgumentNullException.ThrowIfNull(message);
 
 			context.MessageId = message.MessageId.ToString();
-			context.UserId = message.UserId;
-			context.TenantId = message.TenantId;
-			context.MessageType = nameof(TestMessage);
-			context.Source = "FunctionalTest";
-			context.ReceivedTimestampUtc = DateTimeOffset.UtcNow;
+			context.GetOrCreateIdentityFeature().UserId = message.UserId;
+			context.GetOrCreateIdentityFeature().TenantId = message.TenantId;
+			context.SetMessageType(nameof(TestMessage));
+			context.GetOrCreateRoutingFeature().Source = "FunctionalTest";
+			context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
 			context.SetItem("Enriched", "true");
 			context.SetItem("OriginalContent", message.Content);
 
@@ -365,7 +366,7 @@ public sealed class MessageContextFunctionalShould : FunctionalTestBase
 			// Simulate authorization logic - cast to MessageContext to access property
 			var msgContext = (MessageContext)context;
 			var isAuthorized = msgContext.ValidationResult.IsValid &&
-								 !string.IsNullOrEmpty(context.UserId);
+								 !string.IsNullOrEmpty(context.GetUserId());
 
 			context.SetItem("Authorized", isAuthorized ? "true" : "false");
 

@@ -24,19 +24,19 @@ public sealed class CloudEventsOptionsShould
 		options.Mode.ShouldBe(CloudEventMode.Structured);
 		options.SpecVersion.ShouldBe(CloudEventsSpecVersion.V1_0);
 		options.DefaultSource.ShouldBe(new Uri("urn:dispatch"));
-		options.ValidateSchema.ShouldBeTrue();
-		options.IncludeSchemaVersion.ShouldBeTrue();
-		options.AutoRegisterSchemas.ShouldBeFalse();
-		options.SchemaProvider.ShouldBeNull();
-		options.SchemaVersionProvider.ShouldBeNull();
-		options.CustomValidator.ShouldBeNull();
-		options.OutgoingTransformer.ShouldBeNull();
+		options.Schema.ValidateSchema.ShouldBeTrue();
+		options.Schema.IncludeSchemaVersion.ShouldBeTrue();
+		options.Schema.AutoRegisterSchemas.ShouldBeFalse();
+		options.Schema.SchemaProvider.ShouldBeNull();
+		options.Schema.SchemaVersionProvider.ShouldBeNull();
+		options.Schema.CustomValidator.ShouldBeNull();
+		options.Schema.OutgoingTransformer.ShouldBeNull();
 		options.ExcludedExtensions.ShouldNotBeNull();
 		options.ExcludedExtensions.ShouldBeEmpty();
 		options.PreserveEnvelopeProperties.ShouldBeTrue();
 		options.DispatchExtensionPrefix.ShouldBe("dispatch");
-		options.UseCompression.ShouldBeFalse();
-		options.CompressionThreshold.ShouldBe(1024);
+		options.Compression.UseCompression.ShouldBeFalse();
+		options.Compression.CompressionThreshold.ShouldBe(1024);
 		options.EnableDoDCompliance.ShouldBeFalse();
 		options.DefaultMode.ShouldBe(CloudEventMode.Structured);
 	}
@@ -50,15 +50,21 @@ public sealed class CloudEventsOptionsShould
 			Mode = CloudEventMode.Binary,
 			SpecVersion = CloudEventsSpecVersion.V1_0,
 			DefaultSource = new Uri("https://example.com/events"),
-			ValidateSchema = false,
-			IncludeSchemaVersion = false,
-			AutoRegisterSchemas = true,
-			SchemaProvider = _ => "schema",
-			SchemaVersionProvider = _ => "1.0",
+			Schema =
+			{
+				ValidateSchema = false,
+				IncludeSchemaVersion = false,
+				AutoRegisterSchemas = true,
+				SchemaProvider = _ => "schema",
+				SchemaVersionProvider = _ => "1.0",
+			},
 			PreserveEnvelopeProperties = false,
 			DispatchExtensionPrefix = "custom",
-			UseCompression = true,
-			CompressionThreshold = 2048,
+			Compression =
+			{
+				UseCompression = true,
+				CompressionThreshold = 2048,
+			},
 			EnableDoDCompliance = true,
 			DefaultMode = CloudEventMode.Binary,
 		};
@@ -66,15 +72,15 @@ public sealed class CloudEventsOptionsShould
 		// Assert
 		options.Mode.ShouldBe(CloudEventMode.Binary);
 		options.DefaultSource.ShouldBe(new Uri("https://example.com/events"));
-		options.ValidateSchema.ShouldBeFalse();
-		options.IncludeSchemaVersion.ShouldBeFalse();
-		options.AutoRegisterSchemas.ShouldBeTrue();
-		options.SchemaProvider.ShouldNotBeNull();
-		options.SchemaVersionProvider.ShouldNotBeNull();
+		options.Schema.ValidateSchema.ShouldBeFalse();
+		options.Schema.IncludeSchemaVersion.ShouldBeFalse();
+		options.Schema.AutoRegisterSchemas.ShouldBeTrue();
+		options.Schema.SchemaProvider.ShouldNotBeNull();
+		options.Schema.SchemaVersionProvider.ShouldNotBeNull();
 		options.PreserveEnvelopeProperties.ShouldBeFalse();
 		options.DispatchExtensionPrefix.ShouldBe("custom");
-		options.UseCompression.ShouldBeTrue();
-		options.CompressionThreshold.ShouldBe(2048);
+		options.Compression.UseCompression.ShouldBeTrue();
+		options.Compression.CompressionThreshold.ShouldBe(2048);
 		options.EnableDoDCompliance.ShouldBeTrue();
 		options.DefaultMode.ShouldBe(CloudEventMode.Binary);
 	}
@@ -101,13 +107,16 @@ public sealed class CloudEventsOptionsShould
 		// Arrange
 		var options = new CloudEventOptions
 		{
-			SchemaProvider = t => $"schema-{t.Name}",
-			SchemaVersionProvider = t => $"v1-{t.Name}",
+			Schema =
+			{
+				SchemaProvider = t => $"schema-{t.Name}",
+				SchemaVersionProvider = t => $"v1-{t.Name}",
+			},
 		};
 
 		// Act & Assert
-		options.SchemaProvider!(typeof(string)).ShouldBe("schema-String");
-		options.SchemaVersionProvider!(typeof(int)).ShouldBe("v1-Int32");
+		options.Schema.SchemaProvider!(typeof(string)).ShouldBe("schema-String");
+		options.Schema.SchemaVersionProvider!(typeof(int)).ShouldBe("v1-Int32");
 	}
 
 	// --- CloudEventBatchOptions ---

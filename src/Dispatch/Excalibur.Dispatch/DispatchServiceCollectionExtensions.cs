@@ -9,7 +9,6 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Abstractions.Messaging;
-using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Delivery;
@@ -55,6 +54,10 @@ public static class DispatchServiceCollectionExtensions
 		services.TryAddSingleton<ITransportContextProvider, TransportContextProvider>();
 
 		services.TryAddSingleton<IDispatcher, Dispatcher>();
+		services.TryAddSingleton<IStreamingDispatcher>(static sp =>
+			(IStreamingDispatcher)sp.GetRequiredService<IDispatcher>());
+		services.TryAddSingleton<IProgressDispatcher>(static sp =>
+			(IProgressDispatcher)sp.GetRequiredService<IDispatcher>());
 		services.TryAddSingleton<IDirectLocalDispatcher>(static sp =>
 			(IDirectLocalDispatcher)sp.GetRequiredService<IDispatcher>());
 		services.TryAddSingleton<IDispatchPipeline>(sp => new DispatchPipeline(
@@ -73,9 +76,7 @@ public static class DispatchServiceCollectionExtensions
 
 		// Lean default path for all targets: HandlerActivator supports precompiled context injection when available.
 		services.TryAddSingleton<IHandlerActivator, HandlerActivator>();
-		services.TryAddSingleton<IJsonSerializer, DispatchJsonSerializer>();
-		services.TryAddSingleton<IMessageSerializer, DispatchJsonSerializer>();
-		services.TryAddSingleton<IUtf8JsonSerializer, DispatchJsonSerializer>();
+		services.TryAddSingleton<DispatchJsonSerializer>();
 
 		// Default no-op telemetry sanitizer — overridden by AddDispatchObservability() with HashingTelemetrySanitizer
 		services.TryAddSingleton<Excalibur.Dispatch.Abstractions.Telemetry.ITelemetrySanitizer>(

@@ -16,7 +16,18 @@ This guide covers performance optimization for event sourcing, outbox processing
 
 ## Performance Benchmarks
 
-### Baseline Expectations
+### Dispatch Framework Overhead (Mar 11, 2026)
+
+The Dispatch messaging layer adds minimal overhead to your application:
+
+| Operation | Latency | Notes |
+|-----------|---------|-------|
+| Single command dispatch | 55.9 ns | Hot-path, no middleware |
+| Query with response | 75.2 ns | Hot-path, no middleware |
+| Command with 3 middleware | ~414 ns | Typical production pipeline |
+| 100K dispatches allocation | 64.88 MB | Long-run GC pressure |
+
+### Application-Level Baseline Expectations
 
 | Operation | Target Latency | Target Throughput |
 |-----------|----------------|-------------------|

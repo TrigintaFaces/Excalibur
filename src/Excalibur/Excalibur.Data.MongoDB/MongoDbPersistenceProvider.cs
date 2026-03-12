@@ -77,8 +77,8 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 		var settings = MongoClientSettings.FromConnectionString(_options.ConnectionString);
 		settings.ServerSelectionTimeout = TimeSpan.FromSeconds(_options.ServerSelectionTimeout);
 		settings.ConnectTimeout = TimeSpan.FromSeconds(_options.ConnectTimeout);
-		settings.MaxConnectionPoolSize = _options.MaxPoolSize;
-		settings.MinConnectionPoolSize = _options.MinPoolSize;
+		settings.MaxConnectionPoolSize = _options.Pooling.MaxPoolSize;
+		settings.MinConnectionPoolSize = _options.Pooling.MinPoolSize;
 
 		if (_options.UseSsl)
 		{
@@ -283,8 +283,8 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 			["Provider"] = "MongoDB",
 			["Name"] = Name,
 			["DatabaseName"] = _options.DatabaseName,
-			["MaxPoolSize"] = _options.MaxPoolSize,
-			["MinPoolSize"] = _options.MinPoolSize,
+			["MaxPoolSize"] = _options.Pooling.MaxPoolSize,
+			["MinPoolSize"] = _options.Pooling.MinPoolSize,
 			["UseSsl"] = _options.UseSsl,
 			["ServerSelectionTimeout"] = _options.ServerSelectionTimeout,
 			["IsReadOnly"] = _options.IsReadOnly,
@@ -329,8 +329,8 @@ public sealed partial class MongoDbPersistenceProvider : IDocumentPersistencePro
 		{
 			var stats = new Dictionary<string, object>(StringComparer.Ordinal)
 			{
-				["MaxPoolSize"] = _options.MaxPoolSize,
-				["MinPoolSize"] = _options.MinPoolSize,
+				["MaxPoolSize"] = _options.Pooling.MaxPoolSize,
+				["MinPoolSize"] = _options.Pooling.MinPoolSize,
 				["ServerSelectionTimeout"] = _options.ServerSelectionTimeout,
 				["ConnectTimeout"] = _options.ConnectTimeout,
 				["ActiveConnections"] = 0, // MongoDB driver doesn't expose this directly

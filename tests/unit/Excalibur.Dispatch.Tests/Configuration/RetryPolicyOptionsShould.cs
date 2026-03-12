@@ -18,73 +18,18 @@ public sealed class RetryPolicyOptionsShould
 
 		// Assert
 		options.MaxRetryAttempts.ShouldBe(3);
-		options.MaxAttempts.ShouldBe(3);
 		options.RetryStrategy.ShouldBe(RetryStrategy.FixedDelay);
-		options.BaseDelay.ShouldBe(TimeSpan.FromSeconds(1));
-		options.MaxDelay.ShouldBe(TimeSpan.FromMinutes(30));
-		options.BackoffMultiplier.ShouldBe(2.0);
-		options.EnableJitter.ShouldBeFalse();
-		options.JitterFactor.ShouldBe(0.1);
+		options.Backoff.BaseDelay.ShouldBe(TimeSpan.FromSeconds(1));
+		options.Backoff.MaxDelay.ShouldBe(TimeSpan.FromMinutes(30));
+		options.Backoff.BackoffMultiplier.ShouldBe(2.0);
+		options.Backoff.EnableJitter.ShouldBeFalse();
+		options.Backoff.JitterFactor.ShouldBe(0.1);
 		options.Timeout.ShouldBe(TimeSpan.FromSeconds(30));
 		options.RetriableExceptions.ShouldBeEmpty();
 		options.NonRetriableExceptions.ShouldBeEmpty();
-		options.EnableCircuitBreaker.ShouldBeFalse();
-		options.CircuitBreakerThreshold.ShouldBe(5);
-		options.CircuitBreakerFailureThreshold.ShouldBe(5);
-		options.CircuitBreakerDuration.ShouldBe(TimeSpan.FromSeconds(30));
-		options.CircuitBreakerRecoveryTimeout.ShouldBe(TimeSpan.FromSeconds(30));
-	}
-
-	[Fact]
-	public void MaxAttempts_IsAliasForMaxRetryAttempts()
-	{
-		// Arrange
-		var options = new RetryPolicyOptions();
-
-		// Act
-		options.MaxAttempts = 10;
-
-		// Assert
-		options.MaxRetryAttempts.ShouldBe(10);
-	}
-
-	[Fact]
-	public void MaxRetryAttempts_UpdatesMaxAttempts()
-	{
-		// Arrange
-		var options = new RetryPolicyOptions();
-
-		// Act
-		options.MaxRetryAttempts = 7;
-
-		// Assert
-		options.MaxAttempts.ShouldBe(7);
-	}
-
-	[Fact]
-	public void CircuitBreakerFailureThreshold_IsAliasForCircuitBreakerThreshold()
-	{
-		// Arrange
-		var options = new RetryPolicyOptions();
-
-		// Act
-		options.CircuitBreakerFailureThreshold = 15;
-
-		// Assert
-		options.CircuitBreakerThreshold.ShouldBe(15);
-	}
-
-	[Fact]
-	public void CircuitBreakerRecoveryTimeout_IsAliasForCircuitBreakerDuration()
-	{
-		// Arrange
-		var options = new RetryPolicyOptions();
-
-		// Act
-		options.CircuitBreakerRecoveryTimeout = TimeSpan.FromMinutes(5);
-
-		// Assert
-		options.CircuitBreakerDuration.ShouldBe(TimeSpan.FromMinutes(5));
+		options.CircuitBreaker.EnableCircuitBreaker.ShouldBeFalse();
+		options.CircuitBreaker.CircuitBreakerThreshold.ShouldBe(5);
+		options.CircuitBreaker.CircuitBreakerDuration.ShouldBe(TimeSpan.FromSeconds(30));
 	}
 
 	[Fact]
@@ -124,28 +69,34 @@ public sealed class RetryPolicyOptionsShould
 		{
 			MaxRetryAttempts = 5,
 			RetryStrategy = RetryStrategy.ExponentialBackoff,
-			BaseDelay = TimeSpan.FromMilliseconds(500),
-			MaxDelay = TimeSpan.FromMinutes(10),
-			BackoffMultiplier = 3.0,
-			EnableJitter = true,
-			JitterFactor = 0.5,
+			Backoff =
+			{
+				BaseDelay = TimeSpan.FromMilliseconds(500),
+				MaxDelay = TimeSpan.FromMinutes(10),
+				BackoffMultiplier = 3.0,
+				EnableJitter = true,
+				JitterFactor = 0.5,
+			},
 			Timeout = TimeSpan.FromMinutes(1),
-			EnableCircuitBreaker = true,
-			CircuitBreakerThreshold = 10,
-			CircuitBreakerDuration = TimeSpan.FromMinutes(2),
+			CircuitBreaker =
+			{
+				EnableCircuitBreaker = true,
+				CircuitBreakerThreshold = 10,
+				CircuitBreakerDuration = TimeSpan.FromMinutes(2),
+			},
 		};
 
 		// Assert
 		options.MaxRetryAttempts.ShouldBe(5);
 		options.RetryStrategy.ShouldBe(RetryStrategy.ExponentialBackoff);
-		options.BaseDelay.ShouldBe(TimeSpan.FromMilliseconds(500));
-		options.MaxDelay.ShouldBe(TimeSpan.FromMinutes(10));
-		options.BackoffMultiplier.ShouldBe(3.0);
-		options.EnableJitter.ShouldBeTrue();
-		options.JitterFactor.ShouldBe(0.5);
+		options.Backoff.BaseDelay.ShouldBe(TimeSpan.FromMilliseconds(500));
+		options.Backoff.MaxDelay.ShouldBe(TimeSpan.FromMinutes(10));
+		options.Backoff.BackoffMultiplier.ShouldBe(3.0);
+		options.Backoff.EnableJitter.ShouldBeTrue();
+		options.Backoff.JitterFactor.ShouldBe(0.5);
 		options.Timeout.ShouldBe(TimeSpan.FromMinutes(1));
-		options.EnableCircuitBreaker.ShouldBeTrue();
-		options.CircuitBreakerThreshold.ShouldBe(10);
-		options.CircuitBreakerDuration.ShouldBe(TimeSpan.FromMinutes(2));
+		options.CircuitBreaker.EnableCircuitBreaker.ShouldBeTrue();
+		options.CircuitBreaker.CircuitBreakerThreshold.ShouldBe(10);
+		options.CircuitBreaker.CircuitBreakerDuration.ShouldBe(TimeSpan.FromMinutes(2));
 	}
 }

@@ -3,7 +3,7 @@
 
 using Excalibur.Dispatch.Abstractions;
 
-using Excalibur.Data.InMemory.Outbox;
+using Excalibur.Outbox.InMemory;
 using Excalibur.Outbox;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -181,8 +181,8 @@ public sealed class InMemoryOutboxBuilderShould : UnitTestBase
 		var outboxOptions = provider.GetRequiredService<OutboxOptions>();
 		outboxOptions.BatchSize.ShouldBe(50);
 		outboxOptions.PollingInterval.ShouldBe(TimeSpan.FromSeconds(1));
-		outboxOptions.EnableAutomaticCleanup.ShouldBeTrue();
-		outboxOptions.MessageRetentionPeriod.ShouldBe(TimeSpan.FromMinutes(30));
+		outboxOptions.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
+		outboxOptions.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromMinutes(30));
 	}
 
 	[Fact]

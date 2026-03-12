@@ -18,10 +18,10 @@ public sealed class DynamoDbOutboxOptionsShould : UnitTestBase
 		var options = new DynamoDbOutboxOptions();
 
 		// Assert
-		options.ServiceUrl.ShouldBeNull();
-		options.Region.ShouldBeNull();
-		options.AccessKey.ShouldBeNull();
-		options.SecretKey.ShouldBeNull();
+		options.Connection.ServiceUrl.ShouldBeNull();
+		options.Connection.Region.ShouldBeNull();
+		options.Connection.AccessKey.ShouldBeNull();
+		options.Connection.SecretKey.ShouldBeNull();
 		options.TableName.ShouldBe("outbox");
 		options.PartitionKeyAttribute.ShouldBe("pk");
 		options.SortKeyAttribute.ShouldBe("sk");
@@ -40,10 +40,10 @@ public sealed class DynamoDbOutboxOptionsShould : UnitTestBase
 		const string serviceUrl = "http://localhost:8000";
 
 		// Act
-		options.ServiceUrl = serviceUrl;
+		options.Connection.ServiceUrl = serviceUrl;
 
 		// Assert
-		options.ServiceUrl.ShouldBe(serviceUrl);
+		options.Connection.ServiceUrl.ShouldBe(serviceUrl);
 	}
 
 	[Fact]
@@ -54,10 +54,10 @@ public sealed class DynamoDbOutboxOptionsShould : UnitTestBase
 		const string region = "us-east-1";
 
 		// Act
-		options.Region = region;
+		options.Connection.Region = region;
 
 		// Assert
-		options.Region.ShouldBe(region);
+		options.Connection.Region.ShouldBe(region);
 	}
 
 	[Fact]
@@ -68,10 +68,10 @@ public sealed class DynamoDbOutboxOptionsShould : UnitTestBase
 		const string accessKey = "AKIAIOSFODNN7EXAMPLE";
 
 		// Act
-		options.AccessKey = accessKey;
+		options.Connection.AccessKey = accessKey;
 
 		// Assert
-		options.AccessKey.ShouldBe(accessKey);
+		options.Connection.AccessKey.ShouldBe(accessKey);
 	}
 
 	[Fact]
@@ -82,10 +82,10 @@ public sealed class DynamoDbOutboxOptionsShould : UnitTestBase
 		const string secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
 
 		// Act
-		options.SecretKey = secretKey;
+		options.Connection.SecretKey = secretKey;
 
 		// Assert
-		options.SecretKey.ShouldBe(secretKey);
+		options.Connection.SecretKey.ShouldBe(secretKey);
 	}
 
 	[Fact]
@@ -149,7 +149,7 @@ public sealed class DynamoDbOutboxOptionsShould : UnitTestBase
 		// Arrange
 		var options = new DynamoDbOutboxOptions
 		{
-			Region = "us-west-2",
+			Connection = { Region = "us-west-2" },
 		};
 
 		// Act
@@ -166,7 +166,7 @@ public sealed class DynamoDbOutboxOptionsShould : UnitTestBase
 		// Arrange
 		var options = new DynamoDbOutboxOptions
 		{
-			ServiceUrl = "http://localhost:8000",
+			Connection = { ServiceUrl = "http://localhost:8000" },
 		};
 
 		// Act & Assert - Should not throw
@@ -179,7 +179,7 @@ public sealed class DynamoDbOutboxOptionsShould : UnitTestBase
 		// Arrange
 		var options = new DynamoDbOutboxOptions
 		{
-			Region = "us-east-1",
+			Connection = { Region = "us-east-1" },
 		};
 
 		// Act & Assert - Should not throw

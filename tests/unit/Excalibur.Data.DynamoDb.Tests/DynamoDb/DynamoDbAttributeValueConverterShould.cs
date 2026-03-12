@@ -269,10 +269,10 @@ public sealed class DynamoDbAttributeValueConverterShould
 	}
 
 	[Fact]
-	public void IsInternal()
+	public void IsPublic()
 	{
 		// Assert
-		_converterType.IsNotPublic.ShouldBeTrue();
+		_converterType.IsPublic.ShouldBeTrue();
 	}
 
 	#endregion

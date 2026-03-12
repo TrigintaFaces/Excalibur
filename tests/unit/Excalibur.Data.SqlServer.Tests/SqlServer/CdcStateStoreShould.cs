@@ -4,7 +4,7 @@
 using System.Data;
 
 using Excalibur.Data.Abstractions;
-using Excalibur.Data.SqlServer.Cdc;
+using Excalibur.Cdc.SqlServer;
 
 using Excalibur.Data.SqlServer;
 

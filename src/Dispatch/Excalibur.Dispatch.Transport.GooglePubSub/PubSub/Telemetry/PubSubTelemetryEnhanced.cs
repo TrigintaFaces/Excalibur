@@ -221,7 +221,7 @@ public sealed class PubSubTelemetryEnhanced : IDisposable
 	/// </summary>
 	public Activity? StartPublishActivity(PubsubMessage message, string topic)
 	{
-		if (!_options.EnableOpenTelemetry)
+		if (!_options.Telemetry.EnableOpenTelemetry)
 		{
 			return null;
 		}
@@ -243,7 +243,7 @@ public sealed class PubSubTelemetryEnhanced : IDisposable
 			}
 
 			// Inject trace context into message attributes
-			if (_options.EnableTracePropagation && activity.Context != default)
+			if (_options.Telemetry.EnableTracePropagation && activity.Context != default)
 			{
 				message.Attributes[TraceParentHeader] = activity.Context.TraceId + "-" + activity.Context.SpanId;
 				if (!string.IsNullOrEmpty(activity.Context.TraceState))
@@ -309,7 +309,7 @@ public sealed class PubSubTelemetryEnhanced : IDisposable
 	/// </summary>
 	public Activity? StartReceiveActivity(PubsubMessage message)
 	{
-		if (!_options.EnableOpenTelemetry)
+		if (!_options.Telemetry.EnableOpenTelemetry)
 		{
 			return null;
 		}
@@ -317,7 +317,7 @@ public sealed class PubSubTelemetryEnhanced : IDisposable
 		Activity? activity = null;
 
 		// Extract parent context if trace propagation is enabled
-		if (_options.EnableTracePropagation &&
+		if (_options.Telemetry.EnableTracePropagation &&
 			message.Attributes.TryGetValue(TraceParentHeader, out var traceParent))
 		{
 			// Parse trace parent
@@ -502,7 +502,7 @@ public sealed class PubSubTelemetryEnhanced : IDisposable
 	/// </summary>
 	public Activity? CreateLinkedActivity(string operationName, ActivityContext parentContext)
 	{
-		if (!_options.EnableOpenTelemetry)
+		if (!_options.Telemetry.EnableOpenTelemetry)
 		{
 			return null;
 		}

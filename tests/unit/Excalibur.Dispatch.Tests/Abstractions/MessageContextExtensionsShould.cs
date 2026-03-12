@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Abstractions.Transport;
 
@@ -33,14 +34,14 @@ public sealed class MessageContextExtensionsShould : IDisposable
 	#region SetProperty / GetProperty Tests
 
 	[Fact]
-	public void SetProperty_Should_Store_Value_In_Properties()
+	public void SetProperty_Should_Store_Value_In_Items()
 	{
 		// Act
 		_context.SetProperty("key1", "value1");
 
 		// Assert
-		_context.Properties.ShouldContainKey("key1");
-		_context.Properties["key1"].ShouldBe("value1");
+		_context.Items.ShouldContainKey("key1");
+		_context.Items["key1"].ShouldBe("value1");
 	}
 
 	[Fact]
@@ -114,11 +115,10 @@ public sealed class MessageContextExtensionsShould : IDisposable
 	}
 
 	[Fact]
-	public void SetProperty_Should_Fallback_To_Items_When_Properties_Null()
+	public void SetProperty_Should_Store_In_Items()
 	{
-		// Arrange - use a context with Properties returning null
+		// Arrange - use a context with Items
 		var mockContext = A.Fake<IMessageContext>();
-		_ = A.CallTo(() => mockContext.Properties).Returns(null!);
 		var items = new Dictionary<string, object>();
 		_ = A.CallTo(() => mockContext.Items).Returns(items);
 
@@ -131,11 +131,10 @@ public sealed class MessageContextExtensionsShould : IDisposable
 	}
 
 	[Fact]
-	public void GetProperty_Should_Fallback_To_Items_When_Properties_Null()
+	public void GetProperty_Should_Read_From_Items()
 	{
 		// Arrange
 		var mockContext = A.Fake<IMessageContext>();
-		_ = A.CallTo(() => mockContext.Properties).Returns(null!);
 		var items = new Dictionary<string, object> { ["key1"] = "value1" };
 		_ = A.CallTo(() => mockContext.Items).Returns(items);
 
@@ -200,11 +199,10 @@ public sealed class MessageContextExtensionsShould : IDisposable
 	}
 
 	[Fact]
-	public void TryGetProperty_Should_Fallback_To_Items()
+	public void TryGetProperty_Should_Read_From_Items()
 	{
 		// Arrange
 		var mockContext = A.Fake<IMessageContext>();
-		_ = A.CallTo(() => mockContext.Properties).Returns(null!);
 		var items = new Dictionary<string, object> { ["key1"] = "value1" };
 		_ = A.CallTo(() => mockContext.Items).Returns(items);
 
@@ -221,7 +219,7 @@ public sealed class MessageContextExtensionsShould : IDisposable
 	#region RemoveProperty Tests
 
 	[Fact]
-	public void RemoveProperty_Should_Remove_From_Properties()
+	public void RemoveProperty_Should_Remove_From_Items()
 	{
 		// Arrange
 		_context.SetProperty("key1", "value1");
@@ -230,7 +228,7 @@ public sealed class MessageContextExtensionsShould : IDisposable
 		_context.RemoveProperty("key1");
 
 		// Assert
-		_context.Properties.ShouldNotContainKey("key1");
+		_context.Items.ShouldNotContainKey("key1");
 	}
 
 	[Fact]
@@ -251,7 +249,7 @@ public sealed class MessageContextExtensionsShould : IDisposable
 	}
 
 	[Fact]
-	public void RemoveProperty_Should_Remove_From_Both_Properties_And_Items()
+	public void RemoveProperty_Should_Remove_From_Items_Dictionary()
 	{
 		// Arrange
 		_context.SetProperty("key1", "value1");
@@ -261,7 +259,6 @@ public sealed class MessageContextExtensionsShould : IDisposable
 		_context.RemoveProperty("key1");
 
 		// Assert
-		_context.Properties.ShouldNotContainKey("key1");
 		_context.Items.ShouldNotContainKey("key1");
 	}
 

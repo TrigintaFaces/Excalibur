@@ -6,125 +6,88 @@ description: Architectural design of the IMessageContext interface and its evolu
 
 # MessageContext Design
 
-This document explains the architectural design of `IMessageContext`, its evolution, and the rationale behind direct properties vs the Items dictionary.
+This document explains the architectural design of `IMessageContext`, its evolution, and the rationale behind the feature-based decomposition.
 
 ## Overview
 
-`IMessageContext` is the central context object that flows through the entire message processing pipeline. It serves as:
+`IMessageContext` is the central context object that flows through the entire message processing pipeline. It follows the pattern of `Microsoft.AspNetCore.Http.HttpContext`: a minimal set of core properties plus a typed feature collection for extensibility.
 
-1. **Metadata Container** - Message IDs, timestamps, routing information
-2. **Cross-Cutting Concerns** - Correlation, causation, tenancy
-3. **Middleware Communication** - Sharing data within the pipeline via Items
-4. **Processing State Tracker** - Validation, authorization, retry tracking
+It serves as:
+
+1. **Metadata Container** - Core message IDs (MessageId, CorrelationId, CausationId)
+2. **Middleware Communication** - Sharing data within the pipeline via Items dictionary
+3. **Feature Collection** - Typed access to cross-cutting concerns (identity, routing, processing state, validation, timeout, rate limiting, transactions) via `Features` dictionary
 
 ## Design Principles
 
-### 1. Performance-First for Hot Paths
+### 1. Microsoft-First: Minimal Core Interface
 
-Message contexts are created for every message processed. At high throughput (100K+ messages/second), every nanosecond matters.
+Following the `HttpContext` pattern, `IMessageContext` exposes only 8 properties. All cross-cutting concerns are accessed through typed feature interfaces, keeping the core interface stable as new concerns are added.
 
-**Direct properties** provide ~1-3ns access time for frequently-accessed data.
-**Dictionary access** requires ~30-50ns (includes hashing, lookup, and boxing overhead).
+**Before (Sprint 591):** 40 direct properties on `IMessageContext`
+**After (Sprint 592):** 8 core properties + 7 feature interfaces
 
-This 10-20x difference is significant at scale.
+### 2. Type Safety via Feature Interfaces
 
-### 2. Type Safety Over Magic Strings
-
-Direct properties provide:
+Feature interfaces provide:
 - Compile-time type checking
 - IntelliSense support
 - No runtime casting or type errors
 - Self-documenting API
+- Independent testability and mockability
 
-### 3. Separation of Core vs Extensibility
+### 3. Separation of Core vs Features vs Items
 
-**Core Properties** - Data needed by the framework on every message:
+**Core Properties (8)** - Data needed by the framework on every message:
 - Identity: `MessageId`, `CorrelationId`, `CausationId`
-- Tenancy: `TenantId`, `UserId`
-- Routing: `SessionId`, `PartitionKey`
-- Processing: `ProcessingAttempts`, `ValidationPassed`
+- Payload: `Message`, `Result`
+- Infrastructure: `RequestServices`, `Items`, `Features`
+
+**Feature Interfaces** - Typed cross-cutting concerns:
+- `IMessageIdentityFeature` - UserId, TenantId, SessionId, WorkflowId, ExternalId, TraceParent
+- `IMessageProcessingFeature` - ProcessingAttempts, IsRetry, FirstAttemptTime, DeliveryCount
+- `IMessageValidationFeature` - ValidationPassed, ValidationTimestamp
+- `IMessageTimeoutFeature` - TimeoutExceeded, TimeoutElapsed
+- `IMessageRateLimitFeature` - RateLimitExceeded, RateLimitRetryAfter
+- `IMessageRoutingFeature` - RoutingDecision, PartitionKey, Source
+- `IMessageTransactionFeature` - Transaction, TransactionId
 
 **Items Dictionary** - Data that varies by transport or is user-defined:
-- RabbitMQ headers
-- HTTP headers
-- CloudEvents attributes
+- RabbitMQ headers, SQS attributes
+- HTTP headers, CloudEvents attributes
 - Custom user data
 
-## Property Categories
-
-### Identity & Tracing
+## Core Properties
 
 ```csharp
-string? MessageId       // Unique message identifier
-string? CorrelationId   // Groups related messages
-string? CausationId     // Links to parent message
-string? TraceParent     // W3C trace context
-string? ExternalId      // External system ID
+string? MessageId           // Unique message identifier
+string? CorrelationId       // Groups related messages
+string? CausationId         // Links to parent message
+IDispatchMessage? Message   // The message payload
+object? Result              // Handler return value
+IServiceProvider RequestServices // Scoped DI container
+IDictionary<string, object> Items    // Transport metadata, custom data
+IDictionary<Type, object> Features   // Typed feature collection
 ```
 
-These properties enable distributed tracing and debugging across services.
+## Feature Access Patterns
 
-### Tenancy & Security
-
-```csharp
-string? TenantId  // Multi-tenant isolation
-string? UserId    // Audit trail
-string? Source    // Origin service
-```
-
-Essential for multi-tenant applications and security auditing.
-
-### Routing & Ordering
+Three levels of feature access are available:
 
 ```csharp
-string? SessionId     // FIFO ordering
-string? PartitionKey  // Partitioned processing
-string? WorkflowId    // Saga orchestration
-```
+using Excalibur.Dispatch.Abstractions.Features;
 
-Used by transports that support ordering guarantees.
+// 1. Generic feature access
+var identity = context.GetFeature<IMessageIdentityFeature>();
+context.SetFeature<IMessageIdentityFeature>(new MessageIdentityFeature { TenantId = "acme" });
 
-### Message Content
+// 2. Typed convenience (get or create with default implementation)
+var processing = context.GetOrCreateProcessingFeature();
+processing.ProcessingAttempts++;
 
-```csharp
-IDispatchMessage? Message     // The message object
-string? MessageType           // CLR type name
-string? ContentType           // Serialization format
-object? Result                // Handler return value
-```
-
-### Timestamps
-
-```csharp
-DateTimeOffset ReceivedTimestampUtc  // When received
-DateTimeOffset? SentTimestampUtc     // When sent
-```
-
-### Hot-Path Properties
-
-These properties are accessed on nearly every message and were promoted from Items dictionary for performance:
-
-```csharp
-// Retry Tracking
-int ProcessingAttempts           // Attempt count
-DateTimeOffset? FirstAttemptTime // First attempt timestamp
-bool IsRetry                     // Retry flag
-
-// Validation
-bool ValidationPassed            // Validation result
-DateTimeOffset? ValidationTimestamp // When validated
-
-// Transactions
-object? Transaction              // Active transaction
-string? TransactionId            // Transaction ID
-
-// Timeout
-bool TimeoutExceeded             // Timeout flag
-TimeSpan? TimeoutElapsed         // Elapsed before timeout
-
-// Rate Limiting
-bool RateLimitExceeded           // Rate limit flag
-TimeSpan? RateLimitRetryAfter    // Retry-after duration
+// 3. Property-level convenience (read-only shortcuts)
+var tenantId = context.GetTenantId();
+var isRetry = context.GetIsRetry();
 ```
 
 ## Items Dictionary
@@ -159,10 +122,9 @@ When dispatching child messages, cross-cutting concerns propagate automatically:
 
 ```csharp
 var childContext = context.CreateChildContext();
-// Propagated: CorrelationId, TenantId, UserId, SessionId,
-//             WorkflowId, TraceParent, Source
-// Set automatically: CausationId = parent.MessageId
-// NOT copied: Items dictionary, hot-path properties
+// Propagated: CorrelationId, IMessageIdentityFeature, IMessageRoutingFeature.Source
+// Set automatically: CausationId = parent.MessageId, new MessageId
+// NOT copied: Items dictionary, processing/validation/timeout features
 ```
 
 This enables distributed tracing without manual plumbing.
@@ -181,16 +143,22 @@ Message contexts are pooled for performance:
 
 1. **Acquired** from pool when message enters pipeline
 2. **Used** throughout message processing
-3. **Cleared** when processing completes
+3. **Cleared** when processing completes (features and items cleared)
 4. **Returned** to pool for reuse
 
-Hot-path properties reset to default values on clear. Items dictionary is cleared but not reallocated.
+## Evolution History
+
+| Sprint | Change |
+|--------|--------|
+| Initial | IMessageContext with 40 direct properties |
+| 592 | Decomposed to 8 core + 7 feature interfaces (ADR-166) |
+
+The decomposition was driven by the Microsoft-First Compliance Audit (epic `Excalibur.Dispatch-7umoi`). See ADR-166 (`management/architecture/adr-166-sprint-592-imessagecontext-decomposition.md`) for the full decision record.
 
 ## Next Steps
 
-- [MessageContext Items Usage](./messagecontext-items-usage.md) - When to use Items vs properties
+- [MessageContext Items Usage](./messagecontext-items-usage.md) - When to use Items vs features
 - [MessageContext Best Practices](../performance/messagecontext-best-practices.md) - Performance optimization
-- [Migration Guide](../migration/messagecontext-v1.md) - Migrating from Items to direct properties
 
 ## See Also
 

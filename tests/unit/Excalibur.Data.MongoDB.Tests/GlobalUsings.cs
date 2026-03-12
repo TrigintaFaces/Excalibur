@@ -1,3 +1,5 @@
+global using Excalibur.Dispatch.Serialization;
+
 global using FakeItEasy;
 
 global using Microsoft.Extensions.DependencyInjection;

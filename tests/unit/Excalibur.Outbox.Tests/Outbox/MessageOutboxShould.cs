@@ -9,6 +9,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Delivery;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -27,7 +28,7 @@ public sealed class MessageOutboxShould : IDisposable
 {
 	private readonly IOutboxStore _outboxStore;
 	private readonly IOutboxProcessor _outboxProcessor;
-	private readonly IJsonSerializer _serializer;
+	private readonly DispatchJsonSerializer _serializer;
 	private readonly IOptions<DispatchOutboxOptions> _options;
 	private readonly ILogger<MessageOutbox> _logger;
 	private MessageOutbox? _sut;
@@ -36,7 +37,7 @@ public sealed class MessageOutboxShould : IDisposable
 	{
 		_outboxStore = A.Fake<IOutboxStore>();
 		_outboxProcessor = A.Fake<IOutboxProcessor>();
-		_serializer = A.Fake<IJsonSerializer>();
+		_serializer = new DispatchJsonSerializer();
 		_options = Options.Create(DispatchOutboxOptions.Balanced());
 		_logger = A.Fake<ILogger<MessageOutbox>>();
 	}
@@ -123,9 +124,8 @@ public sealed class MessageOutboxShould : IDisposable
 	[Fact]
 	public async Task CallStageMessageAsync_ForEachEvent()
 	{
-		// Arrange - use concrete TestJsonSerializer to avoid FakeItEasy extension method issues
-		var testSerializer = new TestJsonSerializer();
-		_sut = new MessageOutbox(_outboxStore, _outboxProcessor, testSerializer, _options, _logger);
+		// Arrange - use a real DispatchJsonSerializer instance (sealed class, cannot be subclassed or faked)
+		_sut = new MessageOutbox(_outboxStore, _outboxProcessor, _serializer, _options, _logger);
 		var events = new IIntegrationEvent[]
 		{
 			new TestIntegrationEvent { Data = "event1" },
@@ -491,20 +491,5 @@ public sealed class MessageOutboxShould : IDisposable
 		public DateTimeOffset? DispatcherTimeout { get; set; }
 	}
 
-	/// <summary>
-	/// Simple test double for IJsonSerializer that avoids FakeItEasy extension method issues.
-	/// </summary>
-	private sealed class TestJsonSerializer : IJsonSerializer
-	{
-		public string Serialize(object value, Type type) => "{}";
-
-		public object? Deserialize(string json, Type type) => null;
-
-		public Task<string> SerializeAsync(object value, Type type) => Task.FromResult("{}");
-
-		public Task<object?> DeserializeAsync(string json, Type type) => Task.FromResult<object?>(null);
-	}
-
 	#endregion
 }
-

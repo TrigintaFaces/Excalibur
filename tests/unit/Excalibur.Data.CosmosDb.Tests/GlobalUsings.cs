@@ -1,5 +1,5 @@
 global using Excalibur.Data.CosmosDb;
-global using Excalibur.Data.CosmosDb.Cdc;
+global using Excalibur.Cdc.CosmosDb;
 
 global using FakeItEasy;
 

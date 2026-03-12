@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Routing.Builder;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Routing.Builder;
@@ -223,7 +224,7 @@ public sealed class RoutingBuilderShould
 
 		// Act
 		builder.Transport
-			.Route<TestMessage>().When((msg, ctx) => ctx.TenantId == "premium").To("kafka");
+			.Route<TestMessage>().When((msg, ctx) => ctx.GetTenantId() == "premium").To("kafka");
 
 		// Assert
 		var rules = builder.Transport.GetRules();
@@ -344,7 +345,7 @@ public sealed class RoutingBuilderShould
 		builder.Endpoints
 			.Route<TestMessage>()
 				.To("billing-service")
-				.When((TestMessage msg, IMessageContext ctx) => ctx.TenantId == "premium").AlsoTo("vip-service");
+				.When((TestMessage msg, IMessageContext ctx) => ctx.GetTenantId() == "premium").AlsoTo("vip-service");
 
 		// Assert
 		var rules = builder.Endpoints.GetRules();

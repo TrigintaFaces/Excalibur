@@ -46,6 +46,66 @@ public sealed class CloudEventOptions
 	public Uri DefaultSource { get; set; } = new("urn:dispatch");
 
 	/// <summary>
+	/// Gets or sets a value indicating whether to preserve all envelope properties as CloudEvent attributes.
+	/// </summary>
+	/// <remarks>
+	/// When true, ensures MessageId, CorrelationId, TenantId, UserId, TraceId, RetryCount, ScheduledTime, and Timestamp are preserved as CE attributes.
+	/// </remarks>
+	/// <value>The current <see cref="PreserveEnvelopeProperties"/> value.</value>
+	public bool PreserveEnvelopeProperties { get; set; } = true;
+
+	/// <summary>
+	/// Gets or sets the prefix for Dispatch-specific CloudEvent extension attributes.
+	/// </summary>
+	/// <remarks> Used to namespace Excalibur.Dispatch envelope properties as CloudEvent extensions to avoid Tests.CloudProviders. </remarks>
+	/// <value>The current <see cref="DispatchExtensionPrefix"/> value.</value>
+	[Required]
+	public string DispatchExtensionPrefix { get; set; } = "dispatch";
+
+	/// <summary>
+	/// Gets the set of extension attributes to exclude from CloudEvents.
+	/// </summary>
+	/// <remarks> Extensions listed here will not be copied from message context to CloudEvent attributes. </remarks>
+	/// <value>The current <see cref="ExcludedExtensions"/> value.</value>
+	public HashSet<string> ExcludedExtensions { get; } = [];
+
+	/// <summary>
+	/// Gets or sets a value indicating whether to enable DoD (Department of Defense) compliance Mode.
+	/// </summary>
+	/// <remarks>
+	/// When enabled, enforces stricter validation requirements for envelope properties including mandatory correlation ID, user ID, and
+	/// trace parent for audit compliance.
+	/// </remarks>
+	/// <value>The current <see cref="EnableDoDCompliance"/> value.</value>
+	public bool EnableDoDCompliance { get; set; }
+
+	/// <summary>
+	/// Gets or sets the default CloudEvents Mode when not explicitly specified.
+	/// </summary>
+	/// <remarks> Provides a fallback Mode for CloudEvent serialization. Can be overridden per operation. </remarks>
+	/// <value>The current <see cref="DefaultMode"/> value.</value>
+	public CloudEventMode DefaultMode { get; set; } = CloudEventMode.Structured;
+
+	/// <summary>
+	/// Gets or sets the schema configuration for CloudEvents.
+	/// </summary>
+	/// <value>The schema configuration options.</value>
+	public CloudEventSchemaOptions Schema { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the compression configuration for CloudEvents.
+	/// </summary>
+	/// <value>The compression configuration options.</value>
+	public CloudEventCompressionOptions Compression { get; set; } = new();
+
+}
+
+/// <summary>
+/// Configuration options for CloudEvent schema validation, registration, and transformation.
+/// </summary>
+public sealed class CloudEventSchemaOptions
+{
+	/// <summary>
 	/// Gets or sets a value indicating whether to validate CloudEvent schema.
 	/// </summary>
 	/// <value>The current <see cref="ValidateSchema"/> value.</value>
@@ -86,31 +146,13 @@ public sealed class CloudEventOptions
 	/// </summary>
 	/// <value>The current <see cref="OutgoingTransformer"/> value.</value>
 	public Func<CloudEvent, IDispatchEvent, IMessageContext, CancellationToken, Task>? OutgoingTransformer { get; set; }
+}
 
-	/// <summary>
-	/// Gets the set of extension attributes to exclude from CloudEvents.
-	/// </summary>
-	/// <remarks> Extensions listed here will not be copied from message context to CloudEvent attributes. </remarks>
-	/// <value>The current <see cref="ExcludedExtensions"/> value.</value>
-	public HashSet<string> ExcludedExtensions { get; } = [];
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to preserve all envelope properties as CloudEvent attributes.
-	/// </summary>
-	/// <remarks>
-	/// When true, ensures MessageId, CorrelationId, TenantId, UserId, TraceId, RetryCount, ScheduledTime, and Timestamp are preserved as CE attributes.
-	/// </remarks>
-	/// <value>The current <see cref="PreserveEnvelopeProperties"/> value.</value>
-	public bool PreserveEnvelopeProperties { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the prefix for Dispatch-specific CloudEvent extension attributes.
-	/// </summary>
-	/// <remarks> Used to namespace Excalibur.Dispatch envelope properties as CloudEvent extensions to avoid Tests.CloudProviders. </remarks>
-	/// <value>The current <see cref="DispatchExtensionPrefix"/> value.</value>
-	[Required]
-	public string DispatchExtensionPrefix { get; set; } = "dispatch";
-
+/// <summary>
+/// Configuration options for CloudEvent payload compression.
+/// </summary>
+public sealed class CloudEventCompressionOptions
+{
 	/// <summary>
 	/// Gets or sets a value indicating whether to use compressed serialization for large payloads.
 	/// </summary>
@@ -123,21 +165,4 @@ public sealed class CloudEventOptions
 	/// <value>The current <see cref="CompressionThreshold"/> value.</value>
 	[Range(0, int.MaxValue)]
 	public int CompressionThreshold { get; set; } = 1024;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable DoD (Department of Defense) compliance Mode.
-	/// </summary>
-	/// <remarks>
-	/// When enabled, enforces stricter validation requirements for envelope properties including mandatory correlation ID, user ID, and
-	/// trace parent for audit compliance.
-	/// </remarks>
-	/// <value>The current <see cref="EnableDoDCompliance"/> value.</value>
-	public bool EnableDoDCompliance { get; set; }
-
-	/// <summary>
-	/// Gets or sets the default CloudEvents Mode when not explicitly specified.
-	/// </summary>
-	/// <remarks> Provides a fallback Mode for CloudEvent serialization. Can be overridden per operation. </remarks>
-	/// <value>The current <see cref="DefaultMode"/> value.</value>
-	public CloudEventMode DefaultMode { get; set; } = CloudEventMode.Structured;
 }

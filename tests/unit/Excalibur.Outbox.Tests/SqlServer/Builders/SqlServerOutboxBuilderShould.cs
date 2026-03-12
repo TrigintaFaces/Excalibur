@@ -333,8 +333,8 @@ public sealed class SqlServerOutboxBuilderShould : UnitTestBase
 		var outboxOptions = provider.GetRequiredService<OutboxOptions>();
 		outboxOptions.BatchSize.ShouldBe(150);
 		outboxOptions.PollingInterval.ShouldBe(TimeSpan.FromSeconds(10));
-		outboxOptions.EnableAutomaticCleanup.ShouldBeTrue();
-		outboxOptions.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
+		outboxOptions.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
+		outboxOptions.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
 		outboxOptions.EnableBackgroundProcessing.ShouldBeTrue();
 	}
 }

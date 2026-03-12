@@ -49,18 +49,6 @@ public sealed class DispatchJsonSerializerShould : IDisposable
 	}
 
 	[Fact]
-	public void ImplementIMessageSerializer()
-	{
-		_sut.ShouldBeAssignableTo<IMessageSerializer>();
-	}
-
-	[Fact]
-	public void ImplementIUtf8JsonSerializer()
-	{
-		_sut.ShouldBeAssignableTo<IUtf8JsonSerializer>();
-	}
-
-	[Fact]
 	public void ImplementIDisposable()
 	{
 		_sut.ShouldBeAssignableTo<IDisposable>();
@@ -99,7 +87,7 @@ public sealed class DispatchJsonSerializerShould : IDisposable
 	public void DeserializeFromUtf8Bytes()
 	{
 		var json = "\"test-value\""u8.ToArray();
-		var result = _sut.DeserializeFromUtf8(json.AsSpan(), typeof(string));
+		var result = _sut.DeserializeFromUtf8<string>(json.AsSpan());
 
 		result.ShouldNotBeNull();
 		result.ShouldBe("test-value");

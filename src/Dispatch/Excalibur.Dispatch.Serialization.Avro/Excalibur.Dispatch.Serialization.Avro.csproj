@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <AssemblyName>Excalibur.Dispatch.Serialization.Avro</AssemblyName>
+    <RootNamespace>Excalibur.Dispatch.Serialization.Avro</RootNamespace>
+    <PackageId>Excalibur.Dispatch.Serialization.Avro</PackageId>
+    <Description>Apache Avro serialization plugin for the Excalibur framework. Schema-based binary serialization optimized for streaming and Kafka scenarios with excellent schema evolution support.</Description>
+    <PackageTags>dispatch;avro;serialization;binary;schema;kafka;streaming;pluggable;cross-language</PackageTags>
+  </PropertyGroup>
+  <!-- AOT: NOT compatible — Avro uses reflection-based serialization -->
+  <PropertyGroup>
+    <IsAotCompatible>false</IsAotCompatible>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Apache.Avro" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

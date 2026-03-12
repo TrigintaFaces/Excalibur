@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Delivery;
 
 using Microsoft.Extensions.Logging;
@@ -284,13 +285,13 @@ public sealed partial class InMemoryOutboxStore(ILogger<InMemoryOutboxStore> log
 		ArgumentNullException.ThrowIfNull(context);
 
 		var outboundMessage = new OutboundMessage(
-				context.MessageType,
+				context.GetMessageType(),
 				System.Text.Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(message)),
 				"default", // Sample implementation uses default destination
 				null) // Headers no longer available on IDispatchMessage; using null for sample implementation
 		{
 			CorrelationId = context.CorrelationId,
-			TenantId = context.TenantId
+			TenantId = context.GetTenantId()
 		};
 
 		return StageMessageAsync(outboundMessage, cancellationToken);

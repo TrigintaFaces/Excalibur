@@ -327,12 +327,12 @@ public sealed class GooglePubSubCloudEventAdapter : ICloudEventMapper<PubsubMess
 
 	private void ApplyCompressionIfConfigured(PubsubMessage message)
 	{
-		if (!_pubSubOptions.EnableCompression || message.Data.IsEmpty)
+		if (!_pubSubOptions.Transport.EnableCompression || message.Data.IsEmpty)
 		{
 			return;
 		}
 
-		var threshold = _pubSubOptions.CompressionThreshold;
+		var threshold = _pubSubOptions.Transport.CompressionThreshold;
 		if (threshold < 0)
 		{
 			threshold = 0;

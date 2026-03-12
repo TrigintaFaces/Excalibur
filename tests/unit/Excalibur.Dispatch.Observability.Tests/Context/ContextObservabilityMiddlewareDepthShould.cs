@@ -4,6 +4,7 @@
 #pragma warning disable IL2026, IL3050 // Suppress for test - RequiresUnreferencedCode/RequiresDynamicCode
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Observability.Context;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -121,12 +122,12 @@ public sealed class ContextObservabilityMiddlewareDepthShould : IDisposable
 		_middleware = CreateMiddleware(options);
 
 		var message = A.Fake<IDispatchMessage>();
-		var context = CreateFakeContext();
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>
+		var items = new Dictionary<string, object>
 		{
 			["OrderId"] = "order-123",
 			["Amount"] = 99.99,
-		});
+		};
+		var context = CreateFakeContext(items);
 		A.CallTo(() => _fakeTracker.ValidateContextIntegrity(context)).Returns(true);
 
 		DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(A.Fake<IMessageResult>());
@@ -147,9 +148,11 @@ public sealed class ContextObservabilityMiddlewareDepthShould : IDisposable
 		_middleware = CreateMiddleware(options);
 
 		var message = A.Fake<IDispatchMessage>();
-		var context = CreateFakeContext();
-		A.CallTo(() => context.ContainsItem("PipelineStage")).Returns(true);
-		A.CallTo(() => context.GetItem<string>("PipelineStage")).Returns("CustomStage");
+		var items = new Dictionary<string, object>
+		{
+			["PipelineStage"] = "CustomStage",
+		};
+		var context = CreateFakeContext(items);
 		A.CallTo(() => _fakeTracker.ValidateContextIntegrity(context)).Returns(true);
 
 		DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(A.Fake<IMessageResult>());
@@ -368,8 +371,8 @@ public sealed class ContextObservabilityMiddlewareDepthShould : IDisposable
 		_middleware = CreateMiddleware(options);
 
 		var message = A.Fake<IDispatchMessage>();
+		// No PipelineStage in items — will use default stage name
 		var context = CreateFakeContext();
-		A.CallTo(() => context.ContainsItem("PipelineStage")).Returns(false);
 		A.CallTo(() => _fakeTracker.ValidateContextIntegrity(context)).Returns(true);
 
 		DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(A.Fake<IMessageResult>());
@@ -459,11 +462,17 @@ public sealed class ContextObservabilityMiddlewareDepthShould : IDisposable
 	private static IMessageContext CreateFakeContext(Dictionary<string, object>? items = null)
 	{
 		var context = A.Fake<IMessageContext>();
+		var contextItems = items ?? new Dictionary<string, object>();
+		var features = new Dictionary<Type, object>();
+
 		A.CallTo(() => context.MessageId).Returns("msg-1");
 		A.CallTo(() => context.CorrelationId).Returns("corr-1");
-		A.CallTo(() => context.MessageType).Returns("TestMessage");
-		A.CallTo(() => context.Items).Returns(items ?? new Dictionary<string, object>());
-		A.CallTo(() => context.ContainsItem(A<string>._)).Returns(false);
+		A.CallTo(() => context.Items).Returns(contextItems);
+		A.CallTo(() => context.Features).Returns(features);
+
+		// Set MessageType via extension method (stored in Items)
+		context.SetMessageType("TestMessage");
+
 		return context;
 	}
 

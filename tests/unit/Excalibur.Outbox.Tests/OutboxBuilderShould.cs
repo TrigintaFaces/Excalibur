@@ -64,7 +64,7 @@ public sealed class OutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.MaxRetryCount.ShouldBe(10);
+		options.Retry.MaxRetryCount.ShouldBe(10);
 	}
 
 	[Fact]
@@ -82,7 +82,7 @@ public sealed class OutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(15));
+		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(15));
 	}
 
 	[Fact]
@@ -155,7 +155,7 @@ public sealed class OutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.EnableAutomaticCleanup.ShouldBeFalse();
+		options.Cleanup.EnableAutomaticCleanup.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -173,7 +173,7 @@ public sealed class OutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
 	}
 
 	[Fact]
@@ -191,7 +191,7 @@ public sealed class OutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.CleanupInterval.ShouldBe(TimeSpan.FromHours(6));
+		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromHours(6));
 	}
 
 	[Fact]
@@ -324,14 +324,14 @@ public sealed class OutboxBuilderShould : UnitTestBase
 		var options = provider.GetRequiredService<OutboxOptions>();
 		options.BatchSize.ShouldBe(500);
 		options.PollingInterval.ShouldBe(TimeSpan.FromSeconds(2));
-		options.MaxRetryCount.ShouldBe(7);
-		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(10));
+		options.Retry.MaxRetryCount.ShouldBe(7);
+		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(10));
 		options.ProcessorId.ShouldBe("worker-1");
 		options.EnableParallelProcessing.ShouldBeTrue();
 		options.MaxDegreeOfParallelism.ShouldBe(16);
-		options.EnableAutomaticCleanup.ShouldBeTrue();
-		options.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
-		options.CleanupInterval.ShouldBe(TimeSpan.FromHours(4));
+		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
+		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromHours(4));
 		options.EnableBackgroundProcessing.ShouldBeTrue();
 	}
 

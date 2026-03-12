@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -74,8 +75,9 @@ public sealed partial class HandlerTimeoutMiddleware(
 			// Our timeout fired, not external cancellation
 			LogHandlerTimedOut(context.MessageId ?? string.Empty, message.GetType().Name, timeout.TotalMilliseconds);
 
-			context.TimeoutExceeded = true;
-			context.TimeoutElapsed = timeout;
+			var timeoutFeature = context.GetOrCreateTimeoutFeature();
+			timeoutFeature.TimeoutExceeded = true;
+			timeoutFeature.TimeoutElapsed = timeout;
 
 			if (_options.ThrowOnTimeout)
 			{

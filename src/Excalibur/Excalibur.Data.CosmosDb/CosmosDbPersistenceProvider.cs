@@ -44,8 +44,9 @@ internal interface ICloudBatchReplaceOperation
 	"Maintainability",
 	"CA1506:Avoid excessive class coupling",
 	Justification = "Cloud persistence providers inherently couple with many SDK and abstraction types.")]
-public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenceProvider, IPersistenceProviderHealth,
-	IPersistenceProviderTransaction, IAsyncDisposable
+public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenceProvider,
+	ICloudNativeProviderInfo, ICloudNativePersistenceQueryOperations, ICloudNativePersistenceBatchOperations, ICloudNativePersistenceChangeFeed,
+	IPersistenceProviderHealth, IPersistenceProviderTransaction, IAsyncDisposable
 {
 	private readonly CosmosDbOptions _options;
 	private readonly ILogger<CosmosDbPersistenceProvider> _logger;
@@ -186,7 +187,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 			var response = await container.CreateItemAsync(
 				document,
 				cosmosPartitionKey,
-				new ItemRequestOptions { EnableContentResponseOnWrite = _options.EnableContentResponseOnWrite },
+				new ItemRequestOptions { EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite },
 				cancellationToken).ConfigureAwait(false);
 
 			LogOperationCompleted("Create", response.RequestCharge);
@@ -224,7 +225,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 
 		var container = GetContainer();
 		var cosmosPartitionKey = ToCosmosPartitionKey(partitionKey);
-		var requestOptions = new ItemRequestOptions { EnableContentResponseOnWrite = _options.EnableContentResponseOnWrite };
+		var requestOptions = new ItemRequestOptions { EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite };
 
 		if (!string.IsNullOrEmpty(etag))
 		{
@@ -568,8 +569,8 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 	#region IPersistenceProvider Implementation
 
 	/// <inheritdoc/>
-	public string ConnectionString => _options.ConnectionString
-	                                  ?? (_options.AccountEndpoint != null ? $"AccountEndpoint={_options.AccountEndpoint}" : string.Empty);
+	public string ConnectionString => _options.Client.ConnectionString
+	                                  ?? (_options.Client.AccountEndpoint != null ? $"AccountEndpoint={_options.Client.AccountEndpoint}" : string.Empty);
 
 	/// <inheritdoc/>
 	public Abstractions.Resilience.IDataRequestRetryPolicy RetryPolicy => CosmosDbRetryPolicy.Instance;
@@ -634,7 +635,7 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 		// Connection pool statistics are not directly exposed by the SDK.
 		var stats = new Dictionary<string, object>(StringComparer.Ordinal)
 		{
-			["ConnectionMode"] = _options.UseDirectMode ? "Direct" : "Gateway",
+			["ConnectionMode"] = _options.Client.UseDirectMode ? "Direct" : "Gateway",
 			["IsInitialized"] = _initialized,
 			["IsDisposed"] = _disposed
 		};
@@ -653,6 +654,26 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 		}
 
 		if (serviceType == typeof(IPersistenceProviderTransaction))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(ICloudNativePersistenceQueryOperations))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(ICloudNativePersistenceBatchOperations))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(ICloudNativePersistenceChangeFeed))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(ICloudNativeProviderInfo))
 		{
 			return this;
 		}
@@ -778,26 +799,26 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 	{
 		var options = new CosmosClientOptions
 		{
-			ApplicationName = _options.ApplicationName ?? "Excalibur.Data.CosmosDb",
-			MaxRetryAttemptsOnRateLimitedRequests = _options.MaxRetryAttempts,
-			MaxRetryWaitTimeOnRateLimitedRequests = TimeSpan.FromSeconds(_options.MaxRetryWaitTimeInSeconds),
-			EnableContentResponseOnWrite = _options.EnableContentResponseOnWrite,
+			ApplicationName = _options.Client.ApplicationName ?? "Excalibur.Data.CosmosDb",
+			MaxRetryAttemptsOnRateLimitedRequests = _options.Client.Resilience.MaxRetryAttempts,
+			MaxRetryWaitTimeOnRateLimitedRequests = TimeSpan.FromSeconds(_options.Client.Resilience.MaxRetryWaitTimeInSeconds),
+			EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite,
 			AllowBulkExecution = _options.AllowBulkExecution,
-			RequestTimeout = TimeSpan.FromSeconds(_options.RequestTimeoutInSeconds),
+			RequestTimeout = TimeSpan.FromSeconds(_options.Client.Resilience.RequestTimeoutInSeconds),
 			EnableTcpConnectionEndpointRediscovery = _options.EnableTcpConnectionEndpointRediscovery
 		};
 
-		if (_options.ConsistencyLevel.HasValue)
+		if (_options.Client.ConsistencyLevel.HasValue)
 		{
-			options.ConsistencyLevel = _options.ConsistencyLevel.Value;
+			options.ConsistencyLevel = _options.Client.ConsistencyLevel.Value;
 		}
 
-		if (_options.PreferredRegions is { Count: > 0 })
+		if (_options.Client.PreferredRegions is { Count: > 0 })
 		{
-			options.ApplicationPreferredRegions = _options.PreferredRegions.ToList();
+			options.ApplicationPreferredRegions = _options.Client.PreferredRegions.ToList();
 		}
 
-		if (_options.UseDirectMode)
+		if (_options.Client.UseDirectMode)
 		{
 			options.ConnectionMode = ConnectionMode.Direct;
 		}
@@ -811,12 +832,12 @@ public sealed partial class CosmosDbPersistenceProvider : ICloudNativePersistenc
 
 	private CosmosClient CreateClient(CosmosClientOptions options)
 	{
-		if (!string.IsNullOrWhiteSpace(_options.ConnectionString))
+		if (!string.IsNullOrWhiteSpace(_options.Client.ConnectionString))
 		{
-			return new CosmosClient(_options.ConnectionString, options);
+			return new CosmosClient(_options.Client.ConnectionString, options);
 		}
 
-		return new CosmosClient(_options.AccountEndpoint, _options.AccountKey, options);
+		return new CosmosClient(_options.Client.AccountEndpoint, _options.Client.AccountKey, options);
 	}
 
 	private Container GetContainer(string? containerName = null) =>

@@ -28,7 +28,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvider, IKeyMaterialProvider, IDisposable
+public sealed partial class InMemoryKeyManagementProvider : IKeyManagementProvider, IKeyManagementAdmin, IKeyMaterialProvider, IDisposable
 {
 	private const int KeySizeBytes = 32; // AES-256
 

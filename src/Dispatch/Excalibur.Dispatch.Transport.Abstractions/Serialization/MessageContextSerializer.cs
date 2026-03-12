@@ -5,6 +5,7 @@
 using System.Globalization;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Messaging;
 
 namespace Excalibur.Dispatch.Transport;
@@ -54,27 +55,28 @@ public static class MessageContextSerializer
 
 		// Serialize string fields
 		AddAttribute(attributes, MessageIdKey, context.MessageId);
-		AddAttribute(attributes, ExternalIdKey, context.ExternalId);
-		AddAttribute(attributes, UserIdKey, context.UserId);
+		AddAttribute(attributes, ExternalIdKey, context.GetExternalId());
+		AddAttribute(attributes, UserIdKey, context.GetUserId());
 		AddAttribute(attributes, CorrelationIdKey, context.CorrelationId);
 		AddAttribute(attributes, CausationIdKey, context.CausationId);
-		AddAttribute(attributes, TenantIdKey, context.TenantId);
-		AddAttribute(attributes, SessionIdKey, context.SessionId);
-		AddAttribute(attributes, WorkflowIdKey, context.WorkflowId);
-		AddAttribute(attributes, PartitionKeyKey, context.PartitionKey);
-		AddAttribute(attributes, SourceKey, context.Source);
-		AddAttribute(attributes, MessageTypeKey, context.MessageType);
-		AddAttribute(attributes, ContentTypeKey, context.ContentType);
-		AddAttribute(attributes, TraceParentKey, context.TraceParent);
+		AddAttribute(attributes, TenantIdKey, context.GetTenantId());
+		AddAttribute(attributes, SessionIdKey, context.GetSessionId());
+		AddAttribute(attributes, WorkflowIdKey, context.GetWorkflowId());
+		AddAttribute(attributes, PartitionKeyKey, context.GetPartitionKey());
+		AddAttribute(attributes, SourceKey, context.GetSource());
+		AddAttribute(attributes, MessageTypeKey, context.GetMessageType());
+		AddAttribute(attributes, ContentTypeKey, context.GetContentType());
+		AddAttribute(attributes, TraceParentKey, context.GetTraceParent());
 
 		// Serialize numeric fields
-		AddAttribute(attributes, DeliveryCountKey, context.DeliveryCount.ToString(CultureInfo.InvariantCulture));
+		AddAttribute(attributes, DeliveryCountKey, context.GetDeliveryCount().ToString(CultureInfo.InvariantCulture));
 
 		// Serialize timestamp
-		if (context.SentTimestampUtc.HasValue)
+		var sentTimestamp = context.GetSentTimestampUtc();
+		if (sentTimestamp.HasValue)
 		{
 			AddAttribute(attributes, SentTimestampKey,
-				context.SentTimestampUtc.Value.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture));
+				sentTimestamp.Value.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture));
 		}
 
 		return attributes;
@@ -95,31 +97,39 @@ public static class MessageContextSerializer
 
 		var context = MessageContext.CreateForDeserialization(serviceProvider);
 
-		// Deserialize string fields
+		// Deserialize core string fields
 		context.MessageId = GetAttribute(attributes, MessageIdKey);
-		context.ExternalId = GetAttribute(attributes, ExternalIdKey);
-		context.UserId = GetAttribute(attributes, UserIdKey);
 		context.CorrelationId = GetAttribute(attributes, CorrelationIdKey);
 		context.CausationId = GetAttribute(attributes, CausationIdKey);
-		context.TenantId = GetAttribute(attributes, TenantIdKey);
-		context.SessionId = GetAttribute(attributes, SessionIdKey);
-		context.WorkflowId = GetAttribute(attributes, WorkflowIdKey);
-		context.PartitionKey = GetAttribute(attributes, PartitionKeyKey);
-		context.Source = GetAttribute(attributes, SourceKey);
-		context.MessageType = GetAttribute(attributes, MessageTypeKey);
-		context.ContentType = GetAttribute(attributes, ContentTypeKey);
-		context.TraceParent = GetAttribute(attributes, TraceParentKey);
+
+		// Deserialize identity feature fields
+		var identity = context.GetOrCreateIdentityFeature();
+		identity.ExternalId = GetAttribute(attributes, ExternalIdKey);
+		identity.UserId = GetAttribute(attributes, UserIdKey);
+		identity.TenantId = GetAttribute(attributes, TenantIdKey);
+		identity.SessionId = GetAttribute(attributes, SessionIdKey);
+		identity.WorkflowId = GetAttribute(attributes, WorkflowIdKey);
+		identity.TraceParent = GetAttribute(attributes, TraceParentKey);
+
+		// Deserialize routing feature fields
+		var routing = context.GetOrCreateRoutingFeature();
+		routing.PartitionKey = GetAttribute(attributes, PartitionKeyKey);
+		routing.Source = GetAttribute(attributes, SourceKey);
+
+		// Deserialize Items-based fields
+		context.SetMessageType(GetAttribute(attributes, MessageTypeKey));
+		context.SetContentType(GetAttribute(attributes, ContentTypeKey));
 
 		// Deserialize numeric fields
 		if (int.TryParse(GetAttribute(attributes, DeliveryCountKey), out var deliveryCount))
 		{
-			context.DeliveryCount = deliveryCount;
+			context.GetOrCreateProcessingFeature().DeliveryCount = deliveryCount;
 		}
 
 		// Deserialize timestamp
 		if (long.TryParse(GetAttribute(attributes, SentTimestampKey), out var sentTimestamp))
 		{
-			context.SentTimestampUtc = DateTimeOffset.FromUnixTimeMilliseconds(sentTimestamp);
+			context.SetSentTimestampUtc(DateTimeOffset.FromUnixTimeMilliseconds(sentTimestamp));
 		}
 
 		// Ensure critical fields have values — MessageId is required for message tracking
@@ -129,15 +139,15 @@ public static class MessageContextSerializer
 				"Deserialized message context is missing required field 'MessageId' (X-MessageId).");
 		}
 
-		if (string.IsNullOrEmpty(context.MessageType))
+		if (string.IsNullOrEmpty(context.GetMessageType()))
 		{
 			throw new InvalidOperationException(
 				"Deserialized message context is missing required field 'MessageType' (X-MessageType).");
 		}
 
-		// Set received timestamp at deserialization time.
-		// TODO: Consider accepting an ITimeProvider/TimeProvider for testability instead of calling DateTimeOffset.UtcNow directly.
-		context.ReceivedTimestampUtc = DateTimeOffset.UtcNow;
+		// Set received timestamp at deserialization time using TimeProvider for testability.
+		var timeProvider = serviceProvider.GetService(typeof(TimeProvider)) as TimeProvider ?? TimeProvider.System;
+		context.SetReceivedTimestampUtc(timeProvider.GetUtcNow());
 
 		return context;
 	}

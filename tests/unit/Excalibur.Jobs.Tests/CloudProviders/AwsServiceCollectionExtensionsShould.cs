@@ -4,7 +4,7 @@
 using Amazon.Extensions.NETCore.Setup;
 using Amazon.Scheduler;
 
-using Excalibur.Jobs.CloudProviders.Aws;
+using Excalibur.Jobs.Aws;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -19,7 +19,7 @@ public sealed class AwsServiceCollectionExtensionsShould
 	public void ThrowWhenServicesIsNull_WithoutAwsOptions()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			AwsServiceCollectionExtensions.AddAwsScheduler(null!, _ => { }));
+			AwsJobsServiceCollectionExtensions.AddAwsScheduler(null!, _ => { }));
 	}
 
 	[Fact]
@@ -57,7 +57,7 @@ public sealed class AwsServiceCollectionExtensionsShould
 	public void ThrowWhenServicesIsNull_WithAwsOptions()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			AwsServiceCollectionExtensions.AddAwsScheduler(null!, new AWSOptions(), _ => { }));
+			AwsJobsServiceCollectionExtensions.AddAwsScheduler(null!, new AWSOptions(), _ => { }));
 	}
 
 	[Fact]

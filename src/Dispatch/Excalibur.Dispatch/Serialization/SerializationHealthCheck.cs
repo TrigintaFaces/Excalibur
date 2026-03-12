@@ -87,7 +87,7 @@ public sealed partial class SerializationHealthCheck : IHealthCheck
 
 		// Check 1: Verify current serializer is configured.
 		byte currentId;
-		IPluggableSerializer currentSerializer;
+		ISerializer currentSerializer;
 		try
 		{
 			(currentId, currentSerializer) = _registry.GetCurrent();
@@ -185,7 +185,7 @@ public sealed partial class SerializationHealthCheck : IHealthCheck
 	private SerializerVerificationResult VerifySerializer(
 		byte id,
 		string name,
-		IPluggableSerializer serializer)
+		ISerializer serializer)
 	{
 		// Use simple string for verification - works with all serializers without registration.
 		var testValue = $"HealthCheck_{Guid.NewGuid():N}";
@@ -194,7 +194,7 @@ public sealed partial class SerializationHealthCheck : IHealthCheck
 		try
 		{
 			// Serialize.
-			var serialized = serializer.Serialize(testValue);
+			var serialized = serializer.SerializeToBytes(testValue);
 
 			// Deserialize.
 			var deserialized = serializer.Deserialize<string>(serialized);

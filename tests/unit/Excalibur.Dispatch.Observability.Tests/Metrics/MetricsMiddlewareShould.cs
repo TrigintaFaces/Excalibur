@@ -16,6 +16,19 @@ public sealed class MetricsMiddlewareShould
 {
 	private readonly IDispatchMetrics _fakeMetrics = A.Fake<IDispatchMetrics>();
 
+	/// <summary>
+	/// Creates a fake <see cref="IMessageContext"/> backed by a real Items dictionary
+	/// so that extension methods (GetItem, SetItem, ContainsItem) work correctly.
+	/// </summary>
+	private static IMessageContext CreateFakeContext(Dictionary<string, object>? items = null)
+	{
+		var context = A.Fake<IMessageContext>();
+		var itemsDict = items ?? new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Items).Returns(itemsDict);
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
+		return context;
+	}
+
 	[Fact]
 	public void ThrowOnNullMetrics()
 	{
@@ -35,7 +48,7 @@ public sealed class MetricsMiddlewareShould
 		// Arrange
 		var middleware = new MetricsMiddleware(_fakeMetrics);
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
+		var context = CreateFakeContext();
 		var expectedResult = A.Fake<IMessageResult>();
 		A.CallTo(() => expectedResult.IsSuccess).Returns(true);
 
@@ -58,7 +71,7 @@ public sealed class MetricsMiddlewareShould
 		// Arrange
 		var middleware = new MetricsMiddleware(_fakeMetrics);
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
+		var context = CreateFakeContext();
 		var failedResult = A.Fake<IMessageResult>();
 		A.CallTo(() => failedResult.IsSuccess).Returns(false);
 		A.CallTo(() => failedResult.ProblemDetails).Returns(A.Fake<IMessageProblemDetails>());
@@ -80,7 +93,7 @@ public sealed class MetricsMiddlewareShould
 		// Arrange
 		var middleware = new MetricsMiddleware(_fakeMetrics);
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
+		var context = CreateFakeContext();
 
 		DispatchRequestDelegate next = (msg, ctx, ct) => throw new InvalidOperationException("Test");
 

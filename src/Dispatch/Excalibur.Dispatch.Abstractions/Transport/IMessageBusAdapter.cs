@@ -21,24 +21,6 @@ public interface IMessageBusAdapter : IDisposable
 	string Name { get; }
 
 	/// <summary>
-	/// Gets a value indicating whether this adapter supports message publishing.
-	/// </summary>
-	/// <value> True if the adapter can publish messages; otherwise, false. </value>
-	bool SupportsPublishing { get; }
-
-	/// <summary>
-	/// Gets a value indicating whether this adapter supports message subscription and consumption.
-	/// </summary>
-	/// <value> True if the adapter can subscribe to and consume messages; otherwise, false. </value>
-	bool SupportsSubscription { get; }
-
-	/// <summary>
-	/// Gets a value indicating whether this adapter supports transactional message operations.
-	/// </summary>
-	/// <value> True if the adapter supports transactions; otherwise, false. </value>
-	bool SupportsTransactions { get; }
-
-	/// <summary>
 	/// Gets a value indicating whether this adapter is currently connected and ready for operations.
 	/// </summary>
 	/// <value> True if the adapter is connected; otherwise, false. </value>
@@ -87,7 +69,25 @@ public interface IMessageBusAdapter : IDisposable
 	/// <param name="cancellationToken"> Token to cancel the unsubscribe operation. </param>
 	/// <returns> A task representing the unsubscribe operation. </returns>
 	Task UnsubscribeAsync(string subscriptionName, CancellationToken cancellationToken);
+}
 
+/// <summary>
+/// Sub-interface for message bus adapter lifecycle operations including start, stop, and health checking.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This interface separates lifecycle concerns from core messaging operations defined in
+/// <see cref="IMessageBusAdapter"/>. Implementations that support managed lifecycle (start/stop)
+/// and health monitoring should implement this interface in addition to <see cref="IMessageBusAdapter"/>.
+/// </para>
+/// <para>
+/// Consumers that only need to publish or subscribe to messages can depend on <see cref="IMessageBusAdapter"/>
+/// alone, while infrastructure code that manages adapter lifecycle (such as hosted services) can resolve
+/// <see cref="IMessageBusAdapterLifecycle"/> when needed.
+/// </para>
+/// </remarks>
+public interface IMessageBusAdapterLifecycle
+{
 	/// <summary>
 	/// Performs a health check on the message bus adapter.
 	/// </summary>
@@ -108,4 +108,39 @@ public interface IMessageBusAdapter : IDisposable
 	/// <param name="cancellationToken"> Token to cancel the stop operation. </param>
 	/// <returns> A task representing the stop operation. </returns>
 	Task StopAsync(CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Provides capability metadata for a message bus adapter.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This interface separates capability discovery from core messaging operations defined in
+/// <see cref="IMessageBusAdapter"/>. Infrastructure code that needs to query adapter capabilities
+/// (e.g., routing decisions, multi-transport aggregation) can resolve this interface.
+/// </para>
+/// <para>
+/// Consumers that only need to publish or subscribe to messages can depend on
+/// <see cref="IMessageBusAdapter"/> alone without coupling to capability metadata.
+/// </para>
+/// </remarks>
+public interface IMessageBusAdapterCapabilities
+{
+	/// <summary>
+	/// Gets a value indicating whether this adapter supports message publishing.
+	/// </summary>
+	/// <value> True if the adapter can publish messages; otherwise, false. </value>
+	bool SupportsPublishing { get; }
+
+	/// <summary>
+	/// Gets a value indicating whether this adapter supports message subscription and consumption.
+	/// </summary>
+	/// <value> True if the adapter can subscribe to and consume messages; otherwise, false. </value>
+	bool SupportsSubscription { get; }
+
+	/// <summary>
+	/// Gets a value indicating whether this adapter supports transactional message operations.
+	/// </summary>
+	/// <value> True if the adapter supports transactions; otherwise, false. </value>
+	bool SupportsTransactions { get; }
 }

@@ -7,6 +7,7 @@ using System.Globalization;
 using Amazon.SQS.Model;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Messaging;
 
 namespace Excalibur.Dispatch.Transport.Aws;
@@ -143,7 +144,7 @@ public sealed class SqsMessageEnvelope : IDisposable, IAsyncDisposable
 				return count;
 			}
 
-			return Context.DeliveryCount;
+			return Context.GetDeliveryCount();
 		}
 		set => Context.Items["SQS.ApproximateReceiveCount"] = value.ToString(CultureInfo.InvariantCulture);
 	}

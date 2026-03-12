@@ -21,7 +21,7 @@ public sealed class A3BuilderDynamoDbExtensionsShould
 		IA3Builder? builder = null;
 
 		Should.Throw<ArgumentNullException>(() =>
-			builder!.UseDynamoDb(options => { options.Region = "us-east-1"; }));
+			builder!.UseDynamoDb(options => { options.Connection.Region = "us-east-1"; }));
 	}
 
 	[Fact]
@@ -46,7 +46,7 @@ public sealed class A3BuilderDynamoDbExtensionsShould
 		// Act
 		var result = builder.UseDynamoDb(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 		});
 
 		// Assert
@@ -63,7 +63,7 @@ public sealed class A3BuilderDynamoDbExtensionsShould
 		// Act
 		services.AddExcaliburA3().UseDynamoDb(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 		});
 
 		// Assert
@@ -81,7 +81,7 @@ public sealed class A3BuilderDynamoDbExtensionsShould
 		// Act
 		services.AddExcaliburA3().UseDynamoDb(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 		});
 
 		// Assert

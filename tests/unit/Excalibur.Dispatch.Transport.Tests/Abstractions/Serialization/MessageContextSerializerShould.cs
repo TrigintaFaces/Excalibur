@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Transport;
 
@@ -39,18 +41,18 @@ public sealed class MessageContextSerializerShould
     {
         var context = MessageContext.CreateForDeserialization(_serviceProvider);
         context.MessageId = "msg-1";
-        context.ExternalId = "ext-1";
-        context.UserId = "user-1";
+        context.GetOrCreateIdentityFeature().ExternalId = "ext-1";
+        context.GetOrCreateIdentityFeature().UserId = "user-1";
         context.CorrelationId = "corr-1";
         context.CausationId = "cause-1";
-        context.TenantId = "tenant-1";
-        context.SessionId = "sess-1";
-        context.WorkflowId = "wf-1";
-        context.PartitionKey = "pk-1";
-        context.Source = "src-1";
-        context.MessageType = "OrderCreated";
-        context.ContentType = "application/json";
-        context.TraceParent = "00-abc-def-01";
+        context.GetOrCreateIdentityFeature().TenantId = "tenant-1";
+        context.GetOrCreateIdentityFeature().SessionId = "sess-1";
+        context.GetOrCreateIdentityFeature().WorkflowId = "wf-1";
+        context.GetOrCreateRoutingFeature().PartitionKey = "pk-1";
+        context.GetOrCreateRoutingFeature().Source = "src-1";
+        context.SetMessageType("OrderCreated");
+        context.SetContentType("application/json");
+        context.GetOrCreateIdentityFeature().TraceParent = "00-abc-def-01";
 
         var dict = MessageContextSerializer.SerializeToDictionary(context);
 
@@ -74,7 +76,7 @@ public sealed class MessageContextSerializerShould
     {
         var context = MessageContext.CreateForDeserialization(_serviceProvider);
         context.MessageId = "msg-1";
-        context.DeliveryCount = 5;
+        context.GetOrCreateProcessingFeature().DeliveryCount = 5;
 
         var dict = MessageContextSerializer.SerializeToDictionary(context);
 
@@ -87,7 +89,7 @@ public sealed class MessageContextSerializerShould
         var timestamp = new DateTimeOffset(2026, 1, 15, 10, 30, 0, TimeSpan.Zero);
         var context = MessageContext.CreateForDeserialization(_serviceProvider);
         context.MessageId = "msg-1";
-        context.SentTimestampUtc = timestamp;
+        context.SetSentTimestampUtc(timestamp);
 
         var dict = MessageContextSerializer.SerializeToDictionary(context);
 
@@ -114,7 +116,7 @@ public sealed class MessageContextSerializerShould
     {
         var context = MessageContext.CreateForDeserialization(_serviceProvider);
         context.MessageId = "msg-1";
-        context.SentTimestampUtc = null;
+        context.SetSentTimestampUtc(null);
 
         var dict = MessageContextSerializer.SerializeToDictionary(context);
         dict.ShouldNotContainKey("X-SentTimestamp");
@@ -143,18 +145,18 @@ public sealed class MessageContextSerializerShould
         var result = MessageContextSerializer.DeserializeFromDictionary(dict, _serviceProvider);
 
         result.MessageId.ShouldBe("msg-1");
-        result.ExternalId.ShouldBe("ext-1");
-        result.UserId.ShouldBe("user-1");
+        result.GetExternalId().ShouldBe("ext-1");
+        result.GetUserId().ShouldBe("user-1");
         result.CorrelationId.ShouldBe("corr-1");
         result.CausationId.ShouldBe("cause-1");
-        result.TenantId.ShouldBe("tenant-1");
-        result.SessionId.ShouldBe("sess-1");
-        result.WorkflowId.ShouldBe("wf-1");
-        result.PartitionKey.ShouldBe("pk-1");
-        result.Source.ShouldBe("src-1");
-        result.MessageType.ShouldBe("OrderCreated");
-        result.ContentType.ShouldBe("application/json");
-        result.TraceParent.ShouldBe("00-abc-def-01");
+        result.GetTenantId().ShouldBe("tenant-1");
+        result.GetSessionId().ShouldBe("sess-1");
+        result.GetWorkflowId().ShouldBe("wf-1");
+        result.GetPartitionKey().ShouldBe("pk-1");
+        result.GetSource().ShouldBe("src-1");
+        result.GetMessageType().ShouldBe("OrderCreated");
+        result.GetContentType().ShouldBe("application/json");
+        result.GetTraceParent().ShouldBe("00-abc-def-01");
     }
 
     [Fact]
@@ -168,7 +170,7 @@ public sealed class MessageContextSerializerShould
         };
 
         var result = MessageContextSerializer.DeserializeFromDictionary(dict, _serviceProvider);
-        result.DeliveryCount.ShouldBe(7);
+        result.GetDeliveryCount().ShouldBe(7);
     }
 
     [Fact]
@@ -183,8 +185,8 @@ public sealed class MessageContextSerializerShould
         };
 
         var result = MessageContextSerializer.DeserializeFromDictionary(dict, _serviceProvider);
-        result.SentTimestampUtc.ShouldNotBeNull();
-        result.SentTimestampUtc!.Value.ShouldBe(timestamp);
+        result.GetSentTimestampUtc().ShouldNotBeNull();
+        result.GetSentTimestampUtc()!.Value.ShouldBe(timestamp);
     }
 
     [Fact]
@@ -200,8 +202,9 @@ public sealed class MessageContextSerializerShould
         var result = MessageContextSerializer.DeserializeFromDictionary(dict, _serviceProvider);
         var after = DateTimeOffset.UtcNow;
 
-        result.ReceivedTimestampUtc.ShouldBeGreaterThanOrEqualTo(before);
-        result.ReceivedTimestampUtc.ShouldBeLessThanOrEqualTo(after);
+        result.GetReceivedTimestampUtc().ShouldNotBeNull();
+        result.GetReceivedTimestampUtc()!.Value.ShouldBeGreaterThanOrEqualTo(before);
+        result.GetReceivedTimestampUtc()!.Value.ShouldBeLessThanOrEqualTo(after);
     }
 
     [Fact]
@@ -236,18 +239,18 @@ public sealed class MessageContextSerializerShould
         var original = MessageContext.CreateForDeserialization(_serviceProvider);
         original.MessageId = "roundtrip-1";
         original.CorrelationId = "corr-rt";
-        original.MessageType = "RoundTripTest";
-        original.DeliveryCount = 3;
-        original.SentTimestampUtc = new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero);
+        original.SetMessageType("RoundTripTest");
+        original.GetOrCreateProcessingFeature().DeliveryCount = 3;
+        original.SetSentTimestampUtc(new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero));
 
         var dict = MessageContextSerializer.SerializeToDictionary(original);
         var restored = MessageContextSerializer.DeserializeFromDictionary(dict, _serviceProvider);
 
         restored.MessageId.ShouldBe("roundtrip-1");
         restored.CorrelationId.ShouldBe("corr-rt");
-        restored.MessageType.ShouldBe("RoundTripTest");
-        restored.DeliveryCount.ShouldBe(3);
-        restored.SentTimestampUtc.ShouldBe(original.SentTimestampUtc);
+        restored.GetMessageType().ShouldBe("RoundTripTest");
+        restored.GetDeliveryCount().ShouldBe(3);
+        restored.GetSentTimestampUtc().ShouldBe(original.GetSentTimestampUtc());
     }
 
     [Fact]
@@ -261,7 +264,7 @@ public sealed class MessageContextSerializerShould
         };
 
         var result = MessageContextSerializer.DeserializeFromDictionary(dict, _serviceProvider);
-        result.DeliveryCount.ShouldBe(0);
+        result.GetDeliveryCount().ShouldBe(0);
     }
 
     [Fact]
@@ -275,6 +278,6 @@ public sealed class MessageContextSerializerShould
         };
 
         var result = MessageContextSerializer.DeserializeFromDictionary(dict, _serviceProvider);
-        result.SentTimestampUtc.ShouldBeNull();
+        result.GetSentTimestampUtc().ShouldBeNull();
     }
 }

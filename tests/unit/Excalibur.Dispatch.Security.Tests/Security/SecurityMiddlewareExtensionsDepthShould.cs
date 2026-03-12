@@ -94,10 +94,10 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 		// Act
 		services.AddDispatchSecurity(opts =>
 		{
-			opts.EnableEncryption = true;
-			opts.EnableSigning = false;
-			opts.EnableRateLimiting = false;
-			opts.EnableAuthentication = false;
+			opts.Encryption.EnableEncryption = true;
+			opts.Signing.EnableSigning = false;
+			opts.RateLimiting.EnableRateLimiting = false;
+			opts.Authentication.EnableAuthentication = false;
 		});
 
 		// Assert — only encryption registered
@@ -115,10 +115,10 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 		// Act
 		services.AddDispatchSecurity(opts =>
 		{
-			opts.EnableEncryption = false;
-			opts.EnableSigning = true;
-			opts.EnableRateLimiting = false;
-			opts.EnableAuthentication = false;
+			opts.Encryption.EnableEncryption = false;
+			opts.Signing.EnableSigning = true;
+			opts.RateLimiting.EnableRateLimiting = false;
+			opts.Authentication.EnableAuthentication = false;
 		});
 
 		// Assert
@@ -135,10 +135,10 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 		// Act
 		services.AddDispatchSecurity(opts =>
 		{
-			opts.EnableEncryption = false;
-			opts.EnableSigning = false;
-			opts.EnableRateLimiting = true;
-			opts.EnableAuthentication = false;
+			opts.Encryption.EnableEncryption = false;
+			opts.Signing.EnableSigning = false;
+			opts.RateLimiting.EnableRateLimiting = true;
+			opts.Authentication.EnableAuthentication = false;
 		});
 
 		// Assert
@@ -156,14 +156,14 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 		// Act
 		services.AddDispatchSecurity(opts =>
 		{
-			opts.EnableEncryption = false;
-			opts.EnableSigning = false;
-			opts.EnableRateLimiting = false;
-			opts.EnableAuthentication = true;
-			opts.RequireAuthentication = true;
-			opts.JwtIssuer = "test-issuer";
-			opts.JwtAudience = "test-audience";
-			opts.JwtSigningKey = "ThisIsAVeryLongSigningKeyForHmacSha256ThatExceedsMinimumLength!";
+			opts.Encryption.EnableEncryption = false;
+			opts.Signing.EnableSigning = false;
+			opts.RateLimiting.EnableRateLimiting = false;
+			opts.Authentication.EnableAuthentication = true;
+			opts.Authentication.RequireAuthentication = true;
+			opts.Authentication.JwtIssuer = "test-issuer";
+			opts.Authentication.JwtAudience = "test-audience";
+			opts.Authentication.JwtSigningKey = "ThisIsAVeryLongSigningKeyForHmacSha256ThatExceedsMinimumLength!";
 		});
 
 		// Assert — JWT middleware registered
@@ -182,10 +182,10 @@ public sealed class SecurityMiddlewareExtensionsDepthShould
 		// Act — all features disabled
 		services.AddDispatchSecurity(opts =>
 		{
-			opts.EnableEncryption = false;
-			opts.EnableSigning = false;
-			opts.EnableRateLimiting = false;
-			opts.EnableAuthentication = false;
+			opts.Encryption.EnableEncryption = false;
+			opts.Signing.EnableSigning = false;
+			opts.RateLimiting.EnableRateLimiting = false;
+			opts.Authentication.EnableAuthentication = false;
 		});
 
 		// Assert — none of the middleware services registered

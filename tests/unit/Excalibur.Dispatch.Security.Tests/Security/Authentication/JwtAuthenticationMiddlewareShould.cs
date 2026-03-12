@@ -211,16 +211,12 @@ public sealed class JwtAuthenticationMiddlewareShould
         // Place raw token in Items dictionary using the default TokenContextKey "AuthToken"
         _contextItems["AuthToken"] = token;
 
-        // Also wire up Properties for SetProperty calls
-        var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
-        A.CallTo(() => _context.Properties).Returns(properties);
-
         // Act
         var result = await sut.InvokeAsync(_message, _context, _nextDelegate, CancellationToken.None);
 
-        // Assert
+        // Assert — SetProperty writes to Items
         result.Succeeded.ShouldBeTrue();
-        properties.ShouldContainKey("Principal");
+        _contextItems.ShouldContainKey("Principal");
     }
 
     [Fact]
@@ -239,10 +235,6 @@ public sealed class JwtAuthenticationMiddlewareShould
 
         A.CallTo(() => _nextDelegate(msgWithHeaders, _context, A<CancellationToken>._))
             .Returns(new ValueTask<IMessageResult>(_successResult));
-
-        // Wire up Properties for SetProperty calls
-        var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
-        A.CallTo(() => _context.Properties).Returns(properties);
 
         // Act
         var result = await sut.InvokeAsync(msgWithHeaders, _context, _nextDelegate, CancellationToken.None);

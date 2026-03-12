@@ -17,11 +17,12 @@ namespace Excalibur.Data.Tests.DynamoDb.Authorization;
 [Trait("Component", "A3")]
 public sealed class DynamoDbGrantStoreShould
 {
-	private static IOptions<DynamoDbAuthorizationOptions> CreateOptions() =>
-		Microsoft.Extensions.Options.Options.Create(new DynamoDbAuthorizationOptions
-		{
-			Region = "us-east-1"
-		});
+	private static IOptions<DynamoDbAuthorizationOptions> CreateOptions()
+	{
+		var opts = new DynamoDbAuthorizationOptions();
+		opts.Connection.Region = "us-east-1";
+		return Microsoft.Extensions.Options.Options.Create(opts);
+	}
 
 	private static DynamoDbGrantStore CreateStore() =>
 		new(A.Fake<IAmazonDynamoDB>(), CreateOptions(), NullLogger<DynamoDbGrantStore>.Instance);

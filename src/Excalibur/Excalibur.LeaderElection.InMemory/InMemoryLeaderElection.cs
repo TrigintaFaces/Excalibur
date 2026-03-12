@@ -155,7 +155,7 @@ public sealed partial class InMemoryLeaderElection : IHealthBasedLeaderElection,
 	/// <inheritdoc />
 	[RequiresDynamicCode("JSON serialization of health metadata requires dynamic code generation for type inspection and property access")]
 	[RequiresUnreferencedCode("JSON serialization may reference types not preserved during trimming")]
-	public Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata)
+	public Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata, CancellationToken cancellationToken)
 	{
 		if (!_isRunning)
 		{

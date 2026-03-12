@@ -165,4 +165,19 @@ public static class MessageTypeCache
 	/// </summary>
 	/// <returns> Collection of all cached types. </returns>
 	public static IReadOnlyCollection<Type> GetCachedTypes() => _typeCache.Keys;
+
+	/// <summary>
+	/// Resets the cache to its initial empty state. Intended for testing only
+	/// to prevent static state contamination between parallel test runs.
+	/// </summary>
+	internal static void Reset()
+	{
+		lock (_initLock)
+		{
+			_typeCache = FrozenDictionary<Type, MessageTypeMetadata>.Empty;
+			_nameToTypeCache = FrozenDictionary<string, Type>.Empty;
+			_fallbackTypeCache.Clear();
+			_initialized = false;
+		}
+	}
 }

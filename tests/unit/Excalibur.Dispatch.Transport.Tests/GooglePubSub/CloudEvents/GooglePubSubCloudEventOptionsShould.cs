@@ -22,13 +22,13 @@ public sealed class GooglePubSubCloudEventOptionsShould
 		options.ProjectId.ShouldBeNull();
 		options.DefaultTopic.ShouldBeNull();
 		options.DefaultSubscription.ShouldBeNull();
-		options.EnableCompression.ShouldBeFalse();
-		options.CompressionThreshold.ShouldBe(1024 * 1024);
+		options.Transport.EnableCompression.ShouldBeFalse();
+		options.Transport.CompressionThreshold.ShouldBe(1024 * 1024);
 		options.UseExactlyOnceDelivery.ShouldBeFalse();
 		options.AckDeadline.ShouldBe(TimeSpan.FromMinutes(10));
 		options.RetryPolicy.ShouldNotBeNull();
-		options.EnableCloudMonitoring.ShouldBeFalse();
-		options.CloudMonitoringPrefix.ShouldBe("dispatch.cloudevents");
+		options.Transport.EnableCloudMonitoring.ShouldBeFalse();
+		options.Transport.CloudMonitoringPrefix.ShouldBe("dispatch.cloudevents");
 	}
 
 	[Fact]
@@ -43,12 +43,15 @@ public sealed class GooglePubSubCloudEventOptionsShould
 			ProjectId = "my-project",
 			DefaultTopic = "my-topic",
 			DefaultSubscription = "my-sub",
-			EnableCompression = true,
-			CompressionThreshold = 512 * 1024,
+			Transport =
+			{
+				EnableCompression = true,
+				CompressionThreshold = 512 * 1024,
+				EnableCloudMonitoring = true,
+				CloudMonitoringPrefix = "custom.prefix",
+			},
 			UseExactlyOnceDelivery = true,
 			AckDeadline = TimeSpan.FromMinutes(5),
-			EnableCloudMonitoring = true,
-			CloudMonitoringPrefix = "custom.prefix",
 		};
 
 		// Assert
@@ -58,12 +61,12 @@ public sealed class GooglePubSubCloudEventOptionsShould
 		options.ProjectId.ShouldBe("my-project");
 		options.DefaultTopic.ShouldBe("my-topic");
 		options.DefaultSubscription.ShouldBe("my-sub");
-		options.EnableCompression.ShouldBeTrue();
-		options.CompressionThreshold.ShouldBe(512 * 1024);
+		options.Transport.EnableCompression.ShouldBeTrue();
+		options.Transport.CompressionThreshold.ShouldBe(512 * 1024);
 		options.UseExactlyOnceDelivery.ShouldBeTrue();
 		options.AckDeadline.ShouldBe(TimeSpan.FromMinutes(5));
-		options.EnableCloudMonitoring.ShouldBeTrue();
-		options.CloudMonitoringPrefix.ShouldBe("custom.prefix");
+		options.Transport.EnableCloudMonitoring.ShouldBeTrue();
+		options.Transport.CloudMonitoringPrefix.ShouldBe("custom.prefix");
 	}
 
 	[Fact]

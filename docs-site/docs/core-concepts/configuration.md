@@ -14,7 +14,6 @@ Dispatch uses the standard .NET configuration patterns with fluent builders for 
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
-  dotnet add package Excalibur.Dispatch.Abstractions
   ```
 - Familiarity with [.NET configuration](https://learn.microsoft.com/en-us/dotnet/core/extensions/configuration) and [dependency injection](./dependency-injection.md)
 
@@ -565,6 +564,110 @@ builder.Services.AddExcalibur(excalibur =>
         .AddSagas();
 });
 ```
+
+## Options Validation with ValidateOnStart
+
+Excalibur uses `ValidateOnStart()` to catch configuration errors at application startup rather than at first use. This follows the [Microsoft.Extensions.Options validation pattern](https://learn.microsoft.com/en-us/dotnet/core/extensions/options#options-validation).
+
+### How It Works
+
+When you call `ValidateOnStart()`, the framework validates all `IOptions<T>` registrations during `IHost.StartAsync()`. If any validation fails, the application throws `OptionsValidationException` immediately — before handling any requests.
+
+```csharp
+// This is what happens inside Excalibur's DI extensions:
+services.AddOptions<LeaderElectionOptions>()
+    .ValidateDataAnnotations()   // Validates [Required], [Range], etc.
+    .ValidateOnStart();          // Runs validation at startup, not first use
+```
+
+### Built-In Validators
+
+Excalibur provides `IValidateOptions<T>` validators for cross-property constraint checking. These go beyond `[DataAnnotations]` to validate relationships between properties.
+
+**Example: LeaderElectionOptionsValidator**
+
+```csharp
+public sealed class LeaderElectionOptionsValidator : IValidateOptions<LeaderElectionOptions>
+{
+    public ValidateOptionsResult Validate(string? name, LeaderElectionOptions options)
+    {
+        if (options.RenewInterval >= options.LeaseDuration)
+        {
+            return ValidateOptionsResult.Fail(
+                $"RenewInterval ({options.RenewInterval}) must be less than " +
+                $"LeaseDuration ({options.LeaseDuration}).");
+        }
+
+        if (options.GracePeriod >= options.LeaseDuration)
+        {
+            return ValidateOptionsResult.Fail(
+                $"GracePeriod ({options.GracePeriod}) must be less than " +
+                $"LeaseDuration ({options.LeaseDuration}).");
+        }
+
+        return ValidateOptionsResult.Success;
+    }
+}
+```
+
+### Packages with ValidateOnStart
+
+The following packages register `ValidateOnStart()` + `ValidateDataAnnotations()` for their Options classes. Many also include cross-property `IValidateOptions<T>` validators:
+
+| Package | Options Class | Cross-Property Validator |
+|---|---|---|
+| `Excalibur.Dispatch` | `DispatchTelemetryOptions`, `CircuitBreakerOptions`, `TimePolicyOptions`, `OutboxOptions` | Yes |
+| `Excalibur.Dispatch.Observability` | `ContextObservabilityOptions`, `TelemetrySanitizerOptions` | Yes |
+| `Excalibur.Dispatch.Security` | `JwtAuthenticationOptions`, `SigningOptions` | Yes |
+| `Excalibur.Dispatch.Resilience.Polly` | `PollyResilienceOptions` | Yes |
+| `Excalibur.Dispatch.Caching` | `CacheOptions` | Yes |
+| `Excalibur.Dispatch.Compliance` | `ErasureOptions` | Yes |
+| `Excalibur.Dispatch.Patterns` | `ClaimCheckOptions` | Yes |
+| `Excalibur.Dispatch.Transport.RabbitMQ` | `RabbitMqTransportOptions` | Yes |
+| `Excalibur.Dispatch.Transport.GooglePubSub` | `StreamingPullOptions`, `OrderingKeyOptions` | Yes |
+| `Excalibur.Dispatch.LeaderElection` | `LeaderElectionOptions` | Yes |
+| `Excalibur.EventSourcing` | `MaterializedViewOptions`, `SnapshotUpgradingOptions` | Yes |
+| `Excalibur.Saga` | `SagaOptions` | Yes |
+| `Excalibur.Saga.SqlServer` | `SqlServerSagaStoreOptions`, `SqlServerSagaTimeoutStoreOptions` | Yes |
+| `Excalibur.Cdc` | `CdcProcessingOptions` | Yes |
+| Various data providers | `SqlServerPersistenceOptions`, `PostgresPersistenceOptions`, CDC state store options | Yes |
+
+### Writing Custom Validators
+
+Create an `IValidateOptions<T>` implementation for cross-property validation in your own Options classes:
+
+```csharp
+public sealed class MyFeatureOptionsValidator : IValidateOptions<MyFeatureOptions>
+{
+    public ValidateOptionsResult Validate(string? name, MyFeatureOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        if (options.RetryCount > 0 && options.RetryDelay <= TimeSpan.Zero)
+        {
+            return ValidateOptionsResult.Fail(
+                "RetryDelay must be positive when RetryCount > 0.");
+        }
+
+        return ValidateOptionsResult.Success;
+    }
+}
+```
+
+Register your validator alongside your Options:
+
+```csharp
+services.AddOptions<MyFeatureOptions>()
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+services.TryAddEnumerable(
+    ServiceDescriptor.Singleton<IValidateOptions<MyFeatureOptions>, MyFeatureOptionsValidator>());
+```
+
+:::tip Why ValidateOnStart Matters
+Without `ValidateOnStart()`, misconfigured options are only detected when `IOptions<T>.Value` is first accessed — which could be hours into production under a specific code path. `ValidateOnStart()` fails fast at startup, before any traffic is served.
+:::
 
 ## What's Next
 

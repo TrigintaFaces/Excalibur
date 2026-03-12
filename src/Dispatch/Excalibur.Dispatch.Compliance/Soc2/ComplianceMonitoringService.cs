@@ -52,13 +52,13 @@ public partial class ComplianceMonitoringService : BackgroundService
 	/// <inheritdoc />
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
-		if (!_options.Value.EnableContinuousMonitoring)
+		if (!_options.Value.Monitoring.EnableContinuousMonitoring)
 		{
 			LogMonitoringDisabled();
 			return;
 		}
 
-		LogMonitoringStarting(_options.Value.MonitoringInterval);
+		LogMonitoringStarting(_options.Value.Monitoring.MonitoringInterval);
 
 		while (!stoppingToken.IsCancellationRequested)
 		{
@@ -77,7 +77,7 @@ public partial class ComplianceMonitoringService : BackgroundService
 
 			try
 			{
-				await Task.Delay(_options.Value.MonitoringInterval, stoppingToken).ConfigureAwait(false);
+				await Task.Delay(_options.Value.Monitoring.MonitoringInterval, stoppingToken).ConfigureAwait(false);
 			}
 			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
 			{
@@ -201,7 +201,7 @@ public partial class ComplianceMonitoringService : BackgroundService
 			LogStatusFetchFailed(ex);
 
 			// Generate validation failure alerts for each enabled category
-			if (_options.Value.EnableAlerts)
+			if (_options.Value.Monitoring.EnableAlerts)
 			{
 				foreach (var category in _options.Value.EnabledCategories)
 				{
@@ -246,7 +246,7 @@ public partial class ComplianceMonitoringService : BackgroundService
 						wasCompliant ? "Compliant" : "Non-Compliant",
 						isCompliant ? "Compliant" : "Non-Compliant");
 
-					if (_options.Value.EnableAlerts)
+					if (_options.Value.Monitoring.EnableAlerts)
 					{
 						var notification = new ComplianceStatusChangeNotification
 						{
@@ -275,7 +275,7 @@ public partial class ComplianceMonitoringService : BackgroundService
 		IReadOnlyList<IComplianceAlertHandler> alertHandlers,
 		CancellationToken cancellationToken)
 	{
-		if (!_options.Value.EnableAlerts)
+		if (!_options.Value.Monitoring.EnableAlerts)
 		{
 			return;
 		}
@@ -283,7 +283,7 @@ public partial class ComplianceMonitoringService : BackgroundService
 		foreach (var gap in status.ActiveGaps)
 		{
 			// Check severity threshold
-			if (gap.Severity < _options.Value.AlertThreshold)
+			if (gap.Severity < _options.Value.Monitoring.AlertThreshold)
 			{
 				continue;
 			}

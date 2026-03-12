@@ -1,7 +1,7 @@
 // AtLeastOnceWithInbox Example
 // Demonstrates outbox with inbox deduplication for at-least-once delivery.
 
-using Excalibur.Data.SqlServer.Inbox;
+using Excalibur.Inbox.SqlServer;
 using Excalibur.Dispatch.Options.Delivery;
 using Excalibur.Outbox.SqlServer;
 

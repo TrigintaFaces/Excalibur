@@ -222,7 +222,7 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		{
 			var connection = sp.GetRequiredService<IConnection>();
 			var cloudEventOptions = sp.GetService<IOptions<RabbitMqCloudEventOptions>>()?.Value;
-			var publisherConfirms = cloudEventOptions?.EnablePublisherConfirms == true;
+			var publisherConfirms = cloudEventOptions?.Exchange.EnablePublisherConfirms == true;
 			var createOptions = new CreateChannelOptions(
 				publisherConfirms,
 				publisherConfirms,
@@ -257,7 +257,7 @@ public static class RabbitMQTransportServiceCollectionExtensions
 		_ = services.AddOptions<RabbitMqOptions>()
 			.Configure(options =>
 			{
-				options.ConnectionString = transportOptions.Connection.ConnectionString ?? string.Empty;
+				options.Connection.ConnectionString = transportOptions.Connection.ConnectionString ?? string.Empty;
 
 				// Set exchange from first configured exchange if available
 				if (transportOptions.Topology.Exchanges.Count > 0)
@@ -269,20 +269,20 @@ public static class RabbitMQTransportServiceCollectionExtensions
 				if (transportOptions.Topology.Queues.Count > 0)
 				{
 					var queue = transportOptions.Topology.Queues[0];
-					options.QueueName = queue.Name;
-					options.QueueDurable = queue.Durable;
-					options.QueueExclusive = queue.Exclusive;
-					options.QueueAutoDelete = queue.AutoDelete;
-					options.PrefetchCount = queue.PrefetchCount;
-					options.AutoAck = queue.AutoAck;
+					options.Queue.QueueName = queue.Name;
+					options.Queue.QueueDurable = queue.Durable;
+					options.Queue.QueueExclusive = queue.Exclusive;
+					options.Queue.QueueAutoDelete = queue.AutoDelete;
+					options.Consumption.PrefetchCount = queue.PrefetchCount;
+					options.Consumption.AutoAck = queue.AutoAck;
 				}
 
 				// Set dead letter options
 				if (transportOptions.EnableDeadLetter)
 				{
-					options.EnableDeadLetterExchange = true;
-					options.DeadLetterExchange = transportOptions.DeadLetter.Exchange;
-					options.DeadLetterRoutingKey = transportOptions.DeadLetter.RoutingKey;
+					options.DeadLetter.EnableDeadLetterExchange = true;
+					options.DeadLetter.DeadLetterExchange = transportOptions.DeadLetter.Exchange;
+					options.DeadLetter.DeadLetterRoutingKey = transportOptions.DeadLetter.RoutingKey;
 				}
 			})
 			.ValidateDataAnnotations()
@@ -294,10 +294,10 @@ public static class RabbitMQTransportServiceCollectionExtensions
 			{
 				// Copy CloudEvents settings from transport options
 				var cloudEvents = transportOptions.CloudEvents;
-				options.ExchangeType = cloudEvents.ExchangeType;
-				options.Persistence = cloudEvents.Persistence;
-				options.RoutingStrategy = cloudEvents.RoutingStrategy;
-				options.EnablePublisherConfirms = cloudEvents.EnablePublisherConfirms;
+				options.Exchange.ExchangeType = cloudEvents.Exchange.ExchangeType;
+				options.Exchange.Persistence = cloudEvents.Exchange.Persistence;
+				options.Exchange.RoutingStrategy = cloudEvents.Exchange.RoutingStrategy;
+				options.Exchange.EnablePublisherConfirms = cloudEvents.Exchange.EnablePublisherConfirms;
 			})
 			.ValidateDataAnnotations()
 			.ValidateOnStart();

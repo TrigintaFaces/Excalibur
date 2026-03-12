@@ -43,17 +43,16 @@ The sample publishes `OrderPlacedEvent` messages to AWS SQS:
 
 ```csharp
 var order = new OrderPlacedEvent("ORD-001", "CUST-100", 99.99m);
-await dispatcher.DispatchAsync(order, context);
+await dispatcher.DispatchAsync(order, context, cancellationToken: default);
 ```
 
-### AWS SQS Configuration
+### AWS SQS Transport Configuration
 
 ```csharp
-builder.Services.AddAwsSqs(opts =>
+builder.Services.AddAwsSqsTransport("sqs", sqs =>
 {
-    opts.Region = "us-east-1";
-    opts.QueueUrl = new Uri("http://localhost:4566/000000000000/dispatch-orders");
-    opts.ServiceUrl = new Uri("http://localhost:4566"); // LocalStack endpoint
+    sqs.UseRegion("us-east-1")
+        .MapQueue<OrderPlacedEvent>(queueUrl);
 });
 ```
 
@@ -82,8 +81,8 @@ Messages are routed to AWS SQS based on type:
 builder.Services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    _ = dispatch.WithRoutingRules(rules =>
-        rules.AddRule<OrderPlacedEvent>((_, _) => "sqs"));
+    dispatch.UseRouting(routing =>
+        routing.Transport.Route<OrderPlacedEvent>().To("sqs"));
 });
 ```
 
@@ -93,7 +92,9 @@ The sample uses the outbox pattern for reliable messaging:
 
 ```csharp
 builder.Services.AddOutbox<InMemoryOutboxStore>();
+builder.Services.AddInbox<InMemoryInboxStore>();
 builder.Services.AddOutboxHostedService();
+builder.Services.AddInboxHostedService();
 ```
 
 ## Project Structure

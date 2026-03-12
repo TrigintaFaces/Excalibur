@@ -20,17 +20,6 @@
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
     <PackageReference Include="System.Threading.Channels" />
-    <PackageReference Include="OpenTelemetry.Api" />
-    <!-- Kubernetes (for Infrastructure components) -->
-    <PackageReference Include="KubernetesClient" />
-    <!-- Resilience patterns -->
-    <PackageReference Include="Polly" />
-    <!-- HTTP client extensions -->
-    <PackageReference Include="Microsoft.Extensions.Http" />
-    <!-- gRPC (for gRPC abstractions) -->
-    <PackageReference Include="Grpc.Net.Client" />
-    <!-- Consul (for service discovery) -->
-    <PackageReference Include="Consul" />
     <PackageReference Include="System.Text.Json" />
   </ItemGroup>
   <ItemGroup>

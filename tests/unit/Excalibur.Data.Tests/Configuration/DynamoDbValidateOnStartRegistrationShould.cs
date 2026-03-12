@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Data.DynamoDb.Inbox;
-using Excalibur.Data.DynamoDb.Outbox;
-using Excalibur.Data.DynamoDb.Saga;
 using Excalibur.Data.DynamoDb.Snapshots;
+using Excalibur.Inbox.DynamoDb;
+using Excalibur.Outbox.DynamoDb;
+using Excalibur.Saga.DynamoDb;
 
 namespace Excalibur.Data.Tests.Configuration;
 
@@ -36,7 +36,7 @@ public sealed class DynamoDbValidateOnStartRegistrationShould
 		var services = new ServiceCollection();
 		_ = services.AddDynamoDb(opts =>
 		{
-			opts.MaxRetryAttempts = 0; // Violates [Range(1, int.MaxValue)]
+			opts.Name = null!; // Violates [Required] on DynamoDbOptions root
 		});
 
 		using var provider = services.BuildServiceProvider();
@@ -81,7 +81,7 @@ public sealed class DynamoDbValidateOnStartRegistrationShould
 	public void DynamoDbOutbox_RegistersOptionsValidation()
 	{
 		var services = new ServiceCollection();
-		_ = services.AddDynamoDbOutbox(opts => { });
+		_ = services.AddDynamoDbOutboxStore(opts => { });
 
 		using var provider = services.BuildServiceProvider();
 		var validators = provider.GetServices<IValidateOptions<DynamoDbOutboxOptions>>();
@@ -92,9 +92,9 @@ public sealed class DynamoDbValidateOnStartRegistrationShould
 	public void DynamoDbOutbox_InvalidOptions_ThrowsOnResolve()
 	{
 		var services = new ServiceCollection();
-		_ = services.AddDynamoDbOutbox(opts =>
+		_ = services.AddDynamoDbOutboxStore(opts =>
 		{
-			opts.MaxRetryAttempts = 0; // Violates [Range(1, int.MaxValue)]
+			opts.TableName = null!; // Violates [Required]
 		});
 
 		using var provider = services.BuildServiceProvider();
@@ -123,7 +123,7 @@ public sealed class DynamoDbValidateOnStartRegistrationShould
 		var services = new ServiceCollection();
 		_ = services.AddDynamoDbInboxStore(opts =>
 		{
-			opts.MaxRetryAttempts = 0; // Violates [Range(1, int.MaxValue)]
+			opts.TableName = string.Empty; // Violates [Required]
 		});
 
 		using var provider = services.BuildServiceProvider();

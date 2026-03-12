@@ -14,24 +14,10 @@ namespace Excalibur.Data.DynamoDb.Snapshots;
 public sealed class DynamoDbSnapshotStoreOptions
 {
 	/// <summary>
-	/// Gets or sets the AWS service URL (for local development with DynamoDB Local or LocalStack).
+	/// Gets or sets the connection and credential options for DynamoDB.
 	/// </summary>
-	public string? ServiceUrl { get; set; }
-
-	/// <summary>
-	/// Gets or sets the AWS region.
-	/// </summary>
-	public string? Region { get; set; }
-
-	/// <summary>
-	/// Gets or sets the AWS access key (optional if using IAM roles).
-	/// </summary>
-	public string? AccessKey { get; set; }
-
-	/// <summary>
-	/// Gets or sets the AWS secret key (optional if using IAM roles).
-	/// </summary>
-	public string? SecretKey { get; set; }
+	/// <value>Connection options including service URL, region, and credentials.</value>
+	public DynamoDbConnectionOptions Connection { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets the table name for snapshots.
@@ -90,7 +76,7 @@ public sealed class DynamoDbSnapshotStoreOptions
 	/// </summary>
 	/// <returns>The AWS region endpoint, or null if not configured.</returns>
 	public RegionEndpoint? GetRegionEndpoint() =>
-		string.IsNullOrWhiteSpace(Region) ? null : RegionEndpoint.GetBySystemName(Region);
+		string.IsNullOrWhiteSpace(Connection.Region) ? null : RegionEndpoint.GetBySystemName(Connection.Region);
 
 	/// <summary>
 	/// Validates the options and throws if invalid.
@@ -98,13 +84,13 @@ public sealed class DynamoDbSnapshotStoreOptions
 	/// <exception cref="InvalidOperationException">Thrown when required options are missing.</exception>
 	public void Validate()
 	{
-		var hasLocalConfig = !string.IsNullOrWhiteSpace(ServiceUrl);
-		var hasAwsConfig = !string.IsNullOrWhiteSpace(Region);
+		var hasLocalConfig = !string.IsNullOrWhiteSpace(Connection.ServiceUrl);
+		var hasAwsConfig = !string.IsNullOrWhiteSpace(Connection.Region);
 
 		if (!hasLocalConfig && !hasAwsConfig)
 		{
 			throw new InvalidOperationException(
-				"Either ServiceUrl (for local development) or Region (for AWS) must be provided.");
+				"Either Connection.ServiceUrl (for local development) or Connection.Region (for AWS) must be provided.");
 		}
 
 		if (string.IsNullOrWhiteSpace(TableName))

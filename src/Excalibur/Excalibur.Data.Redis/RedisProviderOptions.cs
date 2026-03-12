@@ -73,56 +73,6 @@ public sealed class RedisProviderOptions
 	/// Gets or sets connection pool and timeout options.
 	/// </summary>
 	public RedisConnectionPoolOptions Pool { get; set; } = new();
-
-	// --- Backward-compatible shims that delegate to sub-options ---
-
-	/// <summary>
-	/// Gets or sets the connection timeout in seconds.
-	/// </summary>
-	/// <value>
-	/// The connection timeout in seconds.
-	/// </value>
-	public int ConnectTimeout { get => Pool.ConnectTimeout; set => Pool.ConnectTimeout = value; }
-
-	/// <summary>
-	/// Gets or sets the synchronous operation timeout in seconds.
-	/// </summary>
-	/// <value>
-	/// The synchronous operation timeout in seconds.
-	/// </value>
-	public int SyncTimeout { get => Pool.SyncTimeout; set => Pool.SyncTimeout = value; }
-
-	/// <summary>
-	/// Gets or sets the asynchronous operation timeout in seconds.
-	/// </summary>
-	/// <value>
-	/// The asynchronous operation timeout in seconds.
-	/// </value>
-	public int AsyncTimeout { get => Pool.AsyncTimeout; set => Pool.AsyncTimeout = value; }
-
-	/// <summary>
-	/// Gets or sets the number of connection retry attempts.
-	/// </summary>
-	/// <value>
-	/// The number of connection retry attempts.
-	/// </value>
-	public int ConnectRetry { get => Pool.ConnectRetry; set => Pool.ConnectRetry = value; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to abort on connect failure.
-	/// </summary>
-	/// <value>
-	/// <see langword="true"/> if the connection aborts on failure; otherwise, <c>false</c>.
-	/// </value>
-	public bool AbortOnConnectFail { get => Pool.AbortOnConnectFail; set => Pool.AbortOnConnectFail = value; }
-
-	/// <summary>
-	/// Gets or sets the retry count for operations.
-	/// </summary>
-	/// <value>
-	/// The retry count for operations.
-	/// </value>
-	public int RetryCount { get => Pool.RetryCount; set => Pool.RetryCount = value; }
 }
 
 /// <summary>

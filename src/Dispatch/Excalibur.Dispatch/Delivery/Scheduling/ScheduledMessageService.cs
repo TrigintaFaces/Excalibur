@@ -5,7 +5,8 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Delivery.Registry;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Messaging;
@@ -24,7 +25,7 @@ namespace Excalibur.Dispatch.Delivery;
 public partial class ScheduledMessageService(
 	IScheduleStore scheduleStore,
 	IDispatcher dispatcher,
-	IJsonSerializer serializer,
+	DispatchJsonSerializer serializer,
 	ICronScheduler cronScheduler,
 	IOptions<SchedulerOptions> options,
 	IOptions<CronScheduleOptions> cronOptions,
@@ -199,7 +200,7 @@ public partial class ScheduledMessageService(
 	}
 
 	[RequiresUnreferencedCode("Uses DeserializeAsync with runtime type resolution")]
-	[RequiresDynamicCode("Calls Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer.DeserializeAsync(String, Type)")]
+	[RequiresDynamicCode("Calls DispatchJsonSerializer.DeserializeAsync(String, Type)")]
 	private async Task ProcessScheduledMessageAsync(IScheduledMessage item, CancellationToken cancellationToken)
 	{
 		var type = MessageTypeRegistry.GetType(item.MessageName);
@@ -218,9 +219,11 @@ public partial class ScheduledMessageService(
 
 		var context = DispatchContextInitializer.CreateDefaultContext();
 		context.CorrelationId = item.CorrelationId;
-		context.TraceParent = item.TraceParent;
-		context.TenantId = item.TenantId;
-		context.UserId = item.UserId;
+
+		var identityFeature = context.GetOrCreateIdentityFeature();
+		identityFeature.TraceParent = item.TraceParent;
+		identityFeature.TenantId = item.TenantId;
+		identityFeature.UserId = item.UserId;
 
 		// Add timezone information to context if available
 		if (!string.IsNullOrEmpty(item.TimeZoneId))

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -8,15 +8,15 @@
     <Version>$(VersionPrefix)</Version>
     <PackageId>$(AssemblyName)</PackageId>
   </PropertyGroup>
-  <!-- Sprint 428 S428.3: Updated paths for reorganized sample structure -->
+  <!-- Sprint 608 D.1: Migrated to AddRabbitMQTransport + AddKafkaTransport (ADR-098 pattern) -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Transport.RabbitMQ\Excalibur.Dispatch.Transport.RabbitMQ.csproj" />
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch.Transport.Kafka\Excalibur.Dispatch.Transport.Kafka.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Outbox\Excalibur.Outbox.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Inbox.InMemory\Excalibur.Inbox.InMemory.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Outbox.InMemory\Excalibur.Outbox.InMemory.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
-    <PackageReference Include="Confluent.Kafka" />
-    <PackageReference Include="RabbitMQ.Client" />
   </ItemGroup>
 </Project>

@@ -38,11 +38,11 @@ public sealed class DeadLetterOptions
 	public int DefaultMaxDeliveryAttempts { get; set; } = 5;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether to automatically create DLQ topics and subscriptions.
+	/// Gets or sets a value indicating whether to automatically create DLQ topics and subscriptions.
 	/// Default: true.
 	/// </summary>
 	/// <value>
-	/// A value indicating whether gets or sets whether to automatically create DLQ topics and subscriptions.
+	/// A value indicating whether to automatically create DLQ topics and subscriptions.
 	/// Default: true.
 	/// </value>
 	public bool AutoCreateDeadLetterResources { get; set; } = true;
@@ -58,11 +58,99 @@ public sealed class DeadLetterOptions
 	public TimeSpan DeadLetterRetentionDuration { get; set; } = TimeSpan.FromDays(7);
 
 	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether to enable automatic retry from DLQ.
+	/// Gets custom dead letter reasons that should skip retry.
+	/// </summary>
+	/// <value>
+	/// Custom dead letter reasons that should skip retry.
+	/// </value>
+	public HashSet<string> NonRetryableReasons { get; } =
+	[
+		"INVALID_MESSAGE_FORMAT",
+		"UNAUTHORIZED",
+		"MESSAGE_TOO_LARGE",
+		"UNSUPPORTED_OPERATION",
+	];
+
+	/// <summary>
+	/// Gets or sets a value indicating whether to preserve message ordering in DLQ.
 	/// Default: false.
 	/// </summary>
 	/// <value>
-	/// A value indicating whether gets or sets whether to enable automatic retry from DLQ.
+	/// A value indicating whether to preserve message ordering in DLQ.
+	/// Default: false.
+	/// </value>
+	public bool PreserveMessageOrdering { get; set; }
+
+	/// <summary>
+	/// Gets or sets the automatic retry configuration for dead letter messages.
+	/// </summary>
+	/// <value>
+	/// The automatic retry configuration.
+	/// </value>
+	public DeadLetterRetryOptions Retry { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the monitoring configuration for dead letter queue.
+	/// </summary>
+	/// <value>
+	/// The monitoring configuration.
+	/// </value>
+	public DeadLetterMonitoringOptions Monitoring { get; set; } = new();
+
+	/// <summary>
+	/// Validates the configuration.
+	/// </summary>
+	/// <exception cref="InvalidOperationException"></exception>
+	public void Validate()
+	{
+		if (DefaultMaxDeliveryAttempts < 1)
+		{
+			throw new InvalidOperationException("DefaultMaxDeliveryAttempts must be at least 1.");
+		}
+
+		if (DeadLetterRetentionDuration < TimeSpan.FromMinutes(10))
+		{
+			throw new InvalidOperationException("DeadLetterRetentionDuration must be at least 10 minutes.");
+		}
+
+		if (Retry.AutomaticRetryInterval < TimeSpan.FromMinutes(1))
+		{
+			throw new InvalidOperationException("AutomaticRetryInterval must be at least 1 minute.");
+		}
+
+		if (Retry.AutomaticRetryBatchSize is < 1 or > 1000)
+		{
+			throw new InvalidOperationException("AutomaticRetryBatchSize must be between 1 and 1000.");
+		}
+
+		if (Monitoring.MonitoringInterval < TimeSpan.FromSeconds(30))
+		{
+			throw new InvalidOperationException("MonitoringInterval must be at least 30 seconds.");
+		}
+
+		if (Monitoring.AlertThresholdMessageCount < 0)
+		{
+			throw new InvalidOperationException("AlertThresholdMessageCount must be non-negative.");
+		}
+
+		if (Monitoring.AlertThresholdMessageAge < TimeSpan.Zero)
+		{
+			throw new InvalidOperationException("AlertThresholdMessageAge must be non-negative.");
+		}
+	}
+}
+
+/// <summary>
+/// Configuration options for automatic retry of dead letter messages.
+/// </summary>
+public sealed class DeadLetterRetryOptions
+{
+	/// <summary>
+	/// Gets or sets a value indicating whether to enable automatic retry from DLQ.
+	/// Default: false.
+	/// </summary>
+	/// <value>
+	/// A value indicating whether to enable automatic retry from DLQ.
 	/// Default: false.
 	/// </value>
 	public bool EnableAutomaticRetry { get; set; }
@@ -88,11 +176,27 @@ public sealed class DeadLetterOptions
 	public int AutomaticRetryBatchSize { get; set; } = 100;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether to enable DLQ monitoring.
+	/// Gets or sets a value indicating whether to enable dead letter queue compression.
 	/// Default: true.
 	/// </summary>
 	/// <value>
-	/// A value indicating whether gets or sets whether to enable DLQ monitoring.
+	/// A value indicating whether to enable dead letter queue compression.
+	/// Default: true.
+	/// </value>
+	public bool EnableCompression { get; set; } = true;
+}
+
+/// <summary>
+/// Configuration options for dead letter queue monitoring and alerting.
+/// </summary>
+public sealed class DeadLetterMonitoringOptions
+{
+	/// <summary>
+	/// Gets or sets a value indicating whether to enable DLQ monitoring.
+	/// Default: true.
+	/// </summary>
+	/// <value>
+	/// A value indicating whether to enable DLQ monitoring.
 	/// Default: true.
 	/// </value>
 	public bool EnableMonitoring { get; set; } = true;
@@ -126,80 +230,4 @@ public sealed class DeadLetterOptions
 	/// Default: 24 hours.
 	/// </value>
 	public TimeSpan AlertThresholdMessageAge { get; set; } = TimeSpan.FromHours(24);
-
-	/// <summary>
-	/// Gets custom dead letter reasons that should skip retry.
-	/// </summary>
-	/// <value>
-	/// Custom dead letter reasons that should skip retry.
-	/// </value>
-	public HashSet<string> NonRetryableReasons { get; } =
-	[
-		"INVALID_MESSAGE_FORMAT",
-		"UNAUTHORIZED",
-		"MESSAGE_TOO_LARGE",
-		"UNSUPPORTED_OPERATION",
-	];
-
-	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether to preserve message ordering in DLQ.
-	/// Default: false.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether gets or sets whether to preserve message ordering in DLQ.
-	/// Default: false.
-	/// </value>
-	public bool PreserveMessageOrdering { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether to enable dead letter queue compression.
-	/// Default: true.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether gets or sets whether to enable dead letter queue compression.
-	/// Default: true.
-	/// </value>
-	public bool EnableCompression { get; set; } = true;
-
-	/// <summary>
-	/// Validates the configuration.
-	/// </summary>
-	/// <exception cref="InvalidOperationException"></exception>
-	public void Validate()
-	{
-		if (DefaultMaxDeliveryAttempts < 1)
-		{
-			throw new InvalidOperationException("DefaultMaxDeliveryAttempts must be at least 1.");
-		}
-
-		if (DeadLetterRetentionDuration < TimeSpan.FromMinutes(10))
-		{
-			throw new InvalidOperationException("DeadLetterRetentionDuration must be at least 10 minutes.");
-		}
-
-		if (AutomaticRetryInterval < TimeSpan.FromMinutes(1))
-		{
-			throw new InvalidOperationException("AutomaticRetryInterval must be at least 1 minute.");
-		}
-
-		if (AutomaticRetryBatchSize is < 1 or > 1000)
-		{
-			throw new InvalidOperationException("AutomaticRetryBatchSize must be between 1 and 1000.");
-		}
-
-		if (MonitoringInterval < TimeSpan.FromSeconds(30))
-		{
-			throw new InvalidOperationException("MonitoringInterval must be at least 30 seconds.");
-		}
-
-		if (AlertThresholdMessageCount < 0)
-		{
-			throw new InvalidOperationException("AlertThresholdMessageCount must be non-negative.");
-		}
-
-		if (AlertThresholdMessageAge < TimeSpan.Zero)
-		{
-			throw new InvalidOperationException("AlertThresholdMessageAge must be non-negative.");
-		}
-	}
 }

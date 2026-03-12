@@ -29,7 +29,8 @@ namespace Excalibur.EventSourcing.Firestore;
 	"Maintainability",
 	"CA1506:Avoid excessive class coupling",
 	Justification = "Event store implementations inherently couple with many SDK and abstraction types.")]
-public sealed partial class FirestoreEventStore : ICloudNativeEventStore, IEventStore, IAsyncDisposable
+public sealed partial class FirestoreEventStore : ICloudNativeEventStore, ICloudNativeProviderInfo,
+	ICloudNativeEventStoreChangeFeed, ICloudNativeEventStoreInfo, IEventStore, IAsyncDisposable
 {
 	private readonly FirestoreEventStoreOptions _options;
 	private readonly ILogger<FirestoreEventStore> _logger;
@@ -69,7 +70,30 @@ public sealed partial class FirestoreEventStore : ICloudNativeEventStore, IEvent
 	}
 
 	/// <inheritdoc />
-	public CloudProviderType ProviderType => CloudProviderType.Firestore;
+	public CloudProviderType CloudProvider => CloudProviderType.Firestore;
+
+	/// <inheritdoc />
+	public object? GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+		if (serviceType == typeof(ICloudNativeProviderInfo))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(ICloudNativeEventStoreChangeFeed))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(ICloudNativeEventStoreInfo))
+		{
+			return this;
+		}
+
+		return null;
+	}
 
 	/// <summary>
 	/// Gets the Firestore database instance.

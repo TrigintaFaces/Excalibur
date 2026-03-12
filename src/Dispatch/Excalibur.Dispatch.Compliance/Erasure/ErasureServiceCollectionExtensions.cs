@@ -34,9 +34,11 @@ public static class ErasureServiceCollectionExtensions
 
 		// Validate options on startup
 		_ = optionsBuilder
-			.PostConfigure(options => options.Validate())
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		// Register cross-property validator (TryAddEnumerable to coexist with DataAnnotation validators)
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ErasureOptions>, ErasureOptionsValidator>());
 
 		// Ensure signing options are available (defaults to empty key for dev/test)
 		services.TryAddSingleton(Options.Options.Create(new ErasureSigningOptions()));
@@ -45,6 +47,7 @@ public static class ErasureServiceCollectionExtensions
 		services.TryAddScoped<IErasureService>(sp => new ErasureService(
 			sp.GetRequiredService<IErasureStore>(),
 			sp.GetRequiredService<IKeyManagementProvider>(),
+			sp.GetRequiredService<IKeyManagementAdmin>(),
 			sp.GetRequiredService<IOptions<ErasureOptions>>(),
 			sp.GetRequiredService<IOptions<ErasureSigningOptions>>(),
 			sp.GetRequiredService<ILogger<ErasureService>>(),
@@ -244,9 +247,11 @@ public static class ErasureServiceCollectionExtensions
 
 		_ = services.AddOptions<ErasureOptions>()
 			.Configure(configure)
-			.PostConfigure(options => options.Validate())
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		// Register cross-property validator (TryAddEnumerable to coexist with DataAnnotation validators)
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ErasureOptions>, ErasureOptionsValidator>());
 
 		// Ensure signing options are available (defaults to empty key for dev/test)
 		services.TryAddSingleton(Options.Options.Create(new ErasureSigningOptions()));
@@ -255,6 +260,7 @@ public static class ErasureServiceCollectionExtensions
 		services.TryAddScoped<IErasureService>(sp => new ErasureService(
 			sp.GetRequiredService<IErasureStore>(),
 			sp.GetRequiredService<IKeyManagementProvider>(),
+			sp.GetRequiredService<IKeyManagementAdmin>(),
 			sp.GetRequiredService<IOptions<ErasureOptions>>(),
 			sp.GetRequiredService<IOptions<ErasureSigningOptions>>(),
 			sp.GetRequiredService<ILogger<ErasureService>>(),

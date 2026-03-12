@@ -29,6 +29,7 @@
     <ProjectReference Include="..\Excalibur.Outbox\Excalibur.Outbox.csproj" />
     <ProjectReference Include="..\Excalibur.Data\Excalibur.Data.csproj" />
     <ProjectReference Include="..\Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\Excalibur.Inbox.SqlServer\Excalibur.Inbox.SqlServer.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
     <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />

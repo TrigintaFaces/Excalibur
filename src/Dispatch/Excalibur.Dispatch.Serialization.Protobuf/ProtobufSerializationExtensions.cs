@@ -4,7 +4,6 @@
 
 using Excalibur.Dispatch.Abstractions.Serialization;
 
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -14,11 +13,8 @@ namespace Excalibur.Dispatch.Serialization.Protobuf;
 /// Extension methods for registering Protobuf serialization support.
 /// </summary>
 /// <remarks>
-/// Per R0.14, R9.46, R9.47: This is an opt-in serialization package.
-/// - Protobuf is NOT included in Excalibur.Dispatch core (violates R0.14).
-/// - This package provides opt-in support for GCP/AWS/external Protobuf interoperability.
-/// - AOT/trim-safe via source-generated Protobuf types.
-/// - Does NOT change Excalibur.Dispatch defaults (MemoryPack remains internal wire format per R9.44).
+/// This is an opt-in serialization package for GCP/AWS/external Protobuf interoperability.
+/// Does NOT change Excalibur.Dispatch defaults (MemoryPack remains internal wire format).
 /// </remarks>
 public static class ProtobufSerializationExtensions
 {
@@ -29,25 +25,13 @@ public static class ProtobufSerializationExtensions
 	/// <param name="services">The service collection.</param>
 	/// <param name="configure">Optional configuration delegate for Protobuf serialization options.</param>
 	/// <returns>The service collection for chaining.</returns>
-	/// <remarks>
-	/// Usage:
-	/// <code>
-	/// services.AddDispatch()
-	///     .AddProtobufSerialization(options =>
-	///     {
-	///         options.WireFormat = ProtobufWireFormat.Binary; // Default
-	///         options.IgnoreMissingFields = true; // Default
-	///     });
-	/// </code>
-	/// </remarks>
 	public static IServiceCollection AddProtobufSerialization(
 		this IServiceCollection services,
 		Action<ProtobufSerializationOptions>? configure = null)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
-		// Always register options (required by ProtobufMessageSerializer)
-		// Apply custom configuration if provided, otherwise use defaults
+		// Always register options
 		var optionsBuilder = services.AddOptions<ProtobufSerializationOptions>()
 			.Configure(options =>
 			{
@@ -55,9 +39,63 @@ public static class ProtobufSerializationExtensions
 			});
 		optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
 
-		// Register Protobuf serializer as IMessageSerializer (opt-in)
-		services.TryAddSingleton<IMessageSerializer, ProtobufMessageSerializer>();
+		// Register the consolidated Protobuf serializer
+		services.TryAddSingleton<ProtobufSerializer>();
+		services.TryAddSingleton<ISerializer>(sp => sp.GetRequiredService<ProtobufSerializer>());
 
 		return services;
+	}
+
+	/// <summary>
+	/// Registers the Protobuf serializer with the serialization builder (framework-assigned ID: 4).
+	/// </summary>
+	/// <param name="builder">The serialization builder.</param>
+	/// <returns>The builder for method chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// This extension enables the builder pattern:
+	/// </para>
+	/// <code>
+	/// services.AddDispatch()
+	///     .ConfigureSerialization(config =>
+	///     {
+	///         config.RegisterProtobuf();
+	///         config.UseProtobuf();
+	///     });
+	/// </code>
+	/// </remarks>
+	public static ISerializationBuilder RegisterProtobuf(this ISerializationBuilder builder)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		return builder.Register(new ProtobufSerializer(), SerializerIds.Protobuf);
+	}
+
+	/// <summary>
+	/// Gets the Protobuf pluggable serializer singleton instance for use with <see cref="ISerializerRegistry"/>.
+	/// </summary>
+	/// <returns>The Protobuf pluggable serializer instance.</returns>
+	public static ISerializer GetPluggableSerializer() => new ProtobufSerializer();
+
+	/// <summary>
+	/// Adds the Protobuf serializer to the pluggable serialization system.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="setAsCurrent">
+	/// Whether to set Protobuf as the current serializer for new payloads.
+	/// Default is <c>false</c> (MemoryPack remains default).
+	/// </param>
+	/// <returns>The service collection for method chaining.</returns>
+	public static IServiceCollection AddProtobufPluggableSerialization(
+		this IServiceCollection services,
+		bool setAsCurrent = false)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		return PluggableSerializationServiceCollectionExtensions
+			.AddPluggableSerializer(
+				services,
+				SerializerIds.Protobuf,
+				new ProtobufSerializer(),
+				setAsCurrent);
 	}
 }

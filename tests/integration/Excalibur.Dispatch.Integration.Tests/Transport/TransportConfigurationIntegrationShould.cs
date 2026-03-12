@@ -21,16 +21,22 @@ public sealed class TransportConfigurationIntegrationShould : IntegrationTestBas
 		// Arrange
 		var options = new Dispatch.Transport.RabbitMQ.RabbitMqOptions
 		{
-			ConnectionString = "amqp://guest:guest@localhost:5672/",
+			Connection = new Dispatch.Transport.RabbitMQ.RabbitMqConnectionOptions
+			{
+				ConnectionString = "amqp://guest:guest@localhost:5672/",
+			},
 			Exchange = "test-exchange",
-			QueueName = "test-queue",
+			Queue = new Dispatch.Transport.RabbitMQ.RabbitMqQueueOptions
+			{
+				QueueName = "test-queue",
+			},
 			RoutingKey = "test-key"
 		};
 
 		// Assert
-		options.ConnectionString.ShouldNotBeNullOrEmpty();
+		options.Connection.ConnectionString.ShouldNotBeNullOrEmpty();
 		options.Exchange.ShouldBe("test-exchange");
-		options.QueueName.ShouldBe("test-queue");
+		options.Queue.QueueName.ShouldBe("test-queue");
 		options.RoutingKey.ShouldBe("test-key");
 	}
 
@@ -42,13 +48,16 @@ public sealed class TransportConfigurationIntegrationShould : IntegrationTestBas
 		{
 			BootstrapServers = "localhost:9092",
 			ConsumerGroup = "test-group",
-			AutoOffsetReset = "earliest"
+			Consumer = new Dispatch.Transport.Kafka.KafkaConsumerTuningOptions
+			{
+				AutoOffsetReset = "earliest"
+			}
 		};
 
 		// Assert
 		options.BootstrapServers.ShouldBe("localhost:9092");
 		options.ConsumerGroup.ShouldBe("test-group");
-		options.AutoOffsetReset.ShouldBe("earliest");
+		options.Consumer.AutoOffsetReset.ShouldBe("earliest");
 	}
 
 	[Fact]
@@ -76,13 +85,13 @@ public sealed class TransportConfigurationIntegrationShould : IntegrationTestBas
 		{
 			Region = "us-east-1",
 			QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/test-queue"),
-			MaxNumberOfMessages = 10
+			Consumer = { MaxNumberOfMessages = 10 }
 		};
 
 		// Assert
 		options.Region.ShouldBe("us-east-1");
 		options.QueueUrl.ToString().ShouldContain("test-queue");
-		options.MaxNumberOfMessages.ShouldBe(10);
+		options.Consumer.MaxNumberOfMessages.ShouldBe(10);
 	}
 
 	#endregion
@@ -115,7 +124,7 @@ public sealed class TransportConfigurationIntegrationShould : IntegrationTestBas
 		// Configure multiple transport options
 		_ = services.Configure<Dispatch.Transport.RabbitMQ.RabbitMqOptions>(opts =>
 		{
-			opts.ConnectionString = "amqp://guest:guest@rabbit-host:5672/";
+			opts.Connection.ConnectionString = "amqp://guest:guest@rabbit-host:5672/";
 		});
 
 		_ = services.Configure<Dispatch.Transport.Kafka.KafkaOptions>(opts =>
@@ -129,7 +138,7 @@ public sealed class TransportConfigurationIntegrationShould : IntegrationTestBas
 		var rabbitOptions = provider.GetRequiredService<IOptions<Dispatch.Transport.RabbitMQ.RabbitMqOptions>>();
 		var kafkaOptions = provider.GetRequiredService<IOptions<Dispatch.Transport.Kafka.KafkaOptions>>();
 
-		rabbitOptions.Value.ConnectionString.ShouldContain("rabbit-host");
+		rabbitOptions.Value.Connection.ConnectionString.ShouldContain("rabbit-host");
 		kafkaOptions.Value.BootstrapServers.ShouldBe("kafka-host:9092");
 	}
 

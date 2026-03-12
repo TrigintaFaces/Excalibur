@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Data.Postgres.LeaderElection;
+using Excalibur.LeaderElection.Postgres;
 using Excalibur.Dispatch.LeaderElection;
 
 using Npgsql;
@@ -217,9 +217,9 @@ public sealed class PostgresLeaderElectionShould
 		};
 
 		var loseLeadership = typeof(PostgresLeaderElection).GetMethod(
-			"LoseLeadership",
+			"LoseLeadershipAsync",
 			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-		loseLeadership.Invoke(election, null);
+		await ((Task)loseLeadership.Invoke(election, null)!).ConfigureAwait(false);
 
 		election.IsLeader.ShouldBeFalse();
 		election.CurrentLeaderId.ShouldBeNull();
@@ -235,9 +235,9 @@ public sealed class PostgresLeaderElectionShould
 		election.LostLeadership += (_, _) => lostLeadershipRaised = true;
 
 		var loseLeadership = typeof(PostgresLeaderElection).GetMethod(
-			"LoseLeadership",
+			"LoseLeadershipAsync",
 			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-		loseLeadership.Invoke(election, null);
+		await ((Task)loseLeadership.Invoke(election, null)!).ConfigureAwait(false);
 
 		election.IsLeader.ShouldBeFalse();
 		election.CurrentLeaderId.ShouldBeNull();

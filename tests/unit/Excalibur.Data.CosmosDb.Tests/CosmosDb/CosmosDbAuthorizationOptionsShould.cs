@@ -26,7 +26,7 @@ public sealed class CosmosDbAuthorizationOptionsShould
 		var options = new CosmosDbAuthorizationOptions();
 
 		// Assert
-		options.AccountEndpoint.ShouldBeNull();
+		options.Client.AccountEndpoint.ShouldBeNull();
 	}
 
 	[Fact]
@@ -36,7 +36,7 @@ public sealed class CosmosDbAuthorizationOptionsShould
 		var options = new CosmosDbAuthorizationOptions();
 
 		// Assert
-		options.AccountKey.ShouldBeNull();
+		options.Client.AccountKey.ShouldBeNull();
 	}
 
 	[Fact]
@@ -46,7 +46,7 @@ public sealed class CosmosDbAuthorizationOptionsShould
 		var options = new CosmosDbAuthorizationOptions();
 
 		// Assert
-		options.ConnectionString.ShouldBeNull();
+		options.Client.ConnectionString.ShouldBeNull();
 	}
 
 	[Fact]
@@ -86,7 +86,7 @@ public sealed class CosmosDbAuthorizationOptionsShould
 		var options = new CosmosDbAuthorizationOptions();
 
 		// Assert
-		options.ConsistencyLevel.ShouldBeNull();
+		options.Client.ConsistencyLevel.ShouldBeNull();
 	}
 
 	[Fact]
@@ -96,7 +96,7 @@ public sealed class CosmosDbAuthorizationOptionsShould
 		var options = new CosmosDbAuthorizationOptions();
 
 		// Assert
-		options.MaxRetryAttempts.ShouldBe(9);
+		options.Client.Resilience.MaxRetryAttempts.ShouldBe(9);
 	}
 
 	[Fact]
@@ -106,17 +106,17 @@ public sealed class CosmosDbAuthorizationOptionsShould
 		var options = new CosmosDbAuthorizationOptions();
 
 		// Assert
-		options.MaxRetryWaitTimeInSeconds.ShouldBe(30);
+		options.Client.Resilience.MaxRetryWaitTimeInSeconds.ShouldBe(30);
 	}
 
 	[Fact]
-	public void RequestTimeoutInSeconds_DefaultsToSixty()
+	public void RequestTimeoutInSeconds_DefaultsToThirty()
 	{
 		// Arrange & Act
 		var options = new CosmosDbAuthorizationOptions();
 
 		// Assert
-		options.RequestTimeoutInSeconds.ShouldBe(60);
+		options.Client.Resilience.RequestTimeoutInSeconds.ShouldBe(30);
 	}
 
 	[Fact]
@@ -126,7 +126,7 @@ public sealed class CosmosDbAuthorizationOptionsShould
 		var options = new CosmosDbAuthorizationOptions();
 
 		// Assert
-		options.UseDirectMode.ShouldBeTrue();
+		options.Client.UseDirectMode.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -136,7 +136,7 @@ public sealed class CosmosDbAuthorizationOptionsShould
 		var options = new CosmosDbAuthorizationOptions();
 
 		// Assert
-		options.PreferredRegions.ShouldBeNull();
+		options.Client.PreferredRegions.ShouldBeNull();
 	}
 
 	[Fact]
@@ -146,7 +146,7 @@ public sealed class CosmosDbAuthorizationOptionsShould
 		var options = new CosmosDbAuthorizationOptions();
 
 		// Assert
-		options.EnableContentResponseOnWrite.ShouldBeFalse();
+		options.Client.Resilience.EnableContentResponseOnWrite.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -156,7 +156,7 @@ public sealed class CosmosDbAuthorizationOptionsShould
 		var options = new CosmosDbAuthorizationOptions();
 
 		// Assert
-		options.HttpClientFactory.ShouldBeNull();
+		options.Client.HttpClientFactory.ShouldBeNull();
 	}
 
 	#endregion
@@ -177,10 +177,8 @@ public sealed class CosmosDbAuthorizationOptionsShould
 	public void Validate_Succeeds_WithConnectionString()
 	{
 		// Arrange
-		var options = new CosmosDbAuthorizationOptions
-		{
-			ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=xyz"
-		};
+		var options = new CosmosDbAuthorizationOptions();
+		options.Client.ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=xyz";
 
 		// Act & Assert - Should not throw
 		options.Validate();
@@ -190,11 +188,9 @@ public sealed class CosmosDbAuthorizationOptionsShould
 	public void Validate_Succeeds_WithEndpointAndKey()
 	{
 		// Arrange
-		var options = new CosmosDbAuthorizationOptions
-		{
-			AccountEndpoint = "https://test.documents.azure.com:443/",
-			AccountKey = "xyz"
-		};
+		var options = new CosmosDbAuthorizationOptions();
+		options.Client.AccountEndpoint = "https://test.documents.azure.com:443/";
+		options.Client.AccountKey = "xyz";
 
 		// Act & Assert - Should not throw
 		options.Validate();
@@ -206,9 +202,9 @@ public sealed class CosmosDbAuthorizationOptionsShould
 		// Arrange
 		var options = new CosmosDbAuthorizationOptions
 		{
-			ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=xyz",
 			DatabaseName = ""
 		};
+		options.Client.ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=xyz";
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(() => options.Validate());
@@ -220,9 +216,9 @@ public sealed class CosmosDbAuthorizationOptionsShould
 		// Arrange
 		var options = new CosmosDbAuthorizationOptions
 		{
-			ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=xyz",
 			GrantsContainerName = ""
 		};
+		options.Client.ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=xyz";
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(() => options.Validate());
@@ -234,9 +230,9 @@ public sealed class CosmosDbAuthorizationOptionsShould
 		// Arrange
 		var options = new CosmosDbAuthorizationOptions
 		{
-			ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=xyz",
 			ActivityGroupsContainerName = ""
 		};
+		options.Client.ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=xyz";
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(() => options.Validate());
@@ -252,35 +248,41 @@ public sealed class CosmosDbAuthorizationOptionsShould
 		// Arrange & Act
 		var options = new CosmosDbAuthorizationOptions
 		{
-			AccountEndpoint = "https://test.documents.azure.com:443/",
-			AccountKey = "test-key",
-			ConnectionString = "connection-string",
+			Client =
+			{
+				AccountEndpoint = "https://test.documents.azure.com:443/",
+				AccountKey = "test-key",
+				ConnectionString = "connection-string",
+				UseDirectMode = false,
+				PreferredRegions = new List<string> { "East US", "West US" },
+				HttpClientFactory = () => new HttpClient(),
+				Resilience =
+				{
+					MaxRetryAttempts = 5,
+					MaxRetryWaitTimeInSeconds = 60,
+					RequestTimeoutInSeconds = 120,
+					EnableContentResponseOnWrite = true
+				}
+			},
 			DatabaseName = "my-db",
 			GrantsContainerName = "my-grants",
-			ActivityGroupsContainerName = "my-groups",
-			MaxRetryAttempts = 5,
-			MaxRetryWaitTimeInSeconds = 60,
-			RequestTimeoutInSeconds = 120,
-			UseDirectMode = false,
-			EnableContentResponseOnWrite = true,
-			PreferredRegions = new List<string> { "East US", "West US" },
-			HttpClientFactory = () => new HttpClient()
+			ActivityGroupsContainerName = "my-groups"
 		};
 
 		// Assert
-		options.AccountEndpoint.ShouldBe("https://test.documents.azure.com:443/");
-		options.AccountKey.ShouldBe("test-key");
-		options.ConnectionString.ShouldBe("connection-string");
+		options.Client.AccountEndpoint.ShouldBe("https://test.documents.azure.com:443/");
+		options.Client.AccountKey.ShouldBe("test-key");
+		options.Client.ConnectionString.ShouldBe("connection-string");
 		options.DatabaseName.ShouldBe("my-db");
 		options.GrantsContainerName.ShouldBe("my-grants");
 		options.ActivityGroupsContainerName.ShouldBe("my-groups");
-		options.MaxRetryAttempts.ShouldBe(5);
-		options.MaxRetryWaitTimeInSeconds.ShouldBe(60);
-		options.RequestTimeoutInSeconds.ShouldBe(120);
-		options.UseDirectMode.ShouldBeFalse();
-		options.EnableContentResponseOnWrite.ShouldBeTrue();
-		options.PreferredRegions.Count.ShouldBe(2);
-		options.HttpClientFactory.ShouldNotBeNull();
+		options.Client.Resilience.MaxRetryAttempts.ShouldBe(5);
+		options.Client.Resilience.MaxRetryWaitTimeInSeconds.ShouldBe(60);
+		options.Client.Resilience.RequestTimeoutInSeconds.ShouldBe(120);
+		options.Client.UseDirectMode.ShouldBeFalse();
+		options.Client.Resilience.EnableContentResponseOnWrite.ShouldBeTrue();
+		options.Client.PreferredRegions.Count.ShouldBe(2);
+		options.Client.HttpClientFactory.ShouldNotBeNull();
 	}
 
 	#endregion

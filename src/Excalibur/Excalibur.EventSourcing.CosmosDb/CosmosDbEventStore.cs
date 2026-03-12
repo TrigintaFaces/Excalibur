@@ -20,7 +20,8 @@ namespace Excalibur.EventSourcing.CosmosDb;
 /// <summary>
 /// Azure Cosmos DB implementation of the cloud-native event store.
 /// </summary>
-public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, IEventStore, IAsyncDisposable
+public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, ICloudNativeProviderInfo,
+	ICloudNativeEventStoreChangeFeed, ICloudNativeEventStoreInfo, IEventStore, IAsyncDisposable
 {
 	private readonly CosmosClient _cosmosClient;
 	private readonly IOptions<CosmosDbEventStoreOptions> _options;
@@ -47,7 +48,30 @@ public sealed partial class CosmosDbEventStore : ICloudNativeEventStore, IEventS
 	}
 
 	/// <inheritdoc/>
-	public CloudProviderType ProviderType => CloudProviderType.CosmosDb;
+	public CloudProviderType CloudProvider => CloudProviderType.CosmosDb;
+
+	/// <inheritdoc/>
+	public object? GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+		if (serviceType == typeof(ICloudNativeProviderInfo))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(ICloudNativeEventStoreChangeFeed))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(ICloudNativeEventStoreInfo))
+		{
+			return this;
+		}
+
+		return null;
+	}
 
 	/// <inheritdoc/>
 	public async Task<CloudEventLoadResult> LoadAsync(

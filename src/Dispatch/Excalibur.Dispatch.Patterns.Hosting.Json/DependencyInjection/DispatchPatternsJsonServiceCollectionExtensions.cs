@@ -5,6 +5,7 @@
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Patterns;
 using Excalibur.Dispatch.Patterns.ClaimCheck;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -16,7 +17,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class DispatchPatternsJsonServiceCollectionExtensions
 {
 	/// <summary>
-	/// Registers the System.Text.Json-based <see cref="IJsonSerializer" /> implementation for Excalibur.Dispatch.Patterns hosting scenarios.
+	/// Registers the System.Text.Json-based <see cref="DispatchJsonSerializer" /> for Excalibur.Dispatch.Patterns hosting scenarios.
 	/// </summary>
 	/// <param name="services">The service collection to configure.</param>
 	/// <param name="configure">
@@ -37,7 +38,7 @@ public static class DispatchPatternsJsonServiceCollectionExtensions
 			_ = optionsBuilder.Configure(configure);
 		}
 
-		services.TryAddSingleton<IJsonSerializer, SystemTextJsonSerializer>();
+		services.TryAddSingleton<DispatchJsonSerializer>();
 		return services;
 	}
 
@@ -50,7 +51,7 @@ public static class DispatchPatternsJsonServiceCollectionExtensions
 	public static IServiceCollection AddDispatchPatternsClaimCheckJson(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
-		services.TryAddTransient<IBinaryMessageSerializer>(sp =>
+		services.TryAddTransient<ISerializer>(sp =>
 		{
 			var provider = sp.GetRequiredService<IClaimCheckProvider>();
 			return new ClaimCheckMessageSerializer(provider);

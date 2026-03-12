@@ -42,6 +42,44 @@ public sealed class KafkaCloudEventOptions
 	public short DefaultReplicationFactor { get; set; } = 1;
 
 	/// <summary>
+	/// Gets or sets a value indicating whether to auto-create topics if they don't exist.
+	/// </summary>
+	/// <value>
+	/// A value indicating whether to auto-create topics if they don't exist.
+	/// </value>
+	public bool AutoCreateTopics { get; set; }
+
+	/// <summary>
+	/// Gets or sets the consumer group ID for CloudEvent consumers.
+	/// </summary>
+	/// <value>
+	/// The consumer group ID for CloudEvent consumers.
+	/// </value>
+	public string? ConsumerGroupId { get; set; }
+
+	/// <summary>
+	/// Gets or sets the offset reset behavior for new consumer groups.
+	/// </summary>
+	/// <value>
+	/// The offset reset behavior for new consumer groups.
+	/// </value>
+	public KafkaOffsetReset OffsetReset { get; set; } = KafkaOffsetReset.Latest;
+
+	/// <summary>
+	/// Gets or sets the producer settings for CloudEvent publishing.
+	/// </summary>
+	/// <value>
+	/// The producer settings for CloudEvent publishing.
+	/// </value>
+	public KafkaCloudEventProducerOptions Producer { get; set; } = new();
+}
+
+/// <summary>
+/// Producer settings for Kafka CloudEvent publishing including reliability, compression, and transaction configuration.
+/// </summary>
+public sealed class KafkaCloudEventProducerOptions
+{
+	/// <summary>
 	/// Gets or sets a value indicating whether to enable idempotent producer for exactly-once semantics.
 	/// </summary>
 	/// <value>
@@ -118,28 +156,4 @@ public sealed class KafkaCloudEventOptions
 	/// The transactional ID for exactly-once processing.
 	/// </value>
 	public string? TransactionalId { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to auto-create topics if they don't exist.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether to auto-create topics if they don't exist.
-	/// </value>
-	public bool AutoCreateTopics { get; set; }
-
-	/// <summary>
-	/// Gets or sets the consumer group ID for CloudEvent consumers.
-	/// </summary>
-	/// <value>
-	/// The consumer group ID for CloudEvent consumers.
-	/// </value>
-	public string? ConsumerGroupId { get; set; }
-
-	/// <summary>
-	/// Gets or sets the offset reset behavior for new consumer groups.
-	/// </summary>
-	/// <value>
-	/// The offset reset behavior for new consumer groups.
-	/// </value>
-	public KafkaOffsetReset OffsetReset { get; set; } = KafkaOffsetReset.Latest;
 }

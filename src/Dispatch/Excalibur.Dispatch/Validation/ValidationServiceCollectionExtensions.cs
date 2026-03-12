@@ -3,6 +3,7 @@
 
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Middleware.Validation;
 using Excalibur.Dispatch.Validation;
 
 using ValidationMiddleware = Excalibur.Dispatch.Middleware.Validation.ValidationMiddleware;
@@ -53,6 +54,7 @@ public static class ValidationServiceCollectionExtensions
 
 		_ = services.AddSingleton<IDispatchMiddleware, ValidationMiddleware>();
 		_ = services.AddSingleton<IValidatorResolver, NoOpValidatorResolver>();
+		_ = services.AddSingleton<IValidationService, NoOpValidationService>();
 
 		return services;
 	}

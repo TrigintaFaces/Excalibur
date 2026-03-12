@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions.Features;
+
 using Microsoft.Extensions.Options;
 
 using Tests.Shared.Helpers;
@@ -87,11 +89,9 @@ public sealed class ErrorHandlingMiddlewareFunctionalShould : IDisposable
 		var errorHandling = _serviceProvider.GetRequiredService<ErrorHandlingMiddleware>();
 		var handler = _serviceProvider.GetRequiredService<FailingMessageHandler>();
 		var message = new TestMessage { MessageId = Guid.NewGuid().ToString(), Content = "This will fail" };
-		var context = new MessageContext(message, _serviceProvider)
-		{
-			MessageId = "fail-123",
-			TraceParent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
-		};
+		var context = new MessageContext(message, _serviceProvider);
+		context.MessageId = "fail-123";
+		context.GetOrCreateIdentityFeature().TraceParent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
 
 		static async Task<IMessageResult> Pipeline(IDispatchMessage msg, IMessageContext ctx, CancellationToken token)
 		{
@@ -106,7 +106,7 @@ public sealed class ErrorHandlingMiddlewareFunctionalShould : IDisposable
 		_ = result.ProblemDetails.ShouldNotBeNull();
 		result.ProblemDetails.Title.ShouldBe("Unhandled dispatch exception");
 		result.ProblemDetails.Detail.ShouldContain("Processing failed");
-		result.ProblemDetails.Instance.ShouldContain(context.TraceParent);
+		result.ProblemDetails.Instance.ShouldContain(context.GetTraceParent()!);
 
 		_ = context.Items["__Error"].ShouldBeOfType<InvalidOperationException>();
 		_ = context.Items["__Problem"].ShouldBeOfType<MessageProblemDetails>();
@@ -169,13 +169,11 @@ public sealed class ErrorHandlingMiddlewareFunctionalShould : IDisposable
 			provider.GetRequiredService<ILogger<ErrorHandlingMiddleware>>());
 
 		var message = new TestMessage { MessageId = Guid.NewGuid().ToString(), Content = "Will fail for logging" };
-		var context = new MessageContext(message, provider)
-		{
-			MessageId = "log-test-123",
-			TraceParent = "00-trace-456",
-			UserId = "user-789",
-			Source = "TestSystem",
-		};
+		var context = new MessageContext(message, provider);
+		context.MessageId = "log-test-123";
+		context.GetOrCreateIdentityFeature().TraceParent = "00-trace-456";
+		context.GetOrCreateIdentityFeature().UserId = "user-789";
+		context.GetOrCreateRoutingFeature().Source = "TestSystem";
 		var expectedException = new InvalidOperationException("Test application error");
 
 		Task<IMessageResult> Pipeline(IDispatchMessage msg, IMessageContext ctx, CancellationToken token)
@@ -200,4 +198,3 @@ public sealed class ErrorHandlingMiddlewareFunctionalShould : IDisposable
 	/// <inheritdoc/>
 	public void Dispose() => _host?.Dispose();
 }
-

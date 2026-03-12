@@ -1,7 +1,7 @@
 // TransactionalWhenApplicable Example
 // Demonstrates exactly-once delivery when outbox and inbox share the same database.
 
-using Excalibur.Data.SqlServer.Inbox;
+using Excalibur.Inbox.SqlServer;
 using Excalibur.Dispatch.Options.Delivery;
 using Excalibur.Outbox.SqlServer;
 

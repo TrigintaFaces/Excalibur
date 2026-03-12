@@ -60,25 +60,25 @@ public sealed partial class PostgresPersistenceProvider : IPersistenceProvider, 
 		{
 			CommandTimeout = _options.CommandTimeout,
 			Timeout = _options.ConnectTimeout,
-			MaxPoolSize = _options.MaxPoolSize,
-			MinPoolSize = _options.MinPoolSize,
-			Pooling = _options.EnablePooling,
+			MaxPoolSize = _options.Pool.MaxPoolSize,
+			MinPoolSize = _options.Pool.MinPoolSize,
+			Pooling = _options.Pool.EnablePooling,
 			ApplicationName = _options.ApplicationName ?? "Excalibur.Data",
-			KeepAlive = _options.KeepAlive,
-			ConnectionIdleLifetime = _options.ConnectionIdleLifetime,
-			ConnectionPruningInterval = _options.ConnectionPruningInterval,
+			KeepAlive = _options.Advanced.KeepAlive,
+			ConnectionIdleLifetime = _options.Pool.ConnectionIdleLifetime,
+			ConnectionPruningInterval = _options.Pool.ConnectionPruningInterval,
 			IncludeErrorDetail = _options.IncludeErrorDetail,
 		};
 
-		if (_options.PrepareStatements)
+		if (_options.Advanced.PrepareStatements)
 		{
-			builder.MaxAutoPrepare = _options.MaxAutoPrepare;
-			builder.AutoPrepareMinUsages = _options.AutoPrepareMinUsages;
+			builder.MaxAutoPrepare = _options.Advanced.MaxAutoPrepare;
+			builder.AutoPrepareMinUsages = _options.Advanced.AutoPrepareMinUsages;
 		}
 
-		if (_options.UseSsl)
+		if (_options.Advanced.UseSsl)
 		{
-			builder.SslMode = _options.SslMode;
+			builder.SslMode = _options.Advanced.SslMode;
 
 			// TrustServerCertificate is obsolete in newer Npgsql versions SSL mode configuration is sufficient
 		}
@@ -95,7 +95,7 @@ public sealed partial class PostgresPersistenceProvider : IPersistenceProvider, 
 		{
 			var dataSourceBuilder = new NpgsqlDataSourceBuilder(ConnectionString);
 
-			if (_options.EnableJsonb)
+			if (_options.Advanced.EnableJsonb)
 			{
 				_ = dataSourceBuilder.EnableDynamicJson();
 			}
@@ -241,12 +241,12 @@ public sealed partial class PostgresPersistenceProvider : IPersistenceProvider, 
 			["Provider"] = "Postgres",
 			["Name"] = Name,
 			["IsAvailable"] = IsAvailable,
-			["MaxPoolSize"] = _options.MaxPoolSize,
-			["MinPoolSize"] = _options.MinPoolSize,
-			["EnablePooling"] = _options.EnablePooling,
-			["PrepareStatements"] = _options.PrepareStatements,
-			["UseSsl"] = _options.UseSsl,
-			["SslMode"] = _options.SslMode.ToString(),
+			["MaxPoolSize"] = _options.Pool.MaxPoolSize,
+			["MinPoolSize"] = _options.Pool.MinPoolSize,
+			["EnablePooling"] = _options.Pool.EnablePooling,
+			["PrepareStatements"] = _options.Advanced.PrepareStatements,
+			["UseSsl"] = _options.Advanced.UseSsl,
+			["SslMode"] = _options.Advanced.SslMode.ToString(),
 			["CommandTimeout"] = _options.CommandTimeout,
 			["ConnectTimeout"] = _options.ConnectTimeout,
 			["UseDataSource"] = _options.UseDataSource,
@@ -396,9 +396,9 @@ public sealed partial class PostgresPersistenceProvider : IPersistenceProvider, 
 				}
 
 				// Add configuration stats
-				stats["MinPoolSize"] = _options.MinPoolSize;
-				stats["MaxPoolSize"] = _options.MaxPoolSize;
-				stats["PoolingEnabled"] = _options.EnablePooling;
+				stats["MinPoolSize"] = _options.Pool.MinPoolSize;
+				stats["MaxPoolSize"] = _options.Pool.MaxPoolSize;
+				stats["PoolingEnabled"] = _options.Pool.EnablePooling;
 
 				// Add NpgsqlDataSource stats if available
 				// Note: Statistics property may not be accessible in newer Npgsql versions We'll rely on pg_stat_activity query above for
@@ -451,7 +451,7 @@ public sealed partial class PostgresPersistenceProvider : IPersistenceProvider, 
 			connection = new NpgsqlConnection(ConnectionString);
 		}
 
-		if (_options.OpenConnectionImmediately)
+		if (_options.Pool.OpenConnectionImmediately)
 		{
 			connection.Open();
 		}
@@ -481,7 +481,7 @@ public sealed partial class PostgresPersistenceProvider : IPersistenceProvider, 
 		else
 		{
 			connection = new NpgsqlConnection(ConnectionString);
-			if (_options.OpenConnectionImmediately)
+			if (_options.Pool.OpenConnectionImmediately)
 			{
 				try
 				{
@@ -526,7 +526,7 @@ public sealed partial class PostgresPersistenceProvider : IPersistenceProvider, 
 			_dataSource?.Dispose();
 
 			// Clear connection pool if configured
-			if (_options.ClearPoolOnDispose)
+			if (_options.Pool.ClearPoolOnDispose)
 			{
 				NpgsqlConnection.ClearAllPools();
 				LogClearedConnectionPools();
@@ -557,7 +557,7 @@ public sealed partial class PostgresPersistenceProvider : IPersistenceProvider, 
 			}
 
 				// Clear connection pool if configured
-				if (_options.ClearPoolOnDispose)
+				if (_options.Pool.ClearPoolOnDispose)
 				{
 					// ClearAllPoolsAsync doesn't exist in newer Npgsql versions.
 					NpgsqlConnection.ClearAllPools();

@@ -179,7 +179,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 	/// <inheritdoc />
 	[RequiresUnreferencedCode("JSON serialization may require types that cannot be statically analyzed. Consider using source generation.")]
 	[RequiresDynamicCode("JSON serialization may require dynamic code generation which is not compatible with AOT compilation.")]
-	public async Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata)
+	public async Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata, CancellationToken cancellationToken)
 	{
 		if (!_isRunning)
 		{
@@ -187,7 +187,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 		}
 
 		// Update health metadata in the lease annotation
-		await _leaseLock.WaitAsync(_runningTokenSource.Token).ConfigureAwait(false);
+		await _leaseLock.WaitAsync(cancellationToken).ConfigureAwait(false);
 		try
 		{
 			if (_currentLease != null && IsLeader)
@@ -210,7 +210,7 @@ public sealed partial class KubernetesLeaderElection : IHealthBasedLeaderElectio
 				await _retryPolicy.ExecuteAsync(
 					async ct => _currentLease = await _kubernetesClient.CoordinationV1
 						.ReplaceNamespacedLeaseAsync(_currentLease, _leaseName, _namespace, cancellationToken: ct).ConfigureAwait(false),
-					_runningTokenSource.Token).ConfigureAwait(false);
+					cancellationToken).ConfigureAwait(false);
 
 				// If unhealthy and configured to step down, release leadership
 				if (!isHealthy && _options.StepDownWhenUnhealthy)

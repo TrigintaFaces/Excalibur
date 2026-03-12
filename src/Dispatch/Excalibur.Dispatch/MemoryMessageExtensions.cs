@@ -7,7 +7,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 
 namespace Excalibur.Dispatch.Messaging;
 
@@ -66,7 +66,7 @@ public static class MemoryMessageExtensions
 	[RequiresDynamicCode("JSON serialization for generic types requires dynamic code generation.")]
 	public static MemoryMessageOfT<T> FromContent<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
 			T content,
-			IUtf8JsonSerializer serializer,
+			DispatchJsonSerializer serializer,
 			MemoryPool<byte> memoryPool)
 	where T : class
 	{
@@ -80,7 +80,7 @@ public static class MemoryMessageExtensions
 		}
 
 		// Fallback for payloads that exceed pooled-buffer capacity.
-		var tempBytes = serializer.SerializeToUtf8Bytes(content);
+		var tempBytes = serializer.SerializeToUtf8Bytes(content, typeof(T));
 		UpdateSerializedBufferSizeHint(typeof(T), tempBytes.Length);
 		return new MemoryMessageOfT<T>(content, new ArrayBackedMemoryOwner(tempBytes), tempBytes.Length, "application/json");
 	}
@@ -94,7 +94,7 @@ public static class MemoryMessageExtensions
 	/// <returns> A new memory message. </returns>
 	public static MemoryMessage ToMemoryMessage(
 		this IDispatchMessage message,
-		IUtf8JsonSerializer serializer,
+		DispatchJsonSerializer serializer,
 		MemoryPool<byte> memoryPool)
 	{
 		ArgumentNullException.ThrowIfNull(message);
@@ -115,7 +115,7 @@ public static class MemoryMessageExtensions
 	private static bool TrySerializeToPooledOwner(
 		object? value,
 		Type type,
-		IUtf8JsonSerializer serializer,
+		DispatchJsonSerializer serializer,
 		MemoryPool<byte> memoryPool,
 		out IMemoryOwner<byte> owner,
 		out int payloadLength)
@@ -160,7 +160,7 @@ public static class MemoryMessageExtensions
 	private static bool TrySerializeToPooledOwner(
 		object? value,
 		Type type,
-		IUtf8JsonSerializer serializer,
+		DispatchJsonSerializer serializer,
 		MemoryPool<byte> memoryPool,
 		int bufferSize,
 		out IMemoryOwner<byte> owner,

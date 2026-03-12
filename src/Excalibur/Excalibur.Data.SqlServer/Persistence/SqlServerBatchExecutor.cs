@@ -64,7 +64,7 @@ internal sealed partial class SqlServerBatchExecutor
 				await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
 				_metrics.RecordBatchExecution((long)stopwatch.Elapsed.TotalMilliseconds, success: true, requests.Count, results.Count);
 
-				if (_options.EnableDetailedLogging)
+				if (_options.Observability.EnableDetailedLogging)
 				{
 					LogBatchExecuted(_logger, requests.Count, (long)stopwatch.Elapsed.TotalMilliseconds);
 				}
@@ -109,7 +109,7 @@ internal sealed partial class SqlServerBatchExecutor
 
 			_metrics.RecordBatchExecution((long)stopwatch.Elapsed.TotalMilliseconds, success: true, requests.Count, results.Count);
 
-			if (_options.EnableDetailedLogging)
+			if (_options.Observability.EnableDetailedLogging)
 			{
 				LogBatchInTransactionExecuted(_logger, requests.Count, transactionScope.TransactionId,
 					(long)stopwatch.Elapsed.TotalMilliseconds);

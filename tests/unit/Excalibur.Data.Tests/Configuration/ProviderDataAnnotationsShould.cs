@@ -8,8 +8,8 @@ using Excalibur.Data.Firestore;
 using Excalibur.Data.MongoDB;
 using Excalibur.Data.MongoDB.Snapshots;
 using Excalibur.Data.Postgres.Persistence;
-using Excalibur.Data.Redis.Inbox;
-using Excalibur.Data.Redis.Outbox;
+using Excalibur.Inbox.Redis;
+using Excalibur.Outbox.Redis;
 
 namespace Excalibur.Data.Tests.Configuration;
 
@@ -65,29 +65,27 @@ public sealed class ProviderDataAnnotationsShould
 	}
 
 	[Fact]
-	public void MongoDbProvider_Fail_WhenMaxPoolSizeIsZero()
+	public void MongoDbPooling_Fail_WhenMaxPoolSizeIsZero()
 	{
-		var options = new MongoDbProviderOptions
+		// MaxPoolSize moved to MongoDbPoolingOptions sub-object; validate it directly.
+		var pooling = new MongoDbPoolingOptions
 		{
-			ConnectionString = "mongodb://localhost:27017",
-			DatabaseName = "test-db",
 			MaxPoolSize = 0,
 		};
-		TryValidate(options, out var results).ShouldBeFalse();
-		results.ShouldContain(r => r.MemberNames.Contains(nameof(MongoDbProviderOptions.MaxPoolSize)));
+		TryValidate(pooling, out var results).ShouldBeFalse();
+		results.ShouldContain(r => r.MemberNames.Contains(nameof(MongoDbPoolingOptions.MaxPoolSize)));
 	}
 
 	[Fact]
-	public void MongoDbProvider_Fail_WhenMinPoolSizeIsNegative()
+	public void MongoDbPooling_Fail_WhenMinPoolSizeIsNegative()
 	{
-		var options = new MongoDbProviderOptions
+		// MinPoolSize moved to MongoDbPoolingOptions sub-object; validate it directly.
+		var pooling = new MongoDbPoolingOptions
 		{
-			ConnectionString = "mongodb://localhost:27017",
-			DatabaseName = "test-db",
 			MinPoolSize = -1,
 		};
-		TryValidate(options, out var results).ShouldBeFalse();
-		results.ShouldContain(r => r.MemberNames.Contains(nameof(MongoDbProviderOptions.MinPoolSize)));
+		TryValidate(pooling, out var results).ShouldBeFalse();
+		results.ShouldContain(r => r.MemberNames.Contains(nameof(MongoDbPoolingOptions.MinPoolSize)));
 	}
 
 	[Fact]
@@ -119,11 +117,19 @@ public sealed class ProviderDataAnnotationsShould
 	}
 
 	[Fact]
-	public void DynamoDb_Fail_WhenMaxRetryAttemptsIsZero()
+	public void DynamoDbConnection_Succeed_WithDefaults()
 	{
-		var options = new DynamoDbOptions { MaxRetryAttempts = 0 };
+		var options = new DynamoDbConnectionOptions();
+		TryValidate(options, out var results).ShouldBeTrue();
+		results.ShouldBeEmpty();
+	}
+
+	[Fact]
+	public void DynamoDbConnection_Fail_WhenMaxRetryAttemptsIsZero()
+	{
+		var options = new DynamoDbConnectionOptions { MaxRetryAttempts = 0 };
 		TryValidate(options, out var results).ShouldBeFalse();
-		results.ShouldContain(r => r.MemberNames.Contains(nameof(DynamoDbOptions.MaxRetryAttempts)));
+		results.ShouldContain(r => r.MemberNames.Contains(nameof(DynamoDbConnectionOptions.MaxRetryAttempts)));
 	}
 
 	#endregion
@@ -142,16 +148,16 @@ public sealed class ProviderDataAnnotationsShould
 	public void CosmosDb_Succeed_WhenMaxRetryAttemptsIsZero()
 	{
 		// CosmosDb MaxRetryAttempts has [Range(0, int.MaxValue)] — 0 is valid (no retries)
-		var options = new CosmosDbOptions { MaxRetryAttempts = 0 };
+		var options = new CosmosDbClientResilienceOptions { MaxRetryAttempts = 0 };
 		TryValidate(options, out var results).ShouldBeTrue();
 	}
 
 	[Fact]
 	public void CosmosDb_Fail_WhenMaxRetryAttemptsIsNegative()
 	{
-		var options = new CosmosDbOptions { MaxRetryAttempts = -1 };
+		var options = new CosmosDbClientResilienceOptions { MaxRetryAttempts = -1 };
 		TryValidate(options, out var results).ShouldBeFalse();
-		results.ShouldContain(r => r.MemberNames.Contains(nameof(CosmosDbOptions.MaxRetryAttempts)));
+		results.ShouldContain(r => r.MemberNames.Contains(nameof(CosmosDbClientResilienceOptions.MaxRetryAttempts)));
 	}
 
 	#endregion

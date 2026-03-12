@@ -5,7 +5,7 @@ using Excalibur.Outbox;
 
 using Microsoft.Extensions.DependencyInjection;
 
-using Excalibur.Data.Postgres;
+using Excalibur.Outbox.Postgres;
 namespace Excalibur.Data.Tests.Postgres.Builders;
 
 /// <summary>

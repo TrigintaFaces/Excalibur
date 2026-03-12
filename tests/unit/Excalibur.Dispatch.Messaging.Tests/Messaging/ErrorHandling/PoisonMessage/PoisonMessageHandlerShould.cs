@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.ErrorHandling;
 using Excalibur.Dispatch.Options.ErrorHandling;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -26,7 +26,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.ErrorHandling.PoisonMessage;
 public sealed class PoisonMessageHandlerShould : IDisposable
 {
 	private readonly IDeadLetterStore _deadLetterStore;
-	private readonly IJsonSerializer _serializer;
+	private readonly DispatchJsonSerializer _serializer;
 	private readonly IServiceProvider _serviceProvider;
 	private readonly IOptions<PoisonMessageOptions> _options;
 	private readonly ILogger<PoisonMessageHandler> _logger;
@@ -35,7 +35,7 @@ public sealed class PoisonMessageHandlerShould : IDisposable
 	public PoisonMessageHandlerShould()
 	{
 		_deadLetterStore = A.Fake<IDeadLetterStore>();
-		_serializer = A.Fake<IJsonSerializer>();
+		_serializer = new DispatchJsonSerializer();
 		_serviceProvider = A.Fake<IServiceProvider>();
 		_options = Microsoft.Extensions.Options.Options.Create(new PoisonMessageOptions());
 		_logger = NullLogger<PoisonMessageHandler>.Instance;
@@ -51,6 +51,7 @@ public sealed class PoisonMessageHandlerShould : IDisposable
 	public void Dispose()
 	{
 		_sut.Dispose();
+		_serializer.Dispose();
 	}
 
 	#region Constructor Tests
@@ -186,9 +187,6 @@ public sealed class PoisonMessageHandlerShould : IDisposable
 		var context = CreateFakeContext();
 		var reason = "Test reason";
 
-		_ = A.CallTo(() => _serializer.SerializeAsync(A<object>._, A<Type>._))
-			.Returns(Task.FromResult("{}"));
-
 		// Act
 		await _sut.HandlePoisonMessageAsync(message, context, reason, CancellationToken.None);
 
@@ -206,14 +204,11 @@ public sealed class PoisonMessageHandlerShould : IDisposable
 		var message = new TestMessage();
 		var context = CreateFakeContext();
 
-		_ = A.CallTo(() => _serializer.SerializeAsync(A<object>._, A<Type>._))
-			.Returns(Task.FromResult("{}"));
-
 		// Act
 		await _sut.HandlePoisonMessageAsync(message, context, "reason", CancellationToken.None);
 
-		// Assert - The message should be serialized (as IDispatchMessage due to interface-based serialization)
-		_ = A.CallTo(() => _serializer.SerializeAsync(A<object>._, A<Type>._))
+		// Assert - The message should be serialized and stored
+		_ = A.CallTo(() => _deadLetterStore.StoreAsync(A<DeadLetterMessage>._, A<CancellationToken>._))
 			.MustHaveHappened();
 	}
 
@@ -227,9 +222,6 @@ public sealed class PoisonMessageHandlerShould : IDisposable
 		var message = new TestMessage();
 		var context = CreateFakeContext();
 		var exception = new InvalidOperationException("Test exception");
-
-		_ = A.CallTo(() => _serializer.SerializeAsync(A<object>._, A<Type>._))
-			.Returns(Task.FromResult("{}"));
 
 		DeadLetterMessage? capturedMessage = null;
 		_ = A.CallTo(() => _deadLetterStore.StoreAsync(A<DeadLetterMessage>._, A<CancellationToken>._))
@@ -255,9 +247,6 @@ public sealed class PoisonMessageHandlerShould : IDisposable
 		var message = new TestMessage();
 		var context = CreateFakeContext();
 		var exception = new InvalidOperationException("Test exception");
-
-		_ = A.CallTo(() => _serializer.SerializeAsync(A<object>._, A<Type>._))
-			.Returns(Task.FromResult("{}"));
 
 		DeadLetterMessage? capturedMessage = null;
 		_ = A.CallTo(() => _deadLetterStore.StoreAsync(A<DeadLetterMessage>._, A<CancellationToken>._))
@@ -289,9 +278,6 @@ public sealed class PoisonMessageHandlerShould : IDisposable
 		_ = A.CallTo(() => context.MessageId).Returns(Guid.NewGuid().ToString("N"));
 		_ = A.CallTo(() => context.CorrelationId).Returns(Guid.NewGuid().ToString("N"));
 
-		_ = A.CallTo(() => _serializer.SerializeAsync(A<object>._, A<Type>._))
-			.Returns(Task.FromResult("{}"));
-
 		DeadLetterMessage? capturedMessage = null;
 		_ = A.CallTo(() => _deadLetterStore.StoreAsync(A<DeadLetterMessage>._, A<CancellationToken>._))
 			.Invokes(call => capturedMessage = call.GetArgument<DeadLetterMessage>(0));
@@ -310,9 +296,6 @@ public sealed class PoisonMessageHandlerShould : IDisposable
 		// Arrange
 		var message = new TestMessage();
 		var context = CreateFakeContext();
-
-		_ = A.CallTo(() => _serializer.SerializeAsync(A<object>._, A<Type>._))
-			.Returns(Task.FromResult("{}"));
 
 		_ = A.CallTo(() => _deadLetterStore.StoreAsync(A<DeadLetterMessage>._, A<CancellationToken>._))
 			.Throws(new InvalidOperationException("Store failed"));

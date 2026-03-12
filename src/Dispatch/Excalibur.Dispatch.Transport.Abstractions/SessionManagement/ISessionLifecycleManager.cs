@@ -66,7 +66,19 @@ public interface ISessionLifecycleManager
 		string sessionId,
 		string? reason,
 		CancellationToken cancellationToken);
+}
 
+/// <summary>
+/// Provides administrative cleanup operations for expired sessions.
+/// </summary>
+/// <remarks>
+/// This interface separates administrative/maintenance operations from the core
+/// <see cref="ISessionLifecycleManager"/> interface, following the Interface Segregation Principle.
+/// Consumers that only need session lifecycle operations (create, open, close, renew, abandon)
+/// do not need to depend on cleanup/maintenance methods.
+/// </remarks>
+public interface ISessionCleanup
+{
 	/// <summary>
 	/// Cleans up expired sessions.
 	/// </summary>

@@ -46,15 +46,31 @@ builder.Services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 
-    // Configure middleware pipeline
-    dispatch.ConfigurePipeline("Default", pipeline =>
-    {
-        pipeline.Use<LoggingMiddleware>();
-        pipeline.Use<ValidationMiddleware>();
-        pipeline.Use<AuthorizationMiddleware>();
-    });
+    // Fluent pipeline extensions (recommended)
+    dispatch.UseExceptionMapping()
+            .UseAuthentication()
+            .UseAuthorization()
+            .UseValidation()
+            .UseRateLimiting()
+            .UseRetry()
+            .UseCircuitBreaker();
 });
 ```
+
+:::tip Pipeline.Use vs UseX()
+Both approaches register the same middleware. The `Use{Feature}()` extensions are shorthand for the explicit pipeline API:
+
+```csharp
+// Shorthand (recommended)
+dispatch.UseValidation();
+
+// Equivalent explicit registration
+dispatch.ConfigurePipeline("Default", pipeline =>
+{
+    pipeline.Use<ValidationMiddleware>();
+});
+```
+:::
 
 ### Create Custom Middleware
 

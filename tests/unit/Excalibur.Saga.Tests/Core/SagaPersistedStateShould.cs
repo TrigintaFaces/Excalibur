@@ -409,7 +409,7 @@ public sealed class SagaPersistedStateShould
 		public string Name => "TestSaga";
 		public TimeSpan Timeout => TimeSpan.FromMinutes(30);
 		public IReadOnlyList<ISagaStep<TestSagaData>> Steps => [];
-		public IRetryPolicy? RetryPolicy => null;
+		public ISagaRetryPolicy? RetryPolicy => null;
 
 		public Task OnCompletedAsync(ISagaContext<TestSagaData> context, CancellationToken cancellationToken)
 			=> Task.CompletedTask;
@@ -423,7 +423,7 @@ public sealed class SagaPersistedStateShould
 		public string Name => "PaymentSaga";
 		public TimeSpan Timeout => TimeSpan.FromMinutes(30);
 		public IReadOnlyList<ISagaStep<PaymentSagaData>> Steps => [];
-		public IRetryPolicy? RetryPolicy => null;
+		public ISagaRetryPolicy? RetryPolicy => null;
 
 		public Task OnCompletedAsync(ISagaContext<PaymentSagaData> context, CancellationToken cancellationToken)
 			=> Task.CompletedTask;

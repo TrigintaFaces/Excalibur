@@ -4274,11 +4274,14 @@ dotnet_diagnostic.SA1649.severity = none
 # CA1303: Localization not required for internal messaging framework
 dotnet_diagnostic.CA1303.severity = none
 
-# Sprint 318 T3.4 (AD-318-4): PublicAPI Analyzer - Track public API changes
-# RS0016: Add public types and members to the declared API (warning to allow gradual adoption)
-# RS0017: Remove API declared never shipped (warning to catch accidental removals)
+# Sprint 585: PublicAPI Analyzer - Track public API changes
+# Root cause fix: Added PackageReference to src/Directory.Build.props (was missing, analyzer never ran)
+# RS0016: Undeclared public API, warning severity (suppressed via NoWarn during alpha, enable before v3.0.0 stable)
+# RS0017: Stale declared API, error to catch removed/renamed types immediately
+# RS0027: Optional parameters backcompat, warning severity (suppressed via NoWarn during alpha)
 dotnet_diagnostic.RS0016.severity = warning
-dotnet_diagnostic.RS0017.severity = warning
+dotnet_diagnostic.RS0017.severity = error
+dotnet_diagnostic.RS0027.severity = warning
 
 # RS0026: Optional parameters backcompat - API design decision
 dotnet_diagnostic.RS0026.severity = none

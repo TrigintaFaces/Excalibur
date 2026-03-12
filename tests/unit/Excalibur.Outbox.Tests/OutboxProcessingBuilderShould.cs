@@ -129,7 +129,7 @@ public sealed class OutboxProcessingBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.MaxRetryCount.ShouldBe(retryCount);
+		options.Retry.MaxRetryCount.ShouldBe(retryCount);
 	}
 
 	[Theory]
@@ -171,7 +171,7 @@ public sealed class OutboxProcessingBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.RetryDelay.ShouldBe(delay);
+		options.Retry.RetryDelay.ShouldBe(delay);
 	}
 
 	[Fact]
@@ -359,8 +359,8 @@ public sealed class OutboxProcessingBuilderShould : UnitTestBase
 		var options = provider.GetRequiredService<OutboxOptions>();
 		options.BatchSize.ShouldBe(100);
 		options.PollingInterval.ShouldBe(TimeSpan.FromSeconds(5));
-		options.MaxRetryCount.ShouldBe(5);
-		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(1));
+		options.Retry.MaxRetryCount.ShouldBe(5);
+		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(1));
 		options.ProcessorId.ShouldBe("test");
 		options.EnableParallelProcessing.ShouldBeTrue();
 		options.MaxDegreeOfParallelism.ShouldBe(4);

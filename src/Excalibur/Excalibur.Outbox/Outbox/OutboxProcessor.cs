@@ -64,8 +64,8 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	// Orchestration layer IOutboxStore for integration event outbox (restored from git history)
 	private readonly IOutboxStore _outboxStore;
 
-	private readonly IJsonSerializer _serializer;
-	private readonly IInternalSerializer? _internalSerializer;
+	private readonly DispatchJsonSerializer _serializer;
+	private readonly ISerializer? _internalSerializer;
 	private readonly IServiceProvider _serviceProvider;
 	private readonly ILogger<OutboxProcessor> _logger;
 	private readonly TelemetryClient? _telemetryClient;
@@ -116,11 +116,11 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	public OutboxProcessor(
 		IOptions<OutboxOptions> options,
 		IOutboxStore outboxStore,
-		IJsonSerializer serializer,
+		DispatchJsonSerializer serializer,
 		IServiceProvider serviceProvider,
 		ILogger<OutboxProcessor> logger,
 		TelemetryClient? telemetryClient = null,
-		IInternalSerializer? internalSerializer = null,
+		ISerializer? internalSerializer = null,
 		IDeadLetterQueue? deadLetterQueue = null,
 		ITransportCircuitBreakerRegistry? circuitBreakerRegistry = null,
 		IBackoffCalculator? backoffCalculator = null,
@@ -158,11 +158,11 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		_backoffCalculator = backoffCalculator ?? ExponentialBackoffCalculator.CreateForMessageQueue();
 		_deliveryGuaranteeOptions = deliveryGuaranteeOptions?.Value ?? new DeliveryGuaranteeOptions();
 
-		if (_options.EnableDynamicBatchSizing)
+		if (_options.BatchProcessing.EnableDynamicBatchSizing)
 		{
 			_batchSizeCalculator = new DynamicBatchSizeCalculator(
-				_options.MinBatchSize,
-				_options.MaxBatchSize,
+				_options.BatchProcessing.MinBatchSize,
+				_options.BatchProcessing.MaxBatchSize,
 				_options.ConsumerBatchSize);
 		}
 	}
@@ -317,7 +317,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 		};
 
 	/// <summary>
-	/// Deserializes an OutboxEnvelope from binary format if IInternalSerializer is available.
+	/// Deserializes an OutboxEnvelope from binary format if ISerializer is available.
 	/// </summary>
 	/// <param name="data"> The serialized envelope data. </param>
 	/// <returns> The deserialized envelope, or null if internal serializer is not configured. </returns>
@@ -486,7 +486,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 
 				var stopwatch = ValueStopwatch.StartNew();
 
-				if (_options.ParallelProcessingDegree > 1)
+				if (_options.BatchProcessing.ParallelProcessingDegree > 1)
 				{
 					// Parallel batch processing
 					var processedCount = await ProcessBatchParallelAsync(batch, cancellationToken).ConfigureAwait(false);
@@ -782,8 +782,8 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 					throw; // Re-throw for Batching to track
 				}
 			},
-			_options.ParallelProcessingDegree,
-			_options.BatchProcessingTimeout,
+			_options.BatchProcessing.ParallelProcessingDegree,
+			_options.BatchProcessing.BatchProcessingTimeout,
 			cancellationToken).ConfigureAwait(false);
 
 		// Route messages to DLQ
@@ -856,7 +856,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 				(StringComparer.Ordinal)
 				{
 					["ProcessorType"] = "Outbox",
-					["ParallelDegree"] = _options.ParallelProcessingDegree,
+					["ParallelDegree"] = _options.BatchProcessing.ParallelProcessingDegree,
 					["BatchOperationsEnabled"] = _options.EnableBatchDatabaseOperations,
 				});
 
@@ -985,7 +985,7 @@ public sealed partial class OutboxProcessor : IOutboxProcessor
 	}
 
 	[RequiresUnreferencedCode("Uses DeserializeAsync with runtime type resolution from MessageTypeRegistry")]
-	[RequiresDynamicCode("Calls Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer.DeserializeAsync(String, Type)")]
+	[RequiresDynamicCode("Calls Excalibur.Dispatch.Abstractions.Serialization.DispatchJsonSerializer.DeserializeAsync(String, Type)")]
 	private async Task DispatchAsync(IOutboxMessage outboxMessage, CancellationToken cancellationToken)
 	{
 		if (await _serializer.DeserializeAsync(outboxMessage.MessageBody, typeof(OutboxMessage)).ConfigureAwait(false) is not OutboxMessage

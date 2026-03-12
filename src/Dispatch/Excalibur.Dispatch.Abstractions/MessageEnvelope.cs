@@ -26,8 +26,9 @@ namespace Excalibur.Dispatch.Abstractions;
 /// </remarks>
 public sealed class MessageEnvelope : IMessageContext, IDisposable
 {
-	private static readonly RoutingDecision DefaultRoutingDecisionValue = RoutingDecision.Success("local", []);
+	private static readonly RoutingDecision DefaultRoutingDecisionValue = RoutingDecision.Local;
 	private readonly ConcurrentDictionary<string, object> _items = new(StringComparer.Ordinal);
+	private readonly ConcurrentDictionary<Type, object> _features = new();
 	private readonly ConcurrentDictionary<string, string> _headers = new(StringComparer.OrdinalIgnoreCase);
 	private readonly ConcurrentDictionary<string, object> _providerMetadata = new(StringComparer.Ordinal);
 	private IValidationResult _validationResult = new DefaultValidationResult();
@@ -59,11 +60,15 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 	[JsonPropertyName("messageId")]
 	public string? MessageId { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the external identifier.
+	/// </summary>
 	[JsonPropertyName("externalId")]
 	public string? ExternalId { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the user identifier.
+	/// </summary>
 	[JsonPropertyName("userId")]
 	public string? UserId { get; set; }
 
@@ -77,7 +82,9 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	public string? CausationId { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the W3C trace parent header.
+	/// </summary>
 	[JsonPropertyName("traceParent")]
 	public string? TraceParent { get; set; }
 
@@ -105,24 +112,34 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 	[JsonPropertyName("desiredVersion")]
 	public int? DesiredVersion { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the tenant identifier.
+	/// </summary>
 	[JsonPropertyName("tenantId")]
 	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
 	public string? TenantId { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the message source.
+	/// </summary>
 	[JsonPropertyName("source")]
 	public string? Source { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the message type.
+	/// </summary>
 	[JsonPropertyName("messageType")]
 	public string? MessageType { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the content type.
+	/// </summary>
 	[JsonPropertyName("contentType")]
 	public string? ContentType { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the delivery count.
+	/// </summary>
 	[JsonPropertyName("deliveryCount")]
 	public int DeliveryCount { get; set; }
 
@@ -180,7 +197,9 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 		set => SentTimestampUtc = value;
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the partition key.
+	/// </summary>
 	[JsonPropertyName("partitionKey")]
 	public string? PartitionKey { get; set; }
 
@@ -230,11 +249,15 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 	[JsonIgnore]
 	public IServiceProvider RequestServices { get; set; } = null!;
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the received timestamp.
+	/// </summary>
 	[JsonPropertyName("receivedTimestampUtc")]
 	public DateTimeOffset ReceivedTimestampUtc { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the sent timestamp.
+	/// </summary>
 	[JsonPropertyName("sentTimestampUtc")]
 	public DateTimeOffset? SentTimestampUtc { get; set; }
 
@@ -278,9 +301,7 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 
 	/// <inheritdoc />
 	[JsonIgnore]
-#pragma warning disable IDE0004 // Required to satisfy nullability contract without allocating a copy.
-	public IDictionary<string, object?> Properties => (IDictionary<string, object?>)_items;
-#pragma warning restore IDE0004
+	public IDictionary<Type, object> Features => _features;
 
 	/// <summary>
 	/// Gets a value indicating whether the message processing was successful.
@@ -290,49 +311,51 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 						   AuthorizationResult?.IsAuthorized == true &&
 						   (RoutingDecision?.IsSuccess ?? true);
 
-	// ========================================== HOT-PATH PROPERTIES ==========================================
+	// ========================================== LEGACY PROPERTIES ==========================================
+	// These properties are retained on the concrete class but are no longer part of IMessageContext.
+	// Consumers should use the Features dictionary with typed feature interfaces instead.
 
-	/// <inheritdoc />
+	/// <summary>Gets or sets processing attempts.</summary>
 	[JsonIgnore]
 	public int ProcessingAttempts { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>Gets or sets the first attempt time.</summary>
 	[JsonIgnore]
 	public DateTimeOffset? FirstAttemptTime { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>Gets or sets whether this is a retry.</summary>
 	[JsonIgnore]
 	public bool IsRetry { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>Gets or sets whether validation passed.</summary>
 	[JsonIgnore]
 	public bool ValidationPassed { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>Gets or sets the validation timestamp.</summary>
 	[JsonIgnore]
 	public DateTimeOffset? ValidationTimestamp { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>Gets or sets the transaction.</summary>
 	[JsonIgnore]
 	public object? Transaction { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>Gets or sets the transaction ID.</summary>
 	[JsonIgnore]
 	public string? TransactionId { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>Gets or sets whether timeout was exceeded.</summary>
 	[JsonIgnore]
 	public bool TimeoutExceeded { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>Gets or sets the timeout elapsed time.</summary>
 	[JsonIgnore]
 	public TimeSpan? TimeoutElapsed { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>Gets or sets whether rate limit was exceeded.</summary>
 	[JsonIgnore]
 	public bool RateLimitExceeded { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>Gets or sets the rate limit retry-after duration.</summary>
 	[JsonIgnore]
 	public TimeSpan? RateLimitRetryAfter { get; set; }
 
@@ -460,37 +483,47 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 
 	#endregion Channel Support
 
-	#region IMessageContext Methods
+	#region Helper Item Methods (no longer on IMessageContext interface -- use extension methods)
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Checks if an item exists.
+	/// </summary>
 	public bool ContainsItem(string key)
 	{
 		ArgumentNullException.ThrowIfNull(key);
 		return _items.ContainsKey(key);
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets an item by key.
+	/// </summary>
 	public T? GetItem<T>(string key)
 	{
 		ArgumentNullException.ThrowIfNull(key);
 		return _items.TryGetValue(key, out var value) && value is T typedValue ? typedValue : default;
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets an item by key with a default value.
+	/// </summary>
 	public T GetItem<T>(string key, T defaultValue)
 	{
 		ArgumentNullException.ThrowIfNull(key);
 		return _items.TryGetValue(key, out var value) && value is T typedValue ? typedValue : defaultValue;
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Removes an item by key.
+	/// </summary>
 	public void RemoveItem(string key)
 	{
 		ArgumentNullException.ThrowIfNull(key);
 		_ = _items.TryRemove(key, out _);
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Sets an item by key.
+	/// </summary>
 	public void SetItem<T>(string key, T value)
 	{
 		ArgumentNullException.ThrowIfNull(key);
@@ -504,27 +537,7 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 		}
 	}
 
-	/// <inheritdoc />
-	public IMessageContext CreateChildContext()
-	{
-		return new MessageEnvelope
-		{
-			// Propagate cross-cutting identifiers
-			CorrelationId = CorrelationId,
-			CausationId = MessageId ?? CorrelationId, // Current becomes cause
-			TenantId = TenantId,
-			UserId = UserId,
-			SessionId = SessionId,
-			WorkflowId = WorkflowId,
-			TraceParent = TraceParent,
-			Source = Source,
-			RequestServices = RequestServices,
-			// New message gets new ID
-			MessageId = Guid.NewGuid().ToString(),
-		};
-	}
-
-	#endregion IMessageContext Methods
+	#endregion Helper Item Methods
 
 	#region Pooling Support
 
@@ -575,10 +588,11 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 
 		// Clear collections
 		_items.Clear();
+		_features.Clear();
 		_headers.Clear();
 		_providerMetadata.Clear();
 
-		// Reset hot-path properties
+		// Reset legacy properties
 		ProcessingAttempts = 0;
 		FirstAttemptTime = null;
 		IsRetry = false;
@@ -746,6 +760,7 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 
 		// Clear collections
 		_items.Clear();
+		_features.Clear();
 		_headers.Clear();
 		_providerMetadata.Clear();
 
@@ -789,6 +804,11 @@ public sealed class MessageEnvelope : IMessageContext, IDisposable
 		foreach (var item in _items)
 		{
 			clone._items[item.Key] = item.Value;
+		}
+
+		foreach (var feature in _features)
+		{
+			clone._features[feature.Key] = feature.Value;
 		}
 
 		foreach (var header in _headers)

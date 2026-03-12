@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Abstractions.Validation;
@@ -422,12 +423,13 @@ public sealed partial class ProfileSpecificValidationMiddleware(
 
 			case MessageKinds.Event:
 				// Events must have timestamp and source
-				if (context.ReceivedTimestampUtc == default)
+				var receivedTimestamp = context.GetReceivedTimestampUtc();
+				if (receivedTimestamp is null || receivedTimestamp == default)
 				{
 					errors.Add("Events require a timestamp in strict mode");
 				}
 
-				if (string.IsNullOrWhiteSpace(context.Source))
+				if (string.IsNullOrWhiteSpace(context.GetSource()))
 				{
 					errors.Add("Events require a source identifier in strict mode");
 				}
@@ -441,7 +443,7 @@ public sealed partial class ProfileSpecificValidationMiddleware(
 					errors.Add("Documents require a version in strict mode");
 				}
 
-				if (string.IsNullOrEmpty(context.ContentType))
+				if (string.IsNullOrEmpty(context.GetContentType()))
 				{
 					errors.Add("Documents require a content type in strict mode");
 				}

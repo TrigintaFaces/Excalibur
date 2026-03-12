@@ -1,6 +1,7 @@
 // Minimal Excalibur Job Host sample - get started in 5 minutes
 
 using Excalibur.Jobs.Abstractions;
+using Excalibur.Jobs.Quartz;
 
 var builder = Host.CreateApplicationBuilder(args);
 

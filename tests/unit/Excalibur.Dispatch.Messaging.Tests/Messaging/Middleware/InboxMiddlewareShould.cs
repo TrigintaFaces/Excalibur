@@ -234,13 +234,16 @@ public sealed class InboxMiddlewareShould
 	[Fact]
 	public async Task PassThroughDirectly_WhenNoMessageIdCanBeExtracted()
 	{
-		// Arrange - InboxMiddleware looks for context items "MessageId" and "MessageEnvelope",
-		// then reflection on message type. Here we ensure none of those are set.
+		// Arrange - InboxMiddleware looks for context.MessageId, then context items "MessageId"
+		// and "MessageEnvelope", then reflection on message type. Here we ensure none of those are set.
 		var middleware = CreateMiddleware();
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
-		_ = A.CallTo(() => context.GetItem<object>("MessageId")).Returns(null);
-		_ = A.CallTo(() => context.GetItem<object>("MessageEnvelope")).Returns(null);
+
+		// GetItem is an extension method reading from Items dictionary -- set up an empty Items dict
+		var items = new Dictionary<string, object>();
+		_ = A.CallTo(() => context.Items).Returns(items);
+		// MessageId on the interface is null by default on a fake
 		var wasCalled = new[] { false };
 
 		// Act

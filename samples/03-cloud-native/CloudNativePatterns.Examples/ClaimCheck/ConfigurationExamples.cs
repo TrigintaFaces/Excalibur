@@ -47,8 +47,8 @@ public static class ConfigurationExamples
 				// Performance settings
 				options.PayloadThreshold = 64 * 1024; // 64KB
 				options.Storage.ChunkSize = 1024 * 1024; // 1MB chunks
-				options.Storage.MaxConcurrency = Environment.ProcessorCount;
-				options.Storage.BufferPoolSize = 100;
+				options.Storage.Operations.MaxConcurrency = Environment.ProcessorCount;
+				options.Storage.Operations.BufferPoolSize = 100;
 
 				// Compression settings
 				options.EnableCompression = true;
@@ -63,9 +63,9 @@ public static class ConfigurationExamples
 				options.Cleanup.CleanupBatchSize = 1000;
 
 				// Timeout and retry
-				options.Storage.OperationTimeout = TimeSpan.FromMinutes(5);
-				options.Storage.MaxRetries = 3;
-				options.Storage.RetryDelay = TimeSpan.FromSeconds(1);
+				options.Storage.Operations.OperationTimeout = TimeSpan.FromMinutes(5);
+				options.Storage.Operations.MaxRetries = 3;
+				options.Storage.Operations.RetryDelay = TimeSpan.FromSeconds(1);
 
 				// Security
 				options.ValidateChecksum = true;
@@ -86,14 +86,14 @@ public static class ConfigurationExamples
 			// Optimized for large files
 			options.PayloadThreshold = 1024 * 1024; // 1MB threshold
 			options.Storage.ChunkSize = 4 * 1024 * 1024; // 4MB chunks
-			options.Storage.MaxConcurrency = Environment.ProcessorCount * 2;
-			options.Storage.BufferPoolSize = 50;
+			options.Storage.Operations.MaxConcurrency = Environment.ProcessorCount * 2;
+			options.Storage.Operations.BufferPoolSize = 50;
 
 			// Disable compression for already-compressed files
 			options.EnableCompression = false;
 
 			// Longer timeouts for large files
-			options.Storage.OperationTimeout = TimeSpan.FromMinutes(30);
+			options.Storage.Operations.OperationTimeout = TimeSpan.FromMinutes(30);
 
 			// Use more aggressive cleanup
 			options.EnableCleanup = true;

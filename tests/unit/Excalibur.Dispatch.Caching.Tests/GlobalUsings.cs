@@ -8,3 +8,4 @@ global using Shouldly;
 global using Tests.Shared;
 
 global using Xunit;
+global using Excalibur.Dispatch.Serialization;

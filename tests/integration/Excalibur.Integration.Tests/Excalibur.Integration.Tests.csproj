@@ -74,6 +74,7 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data\Excalibur.Data.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Postgres\Excalibur.Data.Postgres.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.Postgres\Excalibur.Saga.Postgres.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.DataProcessing\Excalibur.Data.DataProcessing.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.ElasticSearch\Excalibur.Data.ElasticSearch.csproj" />
@@ -83,17 +84,23 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.MongoDB\Excalibur.Data.MongoDB.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Redis\Excalibur.Data.Redis.csproj" />
+    <!-- Extracted concern.provider packages -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.Redis\Excalibur.Outbox.Redis.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.Redis\Excalibur.Inbox.Redis.csproj" />
     <!-- Excalibur hosting/jobs -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting\Excalibur.Hosting.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.Web\Excalibur.Hosting.Web.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.Jobs\Excalibur.Hosting.Jobs.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs\Excalibur.Jobs.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs.Abstractions\Excalibur.Jobs.Abstractions.csproj" />
-    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs.CloudProviders\Excalibur.Jobs.CloudProviders.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs.Aws\Excalibur.Jobs.Aws.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs.Azure\Excalibur.Jobs.Azure.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Jobs.GoogleCloud\Excalibur.Jobs.GoogleCloud.csproj" />
     <!-- Excalibur eventsourcing -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.SqlServer\Excalibur.EventSourcing.SqlServer.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Postgres\Excalibur.EventSourcing.Postgres.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.SqlServer\Excalibur.Outbox.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Caching\Excalibur.Caching.csproj" />
   </ItemGroup>

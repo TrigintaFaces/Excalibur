@@ -20,17 +20,18 @@ public sealed class ElasticsearchConfigurationOptionsShould
 		options.Urls.ShouldBeNull();
 		options.CloudId.ShouldBeNull();
 		options.ConnectionPoolType.ShouldBe(ConnectionPoolType.Static);
-		options.CertificateFingerprint.ShouldBeNull();
-		options.Username.ShouldBeNull();
-		options.Password.ShouldBeNull();
-		options.ApiKey.ShouldBeNull();
-		options.Base64ApiKey.ShouldBeNull();
-		options.RequestTimeout.ShouldBe(TimeSpan.FromSeconds(30));
-		options.PingTimeout.ShouldBe(TimeSpan.FromSeconds(5));
-		options.MaximumConnectionsPerNode.ShouldBe(80);
-		options.DisableCertificateValidation.ShouldBeFalse();
 		options.EnableSniffing.ShouldBeFalse();
-		options.SniffingInterval.ShouldBe(TimeSpan.FromHours(1));
+		options.Connection.ShouldNotBeNull();
+		options.Connection.CertificateFingerprint.ShouldBeNull();
+		options.Connection.Username.ShouldBeNull();
+		options.Connection.Password.ShouldBeNull();
+		options.Connection.ApiKey.ShouldBeNull();
+		options.Connection.Base64ApiKey.ShouldBeNull();
+		options.Connection.RequestTimeout.ShouldBe(TimeSpan.FromSeconds(30));
+		options.Connection.PingTimeout.ShouldBe(TimeSpan.FromSeconds(5));
+		options.Connection.MaximumConnectionsPerNode.ShouldBe(80);
+		options.Connection.DisableCertificateValidation.ShouldBeFalse();
+		options.Connection.SniffingInterval.ShouldBe(TimeSpan.FromHours(1));
 		options.Resilience.ShouldNotBeNull();
 		options.Monitoring.ShouldNotBeNull();
 		options.Projections.ShouldNotBeNull();
@@ -50,17 +51,20 @@ public sealed class ElasticsearchConfigurationOptionsShould
 			Urls = urls,
 			CloudId = "my-cloud-id",
 			ConnectionPoolType = ConnectionPoolType.Sniffing,
-			CertificateFingerprint = "abc123",
-			Username = "elastic",
-			Password = "secret",
-			ApiKey = CreateNonSecretApiKeyValue(),
-			Base64ApiKey = CreateNonSecretApiKeyValue(),
-			RequestTimeout = TimeSpan.FromMinutes(1),
-			PingTimeout = TimeSpan.FromSeconds(10),
-			MaximumConnectionsPerNode = 100,
-			DisableCertificateValidation = true,
 			EnableSniffing = true,
-			SniffingInterval = TimeSpan.FromMinutes(30),
+			Connection = new ElasticsearchConnectionOptions
+			{
+				CertificateFingerprint = "abc123",
+				Username = "elastic",
+				Password = "secret",
+				ApiKey = CreateNonSecretApiKeyValue(),
+				Base64ApiKey = CreateNonSecretApiKeyValue(),
+				RequestTimeout = TimeSpan.FromMinutes(1),
+				PingTimeout = TimeSpan.FromSeconds(10),
+				MaximumConnectionsPerNode = 100,
+				DisableCertificateValidation = true,
+				SniffingInterval = TimeSpan.FromMinutes(30),
+			},
 		};
 
 		// Assert
@@ -68,17 +72,36 @@ public sealed class ElasticsearchConfigurationOptionsShould
 		options.Urls.ShouldBe(urls);
 		options.CloudId.ShouldBe("my-cloud-id");
 		options.ConnectionPoolType.ShouldBe(ConnectionPoolType.Sniffing);
-		options.CertificateFingerprint.ShouldBe("abc123");
-		options.Username.ShouldBe("elastic");
-		options.Password.ShouldBe("secret");
-		options.ApiKey.ShouldBe(CreateNonSecretApiKeyValue());
-		options.Base64ApiKey.ShouldBe(CreateNonSecretApiKeyValue());
-		options.RequestTimeout.ShouldBe(TimeSpan.FromMinutes(1));
-		options.PingTimeout.ShouldBe(TimeSpan.FromSeconds(10));
-		options.MaximumConnectionsPerNode.ShouldBe(100);
-		options.DisableCertificateValidation.ShouldBeTrue();
 		options.EnableSniffing.ShouldBeTrue();
-		options.SniffingInterval.ShouldBe(TimeSpan.FromMinutes(30));
+		options.Connection.CertificateFingerprint.ShouldBe("abc123");
+		options.Connection.Username.ShouldBe("elastic");
+		options.Connection.Password.ShouldBe("secret");
+		options.Connection.ApiKey.ShouldBe(CreateNonSecretApiKeyValue());
+		options.Connection.Base64ApiKey.ShouldBe(CreateNonSecretApiKeyValue());
+		options.Connection.RequestTimeout.ShouldBe(TimeSpan.FromMinutes(1));
+		options.Connection.PingTimeout.ShouldBe(TimeSpan.FromSeconds(10));
+		options.Connection.MaximumConnectionsPerNode.ShouldBe(100);
+		options.Connection.DisableCertificateValidation.ShouldBeTrue();
+		options.Connection.SniffingInterval.ShouldBe(TimeSpan.FromMinutes(30));
+	}
+
+	[Fact]
+	public void HaveCorrectConnectionOptionsDefaults()
+	{
+		// Arrange & Act
+		var options = new ElasticsearchConnectionOptions();
+
+		// Assert
+		options.CertificateFingerprint.ShouldBeNull();
+		options.Username.ShouldBeNull();
+		options.Password.ShouldBeNull();
+		options.ApiKey.ShouldBeNull();
+		options.Base64ApiKey.ShouldBeNull();
+		options.RequestTimeout.ShouldBe(TimeSpan.FromSeconds(30));
+		options.PingTimeout.ShouldBe(TimeSpan.FromSeconds(5));
+		options.MaximumConnectionsPerNode.ShouldBe(80);
+		options.DisableCertificateValidation.ShouldBeFalse();
+		options.SniffingInterval.ShouldBe(TimeSpan.FromHours(1));
 	}
 
 	private static string CreateNonSecretApiKeyValue()

@@ -91,8 +91,8 @@ function Get-TestCategory {
 function Get-SampleVariant {
     param([string]$Path)
 
-    if ($Path -match "DispatchMinimal") { return "DispatchOnly" }
-    if ($Path -match "ExcaliburCqrs") { return "ExcaliburFull" }
+    if ($Path -match "DispatchOnly") { return "DispatchOnly" }
+    if ($Path -match "EventSourcingIntro") { return "ExcaliburFull" }
     return $null
 }
 

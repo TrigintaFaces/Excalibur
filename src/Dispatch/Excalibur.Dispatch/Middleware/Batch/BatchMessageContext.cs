@@ -5,7 +5,6 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Abstractions.Validation;
-using Excalibur.Dispatch.Messaging;
 
 namespace Excalibur.Dispatch.Middleware.Batch;
 
@@ -19,51 +18,47 @@ internal sealed class BatchMessageContext : IMessageContext
 	private static readonly IAuthorizationResult DefaultAuthorizationResult = Abstractions.AuthorizationResult.Success();
 	private static readonly IServiceProvider EmptyServiceProvider = new NullServiceProvider();
 
-	private IDictionary<string, object?>? _properties;
-
 	public BatchMessageContext(IList<IMessageContext> contexts)
 	{
 		Contexts = contexts;
 		Items = new Dictionary<string, object>(StringComparer.Ordinal);
+		Features = new Dictionary<Type, object>();
 
 		// Use first context as primary context for batch-level properties
 		var primaryContext = contexts.Count > 0 ? contexts[0] : null;
 		if (primaryContext != null)
 		{
 			MessageId = primaryContext.MessageId;
-			ExternalId = primaryContext.ExternalId;
-			UserId = primaryContext.UserId;
 			CorrelationId = primaryContext.CorrelationId;
 			CausationId = primaryContext.CausationId;
-			TraceParent = primaryContext.TraceParent;
+			RequestServices = primaryContext.RequestServices;
+
+			// Copy features from primary context
+			foreach (var kvp in primaryContext.Features)
+			{
+				Features[kvp.Key] = kvp.Value;
+			}
+
+			// Copy Items metadata
 			SerializerVersion = primaryContext.SerializerVersion();
 			MessageVersion = primaryContext.MessageVersion();
 			ContractVersion = primaryContext.ContractVersion();
 			DesiredVersion = int.TryParse(primaryContext.DesiredVersion(), out var version) ? version : null;
-			TenantId = primaryContext.TenantId;
-			Source = primaryContext.Source;
-			MessageType = "BatchMessage";
-			ContentType = primaryContext.ContentType;
-			DeliveryCount = primaryContext.DeliveryCount;
 			PartitionKey = primaryContext.PartitionKey();
 			ReplyTo = primaryContext.ReplyTo();
+			MessageType = "BatchMessage";
+			ContentType = primaryContext.GetContentType();
 			VersionMetadata = primaryContext.VersionMetadata() as IMessageVersionMetadata;
 			ValidationResult = primaryContext.ValidationResult() as IValidationResult;
 			AuthorizationResult = primaryContext.AuthorizationResult() as IAuthorizationResult;
-			RoutingDecision = primaryContext.RoutingDecision;
-			RequestServices = primaryContext.RequestServices;
-			ReceivedTimestampUtc = primaryContext.ReceivedTimestampUtc;
-			SentTimestampUtc = primaryContext.SentTimestampUtc;
 			Metadata = primaryContext.Metadata() as IMessageMetadata;
 		}
 		else
 		{
-			// Initialize default values when no primary context — use static defaults to avoid allocations
 			MessageType = "BatchMessage";
 			VersionMetadata = DefaultVersionMetadata;
 			ValidationResult = DefaultValidationResult;
 			AuthorizationResult = DefaultAuthorizationResult;
-			RoutingDecision = RoutingDecision.Success("local", []);
 			RequestServices = EmptyServiceProvider;
 		}
 	}
@@ -73,10 +68,14 @@ internal sealed class BatchMessageContext : IMessageContext
 	/// <inheritdoc />
 	public string? MessageId { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the external identifier.
+	/// </summary>
 	public string? ExternalId { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the user identifier.
+	/// </summary>
 	public string? UserId { get; set; }
 
 	/// <inheritdoc />
@@ -85,55 +84,79 @@ internal sealed class BatchMessageContext : IMessageContext
 	/// <inheritdoc />
 	public string? CausationId { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the trace parent for distributed tracing.
+	/// </summary>
 	public string? TraceParent { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the serializer version.
+	/// </summary>
 	public string? SerializerVersion { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the message version.
+	/// </summary>
 	public string? MessageVersion { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the contract version.
+	/// </summary>
 	public string? ContractVersion { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the desired version.
+	/// </summary>
 	public int? DesiredVersion { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the tenant identifier.
+	/// </summary>
 	public string? TenantId { get; set; }
 
 	/// <summary>
 	/// Gets or sets the session identifier for message grouping and ordering.
 	/// </summary>
-	/// <value> The current <see cref="SessionId" /> value. </value>
 	public string? SessionId { get; set; }
 
 	/// <summary>
 	/// Gets or sets the workflow identifier for saga orchestration.
 	/// </summary>
-	/// <value> The current <see cref="WorkflowId" /> value. </value>
 	public string? WorkflowId { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the message source.
+	/// </summary>
 	public string? Source { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the message type.
+	/// </summary>
 	public string? MessageType { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the content type.
+	/// </summary>
 	public string? ContentType { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the delivery count.
+	/// </summary>
 	public int DeliveryCount { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the partition key.
+	/// </summary>
 	public string? PartitionKey { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the reply-to address.
+	/// </summary>
 	public string? ReplyTo { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the version metadata.
+	/// </summary>
 	public IMessageVersionMetadata? VersionMetadata { get; set; }
 
 	/// <inheritdoc />
@@ -142,100 +165,111 @@ internal sealed class BatchMessageContext : IMessageContext
 	/// <inheritdoc />
 	public object? Result { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the validation result.
+	/// </summary>
 	public IValidationResult? ValidationResult { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the authorization result.
+	/// </summary>
 	public IAuthorizationResult? AuthorizationResult { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the routing decision.
+	/// </summary>
 	public RoutingDecision? RoutingDecision { get; set; } =
-		RoutingDecision.Success("local", []);
+		Abstractions.Routing.RoutingDecision.Local;
 
 	/// <inheritdoc />
 	public IServiceProvider RequestServices { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the received timestamp.
+	/// </summary>
 	public DateTimeOffset ReceivedTimestampUtc { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the sent timestamp.
+	/// </summary>
 	public DateTimeOffset? SentTimestampUtc { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the message metadata.
+	/// </summary>
 	public IMessageMetadata? Metadata { get; set; }
 
 	/// <inheritdoc />
 	public IDictionary<string, object> Items { get; }
 
 	/// <inheritdoc />
+	public IDictionary<Type, object> Features { get; }
+
+	/// <summary>
+	/// Gets a value indicating whether both validation and authorization succeeded.
+	/// </summary>
 	public bool Success => ValidationResult?.IsValid == true &&
-						   AuthorizationResult?.IsAuthorized == true &&
-						   (RoutingDecision?.IsSuccess ?? false);
+						   AuthorizationResult?.IsAuthorized == true;
 
-	/// <inheritdoc />
-	public IDictionary<string, object?> Properties => _properties ??= new PropertyDictionary(Items);
+	// ========================================== LEGACY PROPERTIES ==========================================
 
-	// ========================================== HOT-PATH PROPERTIES (Sprint 71) ==========================================
-
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the processing attempts count.
+	/// </summary>
 	public int ProcessingAttempts { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the time of the first processing attempt.
+	/// </summary>
 	public DateTimeOffset? FirstAttemptTime { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets a value indicating whether this is a retry.
+	/// </summary>
 	public bool IsRetry { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets a value indicating whether validation passed.
+	/// </summary>
 	public bool ValidationPassed { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the validation timestamp.
+	/// </summary>
 	public DateTimeOffset? ValidationTimestamp { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the transaction object.
+	/// </summary>
 	public object? Transaction { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the transaction identifier.
+	/// </summary>
 	public string? TransactionId { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets a value indicating whether the timeout was exceeded.
+	/// </summary>
 	public bool TimeoutExceeded { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the elapsed timeout duration.
+	/// </summary>
 	public TimeSpan? TimeoutElapsed { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets a value indicating whether the rate limit was exceeded.
+	/// </summary>
 	public bool RateLimitExceeded { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the rate limit retry-after duration.
+	/// </summary>
 	public TimeSpan? RateLimitRetryAfter { get; set; }
-
-	/// <inheritdoc />
-	public bool ContainsItem(string key) => Items.ContainsKey(key);
-
-	/// <inheritdoc />
-	public T? GetItem<T>(string key) => Items.TryGetValue(key, out var value) && value is T typed ? typed : default;
-
-	/// <inheritdoc />
-	public T GetItem<T>(string key, T defaultValue) => Items.TryGetValue(key, out var value) && value is T typed ? typed : defaultValue;
-
-	/// <inheritdoc />
-	public void RemoveItem(string key) => Items.Remove(key);
-
-	/// <inheritdoc />
-	public void SetItem<T>(string key, T value) => Items[key] = value!;
-
-	/// <inheritdoc />
-	public IMessageContext CreateChildContext()
-	{
-		// For batch contexts, create a child from the primary (first) context
-		var primaryContext = Contexts.Count > 0 ? Contexts[0] : null;
-		return primaryContext?.CreateChildContext() ?? new MessageContext();
-	}
 
 	/// <summary>
 	/// Lightweight service provider that returns null for all service requests.
-	/// Used as a static default when no primary context provides a service provider.
 	/// </summary>
 	private sealed class NullServiceProvider : IServiceProvider
 	{

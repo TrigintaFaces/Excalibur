@@ -6,6 +6,7 @@ using Excalibur.Dispatch.Caching;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Caching;
 
+[Collection("MessageTypeCacheTests")]
 [Trait("Category", "Unit")]
 [Trait("Component", "Caching")]
 [Trait("Priority", "1")]

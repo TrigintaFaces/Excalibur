@@ -3,7 +3,7 @@
 
 using System.Text.Json;
 
-using Excalibur.Data.CosmosDb.Cdc;
+using Excalibur.Cdc.CosmosDb;
 
 namespace Excalibur.Data.Tests.CosmosDb;
 

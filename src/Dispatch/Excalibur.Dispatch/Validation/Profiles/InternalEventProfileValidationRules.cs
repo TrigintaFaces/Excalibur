@@ -3,6 +3,7 @@
 
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Abstractions.Validation;
 
@@ -74,22 +75,24 @@ public sealed class InternalEventProfileValidationRules : IProfileValidationRule
 		{
 			if (message is IDispatchEvent)
 			{
+				var receivedTimestamp = context.GetReceivedTimestampUtc();
+
 				// Events must have a timestamp
-				if (context.ReceivedTimestampUtc == default)
+				if (receivedTimestamp is null || receivedTimestamp == default)
 				{
 					return SerializableValidationResult.Failed("Events must have a timestamp");
 				}
 
 				// Timestamp should not be too far in the future (clock skew tolerance)
 				var maxFuture = DateTimeOffset.UtcNow.AddMinutes(5);
-				if (context.ReceivedTimestampUtc > maxFuture)
+				if (receivedTimestamp > maxFuture)
 				{
 					return SerializableValidationResult.Failed("Event timestamp cannot be more than 5 minutes in the future");
 				}
 
 				// Timestamp should not be too old (for internal events)
 				var maxPast = DateTimeOffset.UtcNow.AddDays(-7);
-				if (context.ReceivedTimestampUtc < maxPast)
+				if (receivedTimestamp < maxPast)
 				{
 					return SerializableValidationResult.Failed("Internal event timestamp cannot be older than 7 days");
 				}
@@ -105,17 +108,19 @@ public sealed class InternalEventProfileValidationRules : IProfileValidationRule
 		{
 			if (message is IDispatchEvent)
 			{
+				var source = context.GetSource();
+
 				// Internal events should have a source identifier
-				if (string.IsNullOrWhiteSpace(context.Source))
+				if (string.IsNullOrWhiteSpace(source))
 				{
 					return SerializableValidationResult.Failed("Internal events must have a source identifier");
 				}
 
 				// Source should follow naming convention for internal services
-				if (!IsValidInternalSource(context.Source))
+				if (!IsValidInternalSource(source))
 				{
 					return SerializableValidationResult.Failed(
-						$"Source '{context.Source}' does not follow internal service naming convention");
+						$"Source '{source}' does not follow internal service naming convention");
 				}
 			}
 

@@ -341,28 +341,28 @@ public record CartItem(string ProductId, int Quantity, decimal UnitPrice);
 
 public enum CartStatus { Active, CheckedOut, Abandoned }
 
-// Events - extend DomainEventBase abstract record
-public record CartCreated(Guid CartId, string CustomerId) : DomainEventBase
+// Events - extend DomainEvent abstract record
+public record CartCreated(Guid CartId, string CustomerId) : DomainEvent
 {
     public override string AggregateId => CartId.ToString();
 }
 
-public record CartItemAdded(Guid CartId, string ProductId, int Quantity, decimal UnitPrice) : DomainEventBase
+public record CartItemAdded(Guid CartId, string ProductId, int Quantity, decimal UnitPrice) : DomainEvent
 {
     public override string AggregateId => CartId.ToString();
 }
 
-public record CartItemQuantityChanged(Guid CartId, string ProductId, int NewQuantity) : DomainEventBase
+public record CartItemQuantityChanged(Guid CartId, string ProductId, int NewQuantity) : DomainEvent
 {
     public override string AggregateId => CartId.ToString();
 }
 
-public record CartItemRemoved(Guid CartId, string ProductId) : DomainEventBase
+public record CartItemRemoved(Guid CartId, string ProductId) : DomainEvent
 {
     public override string AggregateId => CartId.ToString();
 }
 
-public record CartCheckedOut(Guid CartId, decimal Total) : DomainEventBase
+public record CartCheckedOut(Guid CartId, decimal Total) : DomainEvent
 {
     public override string AggregateId => CartId.ToString();
 }

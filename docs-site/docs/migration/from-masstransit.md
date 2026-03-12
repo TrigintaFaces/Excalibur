@@ -375,7 +375,6 @@ dotnet remove package MassTransit
 dotnet remove package MassTransit.RabbitMQ  # or Azure.ServiceBus, etc.
 
 dotnet add package Excalibur.Dispatch
-dotnet add package Excalibur.Dispatch.Abstractions
 dotnet add package Excalibur.EventSourcing
 dotnet add package Excalibur.EventSourcing.SqlServer
 ```

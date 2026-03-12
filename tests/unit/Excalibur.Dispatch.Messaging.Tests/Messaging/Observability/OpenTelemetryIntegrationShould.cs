@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.BatchProcessing;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Batch;
@@ -12,7 +13,7 @@ using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Options.Performance;
 using Excalibur.Dispatch.Tests.TestFakes;
 
-using Excalibur.Data.InMemory.Inbox;
+using Excalibur.Inbox.InMemory;
 
 using MessageResult = Excalibur.Dispatch.Tests.TestFakes.MessageResult;
 
@@ -68,8 +69,8 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var context = new FakeMessageContext
 		{
 			MessageId = message.Id.ToString(),
-			MessageType = message.GetType().Name
 		};
+		context.SetMessageType(message.GetType().Name);
 		var nextCalled = false;
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
@@ -101,7 +102,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var invokeActivity = batchingActivities.FirstOrDefault(a => a.DisplayName == "UnifiedBatchingMiddleware.Invoke");
 		_ = invokeActivity.ShouldNotBeNull();
 		invokeActivity.GetTagItem("message.id").ShouldBe(context.MessageId);
-		invokeActivity.GetTagItem("message.type").ShouldBe(context.MessageType);
+		invokeActivity.GetTagItem("message.type").ShouldBe(context.GetMessageType());
 		_ = invokeActivity.GetTagItem("batching.enabled").ShouldNotBeNull();
 	}
 
@@ -120,8 +121,8 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var context = new FakeMessageContext
 		{
 			MessageId = message.Id.ToString(),
-			MessageType = message.GetType().Name
 		};
+		context.SetMessageType(message.GetType().Name);
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 		{
@@ -244,8 +245,8 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var context = new FakeMessageContext
 		{
 			MessageId = message.Id.ToString(),
-			MessageType = message.GetType().Name
 		};
+		context.SetMessageType(message.GetType().Name);
 		var processingCompleted = new TaskCompletionSource<bool>();
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
@@ -316,8 +317,8 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var context = new FakeMessageContext
 		{
 			MessageId = message.Id.ToString(),
-			MessageType = message.GetType().Name
 		};
+		context.SetMessageType(message.GetType().Name);
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 		{
@@ -426,8 +427,8 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var context = new FakeMessageContext
 		{
 			MessageId = message.Id.ToString(),
-			MessageType = message.GetType().Name
 		};
+		context.SetMessageType(message.GetType().Name);
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 		{
@@ -450,7 +451,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 
 		_ = invokeActivity.ShouldNotBeNull();
 		invokeActivity.GetTagItem("message.id").ShouldBe(context.MessageId);
-		invokeActivity.GetTagItem("message.type").ShouldBe(context.MessageType);
+		invokeActivity.GetTagItem("message.type").ShouldBe(context.GetMessageType());
 		invokeActivity.GetTagItem("batching.key").ShouldBe("test-batch-key");
 		invokeActivity.GetTagItem("batching.enabled").ShouldBe(true);
 		invokeActivity.GetTagItem("batching.added").ShouldBe(true);
@@ -549,11 +550,11 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var context = new FakeMessageContext
 		{
 			MessageId = message.Id.ToString(),
-			MessageType = message.GetType().Name
 		};
+		context.SetMessageType(message.GetType().Name);
 		context.SetCorrelationId(expectedCorrelationId);
 		context.CausationId = expectedCausationId.ToString();
-		context.TenantId = expectedTenantId;
+		context.GetOrCreateIdentityFeature().TenantId = expectedTenantId;
 
 		var observedCorrelationIds = new ConcurrentBag<string>();
 		var observedTenantIds = new ConcurrentBag<string>();
@@ -665,8 +666,8 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 			var context = new FakeMessageContext
 			{
 				MessageId = message.Id.ToString(),
-				MessageType = message.GetType().Name
 			};
+			context.SetMessageType(message.GetType().Name);
 
 			ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 			{
@@ -791,10 +792,10 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var context = new FakeMessageContext
 		{
 			MessageId = message.Id.ToString(),
-			MessageType = message.GetType().Name
 		};
+		context.SetMessageType(message.GetType().Name);
 		context.SetCorrelationId(correlationId);
-		context.TenantId = tenantId;
+		context.GetOrCreateIdentityFeature().TenantId = tenantId;
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 		{
@@ -852,8 +853,8 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var context = new FakeMessageContext
 		{
 			MessageId = message.Id.ToString(),
-			MessageType = message.GetType().Name
 		};
+		context.SetMessageType(message.GetType().Name);
 
 		using var cts = new CancellationTokenSource();
 		var cancellationHandled = false;

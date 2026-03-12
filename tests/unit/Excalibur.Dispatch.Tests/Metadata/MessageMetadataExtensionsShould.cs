@@ -4,6 +4,7 @@
 using System.Security.Claims;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Metadata;
 
@@ -39,35 +40,35 @@ public sealed class MessageMetadataExtensionsShould
 	[Fact]
 	public void ConvertLegacyMetadataToUnified()
 	{
-		// Arrange
+		// Arrange -- build a fake IMessageMetadata with Properties dict containing moved fields
+		var properties = new Dictionary<string, object>
+		{
+			[MetadataPropertyKeys.SerializerVersion] = "1.0",
+			[MetadataPropertyKeys.MessageVersion] = "1.0",
+			[MetadataPropertyKeys.ContractVersion] = "1.0.0",
+			[MetadataPropertyKeys.TenantId] = "tenant-legacy",
+			[MetadataPropertyKeys.UserId] = "user-legacy",
+		};
+
 		var legacy = A.Fake<IMessageMetadata>();
 		A.CallTo(() => legacy.MessageId).Returns("msg-1");
 		A.CallTo(() => legacy.CorrelationId).Returns("corr-1");
 		A.CallTo(() => legacy.CausationId).Returns("cause-1");
 		A.CallTo(() => legacy.MessageType).Returns("Test");
 		A.CallTo(() => legacy.ContentType).Returns("application/json");
-		A.CallTo(() => legacy.SerializerVersion).Returns("1.0");
-		A.CallTo(() => legacy.MessageVersion).Returns("1.0");
-		A.CallTo(() => legacy.ContractVersion).Returns("1.0.0");
-		A.CallTo(() => legacy.TenantId).Returns("tenant-legacy");
-		A.CallTo(() => legacy.UserId).Returns("user-legacy");
 		A.CallTo(() => legacy.Headers).Returns(new Dictionary<string, string>());
-		A.CallTo(() => legacy.Attributes).Returns(new Dictionary<string, object>());
-		A.CallTo(() => legacy.Properties).Returns(new Dictionary<string, object>());
-		A.CallTo(() => legacy.Items).Returns(new Dictionary<string, object>());
-		A.CallTo(() => legacy.Roles).Returns(new List<string>());
-		A.CallTo(() => legacy.Claims).Returns(new List<Claim>());
+		A.CallTo(() => legacy.Properties).Returns(properties);
 
-		// Act — ToUnified without context generates new GUID for MessageId
+		// Act -- ToUnified without context generates new GUID for MessageId
 		var unified = legacy.ToUnified();
 
-		// Assert — preserved fields
+		// Assert -- preserved fields
 		unified.ShouldNotBeNull();
 		unified.CorrelationId.ShouldBe("corr-1");
 		unified.CausationId.ShouldBe("cause-1");
 		unified.ContentType.ShouldBe("application/json");
-		unified.TenantId.ShouldBe("tenant-legacy");
-		unified.UserId.ShouldBe("user-legacy");
+		unified.GetTenantId().ShouldBe("tenant-legacy");
+		unified.GetUserId().ShouldBe("user-legacy");
 		unified.MessageId.ShouldNotBeNullOrWhiteSpace(); // new GUID
 		unified.MessageType.ShouldBe("Unknown"); // default when no context
 	}
@@ -126,15 +127,15 @@ public sealed class MessageMetadataExtensionsShould
 
 		// Assert
 		context.MessageId.ShouldBe("msg-1");
-		context.ExternalId.ShouldBe("ext-1");
-		context.UserId.ShouldBe("user-1");
+		context.GetExternalId().ShouldBe("ext-1");
+		context.GetUserId().ShouldBe("user-1");
 		context.CorrelationId.ShouldBe("corr-1");
 		context.CausationId.ShouldBe("cause-1");
-		context.TenantId.ShouldBe("tenant-1");
-		context.TraceParent.ShouldBe("00-trace-parent-01");
-		context.MessageType.ShouldBe("TestEvent");
-		context.Source.ShouldBe("source-svc");
-		context.DeliveryCount.ShouldBe(2);
+		context.GetTenantId().ShouldBe("tenant-1");
+		context.GetTraceParent().ShouldBe("00-trace-parent-01");
+		context.GetMessageType().ShouldBe("TestEvent");
+		context.GetSource().ShouldBe("source-svc");
+		context.GetDeliveryCount().ShouldBe(2);
 	}
 
 	[Fact]
@@ -167,20 +168,18 @@ public sealed class MessageMetadataExtensionsShould
 	public void ExtractMetadataFromContext()
 	{
 		// Arrange
-		var context = new MessageContext
-		{
-			MessageId = "msg-extract",
-			CorrelationId = "corr-extract",
-			CausationId = "cause-extract",
-			UserId = "user-extract",
-			TenantId = "tenant-extract",
-			MessageType = "ExtractType",
-			ContentType = "application/xml",
-			Source = "extract-svc",
-			DeliveryCount = 3,
-			ReceivedTimestampUtc = DateTimeOffset.UtcNow,
-			SentTimestampUtc = DateTimeOffset.UtcNow,
-		};
+		var context = new MessageContext();
+		context.MessageId = "msg-extract";
+		context.CorrelationId = "corr-extract";
+		context.CausationId = "cause-extract";
+		context.GetOrCreateIdentityFeature().UserId = "user-extract";
+		context.GetOrCreateIdentityFeature().TenantId = "tenant-extract";
+		context.SetMessageType("ExtractType");
+		context.SetContentType("application/xml");
+		context.GetOrCreateRoutingFeature().Source = "extract-svc";
+		context.GetOrCreateProcessingFeature().DeliveryCount = 3;
+		context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
+		context.SetSentTimestampUtc(DateTimeOffset.UtcNow);
 
 		// Act
 		var metadata = context.ExtractMetadata();
@@ -189,12 +188,12 @@ public sealed class MessageMetadataExtensionsShould
 		metadata.MessageId.ShouldBe("msg-extract");
 		metadata.CorrelationId.ShouldBe("corr-extract");
 		metadata.CausationId.ShouldBe("cause-extract");
-		metadata.UserId.ShouldBe("user-extract");
-		metadata.TenantId.ShouldBe("tenant-extract");
+		metadata.GetUserId().ShouldBe("user-extract");
+		metadata.GetTenantId().ShouldBe("tenant-extract");
 		metadata.MessageType.ShouldBe("ExtractType");
 		metadata.ContentType.ShouldBe("application/xml");
 		metadata.Source.ShouldBe("extract-svc");
-		metadata.DeliveryCount.ShouldBe(3);
+		metadata.GetDeliveryCount().ShouldBe(3);
 	}
 
 	[Fact]
@@ -340,10 +339,10 @@ public sealed class MessageMetadataExtensionsShould
 
 		var dlq = metadata.CreateDeadLetterMetadata("MaxRetries", "Failed after 5 attempts");
 
-		dlq.DeadLetterReason.ShouldBe("MaxRetries");
-		dlq.DeadLetterErrorDescription.ShouldBe("Failed after 5 attempts");
-		dlq.DeadLetterQueue.ShouldBe("dead-letter");
-		dlq.LastDeliveryError.ShouldBe("Failed after 5 attempts");
+		dlq.GetDeadLetterReason().ShouldBe("MaxRetries");
+		dlq.GetDeadLetterErrorDescription().ShouldBe("Failed after 5 attempts");
+		dlq.GetDeadLetterQueue().ShouldBe("dead-letter");
+		dlq.GetLastDeliveryError().ShouldBe("Failed after 5 attempts");
 	}
 
 	[Fact]
@@ -353,7 +352,7 @@ public sealed class MessageMetadataExtensionsShould
 
 		var dlq = metadata.CreateDeadLetterMetadata("Poison", deadLetterQueue: "custom-dlq");
 
-		dlq.DeadLetterQueue.ShouldBe("custom-dlq");
+		dlq.GetDeadLetterQueue().ShouldBe("custom-dlq");
 	}
 
 	// --- CreateReplyMetadata ---
@@ -381,7 +380,7 @@ public sealed class MessageMetadataExtensionsShould
 		reply.CausationId.ShouldBe("msg-1"); // Original message caused the reply
 		reply.MessageType.ShouldBe("ReplyType");
 		reply.Source.ShouldBe("dest-svc"); // Swapped
-		reply.Destination.ShouldBe("reply-queue"); // ReplyTo address
+		reply.GetDestination().ShouldBe("reply-queue"); // ReplyTo address
 	}
 
 	[Fact]
@@ -407,7 +406,7 @@ public sealed class MessageMetadataExtensionsShould
 
 		var reply = metadata.CreateReplyMetadata();
 
-		reply.Destination.ShouldBe("origin-svc");
+		reply.GetDestination().ShouldBe("origin-svc");
 	}
 
 	[Fact]
@@ -527,8 +526,8 @@ public sealed class MessageMetadataExtensionsShould
 		merged.MessageId.ShouldBe("msg-2");
 		merged.CorrelationId.ShouldBe("corr-2");
 		merged.CausationId.ShouldBe("cause-2");
-		merged.UserId.ShouldBe("secondary-user");
-		merged.TenantId.ShouldBe("secondary-tenant");
+		merged.GetUserId().ShouldBe("secondary-user");
+		merged.GetTenantId().ShouldBe("secondary-tenant");
 		merged.Headers.ShouldContainKey("h1"); // from primary
 		merged.Headers.ShouldContainKey("h2"); // from secondary
 	}
@@ -546,9 +545,10 @@ public sealed class MessageMetadataExtensionsShould
 
 		var merged = primary.Merge(secondary);
 
-		merged.Roles.ShouldContain("Admin");
-		merged.Roles.ShouldContain("User");
-		merged.Roles.ShouldContain("Manager");
+		var mergedRoles = merged.GetRoles();
+		mergedRoles.ShouldContain("Admin");
+		mergedRoles.ShouldContain("User");
+		mergedRoles.ShouldContain("Manager");
 	}
 
 	// --- ToDictionary ---
@@ -670,8 +670,8 @@ public sealed class MessageMetadataExtensionsShould
 		var metadata = CreateTestMetadata();
 		var enriched = metadata.WithCurrentTraceContext();
 
-		enriched.TraceParent.ShouldNotBeNullOrWhiteSpace();
-		enriched.TraceState.ShouldBe("state=test");
-		enriched.Baggage.ShouldContain("key1=val1");
+		enriched.GetTraceParent().ShouldNotBeNullOrWhiteSpace();
+		enriched.GetTraceState().ShouldBe("state=test");
+		enriched.GetBaggage().ShouldContain("key1=val1");
 	}
 }

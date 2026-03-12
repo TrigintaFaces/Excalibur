@@ -153,7 +153,7 @@ public sealed class AdvancedSagaMiddlewareShould
 		var expectedResult = MessageResult.Success();
 		var nextCalled = false;
 
-		A.CallTo(() => context.GetItem<bool?>("IsSagaMessage")).Returns(null);
+		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
 
 		DispatchRequestDelegate next = (_, _, _) =>
 		{
@@ -181,8 +181,8 @@ public sealed class AdvancedSagaMiddlewareShould
 		var context = A.Fake<IMessageContext>();
 		var expectedResult = MessageResult.Success();
 
-		A.CallTo(() => context.GetItem<bool?>("IsSagaMessage")).Returns(true);
-		A.CallTo(() => context.GetItem<string>("SagaId")).Returns("saga-123");
+		var items = new Dictionary<string, object> { ["IsSagaMessage"] = true, ["SagaId"] = "saga-123" };
+		A.CallTo(() => context.Items).Returns(items);
 
 		DispatchRequestDelegate next = (_, _, _) =>
 			ValueTask.FromResult(expectedResult);
@@ -202,8 +202,8 @@ public sealed class AdvancedSagaMiddlewareShould
 		var context = A.Fake<IMessageContext>();
 		var sagaId = "saga-456";
 
-		A.CallTo(() => context.GetItem<bool?>("IsSagaMessage")).Returns(true);
-		A.CallTo(() => context.GetItem<string>("SagaId")).Returns(sagaId);
+		var items = new Dictionary<string, object> { ["IsSagaMessage"] = true, ["SagaId"] = sagaId };
+		A.CallTo(() => context.Items).Returns(items);
 		// Note: FakeItEasy returns completed Task with null by default for Task<T?>
 
 		DispatchRequestDelegate next = (_, _, _) =>
@@ -225,8 +225,8 @@ public sealed class AdvancedSagaMiddlewareShould
 		var context = A.Fake<IMessageContext>();
 		var correlationId = "corr-789";
 
-		A.CallTo(() => context.GetItem<bool?>("IsSagaMessage")).Returns(true);
-		A.CallTo(() => context.GetItem<string>("SagaId")).Returns((string?)null);
+		var items = new Dictionary<string, object> { ["IsSagaMessage"] = true };
+		A.CallTo(() => context.Items).Returns(items);
 		A.CallTo(() => context.CorrelationId).Returns(correlationId);
 
 		DispatchRequestDelegate next = (_, _, _) =>
@@ -257,8 +257,8 @@ public sealed class AdvancedSagaMiddlewareShould
 		var sagaId = "saga-fail";
 		var failedResult = MessageResult.Failed("Handler failed");
 
-		A.CallTo(() => context.GetItem<bool?>("IsSagaMessage")).Returns(true);
-		A.CallTo(() => context.GetItem<string>("SagaId")).Returns(sagaId);
+		var items = new Dictionary<string, object> { ["IsSagaMessage"] = true, ["SagaId"] = sagaId };
+		A.CallTo(() => context.Items).Returns(items);
 
 		DispatchRequestDelegate next = (_, _, _) =>
 			ValueTask.FromResult(failedResult);
@@ -283,8 +283,8 @@ public sealed class AdvancedSagaMiddlewareShould
 		var context = A.Fake<IMessageContext>();
 		var failedResult = MessageResult.Failed("Handler failed");
 
-		A.CallTo(() => context.GetItem<bool?>("IsSagaMessage")).Returns(true);
-		A.CallTo(() => context.GetItem<string>("SagaId")).Returns("saga-fail");
+		var items = new Dictionary<string, object> { ["IsSagaMessage"] = true, ["SagaId"] = "saga-fail" };
+		A.CallTo(() => context.Items).Returns(items);
 
 		DispatchRequestDelegate next = (_, _, _) =>
 			ValueTask.FromResult(failedResult);
@@ -308,8 +308,8 @@ public sealed class AdvancedSagaMiddlewareShould
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
 
-		A.CallTo(() => context.GetItem<bool?>("IsSagaMessage")).Returns(true);
-		A.CallTo(() => context.GetItem<string>("SagaId")).Returns("saga-error");
+		var items = new Dictionary<string, object> { ["IsSagaMessage"] = true, ["SagaId"] = "saga-error" };
+		A.CallTo(() => context.Items).Returns(items);
 
 		DispatchRequestDelegate next = (_, _, _) =>
 			throw new InvalidOperationException("Test error");
@@ -330,8 +330,8 @@ public sealed class AdvancedSagaMiddlewareShould
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync();
 
-		A.CallTo(() => context.GetItem<bool?>("IsSagaMessage")).Returns(true);
-		A.CallTo(() => context.GetItem<string>("SagaId")).Returns("saga-cancel");
+		var items = new Dictionary<string, object> { ["IsSagaMessage"] = true, ["SagaId"] = "saga-cancel" };
+		A.CallTo(() => context.Items).Returns(items);
 
 		DispatchRequestDelegate next = (_, _, ct) =>
 		{
@@ -354,8 +354,8 @@ public sealed class AdvancedSagaMiddlewareShould
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync();
 
-		A.CallTo(() => context.GetItem<bool?>("IsSagaMessage")).Returns(true);
-		A.CallTo(() => context.GetItem<string>("SagaId")).Returns(sagaId);
+		var items = new Dictionary<string, object> { ["IsSagaMessage"] = true, ["SagaId"] = sagaId };
+		A.CallTo(() => context.Items).Returns(items);
 
 		DispatchRequestDelegate next = (_, _, ct) =>
 		{

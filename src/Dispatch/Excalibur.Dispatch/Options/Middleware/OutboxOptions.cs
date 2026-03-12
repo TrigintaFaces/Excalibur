@@ -46,6 +46,37 @@ public sealed class OutboxOptions
 	public TimeSpan PublishPollingInterval { get; set; } = TimeSpan.FromSeconds(5);
 
 	/// <summary>
+	/// Gets or sets the age after which sent messages are cleaned up.
+	/// </summary>
+	/// <value> Default is 7 days. </value>
+	public TimeSpan CleanupAge { get; set; } = TimeSpan.FromDays(7);
+
+	/// <summary>
+	/// Gets or sets the interval for running cleanup operations.
+	/// </summary>
+	/// <value> Default is 1 hour. </value>
+	public TimeSpan CleanupInterval { get; set; } = TimeSpan.FromHours(1);
+
+	/// <summary>
+	/// Gets or sets the retry configuration for failed messages.
+	/// </summary>
+	/// <value>The retry configuration options.</value>
+	public OutboxMiddlewareRetryOptions Retry { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the adaptive polling configuration.
+	/// </summary>
+	/// <value>The adaptive polling configuration options.</value>
+	public OutboxMiddlewareAdaptivePollingOptions AdaptivePolling { get; set; } = new();
+
+}
+
+/// <summary>
+/// Configuration options for outbox middleware retry behavior.
+/// </summary>
+public sealed class OutboxMiddlewareRetryOptions
+{
+	/// <summary>
 	/// Gets or sets the maximum number of retry attempts for failed messages.
 	/// </summary>
 	/// <value> Default is 3. </value>
@@ -77,25 +108,18 @@ public sealed class OutboxOptions
 	/// </summary>
 	/// <value> Default is 30 minutes. </value>
 	public TimeSpan MaxRetryDelay { get; set; } = TimeSpan.FromMinutes(30);
+}
 
-	/// <summary>
-	/// Gets or sets the age after which sent messages are cleaned up.
-	/// </summary>
-	/// <value> Default is 7 days. </value>
-	public TimeSpan CleanupAge { get; set; } = TimeSpan.FromDays(7);
-
-	/// <summary>
-	/// Gets or sets the interval for running cleanup operations.
-	/// </summary>
-	/// <value> Default is 1 hour. </value>
-	public TimeSpan CleanupInterval { get; set; } = TimeSpan.FromHours(1);
-
+/// <summary>
+/// Configuration options for outbox middleware adaptive polling behavior.
+/// </summary>
+public sealed class OutboxMiddlewareAdaptivePollingOptions
+{
 	/// <summary>
 	/// Gets or sets a value indicating whether adaptive polling is enabled.
 	/// </summary>
 	/// <remarks>
-	/// When enabled, the polling interval dynamically adjusts between
-	/// <see cref="MinPollingInterval"/> and <see cref="PublishPollingInterval"/> based on message throughput.
+	/// When enabled, the polling interval dynamically adjusts based on message throughput.
 	/// Idle periods gradually increase the interval; active processing resets to the minimum.
 	/// </remarks>
 	/// <value> Default is false (fixed interval). </value>
@@ -106,7 +130,6 @@ public sealed class OutboxOptions
 	/// </summary>
 	/// <remarks>
 	/// Used as the poll interval immediately after processing messages.
-	/// Must be less than or equal to <see cref="PublishPollingInterval"/>.
 	/// </remarks>
 	/// <value> Default is 500 milliseconds. </value>
 	public TimeSpan MinPollingInterval { get; set; } = TimeSpan.FromMilliseconds(500);
@@ -115,8 +138,8 @@ public sealed class OutboxOptions
 	/// Gets or sets the backoff multiplier for adaptive polling.
 	/// </summary>
 	/// <remarks>
-	/// After each idle poll (no messages found), the current interval is multiplied by this factor
-	/// until reaching <see cref="PublishPollingInterval"/>. A value of 2.0 means doubling each idle cycle.
+	/// After each idle poll (no messages found), the current interval is multiplied by this factor.
+	/// A value of 2.0 means doubling each idle cycle.
 	/// </remarks>
 	/// <value> Default is 2.0. </value>
 	public double AdaptivePollingBackoffMultiplier { get; set; } = 2.0;

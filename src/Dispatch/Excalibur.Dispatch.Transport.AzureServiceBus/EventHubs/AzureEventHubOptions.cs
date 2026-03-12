@@ -44,22 +44,6 @@ public sealed class AzureEventHubOptions
 	public string ConsumerGroup { get; set; } = "$Default";
 
 	/// <summary>
-	/// Gets or sets the prefetch count for receivers.
-	/// </summary>
-	/// <value>
-	/// The prefetch count for receivers.
-	/// </value>
-	public int PrefetchCount { get; set; } = 300;
-
-	/// <summary>
-	/// Gets or sets the maximum batch size for batch operations.
-	/// </summary>
-	/// <value>
-	/// The maximum batch size for batch operations.
-	/// </value>
-	public int MaxBatchSize { get; set; } = 100;
-
-	/// <summary>
 	/// Gets or sets a value indicating whether to enable encryption for messages.
 	/// </summary>
 	/// <value>
@@ -76,12 +60,12 @@ public sealed class AzureEventHubOptions
 	public string? EncryptionProviderName { get; set; }
 
 	/// <summary>
-	/// Gets or sets the starting position for event processing.
+	/// Gets or sets the consumer and batch processing options.
 	/// </summary>
 	/// <value>
-	/// The starting position for event processing.
+	/// The consumer and batch processing options.
 	/// </value>
-	public EventHubStartingPosition StartingPosition { get; set; } = EventHubStartingPosition.Latest;
+	public EventHubConsumerOptions Consumer { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to enable verbose logging.
@@ -116,14 +100,44 @@ public sealed class AzureEventHubOptions
 			throw new InvalidOperationException("EventHubName must be configured");
 		}
 
-		if (PrefetchCount < 0)
+		if (Consumer.PrefetchCount < 0)
 		{
 			throw new InvalidOperationException("PrefetchCount cannot be negative");
 		}
 
-		if (MaxBatchSize is <= 0 or > 1000)
+		if (Consumer.MaxBatchSize is <= 0 or > 1000)
 		{
 			throw new InvalidOperationException("MaxBatchSize must be between 1 and 1000");
 		}
 	}
+}
+
+/// <summary>
+/// Consumer and batch processing options for Azure Event Hubs.
+/// </summary>
+public sealed class EventHubConsumerOptions
+{
+	/// <summary>
+	/// Gets or sets the prefetch count for receivers.
+	/// </summary>
+	/// <value>
+	/// The prefetch count for receivers.
+	/// </value>
+	public int PrefetchCount { get; set; } = 300;
+
+	/// <summary>
+	/// Gets or sets the maximum batch size for batch operations.
+	/// </summary>
+	/// <value>
+	/// The maximum batch size for batch operations.
+	/// </value>
+	public int MaxBatchSize { get; set; } = 100;
+
+	/// <summary>
+	/// Gets or sets the starting position for event processing.
+	/// </summary>
+	/// <value>
+	/// The starting position for event processing.
+	/// </value>
+	public EventHubStartingPosition StartingPosition { get; set; } = EventHubStartingPosition.Latest;
 }

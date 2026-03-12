@@ -1,28 +1,29 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.Domain.Model;
 
 namespace Excalibur.Tests.Domain.Model;
 
 // ── Test domain events ──
 
-public record OrderCreated(string OrderId, decimal Total) : DomainEventBase
+public record OrderCreated(string OrderId, decimal Total) : DomainEvent
 {
     public override string AggregateId => OrderId;
 }
 
-public record OrderItemAdded(string OrderId, string ItemId, int Quantity) : DomainEventBase
+public record OrderItemAdded(string OrderId, string ItemId, int Quantity) : DomainEvent
 {
     public override string AggregateId => OrderId;
 }
 
-public record OrderShipped(string OrderId, DateTimeOffset ShippedAt) : DomainEventBase
+public record OrderShipped(string OrderId, DateTimeOffset ShippedAt) : DomainEvent
 {
     public override string AggregateId => OrderId;
 }
 
-public record OrderCancelled(string OrderId, string Reason) : DomainEventBase
+public record OrderCancelled(string OrderId, string Reason) : DomainEvent
 {
     public override string AggregateId => OrderId;
 }

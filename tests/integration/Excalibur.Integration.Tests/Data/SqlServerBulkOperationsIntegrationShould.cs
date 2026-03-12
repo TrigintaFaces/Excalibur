@@ -254,14 +254,20 @@ public sealed class SqlServerBulkOperationsIntegrationShould : IAsyncLifetime
 	{
 		var options = Options.Create(new SqlServerProviderOptions
 		{
-			ConnectionString = _fixture.ConnectionString,
+			Connection =
+			{
+				ConnectionString = _fixture.ConnectionString,
+				ConnectTimeout = 15,
+				TrustServerCertificate = true,
+			},
 			Name = "bulk-test",
 			CommandTimeout = 60,
-			ConnectTimeout = 15,
-			MaxPoolSize = 10,
-			MinPoolSize = 1,
-			EnablePooling = true,
-			TrustServerCertificate = true,
+			Pooling =
+			{
+				MaxPoolSize = 10,
+				MinPoolSize = 1,
+				EnablePooling = true,
+			},
 			RetryCount = 3,
 		});
 

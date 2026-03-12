@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Resilience;
 /// Exponential backoff increases the delay between retries exponentially, which helps prevent overwhelming a recovering service. Adding
 /// jitter randomizes the delays to prevent the "thundering herd" problem where multiple clients retry simultaneously.
 /// </para>
-/// <para> The formula used is: delay = min(baseDelay * multiplier^(attempt-1) Ã‚Â± jitter, maxDelay) </para>
+/// <para> The formula used is: delay = min(baseDelay * multiplier^(attempt-1) +/- jitter, maxDelay) </para>
 /// </remarks>
 public sealed class ExponentialBackoffCalculator : IBackoffCalculator
 {
@@ -37,11 +37,11 @@ public sealed class ExponentialBackoffCalculator : IBackoffCalculator
 	/// <param name="options"> The retry policy options containing backoff configuration. </param>
 	public ExponentialBackoffCalculator(RetryPolicyOptions options)
 		: this(
-			options?.BaseDelay ?? TimeSpan.FromSeconds(1),
-			options?.MaxDelay ?? TimeSpan.FromMinutes(30),
-			options?.BackoffMultiplier ?? 2.0,
-			options?.EnableJitter ?? false,
-			options?.JitterFactor ?? 0.1)
+			options?.Backoff.BaseDelay ?? TimeSpan.FromSeconds(1),
+			options?.Backoff.MaxDelay ?? TimeSpan.FromMinutes(30),
+			options?.Backoff.BackoffMultiplier ?? 2.0,
+			options?.Backoff.EnableJitter ?? false,
+			options?.Backoff.JitterFactor ?? 0.1)
 	{
 	}
 
@@ -127,7 +127,7 @@ public sealed class ExponentialBackoffCalculator : IBackoffCalculator
 		// Calculate the jitter range as a percentage of the delay
 		var jitterRange = delayMs * _jitterFactor;
 
-		// Apply random jitter: delay Ã‚Â± (jitterRange * random) Using decorrelated jitter for better distribution Random.Shared is
+		// Apply random jitter: delay +/- (jitterRange * random) Using decorrelated jitter for better distribution Random.Shared is
 		// thread-safe and suitable for non-cryptographic scenarios like backoff jitter
 #pragma warning disable CA5394 // Do not use insecure randomness - jitter does not require cryptographic security
 		var jitter = ((Random.Shared.NextDouble() * 2) - 1) * jitterRange;

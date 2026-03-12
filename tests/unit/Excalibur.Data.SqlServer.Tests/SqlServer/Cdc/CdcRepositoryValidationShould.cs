@@ -4,7 +4,7 @@
 using System.Reflection;
 
 using Excalibur.Data.Abstractions.Validation;
-using Excalibur.Data.SqlServer.Cdc;
+using Excalibur.Cdc.SqlServer;
 
 namespace Excalibur.Data.Tests.SqlServer.Cdc;
 

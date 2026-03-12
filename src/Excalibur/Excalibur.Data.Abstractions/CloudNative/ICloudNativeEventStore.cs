@@ -7,16 +7,19 @@ using Excalibur.Dispatch.Abstractions;
 namespace Excalibur.Data.Abstractions.CloudNative;
 
 /// <summary>
-/// Defines event store operations optimized for cloud-native document databases.
+/// Defines core event store operations optimized for cloud-native document databases.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This interface extends the core event store pattern with cloud-native optimizations:
+/// This interface provides partition-aware event storage and retrieval with
+/// optimistic concurrency via document versioning/ETags and cost tracking.
+/// </para>
+/// <para>
+/// Advanced features are available as ISP sub-interfaces via <see cref="GetService"/>:
 /// <list type="bullet">
-/// <item>Partition-aware event storage and retrieval</item>
-/// <item>Optimistic concurrency via document versioning/ETags</item>
-/// <item>Change feed integration for subscriptions</item>
-/// <item>Cost tracking (RU/capacity consumption)</item>
+/// <item><see cref="ICloudNativeProviderInfo"/> -- cloud provider type metadata</item>
+/// <item><see cref="ICloudNativeEventStoreChangeFeed"/> -- change feed subscriptions</item>
+/// <item><see cref="ICloudNativeEventStoreInfo"/> -- version queries without event loading</item>
 /// </list>
 /// </para>
 /// <para>
@@ -34,11 +37,6 @@ namespace Excalibur.Data.Abstractions.CloudNative;
 /// </remarks>
 public interface ICloudNativeEventStore
 {
-	/// <summary>
-	/// Gets the underlying cloud provider type.
-	/// </summary>
-	CloudProviderType ProviderType { get; }
-
 	/// <summary>
 	/// Loads all events for an aggregate within a partition.
 	/// </summary>
@@ -92,6 +90,22 @@ public interface ICloudNativeEventStore
 		CancellationToken cancellationToken);
 
 	/// <summary>
+	/// Gets an implementation-specific service. Use to access optional capabilities
+	/// such as <see cref="ICloudNativeProviderInfo"/>, <see cref="ICloudNativeEventStoreChangeFeed"/>,
+	/// or <see cref="ICloudNativeEventStoreInfo"/>.
+	/// </summary>
+	/// <param name="serviceType">The type of the requested service.</param>
+	/// <returns>The service instance, or <see langword="null"/> if not supported.</returns>
+	object? GetService(Type serviceType) => null;
+}
+
+/// <summary>
+/// Provides change feed subscription capabilities for cloud-native event stores.
+/// Obtain via <see cref="ICloudNativeEventStore.GetService"/> on an event store instance.
+/// </summary>
+public interface ICloudNativeEventStoreChangeFeed
+{
+	/// <summary>
 	/// Creates a subscription to the event store change feed.
 	/// </summary>
 	/// <param name="options">Change feed options.</param>
@@ -100,7 +114,15 @@ public interface ICloudNativeEventStore
 	Task<IChangeFeedSubscription<CloudStoredEvent>> SubscribeToChangesAsync(
 		IChangeFeedOptions? options,
 		CancellationToken cancellationToken);
+}
 
+/// <summary>
+/// Provides version query capabilities for cloud-native event stores without
+/// loading events. Obtain via <see cref="ICloudNativeEventStore.GetService"/>
+/// on an event store instance.
+/// </summary>
+public interface ICloudNativeEventStoreInfo
+{
 	/// <summary>
 	/// Gets the current aggregate version without loading events.
 	/// </summary>

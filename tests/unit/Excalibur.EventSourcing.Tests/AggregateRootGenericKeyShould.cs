@@ -22,14 +22,7 @@ public sealed class AggregateRootGenericKeyShould
 	internal sealed record TestEvent : DomainEvent
 	{
 		public string Data { get; init; } = string.Empty;
-
-		public TestEvent(string aggregateId, long version, string data)
-			: base(aggregateId, version, TimeProvider.System)
-		{
-			Data = data;
-		}
-
-		public TestEvent() : base("", 0, TimeProvider.System) { }
+		public override string AggregateId { get; init; } = string.Empty;
 	}
 
 	#endregion Test Events
@@ -52,7 +45,7 @@ public sealed class AggregateRootGenericKeyShould
 
 		public void SetState(string state)
 		{
-			RaiseEvent(new TestEvent(Id.ToString(), Version, state));
+			RaiseEvent(new TestEvent { AggregateId = Id.ToString(), Version = Version, Data = state });
 		}
 
 		protected override void ApplyEventInternal(IDomainEvent @event)
@@ -78,7 +71,7 @@ public sealed class AggregateRootGenericKeyShould
 
 		public void SetState(string state)
 		{
-			RaiseEvent(new TestEvent(Id.ToString(), Version, state));
+			RaiseEvent(new TestEvent { AggregateId = Id.ToString(), Version = Version, Data = state });
 		}
 
 		protected override void ApplyEventInternal(IDomainEvent @event)
@@ -104,7 +97,7 @@ public sealed class AggregateRootGenericKeyShould
 
 		public void SetState(string state)
 		{
-			RaiseEvent(new TestEvent(Id.ToString(), Version, state));
+			RaiseEvent(new TestEvent { AggregateId = Id.ToString(), Version = Version, Data = state });
 		}
 
 		protected override void ApplyEventInternal(IDomainEvent @event)
@@ -138,7 +131,7 @@ public sealed class AggregateRootGenericKeyShould
 
 		public void SetState(string state)
 		{
-			RaiseEvent(new TestEvent(Id.ToString(), Version, state));
+			RaiseEvent(new TestEvent { AggregateId = Id.ToString(), Version = Version, Data = state });
 		}
 
 		protected override void ApplyEventInternal(IDomainEvent @event)
@@ -203,8 +196,8 @@ public sealed class AggregateRootGenericKeyShould
 		var aggregate = new GuidAggregate(id);
 		var events = new List<IDomainEvent>
 		{
-			new TestEvent(id.ToString(), 0, "first"),
-			new TestEvent(id.ToString(), 1, "second")
+			new TestEvent { AggregateId = id.ToString(), Version = 0, Data = "first" },
+			new TestEvent { AggregateId = id.ToString(), Version = 1, Data = "second" }
 		};
 
 		// Act
@@ -475,9 +468,9 @@ public sealed class AggregateRootGenericKeyShould
 		var id = Guid.NewGuid();
 		var events = new List<IDomainEvent>
 		{
-			new TestEvent(id.ToString(), 0, "first"),
-			new TestEvent(id.ToString(), 1, "second"),
-			new TestEvent(id.ToString(), 2, "third")
+			new TestEvent { AggregateId = id.ToString(), Version = 0, Data = "first" },
+			new TestEvent { AggregateId = id.ToString(), Version = 1, Data = "second" },
+			new TestEvent { AggregateId = id.ToString(), Version = 2, Data = "third" }
 		};
 
 		// Act
@@ -516,7 +509,7 @@ public sealed class AggregateRootGenericKeyShould
 		var id = Guid.NewGuid();
 		var events = new List<IDomainEvent>
 		{
-			new TestEvent(id.ToString(), 0, "historical")
+			new TestEvent { AggregateId = id.ToString(), Version = 0, Data = "historical" }
 		};
 
 		// Act
@@ -534,7 +527,7 @@ public sealed class AggregateRootGenericKeyShould
 		var id = Guid.NewGuid();
 		var historyEvents = new List<IDomainEvent>
 		{
-			new TestEvent(id.ToString(), 0, "historical")
+			new TestEvent { AggregateId = id.ToString(), Version = 0, Data = "historical" }
 		};
 
 		// Act
@@ -595,7 +588,7 @@ public sealed class AggregateRootGenericKeyShould
 
 		public void SetState(string state)
 		{
-			RaiseEvent(new TestEvent(Id.ToString(), Version, state));
+			RaiseEvent(new TestEvent { AggregateId = Id.ToString(), Version = Version, Data = state });
 		}
 
 		protected override void ApplyEventInternal(IDomainEvent @event)

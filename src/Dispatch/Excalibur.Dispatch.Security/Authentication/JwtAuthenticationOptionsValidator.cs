@@ -28,36 +28,36 @@ internal sealed class JwtAuthenticationOptionsValidator : IValidateOptions<JwtAu
 			failures.Add($"{nameof(JwtAuthenticationOptions.ClockSkewSeconds)} must be >= 0 (was {options.ClockSkewSeconds}).");
 		}
 
-		if (options.ValidateIssuer &&
-			string.IsNullOrWhiteSpace(options.ValidIssuer) &&
-			(options.ValidIssuers is null || options.ValidIssuers.Length == 0))
+		if (options.Validation.ValidateIssuer &&
+			string.IsNullOrWhiteSpace(options.Credentials.ValidIssuer) &&
+			(options.Credentials.ValidIssuers is null || options.Credentials.ValidIssuers.Length == 0))
 		{
 			failures.Add(
-				$"When {nameof(JwtAuthenticationOptions.ValidateIssuer)} is true, " +
-				$"at least one of {nameof(JwtAuthenticationOptions.ValidIssuer)} or " +
-				$"{nameof(JwtAuthenticationOptions.ValidIssuers)} must be set.");
+				$"When {nameof(JwtTokenValidationOptions)}.{nameof(JwtTokenValidationOptions.ValidateIssuer)} is true, " +
+				$"at least one of {nameof(JwtTokenCredentialOptions)}.{nameof(JwtTokenCredentialOptions.ValidIssuer)} or " +
+				$"{nameof(JwtTokenCredentialOptions)}.{nameof(JwtTokenCredentialOptions.ValidIssuers)} must be set.");
 		}
 
-		if (options.ValidateAudience &&
-			string.IsNullOrWhiteSpace(options.ValidAudience) &&
-			(options.ValidAudiences is null || options.ValidAudiences.Length == 0))
+		if (options.Validation.ValidateAudience &&
+			string.IsNullOrWhiteSpace(options.Credentials.ValidAudience) &&
+			(options.Credentials.ValidAudiences is null || options.Credentials.ValidAudiences.Length == 0))
 		{
 			failures.Add(
-				$"When {nameof(JwtAuthenticationOptions.ValidateAudience)} is true, " +
-				$"at least one of {nameof(JwtAuthenticationOptions.ValidAudience)} or " +
-				$"{nameof(JwtAuthenticationOptions.ValidAudiences)} must be set.");
+				$"When {nameof(JwtTokenValidationOptions)}.{nameof(JwtTokenValidationOptions.ValidateAudience)} is true, " +
+				$"at least one of {nameof(JwtTokenCredentialOptions)}.{nameof(JwtTokenCredentialOptions.ValidAudience)} or " +
+				$"{nameof(JwtTokenCredentialOptions)}.{nameof(JwtTokenCredentialOptions.ValidAudiences)} must be set.");
 		}
 
-		if (options.ValidateSigningKey &&
-			string.IsNullOrWhiteSpace(options.SigningKey) &&
-			string.IsNullOrWhiteSpace(options.RsaPublicKey) &&
-			string.IsNullOrWhiteSpace(options.SigningKeyCredentialName))
+		if (options.Validation.ValidateSigningKey &&
+			string.IsNullOrWhiteSpace(options.Credentials.SigningKey) &&
+			string.IsNullOrWhiteSpace(options.Credentials.RsaPublicKey) &&
+			string.IsNullOrWhiteSpace(options.Credentials.SigningKeyCredentialName))
 		{
 			failures.Add(
-				$"When {nameof(JwtAuthenticationOptions.ValidateSigningKey)} is true, " +
-				$"at least one of {nameof(JwtAuthenticationOptions.SigningKey)}, " +
-				$"{nameof(JwtAuthenticationOptions.RsaPublicKey)}, or " +
-				$"{nameof(JwtAuthenticationOptions.SigningKeyCredentialName)} must be set.");
+				$"When {nameof(JwtTokenValidationOptions)}.{nameof(JwtTokenValidationOptions.ValidateSigningKey)} is true, " +
+				$"at least one of {nameof(JwtTokenCredentialOptions)}.{nameof(JwtTokenCredentialOptions.SigningKey)}, " +
+				$"{nameof(JwtTokenCredentialOptions)}.{nameof(JwtTokenCredentialOptions.RsaPublicKey)}, or " +
+				$"{nameof(JwtTokenCredentialOptions)}.{nameof(JwtTokenCredentialOptions.SigningKeyCredentialName)} must be set.");
 		}
 
 		return failures.Count > 0

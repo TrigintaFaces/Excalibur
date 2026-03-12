@@ -129,7 +129,7 @@ public sealed class DefaultTimePolicyShould
 		var customTimeout = TimeSpan.FromSeconds(42);
 		var sut = new DefaultTimePolicy(CreateOptions(o =>
 		{
-			o.CustomTimeouts[TimeoutOperationType.Handler] = customTimeout;
+			o.Overrides.CustomTimeouts[TimeoutOperationType.Handler] = customTimeout;
 		}));
 
 		sut.GetTimeoutFor(TimeoutOperationType.Handler).ShouldBe(customTimeout);
@@ -157,7 +157,7 @@ public sealed class DefaultTimePolicyShould
 		var customTimeout = TimeSpan.FromSeconds(99);
 		var sut = new DefaultTimePolicy(CreateOptions(o =>
 		{
-			o.MessageTypeTimeouts[typeof(string).FullName!] = customTimeout;
+			o.Overrides.MessageTypeTimeouts[typeof(string).FullName!] = customTimeout;
 		}));
 
 		sut.GetTimeoutForMessage(TimeoutOperationType.Handler, typeof(string)).ShouldBe(customTimeout);
@@ -187,7 +187,7 @@ public sealed class DefaultTimePolicyShould
 		var customTimeout = TimeSpan.FromSeconds(77);
 		var sut = new DefaultTimePolicy(CreateOptions(o =>
 		{
-			o.HandlerTypeTimeouts[typeof(string).FullName!] = customTimeout;
+			o.Overrides.HandlerTypeTimeouts[typeof(string).FullName!] = customTimeout;
 		}));
 
 		sut.GetTimeoutForHandler(TimeoutOperationType.Handler, typeof(string)).ShouldBe(customTimeout);

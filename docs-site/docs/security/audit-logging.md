@@ -258,13 +258,13 @@ builder.Services.AddSingleton<IAuditLogExporter, SplunkAuditExporter>();
 
 builder.Services.Configure<SplunkExporterOptions>(options =>
 {
-    options.HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector");
-    options.HecToken = builder.Configuration["Splunk:HecToken"]!;
+    options.Connection.HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector");
+    options.Connection.HecToken = builder.Configuration["Splunk:HecToken"]!;
     options.Index = "audit";
     options.SourceType = "audit:dispatch";
     options.Source = "my-application";
-    options.MaxBatchSize = 100;
-    options.EnableCompression = true;
+    options.Batch.MaxBatchSize = 100;
+    options.Connection.EnableCompression = true;
 });
 ```
 

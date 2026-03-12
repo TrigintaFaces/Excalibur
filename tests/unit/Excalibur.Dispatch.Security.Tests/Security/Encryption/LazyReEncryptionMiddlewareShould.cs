@@ -201,7 +201,7 @@ public sealed class LazyReEncryptionMiddlewareShould
 		var originalData = CreateEncryptedData("old-key");
 		var migratedData = CreateEncryptedData("new-key");
 		var message = A.Fake<IDispatchMessage>();
-		var (context, properties) = CreateContextWithEncryptedPayloadAndProperties(originalData);
+		var (context, items) = CreateContextWithEncryptedPayloadAndItems(originalData);
 		var expectedResult = A.Fake<IMessageResult>();
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(expectedResult);
 
@@ -213,10 +213,10 @@ public sealed class LazyReEncryptionMiddlewareShould
 		// Act
 		var result = await _sut.InvokeAsync(message, context, next, CancellationToken.None);
 
-		// Assert
+		// Assert -- SetProperty writes to Items
 		result.ShouldBe(expectedResult);
-		properties["EncryptedPayload"].ShouldBe(migratedData);
-		properties["WasLazilyReEncrypted"].ShouldBe(true);
+		items["EncryptedPayload"].ShouldBe(migratedData);
+		items["WasLazilyReEncrypted"].ShouldBe(true);
 	}
 
 	[Fact]
@@ -226,7 +226,7 @@ public sealed class LazyReEncryptionMiddlewareShould
 		var originalData = CreateEncryptedData("old-key");
 		var migratedData = CreateEncryptedData("new-key");
 		var message = A.Fake<IDispatchMessage>();
-		var (context, properties) = CreateContextWithEncryptedPayloadAndProperties(originalData);
+		var (context, items) = CreateContextWithEncryptedPayloadAndItems(originalData);
 		var expectedResult = A.Fake<IMessageResult>();
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(expectedResult);
 
@@ -238,9 +238,9 @@ public sealed class LazyReEncryptionMiddlewareShould
 		// Act
 		_ = await _sut.InvokeAsync(message, context, next, CancellationToken.None);
 
-		// Assert
-		properties["OriginalKeyId"].ShouldBe("old-key");
-		properties["MigratedKeyId"].ShouldBe("new-key");
+		// Assert -- SetProperty writes to Items
+		items["OriginalKeyId"].ShouldBe("old-key");
+		items["MigratedKeyId"].ShouldBe("new-key");
 	}
 
 	[Fact]
@@ -607,21 +607,19 @@ public sealed class LazyReEncryptionMiddlewareShould
 		return context;
 	}
 
-	private static (IMessageContext Context, Dictionary<string, object?> Properties) CreateContextWithEncryptedPayloadAndProperties(EncryptedData encryptedData)
+	private static (IMessageContext Context, Dictionary<string, object> Items) CreateContextWithEncryptedPayloadAndItems(EncryptedData encryptedData)
 	{
 		var context = A.Fake<IMessageContext>();
 
-		// Use real dictionaries - extension methods use these internally
+		// Use real Items dictionary - SetProperty writes to Items
 		var items = new Dictionary<string, object>
 		{
 			["EncryptedPayload"] = encryptedData
 		};
-		var properties = new Dictionary<string, object?>();
 
 		_ = A.CallTo(() => context.Items).Returns(items);
-		_ = A.CallTo(() => context.Properties).Returns(properties);
 
-		return (context, properties);
+		return (context, items);
 	}
 
 	private static IMessageContext CreateContextWithEncryptedPayloadAndTenantId(

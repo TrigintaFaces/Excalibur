@@ -5,6 +5,7 @@
 using CloudNative.CloudEvents;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Metadata;
 using Excalibur.Dispatch.Options.CloudEvents;
@@ -127,28 +128,28 @@ public sealed partial class CloudEventMiddleware(
 		var envelope = new MessageEnvelope(dispatchEvent)
 		{
 			MessageId = context.MessageId,
-			ExternalId = context.ExternalId,
-			UserId = context.UserId,
+			ExternalId = context.GetExternalId(),
+			UserId = context.GetUserId(),
 			CorrelationId = context.CorrelationId,
 			CausationId = context.CausationId,
-			TraceParent = context.TraceParent,
-			TenantId = context.TenantId,
-			SessionId = context.SessionId,
-			WorkflowId = context.WorkflowId,
-			PartitionKey = context.PartitionKey,
-			Source = context.Source,
-			MessageType = context.MessageType,
-			ContentType = context.ContentType,
+			TraceParent = context.GetTraceParent(),
+			TenantId = context.GetTenantId(),
+			SessionId = context.GetSessionId(),
+			WorkflowId = context.GetWorkflowId(),
+			PartitionKey = context.GetPartitionKey(),
+			Source = context.GetSource(),
+			MessageType = context.GetMessageType(),
+			ContentType = context.GetContentType(),
 			SerializerVersion = context.SerializerVersion(),
 			MessageVersion = context.MessageVersion(),
 			ContractVersion = context.ContractVersion(),
 			DesiredVersion = int.TryParse(context.DesiredVersion(), out var desired) ? desired : null,
-			DeliveryCount = context.DeliveryCount,
+			DeliveryCount = context.GetDeliveryCount(),
 			Message = dispatchEvent,
 			Result = context.Result,
 			RequestServices = context.RequestServices,
-			ReceivedTimestampUtc = context.ReceivedTimestampUtc,
-			SentTimestampUtc = context.SentTimestampUtc,
+			ReceivedTimestampUtc = context.GetReceivedTimestampUtc() ?? default,
+			SentTimestampUtc = context.GetSentTimestampUtc(),
 
 			// Populate legacy metadata from unified context metadata
 			Metadata = context.ExtractMetadata().ToLegacy(),
@@ -157,11 +158,6 @@ public sealed partial class CloudEventMiddleware(
 		foreach (var item in context.Items)
 		{
 			envelope.Items[item.Key] = item.Value;
-		}
-
-		foreach (var property in context.Properties)
-		{
-			envelope.Properties[property.Key] = property.Value;
 		}
 
 		return (envelope, true);
@@ -177,7 +173,7 @@ public sealed partial class CloudEventMiddleware(
 		}
 
 		// Schema validation if registry is available
-		if (schemaRegistry != null && _options.ValidateSchema)
+		if (schemaRegistry != null && _options.Schema.ValidateSchema)
 		{
 			var schemaVersion = cloudEvent.GetSchemaVersion();
 			if (!string.IsNullOrEmpty(schemaVersion))
@@ -186,7 +182,7 @@ public sealed partial class CloudEventMiddleware(
 				if (schema == null)
 				{
 					LogSchemaNotFound(cloudEvent.Type, schemaVersion);
-					return !_options.ValidateSchema;
+					return !_options.Schema.ValidateSchema;
 				}
 
 				// Schema validation implementation depends on the specific registry provider Core validation is delegated to the schema
@@ -196,9 +192,9 @@ public sealed partial class CloudEventMiddleware(
 		}
 
 		// Custom validation
-		if (_options.CustomValidator != null)
+		if (_options.Schema.CustomValidator != null)
 		{
-			return await _options.CustomValidator(cloudEvent, cancellationToken).ConfigureAwait(false);
+			return await _options.Schema.CustomValidator(cloudEvent, cancellationToken).ConfigureAwait(false);
 		}
 
 		return true;
@@ -214,12 +210,12 @@ public sealed partial class CloudEventMiddleware(
 
 		if (cloudEvent.Source != null)
 		{
-			context.Source = cloudEvent.Source.ToString();
+			context.GetOrCreateRoutingFeature().Source = cloudEvent.Source.ToString();
 		}
 
 		if (cloudEvent.Time.HasValue)
 		{
-			context.SentTimestampUtc = cloudEvent.Time.Value;
+			context.SetSentTimestampUtc(cloudEvent.Time.Value);
 		}
 
 		// Extract correlation ID from extensions
@@ -231,7 +227,7 @@ public sealed partial class CloudEventMiddleware(
 		// Extract trace context from extensions
 		if (cloudEvent["traceparent"] is string traceParent)
 		{
-			context.TraceParent = traceParent;
+			context.GetOrCreateIdentityFeature().TraceParent = traceParent;
 		}
 
 		// Copy other extension attributes to context items
@@ -254,18 +250,18 @@ public sealed partial class CloudEventMiddleware(
 			.ConfigureAwait(false);
 
 		// Add schema version if configured
-		if (_options.IncludeSchemaVersion)
+		if (_options.Schema.IncludeSchemaVersion)
 		{
-			var version = _options.SchemaVersionProvider?.Invoke(evt.GetType()) ?? "1.0";
+			var version = _options.Schema.SchemaVersionProvider?.Invoke(evt.GetType()) ?? "1.0";
 			cloudEvent.SetSchemaVersion(version);
 
 			// Schema compatibility mode handling would go here if needed
 		}
 
 		// Register schema if needed
-		if (schemaRegistry != null && _options.AutoRegisterSchemas)
+		if (schemaRegistry != null && _options.Schema.AutoRegisterSchemas)
 		{
-			var schema = _options.SchemaProvider?.Invoke(evt.GetType());
+			var schema = _options.Schema.SchemaProvider?.Invoke(evt.GetType());
 			if (!string.IsNullOrEmpty(schema))
 			{
 				// Schema registration is provider-specific and handled by the concrete registry implementation Core ISchemaRegistry
@@ -275,9 +271,9 @@ public sealed partial class CloudEventMiddleware(
 		}
 
 		// Apply custom transformations
-		if (_options.OutgoingTransformer != null)
+		if (_options.Schema.OutgoingTransformer != null)
 		{
-			await _options.OutgoingTransformer(cloudEvent, evt, context, cancellationToken).ConfigureAwait(false);
+			await _options.Schema.OutgoingTransformer(cloudEvent, evt, context, cancellationToken).ConfigureAwait(false);
 		}
 
 		return cloudEvent;

@@ -28,9 +28,9 @@ public sealed class RedisDistributedJobLockShould
 		DateTimeOffset? expiresAt = null)
 	{
 		var now = DateTimeOffset.UtcNow;
-		// Use internal type via reflection
-		var type = typeof(Excalibur.Jobs.Core.JobConfigHostedWatcherServiceFactory).Assembly
-			.GetType("Excalibur.Jobs.Coordination.RedisDistributedJobLock")!;
+		// Use internal type via reflection (moved to Jobs.Redis package)
+		var type = typeof(Excalibur.Jobs.Redis.Coordination.RedisJobCoordinator).Assembly
+			.GetType("Excalibur.Jobs.Redis.Coordination.RedisDistributedJobLock")!;
 
 		return (IAsyncDisposable)Activator.CreateInstance(
 			type,

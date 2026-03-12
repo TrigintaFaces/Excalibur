@@ -24,8 +24,8 @@ public sealed class AwsSqsOptionsShould
 		options.LongPollingConfig.ShouldBeNull();
 		options.KmsMasterKeyId.ShouldBeNull();
 		options.KmsDataKeyReusePeriodSeconds.ShouldBe(300);
-		options.WaitTimeSeconds.ShouldBe(TimeSpan.FromSeconds(20));
-		options.VisibilityTimeout.ShouldBe(TimeSpan.FromSeconds(30));
+		options.Consumer.WaitTimeSeconds.ShouldBe(TimeSpan.FromSeconds(20));
+		options.Consumer.VisibilityTimeout.ShouldBe(TimeSpan.FromSeconds(30));
 	}
 
 	[Fact]

@@ -20,7 +20,7 @@ public sealed class CosmosDbOutboxServiceCollectionExtensionsShould : UnitTestBa
 		// Act
 		_ = services.AddCosmosDbOutboxStore(options =>
 		{
-			options.ConnectionString = "test";
+			options.Connection.ConnectionString = "test";
 			options.DatabaseName = "testdb";
 		});
 
@@ -42,7 +42,7 @@ public sealed class CosmosDbOutboxServiceCollectionExtensionsShould : UnitTestBa
 		// Act
 		_ = services.AddCosmosDbOutboxStore(options =>
 		{
-			options.ConnectionString = "test-connection";
+			options.Connection.ConnectionString = "test-connection";
 			options.DatabaseName = "TestDatabase";
 			options.ContainerName = "custom-container";
 		});
@@ -82,7 +82,7 @@ public sealed class CosmosDbOutboxServiceCollectionExtensionsShould : UnitTestBa
 		var configuration = new ConfigurationBuilder()
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
-				["ConnectionString"] = "test-connection",
+				["Connection:ConnectionString"] = "test-connection",
 				["DatabaseName"] = "TestDatabase"
 			})
 			.Build();
@@ -130,7 +130,7 @@ public sealed class CosmosDbOutboxServiceCollectionExtensionsShould : UnitTestBa
 		var configuration = new ConfigurationBuilder()
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
-				["CosmosDb:ConnectionString"] = "test-connection",
+				["CosmosDb:Connection:ConnectionString"] = "test-connection",
 				["CosmosDb:DatabaseName"] = "TestDatabase"
 			})
 			.Build();
@@ -192,7 +192,7 @@ public sealed class CosmosDbOutboxServiceCollectionExtensionsShould : UnitTestBa
 		// Act
 		var result = services.AddCosmosDbOutboxStore(options =>
 		{
-			options.ConnectionString = "test";
+			options.Connection.ConnectionString = "test";
 			options.DatabaseName = "testdb";
 		});
 

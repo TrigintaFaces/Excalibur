@@ -23,14 +23,20 @@ public sealed class SplunkAuditExporterShould : IDisposable
 	{
 		_options = new SplunkExporterOptions
 		{
-			HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector"),
-			HecToken = "test-token-123",
+			Connection =
+			{
+				HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector"),
+				HecToken = "test-token-123"
+			},
 			Index = "audit",
 			SourceType = "audit:dispatch",
 			Source = "test-app",
 			Host = "test-host",
-			MaxRetryAttempts = 1,
-			RetryBaseDelay = TimeSpan.FromMilliseconds(10)
+			Batch =
+			{
+				MaxRetryAttempts = 1,
+				RetryBaseDelay = TimeSpan.FromMilliseconds(10)
+			}
 		};
 
 		_mockHandler = new MockHttpMessageHandler();
@@ -413,11 +419,17 @@ public sealed class SplunkAuditExporterShould : IDisposable
 		// Arrange
 		var ackOptions = new SplunkExporterOptions
 		{
-			HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector"),
-			HecToken = "test-token-123",
+			Connection =
+			{
+				HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector"),
+				HecToken = "test-token-123"
+			},
 			UseAck = true,
 			Channel = "test-channel-abc",
-			MaxRetryAttempts = 0
+			Batch =
+			{
+				MaxRetryAttempts = 0
+			}
 		};
 
 		var handler = new MockHttpMessageHandler();
@@ -445,10 +457,16 @@ public sealed class SplunkAuditExporterShould : IDisposable
 		// Arrange
 		var noHostOptions = new SplunkExporterOptions
 		{
-			HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector"),
-			HecToken = "test-token-123",
+			Connection =
+			{
+				HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector"),
+				HecToken = "test-token-123"
+			},
 			Host = null,
-			MaxRetryAttempts = 0
+			Batch =
+			{
+				MaxRetryAttempts = 0
+			}
 		};
 
 		var handler = new MockHttpMessageHandler();
@@ -477,10 +495,16 @@ public sealed class SplunkAuditExporterShould : IDisposable
 		// Arrange
 		var noSourceOptions = new SplunkExporterOptions
 		{
-			HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector"),
-			HecToken = "test-token-123",
+			Connection =
+			{
+				HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector"),
+				HecToken = "test-token-123"
+			},
 			Source = null,
-			MaxRetryAttempts = 0
+			Batch =
+			{
+				MaxRetryAttempts = 0
+			}
 		};
 
 		var handler = new MockHttpMessageHandler();
@@ -540,10 +564,16 @@ public sealed class SplunkAuditExporterShould : IDisposable
 		// Arrange
 		var noIndexOptions = new SplunkExporterOptions
 		{
-			HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector"),
-			HecToken = "test-token-123",
+			Connection =
+			{
+				HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector"),
+				HecToken = "test-token-123"
+			},
 			Index = null,
-			MaxRetryAttempts = 0
+			Batch =
+			{
+				MaxRetryAttempts = 0
+			}
 		};
 
 		var handler = new MockHttpMessageHandler();
@@ -589,10 +619,16 @@ public sealed class SplunkAuditExporterShould : IDisposable
 
 		var retryOptions = new SplunkExporterOptions
 		{
-			HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector"),
-			HecToken = "test-token",
-			MaxRetryAttempts = 2,
-			RetryBaseDelay = TimeSpan.FromMilliseconds(10)
+			Connection =
+			{
+				HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector"),
+				HecToken = "test-token"
+			},
+			Batch =
+			{
+				MaxRetryAttempts = 2,
+				RetryBaseDelay = TimeSpan.FromMilliseconds(10)
+			}
 		};
 
 		var exporter = new SplunkAuditExporter(
@@ -621,10 +657,16 @@ public sealed class SplunkAuditExporterShould : IDisposable
 
 		var retryOptions = new SplunkExporterOptions
 		{
-			HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector"),
-			HecToken = "test-token",
-			MaxRetryAttempts = 2,
-			RetryBaseDelay = TimeSpan.FromMilliseconds(1)
+			Connection =
+			{
+				HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector"),
+				HecToken = "test-token"
+			},
+			Batch =
+			{
+				MaxRetryAttempts = 2,
+				RetryBaseDelay = TimeSpan.FromMilliseconds(1)
+			}
 		};
 
 		var exporter = new SplunkAuditExporter(
@@ -653,10 +695,16 @@ public sealed class SplunkAuditExporterShould : IDisposable
 
 		var retryOptions = new SplunkExporterOptions
 		{
-			HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector"),
-			HecToken = "test-token",
-			MaxRetryAttempts = 2,
-			RetryBaseDelay = TimeSpan.FromMilliseconds(1)
+			Connection =
+			{
+				HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector"),
+				HecToken = "test-token"
+			},
+			Batch =
+			{
+				MaxRetryAttempts = 2,
+				RetryBaseDelay = TimeSpan.FromMilliseconds(1)
+			}
 		};
 
 		var exporter = new SplunkAuditExporter(

@@ -14,7 +14,7 @@ Leader election ensures only one instance in a distributed system performs a spe
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.LeaderElection
-  dotnet add package Excalibur.LeaderElection.SqlServer  # or Redis provider
+  dotnet add package Excalibur.LeaderElection.SqlServer  # or Redis/Postgres provider
   ```
 - A distributed storage backend (SQL Server or Redis) for lease management
 - Familiarity with [Dispatch hosting](../deployment/index.md)
@@ -26,6 +26,7 @@ Leader election ensures only one instance in a distributed system performs a spe
 | `Excalibur.Dispatch.LeaderElection.Abstractions` | Core interfaces: `ILeaderElection`, `ILeaderElectionFactory`, `IHealthBasedLeaderElection` |
 | `Excalibur.LeaderElection` | Registration, telemetry decorator, and health check |
 | `Excalibur.LeaderElection.SqlServer` | SQL Server-based leader election |
+| `Excalibur.Data.Postgres` | PostgreSQL advisory lock-based leader election |
 | `Excalibur.LeaderElection.Redis` | Redis-based leader election |
 | `Excalibur.LeaderElection.Consul` | Consul-based leader election |
 | `Excalibur.LeaderElection.Kubernetes` | Kubernetes lease-based leader election |
@@ -71,17 +72,17 @@ public interface ILeaderElection
     /// <summary>
     /// Event raised when this instance becomes the leader.
     /// </summary>
-    event EventHandler<LeaderElectionEventArgs>? OnBecameLeader;
+    event EventHandler<LeaderElectionEventArgs>? BecameLeader;
 
     /// <summary>
     /// Event raised when this instance loses leadership.
     /// </summary>
-    event EventHandler<LeaderElectionEventArgs>? OnLostLeadership;
+    event EventHandler<LeaderElectionEventArgs>? LostLeadership;
 
     /// <summary>
     /// Event raised when the leader changes (any instance).
     /// </summary>
-    event EventHandler<LeaderChangedEventArgs>? OnLeaderChanged;
+    event EventHandler<LeaderChangedEventArgs>? LeaderChanged;
 
     /// <summary>
     /// Gets the unique identifier for this election participant.
@@ -110,6 +111,85 @@ public interface ILeaderElection
 }
 ```
 
+## Registration
+
+### Builder API (Recommended)
+
+Use the fluent builder pattern to configure leader election with your chosen provider:
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+// SQL Server with health checks
+services.AddExcaliburLeaderElection(le => le
+    .UseSqlServer(connectionString, "my-app-leader")
+    .WithHealthChecks()
+    .WithFencingTokens());
+
+// Postgres
+services.AddExcaliburLeaderElection(le => le
+    .UsePostgres(opts =>
+    {
+        opts.ConnectionString = "Host=localhost;Database=myapp;";
+        opts.LockKey = 12345;
+    })
+    .WithHealthChecks());
+
+// Redis
+services.AddExcaliburLeaderElection(le => le
+    .UseRedis("myapp:leader")
+    .WithHealthChecks());
+
+// Consul
+services.AddExcaliburLeaderElection(le => le
+    .UseConsul(opts =>
+    {
+        opts.ConsulAddress = "http://localhost:8500";
+        opts.SessionTTL = TimeSpan.FromSeconds(30);
+    }));
+
+// Kubernetes
+services.AddExcaliburLeaderElection(le => le
+    .UseKubernetes());
+
+// In-memory (testing/development)
+services.AddExcaliburLeaderElection(le => le
+    .UseInMemory());
+
+// Configure options via the builder
+services.AddExcaliburLeaderElection(le => le
+    .UseRedis("myapp:leader")
+    .WithOptions(opts =>
+    {
+        opts.LeaseDuration = TimeSpan.FromSeconds(30);
+        opts.RenewInterval = TimeSpan.FromSeconds(10);
+    })
+    .WithHealthChecks());
+```
+
+The builder automatically registers `LeaderElectionOptions` with `ValidateDataAnnotations` and `ValidateOnStart`.
+
+### Available Builder Extensions
+
+| Method | Package | Purpose |
+|--------|---------|---------|
+| `UseInMemory()` | `Excalibur.LeaderElection.InMemory` | Testing and development |
+| `UseRedis(lockKey)` | `Excalibur.LeaderElection.Redis` | Redis-based leader election |
+| `UseRedisFactory()` | `Excalibur.LeaderElection.Redis` | Redis factory for multiple elections |
+| `UseSqlServer(conn, lock)` | `Excalibur.LeaderElection.SqlServer` | SQL Server-based leader election |
+| `UseSqlServerFactory(conn)` | `Excalibur.LeaderElection.SqlServer` | SQL Server factory for multiple elections |
+| `UsePostgres(opts)` | `Excalibur.Data.Postgres` | PostgreSQL advisory lock-based leader election |
+| `UsePostgresFactory(opts)` | `Excalibur.Data.Postgres` | PostgreSQL factory for multiple elections |
+| `UseConsul(opts?)` | `Excalibur.LeaderElection.Consul` | Consul session-based leader election |
+| `UseKubernetes(opts?)` | `Excalibur.LeaderElection.Kubernetes` | Kubernetes Lease-based leader election |
+| `WithHealthChecks()` | `Excalibur.LeaderElection` | Registers health check integration |
+| `WithFencingTokens()` | `Excalibur.LeaderElection` | Registers fencing token middleware |
+| `WithOptions(configure)` | `Excalibur.LeaderElection` | Configures `LeaderElectionOptions` |
+
+### Direct Registration (Legacy)
+
+Provider-specific `Add*LeaderElection` methods are still available for backward compatibility. The builder API above is preferred for new code.
+
 ## Basic Usage
 
 ### Event-Based Leadership Pattern
@@ -131,10 +211,10 @@ public class OutboxProcessor : BackgroundService
         _logger = logger;
 
         // Subscribe to leadership events
-        _leaderElection.OnBecameLeader += (_, args) =>
+        _leaderElection.BecameLeader += (_, args) =>
             _logger.LogInformation("Became leader: {CandidateId}", args.CandidateId);
 
-        _leaderElection.OnLostLeadership += (_, args) =>
+        _leaderElection.LostLeadership += (_, args) =>
             _logger.LogInformation("Lost leadership: {CandidateId}", args.CandidateId);
     }
 
@@ -239,6 +319,73 @@ SQL Server implementation features:
 - Automatic heartbeat renewal
 - Graceful handoff on shutdown
 - Works with existing SQL Server infrastructure
+
+### PostgreSQL Leader Election
+
+Uses Postgres advisory locks for coordination:
+
+```csharp
+// Installation
+dotnet add package Excalibur.Data.Postgres
+
+// Direct registration
+builder.Services.AddPostgresLeaderElection(options =>
+{
+    options.ConnectionString = "Host=localhost;Database=myapp;";
+    options.LockKey = 12345;
+});
+
+// Or via builder API
+builder.Services.AddExcaliburLeaderElection(le => le
+    .UsePostgres(options =>
+    {
+        options.ConnectionString = "Host=localhost;Database=myapp;";
+        options.LockKey = 12345;
+    }));
+```
+
+PostgreSQL implementation features:
+- Uses `pg_try_advisory_lock` for distributed locking (session-level)
+- Lock automatically released when connection closes
+- Health-based leader election with candidate health tracking table
+- Factory pattern for multiple independent elections
+- AOT-safe with `[GeneratedRegex]` SQL identifier validation and `JsonSerializerContext`
+- `ValidateDataAnnotations` + `ValidateOnStart` on all options
+- `IValidateOptions<LeaderElectionOptions>` cross-property validator (`RenewInterval < LeaseDuration`)
+
+#### Health-Based Election (Postgres)
+
+PostgreSQL supports health-based leader election where unhealthy leaders automatically step down:
+
+```csharp
+// Register health-based election
+builder.Services.AddPostgresLeaderElection(
+    pgOptions =>
+    {
+        pgOptions.ConnectionString = "Host=localhost;Database=myapp;";
+        pgOptions.LockKey = 12345;
+    },
+    leOptions =>
+    {
+        leOptions.LeaseDuration = TimeSpan.FromSeconds(30);
+        leOptions.RenewInterval = TimeSpan.FromSeconds(10);
+    });
+
+// Add health check
+builder.Services.AddHealthChecks()
+    .AddPostgresLeaderElectionHealthCheck();
+```
+
+Health-based options:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `SchemaName` | `"public"` | Schema for the health tracking table |
+| `TableName` | `"leader_election_health"` | Health tracking table name |
+| `AutoCreateTable` | `true` | Auto-create schema and table on first start |
+| `StepDownWhenUnhealthy` | `true` | Leader voluntarily releases lock when unhealthy |
+| `HealthExpirationSeconds` | `60` | Stale health record expiration |
+| `CommandTimeoutSeconds` | `5` | SQL command timeout |
 
 ### Redis Leader Election
 
@@ -443,8 +590,8 @@ public class LeadershipAwareProcessor : BackgroundService
         _queue = queue;
 
         // Track leadership state via events
-        _leaderElection.OnBecameLeader += (_, _) => _isLeader = true;
-        _leaderElection.OnLostLeadership += (_, _) => _isLeader = false;
+        _leaderElection.BecameLeader += (_, _) => _isLeader = true;
+        _leaderElection.LostLeadership += (_, _) => _isLeader = false;
     }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
@@ -698,7 +845,8 @@ await election.UpdateHealthAsync(
         ["cpu"] = "45%",
         ["memory"] = "2.1GB",
         ["queue_depth"] = "12"
-    });
+    },
+    ct);
 
 // Query all candidates' health
 var candidates = await election.GetCandidateHealthAsync(ct);

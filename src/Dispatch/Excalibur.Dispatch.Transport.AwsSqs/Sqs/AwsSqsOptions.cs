@@ -14,8 +14,8 @@ public sealed class AwsSqsOptions : AwsProviderOptions
 	/// </summary>
 	public AwsSqsOptions()
 	{
-		WaitTimeSeconds = TimeSpan.FromSeconds(20);
-		VisibilityTimeout = TimeSpan.FromSeconds(30);
+		Consumer.WaitTimeSeconds = TimeSpan.FromSeconds(20);
+		Consumer.VisibilityTimeout = TimeSpan.FromSeconds(30);
 	}
 
 	/// <summary>

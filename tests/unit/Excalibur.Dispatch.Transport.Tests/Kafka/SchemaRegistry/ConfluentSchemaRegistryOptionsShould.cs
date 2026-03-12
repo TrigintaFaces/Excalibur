@@ -15,22 +15,28 @@ public sealed class ConfluentSchemaRegistryOptionsShould
 		// Arrange & Act
 		var options = new ConfluentSchemaRegistryOptions();
 
-		// Assert
+		// Assert - root properties
 		options.Url.ShouldBe("http://localhost:8081");
 		options.BasicAuthUserInfo.ShouldBeNull();
 		options.MaxCachedSchemas.ShouldBe(1000);
 		options.RequestTimeout.ShouldBe(TimeSpan.FromSeconds(30));
-		options.EnableSslCertificateVerification.ShouldBeTrue();
-		options.SslCaLocation.ShouldBeNull();
-		options.SslKeyLocation.ShouldBeNull();
-		options.SslCertificateLocation.ShouldBeNull();
-		options.SslKeyPassword.ShouldBeNull();
-		options.AutoRegisterSchemas.ShouldBeTrue();
-		options.DefaultCompatibility.ShouldBe(CompatibilityMode.Backward);
-		options.ValidateBeforeRegister.ShouldBeTrue();
-		options.SubjectNameStrategy.ShouldBe(SubjectNameStrategy.TopicName);
-		options.CustomSubjectNameStrategyType.ShouldBeNull();
 		options.CacheSchemas.ShouldBeTrue();
+
+		// Assert - SSL sub-options
+		options.Ssl.ShouldNotBeNull();
+		options.Ssl.EnableSslCertificateVerification.ShouldBeTrue();
+		options.Ssl.SslCaLocation.ShouldBeNull();
+		options.Ssl.SslKeyLocation.ShouldBeNull();
+		options.Ssl.SslCertificateLocation.ShouldBeNull();
+		options.Ssl.SslKeyPassword.ShouldBeNull();
+
+		// Assert - Schema sub-options
+		options.Schema.ShouldNotBeNull();
+		options.Schema.AutoRegisterSchemas.ShouldBeTrue();
+		options.Schema.DefaultCompatibility.ShouldBe(CompatibilityMode.Backward);
+		options.Schema.ValidateBeforeRegister.ShouldBeTrue();
+		options.Schema.SubjectNameStrategy.ShouldBe(SubjectNameStrategy.TopicName);
+		options.Schema.CustomSubjectNameStrategyType.ShouldBeNull();
 	}
 
 	[Fact]
@@ -43,33 +49,43 @@ public sealed class ConfluentSchemaRegistryOptionsShould
 			BasicAuthUserInfo = "user:pass",
 			MaxCachedSchemas = 500,
 			RequestTimeout = TimeSpan.FromSeconds(10),
-			EnableSslCertificateVerification = false,
-			SslCaLocation = "/path/to/ca.crt",
-			SslKeyLocation = "/path/to/key.pem",
-			SslCertificateLocation = "/path/to/cert.pem",
-			SslKeyPassword = "secret",
-			AutoRegisterSchemas = false,
-			DefaultCompatibility = CompatibilityMode.Full,
-			ValidateBeforeRegister = false,
-			SubjectNameStrategy = SubjectNameStrategy.RecordName,
 			CacheSchemas = false,
+			Ssl = new SchemaRegistrySslOptions
+			{
+				EnableSslCertificateVerification = false,
+				SslCaLocation = "/path/to/ca.crt",
+				SslKeyLocation = "/path/to/key.pem",
+				SslCertificateLocation = "/path/to/cert.pem",
+				SslKeyPassword = "secret",
+			},
+			Schema = new SchemaRegistrySchemaOptions
+			{
+				AutoRegisterSchemas = false,
+				DefaultCompatibility = CompatibilityMode.Full,
+				ValidateBeforeRegister = false,
+				SubjectNameStrategy = SubjectNameStrategy.RecordName,
+			},
 		};
 
-		// Assert
+		// Assert - root
 		options.Url.ShouldBe("https://registry.example.com:8081");
 		options.BasicAuthUserInfo.ShouldBe("user:pass");
 		options.MaxCachedSchemas.ShouldBe(500);
 		options.RequestTimeout.ShouldBe(TimeSpan.FromSeconds(10));
-		options.EnableSslCertificateVerification.ShouldBeFalse();
-		options.SslCaLocation.ShouldBe("/path/to/ca.crt");
-		options.SslKeyLocation.ShouldBe("/path/to/key.pem");
-		options.SslCertificateLocation.ShouldBe("/path/to/cert.pem");
-		options.SslKeyPassword.ShouldBe("secret");
-		options.AutoRegisterSchemas.ShouldBeFalse();
-		options.DefaultCompatibility.ShouldBe(CompatibilityMode.Full);
-		options.ValidateBeforeRegister.ShouldBeFalse();
-		options.SubjectNameStrategy.ShouldBe(SubjectNameStrategy.RecordName);
 		options.CacheSchemas.ShouldBeFalse();
+
+		// Assert - SSL
+		options.Ssl.EnableSslCertificateVerification.ShouldBeFalse();
+		options.Ssl.SslCaLocation.ShouldBe("/path/to/ca.crt");
+		options.Ssl.SslKeyLocation.ShouldBe("/path/to/key.pem");
+		options.Ssl.SslCertificateLocation.ShouldBe("/path/to/cert.pem");
+		options.Ssl.SslKeyPassword.ShouldBe("secret");
+
+		// Assert - Schema
+		options.Schema.AutoRegisterSchemas.ShouldBeFalse();
+		options.Schema.DefaultCompatibility.ShouldBe(CompatibilityMode.Full);
+		options.Schema.ValidateBeforeRegister.ShouldBeFalse();
+		options.Schema.SubjectNameStrategy.ShouldBe(SubjectNameStrategy.RecordName);
 	}
 
 	[Fact]
@@ -95,7 +111,10 @@ public sealed class ConfluentSchemaRegistryOptionsShould
 		// Arrange
 		var options = new ConfluentSchemaRegistryOptions
 		{
-			SubjectNameStrategy = SubjectNameStrategy.RecordName,
+			Schema = new SchemaRegistrySchemaOptions
+			{
+				SubjectNameStrategy = SubjectNameStrategy.RecordName,
+			},
 		};
 
 		// Act

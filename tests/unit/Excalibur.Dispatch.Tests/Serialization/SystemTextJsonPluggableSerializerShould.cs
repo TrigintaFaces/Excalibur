@@ -11,13 +11,13 @@ using Excalibur.Dispatch.Serialization;
 namespace Excalibur.Dispatch.Tests.Serialization;
 
 /// <summary>
-/// Unit tests for <see cref="SystemTextJsonPluggableSerializer"/> validating serialization,
+/// Unit tests for <see cref="SystemTextJsonSerializer"/> validating serialization,
 /// deserialization, and error handling behavior.
 /// </summary>
 [Trait("Category", "Unit")]
 public sealed class SystemTextJsonPluggableSerializerShould
 {
-	private readonly SystemTextJsonPluggableSerializer _sut = new();
+	private readonly SystemTextJsonSerializer _sut = new();
 
 	#region Property Tests
 
@@ -46,18 +46,21 @@ public sealed class SystemTextJsonPluggableSerializerShould
 		var message = new TestMessage { Name = "Test", Value = 42 };
 
 		// Act
-		var result = _sut.Serialize(message);
+		var result = _sut.SerializeToBytes(message);
 
 		// Assert
 		result.ShouldNotBeEmpty();
 	}
 
 	[Fact]
-	public void Serialize_WithNull_ThrowsArgumentNullException()
+	public void Serialize_WithNull_ProducesValidOutput()
 	{
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			_sut.Serialize<TestMessage>(null!));
+		// Act — System.Text.Json serializes null as the literal "null"
+		var result = ((ISerializer)_sut).SerializeToBytes<TestMessage>(null!);
+
+		// Assert
+		result.ShouldNotBeNull();
+		result.Length.ShouldBeGreaterThan(0);
 	}
 
 	[Fact]
@@ -77,7 +80,7 @@ public sealed class SystemTextJsonPluggableSerializerShould
 		};
 
 		// Act
-		var result = _sut.Serialize(message);
+		var result = _sut.SerializeToBytes(message);
 		var json = Encoding.UTF8.GetString(result);
 
 		// Assert
@@ -94,7 +97,7 @@ public sealed class SystemTextJsonPluggableSerializerShould
 		var message = new TestMessage { Name = "Test", Value = 42 };
 
 		// Act
-		var result = _sut.Serialize(message);
+		var result = _sut.SerializeToBytes(message);
 		var json = Encoding.UTF8.GetString(result);
 
 		// Assert - Should use camelCase
@@ -110,7 +113,7 @@ public sealed class SystemTextJsonPluggableSerializerShould
 		var message = new TestMessage { Name = "Test", Value = 42 };
 
 		// Act
-		var result = _sut.Serialize(message);
+		var result = _sut.SerializeToBytes(message);
 		var json = Encoding.UTF8.GetString(result);
 
 		// Assert - Should not have newlines (compact)
@@ -132,7 +135,7 @@ public sealed class SystemTextJsonPluggableSerializerShould
 			Value = 12345,
 			Timestamp = new DateTime(2025, 1, 15, 10, 30, 0, DateTimeKind.Utc)
 		};
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<TestMessage>(serialized);
@@ -181,7 +184,7 @@ public sealed class SystemTextJsonPluggableSerializerShould
 				["priority"] = 1
 			}
 		};
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<ComplexTestMessage>(serialized);
@@ -208,11 +211,11 @@ public sealed class SystemTextJsonPluggableSerializerShould
 			PropertyNamingPolicy = null, // PascalCase
 			WriteIndented = true
 		};
-		var sut = new SystemTextJsonPluggableSerializer(customOptions);
+		var sut = new SystemTextJsonSerializer(customOptions);
 		var message = new TestMessage { Name = "Test", Value = 42 };
 
 		// Act
-		var result = sut.Serialize(message);
+		var result = sut.SerializeToBytes(message);
 		var json = Encoding.UTF8.GetString(result);
 
 		// Assert - Should use PascalCase and be indented
@@ -225,11 +228,11 @@ public sealed class SystemTextJsonPluggableSerializerShould
 	public void Constructor_WithNullOptions_UsesDefaultOptions()
 	{
 		// Arrange
-		var sut = new SystemTextJsonPluggableSerializer(null);
+		var sut = new SystemTextJsonSerializer(null);
 		var message = new TestMessage { Name = "Test", Value = 42 };
 
 		// Act
-		var result = sut.Serialize(message);
+		var result = sut.SerializeToBytes(message);
 		var json = Encoding.UTF8.GetString(result);
 
 		// Assert - Should use defaults (camelCase, compact)
@@ -253,7 +256,7 @@ public sealed class SystemTextJsonPluggableSerializerShould
 		};
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -275,7 +278,7 @@ public sealed class SystemTextJsonPluggableSerializerShould
 		};
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -296,7 +299,7 @@ public sealed class SystemTextJsonPluggableSerializerShould
 		};
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<ComplexTestMessage>(serialized);
 
 		// Assert
@@ -317,7 +320,7 @@ public sealed class SystemTextJsonPluggableSerializerShould
 		};
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -330,12 +333,12 @@ public sealed class SystemTextJsonPluggableSerializerShould
 		// Arrange
 		var original = new TestMessage
 		{
-			Name = "日本語テスト 中文测试 한국어테스트",
+			Name = "\u65e5\u672c\u8a9e\u30c6\u30b9\u30c8 \u4e2d\u6587\u6d4b\u8bd5 \ud55c\uad6d\uc5b4\ud14c\uc2a4\ud2b8",
 			Value = 12345
 		};
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -358,7 +361,7 @@ public sealed class SystemTextJsonPluggableSerializerShould
 		// Act
 		foreach (var message in messages)
 		{
-			tasks.Add(Task.Run(() => _sut.Serialize(message)));
+			tasks.Add(Task.Run(() => _sut.SerializeToBytes(message)));
 		}
 
 		var results = await Task.WhenAll(tasks);
@@ -375,7 +378,7 @@ public sealed class SystemTextJsonPluggableSerializerShould
 		var messages = Enumerable.Range(0, 100)
 			.Select(i => new TestMessage { Name = $"Message{i}", Value = i })
 			.ToList();
-		var serialized = messages.Select(m => _sut.Serialize(m)).ToList();
+		var serialized = messages.Select(m => _sut.SerializeToBytes(m)).ToList();
 		var tasks = new List<Task<TestMessage>>();
 
 		// Act
@@ -439,7 +442,7 @@ public sealed class SystemTextJsonPluggableSerializerShould
 		var message = new TestMessage { Name = "Test", Value = 42 };
 
 		// Act
-		var genericResult = _sut.Serialize(message);
+		var genericResult = _sut.SerializeToBytes(message);
 		var objectResult = _sut.SerializeObject(message, typeof(TestMessage));
 
 		// Assert
@@ -460,7 +463,7 @@ public sealed class SystemTextJsonPluggableSerializerShould
 			Value = 12345,
 			Timestamp = new DateTime(2025, 1, 15, 10, 30, 0, DateTimeKind.Utc)
 		};
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.DeserializeObject(serialized, typeof(TestMessage));
@@ -476,7 +479,7 @@ public sealed class SystemTextJsonPluggableSerializerShould
 	public void DeserializeObject_WithNullType_ThrowsArgumentNullException()
 	{
 		// Arrange
-		var data = _sut.Serialize(new TestMessage { Name = "Test" });
+		var data = _sut.SerializeToBytes(new TestMessage { Name = "Test" });
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
@@ -545,7 +548,7 @@ public sealed class SystemTextJsonPluggableSerializerShould
 		};
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<DateTimeOffsetMessage>(serialized);
 
 		// Assert
@@ -565,7 +568,7 @@ public sealed class SystemTextJsonPluggableSerializerShould
 		};
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -587,7 +590,7 @@ public sealed class SystemTextJsonPluggableSerializerShould
 		};
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<EnumMessage>(serialized);
 
 		// Assert
@@ -606,7 +609,7 @@ public sealed class SystemTextJsonPluggableSerializerShould
 		};
 
 		// Act
-		var serialized = _sut.Serialize(message);
+		var serialized = _sut.SerializeToBytes(message);
 		var json = Encoding.UTF8.GetString(serialized);
 
 		// Assert - Default STJ serializes enums as numbers
@@ -631,7 +634,7 @@ public sealed class SystemTextJsonPluggableSerializerShould
 		};
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<BoundaryValuesMessage>(serialized);
 
 		// Assert
@@ -652,7 +655,7 @@ public sealed class SystemTextJsonPluggableSerializerShould
 		};
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<DecimalMessage>(serialized);
 
 		// Assert

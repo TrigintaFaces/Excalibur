@@ -36,15 +36,11 @@ dotnet run
 Creates snapshots after a specified number of events:
 
 ```csharp
-// Snapshot every 100 events
-var strategy = new IntervalSnapshotStrategy(interval: 100);
-
-// ShouldCreateSnapshot returns true when Version % 100 == 0
+// Snapshot every 100 events using the builder API
 services.AddExcaliburEventSourcing(es =>
 {
-    es.AddRepository<MyAggregate, Guid>(
-        id => new MyAggregate(id),
-        strategy);
+    es.AddRepository<MyAggregate, Guid>(id => new MyAggregate(id));
+    es.UseIntervalSnapshots(100);
 });
 ```
 
@@ -197,4 +193,4 @@ SnapshotStrategies/
 
 - [SqlServerEventStore](../SqlServerEventStore/) - SQL Server persistence
 - [EventUpcasting](../EventUpcasting/) - Event schema evolution
-- [ExcaliburCqrs](../../01-getting-started/ExcaliburCqrs/) - Basic event sourcing
+- [EventSourcingIntro](../../01-getting-started/EventSourcingIntro/) - Basic event sourcing

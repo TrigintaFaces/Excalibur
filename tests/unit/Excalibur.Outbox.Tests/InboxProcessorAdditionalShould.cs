@@ -35,7 +35,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 		// Arrange
 		var options = CreateValidOptions();
 		var inboxStore = A.Fake<IInboxStore>();
-		var serializer = A.Fake<IJsonSerializer>();
+		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var logger = A.Fake<ILogger<InboxProcessor>>();
 		var deadLetterQueue = A.Fake<IDeadLetterQueue>();
@@ -70,11 +70,11 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 			ConsumerBatchSize = 50,
 			PerRunTotal = 1000,
 			MaxAttempts = 5,
-			ParallelProcessingDegree = 4
+			BatchProcessing = { ParallelProcessingDegree = 4 }
 		});
 
 		var inboxStore = A.Fake<IInboxStore>();
-		var serializer = A.Fake<IJsonSerializer>();
+		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var logger = A.Fake<ILogger<InboxProcessor>>();
 
@@ -101,12 +101,15 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 			ConsumerBatchSize = 50,
 			PerRunTotal = 1000,
 			MaxAttempts = 5,
-			ParallelProcessingDegree = 4,
-			EnableDynamicBatchSizing = false
+			BatchProcessing =
+			{
+				ParallelProcessingDegree = 4,
+				EnableDynamicBatchSizing = false
+			}
 		});
 
 		var inboxStore = A.Fake<IInboxStore>();
-		var serializer = A.Fake<IJsonSerializer>();
+		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var logger = A.Fake<ILogger<InboxProcessor>>();
 
@@ -181,11 +184,11 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 			ConsumerBatchSize = 50,
 			PerRunTotal = 1000,
 			MaxAttempts = 5,
-			ParallelProcessingDegree = 1 // Sequential processing
+			BatchProcessing = { ParallelProcessingDegree = 1 } // Sequential processing
 		});
 
 		var inboxStore = A.Fake<IInboxStore>();
-		var serializer = A.Fake<IJsonSerializer>();
+		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var logger = A.Fake<ILogger<InboxProcessor>>();
 
@@ -212,11 +215,11 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 			ConsumerBatchSize = 200,
 			PerRunTotal = 5000,
 			MaxAttempts = 3,
-			ParallelProcessingDegree = 16 // High parallelism
+			BatchProcessing = { ParallelProcessingDegree = 16 } // High parallelism
 		});
 
 		var inboxStore = A.Fake<IInboxStore>();
-		var serializer = A.Fake<IJsonSerializer>();
+		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var logger = A.Fake<ILogger<InboxProcessor>>();
 
@@ -247,16 +250,19 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 			ConsumerBatchSize = 200,
 			PerRunTotal = 5000,
 			MaxAttempts = 3,
-			ParallelProcessingDegree = 8,
-			EnableDynamicBatchSizing = true,
-			MinBatchSize = 10,
-			MaxBatchSize = 1000,
-			BatchProcessingTimeout = TimeSpan.FromMinutes(2),
+			BatchProcessing =
+			{
+				ParallelProcessingDegree = 8,
+				EnableDynamicBatchSizing = true,
+				MinBatchSize = 10,
+				MaxBatchSize = 1000,
+				BatchProcessingTimeout = TimeSpan.FromMinutes(2),
+			},
 			EnableBatchDatabaseOperations = true
 		});
 
 		var inboxStore = A.Fake<IInboxStore>();
-		var serializer = A.Fake<IJsonSerializer>();
+		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var logger = A.Fake<ILogger<InboxProcessor>>();
 
@@ -287,13 +293,16 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 			ConsumerBatchSize = 10,
 			PerRunTotal = 200,
 			MaxAttempts = 10,
-			ParallelProcessingDegree = 1, // Sequential for reliability
-			EnableDynamicBatchSizing = false,
-			BatchProcessingTimeout = TimeSpan.FromMinutes(10)
+			BatchProcessing =
+			{
+				ParallelProcessingDegree = 1, // Sequential for reliability
+				EnableDynamicBatchSizing = false,
+				BatchProcessingTimeout = TimeSpan.FromMinutes(10),
+			}
 		});
 
 		var inboxStore = A.Fake<IInboxStore>();
-		var serializer = A.Fake<IJsonSerializer>();
+		var serializer = new DispatchJsonSerializer();
 		var serviceProvider = A.Fake<IServiceProvider>();
 		var logger = A.Fake<ILogger<InboxProcessor>>();
 
@@ -354,14 +363,14 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 			ConsumerBatchSize = 50,
 			PerRunTotal = 1000,
 			MaxAttempts = 5,
-			ParallelProcessingDegree = 4
+			BatchProcessing = { ParallelProcessingDegree = 4 }
 		});
 	}
 
 	private static InboxProcessor CreateProcessor(
 		IOptions<DeliveryInboxOptions>? options = null,
 		IInboxStore? inboxStore = null,
-		IJsonSerializer? serializer = null,
+		DispatchJsonSerializer? serializer = null,
 		IServiceProvider? serviceProvider = null,
 		ILogger<InboxProcessor>? logger = null,
 		IDeadLetterQueue? deadLetterQueue = null,
@@ -372,7 +381,7 @@ public sealed class InboxProcessorAdditionalShould : UnitTestBase
 			options ?? CreateValidOptions(),
 			inboxStore ?? A.Fake<IInboxStore>(),
 			serviceProvider ?? A.Fake<IServiceProvider>(),
-			serializer ?? A.Fake<IJsonSerializer>(),
+			serializer ?? new DispatchJsonSerializer(),
 			logger ?? A.Fake<ILogger<InboxProcessor>>(),
 			telemetryClient: null,
 			internalSerializer: null,

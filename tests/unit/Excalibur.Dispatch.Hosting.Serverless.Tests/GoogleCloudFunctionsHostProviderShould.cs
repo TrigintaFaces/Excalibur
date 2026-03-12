@@ -42,8 +42,7 @@ public sealed class GoogleCloudFunctionsHostProviderShould : UnitTestBase
 		var options = new ServerlessHostOptions
 		{
 			EnableColdStartOptimization = true,
-			EnableDistributedTracing = true,
-			EnableMetrics = true
+			Telemetry = { EnableDistributedTracing = true, EnableMetrics = true }
 		};
 
 		_sut.ConfigureServices(services, options);

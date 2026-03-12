@@ -166,8 +166,9 @@ public class TenantMiddleware : IDispatchMiddleware
             return MessageResult.Failed(new TenantRequiredError());
         }
 
-        // Store tenant in context (direct property for hot-path access)
-        context.TenantId = tenantId;
+        // Store tenant in context via identity feature
+        var identity = context.GetOrCreateIdentityFeature();
+        identity.TenantId = tenantId;
 
         // Configure tenant-specific services
         using (var scope = context.RequestServices.CreateScope())
@@ -207,8 +208,8 @@ public class AuditMiddleware : IDispatchMiddleware
             {
                 MessageType = message.GetType().Name,
                 MessageId = message.MessageId,
-                UserId = context.UserId,
-                TenantId = context.TenantId,
+                UserId = context.GetUserId(),
+                TenantId = context.GetTenantId(),
                 Timestamp = startTime,
                 Duration = DateTime.UtcNow - startTime,
                 Success = result.IsSuccess,
@@ -337,10 +338,12 @@ public async ValueTask<IMessageResult> InvokeAsync(
 ### From Context
 
 ```csharp
-// Read direct properties (hot-path, preferred for common values)
-var userId = context.UserId;
-var tenantId = context.TenantId;
+// Read core properties (direct on interface)
 var correlationId = context.CorrelationId;
+
+// Read cross-cutting concerns via feature extensions
+var userId = context.GetUserId();
+var tenantId = context.GetTenantId();
 
 // Read custom items from dictionary
 var tenant = context.GetItem<Tenant>("CurrentTenant");

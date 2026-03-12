@@ -9,6 +9,7 @@ using System.Diagnostics;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Delivery;
 
@@ -238,8 +239,8 @@ public sealed class DispatcherEndToEndIntegrationShould : IDisposable
 		var command = new TestCommand { Id = Guid.NewGuid(), Data = "ContextTest" };
 		var context = _contextFactory.CreateContext();
 		context.CorrelationId = "test-correlation-id";
-		context.TenantId = "test-tenant";
-		context.UserId = "test-user";
+		context.GetOrCreateIdentityFeature().TenantId = "test-tenant";
+		context.GetOrCreateIdentityFeature().UserId = "test-user";
 
 		// Act
 		var result = await _dispatcher.DispatchAsync(command, context, CancellationToken.None);
@@ -248,8 +249,8 @@ public sealed class DispatcherEndToEndIntegrationShould : IDisposable
 		result.Succeeded.ShouldBeTrue();
 		_ = TestCommandHandler.LastContext.ShouldNotBeNull();
 		TestCommandHandler.LastContext.CorrelationId.ShouldBe("test-correlation-id");
-		TestCommandHandler.LastContext.TenantId.ShouldBe("test-tenant");
-		TestCommandHandler.LastContext.UserId.ShouldBe("test-user");
+		TestCommandHandler.LastContext.GetTenantId().ShouldBe("test-tenant");
+		TestCommandHandler.LastContext.GetUserId().ShouldBe("test-user");
 	}
 
 	[Fact]

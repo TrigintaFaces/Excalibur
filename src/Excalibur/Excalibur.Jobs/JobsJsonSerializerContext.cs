@@ -4,7 +4,7 @@
 
 using System.Text.Json.Serialization;
 
-using Excalibur.Jobs.Coordination;
+using Excalibur.Jobs.Abstractions.Coordination;
 using Excalibur.Jobs.Core;
 
 namespace Excalibur.Jobs;

@@ -85,8 +85,11 @@ public sealed class DefaultRetryPolicyShould
 		var options = new RetryPolicyOptions
 		{
 			MaxRetryAttempts = 3,
-			BaseDelay = TimeSpan.FromMilliseconds(1),
-			MaxDelay = TimeSpan.FromMilliseconds(10),
+			Backoff = new RetryBackoffOptions
+			{
+				BaseDelay = TimeSpan.FromMilliseconds(1),
+				MaxDelay = TimeSpan.FromMilliseconds(10),
+			},
 		};
 		var policy = new DefaultRetryPolicy(options);
 		var attempts = 0;
@@ -117,8 +120,11 @@ public sealed class DefaultRetryPolicyShould
 		var options = new RetryPolicyOptions
 		{
 			MaxRetryAttempts = 2,
-			BaseDelay = TimeSpan.FromMilliseconds(1),
-			MaxDelay = TimeSpan.FromMilliseconds(10),
+			Backoff = new RetryBackoffOptions
+			{
+				BaseDelay = TimeSpan.FromMilliseconds(1),
+				MaxDelay = TimeSpan.FromMilliseconds(10),
+			},
 		};
 		var policy = new DefaultRetryPolicy(options);
 		var attempts = 0;
@@ -143,7 +149,10 @@ public sealed class DefaultRetryPolicyShould
 		var options = new RetryPolicyOptions
 		{
 			MaxRetryAttempts = 5,
-			BaseDelay = TimeSpan.FromMilliseconds(1),
+			Backoff = new RetryBackoffOptions
+			{
+				BaseDelay = TimeSpan.FromMilliseconds(1),
+			},
 		};
 		var policy = new DefaultRetryPolicy(options);
 		var attempts = 0;
@@ -168,7 +177,10 @@ public sealed class DefaultRetryPolicyShould
 		var options = new RetryPolicyOptions
 		{
 			MaxRetryAttempts = 5,
-			BaseDelay = TimeSpan.FromMilliseconds(1),
+			Backoff = new RetryBackoffOptions
+			{
+				BaseDelay = TimeSpan.FromMilliseconds(1),
+			},
 		};
 		var policy = new DefaultRetryPolicy(options);
 		var attempts = 0;
@@ -193,7 +205,10 @@ public sealed class DefaultRetryPolicyShould
 		var options = new RetryPolicyOptions
 		{
 			MaxRetryAttempts = 5,
-			BaseDelay = TimeSpan.FromMilliseconds(1),
+			Backoff = new RetryBackoffOptions
+			{
+				BaseDelay = TimeSpan.FromMilliseconds(1),
+			},
 		};
 		options.NonRetriableExceptions.Add(typeof(ArgumentException));
 		var policy = new DefaultRetryPolicy(options);
@@ -219,8 +234,11 @@ public sealed class DefaultRetryPolicyShould
 		var options = new RetryPolicyOptions
 		{
 			MaxRetryAttempts = 3,
-			BaseDelay = TimeSpan.FromMilliseconds(1),
-			MaxDelay = TimeSpan.FromMilliseconds(10),
+			Backoff = new RetryBackoffOptions
+			{
+				BaseDelay = TimeSpan.FromMilliseconds(1),
+				MaxDelay = TimeSpan.FromMilliseconds(10),
+			},
 		};
 		options.RetriableExceptions.Add(typeof(TimeoutException));
 		var policy = new DefaultRetryPolicy(options);
@@ -246,8 +264,11 @@ public sealed class DefaultRetryPolicyShould
 		var options = new RetryPolicyOptions
 		{
 			MaxRetryAttempts = 3,
-			BaseDelay = TimeSpan.FromMilliseconds(1),
-			MaxDelay = TimeSpan.FromMilliseconds(10),
+			Backoff = new RetryBackoffOptions
+			{
+				BaseDelay = TimeSpan.FromMilliseconds(1),
+				MaxDelay = TimeSpan.FromMilliseconds(10),
+			},
 		};
 		options.RetriableExceptions.Add(typeof(TimeoutException));
 		var policy = new DefaultRetryPolicy(options);

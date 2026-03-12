@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Abstractions.Serialization;
 /// <list type="bullet">
 ///   <item>Magic byte prepending during serialization</item>
 ///   <item>Automatic format detection during deserialization</item>
-///   <item>Routing to the correct <see cref="IPluggableSerializer"/> implementation</item>
+///   <item>Routing to the correct <see cref="ISerializer"/> implementation</item>
 /// </list>
 /// <para>
 /// <b>Payload Format:</b>
@@ -153,47 +153,4 @@ public interface IPayloadSerializer
 	/// </remarks>
 	byte[] SerializeObject(object value, Type type);
 
-	/// <summary>
-	/// Deserializes transport message data with hybrid format detection for external system interoperability.
-	/// </summary>
-	/// <typeparam name="T">The type to deserialize to.</typeparam>
-	/// <param name="data">The raw message payload bytes from a transport (Kafka, RabbitMQ, etc.).</param>
-	/// <returns>The deserialized object.</returns>
-	/// <exception cref="ArgumentNullException">Thrown when data is null.</exception>
-	/// <exception cref="SerializationException">
-	/// Thrown when:
-	/// <list type="bullet">
-	///   <item>The payload is empty</item>
-	///   <item>The format cannot be detected (unknown first byte)</item>
-	///   <item>Confluent Schema Registry format with non-JSON payload (Avro/Protobuf not supported)</item>
-	///   <item>Deserialization fails</item>
-	/// </list>
-	/// </exception>
-	/// <remarks>
-	/// <para>
-	/// This method implements hybrid format detection for transport messages that may originate
-	/// from both internal and external systems. The detection order is:
-	/// </para>
-	/// <list type="number">
-	///   <item><b>Our magic bytes (1-254):</b> Use registered IPluggableSerializer via <see cref="Deserialize{T}"/></item>
-	///   <item><b>Confluent Schema Registry format (0x00 + 4 bytes):</b> Skip 5-byte header, attempt JSON on payload</item>
-	///   <item><b>Raw JSON (0x7B or 0x5B):</b> Direct JSON deserialization for plain JSON from external systems</item>
-	///   <item><b>Unknown:</b> Throw <see cref="SerializationException"/> with diagnostic information</item>
-	/// </list>
-	/// <para>
-	/// <b>Confluent Schema Registry Format:</b>
-	/// </para>
-	/// <code>
-	/// [Byte 0: 0x00] [Bytes 1-4: Schema ID (big endian)] [Bytes 5+: Serialized Payload]
-	/// </code>
-	/// <para>
-	/// This method supports Confluent format for <b>inbound messages only</b> (consuming from Kafka producers
-	/// using Schema Registry). Outbound Confluent format production requires the full Schema Registry integration
-	/// (deferred to future epic).
-	/// </para>
-	/// <para>
-	/// See the architecture documentation for details.
-	/// </para>
-	/// </remarks>
-	T DeserializeTransportMessage<T>(byte[] data);
 }

@@ -35,9 +35,12 @@ public class RetryPolicyMicroBenchmarks
 		var options = new RetryPolicyOptions
 		{
 			MaxRetryAttempts = 3,
-			BaseDelay = TimeSpan.FromMilliseconds(1),
-			MaxDelay = TimeSpan.FromMilliseconds(1),
-			EnableJitter = false,
+			Backoff = new RetryBackoffOptions
+			{
+				BaseDelay = TimeSpan.FromMilliseconds(1),
+				MaxDelay = TimeSpan.FromMilliseconds(1),
+				EnableJitter = false,
+			},
 		};
 
 		switch (FilterMode)

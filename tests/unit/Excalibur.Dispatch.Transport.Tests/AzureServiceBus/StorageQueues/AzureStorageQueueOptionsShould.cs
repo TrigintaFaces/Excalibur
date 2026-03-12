@@ -20,33 +20,31 @@ public sealed class AzureStorageQueueOptionsShould
 		options.StorageAccountUri.ShouldBeNull();
 		options.QueueName.ShouldBe(string.Empty);
 		options.MaxConcurrentMessages.ShouldBe(10);
-		options.VisibilityTimeout.ShouldBe(TimeSpan.FromMinutes(5));
-		options.PollingInterval.ShouldBe(TimeSpan.FromSeconds(1));
-		options.MaxMessages.ShouldBe(10);
+		options.Polling.VisibilityTimeout.ShouldBe(TimeSpan.FromMinutes(5));
+		options.Polling.PollingInterval.ShouldBe(TimeSpan.FromSeconds(1));
+		options.Polling.MaxMessages.ShouldBe(10);
 		options.EnableEncryption.ShouldBeFalse();
 		options.EncryptionProviderName.ShouldBeNull();
 		options.DeadLetterQueueName.ShouldBeNull();
 		options.MaxDequeueCount.ShouldBe(5);
-		options.EmptyQueueDelayMs.ShouldBe(1000);
-		options.EnableVerboseLogging.ShouldBeFalse();
-		options.CustomProperties.ShouldBeEmpty();
+		options.Polling.EmptyQueueDelayMs.ShouldBe(1000);
+		options.Polling.EnableVerboseLogging.ShouldBeFalse();
+		options.Polling.CustomProperties.ShouldBeEmpty();
 	}
 
 	[Fact]
-	public void ComputedPropertiesReturnCorrectValues()
+	public void PollingSubOptionReturnCorrectValues()
 	{
 		// Arrange
-		var options = new AzureStorageQueueOptions
-		{
-			PollingInterval = TimeSpan.FromMilliseconds(500),
-			MaxMessages = 20,
-			VisibilityTimeout = TimeSpan.FromMinutes(10),
-		};
+		var options = new AzureStorageQueueOptions();
+		options.Polling.PollingInterval = TimeSpan.FromMilliseconds(500);
+		options.Polling.MaxMessages = 20;
+		options.Polling.VisibilityTimeout = TimeSpan.FromMinutes(10);
 
 		// Assert
-		options.PollingIntervalMs.ShouldBe(500);
-		options.MaxMessagesPerRequest.ShouldBe(20);
-		options.VisibilityTimeoutSeconds.ShouldBe(600);
+		options.Polling.PollingInterval.ShouldBe(TimeSpan.FromMilliseconds(500));
+		options.Polling.MaxMessages.ShouldBe(20);
+		options.Polling.VisibilityTimeout.ShouldBe(TimeSpan.FromMinutes(10));
 	}
 
 	[Fact]
@@ -95,8 +93,8 @@ public sealed class AzureStorageQueueOptionsShould
 		{
 			ConnectionString = "conn",
 			QueueName = "queue",
-			VisibilityTimeout = TimeSpan.FromDays(8),
 		};
+		options.Polling.VisibilityTimeout = TimeSpan.FromDays(8);
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(() => options.Validate())
@@ -111,8 +109,8 @@ public sealed class AzureStorageQueueOptionsShould
 		{
 			ConnectionString = "conn",
 			QueueName = "queue",
-			MaxMessages = 33,
 		};
+		options.Polling.MaxMessages = 33;
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(() => options.Validate())

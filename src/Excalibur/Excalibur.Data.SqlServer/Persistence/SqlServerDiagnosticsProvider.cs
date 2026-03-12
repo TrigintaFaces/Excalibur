@@ -84,9 +84,9 @@ internal sealed partial class SqlServerDiagnosticsProvider
 				result[property.Key] = property.Value ?? "N/A";
 			}
 
-			result["ConfiguredMaxPoolSize"] = _options.MaxPoolSize;
-			result["ConfiguredMinPoolSize"] = _options.MinPoolSize;
-			result["ConnectionPoolingEnabled"] = _options.EnableConnectionPooling;
+			result["ConfiguredMaxPoolSize"] = _options.Pooling.MaxPoolSize;
+			result["ConfiguredMinPoolSize"] = _options.Pooling.MinPoolSize;
+			result["ConnectionPoolingEnabled"] = _options.Pooling.EnableConnectionPooling;
 
 			return result;
 		}
@@ -159,12 +159,12 @@ internal sealed partial class SqlServerDiagnosticsProvider
 	internal async Task<IDictionary<string, object>> GetMetricsAsync()
 	{
 		var metrics = await _metrics.GetMetricsAsync().ConfigureAwait(false);
-		metrics["ConnectionPoolSize"] = _options.MaxPoolSize;
-		metrics["ConnectionPoolMinSize"] = _options.MinPoolSize;
-		metrics["ConnectionTimeoutSeconds"] = _options.ConnectionTimeout;
+		metrics["ConnectionPoolSize"] = _options.Pooling.MaxPoolSize;
+		metrics["ConnectionPoolMinSize"] = _options.Pooling.MinPoolSize;
+		metrics["ConnectionTimeoutSeconds"] = _options.Connection.ConnectionTimeout;
 		metrics["CommandTimeoutSeconds"] = _options.CommandTimeout;
-		metrics["RetryPolicyEnabled"] = _options.MaxRetryAttempts > 0;
-		metrics["MaxRetryAttempts"] = _options.MaxRetryAttempts;
+		metrics["RetryPolicyEnabled"] = _options.Resiliency.MaxRetryAttempts > 0;
+		metrics["MaxRetryAttempts"] = _options.Resiliency.MaxRetryAttempts;
 		metrics["AlwaysEncryptedEnabled"] = _options.Security.EnableAlwaysEncrypted;
 		metrics["MarsEnabled"] = _options.Connection.EnableMars;
 		return metrics;

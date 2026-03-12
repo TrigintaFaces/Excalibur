@@ -5,6 +5,7 @@
 #pragma warning disable CA2201 // Exception type is not sufficiently specific - acceptable in tests
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Middleware;
@@ -755,7 +756,7 @@ public class DispatchPipelineShould : UnitTestBase
 		var pipeline = new DispatchPipeline(middleware);
 		var message = new TestMessage();
 		var context = CreateMessageContext();
-		context.TenantId = tenantId;
+		context.GetOrCreateIdentityFeature().TenantId = tenantId;
 
 		// Act
 		var result = await pipeline.ExecuteAsync(message, context, FinalDelegate, CancellationToken.None).ConfigureAwait(false);
@@ -775,7 +776,7 @@ public class DispatchPipelineShould : UnitTestBase
 		var pipeline = new DispatchPipeline(middleware);
 		var message = new TestMessage();
 		var context = CreateMessageContext();
-		context.DeliveryCount = 3;
+		context.GetOrCreateProcessingFeature().DeliveryCount = 3;
 
 		// Act
 		var result = await pipeline.ExecuteAsync(message, context, FinalDelegate, CancellationToken.None).ConfigureAwait(false);
@@ -1008,7 +1009,7 @@ public class DispatchPipelineShould : UnitTestBase
 		var pipeline = new DispatchPipeline(middleware);
 		var message = new TestMessage();
 		var context = CreateMessageContext();
-		context.WorkflowId = workflowId;
+		context.GetOrCreateIdentityFeature().WorkflowId = workflowId;
 
 		// Act
 		var result = await pipeline.ExecuteAsync(message, context, FinalDelegate, CancellationToken.None).ConfigureAwait(false);
@@ -1029,7 +1030,7 @@ public class DispatchPipelineShould : UnitTestBase
 		var pipeline = new DispatchPipeline(middleware);
 		var message = new TestMessage();
 		var context = CreateMessageContext();
-		context.SessionId = sessionId;
+		context.GetOrCreateIdentityFeature().SessionId = sessionId;
 
 		// Act
 		var result = await pipeline.ExecuteAsync(message, context, FinalDelegate, CancellationToken.None).ConfigureAwait(false);
@@ -1115,11 +1116,12 @@ public class DispatchPipelineShould : UnitTestBase
 
 	private IMessageContext CreateMessageContext()
 	{
-		return new TestMessageContext
+		var ctx = new TestMessageContext
 		{
 			RequestServices = ServiceProvider,
-			ReceivedTimestampUtc = DateTimeOffset.UtcNow,
 		};
+		ctx.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
+		return ctx;
 	}
 
 	#endregion Helper Methods
@@ -1137,70 +1139,17 @@ public class DispatchPipelineShould : UnitTestBase
 
 	private sealed class TestMessageContext : IMessageContext
 	{
-		private readonly Dictionary<string, object> _items = new();
+		private readonly Dictionary<string, object> _items = [];
+		private readonly Dictionary<Type, object> _features = [];
 
 		public string? MessageId { get; set; }
-		public string? ExternalId { get; set; }
-		public string? UserId { get; set; }
 		public string? CorrelationId { get; set; }
 		public string? CausationId { get; set; }
-		public string? TraceParent { get; set; }
-		public string? TenantId { get; set; }
-		public string? SessionId { get; set; }
-		public string? WorkflowId { get; set; }
-		public string? PartitionKey { get; set; }
-		public string? Source { get; set; }
-		public string? MessageType { get; set; }
-		public string? ContentType { get; set; }
-		public int DeliveryCount { get; set; }
 		public IDispatchMessage? Message { get; set; }
 		public object? Result { get; set; }
-
-		public RoutingDecision? RoutingDecision { get; set; } = RoutingDecision.Success("local", []);
-
 		public IServiceProvider RequestServices { get; set; } = null!;
-		public DateTimeOffset ReceivedTimestampUtc { get; set; }
-		public DateTimeOffset? SentTimestampUtc { get; set; }
 		public IDictionary<string, object> Items => _items;
-		public IDictionary<string, object?> Properties => _items!;
-
-		// HOT-PATH PROPERTIES (Sprint 71)
-		public int ProcessingAttempts { get; set; }
-
-		public DateTimeOffset? FirstAttemptTime { get; set; }
-		public bool IsRetry { get; set; }
-		public bool ValidationPassed { get; set; }
-		public DateTimeOffset? ValidationTimestamp { get; set; }
-		public object? Transaction { get; set; }
-		public string? TransactionId { get; set; }
-		public bool TimeoutExceeded { get; set; }
-		public TimeSpan? TimeoutElapsed { get; set; }
-		public bool RateLimitExceeded { get; set; }
-		public TimeSpan? RateLimitRetryAfter { get; set; }
-
-		public bool ContainsItem(string key) => _items.ContainsKey(key);
-
-		public T? GetItem<T>(string key) => _items.TryGetValue(key, out var value) ? (T)value : default;
-
-		public T GetItem<T>(string key, T defaultValue) => _items.TryGetValue(key, out var value) ? (T)value : defaultValue;
-
-		public void RemoveItem(string key) => _items.Remove(key);
-
-		public void SetItem<T>(string key, T value) => _items[key] = value!;
-
-		public IMessageContext CreateChildContext() => new TestMessageContext
-		{
-			CorrelationId = CorrelationId,
-			CausationId = MessageId ?? CorrelationId,
-			TenantId = TenantId,
-			UserId = UserId,
-			SessionId = SessionId,
-			WorkflowId = WorkflowId,
-			TraceParent = TraceParent,
-			Source = Source,
-			RequestServices = RequestServices,
-			MessageId = Guid.NewGuid().ToString(),
-		};
+		public IDictionary<Type, object> Features => _features;
 	}
 
 	private class TestMiddleware(string name, DispatchMiddlewareStage? stage, List<string> executionOrder) : IDispatchMiddleware
@@ -1417,7 +1366,7 @@ public class DispatchPipelineShould : UnitTestBase
 
 		public ValueTask<IMessageResult> InvokeAsync(IDispatchMessage message, IMessageContext context, DispatchRequestDelegate nextDelegate, CancellationToken cancellationToken)
 		{
-			if (context.TenantId != expectedTenantId)
+			if (context.GetTenantId() != expectedTenantId)
 			{
 				return new ValueTask<IMessageResult>(MessageResult.Failed("Tenant ID mismatch"));
 			}
@@ -1431,7 +1380,7 @@ public class DispatchPipelineShould : UnitTestBase
 
 		public ValueTask<IMessageResult> InvokeAsync(IDispatchMessage message, IMessageContext context, DispatchRequestDelegate nextDelegate, CancellationToken cancellationToken)
 		{
-			if (context.DeliveryCount != expectedCount)
+			if (context.GetDeliveryCount() != expectedCount)
 			{
 				return new ValueTask<IMessageResult>(MessageResult.Failed("Delivery count mismatch"));
 			}
@@ -1445,7 +1394,7 @@ public class DispatchPipelineShould : UnitTestBase
 
 		public ValueTask<IMessageResult> InvokeAsync(IDispatchMessage message, IMessageContext context, DispatchRequestDelegate nextDelegate, CancellationToken cancellationToken)
 		{
-			context.Properties["written_via_properties"] = true;
+			context.Items["written_via_properties"] = true;
 			return nextDelegate(message, context, cancellationToken);
 		}
 	}
@@ -1520,7 +1469,7 @@ public class DispatchPipelineShould : UnitTestBase
 
 		public ValueTask<IMessageResult> InvokeAsync(IDispatchMessage message, IMessageContext context, DispatchRequestDelegate nextDelegate, CancellationToken cancellationToken)
 		{
-			if (context.WorkflowId != expectedWorkflowId)
+			if (context.GetWorkflowId() != expectedWorkflowId)
 			{
 				return new ValueTask<IMessageResult>(MessageResult.Failed("Workflow ID mismatch"));
 			}
@@ -1534,7 +1483,7 @@ public class DispatchPipelineShould : UnitTestBase
 
 		public ValueTask<IMessageResult> InvokeAsync(IDispatchMessage message, IMessageContext context, DispatchRequestDelegate nextDelegate, CancellationToken cancellationToken)
 		{
-			if (context.SessionId != expectedSessionId)
+			if (context.GetSessionId() != expectedSessionId)
 			{
 				return new ValueTask<IMessageResult>(MessageResult.Failed("Session ID mismatch"));
 			}
@@ -1548,7 +1497,7 @@ public class DispatchPipelineShould : UnitTestBase
 
 		public ValueTask<IMessageResult> InvokeAsync(IDispatchMessage message, IMessageContext context, DispatchRequestDelegate nextDelegate, CancellationToken cancellationToken)
 		{
-			if (context.ReceivedTimestampUtc == default)
+			if (context.GetReceivedTimestampUtc() == default)
 			{
 				return new ValueTask<IMessageResult>(MessageResult.Failed("Received timestamp not set"));
 			}

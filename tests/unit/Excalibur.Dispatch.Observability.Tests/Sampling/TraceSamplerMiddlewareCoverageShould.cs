@@ -28,6 +28,7 @@ public sealed class TraceSamplerMiddlewareCoverageShould
         _context = A.Fake<IMessageContext>();
         _contextItems = new Dictionary<string, object>();
         A.CallTo(() => _context.Items).Returns(_contextItems);
+        A.CallTo(() => _context.Features).Returns(new Dictionary<Type, object>());
     }
 
     [Fact]
@@ -62,8 +63,8 @@ public sealed class TraceSamplerMiddlewareCoverageShould
         // Act
         await _sut.InvokeAsync(_message, _context, next, CancellationToken.None);
 
-        // Assert
-        A.CallTo(() => _context.SetItem("dispatch.trace.sampled", false)).MustHaveHappened();
+        // Assert - verify Items dictionary directly since SetItem is an extension method
+        _contextItems.ShouldContainKeyAndValue("dispatch.trace.sampled", (object)false);
     }
 
     [Fact]
@@ -76,8 +77,8 @@ public sealed class TraceSamplerMiddlewareCoverageShould
         // Act
         await _sut.InvokeAsync(_message, _context, next, CancellationToken.None);
 
-        // Assert
-        A.CallTo(() => _context.SetItem("dispatch.trace.sampled", A<object>._)).MustNotHaveHappened();
+        // Assert - verify Items dictionary directly since SetItem is an extension method
+        _contextItems.ShouldNotContainKey("dispatch.trace.sampled");
     }
 
     [Fact]

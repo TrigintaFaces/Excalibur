@@ -12,6 +12,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Caching;
 /// Validates that null types in the input collection are filtered out with a
 /// warning log, and valid types are preserved.
 /// </summary>
+[Collection("MessageTypeCacheTests")]
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
 [Trait("Priority", "2")]

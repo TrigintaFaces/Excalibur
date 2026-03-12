@@ -45,7 +45,7 @@ Copy the sample folder to your solution:
 
 ```bash
 # Copy sample to your project
-cp -r samples/01-getting-started/DispatchMinimal ~/my-project/
+cp -r samples/01-getting-started/DispatchOnly ~/my-project/
 ```
 
 ### Step 2: Replace ProjectReferences
@@ -178,7 +178,7 @@ Use this table to convert `ProjectReference` paths to `PackageReference` package
 
 ## Conversion Examples
 
-### Example 1: DispatchMinimal Sample
+### Example 1: DispatchOnly Sample
 
 **Before:**
 ```xml
@@ -195,7 +195,7 @@ Use this table to convert `ProjectReference` paths to `PackageReference` package
 </ItemGroup>
 ```
 
-### Example 2: ExcaliburCqrs Sample
+### Example 2: EventSourcingIntro Sample
 
 **Before:**
 ```xml

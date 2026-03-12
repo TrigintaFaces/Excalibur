@@ -219,7 +219,11 @@ public sealed class MessageBusOutboxPublisherShould
 	public async Task PublishPendingTransportDeliveries_WhenAdapterMissing_Throws()
 	{
 		// Arrange
-		var multiStore = A.Fake<IOutboxStore>(o => o.Implements<IMultiTransportOutboxStore>());
+		var multiStore = A.Fake<IOutboxStore>(o =>
+		{
+			_ = o.Implements<IMultiTransportOutboxStore>();
+			_ = o.Implements<IMultiTransportOutboxStoreAdmin>();
+		});
 		var transportRegistry = new TransportRegistry();
 		var publisher = new MessageBusOutboxPublisher(
 			multiStore,
@@ -237,8 +241,13 @@ public sealed class MessageBusOutboxPublisherShould
 	public async Task PublishPendingTransportDeliveries_MarksTransportSent_OnSuccess()
 	{
 		// Arrange
-		var multiStoreBase = A.Fake<IOutboxStore>(o => o.Implements<IMultiTransportOutboxStore>());
+		var multiStoreBase = A.Fake<IOutboxStore>(o =>
+		{
+			_ = o.Implements<IMultiTransportOutboxStore>();
+			_ = o.Implements<IMultiTransportOutboxStoreAdmin>();
+		});
 		var multiStore = multiStoreBase.ShouldBeAssignableTo<IMultiTransportOutboxStore>();
+		var multiStoreAdmin = multiStoreBase.ShouldBeAssignableTo<IMultiTransportOutboxStoreAdmin>();
 
 		var adapter = A.Fake<ITransportAdapter>();
 		_ = A.CallTo(() => adapter.SendAsync(A<IDispatchMessage>._, A<string>._, A<CancellationToken>._))
@@ -260,7 +269,7 @@ public sealed class MessageBusOutboxPublisherShould
 			Destination = "orders-topic"
 		};
 
-		_ = A.CallTo(() => multiStore.GetPendingTransportDeliveriesAsync("kafka", 10, A<CancellationToken>._))
+		_ = A.CallTo(() => multiStoreAdmin.GetPendingTransportDeliveriesAsync("kafka", 10, A<CancellationToken>._))
 			.Returns(new[] { (message, transport) });
 
 		// Act
@@ -279,8 +288,13 @@ public sealed class MessageBusOutboxPublisherShould
 	public async Task PublishPendingTransportDeliveries_MarksTransportFailed_OnAdapterException()
 	{
 		// Arrange
-		var multiStoreBase = A.Fake<IOutboxStore>(o => o.Implements<IMultiTransportOutboxStore>());
+		var multiStoreBase = A.Fake<IOutboxStore>(o =>
+		{
+			_ = o.Implements<IMultiTransportOutboxStore>();
+			_ = o.Implements<IMultiTransportOutboxStoreAdmin>();
+		});
 		var multiStore = multiStoreBase.ShouldBeAssignableTo<IMultiTransportOutboxStore>();
+		var multiStoreAdmin = multiStoreBase.ShouldBeAssignableTo<IMultiTransportOutboxStoreAdmin>();
 
 		var adapter = A.Fake<ITransportAdapter>();
 		_ = A.CallTo(() => adapter.SendAsync(A<IDispatchMessage>._, A<string>._, A<CancellationToken>._))
@@ -302,7 +316,7 @@ public sealed class MessageBusOutboxPublisherShould
 			Destination = "orders-topic"
 		};
 
-		_ = A.CallTo(() => multiStore.GetPendingTransportDeliveriesAsync("kafka", 10, A<CancellationToken>._))
+		_ = A.CallTo(() => multiStoreAdmin.GetPendingTransportDeliveriesAsync("kafka", 10, A<CancellationToken>._))
 			.Returns(new[] { (message, transport) });
 
 		// Act

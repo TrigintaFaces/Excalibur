@@ -371,7 +371,7 @@ For formal version migrations, use the `SnapshotUpgrader<TFrom, TTo>` base class
 // Implement a typed upgrader
 public class OrderSnapshotV1ToV2 : SnapshotUpgrader<OrderSnapshotStateV1, OrderSnapshotStateV2>
 {
-    public OrderSnapshotV1ToV2(ISnapshotDataSerializer serializer) : base(serializer) { }
+    public OrderSnapshotV1ToV2(ISnapshotSerializer serializer) : base(serializer) { }
 
     public override string AggregateType => "Order";
     public override int FromVersion => 1;

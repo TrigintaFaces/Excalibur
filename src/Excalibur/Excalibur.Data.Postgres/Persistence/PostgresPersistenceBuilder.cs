@@ -29,9 +29,9 @@ internal sealed class PostgresPersistenceBuilder(IServiceCollection services) : 
 	{
 		_ = Services.Configure<PostgresPersistenceOptions>(options =>
 		{
-			options.EnableConnectionPooling = enabled;
-			options.MinPoolSize = minSize;
-			options.MaxPoolSize = maxSize;
+			options.Pooling.EnableConnectionPooling = enabled;
+			options.Pooling.MinPoolSize = minSize;
+			options.Pooling.MaxPoolSize = maxSize;
 		});
 		return this;
 	}
@@ -41,8 +41,8 @@ internal sealed class PostgresPersistenceBuilder(IServiceCollection services) : 
 	{
 		_ = Services.Configure<PostgresPersistenceOptions>(options =>
 		{
-			options.MaxRetryAttempts = maxAttempts;
-			options.RetryDelayMilliseconds = delayMilliseconds;
+			options.Resilience.MaxRetryAttempts = maxAttempts;
+			options.Resilience.RetryDelayMilliseconds = delayMilliseconds;
 		});
 		return this;
 	}

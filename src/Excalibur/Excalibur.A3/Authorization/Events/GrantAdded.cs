@@ -4,14 +4,14 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.A3.Events;
+using Excalibur.Dispatch.Abstractions;
 
 namespace Excalibur.A3.Authorization.Events;
 
 /// <summary>
 /// Represents an event that occurs when a grant is added to a user.
 /// </summary>
-public sealed class GrantAdded : DomainEventBase, IGrantAdded
+public sealed record GrantAdded : DomainEvent, IGrantAdded
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="GrantAdded" /> class with the specified details.

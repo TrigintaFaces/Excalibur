@@ -64,24 +64,6 @@ public sealed class MongoDbProviderOptions
 	public bool UseSsl { get; set; } = true;
 
 	/// <summary>
-	/// Gets or sets the maximum connection pool size.
-	/// </summary>
-	/// <value>
-	/// The maximum connection pool size.
-	/// </value>
-	[Range(1, int.MaxValue)]
-	public int MaxPoolSize { get; set; } = 100;
-
-	/// <summary>
-	/// Gets or sets the minimum connection pool size.
-	/// </summary>
-	/// <value>
-	/// The minimum connection pool size.
-	/// </value>
-	[Range(0, int.MaxValue)]
-	public int MinPoolSize { get; set; }
-
-	/// <summary>
 	/// Gets or sets a value indicating whether to use transactions.
 	/// </summary>
 	/// <value>
@@ -105,4 +87,12 @@ public sealed class MongoDbProviderOptions
 	/// <see langword="true"/> if this is a read-only provider; otherwise, <c>false</c>.
 	/// </value>
 	public bool IsReadOnly { get; set; }
+
+	/// <summary>
+	/// Gets or sets the connection pooling options.
+	/// </summary>
+	/// <value>
+	/// The connection pooling options.
+	/// </value>
+	public MongoDbPoolingOptions Pooling { get; set; } = new();
 }

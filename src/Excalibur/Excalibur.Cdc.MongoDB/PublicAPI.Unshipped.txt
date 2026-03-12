@@ -1,0 +1,5 @@
+#nullable enable
+Excalibur.Cdc.MongoDB.CdcBuilderMongoDbExtensions
+static Excalibur.Cdc.MongoDB.CdcBuilderMongoDbExtensions.UseMongoDB(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.MongoDB.MongoDbCdcOptions!>! configure) -> Excalibur.Cdc.ICdcBuilder!
+static Excalibur.Cdc.MongoDB.CdcBuilderMongoDbExtensions.UseMongoDB(this Excalibur.Cdc.ICdcBuilder! builder, string! connectionString, string! processorId, System.Action<Excalibur.Cdc.MongoDB.MongoDbCdcOptions!>? configure = null) -> Excalibur.Cdc.ICdcBuilder!
+static Excalibur.Cdc.MongoDB.CdcBuilderMongoDbExtensions.UseMongoDB(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.MongoDB.MongoDbCdcOptions!>! configureCdc, System.Action<Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptions!>! configureStateStore) -> Excalibur.Cdc.ICdcBuilder!

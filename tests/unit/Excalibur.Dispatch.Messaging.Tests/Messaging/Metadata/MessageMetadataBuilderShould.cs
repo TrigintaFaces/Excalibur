@@ -21,8 +21,8 @@ public sealed class MessageMetadataBuilderShould
 		metadata.ShouldNotBeNull();
 		metadata.MessageId.ShouldNotBeNullOrWhiteSpace();
 		metadata.ContentType.ShouldBe("application/json");
-		metadata.MessageVersion.ShouldBe("1.0");
-		metadata.SerializerVersion.ShouldBe("1.0");
+		metadata.GetMessageVersion().ShouldBe("1.0");
+		metadata.GetSerializerVersion().ShouldBe("1.0");
 	}
 
 	[Fact]
@@ -89,7 +89,7 @@ public sealed class MessageMetadataBuilderShould
 		builder.WithExternalId("ext-1");
 		var metadata = builder.Build();
 
-		metadata.ExternalId.ShouldBe("ext-1");
+		metadata.GetExternalId().ShouldBe("ext-1");
 	}
 
 	[Fact]
@@ -99,7 +99,7 @@ public sealed class MessageMetadataBuilderShould
 		builder.WithUserId("user-1");
 		var metadata = builder.Build();
 
-		metadata.UserId.ShouldBe("user-1");
+		metadata.GetUserId().ShouldBe("user-1");
 	}
 
 	[Fact]
@@ -109,7 +109,7 @@ public sealed class MessageMetadataBuilderShould
 		builder.WithTenantId("tenant-1");
 		var metadata = builder.Build();
 
-		metadata.TenantId.ShouldBe("tenant-1");
+		metadata.GetTenantId().ShouldBe("tenant-1");
 	}
 
 	[Fact]
@@ -119,7 +119,7 @@ public sealed class MessageMetadataBuilderShould
 		builder.WithTraceParent("00-trace-parent");
 		var metadata = builder.Build();
 
-		metadata.TraceParent.ShouldBe("00-trace-parent");
+		metadata.GetTraceParent().ShouldBe("00-trace-parent");
 	}
 
 	[Fact]
@@ -129,7 +129,7 @@ public sealed class MessageMetadataBuilderShould
 		builder.WithTraceState("state=value");
 		var metadata = builder.Build();
 
-		metadata.TraceState.ShouldBe("state=value");
+		metadata.GetTraceState().ShouldBe("state=value");
 	}
 
 	[Fact]
@@ -191,7 +191,7 @@ public sealed class MessageMetadataBuilderShould
 		builder.WithDestination("PaymentService");
 		var metadata = builder.Build();
 
-		metadata.Destination.ShouldBe("PaymentService");
+		metadata.GetDestination().ShouldBe("PaymentService");
 	}
 
 	[Fact]
@@ -222,7 +222,7 @@ public sealed class MessageMetadataBuilderShould
 		builder.WithPartitionKey("pk-1");
 		var metadata = builder.Build();
 
-		metadata.PartitionKey.ShouldBe("pk-1");
+		metadata.GetPartitionKey().ShouldBe("pk-1");
 	}
 
 	[Fact]
@@ -232,7 +232,7 @@ public sealed class MessageMetadataBuilderShould
 		builder.WithRoutingKey("orders.created");
 		var metadata = builder.Build();
 
-		metadata.RoutingKey.ShouldBe("orders.created");
+		metadata.GetRoutingKey().ShouldBe("orders.created");
 	}
 
 	[Fact]
@@ -242,7 +242,7 @@ public sealed class MessageMetadataBuilderShould
 		builder.WithSessionId("session-1");
 		var metadata = builder.Build();
 
-		metadata.SessionId.ShouldBe("session-1");
+		metadata.GetSessionId().ShouldBe("session-1");
 	}
 
 	[Fact]
@@ -252,7 +252,7 @@ public sealed class MessageMetadataBuilderShould
 		builder.WithReplyTo("reply-queue");
 		var metadata = builder.Build();
 
-		metadata.ReplyTo.ShouldBe("reply-queue");
+		metadata.GetReplyTo().ShouldBe("reply-queue");
 	}
 
 	[Fact]
@@ -262,7 +262,7 @@ public sealed class MessageMetadataBuilderShould
 		builder.WithTimeToLive(TimeSpan.FromMinutes(5));
 		var metadata = builder.Build();
 
-		metadata.TimeToLive.ShouldBe(TimeSpan.FromMinutes(5));
+		metadata.GetTimeToLive().ShouldBe(TimeSpan.FromMinutes(5));
 	}
 
 	[Fact]
@@ -272,7 +272,7 @@ public sealed class MessageMetadataBuilderShould
 		builder.WithPriority(3);
 		var metadata = builder.Build();
 
-		metadata.Priority.ShouldBe(3);
+		metadata.GetPriority().ShouldBe(3);
 	}
 
 	[Fact]
@@ -282,7 +282,7 @@ public sealed class MessageMetadataBuilderShould
 		builder.WithDeliveryCount(2);
 		var metadata = builder.Build();
 
-		metadata.DeliveryCount.ShouldBe(2);
+		metadata.GetDeliveryCount().ShouldBe(2);
 	}
 
 	[Fact]
@@ -292,7 +292,7 @@ public sealed class MessageMetadataBuilderShould
 		builder.WithEventSourcing(aggregateId: "agg-1");
 		var metadata = builder.Build();
 
-		metadata.AggregateId.ShouldBe("agg-1");
+		metadata.GetAggregateId().ShouldBe("agg-1");
 	}
 
 	[Fact]
@@ -302,6 +302,6 @@ public sealed class MessageMetadataBuilderShould
 		builder.WithGroupId("group-1");
 		var metadata = builder.Build();
 
-		metadata.GroupId.ShouldBe("group-1");
+		metadata.GetGroupId().ShouldBe("group-1");
 	}
 }

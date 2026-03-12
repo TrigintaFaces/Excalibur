@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.Dispatch.Compliance;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -45,6 +46,7 @@ public static class ComplianceServiceCollectionExtensions
 		services.TryAddSingleton(keyManagementOptions);
 		services.TryAddSingleton<InMemoryKeyManagementProvider>();
 		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<InMemoryKeyManagementProvider>());
+		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<InMemoryKeyManagementProvider>());
 
 		// Register encryption provider
 		services.TryAddSingleton(encryptionOptions);
@@ -88,6 +90,7 @@ public static class ComplianceServiceCollectionExtensions
 		services.TryAddSingleton(keyManagementOptions);
 		services.TryAddSingleton<InMemoryKeyManagementProvider>();
 		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<InMemoryKeyManagementProvider>());
+		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<InMemoryKeyManagementProvider>());
 
 		// Register base encryption provider (internal)
 		services.TryAddSingleton(encryptionOptions);
@@ -130,6 +133,12 @@ public static class ComplianceServiceCollectionExtensions
 
 		// Register custom key management
 		services.TryAddSingleton<IKeyManagementProvider, TKeyManagement>();
+
+		// If the custom provider also implements IKeyManagementAdmin, register it
+		if (typeof(IKeyManagementAdmin).IsAssignableFrom(typeof(TKeyManagement)))
+		{
+			services.TryAddSingleton<IKeyManagementAdmin>(sp => (IKeyManagementAdmin)sp.GetRequiredService<IKeyManagementProvider>());
+		}
 
 		// Register encryption provider
 		services.TryAddSingleton(encryptionOptions);
@@ -212,8 +221,8 @@ public static class ComplianceServiceCollectionExtensions
 	///RegionId = "northeurope",
 	///Endpoint = new Uri("https://myvault-northeu.vault.azure.net/")
 	///};
-	///options.EnableAutomaticFailover = true;
-	///options.FailoverThreshold = 3;
+	///options.Failover.EnableAutomaticFailover = true;
+	///options.Failover.FailoverThreshold = 3;
 	///});
 	/// </code>
 	/// </remarks>
@@ -252,8 +261,10 @@ public static class ComplianceServiceCollectionExtensions
 				nameof(configureOptions));
 		}
 
-		// Register options
+		// Register options with ValidateOnStart
 		_ = services.AddSingleton(options);
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MultiRegionOptions>, MultiRegionOptionsValidator>());
 
 		// Register the provider types (keyed by region for resolution)
 		_ = services.AddKeyedSingleton<IKeyManagementProvider, TPrimaryProvider>(options.Primary.RegionId);
@@ -269,9 +280,11 @@ public static class ComplianceServiceCollectionExtensions
 			return new MultiRegionKeyProvider(primaryProvider, secondaryProvider, options, logger);
 		});
 
-		// Register as both IMultiRegionKeyProvider and IKeyManagementProvider
+		// Register as IMultiRegionKeyProvider, IMultiRegionHealthMonitor, IKeyManagementProvider, and IKeyManagementAdmin
 		_ = services.AddSingleton<IMultiRegionKeyProvider>(sp => sp.GetRequiredService<MultiRegionKeyProvider>());
+		_ = services.AddSingleton<IMultiRegionHealthMonitor>(sp => sp.GetRequiredService<MultiRegionKeyProvider>());
 		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<MultiRegionKeyProvider>());
+		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<MultiRegionKeyProvider>());
 
 		return services;
 	}
@@ -323,8 +336,10 @@ public static class ComplianceServiceCollectionExtensions
 				nameof(configureOptions));
 		}
 
-		// Register options
+		// Register options with ValidateOnStart
 		_ = services.AddSingleton(options);
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<MultiRegionOptions>, MultiRegionOptionsValidator>());
 
 		// Register the multi-region provider with factory-created providers
 		_ = services.AddSingleton(sp =>
@@ -336,9 +351,11 @@ public static class ComplianceServiceCollectionExtensions
 			return new MultiRegionKeyProvider(primaryProvider, secondaryProvider, options, logger);
 		});
 
-		// Register as both IMultiRegionKeyProvider and IKeyManagementProvider
+		// Register as IMultiRegionKeyProvider, IMultiRegionHealthMonitor, IKeyManagementProvider, and IKeyManagementAdmin
 		_ = services.AddSingleton<IMultiRegionKeyProvider>(sp => sp.GetRequiredService<MultiRegionKeyProvider>());
+		_ = services.AddSingleton<IMultiRegionHealthMonitor>(sp => sp.GetRequiredService<MultiRegionKeyProvider>());
 		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<MultiRegionKeyProvider>());
+		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<MultiRegionKeyProvider>());
 
 		return services;
 	}
@@ -362,7 +379,7 @@ public static class ComplianceServiceCollectionExtensions
 	/// <description> Rotation success/failure metrics </description>
 	/// </item>
 	/// </list>
-	/// <para> <strong> Prerequisites: </strong> An <see cref="IKeyManagementProvider" /> must be registered. </para>
+	/// <para> <strong> Prerequisites: </strong> An <see cref="IKeyManagementProvider" /> and <see cref="IKeyManagementAdmin" /> must be registered. </para>
 	/// <code>
 	///services.AddComplianceEncryption();
 	///services.AddKeyRotation(options =&gt;

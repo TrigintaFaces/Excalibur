@@ -9,7 +9,7 @@ using Dapper;
 
 using Excalibur.Data.Abstractions;
 using Excalibur.Dispatch.Abstractions.Messaging;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 
 namespace Excalibur.Saga.SqlServer.Requests;
 
@@ -31,7 +31,7 @@ public sealed class SaveSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 	[RequiresDynamicCode("JSON serialization and deserialization might require runtime code generation.")]
 	public SaveSagaRequest(
 			TSagaState sagaState,
-			IJsonSerializer serializer,
+			DispatchJsonSerializer serializer,
 			string qualifiedTableName,
 			CancellationToken cancellationToken)
 	{

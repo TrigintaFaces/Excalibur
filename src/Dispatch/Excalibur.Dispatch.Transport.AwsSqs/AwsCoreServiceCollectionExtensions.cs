@@ -55,11 +55,11 @@ public static class AwsCoreServiceCollectionExtensions
 			{
 				if (options.ServiceUrl != null)
 				{
-					awsOptions.ServiceUrl = options.ServiceUrl;
+					awsOptions.Connection.ServiceUrl = options.ServiceUrl;
 				}
 
 				awsOptions.Region = options.Region;
-				awsOptions.UseLocalStack = options.UseLocalStack;
+				awsOptions.Connection.UseLocalStack = options.UseLocalStack;
 			})
 			.ValidateDataAnnotations()
 			.ValidateOnStart();

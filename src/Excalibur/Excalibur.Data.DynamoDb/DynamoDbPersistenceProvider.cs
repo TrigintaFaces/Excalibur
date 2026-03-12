@@ -53,8 +53,9 @@ internal interface ICloudBatchReplaceOperation
 	"Maintainability",
 	"CA1506:Avoid excessive class coupling",
 	Justification = "Cloud persistence providers inherently couple with many SDK and abstraction types.")]
-public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenceProvider, IPersistenceProviderHealth,
-	IPersistenceProviderTransaction, IAsyncDisposable
+public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenceProvider,
+	ICloudNativeProviderInfo, ICloudNativePersistenceQueryOperations, ICloudNativePersistenceBatchOperations, ICloudNativePersistenceChangeFeed,
+	IPersistenceProviderHealth, IPersistenceProviderTransaction, IAsyncDisposable
 {
 	private readonly DynamoDbOptions _options;
 	private readonly ILogger<DynamoDbPersistenceProvider> _logger;
@@ -129,8 +130,8 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	public bool SupportsChangeFeed => true; // DynamoDB Streams
 
 	/// <inheritdoc />
-	public string ConnectionString => _options.ServiceUrl
-	                                  ?? (_options.Region != null ? $"Region={_options.Region}" : string.Empty);
+	public string ConnectionString => _options.Connection.ServiceUrl
+	                                  ?? (_options.Connection.Region != null ? $"Region={_options.Connection.Region}" : string.Empty);
 
 	/// <inheritdoc />
 
@@ -814,8 +815,8 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 		// AWS SDK manages HTTP connections internally
 		var stats = new Dictionary<string, object>(StringComparer.Ordinal)
 		{
-			["ServiceUrl"] = _options.ServiceUrl ?? "AWS",
-			["Region"] = _options.Region ?? "Not specified",
+			["ServiceUrl"] = _options.Connection.ServiceUrl ?? "AWS",
+			["Region"] = _options.Connection.Region ?? "Not specified",
 			["IsInitialized"] = _initialized,
 			["IsDisposed"] = _disposed
 		};
@@ -834,6 +835,26 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 		}
 
 		if (serviceType == typeof(IPersistenceProviderTransaction))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(ICloudNativePersistenceQueryOperations))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(ICloudNativePersistenceBatchOperations))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(ICloudNativePersistenceChangeFeed))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(ICloudNativeProviderInfo))
 		{
 			return this;
 		}
@@ -915,21 +936,21 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	{
 		var config = new AmazonDynamoDBConfig
 		{
-			Timeout = TimeSpan.FromSeconds(_options.TimeoutInSeconds), MaxErrorRetry = _options.MaxRetryAttempts
+			Timeout = TimeSpan.FromSeconds(_options.Connection.TimeoutInSeconds), MaxErrorRetry = _options.Connection.MaxRetryAttempts
 		};
 
-		if (!string.IsNullOrWhiteSpace(_options.ServiceUrl))
+		if (!string.IsNullOrWhiteSpace(_options.Connection.ServiceUrl))
 		{
-			config.ServiceURL = _options.ServiceUrl;
+			config.ServiceURL = _options.Connection.ServiceUrl;
 		}
 		else if (_options.GetRegionEndpoint() is { } region)
 		{
 			config.RegionEndpoint = region;
 		}
 
-		if (!string.IsNullOrWhiteSpace(_options.AccessKey) && !string.IsNullOrWhiteSpace(_options.SecretKey))
+		if (!string.IsNullOrWhiteSpace(_options.Connection.AccessKey) && !string.IsNullOrWhiteSpace(_options.Connection.SecretKey))
 		{
-			return new AmazonDynamoDBClient(_options.AccessKey, _options.SecretKey, config);
+			return new AmazonDynamoDBClient(_options.Connection.AccessKey, _options.Connection.SecretKey, config);
 		}
 
 		return new AmazonDynamoDBClient(config);
@@ -939,21 +960,21 @@ public sealed partial class DynamoDbPersistenceProvider : ICloudNativePersistenc
 	{
 		var config = new AmazonDynamoDBStreamsConfig
 		{
-			Timeout = TimeSpan.FromSeconds(_options.TimeoutInSeconds), MaxErrorRetry = _options.MaxRetryAttempts
+			Timeout = TimeSpan.FromSeconds(_options.Connection.TimeoutInSeconds), MaxErrorRetry = _options.Connection.MaxRetryAttempts
 		};
 
-		if (!string.IsNullOrWhiteSpace(_options.ServiceUrl))
+		if (!string.IsNullOrWhiteSpace(_options.Connection.ServiceUrl))
 		{
-			config.ServiceURL = _options.ServiceUrl;
+			config.ServiceURL = _options.Connection.ServiceUrl;
 		}
 		else if (_options.GetRegionEndpoint() is { } region)
 		{
 			config.RegionEndpoint = region;
 		}
 
-		if (!string.IsNullOrWhiteSpace(_options.AccessKey) && !string.IsNullOrWhiteSpace(_options.SecretKey))
+		if (!string.IsNullOrWhiteSpace(_options.Connection.AccessKey) && !string.IsNullOrWhiteSpace(_options.Connection.SecretKey))
 		{
-			return new AmazonDynamoDBStreamsClient(_options.AccessKey, _options.SecretKey, config);
+			return new AmazonDynamoDBStreamsClient(_options.Connection.AccessKey, _options.Connection.SecretKey, config);
 		}
 
 		return new AmazonDynamoDBStreamsClient(config);

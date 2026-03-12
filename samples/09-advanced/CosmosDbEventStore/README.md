@@ -179,13 +179,10 @@ var eventStore = provider.GetRequiredService<ICloudNativeEventStore>();
 
 await using var subscription = await eventStore.SubscribeToChangesAsync();
 
-await foreach (var events in subscription.GetChangesAsync(cancellationToken))
+await foreach (var evt in subscription.ReadChangesAsync(cancellationToken))
 {
-    foreach (var evt in events)
-    {
-        // Update read model / projection
-        Console.WriteLine($"Event: {evt.EventType} v{evt.Version}");
-    }
+    // Update read model / projection
+    Console.WriteLine($"Event: {evt.EventType} seq#{evt.SequenceNumber}");
 }
 ```
 
@@ -248,7 +245,7 @@ options.HttpClientFactory = () =>
 - [SQL Server Event Store](../SqlServerEventStore/) - Alternative provider
 - [Snapshot Strategies](../SnapshotStrategies/) - Performance optimization
 - [Event Upcasting](../EventUpcasting/) - Schema evolution
-- [ExcaliburCqrs](../../01-getting-started/ExcaliburCqrs/) - CQRS basics
+- [EventSourcingIntro](../../01-getting-started/EventSourcingIntro/) - CQRS basics
 
 ## Learn More
 

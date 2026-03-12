@@ -78,23 +78,8 @@ public sealed class PostgresEventSourcingOptions
 	public string OutboxTable { get; set; } = "event_sourced_outbox";
 
 	/// <summary>
-	/// Gets or sets whether to register health checks for event sourcing stores.
-	/// Default: true.
+	/// Gets or sets the health check configuration options.
 	/// </summary>
-	public bool RegisterHealthChecks { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the health check name for the event store. Default: "Postgres-event-store".
-	/// </summary>
-	public string EventStoreHealthCheckName { get; set; } = "Postgres-event-store";
-
-	/// <summary>
-	/// Gets or sets the health check name for the snapshot store. Default: "Postgres-snapshot-store".
-	/// </summary>
-	public string SnapshotStoreHealthCheckName { get; set; } = "Postgres-snapshot-store";
-
-	/// <summary>
-	/// Gets or sets the health check name for the outbox store. Default: "Postgres-outbox-store".
-	/// </summary>
-	public string OutboxStoreHealthCheckName { get; set; } = "Postgres-outbox-store";
+	/// <value>Health check options including registration flag and custom names.</value>
+	public PostgresEventSourcingHealthCheckOptions HealthChecks { get; set; } = new();
 }

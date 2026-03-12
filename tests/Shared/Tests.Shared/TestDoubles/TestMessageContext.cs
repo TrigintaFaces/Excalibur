@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Routing;
 
 namespace Tests.Shared.TestDoubles;
 
@@ -10,22 +9,24 @@ namespace Tests.Shared.TestDoubles;
 /// A test implementation of <see cref="IMessageContext"/> for use in unit and integration tests.
 /// </summary>
 /// <remarks>
+/// <para>
 /// This class provides a complete implementation of <see cref="IMessageContext"/> with all properties
 /// settable and sensible defaults. Use this class instead of mocking the interface for simpler test code.
+/// </para>
+/// <para>
+/// Properties that were moved to feature interfaces (e.g., UserId, TenantId, TraceParent) are kept
+/// as convenience members for backward compatibility with existing tests but are no longer part of
+/// <see cref="IMessageContext"/>. For feature-based access, use the extension methods in
+/// <c>Excalibur.Dispatch.Abstractions.Features</c>.
+/// </para>
 /// </remarks>
 public sealed class TestMessageContext : IMessageContext
 {
 	private readonly Dictionary<string, object> _items = new();
-	private readonly Dictionary<string, object?> _properties = new();
+	private readonly Dictionary<Type, object> _features = new();
 
 	/// <inheritdoc />
 	public string? MessageId { get; set; }
-
-	/// <inheritdoc />
-	public string? ExternalId { get; set; }
-
-	/// <inheritdoc />
-	public string? UserId { get; set; }
 
 	/// <inheritdoc />
 	public string? CorrelationId { get; set; }
@@ -34,105 +35,146 @@ public sealed class TestMessageContext : IMessageContext
 	public string? CausationId { get; set; }
 
 	/// <inheritdoc />
-	public string? TraceParent { get; set; }
-
-	/// <inheritdoc />
-	public string? TenantId { get; set; }
-
-	/// <inheritdoc />
-	public string? SessionId { get; set; }
-
-	/// <inheritdoc />
-	public string? WorkflowId { get; set; }
-
-	/// <inheritdoc />
-	public string? PartitionKey { get; set; }
-
-	/// <inheritdoc />
-	public string? Source { get; set; }
-
-	/// <inheritdoc />
-	public string? MessageType { get; set; }
-
-	/// <inheritdoc />
-	public string? ContentType { get; set; }
-
-	/// <inheritdoc />
-	public int DeliveryCount { get; set; }
-
-	/// <inheritdoc />
 	public IDispatchMessage? Message { get; set; }
 
 	/// <inheritdoc />
 	public object? Result { get; set; }
 
 	/// <inheritdoc />
-	public RoutingDecision? RoutingDecision { get; set; } = RoutingDecision.Success("local", []);
-
-	/// <inheritdoc />
 	public IServiceProvider RequestServices { get; set; } = new TestServiceProvider();
-
-	/// <inheritdoc />
-	public DateTimeOffset ReceivedTimestampUtc { get; set; } = DateTimeOffset.UtcNow;
-
-	/// <inheritdoc />
-	public DateTimeOffset? SentTimestampUtc { get; set; }
 
 	/// <inheritdoc />
 	public IDictionary<string, object> Items => _items;
 
 	/// <inheritdoc />
-	public IDictionary<string, object?> Properties => _properties;
+	public IDictionary<Type, object> Features => _features;
 
-	/// <inheritdoc />
+	// ----- Non-interface convenience properties for test backward compatibility -----
+
+	/// <summary>
+	/// Gets or sets the external identifier. Now accessed via identity feature in production code.
+	/// </summary>
+	public string? ExternalId { get; set; }
+
+	/// <summary>
+	/// Gets or sets the user identifier. Now accessed via identity feature in production code.
+	/// </summary>
+	public string? UserId { get; set; }
+
+	/// <summary>
+	/// Gets or sets the trace parent. Now accessed via identity feature in production code.
+	/// </summary>
+	public string? TraceParent { get; set; }
+
+	/// <summary>
+	/// Gets or sets the tenant identifier. Now accessed via identity feature in production code.
+	/// </summary>
+	public string? TenantId { get; set; }
+
+	/// <summary>
+	/// Gets or sets the session identifier. Now accessed via identity feature in production code.
+	/// </summary>
+	public string? SessionId { get; set; }
+
+	/// <summary>
+	/// Gets or sets the workflow identifier. Now accessed via identity feature in production code.
+	/// </summary>
+	public string? WorkflowId { get; set; }
+
+	/// <summary>
+	/// Gets or sets the partition key. Now accessed via routing feature in production code.
+	/// </summary>
+	public string? PartitionKey { get; set; }
+
+	/// <summary>
+	/// Gets or sets the source. Now accessed via routing feature in production code.
+	/// </summary>
+	public string? Source { get; set; }
+
+	/// <summary>
+	/// Gets or sets the message type. Now accessed via extension methods in production code.
+	/// </summary>
+	public string? MessageType { get; set; }
+
+	/// <summary>
+	/// Gets or sets the content type. Now accessed via extension methods in production code.
+	/// </summary>
+	public string? ContentType { get; set; }
+
+	/// <summary>
+	/// Gets or sets the delivery count. Now accessed via processing feature in production code.
+	/// </summary>
+	public int DeliveryCount { get; set; }
+
+	/// <summary>
+	/// Gets or sets the received timestamp. Now accessed via extension methods in production code.
+	/// </summary>
+	public DateTimeOffset ReceivedTimestampUtc { get; set; } = DateTimeOffset.UtcNow;
+
+	/// <summary>
+	/// Gets or sets the sent timestamp. Now accessed via extension methods in production code.
+	/// </summary>
+	public DateTimeOffset? SentTimestampUtc { get; set; }
+
+	/// <summary>
+	/// Gets or sets the processing attempts. Now accessed via processing feature in production code.
+	/// </summary>
 	public int ProcessingAttempts { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the first attempt time. Now accessed via processing feature in production code.
+	/// </summary>
 	public DateTimeOffset? FirstAttemptTime { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets a value indicating whether this is a retry. Now accessed via processing feature in production code.
+	/// </summary>
 	public bool IsRetry { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets a value indicating whether validation passed. Now accessed via validation feature in production code.
+	/// </summary>
 	public bool ValidationPassed { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the validation timestamp. Now accessed via validation feature in production code.
+	/// </summary>
 	public DateTimeOffset? ValidationTimestamp { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the transaction. Now accessed via transaction feature in production code.
+	/// </summary>
 	public object? Transaction { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the transaction identifier. Now accessed via transaction feature in production code.
+	/// </summary>
 	public string? TransactionId { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets a value indicating whether timeout was exceeded. Now accessed via timeout feature in production code.
+	/// </summary>
 	public bool TimeoutExceeded { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the timeout elapsed duration. Now accessed via timeout feature in production code.
+	/// </summary>
 	public TimeSpan? TimeoutElapsed { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets a value indicating whether rate limit was exceeded. Now accessed via rate limit feature in production code.
+	/// </summary>
 	public bool RateLimitExceeded { get; set; }
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the rate limit retry-after duration. Now accessed via rate limit feature in production code.
+	/// </summary>
 	public TimeSpan? RateLimitRetryAfter { get; set; }
 
-	/// <inheritdoc />
-	public bool ContainsItem(string key) => _items.ContainsKey(key);
-
-	/// <inheritdoc />
-	public T? GetItem<T>(string key) => _items.TryGetValue(key, out var value) ? (T?)value : default;
-
-	/// <inheritdoc />
-	public T GetItem<T>(string key, T defaultValue) => _items.TryGetValue(key, out var value) ? (T)value : defaultValue;
-
-	/// <inheritdoc />
-	public void RemoveItem(string key) => _items.Remove(key);
-
-	/// <inheritdoc />
-	public void SetItem<T>(string key, T value) => _items[key] = value!;
-
-	/// <inheritdoc />
+	/// <summary>
+	/// Creates a child context copying correlation data from this context.
+	/// </summary>
+	/// <returns>A new <see cref="TestMessageContext"/> with propagated correlation data.</returns>
 	public IMessageContext CreateChildContext()
 	{
 		return new TestMessageContext

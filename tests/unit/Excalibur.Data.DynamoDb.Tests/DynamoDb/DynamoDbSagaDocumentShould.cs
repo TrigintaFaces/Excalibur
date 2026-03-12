@@ -3,7 +3,7 @@
 
 using System.Reflection;
 
-using Excalibur.Data.DynamoDb.Saga;
+using Excalibur.Saga.DynamoDb;
 
 namespace Excalibur.Data.Tests.DynamoDb;
 
@@ -26,7 +26,7 @@ public sealed class DynamoDbSagaDocumentShould
 	{
 		// Get the internal type via reflection
 		var assembly = typeof(DynamoDbSagaOptions).Assembly;
-		_documentType = assembly.GetType("Excalibur.Data.DynamoDb.Saga.DynamoDbSagaDocument")!;
+		_documentType = assembly.GetType("Excalibur.Saga.DynamoDb.DynamoDbSagaDocument")!;
 	}
 
 	#region Constant Value Tests

@@ -264,14 +264,20 @@ public class SqlServerPersistenceProviderIntegrationShould
 	{
 		return Options.Create(new SqlServerProviderOptions
 		{
-			ConnectionString = connectionString,
+			Connection =
+			{
+				ConnectionString = connectionString,
+				ConnectTimeout = 15,
+				TrustServerCertificate = true,
+			},
 			Name = "sqlserver-test",
 			CommandTimeout = 30,
-			ConnectTimeout = 15,
-			MaxPoolSize = 10,
-			MinPoolSize = 1,
-			EnablePooling = true,
-			TrustServerCertificate = true,
+			Pooling =
+			{
+				MaxPoolSize = 10,
+				MinPoolSize = 1,
+				EnablePooling = true,
+			},
 			RetryCount = 3
 		});
 	}

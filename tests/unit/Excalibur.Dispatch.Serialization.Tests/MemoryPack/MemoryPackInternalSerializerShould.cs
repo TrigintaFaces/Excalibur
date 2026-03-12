@@ -7,12 +7,12 @@ using Excalibur.Dispatch.Abstractions.Serialization;
 
 using MemoryPack;
 
-using Excalibur.Dispatch.Serialization.MemoryPack;
+using MpSerializer = Excalibur.Dispatch.Serialization.MemoryPack.MemoryPackSerializer;
 
 namespace Excalibur.Dispatch.Serialization.Tests.MemoryPack;
 
 /// <summary>
-/// Tests for <see cref="MemoryPackInternalSerializer"/>.
+/// Tests for <see cref="MpSerializer"/>.
 /// </summary>
 /// <remarks>
 /// Per ADR-058 conformance requirements, these tests verify:
@@ -25,11 +25,11 @@ namespace Excalibur.Dispatch.Serialization.Tests.MemoryPack;
 [Trait("Category", "Unit")]
 public sealed class MemoryPackInternalSerializerShould
 {
-	private readonly IInternalSerializer _sut;
+	private readonly ISerializer _sut;
 
 	public MemoryPackInternalSerializerShould()
 	{
-		_sut = new MemoryPackInternalSerializer();
+		_sut = new MpSerializer();
 	}
 
 	#region Serialize<T>(T value) Tests
@@ -41,7 +41,7 @@ public sealed class MemoryPackInternalSerializerShould
 		var value = new TestPayload { Id = 42, Name = "Test" };
 
 		// Act
-		var bytes = _sut.Serialize(value);
+		var bytes = _sut.SerializeToBytes(value);
 
 		// Assert
 		_ = bytes.ShouldNotBeNull();
@@ -55,7 +55,7 @@ public sealed class MemoryPackInternalSerializerShould
 		var original = new TestPayload { Id = 123, Name = "RoundTrip Test" };
 
 		// Act
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 		var deserialized = _sut.Deserialize<TestPayload>(bytes.AsSpan());
 
 		// Assert
@@ -80,7 +80,7 @@ public sealed class MemoryPackInternalSerializerShould
 		};
 
 		// Act
-		var bytes = _sut.Serialize(value);
+		var bytes = _sut.SerializeToBytes(value);
 		var deserialized = _sut.Deserialize<TestPayloadWithCollections>(bytes.AsSpan());
 
 		// Assert
@@ -135,7 +135,7 @@ public sealed class MemoryPackInternalSerializerShould
 	{
 		// Arrange
 		var original = new TestPayload { Id = 789, Name = "Sequence Test" };
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 		var sequence = new ReadOnlySequence<byte>(bytes);
 
 		// Act
@@ -152,7 +152,7 @@ public sealed class MemoryPackInternalSerializerShould
 	{
 		// Arrange
 		var original = new TestPayload { Id = 101, Name = "Multi-Segment Test" };
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 
 		// Split bytes into multiple segments to simulate pipeline scenario
 		var segment1 = bytes.AsMemory(0, bytes.Length / 2);
@@ -177,7 +177,7 @@ public sealed class MemoryPackInternalSerializerShould
 	{
 		// Arrange
 		var original = new TestPayload { Id = 999, Name = "Span Test" };
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 
 		// Act
 		var deserialized = _sut.Deserialize<TestPayload>(bytes.AsSpan());
@@ -204,7 +204,7 @@ public sealed class MemoryPackInternalSerializerShould
 		};
 
 		// Act
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 		var deserialized = _sut.Deserialize<TestPayloadWithCollections>(bytes.AsSpan());
 
 		// Assert
@@ -225,7 +225,7 @@ public sealed class MemoryPackInternalSerializerShould
 		};
 
 		// Act
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 		var deserialized = _sut.Deserialize<TestPayloadWithNullables>(bytes.AsSpan());
 
 		// Assert
@@ -247,7 +247,7 @@ public sealed class MemoryPackInternalSerializerShould
 		};
 
 		// Act
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 		var deserialized = _sut.Deserialize<TestPayloadWithDateTime>(bytes.AsSpan());
 
 		// Assert
@@ -267,7 +267,7 @@ public sealed class MemoryPackInternalSerializerShould
 		};
 
 		// Act
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 		var deserialized = _sut.Deserialize<TestPayloadWithGuid>(bytes.AsSpan());
 
 		// Assert

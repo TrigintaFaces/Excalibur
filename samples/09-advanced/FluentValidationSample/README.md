@@ -13,7 +13,9 @@ FluentValidation is a popular .NET library for building strongly-typed validatio
 services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-}).WithFluentValidation();
+    dispatch.AddDispatchValidation()   // Register ValidationMiddleware
+        .WithFluentValidation();       // Use FluentValidation as the validator resolver
+});
 
 // 2. Register validators from your assembly
 services.AddValidatorsFromAssemblyContaining<CreateUserCommandValidator>();
@@ -22,11 +24,8 @@ services.AddValidatorsFromAssemblyContaining<CreateUserCommandValidator>();
 var result = await dispatcher.DispatchAsync(command, context, ct);
 if (!result.Succeeded)
 {
-    // Handle validation errors
-    foreach (var error in result.ProblemDetails.Errors)
-    {
-        Console.WriteLine($"{error.Key}: {string.Join(", ", error.Value)}");
-    }
+    // Handle validation errors from result.ProblemDetails
+    Console.WriteLine(result.ErrorMessage);
 }
 ```
 

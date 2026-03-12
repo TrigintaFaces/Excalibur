@@ -7,7 +7,7 @@ using System.Text.Json;
 using Azure.ResourceManager;
 
 using Excalibur.Jobs.Abstractions;
-using Excalibur.Jobs.CloudProviders.Azure;
+using Excalibur.Jobs.Azure;
 
 using FakeItEasy;
 

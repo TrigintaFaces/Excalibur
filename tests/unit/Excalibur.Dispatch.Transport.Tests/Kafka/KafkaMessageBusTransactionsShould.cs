@@ -20,7 +20,7 @@ public sealed class KafkaMessageBusTransactionsShould : UnitTestBase
 		var producer = A.Fake<IProducer<string, byte[]>>();
 		var serializer = A.Fake<IPayloadSerializer>();
 		var options = new KafkaOptions { Topic = "dispatch-topic" };
-		var cloudEventOptions = new KafkaCloudEventOptions { EnableTransactions = true };
+		var cloudEventOptions = new KafkaCloudEventOptions { Producer = new KafkaCloudEventProducerOptions { EnableTransactions = true } };
 		var context = A.Fake<IMessageContext>();
 		var action = new TestAction();
 		var payload = new byte[] { 0x01, 0x02, 0x03 };
@@ -59,7 +59,7 @@ public sealed class KafkaMessageBusTransactionsShould : UnitTestBase
 		var producer = A.Fake<IProducer<string, byte[]>>();
 		var serializer = A.Fake<IPayloadSerializer>();
 		var options = new KafkaOptions { Topic = "dispatch-topic" };
-		var cloudEventOptions = new KafkaCloudEventOptions { EnableTransactions = true };
+		var cloudEventOptions = new KafkaCloudEventOptions { Producer = new KafkaCloudEventProducerOptions { EnableTransactions = true } };
 		var context = A.Fake<IMessageContext>();
 		var action = new TestAction();
 		var payload = new byte[] { 0x0A, 0x0B };
@@ -98,7 +98,7 @@ public sealed class KafkaMessageBusTransactionsShould : UnitTestBase
 		var producer = A.Fake<IProducer<string, byte[]>>();
 		var serializer = A.Fake<IPayloadSerializer>();
 		var options = new KafkaOptions { Topic = "dispatch-topic" };
-		var cloudEventOptions = new KafkaCloudEventOptions { EnableTransactions = false };
+		var cloudEventOptions = new KafkaCloudEventOptions { Producer = new KafkaCloudEventProducerOptions { EnableTransactions = false } };
 		var context = A.Fake<IMessageContext>();
 		var action = new TestAction();
 		var payload = new byte[] { 0x0F };

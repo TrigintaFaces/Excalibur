@@ -34,7 +34,7 @@ public sealed class StreamingCancellationShould
 			sp => sp.GetRequiredService<CancellationAwareStreamingHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var document = new TestCsvDocument(["A", "B", "C", "D", "E"]);
 		var context = CreateTestContext(provider);
@@ -75,7 +75,7 @@ public sealed class StreamingCancellationShould
 			sp => sp.GetRequiredService<TestCsvStreamingHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var document = new TestCsvDocument(["A", "B", "C"]);
 		var context = CreateTestContext(provider);
@@ -114,7 +114,7 @@ public sealed class StreamingCancellationShould
 		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var document = new TestCsvDocument(["A", "B", "C", "D"]);
 		var context = CreateTestContext(provider);
@@ -154,7 +154,7 @@ public sealed class StreamingCancellationShould
 		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		using var cts = new CancellationTokenSource();
 
@@ -190,7 +190,7 @@ public sealed class StreamingCancellationShould
 		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync();
@@ -222,7 +222,7 @@ public sealed class StreamingCancellationShould
 		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var documents = CreateTestDocumentStream(10, CancellationToken.None);
 		var context = CreateTestContext(provider);
@@ -273,4 +273,3 @@ public sealed class StreamingCancellationShould
 
 	#endregion
 }
-

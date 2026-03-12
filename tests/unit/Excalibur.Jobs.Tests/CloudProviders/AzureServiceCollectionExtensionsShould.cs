@@ -3,7 +3,7 @@
 
 using Azure.ResourceManager;
 
-using Excalibur.Jobs.CloudProviders.Azure;
+using Excalibur.Jobs.Azure;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -18,7 +18,7 @@ public sealed class AzureServiceCollectionExtensionsShould
 	public void ThrowWhenServicesIsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			AzureServiceCollectionExtensions.AddAzureLogicApps(null!, _ => { }));
+			AzureJobsServiceCollectionExtensions.AddAzureLogicApps(null!, _ => { }));
 	}
 
 	[Fact]

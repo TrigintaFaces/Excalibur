@@ -30,25 +30,9 @@ public sealed class SqlServerAuditOptions
 	public int BatchInsertSize { get; set; } = 1000;
 
 	/// <summary>
-	/// Gets or sets the default retention period for audit events.
-	/// Events older than this will be eligible for cleanup. Default is 7 years (SOC2 requirement).
+	/// Gets or sets the retention options for audit events.
 	/// </summary>
-	public TimeSpan RetentionPeriod { get; set; } = TimeSpan.FromDays(7 * 365);
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable automatic retention enforcement.
-	/// </summary>
-	public bool EnableRetentionEnforcement { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the interval for retention cleanup operations. Default is 1 day.
-	/// </summary>
-	public TimeSpan RetentionCleanupInterval { get; set; } = TimeSpan.FromDays(1);
-
-	/// <summary>
-	/// Gets or sets the maximum number of events to delete per cleanup batch. Default is 10000.
-	/// </summary>
-	public int RetentionCleanupBatchSize { get; set; } = 10000;
+	public SqlServerAuditRetentionOptions Retention { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets the command timeout for SQL operations in seconds. Default is 30.

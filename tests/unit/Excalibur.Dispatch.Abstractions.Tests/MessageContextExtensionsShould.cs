@@ -13,27 +13,11 @@ namespace Excalibur.Dispatch.Abstractions.Tests;
 public sealed class MessageContextExtensionsShould
 {
 	[Fact]
-	public void SetProperty_Should_StoreValueInProperties()
-	{
-		// Arrange
-		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
-		A.CallTo(() => context.Properties).Returns(properties);
-
-		// Act
-		context.SetProperty("key1", "value1");
-
-		// Assert
-		properties["key1"].ShouldBe("value1");
-	}
-
-	[Fact]
-	public void SetProperty_Should_FallbackToItems_WhenPropertiesIsNull()
+	public void SetProperty_Should_StoreValueInItems()
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
 		var items = new Dictionary<string, object>(StringComparer.Ordinal);
-		A.CallTo(() => context.Properties).Returns(null!);
 		A.CallTo(() => context.Items).Returns(items);
 
 		// Act
@@ -54,12 +38,12 @@ public sealed class MessageContextExtensionsShould
 	}
 
 	[Fact]
-	public void GetProperty_Should_ReturnValueFromProperties()
+	public void GetProperty_Should_ReturnValueFromItems()
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>(StringComparer.Ordinal) { ["key1"] = "value1" };
-		A.CallTo(() => context.Properties).Returns(properties);
+		var items = new Dictionary<string, object>(StringComparer.Ordinal) { ["key1"] = "value1" };
+		A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		var result = context.GetProperty<string>("key1");
@@ -73,9 +57,8 @@ public sealed class MessageContextExtensionsShould
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
-		A.CallTo(() => context.Properties).Returns(properties);
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		var result = context.GetProperty<string>("missing");
@@ -89,31 +72,14 @@ public sealed class MessageContextExtensionsShould
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>(StringComparer.Ordinal) { ["key1"] = 42 };
-		A.CallTo(() => context.Properties).Returns(properties);
-
-		// Act
-		var result = context.GetProperty<string>("key1");
-
-		// Assert
-		result.ShouldBeNull();
-	}
-
-	[Fact]
-	public void GetProperty_Should_FallbackToItems_WhenNotInProperties()
-	{
-		// Arrange
-		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
-		var items = new Dictionary<string, object>(StringComparer.Ordinal) { ["key1"] = "from-items" };
-		A.CallTo(() => context.Properties).Returns(properties);
+		var items = new Dictionary<string, object>(StringComparer.Ordinal) { ["key1"] = 42 };
 		A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		var result = context.GetProperty<string>("key1");
 
 		// Assert
-		result.ShouldBe("from-items");
+		result.ShouldBeNull();
 	}
 
 	[Fact]
@@ -131,8 +97,8 @@ public sealed class MessageContextExtensionsShould
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>(StringComparer.Ordinal) { ["key1"] = "value1" };
-		A.CallTo(() => context.Properties).Returns(properties);
+		var items = new Dictionary<string, object>(StringComparer.Ordinal) { ["key1"] = "value1" };
+		A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		var found = context.TryGetProperty<string>("key1", out var value);
@@ -147,9 +113,7 @@ public sealed class MessageContextExtensionsShould
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
 		var items = new Dictionary<string, object>(StringComparer.Ordinal);
-		A.CallTo(() => context.Properties).Returns(properties);
 		A.CallTo(() => context.Items).Returns(items);
 
 		// Act
@@ -158,24 +122,6 @@ public sealed class MessageContextExtensionsShould
 		// Assert
 		found.ShouldBeFalse();
 		value.ShouldBeNull();
-	}
-
-	[Fact]
-	public void TryGetProperty_Should_FallbackToItems()
-	{
-		// Arrange
-		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
-		var items = new Dictionary<string, object>(StringComparer.Ordinal) { ["key1"] = "items-value" };
-		A.CallTo(() => context.Properties).Returns(properties);
-		A.CallTo(() => context.Items).Returns(items);
-
-		// Act
-		var found = context.TryGetProperty<string>("key1", out var value);
-
-		// Assert
-		found.ShouldBeTrue();
-		value.ShouldBe("items-value");
 	}
 
 	[Fact]
@@ -189,20 +135,17 @@ public sealed class MessageContextExtensionsShould
 	}
 
 	[Fact]
-	public void RemoveProperty_Should_RemoveFromBothDictionaries()
+	public void RemoveProperty_Should_RemoveFromItems()
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>(StringComparer.Ordinal) { ["key1"] = "p-value" };
-		var items = new Dictionary<string, object>(StringComparer.Ordinal) { ["key1"] = "i-value" };
-		A.CallTo(() => context.Properties).Returns(properties);
+		var items = new Dictionary<string, object>(StringComparer.Ordinal) { ["key1"] = "value" };
 		A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		context.RemoveProperty("key1");
 
 		// Assert
-		properties.ShouldNotContainKey("key1");
 		items.ShouldNotContainKey("key1");
 	}
 
@@ -263,8 +206,8 @@ public sealed class MessageContextExtensionsShould
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
-		A.CallTo(() => context.Properties).Returns(properties);
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		var validationObj = new object();
@@ -279,8 +222,8 @@ public sealed class MessageContextExtensionsShould
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
-		A.CallTo(() => context.Properties).Returns(properties);
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		var authObj = new object();
@@ -295,8 +238,8 @@ public sealed class MessageContextExtensionsShould
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
-		A.CallTo(() => context.Properties).Returns(properties);
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		var metadata = new object();
@@ -311,8 +254,8 @@ public sealed class MessageContextExtensionsShould
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
-		A.CallTo(() => context.Properties).Returns(properties);
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		context.DesiredVersion("2.0");
@@ -326,8 +269,8 @@ public sealed class MessageContextExtensionsShould
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
-		A.CallTo(() => context.Properties).Returns(properties);
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		context.MessageVersion("1.0");
@@ -341,8 +284,8 @@ public sealed class MessageContextExtensionsShould
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
-		A.CallTo(() => context.Properties).Returns(properties);
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		context.SerializerVersion("3.0");
@@ -356,8 +299,8 @@ public sealed class MessageContextExtensionsShould
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
-		A.CallTo(() => context.Properties).Returns(properties);
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		context.ContractVersion("1.1");
@@ -371,8 +314,8 @@ public sealed class MessageContextExtensionsShould
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
-		A.CallTo(() => context.Properties).Returns(properties);
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		context.PartitionKey("partition-1");
@@ -386,8 +329,8 @@ public sealed class MessageContextExtensionsShould
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
-		A.CallTo(() => context.Properties).Returns(properties);
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		context.ReplyTo("reply-queue");
@@ -401,8 +344,8 @@ public sealed class MessageContextExtensionsShould
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
-		A.CallTo(() => context.Properties).Returns(properties);
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Items).Returns(items);
 		var metadata = new Dictionary<string, object>(StringComparer.Ordinal) { ["foo"] = "bar" };
 
 		// Act
@@ -419,9 +362,7 @@ public sealed class MessageContextExtensionsShould
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>(StringComparer.Ordinal);
 		var items = new Dictionary<string, object>(StringComparer.Ordinal);
-		A.CallTo(() => context.Properties).Returns(properties);
 		A.CallTo(() => context.Items).Returns(items);
 
 		// Act

@@ -29,7 +29,7 @@ public sealed class MessageSigningMiddlewareFunctionalShould
             NullLogger<MessageSigningMiddleware>.Instance);
     }
 
-    private static (IDispatchMessage Message, IMessageContext Context, DispatchRequestDelegate Next, IMessageResult SuccessResult)
+    private static (IDispatchMessage Message, IMessageContext Context, Dictionary<string, object> Items, DispatchRequestDelegate Next, IMessageResult SuccessResult)
         CreatePipelineFakes(string? direction = null, string? existingSignature = null)
     {
         var message = A.Fake<IDispatchMessage>();
@@ -44,25 +44,22 @@ public sealed class MessageSigningMiddlewareFunctionalShould
             items["MessageSignature"] = existingSignature;
         }
 
-        var properties = new Dictionary<string, object?>();
-
         var context = A.Fake<IMessageContext>();
         A.CallTo(() => context.Items).Returns(items);
-        A.CallTo(() => context.Properties).Returns(properties);
 
         var successResult = A.Fake<IMessageResult>();
         A.CallTo(() => successResult.Succeeded).Returns(true);
 
         DispatchRequestDelegate next = (msg, ctx, ct) => new ValueTask<IMessageResult>(successResult);
 
-        return (message, context, next, successResult);
+        return (message, context, items, next, successResult);
     }
 
     [Fact]
     public async Task PassThroughWhenDisabled()
     {
         var middleware = CreateMiddleware(opts: new SigningOptions { Enabled = false });
-        var (message, context, next, successResult) = CreatePipelineFakes();
+        var (message, context, _, next, successResult) = CreatePipelineFakes();
 
         var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
@@ -77,7 +74,7 @@ public sealed class MessageSigningMiddlewareFunctionalShould
             .Returns("test-signature-base64");
 
         var middleware = CreateMiddleware(signingService);
-        var (message, context, next, _) = CreatePipelineFakes(direction: "Outgoing");
+        var (message, context, items, next, _) = CreatePipelineFakes(direction: "Outgoing");
 
         var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
@@ -86,10 +83,10 @@ public sealed class MessageSigningMiddlewareFunctionalShould
         A.CallTo(() => signingService.SignMessageAsync(A<string>._, A<SigningContext>._, A<CancellationToken>._))
             .MustHaveHappenedOnceExactly();
 
-        // Verify signature stored in context properties
-        context.Properties["MessageSignature"].ShouldBe("test-signature-base64");
-        context.Properties["SignatureAlgorithm"].ShouldNotBeNull();
-        context.Properties["SignedAt"].ShouldNotBeNull();
+        // Verify signature stored in context Items via SetProperty
+        items["MessageSignature"].ShouldBe("test-signature-base64");
+        items["SignatureAlgorithm"].ShouldNotBeNull();
+        items["SignedAt"].ShouldNotBeNull();
     }
 
     [Fact]
@@ -100,7 +97,7 @@ public sealed class MessageSigningMiddlewareFunctionalShould
             .Returns(true);
 
         var middleware = CreateMiddleware(signingService);
-        var (message, context, next, successResult) = CreatePipelineFakes(direction: "Incoming", existingSignature: "valid-sig");
+        var (message, context, _, next, successResult) = CreatePipelineFakes(direction: "Incoming", existingSignature: "valid-sig");
 
         var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
@@ -123,7 +120,7 @@ public sealed class MessageSigningMiddlewareFunctionalShould
             DefaultAlgorithm = SigningAlgorithm.HMACSHA256,
             DefaultKeyId = "key",
         });
-        var (message, context, next, _) = CreatePipelineFakes(direction: "Incoming", existingSignature: "bad-sig");
+        var (message, context, _, next, _) = CreatePipelineFakes(direction: "Incoming", existingSignature: "bad-sig");
 
         var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
@@ -142,7 +139,7 @@ public sealed class MessageSigningMiddlewareFunctionalShould
             DefaultKeyId = "key",
         });
         // Incoming message with no signature
-        var (message, context, next, _) = CreatePipelineFakes(direction: "Incoming");
+        var (message, context, _, next, _) = CreatePipelineFakes(direction: "Incoming");
 
         var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
@@ -160,7 +157,7 @@ public sealed class MessageSigningMiddlewareFunctionalShould
             DefaultAlgorithm = SigningAlgorithm.HMACSHA256,
             DefaultKeyId = "key",
         });
-        var (message, context, next, successResult) = CreatePipelineFakes(direction: "Incoming");
+        var (message, context, _, next, successResult) = CreatePipelineFakes(direction: "Incoming");
 
         var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
@@ -178,7 +175,6 @@ public sealed class MessageSigningMiddlewareFunctionalShould
         var items = new Dictionary<string, object> { ["MessageDirection"] = "Outgoing" };
         var context = A.Fake<IMessageContext>();
         A.CallTo(() => context.Items).Returns(items);
-        A.CallTo(() => context.Properties).Returns(new Dictionary<string, object?>());
 
         var failedResult = A.Fake<IMessageResult>();
         A.CallTo(() => failedResult.Succeeded).Returns(false);
@@ -200,7 +196,7 @@ public sealed class MessageSigningMiddlewareFunctionalShould
             .ThrowsAsync(new SigningException("Key not found"));
 
         var middleware = CreateMiddleware(signingService);
-        var (message, context, next, _) = CreatePipelineFakes(direction: "Outgoing");
+        var (message, context, _, next, _) = CreatePipelineFakes(direction: "Outgoing");
 
         var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
@@ -225,7 +221,7 @@ public sealed class MessageSigningMiddlewareFunctionalShould
     public async Task ThrowOnNullMessage()
     {
         var middleware = CreateMiddleware();
-        var (_, context, next, _) = CreatePipelineFakes();
+        var (_, context, _, next, _) = CreatePipelineFakes();
 
         await Should.ThrowAsync<ArgumentNullException>(async () =>
             await middleware.InvokeAsync(null!, context, next, CancellationToken.None));
@@ -235,7 +231,7 @@ public sealed class MessageSigningMiddlewareFunctionalShould
     public async Task ThrowOnNullContext()
     {
         var middleware = CreateMiddleware();
-        var (message, _, next, _) = CreatePipelineFakes();
+        var (message, _, _, next, _) = CreatePipelineFakes();
 
         await Should.ThrowAsync<ArgumentNullException>(async () =>
             await middleware.InvokeAsync(message, null!, next, CancellationToken.None));
@@ -245,7 +241,7 @@ public sealed class MessageSigningMiddlewareFunctionalShould
     public async Task ThrowOnNullNextDelegate()
     {
         var middleware = CreateMiddleware();
-        var (message, context, _, _) = CreatePipelineFakes();
+        var (message, context, _, _, _) = CreatePipelineFakes();
 
         await Should.ThrowAsync<ArgumentNullException>(async () =>
             await middleware.InvokeAsync(message, context, null!, CancellationToken.None));
@@ -275,7 +271,6 @@ public sealed class MessageSigningMiddlewareFunctionalShould
         };
         var context = A.Fake<IMessageContext>();
         A.CallTo(() => context.Items).Returns(items);
-        A.CallTo(() => context.Properties).Returns(new Dictionary<string, object?>());
 
         var successResult = A.Fake<IMessageResult>();
         A.CallTo(() => successResult.Succeeded).Returns(true);

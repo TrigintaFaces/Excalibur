@@ -4,6 +4,8 @@
 using System.Diagnostics;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Validation.Context;
 using Excalibur.Dispatch.Options.Validation;
 
@@ -140,7 +142,8 @@ public sealed class DefaultContextValidatorShould
 		var sut = CreateSut(options);
 		var context = CreateValidContext();
 		context.MessageId = null;
-		context.MessageType = null;
+		// Clear MessageType from Items as well
+		context.SetMessageType(null);
 
 		var result = await sut.ValidateAsync(new TestMessage(), context, CancellationToken.None).ConfigureAwait(false);
 
@@ -198,7 +201,8 @@ public sealed class DefaultContextValidatorShould
 
 		var sut = CreateSut(options);
 		var context = CreateValidContext();
-		context.TenantId = null;
+		// Clear the TenantId from the identity feature so GetTenantId() returns null
+		context.SetFeature<IMessageIdentityFeature>(new MessageIdentityFeature { TenantId = null });
 
 		var result = await sut.ValidateAsync(new TenantAwareMessage("tenant-1"), context, CancellationToken.None).ConfigureAwait(false);
 
@@ -225,10 +229,17 @@ public sealed class DefaultContextValidatorShould
 
 		var sut = CreateSut(options);
 		var context = CreateValidContext();
-		context.UserId = new string('u', 257);
-		context.TraceParent = ValidTraceParent;
+
+		// Set identity feature with a too-long UserId and a valid TraceParent
+		context.SetFeature<IMessageIdentityFeature>(new MessageIdentityFeature
+		{
+			UserId = new string('u', 257),
+			TraceParent = ValidTraceParent,
+		});
+
 		context.AuthorizationResult(AuthorizationResult.Failed("denied"));
-		context.MessageType = null;
+		// Clear MessageType from Items so it shows as missing
+		context.SetMessageType(null);
 
 		using var activity = new Activity("trace-mismatch").Start();
 
@@ -298,8 +309,8 @@ public sealed class DefaultContextValidatorShould
 
 		var sut = CreateSut(options);
 		var context = CreateValidContext();
-		context.ReceivedTimestampUtc = DateTimeOffset.UtcNow.AddHours(-2);
-		context.SentTimestampUtc = DateTimeOffset.UtcNow.AddMinutes(10);
+		context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow.AddHours(-2));
+		context.SetSentTimestampUtc(DateTimeOffset.UtcNow.AddMinutes(10));
 
 		var result = await sut.ValidateAsync(new TestMessage(), context, CancellationToken.None).ConfigureAwait(false);
 
@@ -307,7 +318,7 @@ public sealed class DefaultContextValidatorShould
 		result.CorruptedFields.ShouldContain("MessageAge");
 		result.CorruptedFields.ShouldContain("SentTimestampUtc");
 		result.Details.ContainsKey("MessageAge_Hours").ShouldBeTrue();
-		result.Details["SentTimestamp_Future"].ShouldBe(context.SentTimestampUtc);
+		result.Details["SentTimestamp_Future"].ShouldBe(context.GetSentTimestampUtc());
 	}
 
 	[Fact]
@@ -407,7 +418,6 @@ public sealed class DefaultContextValidatorShould
 		var sut = CreateSut(options);
 		var context = A.Fake<IMessageContext>();
 		A.CallTo(() => context.Items).Returns((IDictionary<string, object>)null!);
-		A.CallTo(() => context.Properties).Returns(new Dictionary<string, object?>());
 		var message = new TestMessage();
 
 		var result = await sut.ValidateAsync(message, context, CancellationToken.None).ConfigureAwait(false);
@@ -437,8 +447,9 @@ public sealed class DefaultContextValidatorShould
 			Microsoft.Extensions.Options.Options.Create(options));
 	}
 
-	private static MessageEnvelope CreateValidContext() =>
-		new()
+	private static MessageEnvelope CreateValidContext()
+	{
+		var envelope = new MessageEnvelope
 		{
 			MessageId = Guid.NewGuid().ToString(),
 			MessageType = "OrderCreated",
@@ -450,6 +461,25 @@ public sealed class DefaultContextValidatorShould
 			ReceivedTimestampUtc = DateTimeOffset.UtcNow.AddMinutes(-1),
 			SentTimestampUtc = DateTimeOffset.UtcNow.AddMinutes(-2),
 		};
+
+		// Populate the identity feature so that extension methods (GetTenantId, GetUserId,
+		// GetTraceParent) work -- these read from Features[IMessageIdentityFeature].
+		envelope.SetFeature<IMessageIdentityFeature>(new MessageIdentityFeature
+		{
+			TenantId = envelope.TenantId,
+			UserId = envelope.UserId,
+			TraceParent = envelope.TraceParent,
+		});
+
+		// Populate MessageType in Items so GetMessageType() extension works
+		envelope.SetMessageType(envelope.MessageType);
+
+		// Populate timestamps in Items so GetReceivedTimestampUtc()/GetSentTimestampUtc() extensions work
+		envelope.SetReceivedTimestampUtc(envelope.ReceivedTimestampUtc);
+		envelope.SetSentTimestampUtc(envelope.SentTimestampUtc);
+
+		return envelope;
+	}
 
 	private sealed record TestMessage : IDispatchMessage;
 

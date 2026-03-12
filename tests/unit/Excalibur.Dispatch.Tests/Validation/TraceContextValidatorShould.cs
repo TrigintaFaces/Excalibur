@@ -4,6 +4,8 @@
 using System.Diagnostics;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch.Testing;
 using Excalibur.Dispatch.Validation.Context;
 
 using Microsoft.Extensions.Logging;
@@ -33,7 +35,7 @@ public sealed class TraceContextValidatorShould : IDisposable
 	public async Task ThrowOnNullMessage()
 	{
 		// Arrange
-		var context = A.Fake<IMessageContext>();
+		var context = new MessageContextBuilder().Build();
 
 		// Act & Assert
 		await Should.ThrowAsync<ArgumentNullException>(async () =>
@@ -54,15 +56,16 @@ public sealed class TraceContextValidatorShould : IDisposable
 	[Fact]
 	public async Task ReturnSuccess_WhenNoActivityAndNoTraceParent()
 	{
-		// Arrange — ensure no Activity is current
+		// Arrange -- ensure no Activity is current
 		var previousActivity = Activity.Current;
 		Activity.Current = null;
 		try
 		{
 			var message = A.Fake<IDispatchMessage>();
-			var context = A.Fake<IMessageContext>();
-			A.CallTo(() => context.TraceParent).Returns((string?)null);
-			A.CallTo(() => context.MessageId).Returns("msg-123");
+			var context = new MessageContextBuilder()
+				.WithMessageId("msg-123")
+				.Build();
+			// No TraceParent set (default is null)
 
 			// Act
 			var result = await _validator.ValidateAsync(message, context, CancellationToken.None);
@@ -79,15 +82,16 @@ public sealed class TraceContextValidatorShould : IDisposable
 	[Fact]
 	public async Task DetectMissingActivity_WhenTraceParentPresent()
 	{
-		// Arrange — ensure no Activity is current
+		// Arrange -- ensure no Activity is current
 		var previousActivity = Activity.Current;
 		Activity.Current = null;
 		try
 		{
 			var message = A.Fake<IDispatchMessage>();
-			var context = A.Fake<IMessageContext>();
-			A.CallTo(() => context.TraceParent).Returns("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
-			A.CallTo(() => context.MessageId).Returns("msg-123");
+			var context = new MessageContextBuilder()
+				.WithMessageId("msg-123")
+				.WithTraceParent("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+				.Build();
 
 			// Act
 			var result = await _validator.ValidateAsync(message, context, CancellationToken.None);
@@ -105,15 +109,18 @@ public sealed class TraceContextValidatorShould : IDisposable
 	[Fact]
 	public async Task DetectOrphanedTraceContext_WhenTraceParentPresentButNoMessageId()
 	{
-		// Arrange — ensure no Activity is current
+		// Arrange -- ensure no Activity is current
 		var previousActivity = Activity.Current;
 		Activity.Current = null;
 		try
 		{
 			var message = A.Fake<IDispatchMessage>();
-			var context = A.Fake<IMessageContext>();
-			A.CallTo(() => context.TraceParent).Returns("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
-			A.CallTo(() => context.MessageId).Returns((string?)null);
+			// Build context with TraceParent but override MessageId to null
+			var context = new MessageContextBuilder()
+				.WithTraceParent("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+				.Build();
+			// Override auto-generated MessageId to null
+			context.MessageId = null;
 
 			// Act
 			var result = await _validator.ValidateAsync(message, context, CancellationToken.None);
@@ -147,15 +154,17 @@ public sealed class TraceContextValidatorShould : IDisposable
 		var spanId = activity.SpanId.ToString();
 		var traceParent = $"00-{traceId}-{spanId}-01";
 
+		var correlationId = Guid.NewGuid().ToString();
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.TraceParent).Returns(traceParent);
-		A.CallTo(() => context.MessageId).Returns("msg-123");
-		A.CallTo(() => context.CorrelationId).Returns((string?)null);
-		A.CallTo(() => context.TenantId).Returns((string?)null);
-		A.CallTo(() => context.UserId).Returns((string?)null);
-		A.CallTo(() => context.CausationId).Returns((string?)null);
-		A.CallTo(() => context.MessageType).Returns("TestMessage");
+		var context = new MessageContextBuilder()
+			.WithMessageId("msg-123")
+			.WithCorrelationId(correlationId)
+			.WithTraceParent(traceParent)
+			.WithMessageType("TestMessage")
+			.Build();
+
+		// Set activity baggage to match context so validator doesn't flag mismatch
+		activity.SetBaggage("correlation-id", correlationId);
 
 		// Act
 		var result = await _validator.ValidateAsync(message, context, CancellationToken.None);
@@ -173,6 +182,6 @@ public sealed class TraceContextValidatorShould : IDisposable
 
 	public void Dispose()
 	{
-		// No-op — validator is not disposable
+		// No-op -- validator is not disposable
 	}
 }

@@ -32,13 +32,19 @@ public sealed class CachingTestResult
 
 public sealed class CachingTestQueryHandler : IActionHandler<CachingTestQuery, CachingTestResult>
 {
-	public static int CallCount { get; set; }
+	private static int _callCount;
+
+	public static int CallCount
+	{
+		get => Volatile.Read(ref _callCount);
+		set => Volatile.Write(ref _callCount, value);
+	}
 
 	public Task<CachingTestResult> HandleAsync(
 		CachingTestQuery message,
 		CancellationToken cancellationToken = default)
 	{
-		CallCount++;
+		Interlocked.Increment(ref _callCount);
 		var result = new CachingTestResult { Value = message.Value * 2 };
 		return Task.FromResult(result);
 	}
@@ -93,11 +99,17 @@ public sealed class OnlyIfSuccessQuery : QueryBase<TestResult>, IDispatchAction<
 [SuppressMessage("Performance", "CA1812", Justification = "Instantiated via DI")]
 public sealed class OnlyIfSuccessQueryHandler : IActionHandler<OnlyIfSuccessQuery, TestResult>
 {
-	public static int CallCount { get; set; }
+	private static int _callCount;
+
+	public static int CallCount
+	{
+		get => Volatile.Read(ref _callCount);
+		set => Volatile.Write(ref _callCount, value);
+	}
 
 	public Task<TestResult> HandleAsync(OnlyIfSuccessQuery message, CancellationToken cancellationToken = default)
 	{
-		CallCount++;
+		Interlocked.Increment(ref _callCount);
 		var result = new TestResult { Value = message.Value };
 		return Task.FromResult(result);
 	}
@@ -116,11 +128,17 @@ public sealed class NullResultQuery : QueryBase<TestResult>, IDispatchAction<Tes
 [SuppressMessage("Performance", "CA1812", Justification = "Instantiated via DI")]
 public sealed class NullResultQueryHandler : IActionHandler<NullResultQuery, TestResult>
 {
-	public static int CallCount { get; set; }
+	private static int _callCount;
+
+	public static int CallCount
+	{
+		get => Volatile.Read(ref _callCount);
+		set => Volatile.Write(ref _callCount, value);
+	}
 
 	public Task<TestResult> HandleAsync(NullResultQuery message, CancellationToken cancellationToken = default)
 	{
-		CallCount++;
+		Interlocked.Increment(ref _callCount);
 		return Task.FromResult<TestResult>(null!);
 	}
 }
@@ -190,7 +208,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		_ = services.AddMetrics();
 		_ = services.AddMemoryCache();
 		_ = services.AddSingleton<IMemoryCache, MemoryCache>();
-		_ = services.AddSingleton<IJsonSerializer, JsonMessageSerializer>();
+		_ = services.AddSingleton<DispatchJsonSerializer>();
 
 		// Register the test handler explicitly
 		_ = services.AddTransient<IActionHandler<CachingTestQuery, CachingTestResult>, CachingTestQueryHandler>();
@@ -251,7 +269,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		_ = services.AddLogging();
 		_ = services.AddMetrics();
 		_ = services.AddMemoryCache();
-		_ = services.AddSingleton<IJsonSerializer, JsonMessageSerializer>();
+		_ = services.AddSingleton<DispatchJsonSerializer>();
 
 		// Register the test handlers explicitly
 		_ = services.AddTransient<IActionHandler<CachingTestQuery, CachingTestResult>, CachingTestQueryHandler>();
@@ -305,7 +323,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		_ = services.AddLogging();
 		_ = services.AddMetrics();
 		_ = services.AddMemoryCache();
-		_ = services.AddSingleton<IJsonSerializer, JsonMessageSerializer>();
+		_ = services.AddSingleton<DispatchJsonSerializer>();
 
 		// Register the test handler explicitly
 		_ = services.AddTransient<IActionHandler<CachingTestQuery, CachingTestResult>, CachingTestQueryHandler>();
@@ -361,7 +379,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		_ = services.AddLogging();
 		_ = services.AddMetrics();
 		_ = services.AddMemoryCache();
-		_ = services.AddSingleton<IJsonSerializer, JsonMessageSerializer>();
+		_ = services.AddSingleton<DispatchJsonSerializer>();
 
 		// Register the test handlers explicitly
 		_ = services.AddTransient<IActionHandler<CachingTestQuery, CachingTestResult>, CachingTestQueryHandler>();
@@ -408,7 +426,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		_ = services.AddLogging();
 		_ = services.AddMetrics();
 		_ = services.AddMemoryCache();
-		_ = services.AddSingleton<IJsonSerializer, JsonMessageSerializer>();
+		_ = services.AddSingleton<DispatchJsonSerializer>();
 
 		// Register the test handlers explicitly
 		_ = services.AddTransient<IActionHandler<CachingTestQuery, CachingTestResult>, CachingTestQueryHandler>();
@@ -465,7 +483,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		_ = services.AddLogging();
 		_ = services.AddMetrics();
 		_ = services.AddMemoryCache();
-		_ = services.AddSingleton<IJsonSerializer, JsonMessageSerializer>();
+		_ = services.AddSingleton<DispatchJsonSerializer>();
 
 		// Register the test handler explicitly
 		_ = services.AddTransient<IActionHandler<OnlyIfSuccessQuery, TestResult>, OnlyIfSuccessQueryHandler>();
@@ -512,7 +530,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		_ = services.AddLogging();
 		_ = services.AddMetrics();
 		_ = services.AddMemoryCache();
-		_ = services.AddSingleton<IJsonSerializer, JsonMessageSerializer>();
+		_ = services.AddSingleton<DispatchJsonSerializer>();
 
 		// Register the test handler explicitly
 		_ = services.AddTransient<IActionHandler<NullResultQuery, TestResult>, NullResultQueryHandler>();
@@ -553,7 +571,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		_ = services.AddLogging();
 		_ = services.AddMetrics();
 		_ = services.AddMemoryCache();
-		_ = services.AddSingleton<IJsonSerializer, JsonMessageSerializer>();
+		_ = services.AddSingleton<DispatchJsonSerializer>();
 
 		// Register the test handlers explicitly
 		_ = services.AddTransient<IActionHandler<CachingTestQuery, CachingTestResult>, CachingTestQueryHandler>();
@@ -610,7 +628,7 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		_ = distSvc.AddDistributedMemoryCache();
 		var distCache = distSvc.BuildServiceProvider().GetRequiredService<Microsoft.Extensions.Caching.Distributed.IDistributedCache>();
 		_ = services.AddSingleton<Microsoft.Extensions.Caching.Distributed.IDistributedCache>(new ForwardingDistributedCache(distCache));
-		_ = services.AddSingleton<IJsonSerializer, JsonMessageSerializer>();
+		_ = services.AddSingleton<DispatchJsonSerializer>();
 
 		// Register the test handlers explicitly
 		_ = services.AddTransient<IActionHandler<CachingTestQuery, CachingTestResult>, CachingTestQueryHandler>();

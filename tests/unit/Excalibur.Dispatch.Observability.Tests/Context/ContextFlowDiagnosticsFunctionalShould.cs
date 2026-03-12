@@ -4,6 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Observability.Context;
 
@@ -108,6 +109,7 @@ public sealed class ContextFlowDiagnosticsFunctionalShould : IDisposable
 		// Very few fields
 		var context = CreateFakeContext(messageId: "msg-3");
 		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
 
 		var anomalies = _diagnostics.DetectAnomalies(context).ToList();
 
@@ -179,7 +181,7 @@ public sealed class ContextFlowDiagnosticsFunctionalShould : IDisposable
 	public void AnalyzeContextHealth_DetectsStaleTimestamp()
 	{
 		var context = CreateFakeContext(messageId: "msg-stale");
-		A.CallTo(() => context.SentTimestampUtc).Returns(DateTimeOffset.UtcNow.AddHours(-2));
+		context.SetSentTimestampUtc(DateTimeOffset.UtcNow.AddHours(-2));
 
 		var issues = _diagnostics.AnalyzeContextHealth(context).ToList();
 
@@ -190,11 +192,9 @@ public sealed class ContextFlowDiagnosticsFunctionalShould : IDisposable
 	public void AnalyzeContextHealth_DetectsValidationFailure()
 	{
 		var context = CreateFakeContext(messageId: "msg-vf");
-		var properties = new Dictionary<string, object?>();
-		A.CallTo(() => context.Properties).Returns(properties);
-		// Set the validation result via the Properties dictionary (extension method reads from "__ValidationResult")
+		// Set the validation result via the Items dictionary (extension method reads from "__ValidationResult")
 		var validationResult = new TestValidationResult { IsValid = false };
-		properties["__ValidationResult"] = validationResult;
+		context.Items["__ValidationResult"] = validationResult;
 
 		var issues = _diagnostics.AnalyzeContextHealth(context).ToList();
 
@@ -364,20 +364,24 @@ public sealed class ContextFlowDiagnosticsFunctionalShould : IDisposable
 		int deliveryCount = 1)
 	{
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		var features = new Dictionary<Type, object>();
+
 		A.CallTo(() => context.MessageId).Returns(messageId);
 		A.CallTo(() => context.CorrelationId).Returns(correlationId);
 		A.CallTo(() => context.CausationId).Returns(causationId);
-		A.CallTo(() => context.MessageType).Returns("TestMessage");
-		A.CallTo(() => context.DeliveryCount).Returns(deliveryCount);
-		A.CallTo(() => context.SentTimestampUtc).Returns(null);
-		A.CallTo(() => context.ReceivedTimestampUtc).Returns(DateTimeOffset.UtcNow);
-		A.CallTo(() => context.ExternalId).Returns(null);
-		A.CallTo(() => context.UserId).Returns(null);
-		A.CallTo(() => context.TraceParent).Returns(null);
-		A.CallTo(() => context.TenantId).Returns(null);
-		A.CallTo(() => context.Source).Returns(null);
-		A.CallTo(() => context.ContentType).Returns(null);
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
+
+		// Set up processing feature for DeliveryCount
+		if (deliveryCount > 0)
+		{
+			features[typeof(IMessageProcessingFeature)] = new MessageProcessingFeature
+			{
+				DeliveryCount = deliveryCount,
+			};
+		}
+
 		return context;
 	}
 

@@ -16,6 +16,7 @@ using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Configuration;
+using Excalibur.Dispatch.Routing;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -45,7 +46,7 @@ public sealed class Dispatcher(
 	LocalMessageBus? localMessageBus = null,
 	IDictionary<string, IMessageBusOptions>? busOptionsMap = null,
 	IDispatchRouter? dispatchRouter = null,
-	IOptions<DispatchOptions>? dispatchOptions = null) : IDispatcher, IDirectLocalDispatcher
+	IOptions<DispatchOptions>? dispatchOptions = null) : IDispatcher, IStreamingDispatcher, IProgressDispatcher, IDirectLocalDispatcher
 {
 	/// <inheritdoc />
 	public IServiceProvider? ServiceProvider => serviceProvider;
@@ -145,7 +146,7 @@ public sealed class Dispatcher(
 		    localMessageBus is not null &&
 		    dispatchInfo.CanBypassMiddleware &&
 		    dispatchRouter is null &&
-		    context.RoutingDecision is null)
+		    RoutingDecisionAccessor.GetRoutingDecisionFast(context) is null)
 		{
 			if (dispatchInfo.IsAction)
 			{
@@ -286,7 +287,7 @@ public sealed class Dispatcher(
 		    localMessageBus is not null &&
 		    canBypass &&
 		    dispatchRouter is null &&
-		    context.RoutingDecision is null)
+		    RoutingDecisionAccessor.GetRoutingDecisionFast(context) is null)
 		{
 			if (dispatchInfo.DirectLocalTypedEligible &&
 			    TryDispatchUltraLocalTypedFast<TMessage, TResponse>(
@@ -1128,10 +1129,10 @@ public sealed class Dispatcher(
 
 		context.Message = message;
 
-		if (context.MessageType is null)
+		if (context.GetMessageType() is null)
 		{
 			var messageType = message.GetType();
-			context.MessageType = MessageTypeCache.GetTypeName(messageType);
+			context.SetMessageType(MessageTypeCache.GetTypeName(messageType));
 		}
 	}
 
@@ -1162,9 +1163,9 @@ public sealed class Dispatcher(
 			return;
 		}
 
-		if (context.MessageType is null)
+		if (context.GetMessageType() is null)
 		{
-			context.MessageType = MessageTypeCache.GetTypeName(message.GetType());
+			context.SetMessageType(MessageTypeCache.GetTypeName(message.GetType()));
 		}
 	}
 
@@ -1199,14 +1200,14 @@ public sealed class Dispatcher(
 			? routeTask.Result
 			: await routeTask.ConfigureAwait(false);
 
-		context.RoutingDecision = decision;
+		RoutingDecisionAccessor.SetRoutingDecision(context, decision);
 		return decision;
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static bool TryGetUsableRoutingDecision(IMessageContext context, out RoutingDecision decision)
 	{
-		decision = context.RoutingDecision!;
+		decision = RoutingDecisionAccessor.GetRoutingDecisionFast(context)!;
 		if (decision is null)
 		{
 			return false;
@@ -1230,7 +1231,7 @@ public sealed class Dispatcher(
 
 		return Messaging.MessageResult.Failure(
 			problem,
-			context.RoutingDecision,
+			RoutingDecisionAccessor.GetRoutingDecisionFast(context),
 			context.ValidationResult() as IValidationResult,
 			context.AuthorizationResult() as IAuthorizationResult);
 	}
@@ -1250,7 +1251,7 @@ public sealed class Dispatcher(
 
 		return MessageResultOfT<TResponse>.Failure(
 			problem,
-			context.RoutingDecision,
+			RoutingDecisionAccessor.GetRoutingDecisionFast(context),
 			context.ValidationResult() as IValidationResult,
 			context.AuthorizationResult() as IAuthorizationResult);
 	}
@@ -1804,7 +1805,7 @@ public sealed class Dispatcher(
 			value: directResult,
 			succeeded: true,
 			cacheHit: false,
-			routingDecision: context.RoutingDecision,
+			routingDecision: RoutingDecisionAccessor.GetRoutingDecisionFast(context),
 			validationResult: context.ValidationResult(),
 			authorizationResult: context.AuthorizationResult());
 	}
@@ -1827,7 +1828,7 @@ public sealed class Dispatcher(
 				value: typed,
 				succeeded: true,
 				cacheHit: false,
-				routingDecision: context.RoutingDecision,
+				routingDecision: RoutingDecisionAccessor.GetRoutingDecisionFast(context),
 				validationResult: context.ValidationResult(),
 				authorizationResult: context.AuthorizationResult());
 		}
@@ -1861,7 +1862,7 @@ public sealed class Dispatcher(
 
 		return Messaging.MessageResult.Failure(
 			problem,
-			context.RoutingDecision,
+			RoutingDecisionAccessor.GetRoutingDecisionFast(context),
 			context.ValidationResult() as IValidationResult,
 			context.AuthorizationResult() as IAuthorizationResult);
 	}
@@ -1883,7 +1884,7 @@ public sealed class Dispatcher(
 
 		return MessageResultOfT<TResponse>.Failure(
 			problem,
-			context.RoutingDecision,
+			RoutingDecisionAccessor.GetRoutingDecisionFast(context),
 			context.ValidationResult() as IValidationResult,
 			context.AuthorizationResult() as IAuthorizationResult);
 	}
@@ -2149,7 +2150,7 @@ public sealed class Dispatcher(
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static bool IsLocalRoute(IMessageContext context)
 	{
-		var endpoints = context.RoutingDecision?.Endpoints;
+		var endpoints = RoutingDecisionAccessor.GetRoutingDecisionFast(context)?.Endpoints;
 		if (endpoints is not { Count: > 0 })
 		{
 			return true;
@@ -2251,7 +2252,7 @@ public sealed class Dispatcher(
 
 			// Use cached type name
 			var documentType = document.GetType();
-			context.MessageType = MessageTypeCache.GetTypeName(documentType);
+			context.SetMessageType(MessageTypeCache.GetTypeName(documentType));
 
 			// Stream results from handler
 			await foreach (var item in handler.HandleAsync(document, cancellationToken)
@@ -2449,7 +2450,7 @@ public sealed class Dispatcher(
 
 			// Use cached type name
 			var documentType = document.GetType();
-			context.MessageType = MessageTypeCache.GetTypeName(documentType);
+			context.SetMessageType(MessageTypeCache.GetTypeName(documentType));
 
 			// Delegate to handler with progress reporter
 			await handler.HandleAsync(document, progress, cancellationToken).ConfigureAwait(false);

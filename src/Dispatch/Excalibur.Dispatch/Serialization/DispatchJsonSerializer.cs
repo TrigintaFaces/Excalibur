@@ -7,9 +7,9 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Buffers;
 using Excalibur.Dispatch.Caching;
 using Excalibur.Dispatch.Delivery.Registry;
@@ -26,7 +26,7 @@ namespace Excalibur.Dispatch.Serialization;
 /// - Direct UTF-8 operations to avoid string allocations
 /// - Struct-based return types for zero-allocation results.
 /// </remarks>
-public sealed class DispatchJsonSerializer : IUtf8JsonSerializer, IMessageSerializer, IDisposable
+public sealed class DispatchJsonSerializer : IDisposable
 {
 	private readonly JsonSerializerOptions _options;
 	private readonly DispatchJsonContext? _jsonContext;
@@ -37,7 +37,10 @@ public sealed class DispatchJsonSerializer : IUtf8JsonSerializer, IMessageSerial
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DispatchJsonSerializer" /> class.
 	/// </summary>
-	/// <param name="configure"> Optional configuration action for JsonSerializerOptions. </param>
+	/// <param name="configure">
+	/// Optional configuration action for JsonSerializerOptions. Applied after the default TypeInfoResolver
+	/// is set, so callers can override it (e.g., set <c>TypeInfoResolver = null</c> for reflection-based serialization).
+	/// </param>
 	/// <param name="jsonContext"> Optional JSON context for AOT serialization. </param>
 	/// <param name="writerPool"> Optional UTF-8 JSON writer pool for performance optimization. </param>
 	/// <param name="bufferManager"> Optional buffer manager for memory pooling. </param>
@@ -62,14 +65,22 @@ public sealed class DispatchJsonSerializer : IUtf8JsonSerializer, IMessageSerial
 			MaxDepth = 64,
 		};
 
-		// Apply user configuration
-		configure?.Invoke(_options);
-
 		// Use the provided context or use the default instance
 		_jsonContext = jsonContext ?? DispatchJsonContext.Default;
 
-		// Add the context to the options for AOT support
-		_options.TypeInfoResolver = _jsonContext;
+		// Chain the source-generated context with a reflection-based fallback resolver.
+		// This constructor is already marked [RequiresDynamicCode], so reflection is available.
+		// The source-gen context handles known types efficiently; DefaultJsonTypeInfoResolver
+		// provides fallback for types not registered in the source-gen context (e.g., consumer
+		// domain types). This follows the Microsoft-recommended hybrid pattern for
+		// JsonTypeInfoResolver composition.
+		_options.TypeInfoResolver = JsonTypeInfoResolver.Combine(
+			_jsonContext,
+			new DefaultJsonTypeInfoResolver());
+
+		// Apply user configuration AFTER defaults (including TypeInfoResolver) so callers
+		// can override any option, e.g. set TypeInfoResolver = null for reflection mode.
+		configure?.Invoke(_options);
 
 		// Initialize pools
 		_writerPool = writerPool ?? new Utf8JsonWriterPool(
@@ -321,7 +332,7 @@ public sealed class DispatchJsonSerializer : IUtf8JsonSerializer, IMessageSerial
 
 	#endregion
 
-	#region IJsonSerializer Implementation
+	#region JSON String Serialization
 
 	/// <summary>
 	/// Deserializes a JSON string to an object of type T.
@@ -401,55 +412,84 @@ public sealed class DispatchJsonSerializer : IUtf8JsonSerializer, IMessageSerial
 		return JsonDocument.Parse(result.WrittenMemory).RootElement.Clone();
 	}
 
-	/// <inheritdoc/>
+	/// <summary>
+	/// Serializes an object to a JSON string asynchronously.
+	/// </summary>
 	[RequiresUnreferencedCode("JSON serialization with runtime type may require unreferenced code")]
 	[RequiresDynamicCode("JSON serialization with runtime type requires dynamic code generation")]
 	public Task<string> SerializeAsync(object value, Type type) => Task.FromResult(Serialize(value, type));
 
-	/// <inheritdoc/>
+	/// <summary>
+	/// Deserializes a JSON string to an object asynchronously.
+	/// </summary>
 	[RequiresUnreferencedCode("JSON deserialization with runtime type may require unreferenced code")]
 	[RequiresDynamicCode("JSON deserialization with runtime type requires dynamic code generation")]
 	public Task<object?> DeserializeAsync(string json, Type type) => Task.FromResult(Deserialize(json, type));
 
 	#endregion
 
-	#region IUtf8JsonSerializer Core Implementation (4 methods)
+	#region UTF-8 Binary Serialization
 
-	/// <inheritdoc/>
+	/// <summary>
+	/// Serializes an object to UTF-8 bytes.
+	/// </summary>
 	public byte[] SerializeToUtf8Bytes(object? value, Type type)
 	{
 		using var result = SerializeToPooledBuffer(value, type);
 		return result.WrittenMemory.ToArray();
 	}
 
-	/// <inheritdoc/>
+	/// <summary>
+	/// Serializes an object directly to a UTF-8 buffer writer.
+	/// </summary>
 	public void SerializeToUtf8(IBufferWriter<byte> writer, object? value, Type type) => SerializeToWriter(writer, value, type);
 
-	/// <inheritdoc/>
+	/// <summary>
+	/// Deserializes from UTF-8 bytes.
+	/// </summary>
 	[RequiresUnreferencedCode("JSON deserialization with runtime type may require unreferenced code")]
 	public object? DeserializeFromUtf8(ReadOnlySpan<byte> utf8Json, Type type) => DeserializeFromBytes(utf8Json, type);
 
-	/// <inheritdoc/>
+	/// <summary>
+	/// Deserializes from UTF-8 memory.
+	/// </summary>
 	[RequiresUnreferencedCode("JSON deserialization with runtime type may require unreferenced code")]
 	public object? DeserializeFromUtf8(ReadOnlyMemory<byte> utf8Json, Type type) => DeserializeFromBytes(utf8Json.Span, type);
 
+	/// <summary>
+	/// Deserializes a typed value from UTF-8 bytes.
+	/// </summary>
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL2026:RequiresUnreferencedCode",
+		Justification = "DeserializeFromBytes delegates to STJ with registered types for AOT compatibility.")]
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:RequiresDynamicCode",
+		Justification = "DeserializeFromBytes delegates to STJ with registered types for AOT compatibility.")]
+	public T? DeserializeFromUtf8<T>(ReadOnlySpan<byte> utf8Json) => (T?)DeserializeFromBytes(utf8Json, typeof(T));
+
 	#endregion
 
-	#region IMessageSerializer Implementation
+	#region Binary Message Serialization
 
-	/// <inheritdoc/>
+	/// <summary>
+	/// Serializes a message to a byte array.
+	/// </summary>
 	[RequiresUnreferencedCode("Serialization may require unreferenced code for type-specific handling.")]
 	[RequiresDynamicCode("Serialization may require dynamic code generation for type-specific handling.")]
-	byte[] IMessageSerializer.Serialize<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T message) =>
+	public byte[] SerializeMessage<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T message) =>
 		SerializeToUtf8Bytes(message, typeof(T));
 
-	/// <inheritdoc/>
+	/// <summary>
+	/// Deserializes a message from a byte array.
+	/// </summary>
 	[RequiresUnreferencedCode("Deserialization may require unreferenced code for type-specific handling.")]
 	[RequiresDynamicCode("Deserialization may require dynamic code generation for type-specific handling.")]
-	T IMessageSerializer.Deserialize<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(byte[] data)
+	public T DeserializeMessage<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(byte[] data)
 	{
 		ArgumentNullException.ThrowIfNull(data);
-		var result = (T?)DeserializeFromUtf8(data.AsSpan(), typeof(T));
+		var result = DeserializeFromUtf8<T>(data.AsSpan());
 		return result ?? throw new InvalidOperationException(
 			string.Format(
 				CultureInfo.InvariantCulture,

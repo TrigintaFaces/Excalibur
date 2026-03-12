@@ -16,7 +16,7 @@ using DispatchKeyMetadata = Excalibur.Dispatch.Compliance.KeyMetadata;
 namespace Excalibur.Dispatch.Compliance.Aws;
 
 /// <summary>
-/// AWS KMS implementation of <see cref="IKeyManagementProvider"/>.
+/// AWS KMS implementation of <see cref="IKeyManagementProvider"/> and <see cref="IKeyManagementAdmin"/>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -34,7 +34,7 @@ namespace Excalibur.Dispatch.Compliance.Aws;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDisposable
+public sealed partial class AwsKmsProvider : IKeyManagementProvider, IKeyManagementAdmin, IDisposable
 {
 	private readonly IAmazonKeyManagementService _kmsClient;
 	private readonly IMemoryCache _metadataCache;
@@ -84,7 +84,7 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDisposable
 
 			var metadata = MapToKeyMetadata(keyId, response.KeyMetadata);
 
-			_ = _metadataCache.Set(cacheKey, metadata, TimeSpan.FromSeconds(_options.MetadataCacheDurationSeconds));
+			_ = _metadataCache.Set(cacheKey, metadata, TimeSpan.FromSeconds(_options.Cache.MetadataCacheDurationSeconds));
 			_aliasToKeyIdMap[keyId] = response.KeyMetadata.KeyId;
 
 			return metadata;
@@ -480,7 +480,7 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDisposable
 			new GetKeyRotationStatusRequest { KeyId = kmsKeyId },
 			cancellationToken).ConfigureAwait(false);
 
-		if (rotationStatus.KeyRotationEnabled != true && _options.EnableAutoRotation)
+		if (rotationStatus.KeyRotationEnabled != true && _options.KeyPolicy.EnableAutoRotation)
 		{
 			// Enable automatic rotation
 			_ = await _kmsClient.EnableKeyRotationAsync(
@@ -529,7 +529,7 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDisposable
 			cancellationToken).ConfigureAwait(false);
 
 		// Enable auto-rotation if configured
-		if (_options.EnableAutoRotation)
+		if (_options.KeyPolicy.EnableAutoRotation)
 		{
 			_ = await _kmsClient.EnableKeyRotationAsync(
 				new EnableKeyRotationRequest { KeyId = kmsKey.KeyId },
@@ -539,7 +539,7 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDisposable
 		_aliasToKeyIdMap[keyId] = kmsKey.KeyId;
 
 		var metadata = MapToKeyMetadata(keyId, kmsKey);
-		_ = _metadataCache.Set($"key:{keyId}", metadata, TimeSpan.FromSeconds(_options.MetadataCacheDurationSeconds));
+		_ = _metadataCache.Set($"key:{keyId}", metadata, TimeSpan.FromSeconds(_options.Cache.MetadataCacheDurationSeconds));
 
 		LogCreatedKey(keyId, kmsKey.KeyId);
 
@@ -553,10 +553,10 @@ public sealed partial class AwsKmsProvider : IKeyManagementProvider, IDisposable
 	{
 		var request = new CreateKeyRequest
 		{
-			KeySpec = _options.DefaultKeySpec,
+			KeySpec = _options.KeyPolicy.DefaultKeySpec,
 			KeyUsage = KeyUsageType.ENCRYPT_DECRYPT,
 			Description = $"Excalibur Dispatch encryption key: {keyId}",
-			MultiRegion = _options.CreateMultiRegionKeys,
+			MultiRegion = _options.KeyPolicy.CreateMultiRegionKeys,
 			Tags = new List<Tag>
 			{
 				new() { TagKey = "Application", TagValue = "Excalibur.Dispatch" },

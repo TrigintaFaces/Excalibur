@@ -73,7 +73,10 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 		var options = MsOptions.Create(new RetryPolicyOptions
 		{
 			MaxRetryAttempts = 5,
-			BaseDelay = TimeSpan.FromMilliseconds(200)
+			Backoff = new RetryBackoffOptions
+			{
+				BaseDelay = TimeSpan.FromMilliseconds(200),
+			},
 		});
 
 		// Act
@@ -122,7 +125,10 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 		var options = MsOptions.Create(new RetryPolicyOptions
 		{
 			MaxRetryAttempts = 10,
-			BaseDelay = TimeSpan.FromSeconds(1),
+			Backoff = new RetryBackoffOptions
+			{
+				BaseDelay = TimeSpan.FromSeconds(1),
+			},
 			Timeout = TimeSpan.FromMinutes(5)
 		});
 		var factory = new PollyRetryPolicyFactory(logger, options);
@@ -203,7 +209,10 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 		var logger = A.Fake<ILogger<PollyRetryPolicyFactory>>();
 		var options = MsOptions.Create(new RetryPolicyOptions
 		{
-			EnableJitter = true
+			Backoff = new RetryBackoffOptions
+			{
+				EnableJitter = true,
+			},
 		});
 		var factory = new PollyRetryPolicyFactory(logger, options);
 		var busOptions = new TestMessageBusOptions();
@@ -262,7 +271,10 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 		var options = MsOptions.Create(new RetryPolicyOptions
 		{
 			MaxRetryAttempts = 3,
-			BaseDelay = TimeSpan.FromMilliseconds(10)
+			Backoff = new RetryBackoffOptions
+			{
+				BaseDelay = TimeSpan.FromMilliseconds(10),
+			},
 		});
 		var factory = new PollyRetryPolicyFactory(logger, options);
 		var busOptions = new TestMessageBusOptions("RetryBus");
@@ -418,7 +430,10 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 		var options = MsOptions.Create(new RetryPolicyOptions
 		{
 			MaxRetryAttempts = 2,
-			BaseDelay = TimeSpan.FromMilliseconds(1)
+			Backoff = new RetryBackoffOptions
+			{
+				BaseDelay = TimeSpan.FromMilliseconds(1),
+			},
 		});
 		var factory = new PollyRetryPolicyFactory(logger, options);
 		var busOptions = new TestMessageBusOptions("TestBus");
@@ -449,7 +464,10 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 		var options = MsOptions.Create(new RetryPolicyOptions
 		{
 			MaxRetryAttempts = 2,
-			BaseDelay = TimeSpan.FromMilliseconds(1)
+			Backoff = new RetryBackoffOptions
+			{
+				BaseDelay = TimeSpan.FromMilliseconds(1),
+			},
 		});
 		var factory = new PollyRetryPolicyFactory(logger, options);
 		var busOptions = new TestMessageBusOptions("TestBus");
@@ -505,8 +523,11 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 		var options = MsOptions.Create(new RetryPolicyOptions
 		{
 			MaxRetryAttempts = 0, // No retries, so each failure counts directly
-			CircuitBreakerThreshold = 2, // Minimum throughput before circuit can open
-			CircuitBreakerDuration = TimeSpan.FromSeconds(30)
+			CircuitBreaker = new RetryCircuitBreakerOptions
+			{
+				CircuitBreakerThreshold = 2, // Minimum throughput before circuit can open
+				CircuitBreakerDuration = TimeSpan.FromSeconds(30),
+			},
 		});
 		var factory = new PollyRetryPolicyFactory(logger, options);
 		var busOptions = new TestMessageBusOptions("CircuitBus");
@@ -544,7 +565,10 @@ public sealed class PollyRetryPolicyFactoryShould : UnitTestBase
 		var options = MsOptions.Create(new RetryPolicyOptions
 		{
 			MaxRetryAttempts = 3,
-			BaseDelay = TimeSpan.FromMilliseconds(1)
+			Backoff = new RetryBackoffOptions
+			{
+				BaseDelay = TimeSpan.FromMilliseconds(1),
+			},
 		});
 		var factory = new PollyRetryPolicyFactory(logger, options);
 		var busOptions = new TestMessageBusOptions("RetryLogBus");

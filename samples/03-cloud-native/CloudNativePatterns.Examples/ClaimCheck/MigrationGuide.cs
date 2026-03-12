@@ -206,7 +206,7 @@ public static partial class MigrationGuide
 		public class NewClaimCheckService
 		{
 			private readonly IClaimCheckProvider _provider;
-			private readonly IBinaryMessageSerializer _serializer;
+			private readonly ClaimCheckMessageSerializer _serializer;
 
 			public NewClaimCheckService(IServiceProvider services)
 			{
@@ -257,7 +257,7 @@ public static partial class MigrationGuide
 				// Additional benefits
 				options.EnableCompression = true;
 				options.ValidateChecksum = true;
-				options.Storage.MaxConcurrency = 10; // Parallel operations
+				options.Storage.Operations.MaxConcurrency = 10; // Parallel operations
 			});
 
 			// Optional: Migration tool to copy existing files

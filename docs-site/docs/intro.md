@@ -8,6 +8,16 @@ description: Excalibur is a high-performance .NET framework for messaging, event
 
 **Excalibur** is a modern, high-performance .NET framework for building scalable applications. Start with `Excalibur.Dispatch` for type-safe message dispatching, then add domain modeling, event sourcing, and sagas as your architecture requires. Whether you're building a simple CRUD API or a complex distributed system, Excalibur handles the infrastructure so you can focus on business logic.
 
+## At a Glance
+
+| Signal | Value |
+|--------|-------|
+| **Automated Tests** | 44,000+ (unit, integration, conformance, performance) |
+| **Packages** | 119 NuGet packages across 6 families |
+| **CI Pipeline** | 10 sharded test stages, governance gates, conformance suites |
+| **API Stability** | PublicAPI analyzer tracking on every package |
+| **Target Frameworks** | .NET 8, .NET 9, .NET 10 |
+
 ## What Excalibur.Dispatch Does
 
 `Excalibur.Dispatch` handles **how messages flow through your system**:
@@ -59,7 +69,6 @@ If you're familiar with MediatR, you'll feel right at home. Here's how concepts 
 
 ```bash
 dotnet add package Excalibur.Dispatch
-dotnet add package Excalibur.Dispatch.Abstractions
 ```
 
 ### 2. Define an Action
@@ -143,16 +152,25 @@ public class OrderController : ControllerBase
 }
 ```
 
-## Growing with Excalibur
+:::tip Production Ready
+The setup above is a complete, production-ready Dispatch application.
+Everything below describes **optional capabilities** you can add later.
+For a laser-focused guide, see **[Dispatch Only](./getting-started/dispatch-only.md)**.
+:::
 
-Most applications start with `Excalibur.Dispatch` for messaging and add packages as needs grow:
+## Optional Capabilities
 
-1. **Messaging** — `Excalibur.Dispatch` routes commands/queries to handlers
-2. **Domain modeling** — `Excalibur.Domain` adds aggregates, entities, and value objects
-3. **Persistence** — `Excalibur.EventSourcing.*` provides event stores and snapshots
-4. **Workflows** — `Excalibur.Saga.*` adds sagas and process managers
+Add these **if and when** you need them — each is independent and opt-in:
+
+- **Domain modeling** — Add `Excalibur.Domain` if you need aggregates, entities, and value objects
+- **Event sourcing** — Add `Excalibur.EventSourcing.*` if you need event replay, snapshots, and audit trails
+- **Workflows** — Add `Excalibur.Saga.*` if you need multi-step orchestrated processes
+- **Unified builder** — Add `Excalibur.Hosting` if you want a single `AddExcalibur()` entry point for all subsystems
 
 Because all packages share the same `Excalibur.*` namespace, you never rewrite existing code when adding new capabilities.
+
+<details>
+<summary>Complete Package Reference (70+ packages)</summary>
 
 ## Package Overview
 
@@ -232,6 +250,8 @@ Because all packages share the same `Excalibur.*` namespace, you never rewrite e
 | `Excalibur.Dispatch.Analyzers` | Roslyn analyzers |
 | `Excalibur.Dispatch.SourceGenerators` | Source generators |
 | `Excalibur.Dispatch.LeaderElection.Abstractions` | Leader election abstractions |
+
+</details>
 
 ## Next Steps
 

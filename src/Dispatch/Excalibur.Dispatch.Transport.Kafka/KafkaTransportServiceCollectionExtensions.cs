@@ -168,12 +168,12 @@ public static class KafkaTransportServiceCollectionExtensions
 				if (transportOptions.ConsumerOptions is not null)
 				{
 					kafkaOptions.ConsumerGroup = transportOptions.ConsumerOptions.GroupId;
-					kafkaOptions.EnableAutoCommit = transportOptions.ConsumerOptions.EnableAutoCommit;
-					kafkaOptions.AutoCommitIntervalMs = (int)transportOptions.ConsumerOptions.AutoCommitInterval.TotalMilliseconds;
-					kafkaOptions.SessionTimeoutMs = (int)transportOptions.ConsumerOptions.SessionTimeout.TotalMilliseconds;
-					kafkaOptions.MaxPollIntervalMs = (int)transportOptions.ConsumerOptions.MaxPollInterval.TotalMilliseconds;
-					kafkaOptions.MaxBatchSize = transportOptions.ConsumerOptions.MaxBatchSize;
-					kafkaOptions.AutoOffsetReset = transportOptions.ConsumerOptions.AutoOffsetReset switch
+					kafkaOptions.Consumer.EnableAutoCommit = transportOptions.ConsumerOptions.EnableAutoCommit;
+					kafkaOptions.Consumer.AutoCommitIntervalMs = (int)transportOptions.ConsumerOptions.AutoCommitInterval.TotalMilliseconds;
+					kafkaOptions.Consumer.SessionTimeoutMs = (int)transportOptions.ConsumerOptions.SessionTimeout.TotalMilliseconds;
+					kafkaOptions.Consumer.MaxPollIntervalMs = (int)transportOptions.ConsumerOptions.MaxPollInterval.TotalMilliseconds;
+					kafkaOptions.Consumer.MaxBatchSize = transportOptions.ConsumerOptions.MaxBatchSize;
+					kafkaOptions.Consumer.AutoOffsetReset = transportOptions.ConsumerOptions.AutoOffsetReset switch
 					{
 						KafkaOffsetReset.Earliest => "earliest",
 						KafkaOffsetReset.Latest => "latest",
@@ -205,11 +205,11 @@ public static class KafkaTransportServiceCollectionExtensions
 			{
 				if (transportOptions.ProducerOptions is not null)
 				{
-					cloudEventOptions.CompressionType = transportOptions.ProducerOptions.CompressionType;
-					cloudEventOptions.AcknowledgmentLevel = transportOptions.ProducerOptions.Acks;
-					cloudEventOptions.EnableIdempotentProducer = transportOptions.ProducerOptions.EnableIdempotence;
-					cloudEventOptions.EnableTransactions = transportOptions.ProducerOptions.EnableTransactions;
-					cloudEventOptions.TransactionalId = transportOptions.ProducerOptions.TransactionalId;
+					cloudEventOptions.Producer.CompressionType = transportOptions.ProducerOptions.CompressionType;
+					cloudEventOptions.Producer.AcknowledgmentLevel = transportOptions.ProducerOptions.Acks;
+					cloudEventOptions.Producer.EnableIdempotentProducer = transportOptions.ProducerOptions.EnableIdempotence;
+					cloudEventOptions.Producer.EnableTransactions = transportOptions.ProducerOptions.EnableTransactions;
+					cloudEventOptions.Producer.TransactionalId = transportOptions.ProducerOptions.TransactionalId;
 				}
 
 				if (transportOptions.ConsumerOptions is not null)

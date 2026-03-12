@@ -1,4 +1,3 @@
-using Excalibur.Jobs.Coordination;
 
 namespace Excalibur.Jobs.Tests;
 

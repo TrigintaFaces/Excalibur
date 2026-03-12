@@ -69,23 +69,8 @@ public sealed class SqlServerEventSourcingOptions
 	public string OutboxTable { get; set; } = "EventSourcedOutbox";
 
 	/// <summary>
-	/// Gets or sets whether to register health checks for event sourcing stores.
-	/// Default: true.
+	/// Gets or sets the health check configuration options.
 	/// </summary>
-	public bool RegisterHealthChecks { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the health check name for the event store. Default: "sqlserver-event-store".
-	/// </summary>
-	public string EventStoreHealthCheckName { get; set; } = "sqlserver-event-store";
-
-	/// <summary>
-	/// Gets or sets the health check name for the snapshot store. Default: "sqlserver-snapshot-store".
-	/// </summary>
-	public string SnapshotStoreHealthCheckName { get; set; } = "sqlserver-snapshot-store";
-
-	/// <summary>
-	/// Gets or sets the health check name for the outbox store. Default: "sqlserver-outbox-store".
-	/// </summary>
-	public string OutboxStoreHealthCheckName { get; set; } = "sqlserver-outbox-store";
+	/// <value>Health check options including registration flag and custom names.</value>
+	public SqlServerEventSourcingHealthCheckOptions HealthChecks { get; set; } = new();
 }

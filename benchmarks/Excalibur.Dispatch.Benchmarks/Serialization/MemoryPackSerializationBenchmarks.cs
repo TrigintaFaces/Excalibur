@@ -22,12 +22,14 @@ namespace Excalibur.Dispatch.Benchmarks.Serialization;
 /// - Serialize OutboxEnvelope: &lt;500ns
 /// - Deserialize OutboxEnvelope: &lt;300ns
 /// - Memory per operation: &lt;100 bytes
+///
+/// Sprint 586 - Updated to use consolidated MemoryPackSerializer.
 /// </remarks>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
 public class MemoryPackSerializationBenchmarks
 {
-	private IInternalSerializer? _serializer;
+	private ISerializer? _serializer;
 	private OutboxEnvelope? _smallEnvelope;
 	private OutboxEnvelope? _mediumEnvelope;
 	private OutboxEnvelope? _largeEnvelope;
@@ -56,7 +58,7 @@ public class MemoryPackSerializationBenchmarks
 	[GlobalSetup]
 	public void GlobalSetup()
 	{
-		_serializer = new MemoryPackInternalSerializer();
+		_serializer = new MemoryPackSerializer();
 
 		// Small envelope (~100 bytes payload)
 		_smallEnvelope = new OutboxEnvelope
@@ -166,11 +168,11 @@ public class MemoryPackSerializationBenchmarks
 		};
 
 		// Pre-serialize for deserialization benchmarks
-		_smallEnvelopeSerialized = _serializer.Serialize(_smallEnvelope);
-		_mediumEnvelopeSerialized = _serializer.Serialize(_mediumEnvelope);
-		_largeEnvelopeSerialized = _serializer.Serialize(_largeEnvelope);
-		_eventEnvelopeSerialized = _serializer.Serialize(_eventEnvelope);
-		_snapshotEnvelopeSerialized = _serializer.Serialize(_snapshotEnvelope);
+		_smallEnvelopeSerialized = _serializer.SerializeToBytes(_smallEnvelope);
+		_mediumEnvelopeSerialized = _serializer.SerializeToBytes(_mediumEnvelope);
+		_largeEnvelopeSerialized = _serializer.SerializeToBytes(_largeEnvelope);
+		_eventEnvelopeSerialized = _serializer.SerializeToBytes(_eventEnvelope);
+		_snapshotEnvelopeSerialized = _serializer.SerializeToBytes(_snapshotEnvelope);
 
 		// Pre-serialize for comparison benchmarks
 		_smallEnvelopeJson = JsonSerializer.SerializeToUtf8Bytes(_jsonEnvelope);
@@ -185,7 +187,7 @@ public class MemoryPackSerializationBenchmarks
 	[Benchmark(Baseline = true, Description = "MemoryPack Serialize Small (100B payload)")]
 	public byte[] SerializeOutboxEnvelopeSmall()
 	{
-		return _serializer.Serialize(_smallEnvelope);
+		return _serializer.SerializeToBytes(_smallEnvelope);
 	}
 
 	/// <summary>
@@ -194,7 +196,7 @@ public class MemoryPackSerializationBenchmarks
 	[Benchmark(Description = "MemoryPack Serialize Medium (1KB payload)")]
 	public byte[] SerializeOutboxEnvelopeMedium()
 	{
-		return _serializer.Serialize(_mediumEnvelope);
+		return _serializer.SerializeToBytes(_mediumEnvelope);
 	}
 
 	/// <summary>
@@ -203,7 +205,7 @@ public class MemoryPackSerializationBenchmarks
 	[Benchmark(Description = "MemoryPack Serialize Large (64KB payload)")]
 	public byte[] SerializeOutboxEnvelopeLarge()
 	{
-		return _serializer.Serialize(_largeEnvelope);
+		return _serializer.SerializeToBytes(_largeEnvelope);
 	}
 
 	#endregion OutboxEnvelope Serialization Benchmarks
@@ -247,7 +249,7 @@ public class MemoryPackSerializationBenchmarks
 	[Benchmark(Description = "MemoryPack Serialize EventEnvelope")]
 	public byte[] SerializeEventEnvelope()
 	{
-		return _serializer.Serialize(_eventEnvelope);
+		return _serializer.SerializeToBytes(_eventEnvelope);
 	}
 
 	/// <summary>
@@ -269,7 +271,7 @@ public class MemoryPackSerializationBenchmarks
 	[Benchmark(Description = "MemoryPack Serialize SnapshotEnvelope (4KB)")]
 	public byte[] SerializeSnapshotEnvelope()
 	{
-		return _serializer.Serialize(_snapshotEnvelope);
+		return _serializer.SerializeToBytes(_snapshotEnvelope);
 	}
 
 	/// <summary>

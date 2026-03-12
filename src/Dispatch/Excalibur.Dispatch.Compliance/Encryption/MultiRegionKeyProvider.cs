@@ -32,7 +32,7 @@ namespace Excalibur.Dispatch.Compliance;
 ///   <item><description>HashiCorp Vault: Enterprise with replication or OSS with manual sync</description></item>
 /// </list>
 /// </remarks>
-public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider
+public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider, IKeyManagementAdmin, IMultiRegionHealthMonitor
 {
 	private static readonly Meter Meter = new("Excalibur.Dispatch.Compliance.MultiRegion", "1.0.0");
 
@@ -103,7 +103,7 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider
 			options.Primary.RegionId,
 			options.Secondary.RegionId,
 			options.ReplicationMode,
-			options.EnableAutomaticFailover);
+			options.Failover.EnableAutomaticFailover);
 	}
 
 	/// <inheritdoc />
@@ -141,6 +141,14 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider
 	private IKeyManagementProvider ActiveProvider => _isInFailoverMode
 		? _secondaryProvider
 		: _primaryProvider;
+
+	/// <summary>
+	/// Gets the currently active key management admin provider.
+	/// </summary>
+	/// <remarks>
+	/// All concrete providers implement both <see cref="IKeyManagementProvider"/> and <see cref="IKeyManagementAdmin"/>.
+	/// </remarks>
+	private IKeyManagementAdmin ActiveAdmin => (IKeyManagementAdmin)ActiveProvider;
 
 	/// <inheritdoc />
 	public Task<RegionHealth> GetPrimaryHealthAsync(CancellationToken cancellationToken)
@@ -415,7 +423,7 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider
 		"Ensure provider supports replication or implement IKeyMaterialExportable in future.")]
 	private partial void LogUnknownProviderForSync(string providerName);
 
-	#region IKeyManagementProvider Implementation (delegated to active region)
+	#region IKeyManagementProvider + IKeyManagementAdmin Implementation (delegated to active region)
 
 	/// <inheritdoc />
 	public Task<KeyMetadata?> GetKeyAsync(string keyId, CancellationToken cancellationToken)
@@ -438,7 +446,7 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider
 		CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
-		return ActiveProvider.ListKeysAsync(status, purpose, cancellationToken);
+		return ActiveAdmin.ListKeysAsync(status, purpose, cancellationToken);
 	}
 
 	/// <inheritdoc />
@@ -473,14 +481,14 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
 		// Deletion propagates through provider-specific replication
-		return ActiveProvider.DeleteKeyAsync(keyId, retentionDays, cancellationToken);
+		return ActiveAdmin.DeleteKeyAsync(keyId, retentionDays, cancellationToken);
 	}
 
 	/// <inheritdoc />
 	public Task<bool> SuspendKeyAsync(string keyId, string reason, CancellationToken cancellationToken)
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);
-		return ActiveProvider.SuspendKeyAsync(keyId, reason, cancellationToken);
+		return ActiveAdmin.SuspendKeyAsync(keyId, reason, cancellationToken);
 	}
 
 	/// <inheritdoc />
@@ -490,7 +498,7 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider
 		return ActiveProvider.GetActiveKeyAsync(purpose, cancellationToken);
 	}
 
-	#endregion IKeyManagementProvider Implementation (delegated to active region)
+	#endregion IKeyManagementProvider + IKeyManagementAdmin Implementation (delegated to active region)
 
 	private async Task RunHealthChecksAsync(CancellationToken cancellationToken)
 	{
@@ -498,7 +506,7 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider
 		{
 			try
 			{
-				await Task.Delay(_options.HealthCheckInterval, cancellationToken).ConfigureAwait(false);
+				await Task.Delay(_options.Failover.HealthCheckInterval, cancellationToken).ConfigureAwait(false);
 
 				// Check both regions in parallel
 				var primaryTask = CheckRegionHealthAsync(_primaryProvider, _options.Primary, cancellationToken);
@@ -529,9 +537,9 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider
 				}
 
 				// Check for automatic failover conditions
-				if (_options.EnableAutomaticFailover && !_isInFailoverMode)
+				if (_options.Failover.EnableAutomaticFailover && !_isInFailoverMode)
 				{
-					if (_primaryConsecutiveFailures >= _options.FailoverThreshold &&
+					if (_primaryConsecutiveFailures >= _options.Failover.FailoverThreshold &&
 						_lastSecondaryHealth.IsHealthy)
 					{
 						await TriggerAutomaticFailoverAsync(cancellationToken).ConfigureAwait(false);
@@ -566,8 +574,8 @@ public sealed partial class MultiRegionKeyProvider : IMultiRegionKeyProvider
 			using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 			timeoutCts.CancelAfter(_options.OperationTimeout);
 
-			// Simple health check: list keys
-			_ = await provider.ListKeysAsync(status: null, purpose: null, cancellationToken: timeoutCts.Token).ConfigureAwait(false);
+			// Simple health check: retrieve active key (lightweight probe)
+			_ = await provider.GetActiveKeyAsync(purpose: null, cancellationToken: timeoutCts.Token).ConfigureAwait(false);
 			isHealthy = true;
 		}
 		catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)

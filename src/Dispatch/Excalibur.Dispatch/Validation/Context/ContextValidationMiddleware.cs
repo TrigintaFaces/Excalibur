@@ -313,7 +313,7 @@ public sealed partial class ContextValidationMiddleware(
 	{
 		LogContextValidationFailed(
 			context.MessageId ?? "unknown",
-			context.MessageType ?? "unknown",
+			context.GetMessageType() ?? "unknown",
 			result.FailureReason,
 			string.Join(", ", result.MissingFields),
 			string.Join(", ", result.CorruptedFields));

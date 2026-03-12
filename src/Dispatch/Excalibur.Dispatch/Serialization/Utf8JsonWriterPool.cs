@@ -3,15 +3,12 @@
 
 using System.Buffers;
 using System.Collections.Concurrent;
+using System.Diagnostics.Metrics;
 using System.Runtime.CompilerServices;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace Excalibur.Dispatch.Serialization;
-
-// Temporary interface definition until proper metrics namespace is added
-
-// Null implementation of IMetrics for when no metrics are needed
 
 /// <summary>
 /// High-performance Utf8JsonWriter pool with adaptive sizing, thread-local caching, and advanced telemetry.
@@ -26,6 +23,11 @@ namespace Excalibur.Dispatch.Serialization;
 /// </remarks>
 public sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 {
+	/// <summary>
+	/// The meter name for Utf8JsonWriterPool telemetry.
+	/// </summary>
+	internal const string MeterName = "Excalibur.Dispatch.Serialization";
+
 	private const int DefaultMaxPoolSize = 1024;
 	private const int DefaultThreadLocalCacheSize = 4;
 	private const int MinPoolSize = 16;
@@ -35,7 +37,11 @@ public sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 	private readonly ConcurrentDictionary<int, ConcurrentQueue<Utf8JsonWriter>> _globalPool;
 	private readonly ThreadLocal<WriterCache> _threadLocalCache;
 	private readonly JsonWriterOptions _defaultOptions;
-	private readonly IMetrics _metrics;
+	private readonly Meter? _meter;
+	private readonly Counter<long>? _rentThreadLocalCounter;
+	private readonly Counter<long>? _rentGlobalCounter;
+	private readonly Counter<long>? _returnThreadLocalCounter;
+	private readonly Counter<long>? _returnGlobalCounter;
 	private readonly Timer _adaptiveSizeTimer;
 #if NET9_0_OR_GREATER
 	private readonly Lock _sizingLock = new();
@@ -79,7 +85,7 @@ public sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 	/// <param name="defaultOptions"> Default JSON writer options to use when creating writers. If null, uses default options. </param>
 	/// <param name="enableAdaptiveSizing"> Whether to enable adaptive pool sizing based on usage patterns. </param>
 	/// <param name="enableTelemetry"> Whether to enable telemetry collection for monitoring and optimization. </param>
-	/// <param name="metrics"> Optional metrics provider for collecting pool performance data. </param>
+	/// <param name="meter"> Optional <see cref="Meter"/> for collecting pool performance data via System.Diagnostics.Metrics. </param>
 	/// <exception cref="ArgumentOutOfRangeException">
 	/// Thrown when <paramref name="maxPoolSize" /> is not between 1 and 8192, or when <paramref name="threadLocalCacheSize" /> is not
 	/// between 0 and 32.
@@ -90,7 +96,7 @@ public sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 		JsonWriterOptions? defaultOptions = null,
 		bool enableAdaptiveSizing = true,
 		bool enableTelemetry = true,
-		IMetrics? metrics = null)
+		Meter? meter = null)
 	{
 		if (maxPoolSize is <= 0 or > MaximumPoolSize)
 		{
@@ -110,7 +116,7 @@ public sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 		_threadLocalCacheSize = threadLocalCacheSize;
 		_enableAdaptiveSizing = enableAdaptiveSizing;
 		_enableTelemetry = enableTelemetry;
-		_metrics = metrics ?? NullMetrics.Instance;
+		_meter = meter;
 		_globalPool = new ConcurrentDictionary<int, ConcurrentQueue<Utf8JsonWriter>>();
 		_threadLocalCache = new ThreadLocal<WriterCache>(
 			() => new WriterCache(_threadLocalCacheSize),
@@ -123,6 +129,36 @@ public sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 			Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
 			MaxDepth = 64,
 		};
+
+		// Create meter instruments when telemetry is enabled
+		if (_enableTelemetry && _meter is not null)
+		{
+			_rentThreadLocalCounter = _meter.CreateCounter<long>(
+				"jsonwriter.pool.rent.threadlocal",
+				description: "Number of writers rented from thread-local cache");
+			_rentGlobalCounter = _meter.CreateCounter<long>(
+				"jsonwriter.pool.rent.global",
+				description: "Number of writers rented from global pool or newly created");
+			_returnThreadLocalCounter = _meter.CreateCounter<long>(
+				"jsonwriter.pool.return.threadlocal",
+				description: "Number of writers returned to thread-local cache");
+			_returnGlobalCounter = _meter.CreateCounter<long>(
+				"jsonwriter.pool.return.global",
+				description: "Number of writers returned to global pool");
+
+			_ = _meter.CreateObservableGauge(
+				"jsonwriter.pool.size.current",
+				() => _currentPoolSize,
+				description: "Current number of writers in the global pool");
+			_ = _meter.CreateObservableGauge(
+				"jsonwriter.pool.size.max",
+				() => MaxPoolSize,
+				description: "Maximum pool size (may change with adaptive sizing)");
+			_ = _meter.CreateObservableGauge(
+				"jsonwriter.pool.size.peak",
+				() => _peakPoolSize,
+				description: "Peak pool size observed");
+		}
 
 		// Set up adaptive sizing timer
 		if (_enableAdaptiveSizing)
@@ -137,9 +173,6 @@ public sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 		{
 			_adaptiveSizeTimer = null!;
 		}
-
-		// Initialize metrics
-		InitializeMetrics();
 	}
 
 	/// <inheritdoc />
@@ -458,8 +491,6 @@ public sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 				var newSize = Math.Min(MaxPoolSize * 2, MaximumPoolSize);
 				MaxPoolSize = newSize;
 				_ = Interlocked.Increment(ref _poolExpansions);
-
-				_metrics?.RecordGauge("jsonwriter.pool.size.adjusted", newSize);
 			}
 
 			// Contract pool if consistently low utilization
@@ -478,8 +509,6 @@ public sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 						_ = Interlocked.Decrement(ref _currentPoolSize);
 					}
 				}
-
-				_metrics?.RecordGauge("jsonwriter.pool.size.adjusted", newSize);
 			}
 		}
 	}
@@ -534,17 +563,6 @@ public sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 		}
 	}
 
-	private void InitializeMetrics()
-	{
-		if (!_enableTelemetry)
-		{
-			return;
-		}
-
-		_metrics?.RecordGauge("jsonwriter.pool.size.max", MaxPoolSize);
-		_metrics?.RecordGauge("jsonwriter.pool.threadlocal.size", _threadLocalCacheSize);
-	}
-
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private void RecordRental(bool fromThreadLocal)
 	{
@@ -553,10 +571,14 @@ public sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 			return;
 		}
 
-		_metrics?.RecordCounter(
-			fromThreadLocal
-				? "jsonwriter.pool.rent.threadlocal"
-				: "jsonwriter.pool.rent.global", 1);
+		if (fromThreadLocal)
+		{
+			_rentThreadLocalCounter?.Add(1);
+		}
+		else
+		{
+			_rentGlobalCounter?.Add(1);
+		}
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -567,10 +589,14 @@ public sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 			return;
 		}
 
-		_metrics?.RecordCounter(
-			toThreadLocal
-				? "jsonwriter.pool.return.threadlocal"
-				: "jsonwriter.pool.return.global", 1);
+		if (toThreadLocal)
+		{
+			_returnThreadLocalCounter?.Add(1);
+		}
+		else
+		{
+			_returnGlobalCounter?.Add(1);
+		}
 	}
 
 	private volatile bool _disposed;

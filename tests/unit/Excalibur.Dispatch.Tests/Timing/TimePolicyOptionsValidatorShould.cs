@@ -81,7 +81,10 @@ public sealed class TimePolicyOptionsValidatorShould
 		// Arrange
 		var options = new TimePolicyOptions
 		{
-			HandlerTimeout = TimeSpan.FromMinutes(10),
+			OperationTimeouts = new TimePolicyOperationTimeoutOptions
+			{
+				HandlerTimeout = TimeSpan.FromMinutes(10),
+			},
 			MaxTimeout = TimeSpan.FromMinutes(5),
 		};
 
@@ -99,7 +102,10 @@ public sealed class TimePolicyOptionsValidatorShould
 		// Arrange
 		var options = new TimePolicyOptions
 		{
-			TransportTimeout = TimeSpan.FromMinutes(10),
+			OperationTimeouts = new TimePolicyOperationTimeoutOptions
+			{
+				TransportTimeout = TimeSpan.FromMinutes(10),
+			},
 			MaxTimeout = TimeSpan.FromMinutes(5),
 		};
 
@@ -117,8 +123,11 @@ public sealed class TimePolicyOptionsValidatorShould
 		// Arrange
 		var options = new TimePolicyOptions
 		{
-			SerializationTimeout = TimeSpan.FromMinutes(3),
-			HandlerTimeout = TimeSpan.FromMinutes(2),
+			OperationTimeouts = new TimePolicyOperationTimeoutOptions
+			{
+				SerializationTimeout = TimeSpan.FromMinutes(3),
+				HandlerTimeout = TimeSpan.FromMinutes(2),
+			},
 		};
 
 		// Act
@@ -135,8 +144,11 @@ public sealed class TimePolicyOptionsValidatorShould
 		// Arrange
 		var options = new TimePolicyOptions
 		{
-			SerializationTimeout = TimeSpan.FromMinutes(2),
-			HandlerTimeout = TimeSpan.FromMinutes(2),
+			OperationTimeouts = new TimePolicyOperationTimeoutOptions
+			{
+				SerializationTimeout = TimeSpan.FromMinutes(2),
+				HandlerTimeout = TimeSpan.FromMinutes(2),
+			},
 		};
 
 		// Act
@@ -152,8 +164,11 @@ public sealed class TimePolicyOptionsValidatorShould
 		// Arrange
 		var options = new TimePolicyOptions
 		{
-			ValidationTimeout = TimeSpan.FromMinutes(3),
-			HandlerTimeout = TimeSpan.FromMinutes(2),
+			OperationTimeouts = new TimePolicyOperationTimeoutOptions
+			{
+				ValidationTimeout = TimeSpan.FromMinutes(3),
+				HandlerTimeout = TimeSpan.FromMinutes(2),
+			},
 		};
 
 		// Act
@@ -170,8 +185,11 @@ public sealed class TimePolicyOptionsValidatorShould
 		// Arrange
 		var options = new TimePolicyOptions
 		{
-			ComplexityMultiplier = 5.0,
-			HeavyOperationMultiplier = 3.0,
+			OperationTimeouts = new TimePolicyOperationTimeoutOptions
+			{
+				ComplexityMultiplier = 5.0,
+				HeavyOperationMultiplier = 3.0,
+			},
 		};
 
 		// Act
@@ -188,8 +206,11 @@ public sealed class TimePolicyOptionsValidatorShould
 		// Arrange
 		var options = new TimePolicyOptions
 		{
-			ComplexityMultiplier = 3.0,
-			HeavyOperationMultiplier = 3.0,
+			OperationTimeouts = new TimePolicyOperationTimeoutOptions
+			{
+				ComplexityMultiplier = 3.0,
+				HeavyOperationMultiplier = 3.0,
+			},
 		};
 
 		// Act
@@ -206,9 +227,12 @@ public sealed class TimePolicyOptionsValidatorShould
 		var options = new TimePolicyOptions
 		{
 			MaxTimeout = TimeSpan.FromMinutes(5),
-			CustomTimeouts = new Dictionary<TimeoutOperationType, TimeSpan>
+			Overrides = new TimePolicyOverrideOptions
 			{
-				[TimeoutOperationType.Handler] = TimeSpan.FromMinutes(10),
+				CustomTimeouts = new Dictionary<TimeoutOperationType, TimeSpan>
+				{
+					[TimeoutOperationType.Handler] = TimeSpan.FromMinutes(10),
+				},
 			},
 		};
 
@@ -227,9 +251,12 @@ public sealed class TimePolicyOptionsValidatorShould
 		var options = new TimePolicyOptions
 		{
 			MaxTimeout = TimeSpan.FromMinutes(5),
-			MessageTypeTimeouts = new Dictionary<string, TimeSpan>(StringComparer.Ordinal)
+			Overrides = new TimePolicyOverrideOptions
 			{
-				["MyApp.OrderCommand"] = TimeSpan.FromMinutes(10),
+				MessageTypeTimeouts = new Dictionary<string, TimeSpan>(StringComparer.Ordinal)
+				{
+					["MyApp.OrderCommand"] = TimeSpan.FromMinutes(10),
+				},
 			},
 		};
 
@@ -248,9 +275,12 @@ public sealed class TimePolicyOptionsValidatorShould
 		var options = new TimePolicyOptions
 		{
 			MaxTimeout = TimeSpan.FromMinutes(5),
-			HandlerTypeTimeouts = new Dictionary<string, TimeSpan>(StringComparer.Ordinal)
+			Overrides = new TimePolicyOverrideOptions
 			{
-				["MyApp.OrderHandler"] = TimeSpan.FromMinutes(10),
+				HandlerTypeTimeouts = new Dictionary<string, TimeSpan>(StringComparer.Ordinal)
+				{
+					["MyApp.OrderHandler"] = TimeSpan.FromMinutes(10),
+				},
 			},
 		};
 
@@ -270,8 +300,11 @@ public sealed class TimePolicyOptionsValidatorShould
 		{
 			DefaultTimeout = TimeSpan.FromMinutes(10),
 			MaxTimeout = TimeSpan.FromMinutes(5),
-			HandlerTimeout = TimeSpan.FromMinutes(10),
-			TransportTimeout = TimeSpan.FromMinutes(10),
+			OperationTimeouts = new TimePolicyOperationTimeoutOptions
+			{
+				HandlerTimeout = TimeSpan.FromMinutes(10),
+				TransportTimeout = TimeSpan.FromMinutes(10),
+			},
 		};
 
 		// Act

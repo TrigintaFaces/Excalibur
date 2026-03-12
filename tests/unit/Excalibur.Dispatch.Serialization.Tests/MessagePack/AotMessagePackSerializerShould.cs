@@ -6,22 +6,26 @@ using Excalibur.Dispatch.Serialization.MessagePack;
 
 using MessagePack;
 
+using MpkSerializer = Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializer;
+
 namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 
 /// <summary>
-/// Unit tests for <see cref="AotMessagePackSerializer" />.
+/// Unit tests for <see cref="MpkSerializer" />.
+/// Originally tested the now-deleted AotMessagePackSerializer; updated to test the
+/// consolidated <see cref="MpkSerializer"/>.
 /// </summary>
 /// <remarks>
-/// Note: The AotMessagePackSerializer uses StaticCompositeResolver which requires types
-/// to be registered at compile time. Tests that require serialization use the Standard
-/// resolver via custom options to work with test types.
+/// The consolidated MessagePackSerializer uses Standard options by default.
+/// Tests that require serialization use the Standard resolver via custom options
+/// to work with test types.
 /// </remarks>
 [Trait("Component", "Serialization")]
 [Trait("Category", "Unit")]
 public sealed class AotMessagePackSerializerShould : UnitTestBase
 {
 	/// <summary>
-	/// Gets standard options that work with test types (not AOT-restricted).
+	/// Gets standard options that work with test types.
 	/// </summary>
 	private static MessagePackSerializerOptions TestOptions =>
 		MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4BlockArray);
@@ -32,23 +36,23 @@ public sealed class AotMessagePackSerializerShould : UnitTestBase
 	public void Constructor_WithDefaultOptions_CreatesSerializer()
 	{
 		// Arrange & Act
-		var serializer = new AotMessagePackSerializer();
+		var serializer = new MpkSerializer();
 
 		// Assert
 		_ = serializer.ShouldNotBeNull();
-		serializer.SerializerName.ShouldBe("MessagePack-AOT");
-		serializer.SerializerVersion.ShouldBe("1.0.0");
+		serializer.Name.ShouldBe("MessagePack");
+		serializer.Version.ShouldNotBeNullOrWhiteSpace();
 	}
 
 	[Fact]
 	public void Constructor_WithNullOptions_UsesDefaults()
 	{
 		// Arrange & Act
-		var serializer = new AotMessagePackSerializer(null);
+		var serializer = new MpkSerializer(null);
 
 		// Assert
 		_ = serializer.ShouldNotBeNull();
-		serializer.SerializerName.ShouldBe("MessagePack-AOT");
+		serializer.Name.ShouldBe("MessagePack");
 	}
 
 	[Fact]
@@ -58,7 +62,7 @@ public sealed class AotMessagePackSerializerShould : UnitTestBase
 		var options = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4Block);
 
 		// Act
-		var serializer = new AotMessagePackSerializer(options);
+		var serializer = new MpkSerializer(options);
 
 		// Assert
 		_ = serializer.ShouldNotBeNull();
@@ -69,23 +73,25 @@ public sealed class AotMessagePackSerializerShould : UnitTestBase
 	#region Property Tests
 
 	[Fact]
-	public void SerializerName_ReturnsMessagePackAOT()
+	public void SerializerName_ReturnsMessagePack()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer();
+		var serializer = new MpkSerializer();
 
 		// Act & Assert
-		serializer.SerializerName.ShouldBe("MessagePack-AOT");
+		serializer.Name.ShouldBe("MessagePack");
 	}
 
 	[Fact]
 	public void SerializerVersion_ReturnsExpectedVersion()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer();
+		var serializer = new MpkSerializer();
+		var expectedVersion = typeof(MessagePackSerializerOptions).Assembly
+			.GetName().Version?.ToString() ?? "Unknown";
 
 		// Act & Assert
-		serializer.SerializerVersion.ShouldBe("1.0.0");
+		serializer.Version.ShouldBe(expectedVersion);
 	}
 
 	#endregion Property Tests
@@ -96,11 +102,11 @@ public sealed class AotMessagePackSerializerShould : UnitTestBase
 	public void Serialize_WithValidMessage_ReturnsBytes()
 	{
 		// Arrange - Use standard options for test types
-		var serializer = new AotMessagePackSerializer(TestOptions);
+		var serializer = new MpkSerializer(TestOptions);
 		var message = new TestMessage { Id = 42, Name = "Test" };
 
 		// Act
-		var result = serializer.Serialize(message);
+		var result = serializer.SerializeToBytes(message);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -108,25 +114,27 @@ public sealed class AotMessagePackSerializerShould : UnitTestBase
 	}
 
 	[Fact]
-	public void Serialize_WithNullMessage_ThrowsArgumentNullException()
+	public void Serialize_WithNullMessage_ProducesValidOutput()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(TestOptions);
+		var serializer = new MpkSerializer(TestOptions);
 
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			serializer.Serialize<TestMessage>(null!));
+		// Act - New consolidated serializer follows STJ pattern: null is serializable
+		var result = serializer.SerializeToBytes<TestMessage>(null!);
+
+		// Assert - MessagePack serializes null as nil (0xC0)
+		_ = result.ShouldNotBeNull();
 	}
 
 	[Fact]
 	public void Serialize_WithEmptyName_Succeeds()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(TestOptions);
+		var serializer = new MpkSerializer(TestOptions);
 		var message = new TestMessage { Id = 1, Name = string.Empty };
 
 		// Act
-		var result = serializer.Serialize(message);
+		var result = serializer.SerializeToBytes(message);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -137,12 +145,12 @@ public sealed class AotMessagePackSerializerShould : UnitTestBase
 	public void Serialize_WithLargeString_Succeeds()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(TestOptions);
+		var serializer = new MpkSerializer(TestOptions);
 		var largeString = new string('X', 10000);
 		var message = new TestMessage { Id = 99, Name = largeString };
 
 		// Act
-		var result = serializer.Serialize(message);
+		var result = serializer.SerializeToBytes(message);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -158,9 +166,9 @@ public sealed class AotMessagePackSerializerShould : UnitTestBase
 	public void Deserialize_WithValidData_ReturnsObject()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(TestOptions);
+		var serializer = new MpkSerializer(TestOptions);
 		var original = new TestMessage { Id = 123, Name = "Hello" };
-		var serialized = serializer.Serialize(original);
+		var serialized = serializer.SerializeToBytes(original);
 
 		// Act
 		var result = serializer.Deserialize<TestMessage>(serialized);
@@ -175,11 +183,12 @@ public sealed class AotMessagePackSerializerShould : UnitTestBase
 	public void Deserialize_WithNullData_ThrowsArgumentNullException()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(TestOptions);
+		var serializer = new MpkSerializer(TestOptions);
 
-		// Act & Assert
+		// Act & Assert - Must call extension method explicitly; instance method resolves
+		// via implicit byte[]->ReadOnlySpan conversion, bypassing the null guard.
 		_ = Should.Throw<ArgumentNullException>(() =>
-			serializer.Deserialize<TestMessage>(null!));
+			SerializerExtensions.Deserialize<TestMessage>(serializer, (byte[])null!));
 	}
 
 	#endregion Deserialize Tests
@@ -190,11 +199,11 @@ public sealed class AotMessagePackSerializerShould : UnitTestBase
 	public void Serialize_AndDeserialize_RoundTrips()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(TestOptions);
+		var serializer = new MpkSerializer(TestOptions);
 		var original = new TestMessage { Id = 456, Name = "RoundTrip Test" };
 
 		// Act
-		var serialized = serializer.Serialize(original);
+		var serialized = serializer.SerializeToBytes(original);
 		var deserialized = serializer.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -207,11 +216,11 @@ public sealed class AotMessagePackSerializerShould : UnitTestBase
 	public void Serialize_AndDeserialize_PreservesZeroId()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(TestOptions);
+		var serializer = new MpkSerializer(TestOptions);
 		var original = new TestMessage { Id = 0, Name = "Zero" };
 
 		// Act
-		var serialized = serializer.Serialize(original);
+		var serialized = serializer.SerializeToBytes(original);
 		var deserialized = serializer.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -222,11 +231,11 @@ public sealed class AotMessagePackSerializerShould : UnitTestBase
 	public void Serialize_AndDeserialize_PreservesNegativeId()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(TestOptions);
+		var serializer = new MpkSerializer(TestOptions);
 		var original = new TestMessage { Id = -999, Name = "Negative" };
 
 		// Act
-		var serialized = serializer.Serialize(original);
+		var serialized = serializer.SerializeToBytes(original);
 		var deserialized = serializer.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -237,11 +246,11 @@ public sealed class AotMessagePackSerializerShould : UnitTestBase
 	public void Serialize_AndDeserialize_PreservesMaxInt()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(TestOptions);
+		var serializer = new MpkSerializer(TestOptions);
 		var original = new TestMessage { Id = int.MaxValue, Name = "Max" };
 
 		// Act
-		var serialized = serializer.Serialize(original);
+		var serialized = serializer.SerializeToBytes(original);
 		var deserialized = serializer.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -252,11 +261,11 @@ public sealed class AotMessagePackSerializerShould : UnitTestBase
 	public void Serialize_AndDeserialize_PreservesMinInt()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(TestOptions);
+		var serializer = new MpkSerializer(TestOptions);
 		var original = new TestMessage { Id = int.MinValue, Name = "Min" };
 
 		// Act
-		var serialized = serializer.Serialize(original);
+		var serialized = serializer.SerializeToBytes(original);
 		var deserialized = serializer.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -267,11 +276,11 @@ public sealed class AotMessagePackSerializerShould : UnitTestBase
 	public void Serialize_AndDeserialize_PreservesUnicodeCharacters()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(TestOptions);
+		var serializer = new MpkSerializer(TestOptions);
 		var original = new TestMessage { Id = 1, Name = "Unicode: \u00e9\u00e0\u00fc\u4e2d\u6587" };
 
 		// Act
-		var serialized = serializer.Serialize(original);
+		var serialized = serializer.SerializeToBytes(original);
 		var deserialized = serializer.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -282,11 +291,11 @@ public sealed class AotMessagePackSerializerShould : UnitTestBase
 	public void Serialize_AndDeserialize_PreservesSpecialCharacters()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(TestOptions);
+		var serializer = new MpkSerializer(TestOptions);
 		var original = new TestMessage { Id = 2, Name = "Special: \t\n\r\"'\\/" };
 
 		// Act
-		var serialized = serializer.Serialize(original);
+		var serialized = serializer.SerializeToBytes(original);
 		var deserialized = serializer.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -298,13 +307,13 @@ public sealed class AotMessagePackSerializerShould : UnitTestBase
 	#region Interface Implementation Tests
 
 	[Fact]
-	public void ImplementsIMessageSerializer()
+	public void ImplementsISerializer()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer();
+		var serializer = new MpkSerializer();
 
 		// Assert
-		_ = serializer.ShouldBeAssignableTo<IMessageSerializer>();
+		_ = serializer.ShouldBeAssignableTo<ISerializer>();
 	}
 
 	#endregion Interface Implementation Tests

@@ -220,8 +220,11 @@ public sealed class SqlServerRetryPolicyIntegrationShould
 		{
 			RetryCount = retryCount,
 			CommandTimeout = 30,
-			ConnectTimeout = 15,
-			TrustServerCertificate = true,
+			Connection =
+			{
+				ConnectTimeout = 15,
+				TrustServerCertificate = true,
+			},
 		};
 
 	private async Task<IDbConnection> CreateConnectionAsync()

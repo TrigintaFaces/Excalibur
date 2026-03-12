@@ -16,6 +16,19 @@ public sealed class TraceSamplerMiddlewareShould
 {
 	private readonly ITraceSampler _fakeSampler = A.Fake<ITraceSampler>();
 
+	/// <summary>
+	/// Creates a fake <see cref="IMessageContext"/> backed by a real Items dictionary
+	/// so that extension methods (GetItem, SetItem, ContainsItem) work correctly.
+	/// </summary>
+	private static (IMessageContext context, Dictionary<string, object> items) CreateFakeContext()
+	{
+		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
+		return (context, items);
+	}
+
 	[Fact]
 	public void ThrowOnNullSampler()
 	{
@@ -38,7 +51,7 @@ public sealed class TraceSamplerMiddlewareShould
 
 		var middleware = new TraceSamplerMiddleware(_fakeSampler);
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
+		var (context, items) = CreateFakeContext();
 		var expectedResult = A.Fake<IMessageResult>();
 
 		DispatchRequestDelegate next = (msg, ctx, ct) => new ValueTask<IMessageResult>(expectedResult);
@@ -48,7 +61,7 @@ public sealed class TraceSamplerMiddlewareShould
 
 		// Assert
 		result.ShouldBe(expectedResult);
-		A.CallTo(() => context.SetItem("dispatch.trace.sampled", false)).MustHaveHappenedOnceExactly();
+		items.ShouldContainKeyAndValue("dispatch.trace.sampled", (object)false);
 	}
 
 	[Fact]
@@ -60,7 +73,7 @@ public sealed class TraceSamplerMiddlewareShould
 
 		var middleware = new TraceSamplerMiddleware(_fakeSampler);
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
+		var (context, items) = CreateFakeContext();
 		var expectedResult = A.Fake<IMessageResult>();
 
 		DispatchRequestDelegate next = (msg, ctx, ct) => new ValueTask<IMessageResult>(expectedResult);
@@ -70,7 +83,7 @@ public sealed class TraceSamplerMiddlewareShould
 
 		// Assert
 		result.ShouldBe(expectedResult);
-		A.CallTo(() => context.SetItem("dispatch.trace.sampled", A<object>._)).MustNotHaveHappened();
+		items.ShouldNotContainKey("dispatch.trace.sampled");
 	}
 
 	[Fact]
@@ -82,7 +95,7 @@ public sealed class TraceSamplerMiddlewareShould
 
 		var middleware = new TraceSamplerMiddleware(_fakeSampler);
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
+		var (context, _) = CreateFakeContext();
 		var expectedResult = A.Fake<IMessageResult>();
 		var nextCalled = false;
 

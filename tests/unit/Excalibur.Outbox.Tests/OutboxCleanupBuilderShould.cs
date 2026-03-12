@@ -25,7 +25,7 @@ public sealed class OutboxCleanupBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.EnableAutomaticCleanup.ShouldBeTrue();
+		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -43,7 +43,7 @@ public sealed class OutboxCleanupBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.EnableAutomaticCleanup.ShouldBeFalse();
+		options.Cleanup.EnableAutomaticCleanup.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -61,7 +61,7 @@ public sealed class OutboxCleanupBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.EnableAutomaticCleanup.ShouldBeTrue();
+		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -79,7 +79,7 @@ public sealed class OutboxCleanupBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.EnableAutomaticCleanup.ShouldBeTrue();
+		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
 	}
 
 	#endregion
@@ -106,7 +106,7 @@ public sealed class OutboxCleanupBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.MessageRetentionPeriod.ShouldBe(period);
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(period);
 	}
 
 	[Theory]
@@ -128,7 +128,7 @@ public sealed class OutboxCleanupBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.MessageRetentionPeriod.ShouldBe(period);
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(period);
 	}
 
 	[Fact]
@@ -182,7 +182,7 @@ public sealed class OutboxCleanupBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.CleanupInterval.ShouldBe(interval);
+		options.Cleanup.CleanupInterval.ShouldBe(interval);
 	}
 
 	[Theory]
@@ -204,7 +204,7 @@ public sealed class OutboxCleanupBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.CleanupInterval.ShouldBe(interval);
+		options.Cleanup.CleanupInterval.ShouldBe(interval);
 	}
 
 	[Fact]
@@ -257,9 +257,9 @@ public sealed class OutboxCleanupBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.EnableAutomaticCleanup.ShouldBeTrue();
-		options.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
-		options.CleanupInterval.ShouldBe(TimeSpan.FromHours(6));
+		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
+		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromHours(6));
 	}
 
 	[Fact]
@@ -280,7 +280,7 @@ public sealed class OutboxCleanupBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
 	}
 
 	#endregion
@@ -305,9 +305,9 @@ public sealed class OutboxCleanupBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.EnableAutomaticCleanup.ShouldBeFalse();
-		options.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(90));
-		options.CleanupInterval.ShouldBe(TimeSpan.FromHours(12));
+		options.Cleanup.EnableAutomaticCleanup.ShouldBeFalse();
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(90));
+		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromHours(12));
 	}
 
 	#endregion

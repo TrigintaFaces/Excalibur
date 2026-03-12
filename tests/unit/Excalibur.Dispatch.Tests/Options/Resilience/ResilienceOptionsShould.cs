@@ -88,23 +88,35 @@ public sealed class ResilienceOptionsShould
 		var opts = new RetryPolicyOptions();
 
 		opts.MaxRetryAttempts.ShouldBe(3);
-		opts.MaxAttempts.ShouldBe(3);
 	}
 
 	[Fact]
-	public void RetryPolicyOptions_MaxAttemptsIsAliasForMaxRetryAttempts()
+	public void RetryPolicyOptions_AllowSettingMaxRetryAttempts()
 	{
-		var opts = new RetryPolicyOptions { MaxAttempts = 7 };
+		var opts = new RetryPolicyOptions { MaxRetryAttempts = 7 };
 
 		opts.MaxRetryAttempts.ShouldBe(7);
-		opts.MaxAttempts.ShouldBe(7);
 	}
 
 	[Fact]
-	public void RetryPolicyOptions_MaxRetryAttemptsUpdatesMaxAttempts()
+	public void RetryPolicyOptions_BackoffDefaultValues()
 	{
-		var opts = new RetryPolicyOptions { MaxRetryAttempts = 9 };
+		var opts = new RetryPolicyOptions();
 
-		opts.MaxAttempts.ShouldBe(9);
+		opts.Backoff.BaseDelay.ShouldBe(TimeSpan.FromSeconds(1));
+		opts.Backoff.MaxDelay.ShouldBe(TimeSpan.FromMinutes(30));
+		opts.Backoff.BackoffMultiplier.ShouldBe(2.0);
+		opts.Backoff.EnableJitter.ShouldBeFalse();
+		opts.Backoff.JitterFactor.ShouldBe(0.1);
+	}
+
+	[Fact]
+	public void RetryPolicyOptions_CircuitBreakerDefaultValues()
+	{
+		var opts = new RetryPolicyOptions();
+
+		opts.CircuitBreaker.EnableCircuitBreaker.ShouldBeFalse();
+		opts.CircuitBreaker.CircuitBreakerThreshold.ShouldBe(5);
+		opts.CircuitBreaker.CircuitBreakerDuration.ShouldBe(TimeSpan.FromSeconds(30));
 	}
 }

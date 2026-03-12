@@ -4,10 +4,14 @@
 using Excalibur.Dispatch.Serialization.MessagePack;
 using MessagePack;
 
+using MpkSerializer = Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializer;
+
 namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 
 /// <summary>
-/// Unit tests for <see cref="DispatchMessagePackSerializer" />.
+/// Unit tests for <see cref="MpkSerializer" />.
+/// Originally tested the now-deleted DispatchMessagePackSerializer; updated to test the
+/// consolidated <see cref="MpkSerializer"/>.
 /// </summary>
 [Trait("Category", "Unit")]
 public sealed class DispatchMessagePackSerializerShould : UnitTestBase
@@ -16,12 +20,12 @@ public sealed class DispatchMessagePackSerializerShould : UnitTestBase
 	public void Constructor_WithDefaultOptions_CreatesSerializer()
 	{
 		// Arrange & Act
-		var serializer = new DispatchMessagePackSerializer();
+		var serializer = new MpkSerializer();
 
 		// Assert
 		_ = serializer.ShouldNotBeNull();
-		serializer.SerializerName.ShouldBe("MessagePack");
-		serializer.SerializerVersion.ShouldBe("1.0.0");
+		serializer.Name.ShouldBe("MessagePack");
+		serializer.Version.ShouldNotBeNullOrWhiteSpace();
 	}
 
 	[Fact]
@@ -31,7 +35,7 @@ public sealed class DispatchMessagePackSerializerShould : UnitTestBase
 		var options = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4Block);
 
 		// Act
-		var serializer = new DispatchMessagePackSerializer(options);
+		var serializer = new MpkSerializer(options);
 
 		// Assert
 		_ = serializer.ShouldNotBeNull();
@@ -41,31 +45,33 @@ public sealed class DispatchMessagePackSerializerShould : UnitTestBase
 	public void SerializerName_ReturnsMessagePack()
 	{
 		// Arrange
-		var serializer = new DispatchMessagePackSerializer();
+		var serializer = new MpkSerializer();
 
 		// Act & Assert
-		serializer.SerializerName.ShouldBe("MessagePack");
+		serializer.Name.ShouldBe("MessagePack");
 	}
 
 	[Fact]
 	public void SerializerVersion_ReturnsExpectedVersion()
 	{
 		// Arrange
-		var serializer = new DispatchMessagePackSerializer();
+		var serializer = new MpkSerializer();
+		var expectedVersion = typeof(MessagePackSerializerOptions).Assembly
+			.GetName().Version?.ToString() ?? "Unknown";
 
 		// Act & Assert
-		serializer.SerializerVersion.ShouldBe("1.0.0");
+		serializer.Version.ShouldBe(expectedVersion);
 	}
 
 	[Fact]
 	public void Serialize_AndDeserialize_RoundTrips()
 	{
 		// Arrange
-		var serializer = new DispatchMessagePackSerializer();
+		var serializer = new MpkSerializer();
 		var original = new TestMessage { Id = 42, Name = "Test" };
 
 		// Act
-		var serialized = serializer.Serialize(original);
+		var serialized = serializer.SerializeToBytes(original);
 		var deserialized = serializer.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -78,11 +84,11 @@ public sealed class DispatchMessagePackSerializerShould : UnitTestBase
 	public void Serialize_ProducesNonEmptyBytes()
 	{
 		// Arrange
-		var serializer = new DispatchMessagePackSerializer();
+		var serializer = new MpkSerializer();
 		var message = new TestMessage { Id = 1, Name = "Test" };
 
 		// Act
-		var serialized = serializer.Serialize(message);
+		var serialized = serializer.SerializeToBytes(message);
 
 		// Assert
 		_ = serialized.ShouldNotBeNull();
@@ -93,9 +99,9 @@ public sealed class DispatchMessagePackSerializerShould : UnitTestBase
 	public void Deserialize_WithValidData_ReturnsObject()
 	{
 		// Arrange
-		var serializer = new DispatchMessagePackSerializer();
+		var serializer = new MpkSerializer();
 		var original = new TestMessage { Id = 123, Name = "Hello" };
-		var serialized = serializer.Serialize(original);
+		var serialized = serializer.SerializeToBytes(original);
 
 		// Act
 		var result = serializer.Deserialize<TestMessage>(serialized);
@@ -111,11 +117,11 @@ public sealed class DispatchMessagePackSerializerShould : UnitTestBase
 	{
 		// Arrange
 		var options = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4BlockArray);
-		var serializer = new DispatchMessagePackSerializer(options);
+		var serializer = new MpkSerializer(options);
 		var message = new TestMessage { Id = 999, Name = "Compressed" };
 
 		// Act
-		var serialized = serializer.Serialize(message);
+		var serialized = serializer.SerializeToBytes(message);
 		var deserialized = serializer.Deserialize<TestMessage>(serialized);
 
 		// Assert

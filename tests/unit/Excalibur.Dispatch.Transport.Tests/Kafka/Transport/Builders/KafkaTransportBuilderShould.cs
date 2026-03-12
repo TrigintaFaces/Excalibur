@@ -440,7 +440,7 @@ public sealed class KafkaTransportBuilderShould : UnitTestBase
 					 .UseSchemaRegistry(registry =>
 					 {
 						 registry.Url = "http://localhost:8081";
-						 registry.DefaultCompatibility = CompatibilityMode.Backward;
+						 registry.Schema.DefaultCompatibility = CompatibilityMode.Backward;
 					 })
 					 .ConfigureProducer(producer =>
 					 {
@@ -490,7 +490,7 @@ public sealed class KafkaTransportBuilderShould : UnitTestBase
 		// Assert
 		kafkaOptions.BootstrapServers.ShouldBe("broker:9092");
 		kafkaOptions.ConsumerGroup.ShouldBe("test-group");
-		kafkaOptions.AutoOffsetReset.ShouldBe("earliest");
+		kafkaOptions.Consumer.AutoOffsetReset.ShouldBe("earliest");
 		kafkaOptions.AdditionalConfig.ShouldContainKey("client.id");
 		kafkaOptions.AdditionalConfig["client.id"].ShouldBe("test-producer");
 	}
@@ -523,11 +523,11 @@ public sealed class KafkaTransportBuilderShould : UnitTestBase
 		var cloudEventOptions = provider.GetRequiredService<IOptions<KafkaCloudEventOptions>>().Value;
 
 		// Assert
-		cloudEventOptions.AcknowledgmentLevel.ShouldBe(KafkaAckLevel.Leader);
-		cloudEventOptions.EnableIdempotentProducer.ShouldBeTrue();
-		cloudEventOptions.CompressionType.ShouldBe(KafkaCompressionType.Gzip);
-		cloudEventOptions.EnableTransactions.ShouldBeTrue();
-		cloudEventOptions.TransactionalId.ShouldBe("txn-id");
+		cloudEventOptions.Producer.AcknowledgmentLevel.ShouldBe(KafkaAckLevel.Leader);
+		cloudEventOptions.Producer.EnableIdempotentProducer.ShouldBeTrue();
+		cloudEventOptions.Producer.CompressionType.ShouldBe(KafkaCompressionType.Gzip);
+		cloudEventOptions.Producer.EnableTransactions.ShouldBeTrue();
+		cloudEventOptions.Producer.TransactionalId.ShouldBe("txn-id");
 		cloudEventOptions.ConsumerGroupId.ShouldBe("test-group");
 		cloudEventOptions.OffsetReset.ShouldBe(KafkaOffsetReset.Earliest);
 	}

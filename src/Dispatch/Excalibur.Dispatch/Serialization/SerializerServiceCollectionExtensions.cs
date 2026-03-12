@@ -4,13 +4,10 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Options.Serialization;
 using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
-// Type alias for backward compatibility
-using JsonMessageSerializer = Excalibur.Dispatch.Serialization.DispatchJsonSerializer;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -27,12 +24,11 @@ public static class SerializerServiceCollectionExtensions
 	/// <returns> The service collection for method chaining. </returns>
 	public static IServiceCollection AddDispatchSerializer(this IServiceCollection services)
 	{
-		services.TryAddSingleton<IMessageSerializer, JsonMessageSerializer>();
-		services.TryAddSingleton<JsonMessageSerializer>();
+		services.TryAddSingleton<DispatchJsonSerializer>();
 		services.TryAddSingleton<DispatchJsonContext>();
 
 		_ = services.AddOptions<MessageSerializerOptions>()
-			.Configure(static options => options.SerializerMap[0] = typeof(JsonMessageSerializer))
+			.Configure(static options => options.SerializerMap[0] = typeof(DispatchJsonSerializer))
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
 
@@ -53,10 +49,9 @@ public static class SerializerServiceCollectionExtensions
 	TSerializer>(
 		this IServiceCollection services,
 		int version)
-		where TSerializer : class, IMessageSerializer
+		where TSerializer : class
 	{
 		services.TryAddSingleton<TSerializer>();
-		services.TryAddSingleton<IMessageSerializer, TSerializer>();
 
 		_ = services.AddOptions<MessageSerializerOptions>()
 			.Configure(options => options.SerializerMap[version] = typeof(TSerializer))

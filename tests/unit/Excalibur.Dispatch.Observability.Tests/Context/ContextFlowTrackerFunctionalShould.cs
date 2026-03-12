@@ -4,6 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Observability.Context;
 
 using Microsoft.Extensions.Logging;
@@ -250,20 +251,25 @@ public sealed class ContextFlowTrackerFunctionalShould : IAsyncDisposable
 		string? messageType = "TestMessage")
 	{
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>();
+		var features = new Dictionary<Type, object>();
+
 		A.CallTo(() => context.MessageId).Returns(messageId);
 		A.CallTo(() => context.CorrelationId).Returns(correlationId);
-		A.CallTo(() => context.MessageType).Returns(messageType);
-		A.CallTo(() => context.ExternalId).Returns(null);
-		A.CallTo(() => context.UserId).Returns(null);
 		A.CallTo(() => context.CausationId).Returns(null);
-		A.CallTo(() => context.TraceParent).Returns(null);
-		A.CallTo(() => context.TenantId).Returns(null);
-		A.CallTo(() => context.Source).Returns(null);
-		A.CallTo(() => context.ContentType).Returns(null);
-		A.CallTo(() => context.DeliveryCount).Returns(1);
-		A.CallTo(() => context.ReceivedTimestampUtc).Returns(DateTimeOffset.UtcNow);
-		A.CallTo(() => context.SentTimestampUtc).Returns(null);
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
+
+		// Set properties via extension methods
+		context.SetMessageType(messageType);
+		context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
+
+		// Set up processing feature for DeliveryCount
+		features[typeof(IMessageProcessingFeature)] = new MessageProcessingFeature
+		{
+			DeliveryCount = 1,
+		};
+
 		return context;
 	}
 }

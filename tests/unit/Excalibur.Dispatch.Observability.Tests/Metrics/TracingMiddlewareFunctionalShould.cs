@@ -46,6 +46,27 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 	}
 
 	/// <summary>
+	/// Creates a fake <see cref="IMessageContext"/> backed by a real Items dictionary
+	/// so that extension methods (GetItem, SetItem, ContainsItem) work correctly.
+	/// </summary>
+	private static IMessageContext CreateFakeContext(string? messageId = null, string? correlationId = null, Dictionary<string, object>? items = null)
+	{
+		var context = A.Fake<IMessageContext>();
+		var itemsDict = items ?? new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Items).Returns(itemsDict);
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
+		if (messageId is not null)
+		{
+			A.CallTo(() => context.MessageId).Returns(messageId);
+		}
+		if (correlationId is not null)
+		{
+			A.CallTo(() => context.CorrelationId).Returns(correlationId);
+		}
+		return context;
+	}
+
+	/// <summary>
 	/// Finds the single activity matching the given unique message ID.
 	/// This isolates our test activity from contamination by parallel tests.
 	/// </summary>
@@ -63,10 +84,8 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 	{
 		var middleware = new TracingMiddleware(_fakeSanitizer);
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
 		var uniqueId = Guid.NewGuid().ToString();
-		A.CallTo(() => context.MessageId).Returns(uniqueId);
-		A.CallTo(() => context.CorrelationId).Returns("corr-456");
+		var context = CreateFakeContext(messageId: uniqueId, correlationId: "corr-456");
 
 		var result = A.Fake<IMessageResult>();
 		A.CallTo(() => result.IsSuccess).Returns(true);
@@ -86,9 +105,8 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 	{
 		var middleware = new TracingMiddleware(_fakeSanitizer);
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
 		var uniqueId = Guid.NewGuid().ToString();
-		A.CallTo(() => context.MessageId).Returns(uniqueId);
+		var context = CreateFakeContext(messageId: uniqueId);
 		var result = A.Fake<IMessageResult>();
 		A.CallTo(() => result.IsSuccess).Returns(true);
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(result);
@@ -105,9 +123,8 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 	{
 		var middleware = new TracingMiddleware(_fakeSanitizer);
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
 		var uniqueId = Guid.NewGuid().ToString();
-		A.CallTo(() => context.MessageId).Returns(uniqueId);
+		var context = CreateFakeContext(messageId: uniqueId);
 		var result = A.Fake<IMessageResult>();
 		A.CallTo(() => result.IsSuccess).Returns(false);
 		var problemDetails = A.Fake<IMessageProblemDetails>();
@@ -131,9 +148,8 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 	{
 		var middleware = new TracingMiddleware(_fakeSanitizer);
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
 		var uniqueId = Guid.NewGuid().ToString();
-		A.CallTo(() => context.MessageId).Returns(uniqueId);
+		var context = CreateFakeContext(messageId: uniqueId);
 		DispatchRequestDelegate next = (_, _, _) => throw new InvalidOperationException("boom");
 
 		await Should.ThrowAsync<InvalidOperationException>(
@@ -148,10 +164,12 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 	{
 		var middleware = new TracingMiddleware(_fakeSanitizer);
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
 		var uniqueId = Guid.NewGuid().ToString();
-		A.CallTo(() => context.MessageId).Returns(uniqueId);
-		A.CallTo(() => context.GetItem<Type>("HandlerType")).Returns(typeof(string));
+		var items = new Dictionary<string, object>(StringComparer.Ordinal)
+		{
+			["HandlerType"] = typeof(string),
+		};
+		var context = CreateFakeContext(messageId: uniqueId, items: items);
 		var result = A.Fake<IMessageResult>();
 		A.CallTo(() => result.IsSuccess).Returns(true);
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(result);
@@ -167,9 +185,8 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 	{
 		var middleware = new TracingMiddleware(_fakeSanitizer);
 		var message = A.Fake<IDispatchAction>();
-		var context = A.Fake<IMessageContext>();
 		var uniqueId = Guid.NewGuid().ToString();
-		A.CallTo(() => context.MessageId).Returns(uniqueId);
+		var context = CreateFakeContext(messageId: uniqueId);
 		var result = A.Fake<IMessageResult>();
 		A.CallTo(() => result.IsSuccess).Returns(true);
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(result);
@@ -185,9 +202,8 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 	{
 		var middleware = new TracingMiddleware(_fakeSanitizer);
 		var message = A.Fake<IDispatchEvent>();
-		var context = A.Fake<IMessageContext>();
 		var uniqueId = Guid.NewGuid().ToString();
-		A.CallTo(() => context.MessageId).Returns(uniqueId);
+		var context = CreateFakeContext(messageId: uniqueId);
 		var result = A.Fake<IMessageResult>();
 		A.CallTo(() => result.IsSuccess).Returns(true);
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(result);
@@ -203,9 +219,8 @@ public sealed class TracingMiddlewareFunctionalShould : IDisposable
 	{
 		var middleware = new TracingMiddleware(_fakeSanitizer);
 		var message = A.Fake<IDispatchDocument>();
-		var context = A.Fake<IMessageContext>();
 		var uniqueId = Guid.NewGuid().ToString();
-		A.CallTo(() => context.MessageId).Returns(uniqueId);
+		var context = CreateFakeContext(messageId: uniqueId);
 		var result = A.Fake<IMessageResult>();
 		A.CallTo(() => result.IsSuccess).Returns(true);
 		DispatchRequestDelegate next = (_, _, _) => new ValueTask<IMessageResult>(result);

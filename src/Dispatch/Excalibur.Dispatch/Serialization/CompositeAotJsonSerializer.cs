@@ -8,7 +8,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.CloudEvents;
 
 namespace Excalibur.Dispatch.Serialization;
@@ -21,7 +20,7 @@ namespace Excalibur.Dispatch.Serialization;
 /// This serializer tries each registered context in order until it finds one that supports the type. For best performance, register
 /// contexts in order of expected usage frequency.
 /// </remarks>
-public sealed class CompositeAotJsonSerializer : IMessageSerializer, IBinaryMessageSerializer, IDisposable
+public sealed class CompositeAotJsonSerializer : IDisposable
 {
 	private readonly JsonSerializerContext[] contexts;
 

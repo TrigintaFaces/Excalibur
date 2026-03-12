@@ -68,7 +68,7 @@ public static class CosmosDbProjectionStoreExtensions
 
 		return services.AddCosmosDbProjectionStore<TProjection>(options =>
 		{
-			options.ConnectionString = connectionString;
+			options.Client.ConnectionString = connectionString;
 			options.DatabaseName = databaseName;
 			configureOptions?.Invoke(options);
 		});
@@ -99,8 +99,8 @@ public static class CosmosDbProjectionStoreExtensions
 
 		return services.AddCosmosDbProjectionStore<TProjection>(options =>
 		{
-			options.AccountEndpoint = accountEndpoint;
-			options.AccountKey = accountKey;
+			options.Client.AccountEndpoint = accountEndpoint;
+			options.Client.AccountKey = accountKey;
 			options.DatabaseName = databaseName;
 			configureOptions?.Invoke(options);
 		});

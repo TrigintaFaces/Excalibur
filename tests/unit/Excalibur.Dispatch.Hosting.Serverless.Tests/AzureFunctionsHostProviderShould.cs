@@ -47,8 +47,7 @@ public sealed class AzureFunctionsHostProviderShould : UnitTestBase
 		var options = new ServerlessHostOptions
 		{
 			EnableColdStartOptimization = true,
-			EnableDistributedTracing = true,
-			EnableMetrics = true,
+			Telemetry = { EnableDistributedTracing = true, EnableMetrics = true },
 		};
 		options.AzureFunctions.EnableDurableFunctions = true;
 

@@ -111,10 +111,13 @@ public sealed class SqlServerAuditServiceCollectionExtensionsShould
 			SchemaName = "custom_schema",
 			TableName = "custom_table",
 			BatchInsertSize = 777,
-			RetentionPeriod = TimeSpan.FromDays(400),
-			EnableRetentionEnforcement = false,
-			RetentionCleanupInterval = TimeSpan.FromHours(12),
-			RetentionCleanupBatchSize = 1234,
+			Retention = new()
+			{
+				RetentionPeriod = TimeSpan.FromDays(400),
+				EnableRetentionEnforcement = false,
+				CleanupInterval = TimeSpan.FromHours(12),
+				CleanupBatchSize = 1234
+			},
 			CommandTimeoutSeconds = 42,
 			UsePartitioning = true,
 			EnableHashChain = false,
@@ -131,10 +134,10 @@ public sealed class SqlServerAuditServiceCollectionExtensionsShould
 		resolved.SchemaName.ShouldBe(configured.SchemaName);
 		resolved.TableName.ShouldBe(configured.TableName);
 		resolved.BatchInsertSize.ShouldBe(configured.BatchInsertSize);
-		resolved.RetentionPeriod.ShouldBe(configured.RetentionPeriod);
-		resolved.EnableRetentionEnforcement.ShouldBe(configured.EnableRetentionEnforcement);
-		resolved.RetentionCleanupInterval.ShouldBe(configured.RetentionCleanupInterval);
-		resolved.RetentionCleanupBatchSize.ShouldBe(configured.RetentionCleanupBatchSize);
+		resolved.Retention.RetentionPeriod.ShouldBe(configured.Retention.RetentionPeriod);
+		resolved.Retention.EnableRetentionEnforcement.ShouldBe(configured.Retention.EnableRetentionEnforcement);
+		resolved.Retention.CleanupInterval.ShouldBe(configured.Retention.CleanupInterval);
+		resolved.Retention.CleanupBatchSize.ShouldBe(configured.Retention.CleanupBatchSize);
 		resolved.CommandTimeoutSeconds.ShouldBe(configured.CommandTimeoutSeconds);
 		resolved.UsePartitioning.ShouldBe(configured.UsePartitioning);
 		resolved.EnableHashChain.ShouldBe(configured.EnableHashChain);

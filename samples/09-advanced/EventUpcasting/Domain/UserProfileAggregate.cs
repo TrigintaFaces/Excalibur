@@ -67,7 +67,6 @@ public class UserProfileAggregate : AggregateRoot<string>
 		var user = new UserProfileAggregate(userId);
 		user.RaiseEvent(new UserCreatedV3(
 			userId,
-			user.Version,
 			name,
 			email,
 			street,
@@ -87,7 +86,7 @@ public class UserProfileAggregate : AggregateRoot<string>
 			return;
 		}
 
-		RaiseEvent(new UserNameChangedV3(Id, Version, Name, newName));
+		RaiseEvent(new UserNameChangedV3(Id, Name, newName));
 	}
 
 	/// <summary>
@@ -97,7 +96,6 @@ public class UserProfileAggregate : AggregateRoot<string>
 	{
 		RaiseEvent(new UserAddressChangedV3(
 			Id,
-			Version,
 			OldStreet: Street,
 			OldCity: City,
 			OldPostalCode: PostalCode,

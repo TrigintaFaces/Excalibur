@@ -36,10 +36,6 @@ public sealed class InboxOptions
 	/// prevents runaway message processing.
 	/// </summary>
 	/// <value> An integer representing the maximum number of messages to process per run. Must be greater than zero. </value>
-	/// <remarks>
-	/// This setting helps control resource utilization and provides predictable processing windows. Setting this value too low may impact
-	/// throughput, while setting it too high may cause resource contention or long-running processing operations that are difficult to control.
-	/// </remarks>
 	[Range(1, int.MaxValue)]
 	public int PerRunTotal { get; set; } = 1000;
 
@@ -51,67 +47,38 @@ public sealed class InboxOptions
 	/// An integer representing the maximum number of messages that can be held in the processing queue. Must be greater than zero and at
 	/// least as large as <see cref="ProducerBatchSize" />.
 	/// </value>
-	/// <remarks>
-	/// The queue capacity affects both memory usage and processing throughput. A larger queue can improve throughput by reducing
-	/// producer-consumer coordination overhead, but increases memory usage and may delay error feedback. The queue size should be tuned
-	/// based on message processing rates and available system resources.
-	/// </remarks>
 	[Range(1, int.MaxValue)]
 	public int QueueCapacity { get; set; } = 1000;
 
 	/// <summary>
-	/// Gets or sets the batch size for loading messages from storage into the processing queue. This setting controls the efficiency of
-	/// database operations and memory utilization.
+	/// Gets or sets the batch size for loading messages from storage into the processing queue.
 	/// </summary>
 	/// <value>
-	/// An integer representing the number of messages to load in each batch from storage. Must be greater than zero and not larger than <see cref="QueueCapacity" />.
+	/// An integer representing the number of messages to load in each batch from storage. Must be greater than zero.
 	/// </value>
-	/// <remarks>
-	/// Larger batch sizes generally improve database efficiency by reducing the number of round-trips, but may increase memory usage and
-	/// delay processing of individual messages. The optimal batch size depends on message size, database performance characteristics, and
-	/// available system memory.
-	/// </remarks>
 	[Range(1, int.MaxValue)]
 	public int ProducerBatchSize { get; set; } = 100;
 
 	/// <summary>
-	/// Gets or sets the batch size for processing messages from the internal queue. This setting controls the granularity of message
-	/// processing operations.
+	/// Gets or sets the batch size for processing messages from the internal queue.
 	/// </summary>
 	/// <value> An integer representing the number of messages to process together in each batch. Must be greater than zero. </value>
-	/// <remarks>
-	/// The consumer batch size affects both processing efficiency and error handling granularity. Larger batches can improve throughput
-	/// through better resource utilization, but may complicate error handling and recovery scenarios. The optimal size depends on message
-	/// processing complexity and error handling requirements.
-	/// </remarks>
 	[Range(1, int.MaxValue)]
 	public int ConsumerBatchSize { get; set; } = 100;
 
 	/// <summary>
-	/// Gets or sets the maximum number of processing attempts for failed messages. This setting controls the retry behavior and helps
-	/// prevent infinite retry loops.
+	/// Gets or sets the maximum number of processing attempts for failed messages.
 	/// </summary>
 	/// <value> An integer representing the maximum number of times a failed message will be retried. Must be greater than zero. </value>
-	/// <remarks>
-	/// The maximum attempts setting provides a safety mechanism to prevent poison messages from consuming system resources indefinitely.
-	/// Messages that exceed the maximum attempts may be moved to a dead letter queue or marked as permanently failed depending on the
-	/// implementation configuration.
-	/// </remarks>
 	[Range(1, int.MaxValue)]
 	public int MaxAttempts { get; set; } = 5;
 
 	/// <summary>
-	/// Gets or sets the default time-to-live for messages in the inbox before they expire. This setting helps prevent accumulation of old,
-	/// potentially irrelevant messages.
+	/// Gets or sets the default time-to-live for messages in the inbox before they expire.
 	/// </summary>
 	/// <value>
 	/// A nullable <see cref="TimeSpan" /> representing the message expiration time, or <c> null </c> if messages should not expire by default.
 	/// </value>
-	/// <remarks>
-	/// Message time-to-live provides automatic cleanup of old messages that may no longer be relevant for processing. This is particularly
-	/// important for event-driven systems where message relevance decreases over time. Expired messages may be automatically deleted or
-	/// moved to an archive depending on implementation requirements.
-	/// </remarks>
 	public TimeSpan? DefaultMessageTimeToLive { get; set; }
 
 	/// <summary>
@@ -123,45 +90,16 @@ public sealed class InboxOptions
 	public DeduplicationOptions Deduplication { get; set; } = new();
 
 	/// <summary>
-	/// Gets or sets the degree of parallelism for batch processing. Default is 1 (sequential processing).
-	/// </summary>
-	/// <value>The current <see cref="ParallelProcessingDegree"/> value.</value>
-	[Range(1, int.MaxValue)]
-	public int ParallelProcessingDegree { get; set; } = 1;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable dynamic batch sizing based on throughput.
-	/// </summary>
-	/// <value>The current <see cref="EnableDynamicBatchSizing"/> value.</value>
-	public bool EnableDynamicBatchSizing { get; set; }
-
-	/// <summary>
-	/// Gets or sets the minimum batch size when dynamic sizing is enabled.
-	/// </summary>
-	/// <value>The current <see cref="MinBatchSize"/> value.</value>
-	[Range(1, int.MaxValue)]
-	public int MinBatchSize { get; set; } = 10;
-
-	/// <summary>
-	/// Gets or sets the maximum batch size when dynamic sizing is enabled.
-	/// </summary>
-	/// <value>The current <see cref="MaxBatchSize"/> value.</value>
-	[Range(1, int.MaxValue)]
-	public int MaxBatchSize { get; set; } = 1000;
-
-	/// <summary>
-	/// Gets or sets the timeout for processing a batch of messages.
-	/// </summary>
-	/// <value>
-	/// The timeout for processing a batch of messages.
-	/// </value>
-	public TimeSpan BatchProcessingTimeout { get; set; } = TimeSpan.FromMinutes(5);
-
-	/// <summary>
 	/// Gets or sets a value indicating whether to enable batch database operations.
 	/// </summary>
 	/// <value>The current <see cref="EnableBatchDatabaseOperations"/> value.</value>
 	public bool EnableBatchDatabaseOperations { get; set; } = true;
+
+	/// <summary>
+	/// Gets or sets the batch processing configuration including parallelism and dynamic sizing.
+	/// </summary>
+	/// <value>The batch processing options.</value>
+	public InboxBatchProcessingOptions BatchProcessing { get; set; } = new();
 
 	/// <summary>
 	/// Validates the configured option values.
@@ -202,34 +140,75 @@ public sealed class InboxOptions
 			return "QueueCapacity cannot be less than the ProducerBatchSize.";
 		}
 
-		if (options.ParallelProcessingDegree <= 0)
+		if (options.BatchProcessing.ParallelProcessingDegree <= 0)
 		{
-			return "ParallelProcessingDegree must be greater than zero.";
+			return "BatchProcessing.ParallelProcessingDegree must be greater than zero.";
 		}
 
-		if (options.EnableDynamicBatchSizing)
+		if (options.BatchProcessing.EnableDynamicBatchSizing)
 		{
-			if (options.MinBatchSize <= 0)
+			if (options.BatchProcessing.MinBatchSize <= 0)
 			{
-				return "MinBatchSize must be greater than zero when dynamic batch sizing is enabled.";
+				return "BatchProcessing.MinBatchSize must be greater than zero when dynamic batch sizing is enabled.";
 			}
 
-			if (options.MaxBatchSize <= 0)
+			if (options.BatchProcessing.MaxBatchSize <= 0)
 			{
-				return "MaxBatchSize must be greater than zero when dynamic batch sizing is enabled.";
+				return "BatchProcessing.MaxBatchSize must be greater than zero when dynamic batch sizing is enabled.";
 			}
 
-			if (options.MinBatchSize > options.MaxBatchSize)
+			if (options.BatchProcessing.MinBatchSize > options.BatchProcessing.MaxBatchSize)
 			{
-				return "MinBatchSize cannot be greater than MaxBatchSize.";
+				return "BatchProcessing.MinBatchSize cannot be greater than BatchProcessing.MaxBatchSize.";
 			}
 		}
 
-		if (options.BatchProcessingTimeout <= TimeSpan.Zero)
+		if (options.BatchProcessing.BatchProcessingTimeout <= TimeSpan.Zero)
 		{
-			return "BatchProcessingTimeout must be greater than zero.";
+			return "BatchProcessing.BatchProcessingTimeout must be greater than zero.";
 		}
 
 		return null;
 	}
+}
+
+/// <summary>
+/// Configuration options for inbox batch processing including parallelism and dynamic sizing.
+/// </summary>
+public sealed class InboxBatchProcessingOptions
+{
+	/// <summary>
+	/// Gets or sets the degree of parallelism for batch processing. Default is 1 (sequential processing).
+	/// </summary>
+	/// <value>The current <see cref="ParallelProcessingDegree"/> value.</value>
+	[Range(1, int.MaxValue)]
+	public int ParallelProcessingDegree { get; set; } = 1;
+
+	/// <summary>
+	/// Gets or sets the timeout for processing a batch of messages.
+	/// </summary>
+	/// <value>
+	/// The timeout for processing a batch of messages.
+	/// </value>
+	public TimeSpan BatchProcessingTimeout { get; set; } = TimeSpan.FromMinutes(5);
+
+	/// <summary>
+	/// Gets or sets a value indicating whether to enable dynamic batch sizing based on throughput.
+	/// </summary>
+	/// <value>The current <see cref="EnableDynamicBatchSizing"/> value.</value>
+	public bool EnableDynamicBatchSizing { get; set; }
+
+	/// <summary>
+	/// Gets or sets the minimum batch size when dynamic sizing is enabled.
+	/// </summary>
+	/// <value>The current <see cref="MinBatchSize"/> value.</value>
+	[Range(1, int.MaxValue)]
+	public int MinBatchSize { get; set; } = 10;
+
+	/// <summary>
+	/// Gets or sets the maximum batch size when dynamic sizing is enabled.
+	/// </summary>
+	/// <value>The current <see cref="MaxBatchSize"/> value.</value>
+	[Range(1, int.MaxValue)]
+	public int MaxBatchSize { get; set; } = 1000;
 }

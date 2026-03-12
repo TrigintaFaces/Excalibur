@@ -6,18 +6,22 @@ using Excalibur.Dispatch.Serialization.MessagePack;
 
 using MessagePack;
 
+using MpkSerializer = Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializer;
+
 namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 
 /// <summary>
-/// Additional edge-case and coverage tests for <see cref="AotMessagePackSerializer"/>.
+/// Additional edge-case and coverage tests for <see cref="MpkSerializer"/>.
 /// Targets: compression variants, multiple types, reusability, and error paths.
+/// Originally tested the now-deleted AotMessagePackSerializer; updated to test the
+/// consolidated <see cref="MpkSerializer"/>.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Serialization")]
 public sealed class AotMessagePackSerializerEdgeCasesShould : UnitTestBase
 {
 	/// <summary>
-	/// Standard test options (not using StaticCompositeResolver to work with test types).
+	/// Standard test options.
 	/// </summary>
 	private static MessagePackSerializerOptions TestOptions =>
 		MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4BlockArray);
@@ -29,11 +33,11 @@ public sealed class AotMessagePackSerializerEdgeCasesShould : UnitTestBase
 	{
 		// Arrange
 		var opts = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4Block);
-		var serializer = new AotMessagePackSerializer(opts);
+		var serializer = new MpkSerializer(opts);
 		var message = new TestMessage { Id = 10, Name = "Lz4Block" };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestMessage>(bytes);
 
 		// Assert
@@ -46,11 +50,11 @@ public sealed class AotMessagePackSerializerEdgeCasesShould : UnitTestBase
 	{
 		// Arrange
 		var opts = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.None);
-		var serializer = new AotMessagePackSerializer(opts);
+		var serializer = new MpkSerializer(opts);
 		var message = new TestMessage { Id = 20, Name = "NoCompress" };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestMessage>(bytes);
 
 		// Assert
@@ -66,11 +70,11 @@ public sealed class AotMessagePackSerializerEdgeCasesShould : UnitTestBase
 	public void Serialize_TestPluggableMessage_RoundTrips()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(TestOptions);
+		var serializer = new MpkSerializer(TestOptions);
 		var message = new TestPluggableMessage { Value = 55, Text = "Pluggable" };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestPluggableMessage>(bytes);
 
 		// Assert
@@ -86,13 +90,13 @@ public sealed class AotMessagePackSerializerEdgeCasesShould : UnitTestBase
 	public void Serialize_CalledMultipleTimes_IsReusable()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(TestOptions);
+		var serializer = new MpkSerializer(TestOptions);
 
 		// Act & Assert
 		for (var i = 0; i < 15; i++)
 		{
 			var msg = new TestMessage { Id = i, Name = $"Reuse{i}" };
-			var bytes = serializer.Serialize(msg);
+			var bytes = serializer.SerializeToBytes(msg);
 			var result = serializer.Deserialize<TestMessage>(bytes);
 			result.Id.ShouldBe(i);
 			result.Name.ShouldBe($"Reuse{i}");
@@ -103,12 +107,12 @@ public sealed class AotMessagePackSerializerEdgeCasesShould : UnitTestBase
 	public void Serialize_DifferentInstances_ProduceCompatibleOutput()
 	{
 		// Arrange
-		var serializer1 = new AotMessagePackSerializer(TestOptions);
-		var serializer2 = new AotMessagePackSerializer(TestOptions);
+		var serializer1 = new MpkSerializer(TestOptions);
+		var serializer2 = new MpkSerializer(TestOptions);
 		var message = new TestMessage { Id = 77, Name = "CrossInstance" };
 
 		// Act
-		var bytes = serializer1.Serialize(message);
+		var bytes = serializer1.SerializeToBytes(message);
 		var result = serializer2.Deserialize<TestMessage>(bytes);
 
 		// Assert
@@ -124,12 +128,12 @@ public sealed class AotMessagePackSerializerEdgeCasesShould : UnitTestBase
 	public void Serialize_WithVeryLargePayload_RoundTrips()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(TestOptions);
+		var serializer = new MpkSerializer(TestOptions);
 		var largeStr = new string('B', 100_000);
 		var message = new TestMessage { Id = 88, Name = largeStr };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestMessage>(bytes);
 
 		// Assert
@@ -145,7 +149,7 @@ public sealed class AotMessagePackSerializerEdgeCasesShould : UnitTestBase
 	public void Deserialize_WithEmptyArray_ThrowsException()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(TestOptions);
+		var serializer = new MpkSerializer(TestOptions);
 
 		// Act & Assert - empty byte array should cause deserialization failure
 		Should.Throw<Exception>(() =>
@@ -157,33 +161,35 @@ public sealed class AotMessagePackSerializerEdgeCasesShould : UnitTestBase
 	#region Interface
 
 	[Fact]
-	public void ImplementsIMessageSerializer_WithCustomOptions()
+	public void ImplementsISerializer_WithCustomOptions()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(TestOptions);
+		var serializer = new MpkSerializer(TestOptions);
 
 		// Assert
-		serializer.ShouldBeAssignableTo<IMessageSerializer>();
+		serializer.ShouldBeAssignableTo<ISerializer>();
 	}
 
 	[Fact]
 	public void SerializerName_IsConsistent_WithCustomOptions()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(TestOptions);
+		var serializer = new MpkSerializer(TestOptions);
 
 		// Assert
-		serializer.SerializerName.ShouldBe("MessagePack-AOT");
+		serializer.Name.ShouldBe("MessagePack");
 	}
 
 	[Fact]
 	public void SerializerVersion_IsConsistent_WithCustomOptions()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(TestOptions);
+		var serializer = new MpkSerializer(TestOptions);
+		var expectedVersion = typeof(MessagePackSerializerOptions).Assembly
+			.GetName().Version?.ToString() ?? "Unknown";
 
 		// Assert
-		serializer.SerializerVersion.ShouldBe("1.0.0");
+		serializer.Version.ShouldBe(expectedVersion);
 	}
 
 	#endregion

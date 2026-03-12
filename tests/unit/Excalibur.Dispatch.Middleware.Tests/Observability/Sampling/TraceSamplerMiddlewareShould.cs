@@ -109,14 +109,16 @@ public sealed class TraceSamplerMiddlewareShould : UnitTestBase
 		var middleware = new TraceSamplerMiddleware(sampler);
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>();
+		A.CallTo(() => context.Items).Returns(items);
 		DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(MessageResult.Success());
 
 		// Act
 		await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
-		// Assert
-		A.CallTo(() => context.SetItem("dispatch.trace.sampled", false))
-			.MustHaveHappenedOnceExactly();
+		// Assert - SetItem is an extension method that sets Items["key"] directly
+		items.ShouldContainKey("dispatch.trace.sampled");
+		items["dispatch.trace.sampled"].ShouldBe(false);
 	}
 
 	[Fact]
@@ -129,13 +131,14 @@ public sealed class TraceSamplerMiddlewareShould : UnitTestBase
 		var middleware = new TraceSamplerMiddleware(sampler);
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>();
+		A.CallTo(() => context.Items).Returns(items);
 		DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(MessageResult.Success());
 
 		// Act
 		await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
-		// Assert
-		A.CallTo(() => context.SetItem("dispatch.trace.sampled", A<object>._))
-			.MustNotHaveHappened();
+		// Assert - SetItem is an extension method; verify nothing was added
+		items.ShouldNotContainKey("dispatch.trace.sampled");
 	}
 }

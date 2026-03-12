@@ -18,13 +18,34 @@ namespace Excalibur.Dispatch.Compliance;
 /// the current target version.
 /// </para>
 /// </remarks>
-public interface IMigrationService
+public interface IMigrationInfo
 {
 	/// <summary>
 	/// Gets the current encryption format version.
 	/// </summary>
 	EncryptionVersion CurrentVersion { get; }
+}
 
+/// <summary>
+/// Defines the contract for encryption version migration services.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This service handles the migration of encrypted data between encryption versions.
+/// It supports both lazy re-encryption (on-access) and batch migration strategies.
+/// </para>
+/// <para>
+/// Version detection is performed automatically when reading encrypted data,
+/// and re-encryption happens transparently if the data version is older than
+/// the current target version.
+/// </para>
+/// <para>
+/// The <see cref="IMigrationInfo"/> interface provides access to the current
+/// encryption version information without coupling to migration operations.
+/// </para>
+/// </remarks>
+public interface IMigrationService
+{
 	/// <summary>
 	/// Detects the encryption version of the provided ciphertext.
 	/// </summary>

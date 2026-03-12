@@ -25,7 +25,6 @@ public sealed class MessageSigningMiddlewareDepthShould
 	private readonly IMessageResult _successResult;
 	private readonly IMessageResult _failedResult;
 	private readonly Dictionary<string, object> _contextItems;
-	private readonly Dictionary<string, object?> _contextProperties;
 
 	public MessageSigningMiddlewareDepthShould()
 	{
@@ -35,12 +34,10 @@ public sealed class MessageSigningMiddlewareDepthShould
 		_successResult = A.Fake<IMessageResult>();
 		_failedResult = A.Fake<IMessageResult>();
 		_contextItems = new Dictionary<string, object>(StringComparer.Ordinal);
-		_contextProperties = new Dictionary<string, object?>(StringComparer.Ordinal);
 
 		A.CallTo(() => _successResult.Succeeded).Returns(true);
 		A.CallTo(() => _failedResult.Succeeded).Returns(false);
 		A.CallTo(() => _context.Items).Returns(_contextItems);
-		A.CallTo(() => _context.Properties).Returns(_contextProperties);
 	}
 
 	[Fact]

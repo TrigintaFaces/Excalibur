@@ -1,11 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Data.Postgres.EventSourcing;
 using Excalibur.EventSourcing.Abstractions;
+using Excalibur.EventSourcing.Postgres;
 
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 
 using Tests.Shared.Conformance.EventStore;
 
@@ -40,18 +39,11 @@ public sealed class PostgresEventStoreConformanceShould : EventStoreConformanceT
 		// Ensure container is ready and schema is created
 		await _fixture.EnsureInitializedAsync().ConfigureAwait(false);
 
-		var options = Options.Create(new PostgresEventStoreOptions
-		{
-			SchemaName = "public",
-			EventsTableName = _fixture.TableName
-		});
-
 		var logger = NullLogger<PostgresEventStore>.Instance;
 
-		// Create the store with connection factory
+		// Create the store with connection string
 		var store = new PostgresEventStore(
-			() => _fixture.CreateConnection(),
-			options,
+			_fixture.ConnectionString,
 			logger);
 
 		return store;

@@ -14,74 +14,6 @@ namespace Excalibur.Jobs.Tests.Diagnostics;
 [Trait("Priority", "0")]
 public sealed class JobsEventIdShould : UnitTestBase
 {
-	#region Azure Logic Apps Event IDs (146100-146199)
-
-	[Fact]
-	public void HaveAzureLogicAppsWorkflowCreatedInAzureLogicAppsRange()
-	{
-		JobsEventId.AzureLogicAppsWorkflowCreated.ShouldBe(146100);
-	}
-
-	[Fact]
-	public void HaveAzureLogicAppsWorkflowCreationFailedInAzureLogicAppsRange()
-	{
-		JobsEventId.AzureLogicAppsWorkflowCreationFailed.ShouldBe(146101);
-	}
-
-	[Fact]
-	public void HaveAzureLogicAppsWorkflowDeletedInAzureLogicAppsRange()
-	{
-		JobsEventId.AzureLogicAppsWorkflowDeleted.ShouldBe(146102);
-	}
-
-	[Fact]
-	public void HaveAzureLogicAppsWorkflowNotFoundInAzureLogicAppsRange()
-	{
-		JobsEventId.AzureLogicAppsWorkflowNotFound.ShouldBe(146103);
-	}
-
-	[Fact]
-	public void HaveAzureLogicAppsWorkflowDeletionFailedInAzureLogicAppsRange()
-	{
-		JobsEventId.AzureLogicAppsWorkflowDeletionFailed.ShouldBe(146104);
-	}
-
-	#endregion
-
-	#region AWS EventBridge Scheduler Event IDs (146200-146299)
-
-	[Fact]
-	public void HaveAwsSchedulerScheduleCreatedInAwsSchedulerRange()
-	{
-		JobsEventId.AwsSchedulerScheduleCreated.ShouldBe(146200);
-	}
-
-	[Fact]
-	public void HaveAwsSchedulerScheduleCreationFailedInAwsSchedulerRange()
-	{
-		JobsEventId.AwsSchedulerScheduleCreationFailed.ShouldBe(146201);
-	}
-
-	[Fact]
-	public void HaveAwsSchedulerScheduleDeletedInAwsSchedulerRange()
-	{
-		JobsEventId.AwsSchedulerScheduleDeleted.ShouldBe(146202);
-	}
-
-	[Fact]
-	public void HaveAwsSchedulerScheduleNotFoundInAwsSchedulerRange()
-	{
-		JobsEventId.AwsSchedulerScheduleNotFound.ShouldBe(146203);
-	}
-
-	[Fact]
-	public void HaveAwsSchedulerScheduleDeletionFailedInAwsSchedulerRange()
-	{
-		JobsEventId.AwsSchedulerScheduleDeletionFailed.ShouldBe(146204);
-	}
-
-	#endregion
-
 	#region Job Config Watcher Event IDs (147100-147199)
 
 	[Fact]
@@ -442,34 +374,6 @@ public sealed class JobsEventIdShould : UnitTestBase
 
 	#endregion
 
-	#region Workflow Job Event IDs (147700-147709)
-
-	[Fact]
-	public void HaveWorkflowJobStartingInWorkflowJobRange()
-	{
-		JobsEventId.WorkflowJobStarting.ShouldBe(147700);
-	}
-
-	[Fact]
-	public void HaveWorkflowJobCompletedInWorkflowJobRange()
-	{
-		JobsEventId.WorkflowJobCompleted.ShouldBe(147701);
-	}
-
-	[Fact]
-	public void HaveWorkflowJobFailedInWorkflowJobRange()
-	{
-		JobsEventId.WorkflowJobFailed.ShouldBe(147702);
-	}
-
-	[Fact]
-	public void HaveWorkflowJobUnhandledExceptionInWorkflowJobRange()
-	{
-		JobsEventId.WorkflowJobUnhandledException.ShouldBe(147703);
-	}
-
-	#endregion
-
 	#region Overall Range Validation
 
 	[Fact]
@@ -507,16 +411,6 @@ public sealed class JobsEventIdShould : UnitTestBase
 	{
 		return
 		[
-			// Azure Logic Apps (146100-146199)
-			JobsEventId.AzureLogicAppsWorkflowCreated, JobsEventId.AzureLogicAppsWorkflowCreationFailed,
-			JobsEventId.AzureLogicAppsWorkflowDeleted, JobsEventId.AzureLogicAppsWorkflowNotFound,
-			JobsEventId.AzureLogicAppsWorkflowDeletionFailed,
-
-			// AWS EventBridge (146200-146299)
-			JobsEventId.AwsSchedulerScheduleCreated, JobsEventId.AwsSchedulerScheduleCreationFailed,
-			JobsEventId.AwsSchedulerScheduleDeleted, JobsEventId.AwsSchedulerScheduleNotFound,
-			JobsEventId.AwsSchedulerScheduleDeletionFailed,
-
 			// Config Watcher (147100-147199)
 			JobsEventId.StartingJobWatcherService, JobsEventId.InitialConfigurationLoaded,
 			JobsEventId.ConfigurationChangeDetected, JobsEventId.ErrorHandlingConfigurationChange,
@@ -563,10 +457,6 @@ public sealed class JobsEventIdShould : UnitTestBase
 			JobsEventId.GenericContextDeserializationFailed, JobsEventId.GenericContextNotFoundOrInvalid,
 			JobsEventId.ExecutingGenericJob, JobsEventId.GenericJobCompletedSuccessfully,
 			JobsEventId.GenericJobExecutionFailed,
-
-			// Workflow Job (147700-147709)
-			JobsEventId.WorkflowJobStarting, JobsEventId.WorkflowJobCompleted,
-			JobsEventId.WorkflowJobFailed, JobsEventId.WorkflowJobUnhandledException
 		];
 	}
 

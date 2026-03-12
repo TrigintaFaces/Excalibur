@@ -14,8 +14,8 @@ namespace Excalibur.EventSourcing.Abstractions;
 /// <para>
 /// Implement this interface for type-safe queries against aggregate repositories.
 /// Query objects define their own criteria properties and are executed via
-/// <see cref="IEventSourcedRepository{TAggregate, TKey}.QueryAsync{TQuery}"/> or
-/// <see cref="IEventSourcedRepository{TAggregate, TKey}.FindAsync{TQuery}"/>.
+/// <c>EventSourcedRepository.QueryAsync</c> or <c>EventSourcedRepository.FindAsync</c>
+/// on the concrete repository class.
 /// </para>
 /// <para>
 /// This is a marker interface - no methods are required. Derived queries define

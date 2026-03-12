@@ -51,6 +51,7 @@ public static class VaultServiceCollectionExtensions
 		// Register the provider
 		services.TryAddSingleton<VaultKeyProvider>();
 		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<VaultKeyProvider>());
+		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<VaultKeyProvider>());
 
 		return services;
 	}
@@ -108,6 +109,7 @@ public static class VaultServiceCollectionExtensions
 		// Register the provider
 		services.TryAddSingleton<VaultKeyProvider>();
 		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<VaultKeyProvider>());
+		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<VaultKeyProvider>());
 
 		return services;
 	}

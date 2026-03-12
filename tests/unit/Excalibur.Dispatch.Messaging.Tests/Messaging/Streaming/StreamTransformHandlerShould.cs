@@ -32,7 +32,7 @@ public sealed class StreamTransformHandlerShould
 			sp => sp.GetRequiredService<MappingTransformHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var input = CreateDocumentStream(5);
 		var context = CreateTestContext(provider);
@@ -69,7 +69,7 @@ public sealed class StreamTransformHandlerShould
 			sp => sp.GetRequiredService<FilteringTransformHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var input = CreateIndexedDocumentStream(10);
 		var context = CreateTestContext(provider);
@@ -101,7 +101,7 @@ public sealed class StreamTransformHandlerShould
 			sp => sp.GetRequiredService<TrackingTransformHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var input = CreateIndexedDocumentStream(10);
 		var context = CreateTestContext(provider);
@@ -131,7 +131,7 @@ public sealed class StreamTransformHandlerShould
 		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var input = CreateDocumentStream(5);
 		var context = CreateTestContext(provider);
@@ -162,7 +162,7 @@ public sealed class StreamTransformHandlerShould
 			sp => sp.GetRequiredService<MappingTransformHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 		var context = CreateTestContext(provider);
 
 		// Act & Assert
@@ -191,7 +191,7 @@ public sealed class StreamTransformHandlerShould
 			sp => sp.GetRequiredService<MappingTransformHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 		var input = CreateDocumentStream(5);
 
 		// Act & Assert
@@ -221,7 +221,7 @@ public sealed class StreamTransformHandlerShould
 			sp => sp.GetRequiredService<SlowTransformHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var input = CreateDocumentStream(10);
 		var context = CreateTestContext(provider);
@@ -260,7 +260,7 @@ public sealed class StreamTransformHandlerShould
 			sp => sp.GetRequiredService<ErrorThrowingTransformHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var input = CreateDocumentStream(10);
 		var context = CreateTestContext(provider);
@@ -293,7 +293,7 @@ public sealed class StreamTransformHandlerShould
 			sp => sp.GetRequiredService<MappingTransformHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var input = CreateDocumentStream(0);
 		var context = CreateTestContext(provider);
@@ -323,7 +323,7 @@ public sealed class StreamTransformHandlerShould
 			sp => sp.GetRequiredService<MappingTransformHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var input = CreateDocumentStream(10000);
 		var context = CreateTestContext(provider);
@@ -354,7 +354,7 @@ public sealed class StreamTransformHandlerShould
 			sp => sp.GetRequiredService<MappingTransformHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var input = CreateDocumentStream(1);
 		var context = CreateTestContext(provider);
@@ -385,7 +385,7 @@ public sealed class StreamTransformHandlerShould
 			sp => sp.GetRequiredService<TrackingTransformHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var input = CreateDocumentStream(10);
 		var context = CreateTestContext(provider);
@@ -441,4 +441,3 @@ public sealed class StreamTransformHandlerShould
 
 	#endregion
 }
-

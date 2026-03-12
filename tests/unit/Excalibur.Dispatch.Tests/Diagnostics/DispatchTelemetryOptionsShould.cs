@@ -19,10 +19,10 @@ public sealed class DispatchTelemetryOptionsShould
 		options.ServiceName.ShouldBe("Excalibur.Dispatch");
 		options.ServiceVersion.ShouldBe("1.0.0");
 		options.SlowOperationThreshold.ShouldBe(TimeSpan.FromSeconds(2));
-		options.SamplingRatio.ShouldBe(0.1);
-		options.MaxSpansPerTrace.ShouldBe(100);
-		options.MetricBatchSize.ShouldBe(512);
-		options.ExportTimeout.ShouldBe(TimeSpan.FromSeconds(30));
+		options.Export.SamplingRatio.ShouldBe(0.1);
+		options.Export.MaxSpansPerTrace.ShouldBe(100);
+		options.Export.MetricBatchSize.ShouldBe(512);
+		options.Export.ExportTimeout.ShouldBe(TimeSpan.FromSeconds(30));
 		options.GlobalTags.ShouldNotBeNull();
 		options.GlobalTags.ShouldBeEmpty();
 	}
@@ -79,7 +79,10 @@ public sealed class DispatchTelemetryOptionsShould
 	[Fact]
 	public void Validate_ThrowsOnZeroExportTimeout()
 	{
-		var options = new DispatchTelemetryOptions { ExportTimeout = TimeSpan.Zero };
+		var options = new DispatchTelemetryOptions
+		{
+			Export = new TelemetryExportOptions { ExportTimeout = TimeSpan.Zero }
+		};
 
 		Should.Throw<ArgumentException>(() => options.Validate());
 	}
@@ -87,7 +90,10 @@ public sealed class DispatchTelemetryOptionsShould
 	[Fact]
 	public void Validate_ThrowsOnInvalidSamplingRatio_Negative()
 	{
-		var options = new DispatchTelemetryOptions { SamplingRatio = -0.1 };
+		var options = new DispatchTelemetryOptions
+		{
+			Export = new TelemetryExportOptions { SamplingRatio = -0.1 }
+		};
 
 		Should.Throw<ArgumentException>(() => options.Validate());
 	}
@@ -95,7 +101,10 @@ public sealed class DispatchTelemetryOptionsShould
 	[Fact]
 	public void Validate_ThrowsOnInvalidSamplingRatio_AboveOne()
 	{
-		var options = new DispatchTelemetryOptions { SamplingRatio = 1.1 };
+		var options = new DispatchTelemetryOptions
+		{
+			Export = new TelemetryExportOptions { SamplingRatio = 1.1 }
+		};
 
 		Should.Throw<ArgumentException>(() => options.Validate());
 	}
@@ -109,8 +118,8 @@ public sealed class DispatchTelemetryOptionsShould
 		options.EnableMetrics.ShouldBeTrue();
 		options.EnablePipelineObservability.ShouldBeFalse();
 		options.EnableHotPathMetrics.ShouldBeFalse();
-		options.SamplingRatio.ShouldBe(0.01);
-		options.MetricBatchSize.ShouldBe(1000);
+		options.Export.SamplingRatio.ShouldBe(0.01);
+		options.Export.MetricBatchSize.ShouldBe(1000);
 	}
 
 	[Fact]
@@ -121,7 +130,7 @@ public sealed class DispatchTelemetryOptionsShould
 		options.EnableTracing.ShouldBeTrue();
 		options.EnablePipelineObservability.ShouldBeTrue();
 		options.EnableHotPathMetrics.ShouldBeTrue();
-		options.SamplingRatio.ShouldBe(1.0);
+		options.Export.SamplingRatio.ShouldBe(1.0);
 	}
 
 	[Fact]
@@ -132,8 +141,8 @@ public sealed class DispatchTelemetryOptionsShould
 		options.EnableTracing.ShouldBeFalse();
 		options.EnableMetrics.ShouldBeTrue();
 		options.EnableEnhancedStoreObservability.ShouldBeFalse();
-		options.SamplingRatio.ShouldBe(0.001);
-		options.MetricBatchSize.ShouldBe(2000);
+		options.Export.SamplingRatio.ShouldBe(0.001);
+		options.Export.MetricBatchSize.ShouldBe(2000);
 	}
 
 	[Fact]
@@ -149,10 +158,13 @@ public sealed class DispatchTelemetryOptionsShould
 			ServiceName = "TestService",
 			ServiceVersion = "2.0.0",
 			SlowOperationThreshold = TimeSpan.FromSeconds(10),
-			SamplingRatio = 0.5,
-			MaxSpansPerTrace = 50,
-			MetricBatchSize = 256,
-			ExportTimeout = TimeSpan.FromSeconds(15),
+			Export = new TelemetryExportOptions
+			{
+				SamplingRatio = 0.5,
+				MaxSpansPerTrace = 50,
+				MetricBatchSize = 256,
+				ExportTimeout = TimeSpan.FromSeconds(15),
+			},
 		};
 		source.GlobalTags["env"] = "test";
 
@@ -167,10 +179,10 @@ public sealed class DispatchTelemetryOptionsShould
 		target.ServiceName.ShouldBe("TestService");
 		target.ServiceVersion.ShouldBe("2.0.0");
 		target.SlowOperationThreshold.ShouldBe(TimeSpan.FromSeconds(10));
-		target.SamplingRatio.ShouldBe(0.5);
-		target.MaxSpansPerTrace.ShouldBe(50);
-		target.MetricBatchSize.ShouldBe(256);
-		target.ExportTimeout.ShouldBe(TimeSpan.FromSeconds(15));
+		target.Export.SamplingRatio.ShouldBe(0.5);
+		target.Export.MaxSpansPerTrace.ShouldBe(50);
+		target.Export.MetricBatchSize.ShouldBe(256);
+		target.Export.ExportTimeout.ShouldBe(TimeSpan.FromSeconds(15));
 		target.GlobalTags["env"].ShouldBe("test");
 	}
 

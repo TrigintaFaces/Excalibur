@@ -29,8 +29,11 @@ public sealed class DatadogAuditExporterShould : IDisposable
 			Site = "datadoghq.com",
 			Service = "dispatch-audit",
 			Source = "dispatch",
-			MaxRetryAttempts = 1,
-			RetryBaseDelay = TimeSpan.FromMilliseconds(10),
+			Retry = new DatadogExporterRetryOptions
+			{
+				MaxRetryAttempts = 1,
+				RetryBaseDelay = TimeSpan.FromMilliseconds(10),
+			},
 			UseCompression = false // Disable for easier testing
 		};
 
@@ -359,7 +362,7 @@ public sealed class DatadogAuditExporterShould : IDisposable
 			{
 				ApiKey = CreateNonSecretApiKey(),
 				UseCompression = true,
-				MaxRetryAttempts = 0
+				Retry = new DatadogExporterRetryOptions { MaxRetryAttempts = 0 }
 		};
 
 		var compressedHandler = new MockHttpMessageHandler();
@@ -515,7 +518,7 @@ public sealed class DatadogAuditExporterShould : IDisposable
 			{
 				ApiKey = CreateNonSecretApiKey(),
 				Tags = "env:test,team:security",
-				MaxRetryAttempts = 0
+				Retry = new DatadogExporterRetryOptions { MaxRetryAttempts = 0 }
 		};
 
 		var handler = new MockHttpMessageHandler();
@@ -595,8 +598,11 @@ public sealed class DatadogAuditExporterShould : IDisposable
 			var retryOptions = new DatadogExporterOptions
 			{
 				ApiKey = CreateNonSecretApiKey(),
-				MaxRetryAttempts = 2,
-				RetryBaseDelay = TimeSpan.FromMilliseconds(10)
+				Retry = new DatadogExporterRetryOptions
+				{
+					MaxRetryAttempts = 2,
+					RetryBaseDelay = TimeSpan.FromMilliseconds(10),
+				}
 		};
 
 		var exporter = new DatadogAuditExporter(
@@ -626,8 +632,11 @@ public sealed class DatadogAuditExporterShould : IDisposable
 			var retryOptions = new DatadogExporterOptions
 			{
 				ApiKey = CreateNonSecretApiKey(),
-				MaxRetryAttempts = 2,
-				RetryBaseDelay = TimeSpan.FromMilliseconds(1)
+				Retry = new DatadogExporterRetryOptions
+				{
+					MaxRetryAttempts = 2,
+					RetryBaseDelay = TimeSpan.FromMilliseconds(1),
+				}
 		};
 
 		var exporter = new DatadogAuditExporter(
@@ -657,8 +666,11 @@ public sealed class DatadogAuditExporterShould : IDisposable
 			var retryOptions = new DatadogExporterOptions
 			{
 				ApiKey = CreateNonSecretApiKey(),
-				MaxRetryAttempts = 2,
-				RetryBaseDelay = TimeSpan.FromMilliseconds(1)
+				Retry = new DatadogExporterRetryOptions
+				{
+					MaxRetryAttempts = 2,
+					RetryBaseDelay = TimeSpan.FromMilliseconds(1),
+				}
 		};
 
 		var exporter = new DatadogAuditExporter(
@@ -808,7 +820,7 @@ public sealed class DatadogAuditExporterShould : IDisposable
 			{
 				ApiKey = CreateNonSecretApiKey(),
 				Hostname = "custom-host.example.com",
-				MaxRetryAttempts = 0
+				Retry = new DatadogExporterRetryOptions { MaxRetryAttempts = 0 }
 		};
 
 		var handler = new MockHttpMessageHandler();

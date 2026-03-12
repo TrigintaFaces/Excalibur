@@ -66,11 +66,7 @@ public sealed class AwsEventBridgeMessageBusShould : UnitTestBase
 				options,
 				A.Fake<ILogger<AwsEventBridgeMessageBus>>());
 
-		var context = new MessageContext
-		{
-			Source = null,
-			MessageType = null,
-		};
+		var context = new MessageContext();
 
 		// Act
 		await bus.PublishAsync(new TestAction(), context, CancellationToken.None);

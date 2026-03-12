@@ -39,14 +39,14 @@ public sealed class OutboxOptionsValidator : IValidateOptions<OutboxOptions>
 			failures.Add($"{nameof(OutboxOptions.PublishPollingInterval)} must be positive (was {options.PublishPollingInterval}).");
 		}
 
-		if (options.MaxRetries < 0)
+		if (options.Retry.MaxRetries < 0)
 		{
-			failures.Add($"{nameof(OutboxOptions.MaxRetries)} must be non-negative (was {options.MaxRetries}).");
+			failures.Add($"{nameof(OutboxMiddlewareRetryOptions)}.{nameof(OutboxMiddlewareRetryOptions.MaxRetries)} must be non-negative (was {options.Retry.MaxRetries}).");
 		}
 
-		if (options.RetryDelay <= TimeSpan.Zero)
+		if (options.Retry.RetryDelay <= TimeSpan.Zero)
 		{
-			failures.Add($"{nameof(OutboxOptions.RetryDelay)} must be positive (was {options.RetryDelay}).");
+			failures.Add($"{nameof(OutboxMiddlewareRetryOptions)}.{nameof(OutboxMiddlewareRetryOptions.RetryDelay)} must be positive (was {options.Retry.RetryDelay}).");
 		}
 
 		if (options.CleanupAge <= TimeSpan.Zero)
@@ -60,37 +60,37 @@ public sealed class OutboxOptionsValidator : IValidateOptions<OutboxOptions>
 		}
 
 		// Cross-property: MaxRetryDelay >= RetryDelay when exponential backoff is enabled
-		if (options.EnableExponentialRetryBackoff)
+		if (options.Retry.EnableExponentialRetryBackoff)
 		{
-			if (options.MaxRetryDelay <= TimeSpan.Zero)
+			if (options.Retry.MaxRetryDelay <= TimeSpan.Zero)
 			{
-				failures.Add($"{nameof(OutboxOptions.MaxRetryDelay)} must be positive when exponential backoff is enabled (was {options.MaxRetryDelay}).");
+				failures.Add($"{nameof(OutboxMiddlewareRetryOptions)}.{nameof(OutboxMiddlewareRetryOptions.MaxRetryDelay)} must be positive when exponential backoff is enabled (was {options.Retry.MaxRetryDelay}).");
 			}
-			else if (options.RetryDelay > TimeSpan.Zero && options.MaxRetryDelay < options.RetryDelay)
+			else if (options.Retry.RetryDelay > TimeSpan.Zero && options.Retry.MaxRetryDelay < options.Retry.RetryDelay)
 			{
 				failures.Add(
-					$"{nameof(OutboxOptions.MaxRetryDelay)} ({options.MaxRetryDelay}) " +
-					$"must be greater than or equal to {nameof(OutboxOptions.RetryDelay)} ({options.RetryDelay}) when exponential backoff is enabled.");
+					$"{nameof(OutboxMiddlewareRetryOptions)}.{nameof(OutboxMiddlewareRetryOptions.MaxRetryDelay)} ({options.Retry.MaxRetryDelay}) " +
+					$"must be greater than or equal to {nameof(OutboxMiddlewareRetryOptions)}.{nameof(OutboxMiddlewareRetryOptions.RetryDelay)} ({options.Retry.RetryDelay}) when exponential backoff is enabled.");
 			}
 		}
 
 		// Cross-property: MinPollingInterval <= PublishPollingInterval when adaptive polling is enabled
-		if (options.EnableAdaptivePolling)
+		if (options.AdaptivePolling.EnableAdaptivePolling)
 		{
-			if (options.MinPollingInterval <= TimeSpan.Zero)
+			if (options.AdaptivePolling.MinPollingInterval <= TimeSpan.Zero)
 			{
-				failures.Add($"{nameof(OutboxOptions.MinPollingInterval)} must be positive when adaptive polling is enabled (was {options.MinPollingInterval}).");
+				failures.Add($"{nameof(OutboxMiddlewareAdaptivePollingOptions)}.{nameof(OutboxMiddlewareAdaptivePollingOptions.MinPollingInterval)} must be positive when adaptive polling is enabled (was {options.AdaptivePolling.MinPollingInterval}).");
 			}
-			else if (options.PublishPollingInterval > TimeSpan.Zero && options.MinPollingInterval > options.PublishPollingInterval)
+			else if (options.PublishPollingInterval > TimeSpan.Zero && options.AdaptivePolling.MinPollingInterval > options.PublishPollingInterval)
 			{
 				failures.Add(
-					$"{nameof(OutboxOptions.MinPollingInterval)} ({options.MinPollingInterval}) " +
+					$"{nameof(OutboxMiddlewareAdaptivePollingOptions)}.{nameof(OutboxMiddlewareAdaptivePollingOptions.MinPollingInterval)} ({options.AdaptivePolling.MinPollingInterval}) " +
 					$"must be less than or equal to {nameof(OutboxOptions.PublishPollingInterval)} ({options.PublishPollingInterval}) when adaptive polling is enabled.");
 			}
 
-			if (options.AdaptivePollingBackoffMultiplier <= 1.0)
+			if (options.AdaptivePolling.AdaptivePollingBackoffMultiplier <= 1.0)
 			{
-				failures.Add($"{nameof(OutboxOptions.AdaptivePollingBackoffMultiplier)} must be greater than 1.0 (was {options.AdaptivePollingBackoffMultiplier}).");
+				failures.Add($"{nameof(OutboxMiddlewareAdaptivePollingOptions)}.{nameof(OutboxMiddlewareAdaptivePollingOptions.AdaptivePollingBackoffMultiplier)} must be greater than 1.0 (was {options.AdaptivePolling.AdaptivePollingBackoffMultiplier}).");
 			}
 		}
 

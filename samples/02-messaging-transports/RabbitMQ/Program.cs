@@ -15,8 +15,8 @@
 #pragma warning disable CA1303 // Sample code uses literal strings
 #pragma warning disable CA1506 // Sample has high coupling by design
 
-using Excalibur.Data.InMemory.Inbox;
-using Excalibur.Data.InMemory.Outbox;
+using Excalibur.Inbox.InMemory;
+using Excalibur.Outbox.InMemory;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
@@ -91,7 +91,7 @@ builder.Services.AddRabbitMQTransport("rabbitmq", rmq =>
 		})
 		.ConfigureCloudEvents(ce =>
 		{
-			ce.Persistence = RabbitMqPersistence.Persistent;
+			ce.Exchange.Persistence = RabbitMqPersistence.Persistent;
 		});
 });
 

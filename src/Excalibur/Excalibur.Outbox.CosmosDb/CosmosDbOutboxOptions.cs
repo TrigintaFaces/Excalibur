@@ -12,21 +12,6 @@ namespace Excalibur.Outbox.CosmosDb;
 public sealed class CosmosDbOutboxOptions
 {
 	/// <summary>
-	/// Gets or sets the Azure Cosmos DB connection string.
-	/// </summary>
-	public string? ConnectionString { get; set; }
-
-	/// <summary>
-	/// Gets or sets the Azure Cosmos DB account endpoint.
-	/// </summary>
-	public string? AccountEndpoint { get; set; }
-
-	/// <summary>
-	/// Gets or sets the Azure Cosmos DB account key.
-	/// </summary>
-	public string? AccountKey { get; set; }
-
-	/// <summary>
 	/// Gets or sets the database name.
 	/// </summary>
 	public string? DatabaseName { get; set; }
@@ -78,13 +63,19 @@ public sealed class CosmosDbOutboxOptions
 	public bool UseDirectMode { get; set; } = true;
 
 	/// <summary>
+	/// Gets or sets the connection options for Cosmos DB.
+	/// </summary>
+	/// <value>The connection options.</value>
+	public CosmosDbOutboxConnectionOptions Connection { get; set; } = new();
+
+	/// <summary>
 	/// Validates the options.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">Thrown when required options are missing.</exception>
 	public void Validate()
 	{
-		if (string.IsNullOrWhiteSpace(ConnectionString) &&
-			(string.IsNullOrWhiteSpace(AccountEndpoint) || string.IsNullOrWhiteSpace(AccountKey)))
+		if (string.IsNullOrWhiteSpace(Connection.ConnectionString) &&
+			(string.IsNullOrWhiteSpace(Connection.AccountEndpoint) || string.IsNullOrWhiteSpace(Connection.AccountKey)))
 		{
 			throw new InvalidOperationException(
 				"Either ConnectionString or both AccountEndpoint and AccountKey must be provided.");

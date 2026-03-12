@@ -85,8 +85,10 @@ public sealed class KeyRotationSchedulerConformanceTests : KeyRotationSchedulerC
 		};
 
 		// Create scheduler (KeyRotationService extends BackgroundService + IKeyRotationScheduler)
+		// InMemoryKeyManagementProvider implements both IKeyManagementProvider and IKeyManagementAdmin
 		_scheduler = new KeyRotationService(
 			_keyProvider,
+			(IKeyManagementAdmin)_keyProvider,
 			Options.Create(options),
 			NullLogger<KeyRotationService>.Instance);
 

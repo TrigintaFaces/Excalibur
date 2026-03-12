@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions.Serialization;
-
 using Excalibur.Dispatch.Serialization.MemoryPack;
+
+using MpSerializer = Excalibur.Dispatch.Serialization.MemoryPack.MemoryPackSerializer;
 
 namespace Excalibur.Dispatch.Serialization.Tests.MemoryPack;
 
@@ -17,11 +18,11 @@ namespace Excalibur.Dispatch.Serialization.Tests.MemoryPack;
 [Trait("Category", "Unit")]
 public sealed class EnvelopeRoundTripShould
 {
-	private readonly IInternalSerializer _sut;
+	private readonly ISerializer _sut;
 
 	public EnvelopeRoundTripShould()
 	{
-		_sut = new MemoryPackInternalSerializer();
+		_sut = new MpSerializer();
 	}
 
 	#region OutboxEnvelope Tests
@@ -47,7 +48,7 @@ public sealed class EnvelopeRoundTripShould
 		};
 
 		// Act
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 		var deserialized = _sut.Deserialize<OutboxEnvelope>(bytes.AsSpan());
 
 		// Assert
@@ -80,7 +81,7 @@ public sealed class EnvelopeRoundTripShould
 		};
 
 		// Act
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 		var deserialized = _sut.Deserialize<OutboxEnvelope>(bytes.AsSpan());
 
 		// Assert
@@ -115,7 +116,7 @@ public sealed class EnvelopeRoundTripShould
 		};
 
 		// Act
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 		var deserialized = _sut.Deserialize<InboxEnvelope>(bytes.AsSpan());
 
 		// Assert
@@ -157,7 +158,7 @@ public sealed class EnvelopeRoundTripShould
 		};
 
 		// Act
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 		var deserialized = _sut.Deserialize<EventEnvelope>(bytes.AsSpan());
 
 		// Assert
@@ -203,7 +204,7 @@ public sealed class EnvelopeRoundTripShould
 		}
 
 		// Act
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 		var deserialized = _sut.Deserialize<SnapshotEnvelope>(bytes.AsSpan());
 
 		// Assert
@@ -243,7 +244,7 @@ public sealed class EnvelopeRoundTripShould
 		};
 
 		// Act
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 		var deserialized = _sut.Deserialize<TransportEnvelope>(bytes.AsSpan());
 
 		// Assert
@@ -280,7 +281,7 @@ public sealed class EnvelopeRoundTripShould
 		};
 
 		// Act
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 		var deserialized = _sut.Deserialize<OutboxEnvelope>(bytes.AsSpan());
 
 		// Assert
@@ -305,7 +306,7 @@ public sealed class EnvelopeRoundTripShould
 		};
 
 		// Act
-		var bytes = _sut.Serialize(envelope);
+		var bytes = _sut.SerializeToBytes(envelope);
 		var deserialized = _sut.Deserialize<OutboxEnvelope>(bytes.AsSpan());
 
 		// Assert

@@ -30,10 +30,13 @@ public sealed class ComplianceMonitoringServiceShould
 		// Default options with monitoring enabled
 		_ = A.CallTo(() => _fakeOptions.Value).Returns(new Soc2Options
 		{
-			EnableContinuousMonitoring = true,
-			EnableAlerts = true,
-			MonitoringInterval = TimeSpan.FromMilliseconds(100),
-			AlertThreshold = GapSeverity.Medium,
+			Monitoring = new Soc2MonitoringOptions
+			{
+				EnableContinuousMonitoring = true,
+				EnableAlerts = true,
+				MonitoringInterval = TimeSpan.FromMilliseconds(100),
+				AlertThreshold = GapSeverity.Medium
+			},
 			EnabledCategories = [TrustServicesCategory.Security]
 		});
 
@@ -91,7 +94,7 @@ public sealed class ComplianceMonitoringServiceShould
 
 		_ = A.CallTo(() => _fakeOptions.Value).Returns(new Soc2Options
 		{
-			EnableContinuousMonitoring = false
+			Monitoring = new Soc2MonitoringOptions { EnableContinuousMonitoring = false }
 		});
 
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
@@ -288,9 +291,12 @@ public sealed class ComplianceMonitoringServiceShould
 		// Arrange
 		_ = A.CallTo(() => _fakeOptions.Value).Returns(new Soc2Options
 		{
-			EnableContinuousMonitoring = true,
-			EnableAlerts = false,
-			MonitoringInterval = TimeSpan.FromMilliseconds(100),
+			Monitoring = new Soc2MonitoringOptions
+			{
+				EnableContinuousMonitoring = true,
+				EnableAlerts = false,
+				MonitoringInterval = TimeSpan.FromMilliseconds(100)
+			},
 			EnabledCategories = [TrustServicesCategory.Security]
 		});
 

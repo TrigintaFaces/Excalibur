@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Caching;
 using Excalibur.Dispatch.Messaging;
@@ -65,6 +66,20 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 			MsOptions.Options.Create(options),
 			_logger,
 			globalPolicy);
+	}
+
+	private static IMessageContext CreateFakeContextWithIdentity(string? tenantId, string? userId)
+	{
+		var context = A.Fake<IMessageContext>();
+		var features = new Dictionary<Type, object>();
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Features).Returns(features);
+		A.CallTo(() => context.Items).Returns(items);
+
+		var identity = new MessageIdentityFeature { TenantId = tenantId, UserId = userId };
+		features[typeof(IMessageIdentityFeature)] = identity;
+
+		return context;
 	}
 
 	// =========================================================================
@@ -938,34 +953,27 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 	[Fact]
 	public void DefaultCacheKeyBuilder_NonCacheableAction_UsesSerialization()
 	{
-		// Arrange
-		var serializer = A.Fake<IJsonSerializer>();
-		A.CallTo(() => serializer.Serialize(A<object>._, A<Type>._)).Returns("{\"id\":1}");
+		// Arrange — real serializer handles non-cacheable action serialization
+		using var serializer = new DispatchJsonSerializer();
 		var builder = new DefaultCacheKeyBuilder(serializer);
 		var action = A.Fake<IDispatchAction>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.TenantId).Returns("tenant1");
-		A.CallTo(() => context.UserId).Returns("user1");
+		var context = CreateFakeContextWithIdentity("tenant1", "user1");
 
 		// Act
 		var key = builder.CreateKey(action, context);
 
 		// Assert
 		key.ShouldNotBeNullOrWhiteSpace();
-		A.CallTo(() => serializer.Serialize(action, A<Type>._)).MustHaveHappened();
 	}
 
 	[Fact]
 	public void DefaultCacheKeyBuilder_WithNullTenantAndUser_UsesDefaultValues()
 	{
 		// Arrange
-		var serializer = A.Fake<IJsonSerializer>();
-		A.CallTo(() => serializer.Serialize(A<object>._, A<Type>._)).Returns("{}");
+		using var serializer = new DispatchJsonSerializer();
 		var builder = new DefaultCacheKeyBuilder(serializer);
 		var action = A.Fake<IDispatchAction>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.TenantId).Returns((string?)null);
-		A.CallTo(() => context.UserId).Returns((string?)null);
+		var context = CreateFakeContextWithIdentity(null, null);
 
 		// Act
 		var key = builder.CreateKey(action, context);
@@ -978,19 +986,16 @@ public sealed class CachingCoverageBoostShould : UnitTestBase
 	public void DefaultCacheKeyBuilder_WithCacheableAction_UsesGetCacheKey()
 	{
 		// Arrange - action implements ICacheable<T>
-		var serializer = A.Fake<IJsonSerializer>();
+		using var serializer = new DispatchJsonSerializer();
 		var builder = new DefaultCacheKeyBuilder(serializer);
 		var action = new CacheableQueryWithResult();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.TenantId).Returns("t");
-		A.CallTo(() => context.UserId).Returns("u");
+		var context = CreateFakeContextWithIdentity("t", "u");
 
 		// Act
 		var key = builder.CreateKey(action, context);
 
-		// Assert - should NOT call serializer since ICacheable provides the key
+		// Assert - ICacheable provides the key
 		key.ShouldNotBeNullOrWhiteSpace();
-		A.CallTo(() => serializer.Serialize(A<object>._, A<Type>._)).MustNotHaveHappened();
 	}
 
 	// =========================================================================

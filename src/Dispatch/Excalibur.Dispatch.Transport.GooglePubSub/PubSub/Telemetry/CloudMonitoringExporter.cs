@@ -59,7 +59,7 @@ public sealed class CloudMonitoringExporter : IDisposable
 		_metricDescriptors = [];
 		_bufferedPoints = [];
 
-		if (!_options.ExportToCloudMonitoring)
+		if (!_options.Telemetry.ExportToCloudMonitoring)
 		{
 			_logger.LogInformation("Cloud Monitoring export is disabled");
 			return;
@@ -72,7 +72,7 @@ public sealed class CloudMonitoringExporter : IDisposable
 		_resource = new GoogleApi.MonitoredResource { Type = "global", Labels = { ["project_id"] = _options.ProjectId } };
 
 		// Add custom resource labels if configured
-		foreach (var label in _options.TelemetryResourceLabels)
+		foreach (var label in _options.Telemetry.TelemetryResourceLabels)
 		{
 			_resource.Labels[label.Key] = label.Value;
 		}
@@ -99,13 +99,13 @@ public sealed class CloudMonitoringExporter : IDisposable
 		_meterListener.Start();
 
 		// Setup export timer
-		var exportInterval = TimeSpan.FromSeconds(_options.TelemetryExportIntervalSeconds);
+		var exportInterval = TimeSpan.FromSeconds(_options.Telemetry.TelemetryExportIntervalSeconds);
 		_exportTimer = new Timer(ExportMetrics, state: null, exportInterval, exportInterval);
 
 		_logger.LogInformation(
 			"Cloud Monitoring exporter initialized for project {ProjectId} with {Interval}s export interval",
 			_options.ProjectId,
-			_options.TelemetryExportIntervalSeconds);
+			_options.Telemetry.TelemetryExportIntervalSeconds);
 	}
 
 	/// <inheritdoc />
@@ -197,7 +197,7 @@ public sealed class CloudMonitoringExporter : IDisposable
 		ReadOnlySpan<KeyValuePair<string, object?>> tags,
 		object? state)
 	{
-		if (!_options.ExportToCloudMonitoring)
+		if (!_options.Telemetry.ExportToCloudMonitoring)
 		{
 			return;
 		}
@@ -256,7 +256,7 @@ public sealed class CloudMonitoringExporter : IDisposable
 
 	private void ExportMetrics(object? state)
 	{
-		if (!_options.ExportToCloudMonitoring)
+		if (!_options.Telemetry.ExportToCloudMonitoring)
 		{
 			return;
 		}

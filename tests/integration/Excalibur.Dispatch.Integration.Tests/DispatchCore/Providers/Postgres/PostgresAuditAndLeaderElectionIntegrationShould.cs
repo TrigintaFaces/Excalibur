@@ -4,7 +4,7 @@
 using Dapper;
 
 using Excalibur.Data.Postgres.Audit;
-using Excalibur.Data.Postgres.LeaderElection;
+using Excalibur.LeaderElection.Postgres;
 using Excalibur.Dispatch.Compliance;
 using Excalibur.Dispatch.LeaderElection;
 

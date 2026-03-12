@@ -10,6 +10,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Observability.Diagnostics;
@@ -252,8 +253,8 @@ public sealed partial class ContextTraceEnricher(
 	{
 		// Message identification
 		_ = activity.SetTag("message.id", context.MessageId);
-		_ = activity.SetTag("message.external_id", context.ExternalId);
-		_ = activity.SetTag("message.type", context.MessageType);
+		_ = activity.SetTag("message.external_id", context.GetExternalId());
+		_ = activity.SetTag("message.type", context.GetMessageType());
 		_ = activity.SetTag("message.version", context.MessageVersion());
 		_ = activity.SetTag("message.contract_version", context.ContractVersion());
 
@@ -262,25 +263,25 @@ public sealed partial class ContextTraceEnricher(
 		_ = activity.SetTag("causation.id", context.CausationId);
 
 		// User and tenant context — sanitize PII
-		SetSanitizedTag(activity, "user.id", context.UserId);
-		SetSanitizedTag(activity, "tenant.id", context.TenantId);
+		SetSanitizedTag(activity, "user.id", context.GetUserId());
+		SetSanitizedTag(activity, "tenant.id", context.GetTenantId());
 
 		// Routing and delivery
-		_ = activity.SetTag("message.source", context.Source);
+		_ = activity.SetTag("message.source", context.GetSource());
 		_ = activity.SetTag("message.partition_key", context.PartitionKey());
 		_ = activity.SetTag("message.reply_to", context.ReplyTo());
-		_ = activity.SetTag("message.delivery_count", context.DeliveryCount);
+		_ = activity.SetTag("message.delivery_count", context.GetDeliveryCount());
 
 		// Timestamps
-		_ = activity.SetTag("message.sent_timestamp", context.SentTimestampUtc?.ToString("O"));
-		_ = activity.SetTag("message.received_timestamp", context.ReceivedTimestampUtc.ToString("O"));
+		_ = activity.SetTag("message.sent_timestamp", context.GetSentTimestampUtc()?.ToString("O"));
+		_ = activity.SetTag("message.received_timestamp", context.GetReceivedTimestampUtc()?.ToString("O"));
 
 		// Processing state
 		_ = activity.SetTag("context.validation.valid", (context.ValidationResult() as IValidationResult)?.IsValid ?? false);
 		_ = activity.SetTag(
 			"context.authorization.authorized",
 			(context.AuthorizationResult() as IAuthorizationResult)?.IsAuthorized ?? false);
-		_ = activity.SetTag("context.routing.success", context.RoutingDecision?.IsSuccess ?? true);
+		_ = activity.SetTag("context.routing.success", context.GetRoutingDecision()?.IsSuccess ?? true);
 	}
 
 	private void SetSanitizedTag(Activity activity, string tagName, string? rawValue)
@@ -303,19 +304,22 @@ public sealed partial class ContextTraceEnricher(
 			_ = Baggage.SetBaggage("correlation.id", context.CorrelationId);
 		}
 
-		if (!string.IsNullOrWhiteSpace(context.TenantId))
+		var tenantId = context.GetTenantId();
+		if (!string.IsNullOrWhiteSpace(tenantId))
 		{
-			SetSanitizedBaggage("tenant.id", context.TenantId);
+			SetSanitizedBaggage("tenant.id", tenantId);
 		}
 
-		if (!string.IsNullOrWhiteSpace(context.UserId))
+		var userId = context.GetUserId();
+		if (!string.IsNullOrWhiteSpace(userId))
 		{
-			SetSanitizedBaggage("user.id", context.UserId);
+			SetSanitizedBaggage("user.id", userId);
 		}
 
-		if (!string.IsNullOrWhiteSpace(context.MessageType))
+		var messageType = context.GetMessageType();
+		if (!string.IsNullOrWhiteSpace(messageType))
 		{
-			_ = Baggage.SetBaggage("message.type", context.MessageType);
+			_ = Baggage.SetBaggage("message.type", messageType);
 		}
 	}
 
@@ -425,12 +429,13 @@ public sealed partial class ContextTraceEnricher(
 			baggageItems["causation.id"] = context.CausationId;
 		}
 
-		AddSanitizedBaggageItem(baggageItems, "tenant.id", context.TenantId);
-		AddSanitizedBaggageItem(baggageItems, "user.id", context.UserId);
+		AddSanitizedBaggageItem(baggageItems, "tenant.id", context.GetTenantId());
+		AddSanitizedBaggageItem(baggageItems, "user.id", context.GetUserId());
 
-		if (!string.IsNullOrWhiteSpace(context.MessageType))
+		var messageType = context.GetMessageType();
+		if (!string.IsNullOrWhiteSpace(messageType))
 		{
-			baggageItems["message.type"] = context.MessageType;
+			baggageItems["message.type"] = messageType;
 		}
 
 		var messageVersion = context.MessageVersion();
@@ -499,11 +504,11 @@ public sealed partial class ContextTraceEnricher(
 				break;
 
 			case "user.id":
-				ProcessStringProperty(item.Value, context.UserId, v => context.UserId = v);
+				ProcessStringProperty(item.Value, context.GetUserId(), v => context.GetOrCreateIdentityFeature().UserId = v);
 				break;
 
 			case "message.type":
-				ProcessStringProperty(item.Value, context.MessageType, v => context.MessageType = v);
+				ProcessStringProperty(item.Value, context.GetMessageType(), v => context.SetMessageType(v));
 				break;
 
 			case "message.version":
@@ -536,7 +541,7 @@ public sealed partial class ContextTraceEnricher(
 
 	private void ProcessTenantId(string value, IMessageContext context)
 	{
-		if (context.TenantId == null && !string.IsNullOrWhiteSpace(value))
+		if (context.GetTenantId() == null && !string.IsNullOrWhiteSpace(value))
 		{
 			// Would need a factory method to create ITenantId from string
 			LogTenantIdExtracted(value);
@@ -585,7 +590,8 @@ public sealed partial class ContextTraceEnricher(
 
 	private void LinkToParentTrace(Activity activity, IMessageContext context)
 	{
-		if (string.IsNullOrWhiteSpace(context.TraceParent))
+		var traceParent = context.GetTraceParent();
+		if (string.IsNullOrWhiteSpace(traceParent))
 		{
 			return;
 		}
@@ -593,7 +599,7 @@ public sealed partial class ContextTraceEnricher(
 		try
 		{
 			// Parse W3C trace parent
-			if (ActivityContext.TryParse(context.TraceParent, traceState: null, out var parentContext))
+			if (ActivityContext.TryParse(traceParent, traceState: null, out var parentContext))
 			{
 				// Note: In OpenTelemetry, parent must be set during activity creation This is documented as a limitation
 				_ = activity.SetTag("parent.trace_id", parentContext.TraceId.ToString());
@@ -602,11 +608,11 @@ public sealed partial class ContextTraceEnricher(
 		}
 		catch (FormatException ex)
 		{
-			LogTraceParentParseFormatError(ex, context.TraceParent);
+			LogTraceParentParseFormatError(ex, traceParent);
 		}
 		catch (ArgumentException ex)
 		{
-			LogTraceParentParseArgumentError(ex, context.TraceParent);
+			LogTraceParentParseArgumentError(ex, traceParent);
 		}
 	}
 

@@ -30,16 +30,10 @@ public interface IParallelSagaStep<TData> : ISagaStep<TData>
 	int MaxDegreeOfParallelism { get; }
 
 	/// <summary>
-	/// Gets a value indicating whether all parallel steps must succeed for the step to succeed.
+	/// Gets the failure handling policy for parallel step execution.
 	/// </summary>
-	/// <value><see langword="true"/> if whether all parallel steps must succeed for the step to succeed.; otherwise, <see langword="false"/>.</value>
-	bool RequireAllSuccess { get; }
-
-	/// <summary>
-	/// Gets a value indicating whether to continue executing remaining steps if one fails.
-	/// </summary>
-	/// <value><see langword="true"/> if whether to continue executing remaining steps if one fails.; otherwise, <see langword="false"/>.</value>
-	bool ContinueOnFailure { get; }
+	/// <value>The policy that determines how failures in child steps are handled.</value>
+	ParallelFailurePolicy FailurePolicy { get; }
 
 	/// <summary>
 	/// Aggregates the results from parallel step executions.

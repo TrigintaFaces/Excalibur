@@ -128,7 +128,7 @@ public sealed class OutboxServiceCollectionExtensionsShould : UnitTestBase
 		var options = provider.GetRequiredService<OutboxOptions>();
 		options.BatchSize.ShouldBe(10);
 		options.PollingInterval.ShouldBe(TimeSpan.FromSeconds(5));
-		options.MaxRetryCount.ShouldBe(10);
+		options.Retry.MaxRetryCount.ShouldBe(10);
 		options.Preset.ShouldBe(OutboxPreset.HighReliability);
 	}
 
@@ -196,8 +196,8 @@ public sealed class OutboxServiceCollectionExtensionsShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.EnableAutomaticCleanup.ShouldBeFalse();
-		options.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
+		options.Cleanup.EnableAutomaticCleanup.ShouldBeFalse();
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
 	}
 
 	[Fact]
@@ -229,14 +229,14 @@ public sealed class OutboxServiceCollectionExtensionsShould : UnitTestBase
 		var options = provider.GetRequiredService<OutboxOptions>();
 		options.BatchSize.ShouldBe(500);
 		options.PollingInterval.ShouldBe(TimeSpan.FromSeconds(2));
-		options.MaxRetryCount.ShouldBe(5);
-		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(2));
+		options.Retry.MaxRetryCount.ShouldBe(5);
+		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(2));
 		options.ProcessorId.ShouldBe("my-processor");
 		options.EnableParallelProcessing.ShouldBeTrue();
 		options.MaxDegreeOfParallelism.ShouldBe(8);
-		options.EnableAutomaticCleanup.ShouldBeTrue();
-		options.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
-		options.CleanupInterval.ShouldBe(TimeSpan.FromHours(6));
+		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
+		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromHours(6));
 		options.EnableBackgroundProcessing.ShouldBeTrue();
 	}
 

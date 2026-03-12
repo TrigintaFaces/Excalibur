@@ -170,11 +170,11 @@ public static class OutboxPresetServiceCollectionExtensions
 		target.ConsumerBatchSize = source.ConsumerBatchSize;
 		target.MaxAttempts = source.MaxAttempts;
 		target.DefaultMessageTimeToLive = source.DefaultMessageTimeToLive;
-		target.ParallelProcessingDegree = source.ParallelProcessingDegree;
-		target.EnableDynamicBatchSizing = source.EnableDynamicBatchSizing;
-		target.MinBatchSize = source.MinBatchSize;
-		target.MaxBatchSize = source.MaxBatchSize;
-		target.BatchProcessingTimeout = source.BatchProcessingTimeout;
+		target.BatchProcessing.ParallelProcessingDegree = source.BatchProcessing.ParallelProcessingDegree;
+		target.BatchProcessing.EnableDynamicBatchSizing = source.BatchProcessing.EnableDynamicBatchSizing;
+		target.BatchProcessing.MinBatchSize = source.BatchProcessing.MinBatchSize;
+		target.BatchProcessing.MaxBatchSize = source.BatchProcessing.MaxBatchSize;
+		target.BatchProcessing.BatchProcessingTimeout = source.BatchProcessing.BatchProcessingTimeout;
 		target.EnableBatchDatabaseOperations = source.EnableBatchDatabaseOperations;
 		target.DeliveryGuarantee = source.DeliveryGuarantee;
 	}

@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Data.Firestore;
-using Excalibur.Data.Firestore.Cdc;
-using Excalibur.Data.Postgres.Cdc;
-using Excalibur.Data.Postgres.Inbox;
+using Excalibur.Cdc.Firestore;
+using Excalibur.Cdc.Postgres;
+using Excalibur.Inbox.Postgres;
 using Excalibur.Data.Postgres.Persistence;
-using Excalibur.Data.Redis.Inbox;
-using Excalibur.Data.Redis.Outbox;
+using Excalibur.Inbox.Redis;
+using Excalibur.Outbox.Redis;
 
 namespace Excalibur.Data.Tests.Configuration;
 

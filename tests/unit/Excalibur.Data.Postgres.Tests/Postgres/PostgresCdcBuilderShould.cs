@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Cdc;
-using Excalibur.Data.Postgres.Cdc;
+using Excalibur.Cdc.Postgres;
 
-using Excalibur.Data.Postgres;
 namespace Excalibur.Data.Tests.Postgres.Cdc.Builders;
 
 /// <summary>
@@ -348,7 +347,7 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<PostgresCdcOptions>>();
-		options.Value.UseBinaryProtocol.ShouldBeTrue();
+		options.Value.Replication.UseBinaryProtocol.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -370,7 +369,7 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<IOptions<PostgresCdcOptions>>();
-		options.Value.AutoCreateSlot.ShouldBeFalse();
+		options.Value.Replication.AutoCreateSlot.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -407,8 +406,8 @@ public sealed class PostgresCdcBuilderShould : UnitTestBase
 		pgOptions.Value.BatchSize.ShouldBe(1000);
 		pgOptions.Value.Timeout.ShouldBe(TimeSpan.FromSeconds(30));
 		pgOptions.Value.ProcessorId.ShouldBe("worker-1");
-		pgOptions.Value.UseBinaryProtocol.ShouldBeTrue();
-		pgOptions.Value.AutoCreateSlot.ShouldBeTrue();
+		pgOptions.Value.Replication.UseBinaryProtocol.ShouldBeTrue();
+		pgOptions.Value.Replication.AutoCreateSlot.ShouldBeTrue();
 
 		var stateOptions = provider.GetRequiredService<IOptions<PostgresCdcStateStoreOptions>>();
 		stateOptions.Value.SchemaName.ShouldBe("excalibur");

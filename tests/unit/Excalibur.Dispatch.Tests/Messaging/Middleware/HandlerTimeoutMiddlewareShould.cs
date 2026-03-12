@@ -5,6 +5,7 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Middleware.Timeout;
 using Excalibur.Dispatch.Tests.TestFakes;
@@ -74,8 +75,8 @@ public sealed class HandlerTimeoutMiddlewareShould
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		context.TimeoutExceeded.ShouldBeTrue();
-		context.TimeoutElapsed.ShouldBe(TimeSpan.FromMilliseconds(20));
+		context.GetTimeoutExceeded().ShouldBeTrue();
+		context.GetTimeoutElapsed().ShouldBe(TimeSpan.FromMilliseconds(20));
 	}
 
 	[Fact]
@@ -106,8 +107,8 @@ public sealed class HandlerTimeoutMiddlewareShould
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		context.TimeoutExceeded.ShouldBeTrue();
-		context.TimeoutElapsed.ShouldBe(TimeSpan.FromMilliseconds(30));
+		context.GetTimeoutExceeded().ShouldBeTrue();
+		context.GetTimeoutElapsed().ShouldBe(TimeSpan.FromMilliseconds(30));
 	}
 
 	[Fact]
@@ -139,8 +140,8 @@ public sealed class HandlerTimeoutMiddlewareShould
 
 		// Assert
 		result.Succeeded.ShouldBeFalse();
-		context.TimeoutExceeded.ShouldBeTrue();
-		context.TimeoutElapsed.ShouldBe(TimeSpan.FromMilliseconds(25));
+		context.GetTimeoutExceeded().ShouldBeTrue();
+		context.GetTimeoutElapsed().ShouldBe(TimeSpan.FromMilliseconds(25));
 	}
 
 	[Fact]

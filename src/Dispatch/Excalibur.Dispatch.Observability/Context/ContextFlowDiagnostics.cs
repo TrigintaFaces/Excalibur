@@ -9,6 +9,7 @@ using System.Text;
 using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Observability.Diagnostics;
 
@@ -338,9 +339,10 @@ public sealed partial class ContextFlowDiagnostics(
 
 	private static void CheckStaleTimestamps(IMessageContext context, List<ContextDiagnosticIssue> issues)
 	{
-		if (context.SentTimestampUtc.HasValue)
+		var sentTimestamp = context.GetSentTimestampUtc();
+		if (sentTimestamp.HasValue)
 		{
-			var age = DateTimeOffset.UtcNow - context.SentTimestampUtc.Value;
+			var age = DateTimeOffset.UtcNow - sentTimestamp.Value;
 			if (age > TimeSpan.FromHours(1))
 			{
 				issues.Add(new ContextDiagnosticIssue
@@ -368,13 +370,14 @@ public sealed partial class ContextFlowDiagnostics(
 
 	private static void CheckHighDeliveryCount(IMessageContext context, List<ContextDiagnosticIssue> issues)
 	{
-		if (context.DeliveryCount > 5)
+		var deliveryCount = context.GetDeliveryCount();
+		if (deliveryCount > 5)
 		{
 			issues.Add(new ContextDiagnosticIssue
 			{
 				Severity = DiagnosticSeverity.Warning,
 				Category = "HighDeliveryCount",
-				Description = $"Message has been delivered {context.DeliveryCount.ToString(CultureInfo.InvariantCulture)} times",
+				Description = $"Message has been delivered {deliveryCount.ToString(CultureInfo.InvariantCulture)} times",
 				Field = "DeliveryCount",
 				Recommendation = "Check for processing failures or poison messages",
 			});
@@ -413,7 +416,7 @@ public sealed partial class ContextFlowDiagnostics(
 
 	private static ContextAnomaly? CheckMissingCorrelation(IMessageContext context, string messageId)
 	{
-		if (context is { DeliveryCount: > 1, CorrelationId: null })
+		if (context is { CorrelationId: null } && context.GetDeliveryCount() > 1)
 		{
 			return new ContextAnomaly
 			{
@@ -638,12 +641,12 @@ public sealed partial class ContextFlowDiagnostics(
 	private static string? GetContextFieldValue(IMessageContext context, string fieldName) =>
 		fieldName switch
 		{
-			nameof(context.MessageId) => context.MessageId,
-			nameof(context.CorrelationId) => context.CorrelationId,
-			nameof(context.CausationId) => context.CausationId,
-			nameof(context.TenantId) => context.TenantId,
-			nameof(context.UserId) => context.UserId,
-			nameof(context.MessageType) => context.MessageType,
+			"MessageId" => context.MessageId,
+			"CorrelationId" => context.CorrelationId,
+			"CausationId" => context.CausationId,
+			"TenantId" => context.GetTenantId(),
+			"UserId" => context.GetUserId(),
+			"MessageType" => context.GetMessageType(),
 			_ => null,
 		};
 
@@ -657,22 +660,22 @@ public sealed partial class ContextFlowDiagnostics(
 	private static int CountStandardFields(IMessageContext context) =>
 		CountNonNullFields(
 			context.MessageId,
-			context.ExternalId,
-			context.UserId,
+			context.GetExternalId(),
+			context.GetUserId(),
 			context.CorrelationId,
 			context.CausationId,
-			context.TraceParent,
+			context.GetTraceParent(),
 			context.SerializerVersion(),
 			context.MessageVersion(),
 			context.ContractVersion(),
 			context.DesiredVersion(),
-			context.TenantId,
-			context.Source,
-			context.MessageType,
-			context.ContentType,
+			context.GetTenantId(),
+			context.GetSource(),
+			context.GetMessageType(),
+			context.GetContentType(),
 			context.PartitionKey(),
 			context.ReplyTo(),
-			context.SentTimestampUtc);
+			context.GetSentTimestampUtc());
 
 	private static int CountNonNullFields(params object?[] fields)
 	{
@@ -697,24 +700,24 @@ public sealed partial class ContextFlowDiagnostics(
 			var json = JsonSerializer.Serialize(new
 			{
 				context.MessageId,
-				context.ExternalId,
-				context.UserId,
+				ExternalId = context.GetExternalId(),
+				UserId = context.GetUserId(),
 				context.CorrelationId,
 				context.CausationId,
-				context.TraceParent,
+				TraceParent = context.GetTraceParent(),
 				SerializerVersion = context.SerializerVersion(),
 				MessageVersion = context.MessageVersion(),
 				ContractVersion = context.ContractVersion(),
 				DesiredVersion = context.DesiredVersion(),
-				context.TenantId,
-				context.Source,
-				context.MessageType,
-				context.ContentType,
-				context.DeliveryCount,
+				TenantId = context.GetTenantId(),
+				Source = context.GetSource(),
+				MessageType = context.GetMessageType(),
+				ContentType = context.GetContentType(),
+				DeliveryCount = context.GetDeliveryCount(),
 				PartitionKey = context.PartitionKey(),
 				ReplyTo = context.ReplyTo(),
-				context.ReceivedTimestampUtc,
-				context.SentTimestampUtc,
+				ReceivedTimestampUtc = context.GetReceivedTimestampUtc(),
+				SentTimestampUtc = context.GetSentTimestampUtc(),
 				context.Items,
 			});
 

@@ -34,7 +34,7 @@ public sealed class ErasureServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddGdprErasure(opts => opts.MaxRetryAttempts = 5);
+		services.AddGdprErasure(opts => opts.Execution.MaxRetryAttempts = 5);
 
 		// Assert
 		services.Any(d => d.ServiceType == typeof(IErasureService)).ShouldBeTrue();
@@ -192,7 +192,7 @@ public sealed class ErasureServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddGdprErasureFromConfiguration(opts => opts.MaxRetryAttempts = 3);
+		services.AddGdprErasureFromConfiguration(opts => opts.Execution.MaxRetryAttempts = 3);
 
 		// Assert
 		services.Any(d => d.ServiceType == typeof(IErasureService)).ShouldBeTrue();

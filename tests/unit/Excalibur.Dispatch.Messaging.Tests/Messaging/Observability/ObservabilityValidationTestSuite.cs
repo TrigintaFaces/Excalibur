@@ -12,7 +12,7 @@ using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Options.Performance;
 using Excalibur.Dispatch.Tests.TestFakes;
 
-using Excalibur.Data.InMemory.Inbox;
+using Excalibur.Inbox.InMemory;
 
 using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 
@@ -188,7 +188,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 			}
 
 			// Verify correlation context is available
-			if (ctx.Properties.TryGetValue("CorrelationId", out var corrId))
+			if (ctx.Items.TryGetValue("CorrelationId", out var corrId))
 			{
 				processedMessages.Add($"CorrelationId:{corrId}");
 			}
@@ -208,8 +208,8 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 
 			var message = new FakeDispatchMessage();
 			var context = new FakeMessageContext();
-			context.Properties["CorrelationId"] = correlationId;
-			context.Properties["TraceId"] = traceId;
+			context.Items["CorrelationId"] = correlationId;
+			context.Items["TraceId"] = traceId;
 
 			result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
 
@@ -324,9 +324,9 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 
 				var message = new FakeDispatchMessage();
 				var context = new FakeMessageContext();
-				context.Properties["CorrelationId"] = $"corr-{i}";
-				context.Properties["MessageIndex"] = i;
-				context.Properties["StartTime"] = operationStartTime.ToString("O");
+				context.Items["CorrelationId"] = $"corr-{i}";
+				context.Items["MessageIndex"] = i;
+				context.Items["StartTime"] = operationStartTime.ToString("O");
 
 				_ = await middleware.InvokeAsync(message, context, (msg, ctx, ct) => new ValueTask<IMessageResult>(MessageResult.Success()), CancellationToken.None).ConfigureAwait(false);
 			});

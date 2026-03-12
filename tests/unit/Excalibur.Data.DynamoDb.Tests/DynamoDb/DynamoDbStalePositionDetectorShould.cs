@@ -4,7 +4,7 @@
 using Amazon.DynamoDBStreams.Model;
 using Amazon.DynamoDBv2;
 
-using Excalibur.Data.DynamoDb.Cdc;
+using Excalibur.Cdc.DynamoDb;
 
 namespace Excalibur.Data.Tests.DynamoDb;
 

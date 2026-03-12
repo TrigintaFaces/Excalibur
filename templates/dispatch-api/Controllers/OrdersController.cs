@@ -1,4 +1,4 @@
-﻿using Company.DispatchApi.Actions;
+using Company.DispatchApi.Actions;
 using Excalibur.Dispatch.Abstractions;
 using Microsoft.AspNetCore.Mvc;
 
@@ -26,8 +26,8 @@ public class OrdersController : ControllerBase
         [FromBody] CreateOrderAction action,
         CancellationToken cancellationToken)
     {
-        var result = await _dispatcher.SendAsync(action, cancellationToken).ConfigureAwait(false);
-        return CreatedAtAction(nameof(GetOrder), new { id = result }, result);
+        var result = await _dispatcher.DispatchAsync<CreateOrderAction, Guid>(action, cancellationToken).ConfigureAwait(false);
+        return CreatedAtAction(nameof(GetOrder), new { id = result.ReturnValue }, result.ReturnValue);
     }
 
     /// <summary>
@@ -36,7 +36,7 @@ public class OrdersController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetOrder(Guid id, CancellationToken cancellationToken)
     {
-        var result = await _dispatcher.SendAsync(new GetOrderAction(id), cancellationToken).ConfigureAwait(false);
-        return Ok(result);
+        var result = await _dispatcher.DispatchAsync<GetOrderAction, OrderResult?>(new GetOrderAction(id), cancellationToken).ConfigureAwait(false);
+        return result.ReturnValue is not null ? Ok(result.ReturnValue) : NotFound();
     }
 }

@@ -81,7 +81,7 @@ public sealed class DatadogExporterOptionsShould
 		var options = new DatadogExporterOptions { ApiKey = "test-key" };
 
 		// Assert
-		options.MaxRetryAttempts.ShouldBe(3);
+		options.Retry.MaxRetryAttempts.ShouldBe(3);
 	}
 
 	[Fact]
@@ -91,7 +91,7 @@ public sealed class DatadogExporterOptionsShould
 		var options = new DatadogExporterOptions { ApiKey = "test-key" };
 
 		// Assert
-		options.RetryBaseDelay.ShouldBe(TimeSpan.FromSeconds(1));
+		options.Retry.RetryBaseDelay.ShouldBe(TimeSpan.FromSeconds(1));
 	}
 
 	[Fact]
@@ -101,7 +101,7 @@ public sealed class DatadogExporterOptionsShould
 		var options = new DatadogExporterOptions { ApiKey = "test-key" };
 
 		// Assert
-		options.Timeout.ShouldBe(TimeSpan.FromSeconds(30));
+		options.Retry.Timeout.ShouldBe(TimeSpan.FromSeconds(30));
 	}
 
 	[Fact]
@@ -219,11 +219,11 @@ public sealed class DatadogExporterOptionsShould
 		var options = new DatadogExporterOptions
 		{
 			ApiKey = "test-key",
-			MaxRetryAttempts = 5
+			Retry = new DatadogExporterRetryOptions { MaxRetryAttempts = 5 }
 		};
 
 		// Assert
-		options.MaxRetryAttempts.ShouldBe(5);
+		options.Retry.MaxRetryAttempts.ShouldBe(5);
 	}
 
 	[Fact]
@@ -233,11 +233,11 @@ public sealed class DatadogExporterOptionsShould
 		var options = new DatadogExporterOptions
 		{
 			ApiKey = "test-key",
-			RetryBaseDelay = TimeSpan.FromSeconds(2)
+			Retry = new DatadogExporterRetryOptions { RetryBaseDelay = TimeSpan.FromSeconds(2) }
 		};
 
 		// Assert
-		options.RetryBaseDelay.ShouldBe(TimeSpan.FromSeconds(2));
+		options.Retry.RetryBaseDelay.ShouldBe(TimeSpan.FromSeconds(2));
 	}
 
 	[Fact]
@@ -247,11 +247,11 @@ public sealed class DatadogExporterOptionsShould
 		var options = new DatadogExporterOptions
 		{
 			ApiKey = "test-key",
-			Timeout = TimeSpan.FromSeconds(60)
+			Retry = new DatadogExporterRetryOptions { Timeout = TimeSpan.FromSeconds(60) }
 		};
 
 		// Assert
-		options.Timeout.ShouldBe(TimeSpan.FromSeconds(60));
+		options.Retry.Timeout.ShouldBe(TimeSpan.FromSeconds(60));
 	}
 
 	[Fact]

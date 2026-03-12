@@ -12,6 +12,7 @@ using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Middleware;
@@ -263,11 +264,11 @@ public sealed partial class MetricsLoggingMiddleware : IDispatchMiddleware
 			MessageType: messageType,
 			MessageKind: DetermineMessageKind(messageType),
 			CorrelationId: context.CorrelationId,
-			TenantId: context.TenantId,
-			UserId: context.UserId,
+			TenantId: context.GetTenantId(),
+			UserId: context.GetUserId(),
 			MessageSize: includeMessageSizes ? EstimateMessageSize(message) : 0,
 			QueueName: GetContextStringValue(context, "QueueName"),
-			Source: context.Source);
+			Source: context.GetSource());
 
 	/// <summary>
 	/// Determines the message kind for metrics categorization.

@@ -14,7 +14,6 @@ This section covers the foundational concepts you need to understand to use Disp
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
-  dotnet add package Excalibur.Dispatch.Abstractions
   ```
 - Complete the [Getting Started](../getting-started/index.md) guide
 

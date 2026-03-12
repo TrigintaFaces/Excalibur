@@ -25,13 +25,19 @@ public sealed class JwtAuthenticationMiddlewareFunctionalShould
         {
             Enabled = true,
             RequireAuthentication = true,
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateSigningKey = true,
-            ValidIssuer = "test-issuer",
-            ValidAudience = "test-audience",
-            SigningKey = TestSigningKey,
+            Validation = new JwtTokenValidationOptions
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateSigningKey = true,
+            },
+            Credentials = new JwtTokenCredentialOptions
+            {
+                ValidIssuer = "test-issuer",
+                ValidAudience = "test-audience",
+                SigningKey = TestSigningKey,
+            },
         };
 
         var sanitizer = A.Fake<ITelemetrySanitizer>();
@@ -79,7 +85,7 @@ public sealed class JwtAuthenticationMiddlewareFunctionalShould
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    private static (IDispatchMessage Message, IMessageContext Context, DispatchRequestDelegate Next, IMessageResult SuccessResult) CreatePipelineFakes(
+    private static (IDispatchMessage Message, IMessageContext Context, Dictionary<string, object> Items, DispatchRequestDelegate Next, IMessageResult SuccessResult) CreatePipelineFakes(
         string? tokenInItems = null)
     {
         var message = A.Fake<IDispatchMessage>();
@@ -91,25 +97,22 @@ public sealed class JwtAuthenticationMiddlewareFunctionalShould
             items["AuthToken"] = tokenInItems;
         }
 
-        var properties = new Dictionary<string, object?>();
-
         var context = A.Fake<IMessageContext>();
         A.CallTo(() => context.Items).Returns(items);
-        A.CallTo(() => context.Properties).Returns(properties);
 
         var successResult = A.Fake<IMessageResult>();
         A.CallTo(() => successResult.Succeeded).Returns(true);
 
         DispatchRequestDelegate next = (msg, ctx, ct) => new ValueTask<IMessageResult>(successResult);
 
-        return (message, context, next, successResult);
+        return (message, context, items, next, successResult);
     }
 
     [Fact]
     public async Task SkipAuthenticationWhenDisabled()
     {
         var middleware = CreateMiddleware(new JwtAuthenticationOptions { Enabled = false });
-        var (message, context, next, successResult) = CreatePipelineFakes();
+        var (message, context, _, next, successResult) = CreatePipelineFakes();
 
         var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
@@ -123,13 +126,19 @@ public sealed class JwtAuthenticationMiddlewareFunctionalShould
         {
             Enabled = true,
             RequireAuthentication = true,
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateSigningKey = true,
-            ValidIssuer = "test-issuer",
-            ValidAudience = "test-audience",
-            SigningKey = TestSigningKey,
+            Validation = new JwtTokenValidationOptions
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateSigningKey = true,
+            },
+            Credentials = new JwtTokenCredentialOptions
+            {
+                ValidIssuer = "test-issuer",
+                ValidAudience = "test-audience",
+                SigningKey = TestSigningKey,
+            },
             AllowAnonymousMessageTypes = new HashSet<string>(StringComparer.Ordinal)
             {
                 nameof(TestAnonymousMessage),
@@ -138,7 +147,7 @@ public sealed class JwtAuthenticationMiddlewareFunctionalShould
 
         var middleware = CreateMiddleware(opts);
 
-        var (_, context, next, successResult) = CreatePipelineFakes();
+        var (_, context, _, next, successResult) = CreatePipelineFakes();
 
         // Use a real message instance to get correct GetType()
         var realMessage = new TestAnonymousMessage();
@@ -152,7 +161,7 @@ public sealed class JwtAuthenticationMiddlewareFunctionalShould
     {
         var middleware = CreateMiddleware();
         // No token in items
-        var (message, context, next, _) = CreatePipelineFakes();
+        var (message, context, _, next, _) = CreatePipelineFakes();
 
         var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
@@ -168,12 +177,15 @@ public sealed class JwtAuthenticationMiddlewareFunctionalShould
         {
             Enabled = true,
             RequireAuthentication = false,
-            ValidIssuer = "test-issuer",
-            ValidAudience = "test-audience",
-            SigningKey = TestSigningKey,
+            Credentials = new JwtTokenCredentialOptions
+            {
+                ValidIssuer = "test-issuer",
+                ValidAudience = "test-audience",
+                SigningKey = TestSigningKey,
+            },
         };
         var middleware = CreateMiddleware(opts);
-        var (message, context, next, successResult) = CreatePipelineFakes();
+        var (message, context, _, next, successResult) = CreatePipelineFakes();
 
         var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
@@ -186,18 +198,17 @@ public sealed class JwtAuthenticationMiddlewareFunctionalShould
         var token = CreateValidJwt(userId: "user-42", name: "Alice", email: "alice@test.com");
 
         var middleware = CreateMiddleware();
-        var (message, context, next, successResult) = CreatePipelineFakes(tokenInItems: token);
+        var (message, context, items, next, successResult) = CreatePipelineFakes(tokenInItems: token);
 
         var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
         result.Succeeded.ShouldBeTrue();
 
-        // Verify claims were written to Properties via the extension method
-        var properties = context.Properties;
-        properties.ShouldNotBeNull();
-        properties["UserId"].ShouldBe("user-42");
-        properties["UserName"].ShouldBe("Alice");
-        properties["Email"].ShouldBe("alice@test.com");
+        // Verify claims were written to Items via SetProperty
+        items.ShouldNotBeNull();
+        items["UserId"].ShouldBe("user-42");
+        items["UserName"].ShouldBe("Alice");
+        items["Email"].ShouldBe("alice@test.com");
     }
 
     [Fact]
@@ -206,12 +217,12 @@ public sealed class JwtAuthenticationMiddlewareFunctionalShould
         var token = CreateValidJwt(tenantId: "tenant-abc");
 
         var middleware = CreateMiddleware();
-        var (message, context, next, _) = CreatePipelineFakes(tokenInItems: token);
+        var (message, context, items, next, _) = CreatePipelineFakes(tokenInItems: token);
 
         var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
         result.Succeeded.ShouldBeTrue();
-        context.Properties["TenantId"].ShouldBe("tenant-abc");
+        items["TenantId"].ShouldBe("tenant-abc");
     }
 
     [Fact]
@@ -220,12 +231,12 @@ public sealed class JwtAuthenticationMiddlewareFunctionalShould
         var token = CreateValidJwt(roles: ["Admin", "User"]);
 
         var middleware = CreateMiddleware();
-        var (message, context, next, _) = CreatePipelineFakes(tokenInItems: token);
+        var (message, context, items, next, _) = CreatePipelineFakes(tokenInItems: token);
 
         var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
         result.Succeeded.ShouldBeTrue();
-        var roles = context.Properties["Roles"].ShouldBeOfType<List<string>>();
+        var roles = items["Roles"].ShouldBeOfType<List<string>>();
         roles.ShouldContain("Admin");
         roles.ShouldContain("User");
     }
@@ -240,18 +251,24 @@ public sealed class JwtAuthenticationMiddlewareFunctionalShould
         {
             Enabled = true,
             RequireAuthentication = true,
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateSigningKey = true,
-            ValidIssuer = "test-issuer",
-            ValidAudience = "test-audience",
-            SigningKey = TestSigningKey,
+            Validation = new JwtTokenValidationOptions
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateSigningKey = true,
+            },
+            Credentials = new JwtTokenCredentialOptions
+            {
+                ValidIssuer = "test-issuer",
+                ValidAudience = "test-audience",
+                SigningKey = TestSigningKey,
+            },
             ClockSkewSeconds = 0,
         };
 
         var middleware = CreateMiddleware(opts);
-        var (message, context, next, _) = CreatePipelineFakes(tokenInItems: token);
+        var (message, context, _, next, _) = CreatePipelineFakes(tokenInItems: token);
 
         var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
@@ -274,7 +291,7 @@ public sealed class JwtAuthenticationMiddlewareFunctionalShould
         var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
 
         var middleware = CreateMiddleware();
-        var (message, context, next, _) = CreatePipelineFakes(tokenInItems: tokenString);
+        var (message, context, _, next, _) = CreatePipelineFakes(tokenInItems: tokenString);
 
         var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
@@ -297,10 +314,8 @@ public sealed class JwtAuthenticationMiddlewareFunctionalShould
         });
 
         var items = new Dictionary<string, object>(); // No token in items
-        var properties = new Dictionary<string, object?>();
         var context = A.Fake<IMessageContext>();
         A.CallTo(() => context.Items).Returns(items);
-        A.CallTo(() => context.Properties).Returns(properties);
 
         var successResult = A.Fake<IMessageResult>();
         A.CallTo(() => successResult.Succeeded).Returns(true);
@@ -329,7 +344,7 @@ public sealed class JwtAuthenticationMiddlewareFunctionalShould
     public async Task ThrowOnNullMessage()
     {
         var middleware = CreateMiddleware();
-        var (_, context, next, _) = CreatePipelineFakes();
+        var (_, context, _, next, _) = CreatePipelineFakes();
 
         await Should.ThrowAsync<ArgumentNullException>(async () =>
             await middleware.InvokeAsync(null!, context, next, CancellationToken.None));
@@ -339,7 +354,7 @@ public sealed class JwtAuthenticationMiddlewareFunctionalShould
     public async Task ThrowOnNullContext()
     {
         var middleware = CreateMiddleware();
-        var (message, _, next, _) = CreatePipelineFakes();
+        var (message, _, _, next, _) = CreatePipelineFakes();
 
         await Should.ThrowAsync<ArgumentNullException>(async () =>
             await middleware.InvokeAsync(message, null!, next, CancellationToken.None));
@@ -349,7 +364,7 @@ public sealed class JwtAuthenticationMiddlewareFunctionalShould
     public async Task ThrowOnNullNextDelegate()
     {
         var middleware = CreateMiddleware();
-        var (message, context, _, _) = CreatePipelineFakes();
+        var (message, context, _, _, _) = CreatePipelineFakes();
 
         await Should.ThrowAsync<ArgumentNullException>(async () =>
             await middleware.InvokeAsync(message, context, null!, CancellationToken.None));
@@ -359,7 +374,7 @@ public sealed class JwtAuthenticationMiddlewareFunctionalShould
     public async Task ReturnInvalidTokenForMalformedJwt()
     {
         var middleware = CreateMiddleware();
-        var (message, context, next, _) = CreatePipelineFakes(tokenInItems: "not-a-jwt-token");
+        var (message, context, _, next, _) = CreatePipelineFakes(tokenInItems: "not-a-jwt-token");
 
         var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
@@ -373,12 +388,12 @@ public sealed class JwtAuthenticationMiddlewareFunctionalShould
         var token = CreateValidJwt();
         var middleware = CreateMiddleware();
         var before = DateTimeOffset.UtcNow;
-        var (message, context, next, _) = CreatePipelineFakes(tokenInItems: token);
+        var (message, context, items, next, _) = CreatePipelineFakes(tokenInItems: token);
 
         var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
         result.Succeeded.ShouldBeTrue();
-        var authenticatedAt = context.Properties["AuthenticatedAt"].ShouldBeOfType<DateTimeOffset>();
+        var authenticatedAt = items["AuthenticatedAt"].ShouldBeOfType<DateTimeOffset>();
         authenticatedAt.ShouldBeGreaterThanOrEqualTo(before);
         var assertionUpperBound1 = DateTimeOffset.UtcNow;
         authenticatedAt.ShouldBeLessThanOrEqualTo(assertionUpperBound1);
@@ -389,12 +404,12 @@ public sealed class JwtAuthenticationMiddlewareFunctionalShould
     {
         var token = CreateValidJwt();
         var middleware = CreateMiddleware();
-        var (message, context, next, _) = CreatePipelineFakes(tokenInItems: token);
+        var (message, context, items, next, _) = CreatePipelineFakes(tokenInItems: token);
 
         var result = await middleware.InvokeAsync(message, context, next, CancellationToken.None);
 
         result.Succeeded.ShouldBeTrue();
-        context.Properties["AuthenticationMethod"].ShouldBe("jwt");
+        items["AuthenticationMethod"].ShouldBe("jwt");
     }
 
     // Test message type for anonymous authentication bypass

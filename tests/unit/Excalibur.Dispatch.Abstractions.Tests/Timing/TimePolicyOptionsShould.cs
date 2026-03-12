@@ -53,7 +53,7 @@ public sealed class TimePolicyOptionsShould
 		var options = new TimePolicyOptions();
 
 		// Assert
-		options.HandlerTimeout.ShouldBe(TimeSpan.FromMinutes(2));
+		options.OperationTimeouts.HandlerTimeout.ShouldBe(TimeSpan.FromMinutes(2));
 	}
 
 	[Fact]
@@ -63,7 +63,7 @@ public sealed class TimePolicyOptionsShould
 		var options = new TimePolicyOptions();
 
 		// Assert
-		options.SerializationTimeout.ShouldBe(TimeSpan.FromSeconds(10));
+		options.OperationTimeouts.SerializationTimeout.ShouldBe(TimeSpan.FromSeconds(10));
 	}
 
 	[Fact]
@@ -73,7 +73,7 @@ public sealed class TimePolicyOptionsShould
 		var options = new TimePolicyOptions();
 
 		// Assert
-		options.TransportTimeout.ShouldBe(TimeSpan.FromMinutes(1));
+		options.OperationTimeouts.TransportTimeout.ShouldBe(TimeSpan.FromMinutes(1));
 	}
 
 	[Fact]
@@ -83,7 +83,7 @@ public sealed class TimePolicyOptionsShould
 		var options = new TimePolicyOptions();
 
 		// Assert
-		options.ValidationTimeout.ShouldBe(TimeSpan.FromSeconds(5));
+		options.OperationTimeouts.ValidationTimeout.ShouldBe(TimeSpan.FromSeconds(5));
 	}
 
 	[Fact]
@@ -93,7 +93,7 @@ public sealed class TimePolicyOptionsShould
 		var options = new TimePolicyOptions();
 
 		// Assert
-		options.ComplexityMultiplier.ShouldBe(2.0);
+		options.OperationTimeouts.ComplexityMultiplier.ShouldBe(2.0);
 	}
 
 	[Fact]
@@ -103,7 +103,7 @@ public sealed class TimePolicyOptionsShould
 		var options = new TimePolicyOptions();
 
 		// Assert
-		options.HeavyOperationMultiplier.ShouldBe(3.0);
+		options.OperationTimeouts.HeavyOperationMultiplier.ShouldBe(3.0);
 	}
 
 	[Fact]
@@ -123,7 +123,7 @@ public sealed class TimePolicyOptionsShould
 		var options = new TimePolicyOptions();
 
 		// Assert
-		options.UseAdaptiveTimeouts.ShouldBeFalse();
+		options.Adaptive.UseAdaptiveTimeouts.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -133,7 +133,7 @@ public sealed class TimePolicyOptionsShould
 		var options = new TimePolicyOptions();
 
 		// Assert
-		options.AdaptiveTimeoutPercentile.ShouldBe(95);
+		options.Adaptive.AdaptiveTimeoutPercentile.ShouldBe(95);
 	}
 
 	[Fact]
@@ -143,7 +143,7 @@ public sealed class TimePolicyOptionsShould
 		var options = new TimePolicyOptions();
 
 		// Assert
-		options.MinimumSampleSize.ShouldBe(100);
+		options.Adaptive.MinimumSampleSize.ShouldBe(100);
 	}
 
 	[Fact]
@@ -153,8 +153,8 @@ public sealed class TimePolicyOptionsShould
 		var options = new TimePolicyOptions();
 
 		// Assert
-		_ = options.CustomTimeouts.ShouldNotBeNull();
-		options.CustomTimeouts.ShouldBeEmpty();
+		_ = options.Overrides.CustomTimeouts.ShouldNotBeNull();
+		options.Overrides.CustomTimeouts.ShouldBeEmpty();
 	}
 
 	[Fact]
@@ -164,8 +164,8 @@ public sealed class TimePolicyOptionsShould
 		var options = new TimePolicyOptions();
 
 		// Assert
-		_ = options.MessageTypeTimeouts.ShouldNotBeNull();
-		options.MessageTypeTimeouts.ShouldBeEmpty();
+		_ = options.Overrides.MessageTypeTimeouts.ShouldNotBeNull();
+		options.Overrides.MessageTypeTimeouts.ShouldBeEmpty();
 	}
 
 	[Fact]
@@ -175,8 +175,8 @@ public sealed class TimePolicyOptionsShould
 		var options = new TimePolicyOptions();
 
 		// Assert
-		_ = options.HandlerTypeTimeouts.ShouldNotBeNull();
-		options.HandlerTypeTimeouts.ShouldBeEmpty();
+		_ = options.Overrides.HandlerTypeTimeouts.ShouldNotBeNull();
+		options.Overrides.HandlerTypeTimeouts.ShouldBeEmpty();
 	}
 
 	[Fact]
@@ -186,7 +186,7 @@ public sealed class TimePolicyOptionsShould
 		var options = new TimePolicyOptions();
 
 		// Assert
-		options.LogTimeoutEvents.ShouldBeTrue();
+		options.Observability.LogTimeoutEvents.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -196,7 +196,7 @@ public sealed class TimePolicyOptionsShould
 		var options = new TimePolicyOptions();
 
 		// Assert
-		options.IncludeTimeoutMetrics.ShouldBeTrue();
+		options.Observability.IncludeTimeoutMetrics.ShouldBeTrue();
 	}
 
 	#endregion
@@ -236,10 +236,10 @@ public sealed class TimePolicyOptionsShould
 		var options = new TimePolicyOptions();
 
 		// Act
-		options.CustomTimeouts[TimeoutOperationType.Handler] = TimeSpan.FromMinutes(3);
+		options.Overrides.CustomTimeouts[TimeoutOperationType.Handler] = TimeSpan.FromMinutes(3);
 
 		// Assert
-		options.CustomTimeouts[TimeoutOperationType.Handler].ShouldBe(TimeSpan.FromMinutes(3));
+		options.Overrides.CustomTimeouts[TimeoutOperationType.Handler].ShouldBe(TimeSpan.FromMinutes(3));
 	}
 
 	[Fact]
@@ -249,10 +249,10 @@ public sealed class TimePolicyOptionsShould
 		var options = new TimePolicyOptions();
 
 		// Act
-		options.MessageTypeTimeouts["MyNamespace.MyMessage"] = TimeSpan.FromSeconds(45);
+		options.Overrides.MessageTypeTimeouts["MyNamespace.MyMessage"] = TimeSpan.FromSeconds(45);
 
 		// Assert
-		options.MessageTypeTimeouts["MyNamespace.MyMessage"].ShouldBe(TimeSpan.FromSeconds(45));
+		options.Overrides.MessageTypeTimeouts["MyNamespace.MyMessage"].ShouldBe(TimeSpan.FromSeconds(45));
 	}
 
 	[Fact]
@@ -262,10 +262,10 @@ public sealed class TimePolicyOptionsShould
 		var options = new TimePolicyOptions();
 
 		// Act
-		options.HandlerTypeTimeouts["MyNamespace.MyHandler"] = TimeSpan.FromMinutes(1);
+		options.Overrides.HandlerTypeTimeouts["MyNamespace.MyHandler"] = TimeSpan.FromMinutes(1);
 
 		// Assert
-		options.HandlerTypeTimeouts["MyNamespace.MyHandler"].ShouldBe(TimeSpan.FromMinutes(1));
+		options.Overrides.HandlerTypeTimeouts["MyNamespace.MyHandler"].ShouldBe(TimeSpan.FromMinutes(1));
 	}
 
 	#endregion
@@ -327,7 +327,10 @@ public sealed class TimePolicyOptionsShould
 		// Arrange
 		var options = new TimePolicyOptions
 		{
-			HandlerTimeout = TimeSpan.FromMinutes(10),
+			OperationTimeouts = new TimePolicyOperationTimeoutOptions
+			{
+				HandlerTimeout = TimeSpan.FromMinutes(10),
+			},
 			MaxTimeout = TimeSpan.FromMinutes(5),
 		};
 
@@ -345,7 +348,10 @@ public sealed class TimePolicyOptionsShould
 		// Arrange
 		var options = new TimePolicyOptions
 		{
-			TransportTimeout = TimeSpan.FromMinutes(10),
+			OperationTimeouts = new TimePolicyOperationTimeoutOptions
+			{
+				TransportTimeout = TimeSpan.FromMinutes(10),
+			},
 			MaxTimeout = TimeSpan.FromMinutes(5),
 		};
 
@@ -363,8 +369,11 @@ public sealed class TimePolicyOptionsShould
 		// Arrange
 		var options = new TimePolicyOptions
 		{
-			SerializationTimeout = TimeSpan.FromMinutes(2),
-			HandlerTimeout = TimeSpan.FromMinutes(2),
+			OperationTimeouts = new TimePolicyOperationTimeoutOptions
+			{
+				SerializationTimeout = TimeSpan.FromMinutes(2),
+				HandlerTimeout = TimeSpan.FromMinutes(2),
+			},
 		};
 
 		// Act
@@ -372,7 +381,7 @@ public sealed class TimePolicyOptionsShould
 
 		// Assert
 		results.ShouldNotBeEmpty();
-		results.ShouldContain(r => r.ErrorMessage.Contains("SerializationTimeout should be less than HandlerTimeout"));
+		results.ShouldContain(r => r.ErrorMessage.Contains("SerializationTimeout should be less than"));
 	}
 
 	[Fact]
@@ -381,8 +390,11 @@ public sealed class TimePolicyOptionsShould
 		// Arrange
 		var options = new TimePolicyOptions
 		{
-			ValidationTimeout = TimeSpan.FromMinutes(3),
-			HandlerTimeout = TimeSpan.FromMinutes(2),
+			OperationTimeouts = new TimePolicyOperationTimeoutOptions
+			{
+				ValidationTimeout = TimeSpan.FromMinutes(3),
+				HandlerTimeout = TimeSpan.FromMinutes(2),
+			},
 		};
 
 		// Act
@@ -390,7 +402,7 @@ public sealed class TimePolicyOptionsShould
 
 		// Assert
 		results.ShouldNotBeEmpty();
-		results.ShouldContain(r => r.ErrorMessage.Contains("ValidationTimeout should be less than HandlerTimeout"));
+		results.ShouldContain(r => r.ErrorMessage.Contains("ValidationTimeout should be less than"));
 	}
 
 	[Fact]
@@ -401,7 +413,7 @@ public sealed class TimePolicyOptionsShould
 		{
 			MaxTimeout = TimeSpan.FromMinutes(5),
 		};
-		options.CustomTimeouts[TimeoutOperationType.Handler] = TimeSpan.FromMinutes(10);
+		options.Overrides.CustomTimeouts[TimeoutOperationType.Handler] = TimeSpan.FromMinutes(10);
 
 		// Act
 		var results = options.Validate().ToList();
@@ -419,7 +431,7 @@ public sealed class TimePolicyOptionsShould
 		{
 			MaxTimeout = TimeSpan.FromMinutes(5),
 		};
-		options.MessageTypeTimeouts["MyNamespace.MyMessage"] = TimeSpan.FromMinutes(10);
+		options.Overrides.MessageTypeTimeouts["MyNamespace.MyMessage"] = TimeSpan.FromMinutes(10);
 
 		// Act
 		var results = options.Validate().ToList();
@@ -437,7 +449,7 @@ public sealed class TimePolicyOptionsShould
 		{
 			MaxTimeout = TimeSpan.FromMinutes(5),
 		};
-		options.HandlerTypeTimeouts["MyNamespace.MyHandler"] = TimeSpan.FromMinutes(10);
+		options.Overrides.HandlerTypeTimeouts["MyNamespace.MyHandler"] = TimeSpan.FromMinutes(10);
 
 		// Act
 		var results = options.Validate().ToList();
@@ -455,7 +467,10 @@ public sealed class TimePolicyOptionsShould
 		{
 			DefaultTimeout = TimeSpan.FromMinutes(10),
 			MaxTimeout = TimeSpan.FromMinutes(5),
-			HandlerTimeout = TimeSpan.FromMinutes(10),
+			OperationTimeouts = new TimePolicyOperationTimeoutOptions
+			{
+				HandlerTimeout = TimeSpan.FromMinutes(10),
+			},
 		};
 
 		// Act

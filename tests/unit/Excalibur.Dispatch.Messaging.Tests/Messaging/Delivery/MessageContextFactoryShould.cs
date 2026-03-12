@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.ZeroAlloc;
@@ -129,9 +130,9 @@ public sealed class MessageContextFactoryShould
 		{
 			MessageId = "parent-msg-id",
 			CorrelationId = "correlation-123",
-			TenantId = "tenant-abc",
-			UserId = "user-xyz",
 		};
+		parentContext.GetOrCreateIdentityFeature().TenantId = "tenant-abc";
+		parentContext.GetOrCreateIdentityFeature().UserId = "user-xyz";
 		parentContext.Initialize(_serviceProvider);
 
 		// Act
@@ -143,8 +144,8 @@ public sealed class MessageContextFactoryShould
 
 		// Child should have propagated identifiers
 		childContext.CorrelationId.ShouldBe(parentContext.CorrelationId);
-		childContext.TenantId.ShouldBe(parentContext.TenantId);
-		childContext.UserId.ShouldBe(parentContext.UserId);
+		childContext.GetTenantId().ShouldBe(parentContext.GetTenantId());
+		childContext.GetUserId().ShouldBe(parentContext.GetUserId());
 
 		// Child should have parent's MessageId as CausationId
 		childContext.CausationId.ShouldBe(parentContext.MessageId);

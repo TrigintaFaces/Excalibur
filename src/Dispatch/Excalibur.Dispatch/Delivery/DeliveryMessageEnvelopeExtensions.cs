@@ -50,6 +50,12 @@ public static class DeliveryMessageEnvelopeExtensions
 		// Register optimized dispatcher
 		_ = services.RemoveAll<IDispatcher>();
 		_ = services.AddSingleton<IDispatcher, Dispatcher>();
+		_ = services.RemoveAll<IStreamingDispatcher>();
+		_ = services.AddSingleton<IStreamingDispatcher>(static sp =>
+			(IStreamingDispatcher)sp.GetRequiredService<IDispatcher>());
+		_ = services.RemoveAll<IProgressDispatcher>();
+		_ = services.AddSingleton<IProgressDispatcher>(static sp =>
+			(IProgressDispatcher)sp.GetRequiredService<IDispatcher>());
 
 		// Register context factory
 		services.TryAddSingleton<IMessageContextPool>(static sp => new MessageContextPool(sp));

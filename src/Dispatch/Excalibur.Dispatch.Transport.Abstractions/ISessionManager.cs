@@ -9,12 +9,14 @@ namespace Excalibur.Dispatch.Transport;
 /// Unified session manager interface that combines all session management capabilities.
 /// </summary>
 /// <remarks>
-/// This interface consolidates lock coordination, session information, lifecycle management, state management, and advanced locking to
-/// provide a complete session management solution.
+/// This interface consolidates lock coordination, session information, lifecycle management, state management,
+/// checkpoint management, and advanced locking to provide a complete session management solution.
 /// </remarks>
 public interface ISessionManager :
 	ISessionLockCoordinator,
 	ISessionInfoProvider,
 	ISessionLifecycleManager,
+	ISessionCleanup,
 	ISessionStateManager,
+	ISessionCheckpointManager,
 	IAdvancedSessionLocking;

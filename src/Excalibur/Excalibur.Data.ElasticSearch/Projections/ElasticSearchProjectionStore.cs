@@ -690,13 +690,13 @@ public sealed partial class ElasticSearchProjectionStore<
 				settings = settings.DisableDirectStreaming();
 			}
 
-			if (!string.IsNullOrWhiteSpace(_options.ApiKey))
+			if (!string.IsNullOrWhiteSpace(_options.Auth.ApiKey))
 			{
-				settings = settings.Authentication(new ApiKey(_options.ApiKey));
+				settings = settings.Authentication(new ApiKey(_options.Auth.ApiKey));
 			}
-			else if (!string.IsNullOrWhiteSpace(_options.Username) && !string.IsNullOrWhiteSpace(_options.Password))
+			else if (!string.IsNullOrWhiteSpace(_options.Auth.Username) && !string.IsNullOrWhiteSpace(_options.Auth.Password))
 			{
-				settings = settings.Authentication(new BasicAuthentication(_options.Username, _options.Password));
+				settings = settings.Authentication(new BasicAuthentication(_options.Auth.Username, _options.Auth.Password));
 			}
 
 			_client = new ElasticsearchClient(settings);

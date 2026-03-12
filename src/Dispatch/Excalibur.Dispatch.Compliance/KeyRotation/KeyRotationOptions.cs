@@ -47,44 +47,19 @@ public sealed class KeyRotationOptions
 	public int MaxConcurrentRotations { get; set; } = 4;
 
 	/// <summary>
-	/// Gets or sets the timeout for individual rotation operations.
-	/// </summary>
-	public TimeSpan RotationTimeout { get; set; } = TimeSpan.FromMinutes(5);
-
-	/// <summary>
 	/// Gets or sets a value indicating whether to record metrics for rotation operations.
 	/// </summary>
 	public bool EnableMetrics { get; set; } = true;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to retry failed rotations.
+	/// Gets or sets the retry options for failed rotation operations.
 	/// </summary>
-	public bool RetryFailedRotations { get; set; } = true;
+	public KeyRotationRetryOptions Retry { get; set; } = new();
 
 	/// <summary>
-	/// Gets or sets the maximum number of retry attempts for failed rotations.
+	/// Gets or sets the distributed lock options for rotation operations.
 	/// </summary>
-	[Range(0, int.MaxValue)]
-	public int MaxRetryAttempts { get; set; } = 3;
-
-	/// <summary>
-	/// Gets or sets the delay between retry attempts.
-	/// </summary>
-	public TimeSpan RetryDelay { get; set; } = TimeSpan.FromMinutes(5);
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to skip keys that are already being rotated by another instance.
-	/// </summary>
-	/// <remarks>
-	/// This is important for distributed deployments where multiple instances
-	/// may be running the rotation service.
-	/// </remarks>
-	public bool SkipLockedKeys { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the duration to hold a rotation lock on a key.
-	/// </summary>
-	public TimeSpan LockDuration { get; set; } = TimeSpan.FromMinutes(10);
+	public KeyRotationLockOptions Lock { get; set; } = new();
 
 	/// <summary>
 	/// Gets the rotation policy for a key with the specified purpose.

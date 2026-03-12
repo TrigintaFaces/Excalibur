@@ -99,8 +99,7 @@ logger.LogInformation("");
 
 // Create a V1 event (simulating legacy data)
 var v1Event = new UserCreatedV1(
-	AggregateId: "user-001",
-	AggregateVersion: 1,
+	UserId: "user-001",
 	Name: "John Doe",
 	Email: "john@example.com");
 
@@ -160,8 +159,7 @@ logger.LogInformation("Demonstrating address string to structured conversion");
 logger.LogInformation("");
 
 var v2WithAddress = new UserCreatedV2(
-	AggregateId: "user-002",
-	AggregateVersion: 1,
+	UserId: "user-002",
 	Name: "Jane Smith",
 	Email: "jane@example.com",
 	Address: "123 Main Street, Springfield, IL 62701, USA");

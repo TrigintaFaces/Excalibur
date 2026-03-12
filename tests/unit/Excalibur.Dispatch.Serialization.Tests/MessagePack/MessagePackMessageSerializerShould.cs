@@ -3,67 +3,53 @@
 
 using Excalibur.Dispatch.Abstractions.Serialization;
 
-using Microsoft.Extensions.Options;
-
 using Excalibur.Dispatch.Serialization.MessagePack;
 using MessagePack;
 
 namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 
 /// <summary>
-/// Unit tests for <see cref="MessagePackMessageSerializer" />.
+/// Unit tests for <see cref="MessagePackSerializer" />.
 /// </summary>
 [Trait("Component", "Serialization")]
 [Trait("Category", "Unit")]
 public sealed class MessagePackMessageSerializerShould : UnitTestBase
 {
-	private readonly MessagePackMessageSerializer _sut;
+	private readonly Serialization.MessagePack.MessagePackSerializer _sut;
 
 	public MessagePackMessageSerializerShould()
 	{
-		var options = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions());
-		_sut = new MessagePackMessageSerializer(options);
+		_sut = new Serialization.MessagePack.MessagePackSerializer();
 	}
-
-	#region Constructor Tests
-
-	[Fact]
-	public void Constructor_WithValidOptions_CreatesSerializer()
-	{
-		// Arrange
-		var options = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions());
-
-		// Act
-		var serializer = new MessagePackMessageSerializer(options);
-
-		// Assert
-		_ = serializer.ShouldNotBeNull();
-	}
-
-	[Fact]
-	public void Constructor_WithNullOptions_ThrowsArgumentNullException()
-	{
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			new MessagePackMessageSerializer(null!));
-	}
-
-	#endregion Constructor Tests
 
 	#region Property Tests
 
 	[Fact]
-	public void SerializerName_ReturnsMessagePack()
+	public void Name_ReturnsMessagePack()
 	{
 		// Act & Assert
-		_sut.SerializerName.ShouldBe("MessagePack");
+		_sut.Name.ShouldBe("MessagePack");
 	}
 
 	[Fact]
-	public void SerializerVersion_ReturnsExpectedVersion()
+	public void Version_ReturnsNonEmptyString()
 	{
 		// Act & Assert
-		_sut.SerializerVersion.ShouldBe("1.0.0");
+		_sut.Version.ShouldNotBeNullOrEmpty();
+	}
+
+	[Fact]
+	public void Version_ReturnsValidVersionFormat()
+	{
+		// Act
+		var version = _sut.Version;
+
+		// Assert - Either valid version or "Unknown"
+		if (version != "Unknown")
+		{
+			System.Version.TryParse(version, out var parsedVersion).ShouldBeTrue();
+			_ = parsedVersion.ShouldNotBeNull();
+		}
 	}
 
 	#endregion Property Tests
@@ -77,7 +63,7 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 		var message = new TestMessage { Id = 42, Name = "Test" };
 
 		// Act
-		var result = _sut.Serialize(message);
+		var result = _sut.SerializeToBytes(message);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -85,11 +71,13 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 	}
 
 	[Fact]
-	public void Serialize_WithNullMessage_ThrowsArgumentNullException()
+	public void Serialize_WithNullMessage_ProducesValidOutput()
 	{
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			_sut.Serialize<TestMessage>(null!));
+		// Act - New consolidated serializer follows STJ pattern: null is serializable
+		var result = _sut.SerializeToBytes<TestMessage>(null!);
+
+		// Assert - MessagePack serializes null as nil (0xC0)
+		_ = result.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -99,7 +87,7 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 		var message = new TestMessage { Id = 1, Name = string.Empty };
 
 		// Act
-		var result = _sut.Serialize(message);
+		var result = _sut.SerializeToBytes(message);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -114,7 +102,7 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 		var message = new TestMessage { Id = 99, Name = largeString };
 
 		// Act
-		var result = _sut.Serialize(message);
+		var result = _sut.SerializeToBytes(message);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -128,7 +116,7 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 		var message = new TestMessage { Id = 0, Name = "Zero" };
 
 		// Act
-		var result = _sut.Serialize(message);
+		var result = _sut.SerializeToBytes(message);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -141,7 +129,7 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 		var message = new TestMessage { Id = -999, Name = "Negative" };
 
 		// Act
-		var result = _sut.Serialize(message);
+		var result = _sut.SerializeToBytes(message);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -156,7 +144,7 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 	{
 		// Arrange
 		var original = new TestMessage { Id = 123, Name = "Deserialize Test" };
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<TestMessage>(bytes);
@@ -170,9 +158,10 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 	[Fact]
 	public void Deserialize_WithNullData_ThrowsArgumentNullException()
 	{
-		// Act & Assert
+		// Act & Assert - Must call extension method explicitly; instance method resolves
+		// via implicit byte[]->ReadOnlySpan conversion, bypassing the null guard.
 		_ = Should.Throw<ArgumentNullException>(() =>
-			_sut.Deserialize<TestMessage>(null!));
+			SerializerExtensions.Deserialize<TestMessage>(_sut, (byte[])null!));
 	}
 
 	[Fact]
@@ -180,7 +169,7 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 	{
 		// Arrange
 		var original = new TestMessage { Id = 1, Name = "Unicode: \u00e9\u00e0\u00fc\u4e2d\u6587" };
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<TestMessage>(bytes);
@@ -194,7 +183,7 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 	{
 		// Arrange
 		var original = new TestMessage { Id = 2, Name = "Special: \t\n\r\"'\\/" };
-		var bytes = _sut.Serialize(original);
+		var bytes = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<TestMessage>(bytes);
@@ -204,15 +193,15 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 	}
 
 	[Fact]
-	public void Deserialize_WhenResultIsNull_ThrowsInvalidOperationException()
+	public void Deserialize_WhenResultIsNull_ThrowsSerializationException()
 	{
 		// Arrange - MessagePack nil value is a single byte: 0xC0.
 		// When deserialized as a reference type (TestMessage), MessagePack returns null,
-		// which triggers the ?? throw path on line 55-56 of MessagePackMessageSerializer.
+		// which triggers the NullResult path wrapped in SerializationException.
 		var nilData = new byte[] { 0xC0 };
 
 		// Act & Assert
-		_ = Should.Throw<InvalidOperationException>(() =>
+		_ = Should.Throw<SerializationException>(() =>
 			_sut.Deserialize<TestMessage>(nilData));
 	}
 
@@ -227,7 +216,7 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 		var original = new TestMessage { Id = 456, Name = "RoundTrip Test" };
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var deserialized = _sut.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -243,7 +232,7 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 		var original = new TestMessage { Id = 0, Name = "Zero" };
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var deserialized = _sut.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -257,7 +246,7 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 		var original = new TestMessage { Id = -999, Name = "Negative" };
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var deserialized = _sut.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -271,7 +260,7 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 		var original = new TestMessage { Id = int.MaxValue, Name = "Max" };
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var deserialized = _sut.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -285,7 +274,7 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 		var original = new TestMessage { Id = int.MinValue, Name = "Min" };
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var deserialized = _sut.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -297,10 +286,10 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 	#region Interface Implementation Tests
 
 	[Fact]
-	public void ImplementsIMessageSerializer()
+	public void ImplementsISerializer()
 	{
 		// Assert
-		_ = _sut.ShouldBeAssignableTo<IMessageSerializer>();
+		_ = _sut.ShouldBeAssignableTo<ISerializer>();
 	}
 
 	#endregion Interface Implementation Tests
@@ -311,15 +300,13 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 	public void Serialize_WithCompression_Succeeds()
 	{
 		// Arrange
-		var options = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions
-		{
-			UseLz4Compression = true,
-		});
-		var serializer = new MessagePackMessageSerializer(options);
+		var options = MessagePackSerializerOptions.Standard
+			.WithCompression(MessagePackCompression.Lz4BlockArray);
+		var serializer = new Serialization.MessagePack.MessagePackSerializer(options);
 		var message = new TestMessage { Id = 42, Name = "Compression Test" };
 
 		// Act
-		var result = serializer.Serialize(message);
+		var result = serializer.SerializeToBytes(message);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -329,15 +316,13 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 	public void Serialize_AndDeserialize_WithCompression_RoundTrips()
 	{
 		// Arrange
-		var options = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions
-		{
-			UseLz4Compression = true,
-		});
-		var serializer = new MessagePackMessageSerializer(options);
+		var options = MessagePackSerializerOptions.Standard
+			.WithCompression(MessagePackCompression.Lz4BlockArray);
+		var serializer = new Serialization.MessagePack.MessagePackSerializer(options);
 		var original = new TestMessage { Id = 789, Name = "Compression RoundTrip" };
 
 		// Act
-		var serialized = serializer.Serialize(original);
+		var serialized = serializer.SerializeToBytes(original);
 		var deserialized = serializer.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -346,20 +331,18 @@ public sealed class MessagePackMessageSerializerShould : UnitTestBase
 	}
 
 	[Fact]
-	public void Deserialize_WithCompression_WhenResultIsNull_ThrowsInvalidOperationException()
+	public void Deserialize_WithCompression_WhenResultIsNull_ThrowsSerializationException()
 	{
 		// Arrange - Test the null-result branch with compression enabled.
 		// MessagePack nil (0xC0) is not compressed, but a serializer configured with
 		// LZ4 compression can still handle uncompressed nil.
-		var options = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions
-		{
-			UseLz4Compression = true,
-		});
-		var serializer = new MessagePackMessageSerializer(options);
+		var options = MessagePackSerializerOptions.Standard
+			.WithCompression(MessagePackCompression.Lz4BlockArray);
+		var serializer = new Serialization.MessagePack.MessagePackSerializer(options);
 		var nilData = new byte[] { 0xC0 };
 
 		// Act & Assert
-		_ = Should.Throw<InvalidOperationException>(() =>
+		_ = Should.Throw<SerializationException>(() =>
 			serializer.Deserialize<TestMessage>(nilData));
 	}
 

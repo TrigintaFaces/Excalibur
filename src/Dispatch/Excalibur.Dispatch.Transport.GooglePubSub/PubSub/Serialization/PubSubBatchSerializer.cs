@@ -6,7 +6,7 @@ using Excalibur.Dispatch.Abstractions.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Transport.GooglePubSub;
 
 using Google.Cloud.PubSub.V1;
@@ -23,7 +23,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 [RequiresUnreferencedCode("Uses reflection-based serialization that may require unreferenced types")]
 public sealed class PubSubBatchSerializer : IDisposable
 {
-	private readonly IMessageSerializer _serializer;
+	private readonly DispatchJsonSerializer _serializer;
 	private readonly IOptions<PubSubSerializationOptions> _options;
 	private readonly ILogger<PubSubBatchSerializer> _logger;
 	private readonly ArrayPool<byte> _arrayPool;
@@ -33,7 +33,7 @@ public sealed class PubSubBatchSerializer : IDisposable
 	/// Initializes a new instance of the <see cref="PubSubBatchSerializer" /> class.
 	/// </summary>
 	public PubSubBatchSerializer(
-		IMessageSerializer serializer,
+		DispatchJsonSerializer serializer,
 		IOptions<PubSubSerializationOptions> options,
 		ILogger<PubSubBatchSerializer> logger)
 	{
@@ -42,8 +42,8 @@ public sealed class PubSubBatchSerializer : IDisposable
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 		_arrayPool = ArrayPool<byte>.Create(
-			options.Value.MaxBufferSize,
-			options.Value.MaxBuffersPerBucket);
+			options.Value.Buffer.MaxBufferSize,
+			options.Value.Buffer.MaxBuffersPerBucket);
 
 		_parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
 	}

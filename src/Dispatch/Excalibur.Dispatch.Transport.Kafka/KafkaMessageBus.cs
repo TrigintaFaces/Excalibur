@@ -7,9 +7,9 @@ using System.Text;
 using Confluent.Kafka;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Abstractions.Transport;
-using Excalibur.Dispatch.Extensions;
 
 using Microsoft.Extensions.Logging;
 
@@ -66,7 +66,7 @@ public sealed partial class KafkaMessageBus(
 			? options.Topic
 			: cloudEventOptions?.DefaultTopic ?? string.Empty;
 
-	private readonly bool _enableTransactions = cloudEventOptions?.EnableTransactions == true;
+	private readonly bool _enableTransactions = cloudEventOptions?.Producer.EnableTransactions == true;
 	private readonly bool _autoCreateTopics = cloudEventOptions?.AutoCreateTopics == true;
 
 	private readonly SemaphoreSlim _transactionLock = new(1, 1);

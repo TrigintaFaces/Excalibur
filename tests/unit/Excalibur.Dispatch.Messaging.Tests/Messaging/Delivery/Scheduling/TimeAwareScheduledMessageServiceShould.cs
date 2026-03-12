@@ -4,10 +4,11 @@
 using System.Collections.Concurrent;
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Delivery.Registry;
 using Excalibur.Dispatch.Options.Scheduling;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -27,9 +28,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 	{
 		var schedule = CreateDueSchedule(typeof(TestActionMessage), interval: TimeSpan.FromMinutes(5));
 		var store = new SequenceScheduleStore([schedule], []);
-		var serializer = A.Fake<IJsonSerializer>();
-		_ = A.CallTo(() => serializer.DeserializeAsync(A<string>._, A<Type>._))
-			.ReturnsLazily((string _, Type _) => Task.FromResult<object?>(new TestActionMessage()));
+		var serializer = new DispatchJsonSerializer();
 
 		var dispatcher = A.Fake<IDispatcher>();
 		var dispatchCount = 0;
@@ -60,9 +59,9 @@ public sealed class TimeAwareScheduledMessageServiceShould
 
 		_ = capturedContext.ShouldNotBeNull();
 		capturedContext.CorrelationId.ShouldBe(schedule.CorrelationId);
-		capturedContext.TraceParent.ShouldBe(schedule.TraceParent);
-		capturedContext.TenantId.ShouldBe(schedule.TenantId);
-		capturedContext.UserId.ShouldBe(schedule.UserId);
+		capturedContext.GetTraceParent().ShouldBe(schedule.TraceParent);
+		capturedContext.GetTenantId().ShouldBe(schedule.TenantId);
+		capturedContext.GetUserId().ShouldBe(schedule.UserId);
 
 		timeoutMonitor.CompletedOperations.ShouldNotBeEmpty();
 		timeoutMonitor.CompletedOperations[0].Success.ShouldBeTrue();
@@ -74,9 +73,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 	{
 		var schedule = CreateDueSchedule(typeof(TestActionMessage), interval: null);
 		var store = new SequenceScheduleStore([schedule], []);
-		var serializer = A.Fake<IJsonSerializer>();
-		_ = A.CallTo(() => serializer.DeserializeAsync(A<string>._, A<Type>._))
-			.ReturnsLazily((string _, Type _) => Task.FromResult<object?>(new TestActionMessage()));
+		var serializer = new DispatchJsonSerializer();
 
 		var dispatcher = A.Fake<IDispatcher>();
 		_ = A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchAction>._, A<IMessageContext>._, A<CancellationToken>._))
@@ -98,11 +95,12 @@ public sealed class TimeAwareScheduledMessageServiceShould
 	[Fact]
 	public async Task SkipDispatchAndPersistenceWhenDeserializationFails()
 	{
+		// Use malformed JSON that will cause JsonSerializer.Deserialize to throw JsonException.
+		// Valid (non-whitespace) string but not valid JSON, so deserialization genuinely fails.
 		var schedule = CreateDueSchedule(typeof(TestActionMessage), interval: TimeSpan.FromMinutes(1));
+		schedule.MessageBody = "<<invalid-json>>";
 		var store = new SequenceScheduleStore([schedule], []);
-		var serializer = A.Fake<IJsonSerializer>();
-		_ = A.CallTo(() => serializer.DeserializeAsync(A<string>._, A<Type>._))
-			.ReturnsLazily((string _, Type _) => Task.FromResult<object?>(null));
+		var serializer = new DispatchJsonSerializer();
 
 		var dispatcher = A.Fake<IDispatcher>();
 		var timeoutMonitor = new RecordingTimeoutMonitor();
@@ -129,7 +127,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 	{
 		var schedule = CreateDueSchedule("NonExistent.Message.Type, MissingAssembly", interval: TimeSpan.FromMinutes(1));
 		var store = new SequenceScheduleStore([schedule], []);
-		var serializer = A.Fake<IJsonSerializer>();
+		var serializer = new DispatchJsonSerializer();
 		var dispatcher = A.Fake<IDispatcher>();
 		var timeoutMonitor = new RecordingTimeoutMonitor();
 		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy(), timeoutMonitor);
@@ -146,7 +144,6 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		timeoutMonitor.StartedOperationCount.ShouldBeGreaterThanOrEqualTo(1);
 		timeoutMonitor.CompletedOperations.ShouldNotBeEmpty();
 		timeoutMonitor.CompletedOperations.All(static completion => completion.TokenWasNull == false).ShouldBeTrue();
-		A.CallTo(() => serializer.DeserializeAsync(A<string>._, A<Type>._)).MustNotHaveHappened();
 		A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchAction>._, A<IMessageContext>._, A<CancellationToken>._)).MustNotHaveHappened();
 		store.StoreCalls.ShouldBe(0);
 	}
@@ -155,7 +152,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 	public async Task DisposeAsyncStoreDuringStop()
 	{
 		var store = new SequenceScheduleStore([]);
-		var serializer = A.Fake<IJsonSerializer>();
+		var serializer = new DispatchJsonSerializer();
 		var dispatcher = A.Fake<IDispatcher>();
 		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy(), new RecordingTimeoutMonitor());
 
@@ -169,7 +166,7 @@ public sealed class TimeAwareScheduledMessageServiceShould
 	private static TimeAwareScheduledMessageService CreateService(
 		SequenceScheduleStore store,
 		IDispatcher dispatcher,
-		IJsonSerializer serializer,
+		DispatchJsonSerializer serializer,
 		ITimePolicy timePolicy,
 		ITimeoutMonitor timeoutMonitor) =>
 		new(
@@ -401,4 +398,3 @@ public sealed class TimeAwareScheduledMessageServiceShould
 
 	private sealed class TestActionMessage : IDispatchAction;
 }
-

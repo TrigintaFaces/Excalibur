@@ -1,4 +1,5 @@
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Messaging;
 
 namespace Excalibur.Dispatch.Tests.Messaging;
@@ -53,12 +54,15 @@ public sealed class MessageMetadataShould
 		context.MessageId = "msg-ctx";
 		context.CorrelationId = "corr-ctx";
 		context.CausationId = "cause-ctx";
-		context.TraceParent = "trace-ctx";
-		context.TenantId = "tenant-ctx";
-		context.UserId = "user-ctx";
-		context.ContentType = "text/plain";
-		// SerializerVersion, MessageVersion, ContractVersion are extension methods
-		// that read from Properties/Items — set via the extensions
+
+		// Identity features
+		var identity = context.GetOrCreateIdentityFeature();
+		identity.TraceParent = "trace-ctx";
+		identity.TenantId = "tenant-ctx";
+		identity.UserId = "user-ctx";
+
+		// Items-based properties
+		context.SetContentType("text/plain");
 		context.SerializerVersion("2.0.0");
 		context.MessageVersion("3.0.0");
 		context.ContractVersion("4.0.0");

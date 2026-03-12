@@ -52,8 +52,8 @@ public sealed class ClaimCheckMessageSerializerDepthShould
 		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, options);
 		var message = new TestDto { Id = 42 };
 
-		// Act
-		var result = serializer.Serialize(message);
+		// Act — uses SerializeToBytes extension which calls Serialize(T, IBufferWriter<byte>)
+		var result = serializer.SerializeToBytes(message);
 
 		// Assert
 		result.ShouldNotBeEmpty();
@@ -69,7 +69,7 @@ public sealed class ClaimCheckMessageSerializerDepthShould
 
 		// Act & Assert
 		var ex = Should.Throw<NotSupportedException>(() =>
-			serializer.Serialize(new TestDto { Id = 1, Name = "large" }));
+			serializer.SerializeToBytes(new TestDto { Id = 1, Name = "large" }));
 		ex.Message.ShouldContain("SerializeAsync");
 	}
 
@@ -80,7 +80,7 @@ public sealed class ClaimCheckMessageSerializerDepthShould
 		var serializer = new ClaimCheckMessageSerializer(_fakeProvider);
 		var json = System.Text.Encoding.UTF8.GetBytes("{\"Id\":7}");
 
-		// Act
+		// Act — uses Deserialize<T>(byte[]) extension which calls Deserialize<T>(ReadOnlySpan<byte>)
 		var result = serializer.Deserialize<TestDto>(json);
 
 		// Assert
@@ -133,25 +133,17 @@ public sealed class ClaimCheckMessageSerializerDepthShould
 	}
 
 	[Fact]
-	public void SerializerName_IncludesBaseSerializerName()
+	public void Name_IncludesBaseSerializerName()
 	{
 		var serializer = new ClaimCheckMessageSerializer(_fakeProvider);
-		serializer.SerializerName.ShouldStartWith("ClaimCheck-");
+		serializer.Name.ShouldStartWith("ClaimCheck-");
 	}
 
 	[Fact]
-	public void SerializerVersion_Returns100()
+	public void Version_Returns100()
 	{
 		var serializer = new ClaimCheckMessageSerializer(_fakeProvider);
-		serializer.SerializerVersion.ShouldBe("1.0.0");
-	}
-
-	[Fact]
-	public void Format_IncludesBaseFormat()
-	{
-		var serializer = new ClaimCheckMessageSerializer(_fakeProvider);
-		serializer.Format.ShouldStartWith("ClaimCheck(");
-		serializer.Format.ShouldEndWith(")");
+		serializer.Version.ShouldBe("1.0.0");
 	}
 
 	[Fact]

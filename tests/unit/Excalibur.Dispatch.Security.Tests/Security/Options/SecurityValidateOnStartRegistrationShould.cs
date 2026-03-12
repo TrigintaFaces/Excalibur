@@ -278,9 +278,9 @@ public sealed class SecurityValidateOnStartRegistrationShould
 		{
 			opts.Enabled = true;
 			opts.ClockSkewSeconds = 300;
-			opts.ValidIssuer = "https://auth.example.com";
-			opts.ValidAudience = "my-api";
-			opts.SigningKey = "super-secret-key-that-is-long-enough-for-hmac";
+			opts.Credentials.ValidIssuer = "https://auth.example.com";
+			opts.Credentials.ValidAudience = "my-api";
+			opts.Credentials.SigningKey = "super-secret-key-that-is-long-enough-for-hmac";
 		});
 
 		// Act

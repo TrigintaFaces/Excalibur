@@ -48,7 +48,8 @@ public sealed class AspNetCoreAuthorizationMiddlewareDepthShould : UnitTestBase
 		var middleware = CreateMiddleware();
 		var message = new PolicyProtectedMessage();
 		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.GetItem<Type>("HandlerType")).Returns(null);
+		var items = new Dictionary<string, object>();
+		A.CallTo(() => context.Items).Returns(items);
 		var nextCalled = false;
 		var expectedResult = A.Fake<IMessageResult>();
 
@@ -80,7 +81,8 @@ public sealed class AspNetCoreAuthorizationMiddlewareDepthShould : UnitTestBase
 		var middleware = CreateMiddleware();
 		var message = new PolicyProtectedMessage();
 		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.GetItem<Type>("HandlerType")).Returns(null);
+		var items = new Dictionary<string, object>();
+		A.CallTo(() => context.Items).Returns(items);
 
 		DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(A.Fake<IMessageResult>());
 
@@ -106,7 +108,8 @@ public sealed class AspNetCoreAuthorizationMiddlewareDepthShould : UnitTestBase
 		var middleware = CreateMiddleware();
 		var message = new RoleProtectedMessage();
 		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.GetItem<Type>("HandlerType")).Returns(null);
+		var items = new Dictionary<string, object>();
+		A.CallTo(() => context.Items).Returns(items);
 		var nextCalled = false;
 		var expectedResult = A.Fake<IMessageResult>();
 
@@ -134,7 +137,8 @@ public sealed class AspNetCoreAuthorizationMiddlewareDepthShould : UnitTestBase
 		var middleware = CreateMiddleware();
 		var message = new RoleProtectedMessage(); // Requires "Admin" role
 		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.GetItem<Type>("HandlerType")).Returns(null);
+		var items = new Dictionary<string, object>();
+		A.CallTo(() => context.Items).Returns(items);
 
 		DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(A.Fake<IMessageResult>());
 
@@ -161,8 +165,9 @@ public sealed class AspNetCoreAuthorizationMiddlewareDepthShould : UnitTestBase
 		var message = new PlainMessage(); // No [Authorize] on message
 		var context = A.Fake<IMessageContext>();
 
-		// Set handler type that has [Authorize] — user is authenticated, no policy/role, so should pass
-		A.CallTo(() => context.GetItem<Type>("HandlerType")).Returns(typeof(AuthorizedHandler));
+		// Set handler type that has [Authorize] via Items dictionary
+		var items = new Dictionary<string, object> { ["HandlerType"] = typeof(AuthorizedHandler) };
+		A.CallTo(() => context.Items).Returns(items);
 		var nextCalled = false;
 		var expectedResult = A.Fake<IMessageResult>();
 
@@ -187,7 +192,8 @@ public sealed class AspNetCoreAuthorizationMiddlewareDepthShould : UnitTestBase
 		var middleware = CreateMiddleware();
 		var message = new AuthorizedMessagePlain();
 		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.GetItem<Type>("HandlerType")).Returns(typeof(AnonymousHandler));
+		var items = new Dictionary<string, object> { ["HandlerType"] = typeof(AnonymousHandler) };
+		A.CallTo(() => context.Items).Returns(items);
 		var nextCalled = false;
 		var expectedResult = A.Fake<IMessageResult>();
 
@@ -224,7 +230,8 @@ public sealed class AspNetCoreAuthorizationMiddlewareDepthShould : UnitTestBase
 		var middleware = CreateMiddleware(options);
 		var message = new AuthorizedMessagePlain(); // [Authorize] with no specific policy
 		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.GetItem<Type>("HandlerType")).Returns(null);
+		var items = new Dictionary<string, object>();
+		A.CallTo(() => context.Items).Returns(items);
 		var nextCalled = false;
 		var expectedResult = A.Fake<IMessageResult>();
 
@@ -262,7 +269,8 @@ public sealed class AspNetCoreAuthorizationMiddlewareDepthShould : UnitTestBase
 		var middleware = CreateMiddleware();
 		var message = new PolicyProtectedMessage();
 		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.GetItem<Type>("HandlerType")).Returns(null);
+		var items = new Dictionary<string, object>();
+		A.CallTo(() => context.Items).Returns(items);
 
 		DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(A.Fake<IMessageResult>());
 

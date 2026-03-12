@@ -25,30 +25,30 @@ public sealed class DefaultTimePolicy(IOptions<TimePolicyOptions> options, ITime
 	public TimeSpan MaxTimeout => _options.MaxTimeout;
 
 	/// <inheritdoc />
-	public TimeSpan HandlerTimeout => _options.HandlerTimeout;
+	public TimeSpan HandlerTimeout => _options.OperationTimeouts.HandlerTimeout;
 
 	/// <inheritdoc />
-	public TimeSpan SerializationTimeout => _options.SerializationTimeout;
+	public TimeSpan SerializationTimeout => _options.OperationTimeouts.SerializationTimeout;
 
 	/// <inheritdoc />
-	public TimeSpan TransportTimeout => _options.TransportTimeout;
+	public TimeSpan TransportTimeout => _options.OperationTimeouts.TransportTimeout;
 
 	/// <inheritdoc />
-	public TimeSpan ValidationTimeout => _options.ValidationTimeout;
+	public TimeSpan ValidationTimeout => _options.OperationTimeouts.ValidationTimeout;
 
 	/// <inheritdoc />
 	public TimeSpan GetTimeoutFor(TimeoutOperationType operationType)
 	{
 		// Check for custom timeout overrides
-		if (_options.CustomTimeouts.TryGetValue(operationType, out var customTimeout))
+		if (_options.Overrides.CustomTimeouts.TryGetValue(operationType, out var customTimeout))
 		{
 			return customTimeout;
 		}
 
 		// Use adaptive timeouts if enabled and monitor is available
-		if (_options.UseAdaptiveTimeouts && monitor?.HasSufficientSamples(operationType, _options.MinimumSampleSize) == true)
+		if (_options.Adaptive.UseAdaptiveTimeouts && monitor?.HasSufficientSamples(operationType, _options.Adaptive.MinimumSampleSize) == true)
 		{
-			var adaptiveTimeout = monitor.GetRecommendedTimeout(operationType, _options.AdaptiveTimeoutPercentile);
+			var adaptiveTimeout = monitor.GetRecommendedTimeout(operationType, _options.Adaptive.AdaptiveTimeoutPercentile);
 
 			// Ensure adaptive timeout doesn't exceed max timeout
 			return TimeSpan.FromTicks(Math.Min(adaptiveTimeout.Ticks, _options.MaxTimeout.Ticks));
@@ -57,17 +57,17 @@ public sealed class DefaultTimePolicy(IOptions<TimePolicyOptions> options, ITime
 		// Fall back to configured timeouts
 		var baseTimeout = operationType switch
 		{
-			TimeoutOperationType.Handler => _options.HandlerTimeout,
-			TimeoutOperationType.Serialization => _options.SerializationTimeout,
-			TimeoutOperationType.Transport => _options.TransportTimeout,
-			TimeoutOperationType.Validation => _options.ValidationTimeout,
+			TimeoutOperationType.Handler => _options.OperationTimeouts.HandlerTimeout,
+			TimeoutOperationType.Serialization => _options.OperationTimeouts.SerializationTimeout,
+			TimeoutOperationType.Transport => _options.OperationTimeouts.TransportTimeout,
+			TimeoutOperationType.Validation => _options.OperationTimeouts.ValidationTimeout,
 			TimeoutOperationType.Middleware => _options.DefaultTimeout,
-			TimeoutOperationType.Pipeline => _options.HandlerTimeout,
-			TimeoutOperationType.Outbox => _options.TransportTimeout,
-			TimeoutOperationType.Inbox => _options.TransportTimeout,
+			TimeoutOperationType.Pipeline => _options.OperationTimeouts.HandlerTimeout,
+			TimeoutOperationType.Outbox => _options.OperationTimeouts.TransportTimeout,
+			TimeoutOperationType.Inbox => _options.OperationTimeouts.TransportTimeout,
 			TimeoutOperationType.Scheduling => _options.DefaultTimeout,
-			TimeoutOperationType.Database => _options.TransportTimeout,
-			TimeoutOperationType.Http => _options.TransportTimeout,
+			TimeoutOperationType.Database => _options.OperationTimeouts.TransportTimeout,
+			TimeoutOperationType.Http => _options.OperationTimeouts.TransportTimeout,
 			_ => _options.DefaultTimeout,
 		};
 
@@ -124,7 +124,7 @@ public sealed class DefaultTimePolicy(IOptions<TimePolicyOptions> options, ITime
 
 		var messageTypeName = messageType.FullName ?? messageType.Name;
 
-		if (_options.MessageTypeTimeouts.TryGetValue(messageTypeName, out var messageTimeout))
+		if (_options.Overrides.MessageTypeTimeouts.TryGetValue(messageTypeName, out var messageTimeout))
 		{
 			return messageTimeout;
 		}
@@ -144,7 +144,7 @@ public sealed class DefaultTimePolicy(IOptions<TimePolicyOptions> options, ITime
 
 		var handlerTypeName = handlerType.FullName ?? handlerType.Name;
 
-		if (_options.HandlerTypeTimeouts.TryGetValue(handlerTypeName, out var handlerTimeout))
+		if (_options.Overrides.HandlerTypeTimeouts.TryGetValue(handlerTypeName, out var handlerTimeout))
 		{
 			return handlerTimeout;
 		}
@@ -197,8 +197,8 @@ public sealed class DefaultTimePolicy(IOptions<TimePolicyOptions> options, ITime
 		{
 			OperationComplexity.Simple => 0.5,
 			OperationComplexity.Normal => 1.0,
-			OperationComplexity.Complex => _options.ComplexityMultiplier,
-			OperationComplexity.Heavy => _options.HeavyOperationMultiplier,
+			OperationComplexity.Complex => _options.OperationTimeouts.ComplexityMultiplier,
+			OperationComplexity.Heavy => _options.OperationTimeouts.HeavyOperationMultiplier,
 			_ => 1.0,
 		};
 

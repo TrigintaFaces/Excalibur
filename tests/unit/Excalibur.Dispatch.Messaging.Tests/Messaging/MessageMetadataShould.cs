@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Messaging;
 
 namespace Excalibur.Dispatch.Tests.Messaging;
@@ -284,23 +285,34 @@ public sealed class MessageMetadataShould
 	[Fact]
 	public void FromContextCreatesMetadataFromContext()
 	{
-		// Arrange - use internal key names from MessageContextExtensions
-		var properties = new Dictionary<string, object?>
+		// Arrange - set up Items with version keys and ContentType
+		var items = new Dictionary<string, object>
 		{
 			["__SerializerVersion"] = "2.0.0",
 			["__MessageVersion"] = "3.0.0",
 			["__ContractVersion"] = "4.0.0",
+			["__ContentType"] = "application/xml",
+		};
+
+		// Set up Features with identity feature for TraceParent, TenantId, UserId
+		var identityFeature = new MessageIdentityFeature
+		{
+			TraceParent = "trace-abc",
+			TenantId = "tenant-xyz",
+			UserId = "user-000",
+		};
+
+		var features = new Dictionary<Type, object>
+		{
+			[typeof(IMessageIdentityFeature)] = identityFeature,
 		};
 
 		var context = A.Fake<IMessageContext>();
 		A.CallTo(() => context.MessageId).Returns("msg-123");
 		A.CallTo(() => context.CorrelationId).Returns("corr-456");
 		A.CallTo(() => context.CausationId).Returns("caus-789");
-		A.CallTo(() => context.TraceParent).Returns("trace-abc");
-		A.CallTo(() => context.TenantId).Returns("tenant-xyz");
-		A.CallTo(() => context.UserId).Returns("user-000");
-		A.CallTo(() => context.ContentType).Returns("application/xml");
-		A.CallTo(() => context.Properties).Returns(properties);
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
 
 		// Act
 		var metadata = MessageMetadata.FromContext(context);
@@ -321,18 +333,16 @@ public sealed class MessageMetadataShould
 	[Fact]
 	public void FromContextUsesDefaultsForNullValues()
 	{
-		// Arrange
-		var properties = new Dictionary<string, object?>(); // Empty - no version keys set
+		// Arrange - empty Items and Features (no identity feature, no version keys)
+		var items = new Dictionary<string, object>();
+		var features = new Dictionary<Type, object>();
 
 		var context = A.Fake<IMessageContext>();
 		A.CallTo(() => context.MessageId).Returns((string?)null);
 		A.CallTo(() => context.CorrelationId).Returns((string?)null);
 		A.CallTo(() => context.CausationId).Returns((string?)null);
-		A.CallTo(() => context.TraceParent).Returns((string?)null);
-		A.CallTo(() => context.TenantId).Returns((string?)null);
-		A.CallTo(() => context.UserId).Returns((string?)null);
-		A.CallTo(() => context.ContentType).Returns((string?)null);
-		A.CallTo(() => context.Properties).Returns(properties);
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
 
 		// Act
 		var metadata = MessageMetadata.FromContext(context);

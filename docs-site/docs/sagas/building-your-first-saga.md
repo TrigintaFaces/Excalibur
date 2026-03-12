@@ -217,7 +217,7 @@ public class OrderSaga : ISagaDefinition<OrderSagaData>
         new ShipOrderStep()
     ];
 
-    public IRetryPolicy? RetryPolicy => null; // No automatic retry
+    public ISagaRetryPolicy? RetryPolicy => null; // No automatic retry
 
     public Task OnCompletedAsync(
         ISagaContext<OrderSagaData> context,
@@ -321,14 +321,14 @@ public class OrderSaga : ISagaDefinition<OrderSagaData>
 {
     // ...
 
-    public IRetryPolicy? RetryPolicy => new TransientRetryPolicy
+    public ISagaRetryPolicy? RetryPolicy => new TransientRetryPolicy
     {
         MaxAttempts = 3,
         Delay = TimeSpan.FromSeconds(2)
     };
 }
 
-public class TransientRetryPolicy : IRetryPolicy
+public class TransientRetryPolicy : ISagaRetryPolicy
 {
     public int MaxAttempts { get; init; } = 3;
     public TimeSpan Delay { get; init; } = TimeSpan.FromSeconds(2);

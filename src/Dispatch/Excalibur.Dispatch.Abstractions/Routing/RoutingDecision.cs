@@ -126,4 +126,19 @@ public sealed record RoutingDecision
 			FailureReason = reason,
 		};
 	}
+
+	/// <summary>
+	/// Gets a cached singleton for local-only routing (no transport, no endpoints).
+	/// </summary>
+	/// <remarks>
+	/// Avoids allocating a new <see cref="RoutingDecision"/> record per dispatch
+	/// for the common case of local-only message handling. Follows the
+	/// <see cref="Task.CompletedTask"/> / <see cref="Array.Empty{T}"/> pattern
+	/// of caching frequently-used immutable values.
+	/// </remarks>
+	public static RoutingDecision Local { get; } = new()
+	{
+		Transport = "local",
+		Endpoints = [],
+	};
 }

@@ -14,8 +14,8 @@
 #pragma warning disable CA1303 // Sample code uses literal strings
 #pragma warning disable CA1506 // Sample has high coupling by design
 
-using Excalibur.Data.InMemory.Inbox;
-using Excalibur.Data.InMemory.Outbox;
+using Excalibur.Inbox.InMemory;
+using Excalibur.Outbox.InMemory;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Compliance;
 using Excalibur.Dispatch.Configuration;

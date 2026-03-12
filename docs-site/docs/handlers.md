@@ -14,7 +14,6 @@ Dispatch provides two types of handlers: **action handlers** for request/respons
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
-  dotnet add package Excalibur.Dispatch.Abstractions
   ```
 - Familiarity with [getting started](./getting-started/index.md) and [dependency injection](./core-concepts/dependency-injection.md)
 

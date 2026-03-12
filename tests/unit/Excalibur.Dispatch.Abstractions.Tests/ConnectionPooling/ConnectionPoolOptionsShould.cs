@@ -49,7 +49,7 @@ public sealed class ConnectionPoolOptionsShould
 		var options = new ConnectionPoolOptions();
 
 		// Assert
-		options.MinConnections.ShouldBe(0);
+		options.Sizing.MinConnections.ShouldBe(0);
 	}
 
 	[Fact]
@@ -59,7 +59,7 @@ public sealed class ConnectionPoolOptionsShould
 		var options = new ConnectionPoolOptions();
 
 		// Assert
-		options.MaxConnections.ShouldBe(100);
+		options.Sizing.MaxConnections.ShouldBe(100);
 	}
 
 	[Fact]
@@ -69,7 +69,7 @@ public sealed class ConnectionPoolOptionsShould
 		var options = new ConnectionPoolOptions();
 
 		// Assert
-		options.AcquisitionTimeout.ShouldBe(TimeSpan.FromSeconds(30));
+		options.Sizing.AcquisitionTimeout.ShouldBe(TimeSpan.FromSeconds(30));
 	}
 
 	[Fact]
@@ -79,7 +79,7 @@ public sealed class ConnectionPoolOptionsShould
 		var options = new ConnectionPoolOptions();
 
 		// Assert
-		options.IdleTimeout.ShouldBe(TimeSpan.FromMinutes(5));
+		options.Sizing.IdleTimeout.ShouldBe(TimeSpan.FromMinutes(5));
 	}
 
 	[Fact]
@@ -89,7 +89,7 @@ public sealed class ConnectionPoolOptionsShould
 		var options = new ConnectionPoolOptions();
 
 		// Assert
-		options.MaxConnectionLifetime.ShouldBe(TimeSpan.FromMinutes(30));
+		options.Sizing.MaxConnectionLifetime.ShouldBe(TimeSpan.FromMinutes(30));
 	}
 
 	[Fact]
@@ -99,7 +99,7 @@ public sealed class ConnectionPoolOptionsShould
 		var options = new ConnectionPoolOptions();
 
 		// Assert
-		options.HealthCheckInterval.ShouldBe(TimeSpan.FromMinutes(1));
+		options.Health.HealthCheckInterval.ShouldBe(TimeSpan.FromMinutes(1));
 	}
 
 	[Fact]
@@ -109,7 +109,7 @@ public sealed class ConnectionPoolOptionsShould
 		var options = new ConnectionPoolOptions();
 
 		// Assert
-		options.CleanupInterval.ShouldBe(TimeSpan.FromSeconds(30));
+		options.Health.CleanupInterval.ShouldBe(TimeSpan.FromSeconds(30));
 	}
 
 	[Fact]
@@ -119,7 +119,7 @@ public sealed class ConnectionPoolOptionsShould
 		var options = new ConnectionPoolOptions();
 
 		// Assert
-		options.PreWarmConnections.ShouldBeTrue();
+		options.Sizing.PreWarmConnections.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -129,7 +129,7 @@ public sealed class ConnectionPoolOptionsShould
 		var options = new ConnectionPoolOptions();
 
 		// Assert
-		options.ValidateOnAcquisition.ShouldBeTrue();
+		options.Health.ValidateOnAcquisition.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -139,7 +139,7 @@ public sealed class ConnectionPoolOptionsShould
 		var options = new ConnectionPoolOptions();
 
 		// Assert
-		options.ValidateOnReturn.ShouldBeFalse();
+		options.Health.ValidateOnReturn.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -149,7 +149,7 @@ public sealed class ConnectionPoolOptionsShould
 		var options = new ConnectionPoolOptions();
 
 		// Assert
-		options.EnableMetrics.ShouldBeTrue();
+		options.Health.EnableMetrics.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -159,7 +159,7 @@ public sealed class ConnectionPoolOptionsShould
 		var options = new ConnectionPoolOptions();
 
 		// Assert
-		options.EnableHealthChecking.ShouldBeTrue();
+		options.Health.EnableHealthChecking.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -169,7 +169,7 @@ public sealed class ConnectionPoolOptionsShould
 		var options = new ConnectionPoolOptions();
 
 		// Assert
-		options.MaxConnectionUseCount.ShouldBe(1000);
+		options.Sizing.MaxConnectionUseCount.ShouldBe(1000);
 	}
 
 	[Fact]
@@ -179,7 +179,7 @@ public sealed class ConnectionPoolOptionsShould
 		var options = new ConnectionPoolOptions();
 
 		// Assert
-		options.FailureHandling.ShouldBe(FailureHandlingStrategy.RetryThenFail);
+		options.Health.FailureHandling.ShouldBe(FailureHandlingStrategy.RetryThenFail);
 	}
 
 	[Fact]
@@ -189,7 +189,7 @@ public sealed class ConnectionPoolOptionsShould
 		var options = new ConnectionPoolOptions();
 
 		// Assert
-		options.MaxRetryAttempts.ShouldBe(3);
+		options.Health.MaxRetryAttempts.ShouldBe(3);
 	}
 
 	[Fact]
@@ -199,7 +199,7 @@ public sealed class ConnectionPoolOptionsShould
 		var options = new ConnectionPoolOptions();
 
 		// Assert
-		options.RetryDelay.ShouldBe(TimeSpan.FromMilliseconds(100));
+		options.Health.RetryDelay.ShouldBe(TimeSpan.FromMilliseconds(100));
 	}
 
 	[Fact]
@@ -260,7 +260,8 @@ public sealed class ConnectionPoolOptionsShould
 	public void Validate_WithNegativeMinConnections_ThrowsArgumentException()
 	{
 		// Arrange
-		var options = new ConnectionPoolOptions { MinConnections = -1 };
+		var options = new ConnectionPoolOptions();
+		options.Sizing.MinConnections = -1;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => options.Validate());
@@ -270,7 +271,8 @@ public sealed class ConnectionPoolOptionsShould
 	public void Validate_WithZeroMaxConnections_ThrowsArgumentException()
 	{
 		// Arrange
-		var options = new ConnectionPoolOptions { MaxConnections = 0 };
+		var options = new ConnectionPoolOptions();
+		options.Sizing.MaxConnections = 0;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => options.Validate());
@@ -280,7 +282,8 @@ public sealed class ConnectionPoolOptionsShould
 	public void Validate_WithNegativeMaxConnections_ThrowsArgumentException()
 	{
 		// Arrange
-		var options = new ConnectionPoolOptions { MaxConnections = -1 };
+		var options = new ConnectionPoolOptions();
+		options.Sizing.MaxConnections = -1;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => options.Validate());
@@ -290,7 +293,9 @@ public sealed class ConnectionPoolOptionsShould
 	public void Validate_WithMinConnectionsGreaterThanMax_ThrowsArgumentException()
 	{
 		// Arrange
-		var options = new ConnectionPoolOptions { MinConnections = 100, MaxConnections = 50 };
+		var options = new ConnectionPoolOptions();
+		options.Sizing.MinConnections = 100;
+		options.Sizing.MaxConnections = 50;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => options.Validate());
@@ -300,7 +305,8 @@ public sealed class ConnectionPoolOptionsShould
 	public void Validate_WithZeroAcquisitionTimeout_ThrowsArgumentException()
 	{
 		// Arrange
-		var options = new ConnectionPoolOptions { AcquisitionTimeout = TimeSpan.Zero };
+		var options = new ConnectionPoolOptions();
+		options.Sizing.AcquisitionTimeout = TimeSpan.Zero;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => options.Validate());
@@ -310,7 +316,8 @@ public sealed class ConnectionPoolOptionsShould
 	public void Validate_WithNegativeAcquisitionTimeout_ThrowsArgumentException()
 	{
 		// Arrange
-		var options = new ConnectionPoolOptions { AcquisitionTimeout = TimeSpan.FromSeconds(-1) };
+		var options = new ConnectionPoolOptions();
+		options.Sizing.AcquisitionTimeout = TimeSpan.FromSeconds(-1);
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => options.Validate());
@@ -320,7 +327,8 @@ public sealed class ConnectionPoolOptionsShould
 	public void Validate_WithZeroIdleTimeout_ThrowsArgumentException()
 	{
 		// Arrange
-		var options = new ConnectionPoolOptions { IdleTimeout = TimeSpan.Zero };
+		var options = new ConnectionPoolOptions();
+		options.Sizing.IdleTimeout = TimeSpan.Zero;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => options.Validate());
@@ -330,7 +338,8 @@ public sealed class ConnectionPoolOptionsShould
 	public void Validate_WithZeroMaxConnectionLifetime_ThrowsArgumentException()
 	{
 		// Arrange
-		var options = new ConnectionPoolOptions { MaxConnectionLifetime = TimeSpan.Zero };
+		var options = new ConnectionPoolOptions();
+		options.Sizing.MaxConnectionLifetime = TimeSpan.Zero;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => options.Validate());
@@ -340,7 +349,8 @@ public sealed class ConnectionPoolOptionsShould
 	public void Validate_WithZeroHealthCheckInterval_ThrowsArgumentException()
 	{
 		// Arrange
-		var options = new ConnectionPoolOptions { HealthCheckInterval = TimeSpan.Zero };
+		var options = new ConnectionPoolOptions();
+		options.Health.HealthCheckInterval = TimeSpan.Zero;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => options.Validate());
@@ -350,7 +360,8 @@ public sealed class ConnectionPoolOptionsShould
 	public void Validate_WithZeroCleanupInterval_ThrowsArgumentException()
 	{
 		// Arrange
-		var options = new ConnectionPoolOptions { CleanupInterval = TimeSpan.Zero };
+		var options = new ConnectionPoolOptions();
+		options.Health.CleanupInterval = TimeSpan.Zero;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => options.Validate());
@@ -360,7 +371,8 @@ public sealed class ConnectionPoolOptionsShould
 	public void Validate_WithNegativeMaxRetryAttempts_ThrowsArgumentException()
 	{
 		// Arrange
-		var options = new ConnectionPoolOptions { MaxRetryAttempts = -1 };
+		var options = new ConnectionPoolOptions();
+		options.Health.MaxRetryAttempts = -1;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => options.Validate());
@@ -370,7 +382,8 @@ public sealed class ConnectionPoolOptionsShould
 	public void Validate_WithNegativeRetryDelay_ThrowsArgumentException()
 	{
 		// Arrange
-		var options = new ConnectionPoolOptions { RetryDelay = TimeSpan.FromMilliseconds(-1) };
+		var options = new ConnectionPoolOptions();
+		options.Health.RetryDelay = TimeSpan.FromMilliseconds(-1);
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => options.Validate());
@@ -380,7 +393,8 @@ public sealed class ConnectionPoolOptionsShould
 	public void Validate_WithZeroMaxConnectionUseCount_ThrowsArgumentException()
 	{
 		// Arrange
-		var options = new ConnectionPoolOptions { MaxConnectionUseCount = 0 };
+		var options = new ConnectionPoolOptions();
+		options.Sizing.MaxConnectionUseCount = 0;
 
 		// Act & Assert
 		_ = Should.Throw<ArgumentException>(() => options.Validate());
@@ -398,22 +412,28 @@ public sealed class ConnectionPoolOptionsShould
 		{
 			PoolName = "TestPool",
 			ConnectionString = "Server=localhost",
-			MinConnections = 5,
-			MaxConnections = 50,
-			AcquisitionTimeout = TimeSpan.FromSeconds(10),
-			IdleTimeout = TimeSpan.FromMinutes(2),
-			MaxConnectionLifetime = TimeSpan.FromMinutes(15),
-			HealthCheckInterval = TimeSpan.FromSeconds(30),
-			CleanupInterval = TimeSpan.FromSeconds(15),
-			PreWarmConnections = false,
-			ValidateOnAcquisition = false,
-			ValidateOnReturn = true,
-			EnableMetrics = false,
-			EnableHealthChecking = false,
-			MaxConnectionUseCount = 500,
-			FailureHandling = FailureHandlingStrategy.FailFast,
-			MaxRetryAttempts = 5,
-			RetryDelay = TimeSpan.FromMilliseconds(200),
+			Sizing =
+			{
+				MinConnections = 5,
+				MaxConnections = 50,
+				AcquisitionTimeout = TimeSpan.FromSeconds(10),
+				IdleTimeout = TimeSpan.FromMinutes(2),
+				MaxConnectionLifetime = TimeSpan.FromMinutes(15),
+				PreWarmConnections = false,
+				MaxConnectionUseCount = 500,
+			},
+			Health =
+			{
+				HealthCheckInterval = TimeSpan.FromSeconds(30),
+				CleanupInterval = TimeSpan.FromSeconds(15),
+				ValidateOnAcquisition = false,
+				ValidateOnReturn = true,
+				EnableMetrics = false,
+				EnableHealthChecking = false,
+				FailureHandling = FailureHandlingStrategy.FailFast,
+				MaxRetryAttempts = 5,
+				RetryDelay = TimeSpan.FromMilliseconds(200),
+			},
 		};
 		original.Properties["key1"] = "value1";
 
@@ -423,22 +443,22 @@ public sealed class ConnectionPoolOptionsShould
 		// Assert
 		clone.PoolName.ShouldBe(original.PoolName);
 		clone.ConnectionString.ShouldBe(original.ConnectionString);
-		clone.MinConnections.ShouldBe(original.MinConnections);
-		clone.MaxConnections.ShouldBe(original.MaxConnections);
-		clone.AcquisitionTimeout.ShouldBe(original.AcquisitionTimeout);
-		clone.IdleTimeout.ShouldBe(original.IdleTimeout);
-		clone.MaxConnectionLifetime.ShouldBe(original.MaxConnectionLifetime);
-		clone.HealthCheckInterval.ShouldBe(original.HealthCheckInterval);
-		clone.CleanupInterval.ShouldBe(original.CleanupInterval);
-		clone.PreWarmConnections.ShouldBe(original.PreWarmConnections);
-		clone.ValidateOnAcquisition.ShouldBe(original.ValidateOnAcquisition);
-		clone.ValidateOnReturn.ShouldBe(original.ValidateOnReturn);
-		clone.EnableMetrics.ShouldBe(original.EnableMetrics);
-		clone.EnableHealthChecking.ShouldBe(original.EnableHealthChecking);
-		clone.MaxConnectionUseCount.ShouldBe(original.MaxConnectionUseCount);
-		clone.FailureHandling.ShouldBe(original.FailureHandling);
-		clone.MaxRetryAttempts.ShouldBe(original.MaxRetryAttempts);
-		clone.RetryDelay.ShouldBe(original.RetryDelay);
+		clone.Sizing.MinConnections.ShouldBe(original.Sizing.MinConnections);
+		clone.Sizing.MaxConnections.ShouldBe(original.Sizing.MaxConnections);
+		clone.Sizing.AcquisitionTimeout.ShouldBe(original.Sizing.AcquisitionTimeout);
+		clone.Sizing.IdleTimeout.ShouldBe(original.Sizing.IdleTimeout);
+		clone.Sizing.MaxConnectionLifetime.ShouldBe(original.Sizing.MaxConnectionLifetime);
+		clone.Health.HealthCheckInterval.ShouldBe(original.Health.HealthCheckInterval);
+		clone.Health.CleanupInterval.ShouldBe(original.Health.CleanupInterval);
+		clone.Sizing.PreWarmConnections.ShouldBe(original.Sizing.PreWarmConnections);
+		clone.Health.ValidateOnAcquisition.ShouldBe(original.Health.ValidateOnAcquisition);
+		clone.Health.ValidateOnReturn.ShouldBe(original.Health.ValidateOnReturn);
+		clone.Health.EnableMetrics.ShouldBe(original.Health.EnableMetrics);
+		clone.Health.EnableHealthChecking.ShouldBe(original.Health.EnableHealthChecking);
+		clone.Sizing.MaxConnectionUseCount.ShouldBe(original.Sizing.MaxConnectionUseCount);
+		clone.Health.FailureHandling.ShouldBe(original.Health.FailureHandling);
+		clone.Health.MaxRetryAttempts.ShouldBe(original.Health.MaxRetryAttempts);
+		clone.Health.RetryDelay.ShouldBe(original.Health.RetryDelay);
 		clone.Properties["key1"].ShouldBe("value1");
 	}
 

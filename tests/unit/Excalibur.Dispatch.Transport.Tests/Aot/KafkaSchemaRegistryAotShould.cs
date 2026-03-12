@@ -23,8 +23,11 @@ public sealed class KafkaSchemaRegistryAotShould
 		// Default strategy (TopicName enum) should not use Activator.CreateInstance
 		var options = new ConfluentSchemaRegistryOptions
 		{
-			SubjectNameStrategy = SubjectNameStrategy.TopicName,
-			CustomSubjectNameStrategyType = null,
+			Schema = new SchemaRegistrySchemaOptions
+			{
+				SubjectNameStrategy = SubjectNameStrategy.TopicName,
+				CustomSubjectNameStrategyType = null,
+			},
 		};
 
 		// Even though the method has [RequiresUnreferencedCode], the default path is AOT-safe
@@ -41,8 +44,11 @@ public sealed class KafkaSchemaRegistryAotShould
 	{
 		var options = new ConfluentSchemaRegistryOptions
 		{
-			SubjectNameStrategy = SubjectNameStrategy.RecordName,
-			CustomSubjectNameStrategyType = null,
+			Schema = new SchemaRegistrySchemaOptions
+			{
+				SubjectNameStrategy = SubjectNameStrategy.RecordName,
+				CustomSubjectNameStrategyType = null,
+			},
 		};
 
 #pragma warning disable IL2026
@@ -66,11 +72,11 @@ public sealed class KafkaSchemaRegistryAotShould
 
 		options.Url.ShouldBe("http://localhost:8081");
 		options.MaxCachedSchemas.ShouldBe(1000);
-		options.AutoRegisterSchemas.ShouldBeTrue();
+		options.Schema.AutoRegisterSchemas.ShouldBeTrue();
 		options.CacheSchemas.ShouldBeTrue();
-		options.ValidateBeforeRegister.ShouldBeTrue();
-		options.CustomSubjectNameStrategyType.ShouldBeNull();
-		options.SubjectNameStrategy.ShouldBe(SubjectNameStrategy.TopicName);
+		options.Schema.ValidateBeforeRegister.ShouldBeTrue();
+		options.Schema.CustomSubjectNameStrategyType.ShouldBeNull();
+		options.Schema.SubjectNameStrategy.ShouldBe(SubjectNameStrategy.TopicName);
 	}
 
 	[Fact]

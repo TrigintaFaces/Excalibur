@@ -1,4 +1,4 @@
-using Excalibur.Jobs.CloudProviders.Aws;
+using Excalibur.Jobs.Aws;
 
 namespace Excalibur.Jobs.Tests.CloudProviders;
 

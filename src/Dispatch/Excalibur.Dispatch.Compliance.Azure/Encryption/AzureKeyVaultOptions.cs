@@ -67,19 +67,9 @@ public class AzureKeyVaultOptions
 	public TimeSpan MetadataCacheDuration { get; set; } = TimeSpan.FromMinutes(5);
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to enable automatic retry with exponential backoff. Default is true.
+	/// Gets or sets the retry options for transient failures.
 	/// </summary>
-	public bool EnableRetry { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the maximum number of retry attempts for transient failures. Default is 3.
-	/// </summary>
-	public int MaxRetryAttempts { get; set; } = 3;
-
-	/// <summary>
-	/// Gets or sets the initial delay for exponential backoff. Default is 1 second.
-	/// </summary>
-	public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(1);
+	public AzureKeyVaultRetryOptions Retry { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to use software keys instead of HSM keys. Default is false (prefers HSM when available).

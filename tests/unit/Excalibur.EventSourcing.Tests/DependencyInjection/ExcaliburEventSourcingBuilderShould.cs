@@ -41,7 +41,7 @@ public sealed class ExcaliburEventSourcingBuilderShould
 
 		public void PlaceOrder(string customerName, decimal amount)
 		{
-			RaiseEvent(new OrderPlacedEvent(Id, Version, customerName, amount));
+			RaiseEvent(new OrderPlacedEvent { AggregateId = Id, Version = Version, CustomerName = customerName, Amount = amount });
 		}
 
 		protected override void ApplyEventInternal(IDomainEvent @event)
@@ -70,7 +70,7 @@ public sealed class ExcaliburEventSourcingBuilderShould
 
 		public void Register(string name)
 		{
-			RaiseEvent(new CustomerRegisteredEvent(Id.ToString(), Version, name));
+			RaiseEvent(new CustomerRegisteredEvent { AggregateId = Id.ToString(), Version = Version, Name = name });
 		}
 
 		protected override void ApplyEventInternal(IDomainEvent @event)
@@ -119,28 +119,13 @@ public sealed class ExcaliburEventSourcingBuilderShould
 	{
 		public string CustomerName { get; init; } = string.Empty;
 		public decimal Amount { get; init; }
-
-		public OrderPlacedEvent(string aggregateId, long version, string customerName, decimal amount)
-			: base(aggregateId, version, TimeProvider.System)
-		{
-			CustomerName = customerName;
-			Amount = amount;
-		}
-
-		public OrderPlacedEvent() : base("", 0, TimeProvider.System) { }
+		public override string AggregateId { get; init; } = string.Empty;
 	}
 
 	internal sealed record CustomerRegisteredEvent : DomainEvent
 	{
 		public string Name { get; init; } = string.Empty;
-
-		public CustomerRegisteredEvent(string aggregateId, long version, string name)
-			: base(aggregateId, version, TimeProvider.System)
-		{
-			Name = name;
-		}
-
-		public CustomerRegisteredEvent() : base("", 0, TimeProvider.System) { }
+		public override string AggregateId { get; init; } = string.Empty;
 	}
 
 	#endregion Test Events

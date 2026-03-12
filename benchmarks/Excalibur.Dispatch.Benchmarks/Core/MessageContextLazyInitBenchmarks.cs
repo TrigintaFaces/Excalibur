@@ -12,6 +12,9 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 
+using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
+
 namespace Excalibur.Dispatch.Benchmarks.Core;
 
 /// <summary>
@@ -63,13 +66,13 @@ public class MessageContextLazyInitBenchmarks
 			MessageId = "msg-001",
 			CorrelationId = "corr-001",
 			CausationId = "cause-001",
-			UserId = "user-001",
-			TenantId = "tenant-001",
-			TraceParent = "00-trace-parent",
-			Source = "BenchmarkSource",
-			MessageType = "BenchmarkMessage",
 			RequestServices = _serviceProvider,
 		};
+		context.GetOrCreateIdentityFeature().UserId = "user-001";
+		context.GetOrCreateIdentityFeature().TenantId = "tenant-001";
+		context.GetOrCreateIdentityFeature().TraceParent = "00-trace-parent";
+		context.GetOrCreateRoutingFeature().Source = "BenchmarkSource";
+		context.SetMessageType("BenchmarkMessage");
 		return context;
 	}
 
@@ -146,16 +149,16 @@ public class MessageContextLazyInitBenchmarks
 		{
 			MessageId = "msg-001",
 			CorrelationId = "corr-001",
-			UserId = "user-001",
-			TenantId = "tenant-001",
 			RequestServices = _serviceProvider,
 		};
+		context.GetOrCreateIdentityFeature().UserId = "user-001";
+		context.GetOrCreateIdentityFeature().TenantId = "tenant-001";
 
 		// Simulate handler accessing context properties
 		_ = context.MessageId;
 		_ = context.CorrelationId;
-		_ = context.UserId;
-		_ = context.TenantId;
+		_ = context.GetUserId();
+		_ = context.GetTenantId();
 
 		// Check for cached result (read-only, no allocation)
 		_ = context.ContainsItem("Dispatch:CachedResult");
@@ -174,10 +177,10 @@ public class MessageContextLazyInitBenchmarks
 		{
 			MessageId = "msg-001",
 			CorrelationId = "corr-001",
-			UserId = "user-001",
-			TenantId = "tenant-001",
 			RequestServices = _serviceProvider,
 		};
+		context.GetOrCreateIdentityFeature().UserId = "user-001";
+		context.GetOrCreateIdentityFeature().TenantId = "tenant-001";
 
 		// Simulate middleware pipeline writing to Items
 		context.SetItem("Dispatch:Message", context.MessageId ?? "none");
@@ -201,9 +204,9 @@ public class MessageContextLazyInitBenchmarks
 		{
 			MessageId = "parent-001",
 			CorrelationId = "corr-001",
-			TenantId = "tenant-001",
 			RequestServices = _serviceProvider,
 		};
+		parent.GetOrCreateIdentityFeature().TenantId = "tenant-001";
 
 		return parent.CreateChildContext();
 	}

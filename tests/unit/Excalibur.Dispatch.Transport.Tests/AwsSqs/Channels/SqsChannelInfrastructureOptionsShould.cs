@@ -19,17 +19,17 @@ public sealed class SqsChannelInfrastructureOptionsShould
 		options.QueueUrl.ShouldBeNull();
 		options.ServiceUrl.ShouldBeNull();
 		options.VisibilityTimeout.ShouldBe(300);
-		options.ConcurrentPollers.ShouldBe(10);
-		options.MaxConcurrentPollers.ShouldBe(20);
-		options.ReceiveChannelCapacity.ShouldBe(1000);
-		options.BatchIntervalMs.ShouldBe(100);
-		options.ProcessorCount.ShouldBe(10);
-		options.MaxConcurrentMessages.ShouldBe(100);
-		options.DeleteBatchIntervalMs.ShouldBe(100);
-		options.MaxConcurrentReceiveBatches.ShouldBe(10);
-		options.MaxConcurrentSendBatches.ShouldBe(10);
-		options.LongPollingSeconds.ShouldBe(20);
-		options.BatchFlushIntervalMs.ShouldBe(100);
+		options.ChannelAdapter.ConcurrentPollers.ShouldBe(10);
+		options.ChannelAdapter.MaxConcurrentPollers.ShouldBe(20);
+		options.ChannelAdapter.ReceiveChannelCapacity.ShouldBe(1000);
+		options.ChannelAdapter.BatchIntervalMs.ShouldBe(100);
+		options.Processing.ProcessorCount.ShouldBe(10);
+		options.Processing.MaxConcurrentMessages.ShouldBe(100);
+		options.Processing.DeleteBatchIntervalMs.ShouldBe(100);
+		options.Batch.MaxConcurrentReceiveBatches.ShouldBe(10);
+		options.Batch.MaxConcurrentSendBatches.ShouldBe(10);
+		options.Batch.LongPollingSeconds.ShouldBe(20);
+		options.Batch.BatchFlushIntervalMs.ShouldBe(100);
 	}
 
 	[Fact]
@@ -43,33 +43,33 @@ public sealed class SqsChannelInfrastructureOptionsShould
 			QueueUrl = queueUrl,
 			ServiceUrl = serviceUrl,
 			VisibilityTimeout = 600,
-			ConcurrentPollers = 5,
-			MaxConcurrentPollers = 50,
-			ReceiveChannelCapacity = 2000,
-			BatchIntervalMs = 200,
-			ProcessorCount = 20,
-			MaxConcurrentMessages = 200,
-			DeleteBatchIntervalMs = 50,
-			MaxConcurrentReceiveBatches = 5,
-			MaxConcurrentSendBatches = 20,
-			LongPollingSeconds = 10,
-			BatchFlushIntervalMs = 50,
 		};
+		options.ChannelAdapter.ConcurrentPollers = 5;
+		options.ChannelAdapter.MaxConcurrentPollers = 50;
+		options.ChannelAdapter.ReceiveChannelCapacity = 2000;
+		options.ChannelAdapter.BatchIntervalMs = 200;
+		options.Processing.ProcessorCount = 20;
+		options.Processing.MaxConcurrentMessages = 200;
+		options.Processing.DeleteBatchIntervalMs = 50;
+		options.Batch.MaxConcurrentReceiveBatches = 5;
+		options.Batch.MaxConcurrentSendBatches = 20;
+		options.Batch.LongPollingSeconds = 10;
+		options.Batch.BatchFlushIntervalMs = 50;
 
 		// Assert
 		options.QueueUrl.ShouldBe(queueUrl);
 		options.ServiceUrl.ShouldBe(serviceUrl);
 		options.VisibilityTimeout.ShouldBe(600);
-		options.ConcurrentPollers.ShouldBe(5);
-		options.MaxConcurrentPollers.ShouldBe(50);
-		options.ReceiveChannelCapacity.ShouldBe(2000);
-		options.BatchIntervalMs.ShouldBe(200);
-		options.ProcessorCount.ShouldBe(20);
-		options.MaxConcurrentMessages.ShouldBe(200);
-		options.DeleteBatchIntervalMs.ShouldBe(50);
-		options.MaxConcurrentReceiveBatches.ShouldBe(5);
-		options.MaxConcurrentSendBatches.ShouldBe(20);
-		options.LongPollingSeconds.ShouldBe(10);
-		options.BatchFlushIntervalMs.ShouldBe(50);
+		options.ChannelAdapter.ConcurrentPollers.ShouldBe(5);
+		options.ChannelAdapter.MaxConcurrentPollers.ShouldBe(50);
+		options.ChannelAdapter.ReceiveChannelCapacity.ShouldBe(2000);
+		options.ChannelAdapter.BatchIntervalMs.ShouldBe(200);
+		options.Processing.ProcessorCount.ShouldBe(20);
+		options.Processing.MaxConcurrentMessages.ShouldBe(200);
+		options.Processing.DeleteBatchIntervalMs.ShouldBe(50);
+		options.Batch.MaxConcurrentReceiveBatches.ShouldBe(5);
+		options.Batch.MaxConcurrentSendBatches.ShouldBe(20);
+		options.Batch.LongPollingSeconds.ShouldBe(10);
+		options.Batch.BatchFlushIntervalMs.ShouldBe(50);
 	}
 }

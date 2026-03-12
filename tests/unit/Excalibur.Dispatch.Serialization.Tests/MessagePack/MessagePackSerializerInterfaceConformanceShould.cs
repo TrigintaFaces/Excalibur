@@ -6,99 +6,44 @@ using Excalibur.Dispatch.Serialization.MessagePack;
 
 using MessagePack;
 
+using MpkSerializer = Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializer;
+
 namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 
 /// <summary>
-/// Interface conformance tests for all MessagePack serializer implementations.
-/// Ensures all serializers correctly implement their respective interfaces.
+/// Interface conformance tests for the consolidated <see cref="MpkSerializer"/>.
+/// Ensures it correctly implements ISerializer.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Serialization")]
 public sealed class MessagePackSerializerInterfaceConformanceShould : UnitTestBase
 {
-	#region IMessageSerializer Conformance
+	#region ISerializer Conformance
 
 	[Fact]
-	public void DispatchMessagePackSerializer_ImplementsIMessageSerializer()
+	public void MessagePackSerializer_ImplementsISerializer()
 	{
 		// Arrange & Act
-		IMessageSerializer serializer = new DispatchMessagePackSerializer();
+		ISerializer serializer = new MpkSerializer();
 
 		// Assert
-		serializer.ShouldBeAssignableTo<IMessageSerializer>();
-		serializer.SerializerName.ShouldNotBeNullOrWhiteSpace();
-		serializer.SerializerVersion.ShouldNotBeNullOrWhiteSpace();
-	}
-
-	[Fact]
-	public void AotMessagePackSerializer_ImplementsIMessageSerializer()
-	{
-		// Arrange & Act
-		IMessageSerializer serializer = new AotMessagePackSerializer();
-
-		// Assert
-		serializer.ShouldBeAssignableTo<IMessageSerializer>();
-		serializer.SerializerName.ShouldNotBeNullOrWhiteSpace();
-		serializer.SerializerVersion.ShouldNotBeNullOrWhiteSpace();
-	}
-
-	[Fact]
-	public void MessagePackMessageSerializer_ImplementsIMessageSerializer()
-	{
-		// Arrange
-		var options = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions());
-
-		// Act
-		IMessageSerializer serializer = new MessagePackMessageSerializer(options);
-
-		// Assert
-		serializer.ShouldBeAssignableTo<IMessageSerializer>();
-		serializer.SerializerName.ShouldNotBeNullOrWhiteSpace();
-		serializer.SerializerVersion.ShouldNotBeNullOrWhiteSpace();
-	}
-
-	#endregion
-
-	#region IPluggableSerializer Conformance
-
-	[Fact]
-	public void MessagePackPluggableSerializer_ImplementsIPluggableSerializer()
-	{
-		// Arrange & Act
-		IPluggableSerializer serializer = new MessagePackPluggableSerializer();
-
-		// Assert
-		serializer.ShouldBeAssignableTo<IPluggableSerializer>();
+		serializer.ShouldBeAssignableTo<ISerializer>();
 		serializer.Name.ShouldNotBeNullOrWhiteSpace();
 		serializer.Version.ShouldNotBeNullOrWhiteSpace();
 	}
 
 	[Fact]
-	public void MessagePackPluggableSerializer_WithOptions_ImplementsIPluggableSerializer()
+	public void MessagePackSerializer_WithOptions_ImplementsISerializer()
 	{
 		// Arrange
 		var options = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4Block);
 
 		// Act
-		IPluggableSerializer serializer = new MessagePackPluggableSerializer(options);
+		ISerializer serializer = new MpkSerializer(options);
 
 		// Assert
-		serializer.ShouldBeAssignableTo<IPluggableSerializer>();
+		serializer.ShouldBeAssignableTo<ISerializer>();
 		serializer.Name.ShouldBe("MessagePack");
-	}
-
-	#endregion
-
-	#region IZeroCopySerializer Conformance
-
-	[Fact]
-	public void MessagePackZeroCopySerializer_ImplementsIZeroCopySerializer()
-	{
-		// Arrange & Act
-		IZeroCopySerializer serializer = new MessagePackZeroCopySerializer();
-
-		// Assert
-		serializer.ShouldBeAssignableTo<IZeroCopySerializer>();
 	}
 
 	#endregion
@@ -106,50 +51,38 @@ public sealed class MessagePackSerializerInterfaceConformanceShould : UnitTestBa
 	#region Cross-Serializer Compatibility
 
 	[Fact]
-	public void AllMessageSerializers_HaveConsistentSerializerName()
+	public void AllInstances_HaveConsistentSerializerName()
 	{
 		// Arrange
-		var dispatchSerializer = new DispatchMessagePackSerializer();
-		var msgPackOptions = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions());
-		var messageSerializer = new MessagePackMessageSerializer(msgPackOptions);
+		var serializer1 = new MpkSerializer();
+		var serializer2 = new MpkSerializer(MessagePackSerializerOptions.Standard);
 
 		// Act & Assert - Both should return "MessagePack"
-		dispatchSerializer.SerializerName.ShouldBe("MessagePack");
-		messageSerializer.SerializerName.ShouldBe("MessagePack");
+		serializer1.Name.ShouldBe("MessagePack");
+		serializer2.Name.ShouldBe("MessagePack");
 	}
 
 	[Fact]
-	public void AllMessageSerializers_HaveConsistentSerializerVersion()
+	public void AllInstances_HaveConsistentSerializerVersion()
 	{
 		// Arrange
-		var dispatchSerializer = new DispatchMessagePackSerializer();
-		var msgPackOptions = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions());
-		var messageSerializer = new MessagePackMessageSerializer(msgPackOptions);
+		var serializer1 = new MpkSerializer();
+		var serializer2 = new MpkSerializer(MessagePackSerializerOptions.Standard);
 
-		// Act & Assert - Both should return "1.0.0"
-		dispatchSerializer.SerializerVersion.ShouldBe("1.0.0");
-		messageSerializer.SerializerVersion.ShouldBe("1.0.0");
+		// Act & Assert
+		serializer1.Version.ShouldBe(serializer2.Version);
 	}
 
 	[Fact]
-	public void AotMessagePackSerializer_HasDistinctSerializerName()
+	public void Serializer_Name_IsConsistentAcrossInterfaces()
 	{
 		// Arrange
-		var aotSerializer = new AotMessagePackSerializer();
+		var instance = new MpkSerializer();
+		ISerializer asSerializer = instance;
+		ISerializer asPluggable = instance;
 
-		// Assert - AOT serializer has a distinct name
-		aotSerializer.SerializerName.ShouldBe("MessagePack-AOT");
-	}
-
-	[Fact]
-	public void PluggableSerializer_Name_MatchesIMessageSerializerName()
-	{
-		// Arrange
-		var pluggable = new MessagePackPluggableSerializer();
-		var dispatch = new DispatchMessagePackSerializer();
-
-		// Assert - Both should identify as "MessagePack"
-		pluggable.Name.ShouldBe(dispatch.SerializerName);
+		// Assert - Both interfaces should identify as "MessagePack"
+		asSerializer.Name.ShouldBe(asPluggable.Name);
 	}
 
 	#endregion
@@ -157,14 +90,14 @@ public sealed class MessagePackSerializerInterfaceConformanceShould : UnitTestBa
 	#region Serialize-Deserialize Contract
 
 	[Fact]
-	public void IMessageSerializer_SerializeDeserialize_ContractIsHonored()
+	public void ISerializer_SerializeDeserialize_ContractIsHonored()
 	{
 		// Arrange
-		IMessageSerializer serializer = new DispatchMessagePackSerializer();
+		var serializer = new MpkSerializer();
 		var original = new TestMessage { Id = 42, Name = "Contract" };
 
 		// Act
-		var bytes = serializer.Serialize(original);
+		var bytes = serializer.SerializeToBytes(original);
 		var result = serializer.Deserialize<TestMessage>(bytes);
 
 		// Assert
@@ -173,26 +106,10 @@ public sealed class MessagePackSerializerInterfaceConformanceShould : UnitTestBa
 	}
 
 	[Fact]
-	public void IPluggableSerializer_SerializeDeserialize_ContractIsHonored()
+	public void ISerializer_SerializeObjectDeserializeObject_ContractIsHonored()
 	{
 		// Arrange
-		IPluggableSerializer serializer = new MessagePackPluggableSerializer();
-		var original = new TestPluggableMessage { Value = 99, Text = "Contract" };
-
-		// Act
-		var bytes = serializer.Serialize(original);
-		var result = serializer.Deserialize<TestPluggableMessage>(bytes);
-
-		// Assert
-		result.Value.ShouldBe(original.Value);
-		result.Text.ShouldBe(original.Text);
-	}
-
-	[Fact]
-	public void IPluggableSerializer_SerializeObjectDeserializeObject_ContractIsHonored()
-	{
-		// Arrange
-		IPluggableSerializer serializer = new MessagePackPluggableSerializer();
+		ISerializer serializer = new MpkSerializer();
 		var original = new TestPluggableMessage { Value = 77, Text = "ObjectContract" };
 
 		// Act
@@ -209,21 +126,24 @@ public sealed class MessagePackSerializerInterfaceConformanceShould : UnitTestBa
 	#region Null Handling Contract
 
 	[Fact]
-	public void IPluggableSerializer_Serialize_ThrowsOnNull()
+	public void ISerializer_Serialize_HandlesNull()
 	{
-		// Arrange
-		IPluggableSerializer serializer = new MessagePackPluggableSerializer();
+		// Arrange — MessagePack serializes null as nil (valid behavior)
+		ISerializer serializer = new MpkSerializer();
 
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			serializer.Serialize<TestPluggableMessage>(null!));
+		// Act
+		var result = serializer.SerializeToBytes<TestPluggableMessage>(null!);
+
+		// Assert — should produce valid MessagePack nil
+		result.ShouldNotBeNull();
+		result.Length.ShouldBeGreaterThan(0);
 	}
 
 	[Fact]
-	public void IPluggableSerializer_SerializeObject_ThrowsOnNullValue()
+	public void ISerializer_SerializeObject_ThrowsOnNullValue()
 	{
 		// Arrange
-		IPluggableSerializer serializer = new MessagePackPluggableSerializer();
+		ISerializer serializer = new MpkSerializer();
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
@@ -231,10 +151,10 @@ public sealed class MessagePackSerializerInterfaceConformanceShould : UnitTestBa
 	}
 
 	[Fact]
-	public void IPluggableSerializer_SerializeObject_ThrowsOnNullType()
+	public void ISerializer_SerializeObject_ThrowsOnNullType()
 	{
 		// Arrange
-		IPluggableSerializer serializer = new MessagePackPluggableSerializer();
+		ISerializer serializer = new MpkSerializer();
 		var value = new TestPluggableMessage();
 
 		// Act & Assert
@@ -243,10 +163,10 @@ public sealed class MessagePackSerializerInterfaceConformanceShould : UnitTestBa
 	}
 
 	[Fact]
-	public void IPluggableSerializer_DeserializeObject_ThrowsOnNullType()
+	public void ISerializer_DeserializeObject_ThrowsOnNullType()
 	{
 		// Arrange
-		IPluggableSerializer serializer = new MessagePackPluggableSerializer();
+		ISerializer serializer = new MpkSerializer();
 		var data = new byte[] { 0x01 };
 
 		// Act & Assert

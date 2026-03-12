@@ -1,11 +1,12 @@
+#pragma warning disable IL2026, IL3050 // Suppress AOT warnings for IConfiguration binding tests
+
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
-
-#pragma warning disable IL2026, IL3050 // Suppress AOT warnings for IConfiguration binding tests
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Dispatch.Caching;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,7 +30,7 @@ public sealed class CachingDispatchBuilderExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton(A.Fake<Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer>());
+		services.AddSingleton(new DispatchJsonSerializer());
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
@@ -44,7 +45,7 @@ public sealed class CachingDispatchBuilderExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton(A.Fake<Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer>());
+		services.AddSingleton(new DispatchJsonSerializer());
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
@@ -74,7 +75,7 @@ public sealed class CachingDispatchBuilderExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton(A.Fake<Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer>());
+		services.AddSingleton(new DispatchJsonSerializer());
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
@@ -89,7 +90,7 @@ public sealed class CachingDispatchBuilderExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton(A.Fake<Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer>());
+		services.AddSingleton(new DispatchJsonSerializer());
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
@@ -105,7 +106,7 @@ public sealed class CachingDispatchBuilderExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton(A.Fake<Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer>());
+		services.AddSingleton(new DispatchJsonSerializer());
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act
@@ -127,7 +128,7 @@ public sealed class CachingDispatchBuilderExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton(A.Fake<Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer>());
+		services.AddSingleton(new DispatchJsonSerializer());
 		var builder = CreateFakeDispatchBuilder(services);
 
 		// Act

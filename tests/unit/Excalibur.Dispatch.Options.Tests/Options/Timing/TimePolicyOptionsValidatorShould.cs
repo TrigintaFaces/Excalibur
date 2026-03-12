@@ -56,12 +56,12 @@ public sealed class TimePolicyOptionsValidatorShould
 	{
 		var options = new TimePolicyOptions
 		{
-			HandlerTimeout = TimeSpan.FromMinutes(10),
+			OperationTimeouts = { HandlerTimeout = TimeSpan.FromMinutes(10) },
 			MaxTimeout = TimeSpan.FromMinutes(5),
 		};
 		var result = _sut.Validate(null, options);
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(TimePolicyOptions.HandlerTimeout));
+		result.FailureMessage.ShouldContain(nameof(TimePolicyOperationTimeoutOptions.HandlerTimeout));
 	}
 
 	[Fact]
@@ -69,12 +69,12 @@ public sealed class TimePolicyOptionsValidatorShould
 	{
 		var options = new TimePolicyOptions
 		{
-			TransportTimeout = TimeSpan.FromMinutes(10),
+			OperationTimeouts = { TransportTimeout = TimeSpan.FromMinutes(10) },
 			MaxTimeout = TimeSpan.FromMinutes(5),
 		};
 		var result = _sut.Validate(null, options);
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(TimePolicyOptions.TransportTimeout));
+		result.FailureMessage.ShouldContain(nameof(TimePolicyOperationTimeoutOptions.TransportTimeout));
 	}
 
 	[Fact]
@@ -82,12 +82,15 @@ public sealed class TimePolicyOptionsValidatorShould
 	{
 		var options = new TimePolicyOptions
 		{
-			SerializationTimeout = TimeSpan.FromMinutes(3),
-			HandlerTimeout = TimeSpan.FromMinutes(2),
+			OperationTimeouts =
+			{
+				SerializationTimeout = TimeSpan.FromMinutes(3),
+				HandlerTimeout = TimeSpan.FromMinutes(2),
+			},
 		};
 		var result = _sut.Validate(null, options);
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(TimePolicyOptions.SerializationTimeout));
+		result.FailureMessage.ShouldContain(nameof(TimePolicyOperationTimeoutOptions.SerializationTimeout));
 	}
 
 	[Fact]
@@ -95,12 +98,15 @@ public sealed class TimePolicyOptionsValidatorShould
 	{
 		var options = new TimePolicyOptions
 		{
-			SerializationTimeout = TimeSpan.FromMinutes(2),
-			HandlerTimeout = TimeSpan.FromMinutes(2),
+			OperationTimeouts =
+			{
+				SerializationTimeout = TimeSpan.FromMinutes(2),
+				HandlerTimeout = TimeSpan.FromMinutes(2),
+			},
 		};
 		var result = _sut.Validate(null, options);
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(TimePolicyOptions.SerializationTimeout));
+		result.FailureMessage.ShouldContain(nameof(TimePolicyOperationTimeoutOptions.SerializationTimeout));
 	}
 
 	[Fact]
@@ -108,12 +114,15 @@ public sealed class TimePolicyOptionsValidatorShould
 	{
 		var options = new TimePolicyOptions
 		{
-			ValidationTimeout = TimeSpan.FromMinutes(3),
-			HandlerTimeout = TimeSpan.FromMinutes(2),
+			OperationTimeouts =
+			{
+				ValidationTimeout = TimeSpan.FromMinutes(3),
+				HandlerTimeout = TimeSpan.FromMinutes(2),
+			},
 		};
 		var result = _sut.Validate(null, options);
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(TimePolicyOptions.ValidationTimeout));
+		result.FailureMessage.ShouldContain(nameof(TimePolicyOperationTimeoutOptions.ValidationTimeout));
 	}
 
 	[Fact]
@@ -121,12 +130,15 @@ public sealed class TimePolicyOptionsValidatorShould
 	{
 		var options = new TimePolicyOptions
 		{
-			ComplexityMultiplier = 5.0,
-			HeavyOperationMultiplier = 3.0,
+			OperationTimeouts =
+			{
+				ComplexityMultiplier = 5.0,
+				HeavyOperationMultiplier = 3.0,
+			},
 		};
 		var result = _sut.Validate(null, options);
 		result.Failed.ShouldBeTrue();
-		result.FailureMessage.ShouldContain(nameof(TimePolicyOptions.ComplexityMultiplier));
+		result.FailureMessage.ShouldContain(nameof(TimePolicyOperationTimeoutOptions.ComplexityMultiplier));
 	}
 
 	[Fact]
@@ -134,8 +146,11 @@ public sealed class TimePolicyOptionsValidatorShould
 	{
 		var options = new TimePolicyOptions
 		{
-			ComplexityMultiplier = 3.0,
-			HeavyOperationMultiplier = 3.0,
+			OperationTimeouts =
+			{
+				ComplexityMultiplier = 3.0,
+				HeavyOperationMultiplier = 3.0,
+			},
 		};
 		var result = _sut.Validate(null, options);
 		result.Succeeded.ShouldBeTrue();
@@ -147,9 +162,12 @@ public sealed class TimePolicyOptionsValidatorShould
 		var options = new TimePolicyOptions
 		{
 			MaxTimeout = TimeSpan.FromMinutes(5),
-			CustomTimeouts = new Dictionary<TimeoutOperationType, TimeSpan>
+			Overrides = new TimePolicyOverrideOptions
 			{
-				[TimeoutOperationType.Outbox] = TimeSpan.FromMinutes(10),
+				CustomTimeouts = new Dictionary<TimeoutOperationType, TimeSpan>
+				{
+					[TimeoutOperationType.Outbox] = TimeSpan.FromMinutes(10),
+				},
 			},
 		};
 		var result = _sut.Validate(null, options);
@@ -163,9 +181,12 @@ public sealed class TimePolicyOptionsValidatorShould
 		var options = new TimePolicyOptions
 		{
 			MaxTimeout = TimeSpan.FromMinutes(5),
-			MessageTypeTimeouts = new Dictionary<string, TimeSpan>(StringComparer.Ordinal)
+			Overrides = new TimePolicyOverrideOptions
 			{
-				["MyMessage"] = TimeSpan.FromMinutes(10),
+				MessageTypeTimeouts = new Dictionary<string, TimeSpan>(StringComparer.Ordinal)
+				{
+					["MyMessage"] = TimeSpan.FromMinutes(10),
+				},
 			},
 		};
 		var result = _sut.Validate(null, options);
@@ -179,9 +200,12 @@ public sealed class TimePolicyOptionsValidatorShould
 		var options = new TimePolicyOptions
 		{
 			MaxTimeout = TimeSpan.FromMinutes(5),
-			HandlerTypeTimeouts = new Dictionary<string, TimeSpan>(StringComparer.Ordinal)
+			Overrides = new TimePolicyOverrideOptions
 			{
-				["MyHandler"] = TimeSpan.FromMinutes(10),
+				HandlerTypeTimeouts = new Dictionary<string, TimeSpan>(StringComparer.Ordinal)
+				{
+					["MyHandler"] = TimeSpan.FromMinutes(10),
+				},
 			},
 		};
 		var result = _sut.Validate(null, options);
@@ -196,13 +220,16 @@ public sealed class TimePolicyOptionsValidatorShould
 		{
 			DefaultTimeout = TimeSpan.FromMinutes(10),
 			MaxTimeout = TimeSpan.FromMinutes(5),
-			HandlerTimeout = TimeSpan.FromMinutes(10),
-			TransportTimeout = TimeSpan.FromMinutes(10),
+			OperationTimeouts =
+			{
+				HandlerTimeout = TimeSpan.FromMinutes(10),
+				TransportTimeout = TimeSpan.FromMinutes(10),
+			},
 		};
 		var result = _sut.Validate(null, options);
 		result.Failed.ShouldBeTrue();
 		result.FailureMessage.ShouldContain(nameof(TimePolicyOptions.DefaultTimeout));
-		result.FailureMessage.ShouldContain(nameof(TimePolicyOptions.HandlerTimeout));
-		result.FailureMessage.ShouldContain(nameof(TimePolicyOptions.TransportTimeout));
+		result.FailureMessage.ShouldContain(nameof(TimePolicyOperationTimeoutOptions.HandlerTimeout));
+		result.FailureMessage.ShouldContain(nameof(TimePolicyOperationTimeoutOptions.TransportTimeout));
 	}
 }

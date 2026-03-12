@@ -6,7 +6,7 @@ using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.BatchProcessing;
-using Excalibur.Data.InMemory.Inbox;
+using Excalibur.Inbox.InMemory;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Batch;
 using Excalibur.Dispatch.Options.Middleware;

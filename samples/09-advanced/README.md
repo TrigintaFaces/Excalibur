@@ -110,7 +110,6 @@ Production-ready event store implementations with database-specific optimization
 | [BackgroundServices](BackgroundServices/) | Various background service patterns | Advanced |
 | [JobWorkerSample](JobWorkerSample/) | Job worker pattern with multiple job types | Intermediate |
 | [MinimalJobSample](MinimalJobSample/) | Minimal job worker setup | Intermediate |
-| [WebWorkerSample](WebWorkerSample/) | Web-based worker patterns | Intermediate |
 
 ## Integration Patterns
 
@@ -278,7 +277,7 @@ dotnet run --project samples/09-advanced/CdcAntiCorruption
 - [04-reliability/](../04-reliability/) - Outbox pattern, retry, circuit breaker
 - [08-serialization/](../08-serialization/) - Protobuf, MessagePack, MemoryPack
 - [10-real-world/](../10-real-world/) - Production-style examples
-- [01-getting-started/ExcaliburCqrs/](../01-getting-started/ExcaliburCqrs/) - Basic CQRS patterns
+- [01-getting-started/EventSourcingIntro/](../01-getting-started/EventSourcingIntro/) - Basic CQRS patterns
 
 ## Learn More
 

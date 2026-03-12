@@ -31,6 +31,9 @@
     <!--#if (UseAwsSqs) -->
     <PackageReference Include="Excalibur.Dispatch.Transport.AwsSqs" Version="$(ExcaliburDispatchVersion)" />
     <!--#endif -->
+    <!--#if (UseGooglePubSub) -->
+    <PackageReference Include="Excalibur.Dispatch.Transport.GooglePubSub" Version="$(ExcaliburDispatchVersion)" />
+    <!--#endif -->
   </ItemGroup>
 
 </Project>

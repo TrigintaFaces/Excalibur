@@ -54,35 +54,8 @@ public sealed class ClaimCheckStorageOptions
 	public int ChunkSize { get; set; } = 1024 * 1024; // 1MB default
 
 	/// <summary>
-	/// Gets or sets the maximum number of concurrent operations.
+	/// Gets or sets the operation and resilience options.
 	/// </summary>
-	/// <value>The maximum number of concurrent operations.</value>
-	[Range(1, int.MaxValue)]
-	public int MaxConcurrency { get; set; } = Environment.ProcessorCount;
-
-	/// <summary>
-	/// Gets or sets the size of the buffer pool for reusable buffers.
-	/// </summary>
-	/// <value>The size of the buffer pool for reusable buffers.</value>
-	[Range(1, int.MaxValue)]
-	public int BufferPoolSize { get; set; } = 100;
-
-	/// <summary>
-	/// Gets or sets the timeout for storage operations.
-	/// </summary>
-	/// <value>The timeout for storage operations.</value>
-	public TimeSpan OperationTimeout { get; set; } = TimeSpan.FromSeconds(30);
-
-	/// <summary>
-	/// Gets or sets the maximum number of retries for storage operations.
-	/// </summary>
-	/// <value>The maximum number of retries for storage operations.</value>
-	[Range(0, int.MaxValue)]
-	public int MaxRetries { get; set; } = 3;
-
-	/// <summary>
-	/// Gets or sets the delay between retry attempts.
-	/// </summary>
-	/// <value>The delay between retry attempts.</value>
-	public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(1);
+	/// <value>The operation options including concurrency, buffering, timeouts, and retries.</value>
+	public ClaimCheckOperationOptions Operations { get; set; } = new();
 }

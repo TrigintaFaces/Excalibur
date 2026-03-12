@@ -33,7 +33,7 @@ This guide explains when and how to evolve from pure Dispatch messaging to the f
 
 ## Migration Path
 
-### Step 1: Pure Dispatch (DispatchMinimal pattern)
+### Step 1: Pure Dispatch (DispatchOnly pattern)
 
 ```csharp
 // Simple command with no aggregate
@@ -137,7 +137,7 @@ public class CreateOrderHandler : IActionHandler<CreateOrderCommand, Guid>
 
 ## Package Reference Changes
 
-### Dispatch Only (DispatchMinimal)
+### Dispatch Only (DispatchOnly)
 ```xml
 <ItemGroup>
   <ProjectReference Include="..\..\src\Dispatch\Dispatch\Excalibur.Dispatch.csproj" />
@@ -183,8 +183,8 @@ public class CreateOrderHandler : IActionHandler<CreateOrderCommand, Guid>
 
 ## Sample Applications
 
-- **DispatchMinimal** - Pure Dispatch messaging patterns
-- **ExcaliburCqrs** - Full CQRS/ES with aggregates and event sourcing
+- **DispatchOnly** - Pure Dispatch messaging patterns
+- **EventSourcingIntro** - Full CQRS/ES with aggregates and event sourcing
 
 ## Common Migration Questions
 

@@ -111,14 +111,14 @@ public sealed class MessageEnvelopeShould : UnitTestBase
 	}
 
 	[Fact]
-	public void Properties_ExposesItems()
+	public void Items_ExposesStoredItems()
 	{
 		// Arrange
 		using var envelope = new MessageEnvelope();
 		envelope.SetItem("propertyKey", "propertyValue");
 
 		// Act & Assert
-		envelope.Properties.ShouldContainKey("propertyKey");
+		envelope.Items.ShouldContainKey("propertyKey");
 	}
 
 	[Fact]

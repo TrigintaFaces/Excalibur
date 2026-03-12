@@ -18,14 +18,14 @@ public sealed class HighThroughputSqsOptionsShould
 		// Assert
 		options.QueueUrl.ShouldBeNull();
 		options.MaxConcurrency.ShouldBe(10);
-		options.ConcurrentPollers.ShouldBe(5);
-		options.MaxConcurrentPollers.ShouldBe(10);
+		options.Polling.ConcurrentPollers.ShouldBe(5);
+		options.Polling.MaxConcurrentPollers.ShouldBe(10);
 		options.ChannelCapacity.ShouldBe(1000);
 		options.MaxConcurrentMessages.ShouldBe(100);
 		options.BatchDeleteIntervalMs.ShouldBe(1000);
 		options.BatchSize.ShouldBe(10);
 		options.VisibilityTimeout.ShouldBe(30);
-		options.WaitTimeSeconds.ShouldBe(20);
+		options.Polling.WaitTimeSeconds.ShouldBe(20);
 		options.EnableBatching.ShouldBeTrue();
 	}
 
@@ -40,28 +40,31 @@ public sealed class HighThroughputSqsOptionsShould
 		{
 			QueueUrl = queueUrl,
 			MaxConcurrency = 50,
-			ConcurrentPollers = 20,
-			MaxConcurrentPollers = 30,
+			Polling = new HighThroughputSqsPollingOptions
+			{
+				ConcurrentPollers = 20,
+				MaxConcurrentPollers = 30,
+				WaitTimeSeconds = 10,
+			},
 			ChannelCapacity = 5000,
 			MaxConcurrentMessages = 500,
 			BatchDeleteIntervalMs = 500,
 			BatchSize = 5,
 			VisibilityTimeout = 60,
-			WaitTimeSeconds = 10,
 			EnableBatching = false,
 		};
 
 		// Assert
 		options.QueueUrl.ShouldBe(queueUrl);
 		options.MaxConcurrency.ShouldBe(50);
-		options.ConcurrentPollers.ShouldBe(20);
-		options.MaxConcurrentPollers.ShouldBe(30);
+		options.Polling.ConcurrentPollers.ShouldBe(20);
+		options.Polling.MaxConcurrentPollers.ShouldBe(30);
 		options.ChannelCapacity.ShouldBe(5000);
 		options.MaxConcurrentMessages.ShouldBe(500);
 		options.BatchDeleteIntervalMs.ShouldBe(500);
 		options.BatchSize.ShouldBe(5);
 		options.VisibilityTimeout.ShouldBe(60);
-		options.WaitTimeSeconds.ShouldBe(10);
+		options.Polling.WaitTimeSeconds.ShouldBe(10);
 		options.EnableBatching.ShouldBeFalse();
 	}
 }

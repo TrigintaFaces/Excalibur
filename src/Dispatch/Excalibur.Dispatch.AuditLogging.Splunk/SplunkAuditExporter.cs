@@ -148,7 +148,7 @@ public sealed partial class SplunkAuditExporter : IAuditLogExporter
 		// Process in chunks if batch is larger than max batch size
 		var chunks = auditEvents
 			.Select((e, i) => new { Event = e, Index = i })
-			.GroupBy(x => x.Index / _options.MaxBatchSize)
+			.GroupBy(x => x.Index / _options.Batch.MaxBatchSize)
 			.Select(g => g.Select(x => x.Event).ToList())
 			.ToList();
 
@@ -209,8 +209,8 @@ public sealed partial class SplunkAuditExporter : IAuditLogExporter
 		try
 		{
 			// Send a health check request to the HEC endpoint
-			using var request = new HttpRequestMessage(HttpMethod.Get, _options.HecEndpoint);
-			request.Headers.Authorization = new AuthenticationHeaderValue("Splunk", _options.HecToken);
+			using var request = new HttpRequestMessage(HttpMethod.Get, _options.Connection.HecEndpoint);
+			request.Headers.Authorization = new AuthenticationHeaderValue("Splunk", _options.Connection.HecToken);
 
 			var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
 
@@ -224,7 +224,7 @@ public sealed partial class SplunkAuditExporter : IAuditLogExporter
 			{
 				IsHealthy = isHealthy,
 				ExporterName = Name,
-				Endpoint = _options.HecEndpoint.ToString(),
+				Endpoint = _options.Connection.HecEndpoint.ToString(),
 				LatencyMs = elapsedMs,
 				CheckedAt = DateTimeOffset.UtcNow,
 				ErrorMessage = isHealthy ? null : $"Unexpected status code: {response.StatusCode}",
@@ -245,7 +245,7 @@ public sealed partial class SplunkAuditExporter : IAuditLogExporter
 			{
 				IsHealthy = false,
 				ExporterName = Name,
-				Endpoint = _options.HecEndpoint.ToString(),
+				Endpoint = _options.Connection.HecEndpoint.ToString(),
 				LatencyMs = elapsedMs,
 				CheckedAt = DateTimeOffset.UtcNow,
 				ErrorMessage = ex.Message
@@ -312,9 +312,9 @@ public sealed partial class SplunkAuditExporter : IAuditLogExporter
 
 	private HttpRequestMessage CreateRequest(HttpContent content)
 	{
-		var request = new HttpRequestMessage(HttpMethod.Post, _options.HecEndpoint) { Content = content };
+		var request = new HttpRequestMessage(HttpMethod.Post, _options.Connection.HecEndpoint) { Content = content };
 
-		request.Headers.Authorization = new AuthenticationHeaderValue("Splunk", _options.HecToken);
+		request.Headers.Authorization = new AuthenticationHeaderValue("Splunk", _options.Connection.HecToken);
 
 		if (_options.UseAck && !string.IsNullOrEmpty(_options.Channel))
 		{
@@ -331,7 +331,7 @@ public sealed partial class SplunkAuditExporter : IAuditLogExporter
 		var attempts = 0;
 		HttpResponseMessage? lastResponse = null;
 
-		while (attempts <= _options.MaxRetryAttempts)
+		while (attempts <= _options.Batch.MaxRetryAttempts)
 		{
 			attempts++;
 
@@ -346,9 +346,9 @@ public sealed partial class SplunkAuditExporter : IAuditLogExporter
 					return lastResponse;
 				}
 
-				if (attempts <= _options.MaxRetryAttempts)
+				if (attempts <= _options.Batch.MaxRetryAttempts)
 				{
-					var delay = _options.RetryBaseDelay * Math.Pow(2, attempts - 1);
+					var delay = _options.Batch.RetryBaseDelay * Math.Pow(2, attempts - 1);
 					LogAuditExportRetry(
 						attempts,
 						delay.TotalMilliseconds,
@@ -357,9 +357,9 @@ public sealed partial class SplunkAuditExporter : IAuditLogExporter
 					await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
 				}
 			}
-			catch (HttpRequestException) when (attempts <= _options.MaxRetryAttempts)
+			catch (HttpRequestException) when (attempts <= _options.Batch.MaxRetryAttempts)
 			{
-				var delay = _options.RetryBaseDelay * Math.Pow(2, attempts - 1);
+				var delay = _options.Batch.RetryBaseDelay * Math.Pow(2, attempts - 1);
 				await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
 			}
 		}

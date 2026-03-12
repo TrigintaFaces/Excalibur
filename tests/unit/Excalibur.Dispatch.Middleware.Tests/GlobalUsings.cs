@@ -13,3 +13,4 @@ global using Tests.Shared.Categories;
 global using Tests.Shared.Helpers;
 
 global using Xunit;
+global using Excalibur.Dispatch.Serialization;

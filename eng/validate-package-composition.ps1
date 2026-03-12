@@ -125,7 +125,7 @@ Write-Host "  Excalibur build complete ($($projectCount - $failed)/$projectCount
 # Optional: Validate sample
 if (-not $SkipSample) {
     Write-Host "`n[Optional] Validating sample builds..." -ForegroundColor Yellow
-    $samplePath = Join-Path $RepoRoot "samples/DispatchMinimal"
+    $samplePath = Join-Path $RepoRoot "samples/01-getting-started/DispatchOnly"
     if (Test-Path $samplePath) {
         dotnet build $samplePath -c Release `
             -p:UsePackageReferences=true `

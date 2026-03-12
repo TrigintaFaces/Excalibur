@@ -20,15 +20,15 @@ public sealed class KafkaCloudEventOptionsShould
 		options.DefaultTopic.ShouldBeNull();
 		options.DefaultPartitionCount.ShouldBe(3);
 		options.DefaultReplicationFactor.ShouldBe((short)1);
-		options.EnableIdempotentProducer.ShouldBeTrue();
-		options.AcknowledgmentLevel.ShouldBe(KafkaAckLevel.All);
-		options.MaxMessageSizeBytes.ShouldBe(1024 * 1024);
-		options.EnableCompression.ShouldBeTrue();
-		options.CompressionType.ShouldBe(KafkaCompressionType.Snappy);
-		options.CompressionThreshold.ShouldBe(1024);
-		options.RetrySettings.ShouldNotBeNull();
-		options.EnableTransactions.ShouldBeFalse();
-		options.TransactionalId.ShouldBeNull();
+		options.Producer.EnableIdempotentProducer.ShouldBeTrue();
+		options.Producer.AcknowledgmentLevel.ShouldBe(KafkaAckLevel.All);
+		options.Producer.MaxMessageSizeBytes.ShouldBe(1024 * 1024);
+		options.Producer.EnableCompression.ShouldBeTrue();
+		options.Producer.CompressionType.ShouldBe(KafkaCompressionType.Snappy);
+		options.Producer.CompressionThreshold.ShouldBe(1024);
+		options.Producer.RetrySettings.ShouldNotBeNull();
+		options.Producer.EnableTransactions.ShouldBeFalse();
+		options.Producer.TransactionalId.ShouldBeNull();
 		options.AutoCreateTopics.ShouldBeFalse();
 		options.ConsumerGroupId.ShouldBeNull();
 		options.OffsetReset.ShouldBe(KafkaOffsetReset.Latest);
@@ -45,15 +45,18 @@ public sealed class KafkaCloudEventOptionsShould
 			DefaultTopic = "my-topic",
 			DefaultPartitionCount = 6,
 			DefaultReplicationFactor = 3,
-			EnableIdempotentProducer = false,
-			AcknowledgmentLevel = KafkaAckLevel.Leader,
-			MaxMessageSizeBytes = 2_097_152,
-			EnableCompression = false,
-			CompressionType = KafkaCompressionType.Gzip,
-			CompressionThreshold = 2048,
-			RetrySettings = retryOptions,
-			EnableTransactions = true,
-			TransactionalId = "txn-1",
+			Producer = new KafkaCloudEventProducerOptions
+			{
+				EnableIdempotentProducer = false,
+				AcknowledgmentLevel = KafkaAckLevel.Leader,
+				MaxMessageSizeBytes = 2_097_152,
+				EnableCompression = false,
+				CompressionType = KafkaCompressionType.Gzip,
+				CompressionThreshold = 2048,
+				RetrySettings = retryOptions,
+				EnableTransactions = true,
+				TransactionalId = "txn-1",
+			},
 			AutoCreateTopics = true,
 			ConsumerGroupId = "my-group",
 			OffsetReset = KafkaOffsetReset.Earliest,
@@ -64,15 +67,15 @@ public sealed class KafkaCloudEventOptionsShould
 		options.DefaultTopic.ShouldBe("my-topic");
 		options.DefaultPartitionCount.ShouldBe(6);
 		options.DefaultReplicationFactor.ShouldBe((short)3);
-		options.EnableIdempotentProducer.ShouldBeFalse();
-		options.AcknowledgmentLevel.ShouldBe(KafkaAckLevel.Leader);
-		options.MaxMessageSizeBytes.ShouldBe(2_097_152);
-		options.EnableCompression.ShouldBeFalse();
-		options.CompressionType.ShouldBe(KafkaCompressionType.Gzip);
-		options.CompressionThreshold.ShouldBe(2048);
-		options.RetrySettings.ShouldBe(retryOptions);
-		options.EnableTransactions.ShouldBeTrue();
-		options.TransactionalId.ShouldBe("txn-1");
+		options.Producer.EnableIdempotentProducer.ShouldBeFalse();
+		options.Producer.AcknowledgmentLevel.ShouldBe(KafkaAckLevel.Leader);
+		options.Producer.MaxMessageSizeBytes.ShouldBe(2_097_152);
+		options.Producer.EnableCompression.ShouldBeFalse();
+		options.Producer.CompressionType.ShouldBe(KafkaCompressionType.Gzip);
+		options.Producer.CompressionThreshold.ShouldBe(2048);
+		options.Producer.RetrySettings.ShouldBe(retryOptions);
+		options.Producer.EnableTransactions.ShouldBeTrue();
+		options.Producer.TransactionalId.ShouldBe("txn-1");
 		options.AutoCreateTopics.ShouldBeTrue();
 		options.ConsumerGroupId.ShouldBe("my-group");
 		options.OffsetReset.ShouldBe(KafkaOffsetReset.Earliest);

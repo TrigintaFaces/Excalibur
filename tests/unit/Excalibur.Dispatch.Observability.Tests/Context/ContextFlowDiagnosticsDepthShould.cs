@@ -4,6 +4,7 @@
 #pragma warning disable IL2026, IL3050 // Suppress for test - RequiresUnreferencedCode/RequiresDynamicCode
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Observability.Context;
 
@@ -83,10 +84,7 @@ public sealed class ContextFlowDiagnosticsDepthShould : IDisposable
 		options.Fields.RequiredContextFields = ["MessageId", "CorrelationId"];
 		_diagnostics = CreateDiagnostics(options);
 
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.CorrelationId).Returns((string?)null); // Missing required
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		var context = CreateFakeContext(messageId: "msg-1", correlationId: null);
 
 		// Act
 		var issues = _diagnostics.AnalyzeContextHealth(context).ToList();
@@ -103,13 +101,8 @@ public sealed class ContextFlowDiagnosticsDepthShould : IDisposable
 		options.Limits.MaxContextSizeBytes = 10; // Very small limit
 		_diagnostics = CreateDiagnostics(options);
 
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.CorrelationId).Returns("corr-1");
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>
-		{
-			["LargeData"] = new string('x', 100),
-		});
+		var context = CreateFakeContext(messageId: "msg-1", correlationId: "corr-1");
+		context.Items["LargeData"] = new string('x', 100);
 
 		// Act
 		var issues = _diagnostics.AnalyzeContextHealth(context).ToList();
@@ -125,12 +118,8 @@ public sealed class ContextFlowDiagnosticsDepthShould : IDisposable
 		_diagnostics = CreateDiagnostics();
 		// ValidationResult() is an extension method that reads Items["__ValidationResult"]
 		var validationResult = new SerializableValidationResult { IsValid = false, Errors = ["error1"] };
-		var items = new Dictionary<string, object>
-		{
-			["__ValidationResult"] = validationResult,
-		};
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.Items).Returns(items);
+		var context = CreateFakeContext();
+		context.Items["__ValidationResult"] = validationResult;
 
 		// Act
 		var issues = _diagnostics.AnalyzeContextHealth(context).ToList();
@@ -146,12 +135,8 @@ public sealed class ContextFlowDiagnosticsDepthShould : IDisposable
 		_diagnostics = CreateDiagnostics();
 		// AuthorizationResult() is an extension method that reads Items["__AuthorizationResult"]
 		var authResult = AuthorizationResult.Failed("Denied");
-		var items = new Dictionary<string, object>
-		{
-			["__AuthorizationResult"] = authResult,
-		};
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.Items).Returns(items);
+		var context = CreateFakeContext();
+		context.Items["__AuthorizationResult"] = authResult;
 
 		// Act
 		var issues = _diagnostics.AnalyzeContextHealth(context).ToList();
@@ -165,19 +150,10 @@ public sealed class ContextFlowDiagnosticsDepthShould : IDisposable
 	{
 		// Arrange
 		_diagnostics = CreateDiagnostics();
-		var context = A.Fake<IMessageContext>();
-		// Must explicitly null out all string properties — FakeItEasy returns "" by default
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.ExternalId).Returns((string?)null);
-		A.CallTo(() => context.UserId).Returns((string?)null);
-		A.CallTo(() => context.CorrelationId).Returns((string?)null);
-		A.CallTo(() => context.CausationId).Returns((string?)null);
-		A.CallTo(() => context.TraceParent).Returns((string?)null);
-		A.CallTo(() => context.TenantId).Returns((string?)null);
-		A.CallTo(() => context.Source).Returns((string?)null);
-		A.CallTo(() => context.MessageType).Returns((string?)null);
-		A.CallTo(() => context.ContentType).Returns((string?)null);
+		var context = CreateFakeContext(messageId: "msg-1", correlationId: null);
+		// Ensure empty Items and Features so extension methods return null/0
 		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
 
 		// Act
 		var anomalies = _diagnostics.DetectAnomalies(context).ToList();
@@ -191,9 +167,7 @@ public sealed class ContextFlowDiagnosticsDepthShould : IDisposable
 	{
 		// Arrange
 		_diagnostics = CreateDiagnostics();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.CorrelationId).Returns("corr-1");
+		var context = CreateFakeContext(messageId: "msg-1", correlationId: "corr-1");
 
 		// Create many items to push field count > 100
 		var items = new Dictionary<string, object>();
@@ -215,12 +189,8 @@ public sealed class ContextFlowDiagnosticsDepthShould : IDisposable
 	{
 		// Arrange
 		_diagnostics = CreateDiagnostics();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>
-		{
-			["big_item"] = new string('x', 20000), // > 10KB
-		});
+		var context = CreateFakeContext(messageId: "msg-1");
+		context.Items["big_item"] = new string('x', 20000); // > 10KB
 
 		// Act
 		var anomalies = _diagnostics.DetectAnomalies(context).ToList();
@@ -234,10 +204,7 @@ public sealed class ContextFlowDiagnosticsDepthShould : IDisposable
 	{
 		// Arrange
 		_diagnostics = CreateDiagnostics();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-new");
-		A.CallTo(() => context.CorrelationId).Returns("corr-new");
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		var context = CreateFakeContext(messageId: "msg-new", correlationId: "corr-new");
 
 		// Act
 		_diagnostics.TrackContextHistory(context, "Created");
@@ -256,9 +223,7 @@ public sealed class ContextFlowDiagnosticsDepthShould : IDisposable
 		var options = new ContextObservabilityOptions();
 		options.Limits.MaxHistoryEventsPerContext = 3;
 		_diagnostics = CreateDiagnostics(options);
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		var context = CreateFakeContext(messageId: "msg-1");
 
 		// Act — add more events than the limit
 		for (var i = 0; i < 5; i++)
@@ -277,14 +242,10 @@ public sealed class ContextFlowDiagnosticsDepthShould : IDisposable
 	{
 		// Arrange
 		_diagnostics = CreateDiagnostics();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>
-		{
-			["password_hash"] = "secret",
-			["credit_card"] = "4111111111111111",
-			["email_address"] = "test@test.com",
-		});
+		var context = CreateFakeContext(messageId: "msg-1");
+		context.Items["password_hash"] = "secret";
+		context.Items["credit_card"] = "4111111111111111";
+		context.Items["email_address"] = "test@test.com";
 
 		// Act — trigger PII anomalies
 		_ = _diagnostics.DetectAnomalies(context).ToList();
@@ -350,9 +311,7 @@ public sealed class ContextFlowDiagnosticsDepthShould : IDisposable
 	{
 		// Arrange
 		_diagnostics = CreateDiagnostics();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		var context = CreateFakeContext(messageId: "msg-1");
 		_diagnostics.TrackContextHistory(context, "Created");
 		A.CallTo(() => _fakeMetrics.GetMetricsSummary()).Returns(new ContextMetricsSummary());
 
@@ -392,19 +351,13 @@ public sealed class ContextFlowDiagnosticsDepthShould : IDisposable
 	{
 		// Arrange
 		_diagnostics = CreateDiagnostics();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.CorrelationId).Returns("corr-1");
-		A.CallTo(() => context.CausationId).Returns("cause-1");
-		// Set enough fields to avoid InsufficientContext
-		A.CallTo(() => context.TenantId).Returns("tenant-1");
-		A.CallTo(() => context.UserId).Returns("user-1");
-		A.CallTo(() => context.MessageType).Returns("OrderCreated");
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>
-		{
-			["safe_key1"] = "value1",
-			["safe_key2"] = "value2",
-		});
+		var context = CreateFakeContext(messageId: "msg-1", correlationId: "corr-1", causationId: "cause-1");
+		// Set enough fields via features to avoid InsufficientContext
+		context.GetOrCreateIdentityFeature().TenantId = "tenant-1";
+		context.GetOrCreateIdentityFeature().UserId = "user-1";
+		context.SetMessageType("OrderCreated");
+		context.Items["safe_key1"] = "value1";
+		context.Items["safe_key2"] = "value2";
 
 		// Act
 		var anomalies = _diagnostics.DetectAnomalies(context).ToList();
@@ -418,9 +371,7 @@ public sealed class ContextFlowDiagnosticsDepthShould : IDisposable
 	{
 		// Arrange
 		_diagnostics = CreateDiagnostics();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		var context = CreateFakeContext(messageId: "msg-1");
 
 		// Act
 		_diagnostics.TrackContextHistory(context, "Processing", "stage details");
@@ -437,14 +388,34 @@ public sealed class ContextFlowDiagnosticsDepthShould : IDisposable
 	{
 		// Arrange
 		_diagnostics = CreateDiagnostics();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns((string?)null);
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		var context = CreateFakeContext(messageId: null);
 
 		// Act — should not throw, uses generated ID
 		_diagnostics.TrackContextHistory(context, "Event");
 
 		// No assert on specific ID since it's a GUID
+	}
+
+	/// <summary>
+	/// Creates a fake <see cref="IMessageContext"/> with real Items and Features dictionaries
+	/// so that extension methods work correctly.
+	/// </summary>
+	private static IMessageContext CreateFakeContext(
+		string? messageId = "msg-default",
+		string? correlationId = "corr-default",
+		string? causationId = null)
+	{
+		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		var features = new Dictionary<Type, object>();
+
+		A.CallTo(() => context.MessageId).Returns(messageId);
+		A.CallTo(() => context.CorrelationId).Returns(correlationId);
+		A.CallTo(() => context.CausationId).Returns(causationId);
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
+
+		return context;
 	}
 
 	private ContextFlowDiagnostics CreateDiagnostics(ContextObservabilityOptions? options = null)

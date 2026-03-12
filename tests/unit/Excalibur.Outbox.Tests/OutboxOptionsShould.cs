@@ -38,7 +38,7 @@ public sealed class OutboxOptionsShould : UnitTestBase
 		var options = OutboxOptions.Balanced().Build();
 
 		// Assert
-		options.MaxRetryCount.ShouldBe(5);
+		options.Retry.MaxRetryCount.ShouldBe(5);
 	}
 
 	[Fact]
@@ -48,7 +48,7 @@ public sealed class OutboxOptionsShould : UnitTestBase
 		var options = OutboxOptions.Balanced().Build();
 
 		// Assert
-		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(5));
+		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(5));
 	}
 
 	[Fact]
@@ -58,7 +58,7 @@ public sealed class OutboxOptionsShould : UnitTestBase
 		var options = OutboxOptions.Balanced().Build();
 
 		// Assert
-		options.EnableAutomaticCleanup.ShouldBeTrue();
+		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -68,7 +68,7 @@ public sealed class OutboxOptionsShould : UnitTestBase
 		var options = OutboxOptions.Balanced().Build();
 
 		// Assert
-		options.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(7));
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(7));
 	}
 
 	[Fact]
@@ -156,7 +156,7 @@ public sealed class OutboxOptionsShould : UnitTestBase
 		var options = OutboxOptions.HighReliability().Build();
 
 		// Assert
-		options.MaxRetryCount.ShouldBe(10);
+		options.Retry.MaxRetryCount.ShouldBe(10);
 	}
 
 	[Fact]
@@ -177,7 +177,7 @@ public sealed class OutboxOptionsShould : UnitTestBase
 		var options = OutboxOptions.HighReliability().Build();
 
 		// Assert
-		options.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
 	}
 
 	#endregion
@@ -217,7 +217,7 @@ public sealed class OutboxOptionsShould : UnitTestBase
 			.Build();
 
 		// Assert
-		options.MaxRetryCount.ShouldBe(5);
+		options.Retry.MaxRetryCount.ShouldBe(5);
 	}
 
 	[Fact]
@@ -229,7 +229,7 @@ public sealed class OutboxOptionsShould : UnitTestBase
 			.Build();
 
 		// Assert
-		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(10));
+		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(10));
 	}
 
 	[Fact]
@@ -241,7 +241,7 @@ public sealed class OutboxOptionsShould : UnitTestBase
 			.Build();
 
 		// Assert
-		options.EnableAutomaticCleanup.ShouldBeFalse();
+		options.Cleanup.EnableAutomaticCleanup.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -253,7 +253,7 @@ public sealed class OutboxOptionsShould : UnitTestBase
 			.Build();
 
 		// Assert
-		options.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
 	}
 
 	[Fact]
@@ -334,7 +334,7 @@ public sealed class OutboxOptionsShould : UnitTestBase
 			.Build();
 
 		// Assert
-		options.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(90));
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(90));
 		// Other preset values should be preserved
 		options.BatchSize.ShouldBe(10);
 	}
@@ -358,7 +358,7 @@ public sealed class OutboxOptionsShould : UnitTestBase
 		// Assert
 		options.BatchSize.ShouldBe(500);
 		options.PollingInterval.ShouldBe(TimeSpan.FromSeconds(2));
-		options.MaxRetryCount.ShouldBe(5);
+		options.Retry.MaxRetryCount.ShouldBe(5);
 		options.ProcessorId.ShouldBe("my-worker");
 		options.EnableBackgroundProcessing.ShouldBeTrue();
 	}
@@ -395,6 +395,30 @@ public sealed class OutboxOptionsShould : UnitTestBase
 		balanced.Preset.ShouldBe(OutboxPreset.Balanced);
 		highReliability.Preset.ShouldBe(OutboxPreset.HighReliability);
 		custom.Preset.ShouldBe(OutboxPreset.Custom);
+	}
+
+	#endregion
+
+	#region Sub-Options Tests
+
+	[Fact]
+	public void Retry_SubOptionsAreInitialized()
+	{
+		// Arrange & Act
+		var options = OutboxOptions.Balanced().Build();
+
+		// Assert
+		options.Retry.ShouldNotBeNull();
+	}
+
+	[Fact]
+	public void Cleanup_SubOptionsAreInitialized()
+	{
+		// Arrange & Act
+		var options = OutboxOptions.Balanced().Build();
+
+		// Assert
+		options.Cleanup.ShouldNotBeNull();
 	}
 
 	#endregion
@@ -495,8 +519,8 @@ public sealed class OutboxOptionsShould : UnitTestBase
 			.Build();
 
 		// Assert - should not throw
-		options.EnableAutomaticCleanup.ShouldBeFalse();
-		options.MessageRetentionPeriod.ShouldBe(TimeSpan.FromMinutes(30));
+		options.Cleanup.EnableAutomaticCleanup.ShouldBeFalse();
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromMinutes(30));
 	}
 
 	[Fact]

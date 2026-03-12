@@ -7,22 +7,10 @@ using System.ComponentModel.DataAnnotations;
 namespace Excalibur.Dispatch.Hosting.Serverless;
 
 /// <summary>
-/// Configuration options for serverless hosting.
+/// Telemetry-related configuration options for serverless hosting.
 /// </summary>
-public sealed class ServerlessHostOptions
+public sealed class ServerlessTelemetryOptions
 {
-	/// <summary>
-	/// Gets or sets the preferred serverless platform. If null, auto-detection will be used.
-	/// </summary>
-	/// <value>The preferred serverless platform, or <see langword="null"/> to use auto-detection.</value>
-	public ServerlessPlatform? PreferredPlatform { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable cold start optimization.
-	/// </summary>
-	/// <value><see langword="true"/> to enable cold start optimization; otherwise, <see langword="false"/>.</value>
-	public bool EnableColdStartOptimization { get; set; } = true;
-
 	/// <summary>
 	/// Gets or sets a value indicating whether to enable distributed tracing.
 	/// </summary>
@@ -40,6 +28,30 @@ public sealed class ServerlessHostOptions
 	/// </summary>
 	/// <value><see langword="true"/> to enable structured logging; otherwise, <see langword="false"/>.</value>
 	public bool EnableStructuredLogging { get; set; } = true;
+}
+
+/// <summary>
+/// Configuration options for serverless hosting.
+/// </summary>
+public sealed class ServerlessHostOptions
+{
+	/// <summary>
+	/// Gets or sets the preferred serverless platform. If null, auto-detection will be used.
+	/// </summary>
+	/// <value>The preferred serverless platform, or <see langword="null"/> to use auto-detection.</value>
+	public ServerlessPlatform? PreferredPlatform { get; set; }
+
+	/// <summary>
+	/// Gets or sets a value indicating whether to enable cold start optimization.
+	/// </summary>
+	/// <value><see langword="true"/> to enable cold start optimization; otherwise, <see langword="false"/>.</value>
+	public bool EnableColdStartOptimization { get; set; } = true;
+
+	/// <summary>
+	/// Gets or sets the telemetry options for serverless hosting.
+	/// </summary>
+	/// <value>The telemetry options controlling tracing, metrics, and logging.</value>
+	public ServerlessTelemetryOptions Telemetry { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets the timeout for function execution.

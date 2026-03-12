@@ -4,19 +4,20 @@
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Tests.Serialization.TestData;
 using Excalibur.Dispatch.Serialization.MessagePack;
+using ExcaliburMessagePackSerializer = Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializer;
 
 using MessagePack;
 
 namespace Excalibur.Dispatch.Tests.Serialization;
 
 /// <summary>
-/// Unit tests for <see cref="MessagePackPluggableSerializer"/> validating serialization,
+/// Unit tests for <see cref="ExcaliburMessagePackSerializer"/> validating serialization,
 /// deserialization, and error handling behavior.
 /// </summary>
 [Trait("Category", "Unit")]
 public sealed class MessagePackPluggableSerializerShould
 {
-	private readonly MessagePackPluggableSerializer _sut = new();
+	private readonly ExcaliburMessagePackSerializer _sut = new();
 
 	#region Property Tests
 
@@ -45,18 +46,21 @@ public sealed class MessagePackPluggableSerializerShould
 		var message = new TestMessage { Name = "Test", Value = 42 };
 
 		// Act
-		var result = _sut.Serialize(message);
+		var result = _sut.SerializeToBytes(message);
 
 		// Assert
 		result.ShouldNotBeEmpty();
 	}
 
 	[Fact]
-	public void Serialize_WithNull_ThrowsArgumentNullException()
+	public void Serialize_WithNull_ProducesValidOutput()
 	{
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			_sut.Serialize<TestMessage>(null!));
+		// Act — MessagePack serializes null as a nil byte
+		var result = ((ISerializer)_sut).SerializeToBytes<TestMessage>(null!);
+
+		// Assert
+		result.ShouldNotBeNull();
+		result.Length.ShouldBeGreaterThan(0);
 	}
 
 	[Fact]
@@ -76,7 +80,7 @@ public sealed class MessagePackPluggableSerializerShould
 		};
 
 		// Act
-		var result = _sut.Serialize(message);
+		var result = _sut.SerializeToBytes(message);
 
 		// Assert
 		result.ShouldNotBeEmpty();
@@ -90,7 +94,7 @@ public sealed class MessagePackPluggableSerializerShould
 		var message = new TestMessage { Name = "Test", Value = 42 };
 
 		// Act
-		var msgPackResult = _sut.Serialize(message);
+		var msgPackResult = _sut.SerializeToBytes(message);
 
 		// Assert - MessagePack should be compact binary
 		msgPackResult.ShouldNotBeEmpty();
@@ -112,7 +116,7 @@ public sealed class MessagePackPluggableSerializerShould
 			Value = 12345,
 			Timestamp = new DateTime(2025, 1, 15, 10, 30, 0, DateTimeKind.Utc)
 		};
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<TestMessage>(serialized);
@@ -161,7 +165,7 @@ public sealed class MessagePackPluggableSerializerShould
 				["priority"] = 1
 			}
 		};
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<ComplexTestMessage>(serialized);
@@ -185,11 +189,11 @@ public sealed class MessagePackPluggableSerializerShould
 		// Arrange - Use LZ4 compression options
 		var customOptions = MessagePackSerializerOptions.Standard
 			.WithCompression(MessagePackCompression.Lz4BlockArray);
-		var sut = new MessagePackPluggableSerializer(customOptions);
+		var sut = new ExcaliburMessagePackSerializer(customOptions);
 		var message = new TestMessage { Name = "Test", Value = 42 };
 
 		// Act
-		var result = sut.Serialize(message);
+		var result = sut.SerializeToBytes(message);
 
 		// Assert - Should still produce valid output
 		result.ShouldNotBeEmpty();
@@ -204,11 +208,11 @@ public sealed class MessagePackPluggableSerializerShould
 	public void Constructor_WithNullOptions_UsesStandardOptions()
 	{
 		// Arrange
-		var sut = new MessagePackPluggableSerializer(null);
+		var sut = new ExcaliburMessagePackSerializer(null);
 		var message = new TestMessage { Name = "Test", Value = 42 };
 
 		// Act
-		var result = sut.Serialize(message);
+		var result = sut.SerializeToBytes(message);
 
 		// Assert - Should use standard options and produce valid output
 		result.ShouldNotBeEmpty();
@@ -233,7 +237,7 @@ public sealed class MessagePackPluggableSerializerShould
 		};
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -254,7 +258,7 @@ public sealed class MessagePackPluggableSerializerShould
 		};
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -275,7 +279,7 @@ public sealed class MessagePackPluggableSerializerShould
 		};
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<ComplexTestMessage>(serialized);
 
 		// Assert
@@ -296,7 +300,7 @@ public sealed class MessagePackPluggableSerializerShould
 		};
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -314,7 +318,7 @@ public sealed class MessagePackPluggableSerializerShould
 		};
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -337,7 +341,7 @@ public sealed class MessagePackPluggableSerializerShould
 		// Act
 		foreach (var message in messages)
 		{
-			tasks.Add(Task.Run(() => _sut.Serialize(message)));
+			tasks.Add(Task.Run(() => _sut.SerializeToBytes(message)));
 		}
 
 		var results = await Task.WhenAll(tasks);
@@ -354,7 +358,7 @@ public sealed class MessagePackPluggableSerializerShould
 		var messages = Enumerable.Range(0, 100)
 			.Select(i => new TestMessage { Name = $"Message{i}", Value = i })
 			.ToList();
-		var serialized = messages.Select(m => _sut.Serialize(m)).ToList();
+		var serialized = messages.Select(m => _sut.SerializeToBytes(m)).ToList();
 		var tasks = new List<Task<TestMessage>>();
 
 		// Act

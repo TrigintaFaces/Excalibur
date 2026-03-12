@@ -3,7 +3,7 @@
 
 using System.Data;
 
-using Excalibur.Data.SqlServer.Cdc;
+using Excalibur.Cdc.SqlServer;
 
 using Microsoft.Data.SqlClient;
 

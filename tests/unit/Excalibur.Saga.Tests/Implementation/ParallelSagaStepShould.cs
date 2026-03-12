@@ -120,25 +120,14 @@ public sealed class ParallelSagaStepShould
 	}
 
 	[Fact]
-	public void HaveDefaultRequireAllSuccess_True()
+	public void HaveDefaultFailurePolicy_RequireAll()
 	{
 		// Arrange
 		var steps = new List<ISagaStep<TestSagaData>> { CreateFakeStep("Step1") };
 		var sut = new ParallelSagaStep<TestSagaData>("TestStep", steps, NullLogger<ParallelSagaStep<TestSagaData>>.Instance);
 
 		// Assert
-		sut.RequireAllSuccess.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void HaveDefaultContinueOnFailure_False()
-	{
-		// Arrange
-		var steps = new List<ISagaStep<TestSagaData>> { CreateFakeStep("Step1") };
-		var sut = new ParallelSagaStep<TestSagaData>("TestStep", steps, NullLogger<ParallelSagaStep<TestSagaData>>.Instance);
-
-		// Assert
-		sut.ContinueOnFailure.ShouldBeFalse();
+		sut.FailurePolicy.ShouldBe(ParallelFailurePolicy.RequireAll);
 	}
 
 	[Fact]
@@ -291,7 +280,7 @@ public sealed class ParallelSagaStepShould
 		var sut = new ParallelSagaStep<TestSagaData>("TestStep", steps, NullLogger<ParallelSagaStep<TestSagaData>>.Instance)
 		{
 			Strategy = ParallelismStrategy.Unlimited,
-			RequireAllSuccess = true
+			FailurePolicy = ParallelFailurePolicy.RequireAll
 		};
 
 		// Act
@@ -347,7 +336,7 @@ public sealed class ParallelSagaStepShould
 		{
 			Strategy = ParallelismStrategy.Batched,
 			MaxDegreeOfParallelism = 1,
-			ContinueOnFailure = false
+			FailurePolicy = ParallelFailurePolicy.FailFast
 		};
 
 		// Act
@@ -493,7 +482,7 @@ public sealed class ParallelSagaStepShould
 		var steps = new List<ISagaStep<TestSagaData>> { CreateFakeStep("Step1") };
 		var sut = new ParallelSagaStep<TestSagaData>("TestStep", steps, NullLogger<ParallelSagaStep<TestSagaData>>.Instance)
 		{
-			RequireAllSuccess = true
+			FailurePolicy = ParallelFailurePolicy.RequireAll
 		};
 		var results = new List<StepResult>
 		{

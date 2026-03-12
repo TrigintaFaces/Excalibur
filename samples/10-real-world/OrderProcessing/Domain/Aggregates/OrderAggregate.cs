@@ -14,7 +14,7 @@ namespace OrderProcessingSample.Domain.Aggregates;
 /// </summary>
 /// <remarks>
 /// The order follows a state machine:
-/// Created → Validated → PaymentProcessed → Shipped → Completed
+/// Created -> Validated -> PaymentProcessed -> Shipped -> Completed
 /// Any step can transition to: Failed or Cancelled
 /// </remarks>
 public class OrderAggregate : AggregateRoot<Guid>
@@ -84,7 +84,7 @@ public class OrderAggregate : AggregateRoot<Guid>
 		}
 
 		var order = new OrderAggregate(orderId);
-		order.RaiseEvent(new OrderCreated(orderId, customerId, items, shippingAddress, order.Version));
+		order.RaiseEvent(new OrderCreated(orderId, customerId, items, shippingAddress));
 		return order;
 	}
 
@@ -94,7 +94,7 @@ public class OrderAggregate : AggregateRoot<Guid>
 	public void MarkValidated()
 	{
 		EnsureStatus(OrderStatus.Created, "validate");
-		RaiseEvent(new OrderValidated(Id, Version));
+		RaiseEvent(new OrderValidated(Id));
 	}
 
 	/// <summary>
@@ -104,7 +104,7 @@ public class OrderAggregate : AggregateRoot<Guid>
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(reason);
 		EnsureStatus(OrderStatus.Created, "fail validation");
-		RaiseEvent(new OrderValidationFailed(Id, reason, Version));
+		RaiseEvent(new OrderValidationFailed(Id, reason));
 	}
 
 	/// <summary>
@@ -121,7 +121,7 @@ public class OrderAggregate : AggregateRoot<Guid>
 				$"Payment amount {amount:C} does not match order total {TotalAmount:C}");
 		}
 
-		RaiseEvent(new PaymentProcessed(Id, transactionId, amount, Version));
+		RaiseEvent(new PaymentProcessed(Id, transactionId, amount));
 	}
 
 	/// <summary>
@@ -131,7 +131,7 @@ public class OrderAggregate : AggregateRoot<Guid>
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(reason);
 		EnsureStatus(OrderStatus.Validated, "record payment failure");
-		RaiseEvent(new PaymentFailed(Id, reason, Version));
+		RaiseEvent(new PaymentFailed(Id, reason));
 	}
 
 	/// <summary>
@@ -142,7 +142,7 @@ public class OrderAggregate : AggregateRoot<Guid>
 		ArgumentException.ThrowIfNullOrWhiteSpace(trackingNumber);
 		ArgumentException.ThrowIfNullOrWhiteSpace(carrier);
 		EnsureStatus(OrderStatus.PaymentProcessed, "ship");
-		RaiseEvent(new OrderShipped(Id, trackingNumber, carrier, Version));
+		RaiseEvent(new OrderShipped(Id, trackingNumber, carrier));
 	}
 
 	/// <summary>
@@ -151,7 +151,7 @@ public class OrderAggregate : AggregateRoot<Guid>
 	public void Complete()
 	{
 		EnsureStatus(OrderStatus.Shipped, "complete");
-		RaiseEvent(new OrderCompleted(Id, Version));
+		RaiseEvent(new OrderCompleted(Id));
 	}
 
 	/// <summary>
@@ -167,7 +167,7 @@ public class OrderAggregate : AggregateRoot<Guid>
 				$"Cannot cancel order in status {Status}");
 		}
 
-		RaiseEvent(new OrderCancelled(Id, reason, Version));
+		RaiseEvent(new OrderCancelled(Id, reason));
 	}
 
 	/// <inheritdoc/>

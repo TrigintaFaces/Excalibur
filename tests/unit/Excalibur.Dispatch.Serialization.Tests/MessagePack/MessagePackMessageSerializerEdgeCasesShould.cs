@@ -1,18 +1,20 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Serialization.MessagePack;
 
 using MessagePack;
 
+using MpkSerializer = Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializer;
+
 namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 
 /// <summary>
-/// Additional edge-case and coverage tests for <see cref="MessagePackMessageSerializer"/>.
-/// Targets: options interaction, InvalidOperationException message text,
-/// various option configurations, and error-message branches.
+/// Additional edge-case and coverage tests for <see cref="MpkSerializer"/>.
+/// Tests options interaction, error messages, various configurations, and error-message branches.
+/// Originally tested the now-deleted MessagePackMessageSerializer; updated to test the
+/// consolidated <see cref="MpkSerializer"/> with equivalent behavior.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Serialization")]
@@ -23,33 +25,27 @@ public sealed class MessagePackMessageSerializerEdgeCasesShould : UnitTestBase
 	[Fact]
 	public void Constructor_WithCompressionEnabled_CreatesWorkingSerializer()
 	{
-		// Arrange
-		var opts = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions
-		{
-			UseLz4Compression = true,
-		});
+		// Arrange - Use native MessagePack options with LZ4 compression
+		var opts = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4Block);
 
 		// Act
-		var serializer = new MessagePackMessageSerializer(opts);
+		var serializer = new MpkSerializer(opts);
 
 		// Assert
 		serializer.ShouldNotBeNull();
-		serializer.SerializerName.ShouldBe("MessagePack");
+		serializer.Name.ShouldBe("MessagePack");
 	}
 
 	[Fact]
 	public void Constructor_WithAllOptionsSet_CreatesWorkingSerializer()
 	{
 		// Arrange
-		var opts = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions
-		{
-			UseLz4Compression = true,
-		});
+		var opts = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4Block);
 
 		// Act
-		var serializer = new MessagePackMessageSerializer(opts);
+		var serializer = new MpkSerializer(opts);
 		var message = new TestMessage { Id = 55, Name = "AllOpts" };
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestMessage>(bytes);
 
 		// Assert
@@ -60,13 +56,12 @@ public sealed class MessagePackMessageSerializerEdgeCasesShould : UnitTestBase
 	[Fact]
 	public void Constructor_WithDefaultOptions_CompressionIsNone()
 	{
-		// Arrange
-		var opts = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions());
+		// Arrange - Default constructor uses Standard options (no compression)
 
 		// Act
-		var serializer = new MessagePackMessageSerializer(opts);
+		var serializer = new MpkSerializer();
 		var message = new TestMessage { Id = 1, Name = "NoCompress" };
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestMessage>(bytes);
 
 		// Assert - just verify round-trip works without compression
@@ -82,17 +77,16 @@ public sealed class MessagePackMessageSerializerEdgeCasesShould : UnitTestBase
 	public void Deserialize_WhenResultIsNull_ExceptionContainsExpectedMessage()
 	{
 		// Arrange
-		var opts = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions());
-		var serializer = new MessagePackMessageSerializer(opts);
+		var serializer = new MpkSerializer();
 		var nilData = new byte[] { 0xC0 };
 
-		// Act
-		var ex = Should.Throw<InvalidOperationException>(() =>
-			serializer.Deserialize<TestMessage>(nilData));
+		// Act - Now throws SerializationException (not InvalidOperationException)
+		var ex = Should.Throw<SerializationException>(() =>
+			serializer.Deserialize<TestMessage>(nilData.AsSpan()));
 
-		// Assert - verify the error message comes from ErrorMessages resource
+		// Assert - verify the error message contains null indication
 		ex.Message.ShouldNotBeNullOrWhiteSpace();
-		ex.Message.ShouldBe(ErrorMessages.DeserializedMessageCannotBeNull);
+		ex.Message.ShouldContain("null");
 	}
 
 	#endregion
@@ -103,12 +97,11 @@ public sealed class MessagePackMessageSerializerEdgeCasesShould : UnitTestBase
 	public void Serialize_AndDeserialize_TestPluggableMessage_RoundTrips()
 	{
 		// Arrange
-		var opts = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions());
-		var serializer = new MessagePackMessageSerializer(opts);
+		var serializer = new MpkSerializer();
 		var message = new TestPluggableMessage { Value = 999, Text = "Pluggable" };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestPluggableMessage>(bytes);
 
 		// Assert
@@ -120,15 +113,12 @@ public sealed class MessagePackMessageSerializerEdgeCasesShould : UnitTestBase
 	public void Serialize_AndDeserialize_WithCompressionEnabled_TestPluggableMessage_RoundTrips()
 	{
 		// Arrange
-		var opts = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions
-		{
-			UseLz4Compression = true,
-		});
-		var serializer = new MessagePackMessageSerializer(opts);
+		var opts = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4Block);
+		var serializer = new MpkSerializer(opts);
 		var message = new TestPluggableMessage { Value = 42, Text = "CompressedPluggable" };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestPluggableMessage>(bytes);
 
 		// Assert
@@ -144,13 +134,12 @@ public sealed class MessagePackMessageSerializerEdgeCasesShould : UnitTestBase
 	public void Serialize_WithVeryLargeString_RoundTrips()
 	{
 		// Arrange
-		var opts = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions());
-		var serializer = new MessagePackMessageSerializer(opts);
+		var serializer = new MpkSerializer();
 		var largeStr = new string('Z', 100_000);
 		var message = new TestMessage { Id = 88, Name = largeStr };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestMessage>(bytes);
 
 		// Assert
@@ -166,14 +155,13 @@ public sealed class MessagePackMessageSerializerEdgeCasesShould : UnitTestBase
 	public void Serialize_CalledMultipleTimes_IsReusable()
 	{
 		// Arrange
-		var opts = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions());
-		var serializer = new MessagePackMessageSerializer(opts);
+		var serializer = new MpkSerializer();
 
 		// Act & Assert
 		for (var i = 0; i < 15; i++)
 		{
 			var msg = new TestMessage { Id = i, Name = $"Reuse{i}" };
-			var bytes = serializer.Serialize(msg);
+			var bytes = serializer.SerializeToBytes(msg);
 			var result = serializer.Deserialize<TestMessage>(bytes);
 			result.Id.ShouldBe(i);
 			result.Name.ShouldBe($"Reuse{i}");
@@ -185,17 +173,14 @@ public sealed class MessagePackMessageSerializerEdgeCasesShould : UnitTestBase
 	#region Interface
 
 	[Fact]
-	public void ImplementsIMessageSerializer_WithValidOptions()
+	public void ImplementsISerializer_WithValidOptions()
 	{
 		// Arrange
-		var opts = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions
-		{
-			UseLz4Compression = true,
-		});
-		var serializer = new MessagePackMessageSerializer(opts);
+		var opts = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4Block);
+		var serializer = new MpkSerializer(opts);
 
 		// Assert
-		serializer.ShouldBeAssignableTo<IMessageSerializer>();
+		serializer.ShouldBeAssignableTo<ISerializer>();
 	}
 
 	#endregion

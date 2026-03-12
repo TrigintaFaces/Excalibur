@@ -376,7 +376,6 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 		var context = new Excalibur.Dispatch.Messaging.MessageContext(message, A.Fake<IServiceProvider>())
 		{
 			MessageId = null,
-			MessageType = null
 		};
 
 		var publishResult = await _adapter.PublishAsync(message, context, CancellationToken.None);
@@ -390,8 +389,8 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 		var dispatchedContext = await dispatched.Task;
 		dispatchedContext.Message.ShouldBeSameAs(message);
 		dispatchedContext.MessageId.ShouldNotBeNullOrWhiteSpace();
-		dispatchedContext.MessageType.ShouldBe(typeof(TestDispatchMessage).FullName);
-		dispatchedContext.ReceivedTimestampUtc.ShouldNotBe(default);
+		dispatchedContext.GetMessageType().ShouldBe(typeof(TestDispatchMessage).FullName);
+		dispatchedContext.GetReceivedTimestampUtc().ShouldNotBe(default);
 	}
 
 	[Fact]

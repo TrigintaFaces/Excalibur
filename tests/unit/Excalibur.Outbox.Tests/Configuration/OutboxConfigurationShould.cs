@@ -82,11 +82,11 @@ public sealed class OutboxConfigurationShould
 		options.Preset.ShouldBe(OutboxPreset.Custom);
 		options.BatchSize.ShouldBe(250);
 		options.PollingInterval.ShouldBe(TimeSpan.FromMilliseconds(500));
-		options.MaxRetryCount.ShouldBe(7);
-		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(2));
-		options.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
-		options.EnableAutomaticCleanup.ShouldBeTrue();
-		options.CleanupInterval.ShouldBe(TimeSpan.FromHours(2));
+		options.Retry.MaxRetryCount.ShouldBe(7);
+		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(2));
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
+		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
+		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromHours(2));
 		options.EnableBackgroundProcessing.ShouldBeTrue();
 		options.ProcessorId.ShouldBe("test");
 		options.EnableParallelProcessing.ShouldBeTrue();

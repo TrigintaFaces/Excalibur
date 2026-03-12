@@ -34,6 +34,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 	private readonly ILogger<AspNetCoreAuthorizationMiddleware> _logger;
 	private readonly IMessageContext _context;
 	private readonly DispatchRequestDelegate _successDelegate;
+	private readonly Dictionary<string, object> _items;
 
 	public AspNetCoreAuthorizationMiddlewareShould()
 	{
@@ -41,9 +42,10 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 		_authorizationService = A.Fake<IAuthorizationService>();
 		_logger = A.Fake<ILogger<AspNetCoreAuthorizationMiddleware>>();
 		_context = A.Fake<IMessageContext>();
+		_items = new Dictionary<string, object>();
 
 		_ = A.CallTo(() => _context.MessageId).Returns("test-msg-id");
-		_ = A.CallTo(() => _context.GetItem<Type>("HandlerType")).Returns(null);
+		_ = A.CallTo(() => _context.Items).Returns(_items);
 
 		_successDelegate = (msg, ctx, ct) => new ValueTask<IMessageResult>(MessageResult.Success());
 	}
@@ -218,7 +220,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 	public async Task BypassAuthorization_WhenHandlerHasAllowAnonymous()
 	{
 		SetupAuthenticatedUser();
-		_ = A.CallTo(() => _context.GetItem<Type>("HandlerType")).Returns(typeof(AllowAnonymousHandler));
+		_items["HandlerType"] = typeof(AllowAnonymousHandler);
 		var middleware = CreateMiddleware();
 		var message = new AuthorizedNoPolicy();
 
@@ -440,7 +442,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 	{
 		SetupAuthenticatedUser();
 		SetupPolicySuccess("HandlerPolicy");
-		_ = A.CallTo(() => _context.GetItem<Type>("HandlerType")).Returns(typeof(AuthorizedHandler));
+		_items["HandlerType"] = typeof(AuthorizedHandler);
 		var middleware = CreateMiddleware();
 		var message = new PlainMessage();
 
@@ -458,7 +460,7 @@ public sealed class AspNetCoreAuthorizationMiddlewareShould
 		SetupAuthenticatedUser();
 		SetupPolicySuccess("AdminOnly");
 		SetupPolicySuccess("HandlerPolicy");
-		_ = A.CallTo(() => _context.GetItem<Type>("HandlerType")).Returns(typeof(AuthorizedHandler));
+		_items["HandlerType"] = typeof(AuthorizedHandler);
 		var middleware = CreateMiddleware();
 		var message = new AdminOnlyMessage();
 

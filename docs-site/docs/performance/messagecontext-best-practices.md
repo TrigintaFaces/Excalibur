@@ -13,75 +13,65 @@ This guide covers performance optimization patterns for `IMessageContext` usage 
 - **.NET 8.0+** (or .NET 9/10 for latest features)
 - Familiarity with [message context](../core-concepts/message-context.md) and [actions and handlers](../core-concepts/actions-and-handlers.md)
 
-## Property Access Performance
+## Core Properties vs Features vs Items
 
-### Use Direct Properties for Hot-Path Data
-
-Direct properties on `IMessageContext` provide ~10x better performance than the Items dictionary:
+`IMessageContext` has three levels of data access with different performance characteristics:
 
 | Access Method | Latency | Use Case |
 |---------------|---------|----------|
-| Direct property | 1-3ns | Core framework data, frequently accessed |
-| Items dictionary | 30-50ns | Transport-specific, user-defined data |
-| `GetItem<T>()` | 40-60ns | Same as Items + type cast |
+| Core property (e.g., `CorrelationId`) | 1-3ns | 8 core properties on the interface |
+| Feature extension (e.g., `GetTenantId()`) | 10-30ns | Cross-cutting concerns via typed features |
+| Items dictionary (`GetItem<T>()`) | 30-60ns | Transport-specific and user-defined data |
 
-**DO:**
+### Core Properties (Direct on Interface)
 
-```csharp
-// Fast - direct property access
-context.ProcessingAttempts++;
-context.ValidationPassed = true;
-var isRetry = context.IsRetry;
-```
-
-**DON'T:**
+These 8 properties are on the interface and have the fastest access:
 
 ```csharp
-// Slow - dictionary access with boxing
-context.Items["ProcessingAttempts"] = attempts;
-var passed = (bool)context.Items["ValidationPassed"];
+context.MessageId           // string?
+context.CorrelationId       // string?
+context.CausationId         // string?
+context.Message             // IDispatchMessage?
+context.Result              // object?
+context.RequestServices     // IServiceProvider
+context.Items               // IDictionary<string, object>
+context.Features            // IDictionary<Type, object>
 ```
 
-### Available Direct Properties
+### Feature Extensions (Cross-Cutting Concerns)
 
-Use these properties instead of Items for common patterns:
+Cross-cutting concerns are accessed via typed feature interfaces. Cache the feature reference when accessing multiple properties:
 
 ```csharp
-// Retry tracking
-context.ProcessingAttempts   // int
-context.FirstAttemptTime     // DateTimeOffset?
-context.IsRetry              // bool
+using Excalibur.Dispatch.Abstractions.Features;
 
-// Validation
-context.ValidationPassed     // bool
-context.ValidationTimestamp  // DateTimeOffset?
+// Good - cache the feature reference
+var processing = context.GetOrCreateProcessingFeature();
+processing.ProcessingAttempts++;
+processing.IsRetry = processing.ProcessingAttempts > 1;
+processing.FirstAttemptTime ??= DateTimeOffset.UtcNow;
 
-// Transactions
-context.Transaction          // object?
-context.TransactionId        // string?
+// Good - single read via convenience extension
+var isRetry = context.GetIsRetry();
 
-// Timeout
-context.TimeoutExceeded      // bool
-context.TimeoutElapsed       // TimeSpan?
+// Avoid - repeated feature lookups in a loop
+for (int i = 0; i < items.Count; i++)
+{
+    // Each call does a dictionary lookup
+    Process(items[i], context.GetTenantId()); // Avoid in tight loops
+}
 
-// Rate limiting
-context.RateLimitExceeded    // bool
-context.RateLimitRetryAfter  // TimeSpan?
+// Better - cache outside the loop
+var tenantId = context.GetTenantId();
+for (int i = 0; i < items.Count; i++)
+{
+    Process(items[i], tenantId);
+}
 ```
 
-## Items Dictionary Patterns
+### Items Dictionary (Transport-Specific)
 
-### When to Use Items
-
-Items dictionary is appropriate for:
-
-1. **Transport-specific metadata** - Data that only exists for certain transports
-2. **User-defined headers** - HTTP headers, AMQP headers with unpredictable keys
-3. **Infrequently accessed data** - Setup once, read once
-
-### Key Naming Conventions
-
-Use consistent prefixes to avoid collisions:
+Use Items for transport-specific and user-defined data only:
 
 ```csharp
 // Transport-specific (prefix with transport name)
@@ -98,40 +88,7 @@ context.Items["ce.type"] = eventType;
 context.Items["MyApp.CustomData"] = data;
 ```
 
-### Avoid Boxing for Value Types
-
-If you must use Items with value types, consider caching:
-
-```csharp
-// Slow - boxes int on every access
-context.Items["counter"] = count;
-var c = (int)context.Items["counter"];
-
-// Better - use direct property if available
-context.ProcessingAttempts = count;
-var c = context.ProcessingAttempts;
-```
-
 ## Middleware Patterns
-
-### Read Once, Use Multiple Times
-
-Don't repeatedly access the same property in a loop:
-
-```csharp
-// Good - read once
-var tenantId = context.TenantId;
-foreach (var item in items)
-{
-    Process(item, tenantId);
-}
-
-// Bad - repeated property access (though minimal cost for direct properties)
-foreach (var item in items)
-{
-    Process(item, context.TenantId);
-}
-```
 
 ### Short-Circuit Early
 
@@ -142,16 +99,17 @@ public async ValueTask<IMessageResult> InvokeAsync(
     IDispatchMessage message, IMessageContext context,
     DispatchRequestDelegate nextDelegate, CancellationToken cancellationToken)
 {
-    // Fast check first
-    if (context.ValidationPassed)
+    // Fast check first via feature extension
+    if (context.GetValidationPassed())
     {
         return await nextDelegate(message, context, cancellationToken);
     }
 
     // Expensive validation only if needed
     var isValid = await ValidateAsync(message);
-    context.ValidationPassed = isValid;
-    context.ValidationTimestamp = DateTimeOffset.UtcNow;
+    var validation = context.GetOrCreateValidationFeature();
+    validation.ValidationPassed = isValid;
+    validation.ValidationTimestamp = DateTimeOffset.UtcNow;
 
     if (isValid)
     {
@@ -162,17 +120,16 @@ public async ValueTask<IMessageResult> InvokeAsync(
 }
 ```
 
-### Use Null-Coalescing Assignment
+### Cache Feature References
+
+When a middleware reads and writes multiple feature properties, get the feature once:
 
 ```csharp
-// Good - only sets if null
-context.FirstAttemptTime ??= DateTimeOffset.UtcNow;
-
-// Unnecessary - always writes
-if (context.FirstAttemptTime == null)
-{
-    context.FirstAttemptTime = DateTimeOffset.UtcNow;
-}
+// Good - single feature lookup
+var processing = context.GetOrCreateProcessingFeature();
+processing.ProcessingAttempts++;
+processing.IsRetry = processing.ProcessingAttempts > 1;
+processing.FirstAttemptTime ??= DateTimeOffset.UtcNow;
 ```
 
 ## Context Propagation
@@ -183,20 +140,19 @@ if (context.FirstAttemptTime == null)
 
 ```csharp
 var childContext = context.CreateChildContext();
-// Propagated: CorrelationId, TenantId, UserId, SessionId,
-//             WorkflowId, TraceParent, Source
-// Set: CausationId = parent.MessageId
-// NOT copied: Items, hot-path properties
+// Propagated: CorrelationId, IMessageIdentityFeature, IMessageRoutingFeature.Source
+// Set: CausationId = parent.MessageId, new MessageId
+// NOT copied: Items, processing/validation/timeout features
 ```
 
 ### What's NOT Propagated
 
-Hot-path properties reset for each context:
-- `ProcessingAttempts` starts at 0
-- `ValidationPassed` starts at false
-- `Transaction` starts at null
+Feature state resets for each child context:
+- Processing feature starts fresh (attempts = 0, isRetry = false)
+- Validation feature starts fresh (passed = false)
+- Transaction feature starts null
 
-This is intentional - each message tracks its own processing state.
+This is intentional -- each message tracks its own processing state.
 
 ## Memory Considerations
 
@@ -237,21 +193,24 @@ Typical performance at scale (100K messages/second):
 
 | Pattern | CPU Cost per Second |
 |---------|---------------------|
-| 1 direct property read | ~0.2ms |
+| 1 core property read | ~0.2ms |
+| 1 feature extension read | ~2ms |
 | 1 Items dictionary read | ~3.5ms |
-| 10 direct property reads | ~2ms |
+| 10 core property reads | ~2ms |
+| 10 feature extension reads | ~20ms |
 | 10 Items dictionary reads | ~35ms |
 
-For middleware accessing 5-10 properties per message, direct properties save ~30ms of CPU time per second at 100K msg/s throughput.
+For middleware accessing 5-10 properties per message, caching feature references saves significant CPU at high throughput.
 
 ## Summary
 
-1. **Use direct properties** for ProcessingAttempts, ValidationPassed, IsRetry, etc.
-2. **Use Items** for transport-specific and user-defined data only
-3. **Prefix Items keys** to avoid collisions
-4. **Read properties once** if used multiple times
-5. **Short-circuit early** to avoid unnecessary work
-6. **Don't store large objects** in Items
+1. **Use core properties** for MessageId, CorrelationId, CausationId (direct on interface)
+2. **Use feature extensions** for cross-cutting concerns (identity, processing, validation, etc.)
+3. **Cache feature references** when accessing multiple properties from the same feature
+4. **Use Items** for transport-specific and user-defined data only
+5. **Prefix Items keys** to avoid collisions
+6. **Short-circuit early** to avoid unnecessary work
+7. **Don't store large objects** in Items
 
 ## See Also
 

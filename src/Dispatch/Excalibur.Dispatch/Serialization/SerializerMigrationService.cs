@@ -303,9 +303,9 @@ public partial class SerializerMigrationService
 	private async Task<EncryptionMigrationResult> MigrateRecordAsync(
 		IMigrationStore store,
 		IMigrationRecord record,
-		IPluggableSerializer sourceSerializer,
+		ISerializer sourceSerializer,
 		byte sourceSerializerId,
-		IPluggableSerializer targetSerializer,
+		ISerializer targetSerializer,
 		byte targetSerializerId,
 		bool enableReadBackVerification,
 		CancellationToken cancellationToken)
