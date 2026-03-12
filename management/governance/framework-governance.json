@@ -612,6 +612,18 @@
       }
     },
     {
+      "name": "Excalibur inbox family",
+      "packagePattern": "^Excalibur\\.Inbox($|\\.)",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Data.Tests/Excalibur.Data.Tests.csproj"
+        ],
+        "integration": [
+          "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+        ]
+      }
+    },
+    {
       "name": "Excalibur migrate tool",
       "packagePattern": "^Excalibur\\.Migrate\\.Tool$",
       "suites": {
