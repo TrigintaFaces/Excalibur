@@ -39,6 +39,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
+$ShippingSolutionFilter = Join-Path $RepoRoot "eng/ci/shards/ShippingOnly.slnf"
 
 Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "Sprint 328 T2.4: Package Composition Validation" -ForegroundColor Cyan
@@ -50,22 +51,21 @@ $stepNum = 0
 $stepNum++
 if (-not $SkipBuild) {
     Write-Host "[$stepNum/4] Building Dispatch projects..." -ForegroundColor Yellow
-    $DispatchSrc = Join-Path $RepoRoot "src/Dispatch"
-    $DispatchProjects = Get-ChildItem -Path $DispatchSrc -Filter "*.csproj" -Recurse
-    $projectCount = $DispatchProjects.Count
-    $built = 0
-    foreach ($proj in $DispatchProjects) {
-        $built++
-        Write-Host "  [$built/$projectCount] Building $($proj.Name)..." -ForegroundColor Gray
-        dotnet build $proj.FullName -c Release --no-restore 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            # Try with restore
-            dotnet build $proj.FullName -c Release 2>&1 | Out-Null
-            if ($LASTEXITCODE -ne 0) {
-                throw "Build failed for $($proj.Name) with exit code $LASTEXITCODE"
-            }
-        }
+    if (-not (Test-Path $ShippingSolutionFilter)) {
+        throw "Shipping solution filter not found: $ShippingSolutionFilter"
     }
+
+    dotnet restore $ShippingSolutionFilter --verbosity quiet
+    if ($LASTEXITCODE -ne 0) {
+        throw "Restore failed for $ShippingSolutionFilter with exit code $LASTEXITCODE"
+    }
+
+    dotnet build $ShippingSolutionFilter -c Release --no-restore --verbosity quiet
+    if ($LASTEXITCODE -ne 0) {
+        throw "Build failed for $ShippingSolutionFilter with exit code $LASTEXITCODE"
+    }
+
+    $projectCount = (Get-Content $ShippingSolutionFilter | Select-String -Pattern '\.csproj"').Count
     Write-Host "  Dispatch build successful ($projectCount projects)" -ForegroundColor Green
 }
 else {

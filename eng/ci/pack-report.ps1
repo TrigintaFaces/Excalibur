@@ -4,12 +4,27 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
+$RepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$ShippingSolutionFilter = Join-Path $RepoRoot 'eng/ci/shards/ShippingOnly.slnf'
 
 # Pack
 dotnet pack --configuration Release --no-build --output $OutDir | Tee-Object -FilePath (Join-Path $OutDir 'pack.log') | Out-Null
 
 # Validate csproj metadata hints
-$csprojs = Get-ChildItem -Recurse -File -Include *.csproj
+$csprojs = @()
+if (Test-Path $ShippingSolutionFilter) {
+  $filter = Get-Content -Raw -- $ShippingSolutionFilter | ConvertFrom-Json
+  $csprojs = foreach ($projPath in $filter.solution.projects) {
+    $fullPath = Join-Path $RepoRoot $projPath
+    if (Test-Path $fullPath) {
+      Get-Item $fullPath
+    }
+  }
+}
+else {
+  $csprojs = Get-ChildItem -Path (Join-Path $RepoRoot 'src') -Recurse -File -Include *.csproj
+}
+
 function Get-Prop([xml]$xml, [string]$name){
   $path = "//Project/PropertyGroup/$name"
   $nodes = $xml.SelectNodes($path)
@@ -17,8 +32,21 @@ function Get-Prop([xml]$xml, [string]$name){
   return $null
 }
 
+function Try-ReadProjectXml([string]$path) {
+  try {
+    return [xml](Get-Content -Raw -- $path)
+  }
+  catch {
+    Write-Warning "Skipping non-project or malformed XML file: $path"
+    return $null
+  }
+}
+
 $meta = foreach ($proj in $csprojs) {
-  $xml = [xml](Get-Content -Raw -- $proj.FullName)
+  $xml = Try-ReadProjectXml $proj.FullName
+  if ($null -eq $xml -or $null -eq $xml.DocumentElement -or $xml.DocumentElement.Name -ne 'Project') {
+    continue
+  }
   $pubRepo = Get-Prop $xml 'PublishRepositoryUrl'
   $embedSrc = Get-Prop $xml 'EmbedUntrackedSources'
   $ciBuild = Get-Prop $xml 'ContinuousIntegrationBuild'

@@ -319,10 +319,13 @@ public sealed class DefaultRetryPolicyShould
 			MaxRetryAttempts = 5,
 			Backoff = { BaseDelay = TimeSpan.FromSeconds(10) }, // Long delay
 		};
-		var policy = CreatePolicy(options);
 		using var cts = new CancellationTokenSource();
+		var backoff = A.Fake<IBackoffCalculator>();
 		var executionCount = 0;
-		cts.CancelAfter(TimeSpan.FromMilliseconds(50));
+		_ = A.CallTo(() => backoff.CalculateDelay(1))
+			.Invokes(() => cts.Cancel())
+			.Returns(TimeSpan.FromSeconds(10));
+		var policy = CreatePolicy(options, backoff);
 
 		// Act
 		var task = policy.ExecuteAsync(async ct =>
@@ -342,6 +345,8 @@ public sealed class DefaultRetryPolicyShould
 		// Assert
 		_ = await Should.ThrowAsync<OperationCanceledException>(async () =>
 			await task.ConfigureAwait(false)).ConfigureAwait(false);
+		executionCount.ShouldBe(1);
+		_ = A.CallTo(() => backoff.CalculateDelay(1)).MustHaveHappenedOnceExactly();
 	}
 
 	#endregion Cancellation Tests

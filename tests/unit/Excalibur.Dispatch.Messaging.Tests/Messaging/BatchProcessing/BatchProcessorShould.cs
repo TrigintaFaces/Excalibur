@@ -403,15 +403,17 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		var options = new MicroBatchOptions { MaxBatchSize = 5, MaxBatchDelay = TimeSpan.FromSeconds(10) };
 
 		var batchSizes = new ConcurrentBag<int>();
-		var expectedBatches = new TaskCompletionSource<bool>();
+		var totalProcessed = 0;
+		var allItemsProcessed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		var processor = new BatchProcessor<string>(
 			batch =>
 			{
 				batchSizes.Add(batch.Count);
-				if (batchSizes.Count >= 2) // Expect at least 2 batches
+				var currentTotal = Interlocked.Add(ref totalProcessed, batch.Count);
+				if (currentTotal >= 10)
 				{
-					_ = expectedBatches.TrySetResult(true);
+					_ = allItemsProcessed.TrySetResult();
 				}
 
 				return ValueTask.CompletedTask;
@@ -428,10 +430,10 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		}
 
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			allItemsProcessed.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(45)));
 
-			expectedBatches.Task,
-
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
+		Volatile.Read(ref totalProcessed).ShouldBe(10);
 		batchSizes.All(size => size <= options.MaxBatchSize).ShouldBeTrue();
 		batchSizes.Count(size => size == options.MaxBatchSize).ShouldBeGreaterThanOrEqualTo(2);
 	}

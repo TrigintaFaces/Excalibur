@@ -17,6 +17,7 @@ It is generated from project files; licenses remain with their respective owners
 | Amazon.Lambda.SNSEvents | 2.1.0 |
 | Amazon.Lambda.SQSEvents | 2.2.0 |
 | Amazon.Lambda.TestUtilities | 2.0.0 |
+| Apache.Avro | 1.12.0 |
 | Asp.Versioning.Mvc | 8.0.0 |
 | Asp.Versioning.Mvc.ApiExplorer | 8.0.0 |
 | AspNetCore.HealthChecks.AzureStorage | 7.0.0 |
@@ -73,12 +74,11 @@ It is generated from project files; licenses remain with their respective owners
 | Dapper | 2.1.66 |
 | Elastic.Clients.Elasticsearch | 8.15.0 |
 | Elastic.Transport | 0.4.22 |
-| Excalibur.Dispatch | $(ExcaliburDispatchVersion) |
+| Excalibur.Dispatch |  |
 | Excalibur.Dispatch.Abstractions |  |
 | Excalibur.Dispatch.Caching |  |
 | Excalibur.Dispatch.Compliance |  |
 | Excalibur.Dispatch.Compliance.Abstractions |  |
-| Excalibur.Dispatch.Hosting.AspNetCore | $(ExcaliburDispatchVersion) |
 | Excalibur.Dispatch.Hosting.AwsLambda |  |
 | Excalibur.Dispatch.Hosting.AzureFunctions |  |
 | Excalibur.Dispatch.Hosting.GoogleCloudFunctions |  |
@@ -88,18 +88,10 @@ It is generated from project files; licenses remain with their respective owners
 | Excalibur.Dispatch.Serialization.MemoryPack |  |
 | Excalibur.Dispatch.SourceGenerators | 1.0.0 |
 | Excalibur.Dispatch.Transport.Abstractions |  |
-| Excalibur.Dispatch.Transport.AwsSqs | $(ExcaliburDispatchVersion) |
-| Excalibur.Dispatch.Transport.AzureServiceBus | $(ExcaliburDispatchVersion) |
-| Excalibur.Dispatch.Transport.Kafka | $(ExcaliburDispatchVersion) |
-| Excalibur.Dispatch.Transport.RabbitMQ | $(ExcaliburDispatchVersion) |
-| Excalibur.Domain | $(ExcaliburDispatchVersion) |
-| Excalibur.EventSourcing | $(ExcaliburDispatchVersion) |
 | Excalibur.EventSourcing.Abstractions |  |
-| Excalibur.EventSourcing.Postgres | $(ExcaliburDispatchVersion) |
-| Excalibur.EventSourcing.SqlServer | $(ExcaliburDispatchVersion) |
-| Excalibur.Hosting | $(ExcaliburDispatchVersion) |
-| Excalibur.LeaderElection |  |
-| FakeItEasy | 8.* |
+| Excalibur.EventSourcing.Postgres |  |
+| Excalibur.EventSourcing.SqlServer |  |
+| FakeItEasy | 8.3.0 |
 | FluentMigrator | 6.0.0 |
 | FluentMigrator.Runner | 6.0.0 |
 | FluentValidation | 12.0.0 |
@@ -189,7 +181,7 @@ It is generated from project files; licenses remain with their respective owners
 | Microsoft.Extensions.Options.DataAnnotations | 10.0.0 |
 | Microsoft.Extensions.TimeProvider.Testing | 9.0.0 |
 | Microsoft.IdentityModel.Tokens | 8.14.0 |
-| Microsoft.NET.Test.Sdk | 17.* |
+| Microsoft.NET.Test.Sdk | 18.0.0 |
 | Microsoft.Rest.ClientRuntime | 2.3.24 |
 | Microsoft.SourceLink.GitHub | 8.0.0 |
 | MongoDB.Driver | 2.25.0 |
@@ -224,10 +216,11 @@ It is generated from project files; licenses remain with their respective owners
 | Serilog.AspNetCore | 8.0.1 |
 | Serilog.Extensions.Hosting | 8.0.0 |
 | Serilog.Extensions.Logging | 8.0.0 |
+| Serilog.Settings.Configuration | 8.0.0 |
 | Serilog.Sinks.Console | 5.0.1 |
 | Serilog.Sinks.Debug | 2.0.0 |
 | Serilog.Sinks.File | 5.0.0 |
-| Shouldly | 4.* |
+| Shouldly | 4.3.0 |
 | Snappier | 1.2.0 |
 | StackExchange.Redis | 2.9.25 |
 | StyleCop.Analyzers | 1.2.0-beta.556 |
@@ -260,11 +253,12 @@ It is generated from project files; licenses remain with their respective owners
 | Testcontainers.ServiceBus | 4.7.0 |
 | VaultSharp | 1.17.5 |
 | Verify.Xunit | 27.0.0 |
+| Wasmtime | 34.0.2 |
 | WolverineFx | 5.2.0 |
-| xunit | 2.* |
+| xunit | 2.9.3 |
 | xunit.core | 2.9.3 |
 | xunit.extensibility.core | 2.9.3 |
 | xunit.extensibility.execution | 2.9.3 |
-| xunit.runner.visualstudio | 2.* |
+| xunit.runner.visualstudio | 3.1.5 |
 | Xunit.SkippableFact | 1.5.23 |
 | YamlDotNet | 16.3.0 |

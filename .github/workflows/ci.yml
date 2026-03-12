@@ -257,13 +257,10 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore
+        run: dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
 
       - name: Build Dispatch projects
-        run: |
-          find src/Dispatch -name '*.csproj' -print0 | while IFS= read -r -d '' proj; do
-            dotnet build "$proj" --configuration Release --no-restore
-          done
+        run: dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity quiet
 
       - name: Pack Dispatch to local feed
         shell: pwsh
