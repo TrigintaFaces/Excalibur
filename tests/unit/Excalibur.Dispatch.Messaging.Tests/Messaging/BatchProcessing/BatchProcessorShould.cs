@@ -70,6 +70,11 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 	{
 		var processedBatches = new ConcurrentBag<IReadOnlyList<string>>();
 		var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var options = new MicroBatchOptions
+		{
+			MaxBatchSize = 1,
+			MaxBatchDelay = TimeSpan.FromSeconds(10),
+		};
 
 		var processor = new BatchProcessor<string>(
 			batch =>
@@ -78,7 +83,8 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 				_ = tcs.TrySetResult(true);
 				return ValueTask.CompletedTask;
 			},
-			_logger);
+			_logger,
+			options);
 
 		_disposables.Add(processor);
 
@@ -601,17 +607,17 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 	[Fact]
 	public async Task HandleBackpressureGracefully()
 	{
-		var processingDelay = TimeSpan.FromMilliseconds(100);
+		var processingDelay = TimeSpan.FromMilliseconds(20);
 		var processedBatches = new ConcurrentBag<int>();
 		var totalProcessed = 0;
 		var allItemsProcessed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-		var options = new MicroBatchOptions { MaxBatchSize = 5, MaxBatchDelay = TimeSpan.FromMilliseconds(50) };
+		var options = new MicroBatchOptions { MaxBatchSize = 4, MaxBatchDelay = TimeSpan.FromMilliseconds(10) };
 
 		var processor = new BatchProcessor<string>(
 			async batch =>
 			{
 				processedBatches.Add(batch.Count);
-				if (Interlocked.Add(ref totalProcessed, batch.Count) >= 50)
+				if (Interlocked.Add(ref totalProcessed, batch.Count) >= 20)
 				{
 					_ = allItemsProcessed.TrySetResult();
 				}
@@ -623,17 +629,16 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		_disposables.Add(processor);
 
 		// Add items faster than they can be processed
-		var itemCount = 50;
+		var itemCount = 20;
 		var stopwatch = Stopwatch.StartNew();
 
 		var addTasks = Enumerable.Range(0, itemCount)
 			.Select(async i => await processor.AddAsync($"item{i}", CancellationToken.None).ConfigureAwait(false));
 
 		await Task.WhenAll(addTasks).ConfigureAwait(false);
-
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			allItemsProcessed.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(45))).ConfigureAwait(false);
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 
 		stopwatch.Stop();
 

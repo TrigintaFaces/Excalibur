@@ -490,28 +490,46 @@ public sealed class MaterializedViewRefreshServiceShould
 		// Arrange
 		var processor = A.Fake<IMaterializedViewProcessor>();
 		var callCount = 0;
+		var retryObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var registrationType = typeof(MaterializedViewRefreshService).Assembly
+			.GetType("Excalibur.EventSourcing.Views.MaterializedViewBuilderRegistration")
+			.ShouldNotBeNull();
+		var registration = Activator.CreateInstance(
+			registrationType,
+			typeof(TestMaterializedView),
+			typeof(object),
+			new object()).ShouldNotBeNull();
+		var registrationSequenceType = typeof(IEnumerable<>).MakeGenericType(registrationType);
+		var registrations = Array.CreateInstance(registrationType, 1);
+		registrations.SetValue(registration, 0);
 
 		// Simulate transient failure on first call
 		A.CallTo(() => processor.CatchUpAsync(A<string>._, A<CancellationToken>._))
 			.Invokes(() =>
 			{
-				callCount++;
-				if (callCount == 1)
+				var currentCall = Interlocked.Increment(ref callCount);
+				if (currentCall == 1)
 				{
 					throw new InvalidOperationException("Transient failure");
+				}
+
+				if (currentCall > 1)
+				{
+					_ = retryObserved.TrySetResult();
 				}
 			});
 
 		var options = Options.Create(new MaterializedViewRefreshOptions
 		{
 			Enabled = true,
-			CatchUpOnStartup = true,
-			RefreshInterval = TimeSpan.FromHours(1),
+			CatchUpOnStartup = false,
+			RefreshInterval = TimeSpan.FromMilliseconds(10),
 			InitialRetryDelay = TimeSpan.FromMilliseconds(10),
 			MaxRetryCount = 3
 		});
 
 		A.CallTo(() => _serviceProvider.GetService(typeof(IMaterializedViewProcessor))).Returns(processor);
+		A.CallTo(() => _serviceProvider.GetService(registrationSequenceType)).Returns(registrations);
 
 		var timeProvider = TimeProvider.System;
 		var logger = NullLogger<MaterializedViewRefreshService>.Instance;
@@ -521,15 +539,15 @@ public sealed class MaterializedViewRefreshServiceShould
 
 		// Act
 		await service.StartAsync(cts.Token);
-		var retryObserved = await WaitHelpers.WaitUntilAsync(
-			() => Volatile.Read(ref callCount) > 1,
-			timeout: TimeSpan.FromSeconds(3),
-			pollInterval: TimeSpan.FromMilliseconds(25));
+		await WaitHelpers.AwaitSignalAsync(
+			retryObserved.Task,
+			TimeSpan.FromSeconds(3),
+			TimeSpan.FromMilliseconds(25));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
 		// Assert - processor should have been called more than once due to retry
-		retryObserved.ShouldBeTrue();
+		Volatile.Read(ref callCount).ShouldBeGreaterThan(1);
 	}
 
 	#endregion
@@ -554,5 +572,7 @@ public sealed class MaterializedViewRefreshServiceShould
 	}
 
 	#endregion
+
+	private sealed class TestMaterializedView;
 }
 
