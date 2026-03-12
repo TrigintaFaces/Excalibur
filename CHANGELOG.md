@@ -9,9 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Post-`3.0.0-alpha.27` stabilization and release-candidate hardening.
+- Post-`3.0.0-alpha.29` stabilization and release-candidate hardening.
 
-## [3.0.0-alpha.27] - 2026-02-25
+## [3.0.0-alpha.29] - 2026-02-25
 
 First pre-release of the `3.0.0` line with major architecture, packaging, governance, API, and documentation updates.
 
