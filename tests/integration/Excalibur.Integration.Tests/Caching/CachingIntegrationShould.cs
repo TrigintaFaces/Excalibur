@@ -461,12 +461,13 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		CachingTestQueryHandler.CallCount.ShouldBe(1);
 		result2.CacheHit.ShouldBeTrue();
 
-		// Wait for expiration (DefaultExpiration is 300ms)
-		await Task.Delay(350).ConfigureAwait(true);
-
-		// Act - after expiration handler should run again
-		var result3 = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(query, new MessageContext(new TestDispatchAction(), provider), CancellationToken.None)
-			.ConfigureAwait(true);
+		// Act - after expiration the handler should eventually run again.
+		var result3 = await DispatchUntilHandlerRunsAgainAsync(
+			dispatcher,
+			query,
+			provider,
+			baselineCallCount: 1,
+			TimeSpan.FromSeconds(5)).ConfigureAwait(true);
 
 		// Assert
 		CachingTestQueryHandler.CallCount.ShouldBe(2);
@@ -676,5 +677,35 @@ public sealed class CachingIntegrationShould : IntegrationTestBase
 		// Assert - handler should be called twice: first call + third call after invalidation
 		CachingTestQueryHandler.CallCount.ShouldBe(2);
 		result3.CacheHit.ShouldBeFalse();
+	}
+
+	private static async Task<IMessageResult<CachingTestResult>> DispatchUntilHandlerRunsAgainAsync(
+		IDispatcher dispatcher,
+		CachingTestQuery query,
+		IServiceProvider provider,
+		int baselineCallCount,
+		TimeSpan timeout)
+	{
+		var deadline = DateTimeOffset.UtcNow + timeout;
+		IMessageResult<CachingTestResult>? lastResult = null;
+
+		while (DateTimeOffset.UtcNow < deadline)
+		{
+			lastResult = await dispatcher.DispatchAsync<CachingTestQuery, CachingTestResult>(
+				query,
+				new MessageContext(new TestDispatchAction(), provider),
+				CancellationToken.None).ConfigureAwait(true);
+
+			if (CachingTestQueryHandler.CallCount > baselineCallCount)
+			{
+				return lastResult;
+			}
+
+			await Task.Delay(TimeSpan.FromMilliseconds(50)).ConfigureAwait(true);
+		}
+
+		lastResult.ShouldNotBeNull();
+		CachingTestQueryHandler.CallCount.ShouldBeGreaterThan(baselineCallCount);
+		return lastResult!;
 	}
 }

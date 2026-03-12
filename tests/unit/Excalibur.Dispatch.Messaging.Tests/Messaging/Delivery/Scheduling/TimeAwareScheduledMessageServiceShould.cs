@@ -107,10 +107,8 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy(), timeoutMonitor);
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		var observed = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-			() => timeoutMonitor.CompletedOperations.Count > 0,
+		var observed = await timeoutMonitor.WaitForCompletionAsync(
 			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)),
-			TimeSpan.FromMilliseconds(20),
 			CancellationToken.None).ConfigureAwait(false);
 		observed.ShouldBeTrue();
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
@@ -133,10 +131,8 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy(), timeoutMonitor);
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		var observed = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-			() => timeoutMonitor.CompletedOperations.Count > 0,
+		var observed = await timeoutMonitor.WaitForCompletionAsync(
 			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)),
-			TimeSpan.FromMilliseconds(20),
 			CancellationToken.None).ConfigureAwait(false);
 		observed.ShouldBeTrue();
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
@@ -157,7 +153,6 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy(), new RecordingTimeoutMonitor());
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50).ConfigureAwait(false);
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		store.AsyncDisposed.ShouldBeTrue();

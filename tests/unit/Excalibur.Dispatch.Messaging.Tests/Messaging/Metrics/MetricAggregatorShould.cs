@@ -111,22 +111,22 @@ public sealed class MetricAggregatorShould : UnitTestBase
 	{
 		// Arrange
 		var registry = new MetricRegistry();
-		var callbackInvoked = false;
-		var snapshots = Array.Empty<MetricSnapshot>();
+		var callbackInvoked = new TaskCompletionSource<MetricSnapshot[]>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		Action<MetricSnapshot[]> callback = s =>
 		{
-			Volatile.Write(ref callbackInvoked, true);
-			snapshots = s;
+			callbackInvoked.TrySetResult(s);
 		};
 
 		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(100), callback);
 
-		// Act - Poll until callback fires (generous timeout for full-suite load)
-		await WaitUntilAsync(() => Volatile.Read(ref callbackInvoked), TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+		// Act
+		var snapshots = await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			callbackInvoked.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
 
 		// Assert
-		callbackInvoked.ShouldBeTrue();
+		snapshots.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -140,12 +140,22 @@ public sealed class MetricAggregatorShould : UnitTestBase
 		counter.Increment();
 
 		MetricSnapshot[]? receivedSnapshots = null;
-		Action<MetricSnapshot[]> callback = s => Volatile.Write(ref receivedSnapshots, s);
+		var snapshotsObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		Action<MetricSnapshot[]> callback = s =>
+		{
+			Volatile.Write(ref receivedSnapshots, s);
+			if (s.Length > 0)
+			{
+				snapshotsObserved.TrySetResult();
+			}
+		};
 
 		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(50), callback);
 
-		// Act - Poll until snapshots arrive (generous timeout for full-suite load)
-		await WaitUntilAsync(() => Volatile.Read(ref receivedSnapshots)?.Length > 0, TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+		// Act - wait for snapshots to arrive
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			snapshotsObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
 
 		// Assert - Should have collected at least one snapshot
 		var snapshots = Volatile.Read(ref receivedSnapshots);
@@ -195,6 +205,7 @@ public sealed class MetricAggregatorShould : UnitTestBase
 		var firstValue = 0.0;
 		var secondValue = 0.0;
 		var callCount = 0;
+		var secondCollectionObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		Action<MetricSnapshot[]> callback = s =>
 		{
@@ -210,13 +221,18 @@ public sealed class MetricAggregatorShould : UnitTestBase
 				}
 			}
 
-			callCount++;
+			if (Interlocked.Increment(ref callCount) >= 2)
+			{
+				secondCollectionObserved.TrySetResult();
+			}
 		};
 
 		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(50), callback);
 
-		// Act - Poll until at least two collection cycles complete
-		await WaitUntilAsync(() => callCount >= 2, TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+		// Act
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			secondCollectionObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(15)));
 
 		// Assert - First collection should have value, second should be reset (0)
 		firstValue.ShouldBeGreaterThan(0);
@@ -264,18 +280,46 @@ public sealed class MetricAggregatorShould : UnitTestBase
 		// Arrange
 		var registry = new MetricRegistry();
 		var callCount = 0;
-		Action<MetricSnapshot[]> callback = _ => Interlocked.Increment(ref callCount);
+		var firstCallbackObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var additionalCallbackObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var disposeThreshold = 0;
+		var disposedPhase = 0;
+		Action<MetricSnapshot[]> callback = _ =>
+		{
+			var currentCount = Interlocked.Increment(ref callCount);
+			firstCallbackObserved.TrySetResult();
+			if (Volatile.Read(ref disposedPhase) == 1 && currentCount > Volatile.Read(ref disposeThreshold))
+			{
+				additionalCallbackObserved.TrySetResult();
+			}
+		};
 
 		var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(25), callback);
-		await WaitUntilAsync(() => Volatile.Read(ref callCount) > 0, TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			firstCallbackObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(15)));
 
 		// Act
+		disposeThreshold = Volatile.Read(ref callCount);
 		aggregator.Dispose();
+		Volatile.Write(ref disposedPhase, 1);
 
 		var countAfterDispose = Volatile.Read(ref callCount);
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromMilliseconds(150), CancellationToken.None).ConfigureAwait(false);
+		var callbackAfterDispose = false;
+		try
+		{
+			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+				additionalCallbackObserved.Task,
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromMilliseconds(250)));
+			callbackAfterDispose = true;
+		}
+		catch (TimeoutException)
+		{
+			callbackAfterDispose = false;
+		}
 
 		// Assert
+		callbackAfterDispose.ShouldBeFalse();
 		Volatile.Read(ref callCount).ShouldBe(countAfterDispose);
 	}
 
@@ -298,12 +342,22 @@ public sealed class MetricAggregatorShould : UnitTestBase
 		histogram.Record(75);
 
 		MetricSnapshot[]? receivedSnapshots = null;
-		Action<MetricSnapshot[]> callback = s => Volatile.Write(ref receivedSnapshots, s);
+		var snapshotsObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		Action<MetricSnapshot[]> callback = s =>
+		{
+			Volatile.Write(ref receivedSnapshots, s);
+			if (s.Length == 3)
+			{
+				snapshotsObserved.TrySetResult();
+			}
+		};
 
 		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(50), callback);
 
-		// Act - Poll until snapshots arrive (generous timeout for full-suite load)
-		await WaitUntilAsync(() => Volatile.Read(ref receivedSnapshots)?.Length == 3, TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+		// Act - wait until all metric types are observed
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			snapshotsObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
 
 		// Assert - Should have snapshots for all metric types
 		var snapshots = Volatile.Read(ref receivedSnapshots);
@@ -324,12 +378,22 @@ public sealed class MetricAggregatorShould : UnitTestBase
 		labeledCounter.Increment(1, "GET", "404");
 
 		MetricSnapshot[]? receivedSnapshots = null;
-		Action<MetricSnapshot[]> callback = s => Volatile.Write(ref receivedSnapshots, s);
+		var snapshotsObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		Action<MetricSnapshot[]> callback = s =>
+		{
+			Volatile.Write(ref receivedSnapshots, s);
+			if (s.Length == 3)
+			{
+				snapshotsObserved.TrySetResult();
+			}
+		};
 
 		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(50), callback);
 
-		// Act - Poll until snapshots arrive (generous timeout for full-suite load)
-		await WaitUntilAsync(() => Volatile.Read(ref receivedSnapshots)?.Length == 3, TimeSpan.FromSeconds(10)).ConfigureAwait(false);
+		// Act - wait until all labeled series are observed
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			snapshotsObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
 
 		// Assert - Should have snapshot for each label combination
 		var snapshots = Volatile.Read(ref receivedSnapshots);

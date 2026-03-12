@@ -2,6 +2,8 @@ using Excalibur.Dispatch.Delivery;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
+using Tests.Shared.Infrastructure;
+
 namespace Excalibur.Dispatch.Tests.Messaging.Delivery;
 
 [Trait("Category", "Unit")]
@@ -123,7 +125,7 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 			"msg-1", ShortExpiry, CancellationToken.None);
 
 		var removedCount = 0;
-		await WaitUntilAsync(async () =>
+		await AwaitCleanupResultAsync(async () =>
 		{
 			removedCount = await _deduplicator.CleanupExpiredEntriesAsync(CancellationToken.None);
 			return removedCount == 1;
@@ -161,10 +163,10 @@ public sealed class InMemoryDeduplicatorShould : IDisposable
 		_deduplicator.Dispose();
 	}
 
-	private static async Task WaitUntilAsync(Func<Task<bool>> condition, TimeSpan timeout)
+	private static async Task AwaitCleanupResultAsync(Func<Task<bool>> condition, TimeSpan timeout)
 	{
-		var scaledTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(timeout);
-		var conditionMet = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+		var scaledTimeout = TestTimeouts.Scale(timeout);
+		var conditionMet = await WaitHelpers.WaitUntilAsync(
 				condition,
 				scaledTimeout,
 				TimeSpan.FromMilliseconds(100))

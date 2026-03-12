@@ -152,6 +152,8 @@ public sealed class BulkheadPolicyShould : UnitTestBase
 		var options = new BulkheadOptions { MaxConcurrency = 2, MaxQueueLength = 5 };
 		_policy = new BulkheadPolicy("test", options);
 		var executionCount = 0;
+		var enteredBulkhead = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var releaseOperations = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		// Act - Run 3 operations with concurrency limit of 2
 		var tasks = new List<Task<int>>();
@@ -159,11 +161,19 @@ public sealed class BulkheadPolicyShould : UnitTestBase
 		{
 			tasks.Add(_policy.ExecuteAsync(async () =>
 			{
-				Interlocked.Increment(ref executionCount);
-				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50);
+				if (Interlocked.Increment(ref executionCount) == 2)
+				{
+					enteredBulkhead.TrySetResult();
+				}
+
+				await releaseOperations.Task.ConfigureAwait(false);
 				return 1;
 			}, CancellationToken.None));
 		}
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			enteredBulkhead.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+		releaseOperations.TrySetResult();
 		await Task.WhenAll(tasks);
 
 		// Assert
@@ -193,9 +203,12 @@ public sealed class BulkheadPolicyShould : UnitTestBase
 		// Start a task that fills the queue
 		var queuedTask = _policy.ExecuteAsync(() => Task.FromResult(2), CancellationToken.None);
 
-		await WaitUntilAsync(
+		var queueObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
 			() => _policy.GetMetrics().QueuedExecutions >= 1,
-			TimeSpan.FromSeconds(2));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(2)),
+			TimeSpan.FromMilliseconds(10),
+			CancellationToken.None);
+		queueObserved.ShouldBeTrue();
 
 		// Act & Assert - Third task should be rejected
 		_ = await Should.ThrowAsync<BulkheadRejectedException>(
@@ -311,21 +324,5 @@ public sealed class BulkheadPolicyShould : UnitTestBase
 	}
 
 	#endregion
-
-	private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
-	{
-		var deadline = DateTimeOffset.UtcNow + timeout;
-		while (DateTimeOffset.UtcNow < deadline)
-		{
-			if (condition())
-			{
-				return;
-			}
-
-			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10);
-		}
-
-		throw new TimeoutException($"Condition was not met within {timeout}.");
-	}
 }
 

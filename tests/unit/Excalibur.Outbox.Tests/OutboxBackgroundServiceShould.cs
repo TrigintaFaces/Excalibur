@@ -25,18 +25,9 @@ namespace Excalibur.Outbox.Tests;
 [Trait("Priority", "0")]
 public sealed class OutboxBackgroundServiceShould : UnitTestBase
 {
-	private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
-	{
-		var deadline = DateTime.UtcNow + timeout;
-		while (!condition() && DateTime.UtcNow < deadline)
-		{
-			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10);
-		}
-
-		condition().ShouldBeTrue();
-	}
-
-	private static MeterListener CreateOutboxProcessingDurationListener(List<double> durations)
+	private static MeterListener CreateOutboxProcessingDurationListener(
+		List<double> durations,
+		TaskCompletionSource? durationObserved = null)
 	{
 		var listener = new MeterListener();
 		listener.InstrumentPublished = (instrument, meterListener) =>
@@ -52,6 +43,7 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 			if (IsOutboxServiceMeasurement(tags))
 			{
 				durations.Add(measurement);
+				durationObserved?.TrySetResult();
 			}
 		});
 		listener.Start();
@@ -462,7 +454,6 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			pendingObserved.Task,
 			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
-		await WaitUntilAsync(() => healthState.TotalProcessed > 0, TimeSpan.FromSeconds(5));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -493,8 +484,9 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		});
 		var logger = A.Fake<ILogger<OutboxBackgroundService>>();
 		var durations = new List<double>();
+		var durationObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		using var listener = CreateOutboxProcessingDurationListener(durations);
+		using var listener = CreateOutboxProcessingDurationListener(durations, durationObserved);
 
 		var service = new OutboxBackgroundService(publisher, options, logger);
 		using var cts = new CancellationTokenSource();
@@ -504,7 +496,9 @@ public sealed class OutboxBackgroundServiceShould : UnitTestBase
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			pendingObserved.Task,
 			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
-		await WaitUntilAsync(() => durations.Count > 0, TimeSpan.FromSeconds(5));
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			durationObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 

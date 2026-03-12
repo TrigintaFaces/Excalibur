@@ -8,6 +8,8 @@ using Excalibur.Dispatch.Abstractions;
 
 using Excalibur.Inbox.InMemory;
 
+using Tests.Shared.Infrastructure;
+
 namespace Excalibur.Dispatch.Tests.Messaging.Inbox;
 
 /// <summary>
@@ -111,7 +113,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		_ = await store.CreateEntryAsync("message-overflow", TestHandler, "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false);
 
 		// Wait until trimming converges.
-		await WaitForConditionAsync(
+		await AwaitStoreConditionAsync(
 			async () => (await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Count() <= options.MaxEntries,
 			TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
@@ -136,14 +138,13 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 			{
 				_ = await store.CreateEntryAsync($"message-{i}", TestHandler, "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false);
 				return i;
-			});
+			})
+			.ToArray();
 
 		var markTasks = Enumerable.Range(0, operationCount / 2)
 			.Select(async i =>
 			{
-				await WaitForConditionAsync(async () =>
-						await store.GetEntryAsync($"message-{i}", TestHandler, CancellationToken.None).ConfigureAwait(false) is not null,
-					TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+				await createTasks[i].ConfigureAwait(false);
 				try
 				{
 					await store.MarkProcessedAsync($"message-{i}", TestHandler, CancellationToken.None);
@@ -290,7 +291,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		}
 
 		// Wait until async trimming converges.
-		await WaitForConditionAsync(
+		await AwaitStoreConditionAsync(
 			async () => (await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Count() <= options.MaxEntries + 1,
 			TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
@@ -344,16 +345,13 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 			await store.MarkProcessedAsync($"message-{i}", TestHandler, CancellationToken.None).ConfigureAwait(false); // Mark as processed so cleanup can remove it
 		}
 
-		var preCleaned = 0;
-		await WaitForConditionAsync(async () =>
-		{
-			preCleaned = await store.CleanupAsync(options.RetentionPeriod, CancellationToken.None).ConfigureAwait(false);
-			return preCleaned > 0;
-		}, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+		// Zero retention removes all processed entries immediately and avoids clock-edge timing races.
+		var preCleaned = await store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false);
+		preCleaned.ShouldBeGreaterThan(0);
 
 		// Act - Run concurrent cleanup operations
 		var cleanupTasks = Enumerable.Range(0, 5)
-			.Select(_ => store.CleanupAsync(options.RetentionPeriod, CancellationToken.None).AsTask())
+			.Select(_ => store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).AsTask())
 			.ToArray();
 
 		var results = await Task.WhenAll(cleanupTasks);
@@ -363,12 +361,14 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		totalCleaned.ShouldBeGreaterThan(0);
 		totalCleaned.ShouldBeLessThanOrEqualTo(10);
 
-		// Ensure cleanup converges to an empty store under repeated attempts.
-		await WaitForConditionAsync(async () =>
+		for (var i = 0; i < 5; i++)
 		{
-			_ = await store.CleanupAsync(options.RetentionPeriod, CancellationToken.None).ConfigureAwait(false);
-			return !(await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Any();
-		}, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+			_ = await store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false);
+			if (!(await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Any())
+			{
+				break;
+			}
+		}
 
 		// Assert - No entries should remain
 		var remainingEntries = await store.GetAllEntriesAsync(CancellationToken.None);
@@ -440,6 +440,8 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		var processedMessageIds = new ConcurrentBag<string>();
 		var failedMessageIds = new ConcurrentBag<string>();
 		var exceptions = new ConcurrentBag<Exception>();
+		var creationTasksByMessageId = new ConcurrentDictionary<string, Task>();
+		var firstCreationObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		// Act - Mix create, process, fail, and cleanup operations concurrently
 		var tasks = new List<Task>();
@@ -448,19 +450,23 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		for (var i = 0; i < operationCount; i++)
 		{
 			var messageId = $"mixed-{i}";
-			tasks.Add(Task.Run(async () =>
+			var createTask = Task.Run(async () =>
 			{
 				try
 				{
 					_ = await store.CreateEntryAsync(messageId, TestHandler, "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false);
 					createdMessageIds.Add(messageId);
+					firstCreationObserved.TrySetResult();
 					await Task.Yield();
 				}
 				catch (Exception ex)
 				{
 					exceptions.Add(ex);
 				}
-			}));
+			});
+
+			creationTasksByMessageId[messageId] = createTask;
+			tasks.Add(createTask);
 		}
 
 		// Process operations (on subset of created messages)
@@ -471,9 +477,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 			{
 				try
 				{
-					await WaitForConditionAsync(async () =>
-						await store.GetEntryAsync(messageId, TestHandler, CancellationToken.None).ConfigureAwait(false) is not null,
-						TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+					await creationTasksByMessageId[messageId].ConfigureAwait(false);
 					await store.MarkProcessedAsync(messageId, TestHandler, CancellationToken.None);
 					processedMessageIds.Add(messageId);
 				}
@@ -493,9 +497,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 			{
 				try
 				{
-					await WaitForConditionAsync(async () =>
-						await store.GetEntryAsync(messageId, TestHandler, CancellationToken.None).ConfigureAwait(false) is not null,
-						TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+					await creationTasksByMessageId[messageId].ConfigureAwait(false);
 					await store.MarkFailedAsync(messageId, TestHandler, $"Test error for {messageId}", CancellationToken.None);
 					failedMessageIds.Add(messageId);
 				}
@@ -538,10 +540,8 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 			{
 				try
 				{
-					await WaitForConditionAsync(async () =>
-						(await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Any(),
-						TimeSpan.FromSeconds(2)).ConfigureAwait(false);
-					_ = await store.CleanupAsync(options.RetentionPeriod, CancellationToken.None);
+					await WaitHelpers.AwaitSignalAsync(firstCreationObserved.Task, TestTimeouts.Scale(TimeSpan.FromSeconds(2))).ConfigureAwait(false);
+					_ = await store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false);
 				}
 				catch (Exception ex)
 				{
@@ -669,19 +669,16 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 			.Select(i => store.MarkProcessedAsync($"cleanup-extreme-{i}", TestHandler, CancellationToken.None).AsTask());
 		await Task.WhenAll(markProcessedTasks).ConfigureAwait(false);
 
-		var preCleaned = 0;
-		await WaitForConditionAsync(async () =>
-		{
-			preCleaned = await store.CleanupAsync(options.RetentionPeriod, CancellationToken.None).ConfigureAwait(false);
-			return preCleaned > 0;
-		}, TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+		// Zero retention removes all processed entries immediately and avoids expiry timing races.
+		var preCleaned = await store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false);
+		preCleaned.ShouldBeGreaterThan(0);
 
 		// Launch many concurrent cleanup operations
 		var cleanupResults = new ConcurrentBag<int>();
 		var cleanupTasks = Enumerable.Range(0, cleanupConcurrency)
 			.Select(async _ =>
 			{
-				var result = await store.CleanupAsync(options.RetentionPeriod, CancellationToken.None);
+				var result = await store.CleanupAsync(TimeSpan.Zero, CancellationToken.None);
 				cleanupResults.Add(result);
 			});
 
@@ -692,12 +689,14 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		totalCleaned.ShouldBeGreaterThan(0);
 		totalCleaned.ShouldBeLessThanOrEqualTo(messageCount);
 
-		// Ensure cleanup converges to an empty store under repeated attempts.
-		await WaitForConditionAsync(async () =>
+		for (var i = 0; i < 10; i++)
 		{
-			_ = await store.CleanupAsync(options.RetentionPeriod, CancellationToken.None).ConfigureAwait(false);
-			return !(await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Any();
-		}, TimeSpan.FromSeconds(4)).ConfigureAwait(false);
+			_ = await store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false);
+			if (!(await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Any())
+			{
+				break;
+			}
+		}
 
 		// All entries should be gone
 		var remainingEntries = await store.GetAllEntriesAsync(CancellationToken.None);
@@ -745,7 +744,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		await Task.WhenAll(tasks).ConfigureAwait(false);
 
 		// Wait until trimming converges.
-		await WaitForConditionAsync(
+		await AwaitStoreConditionAsync(
 			async () => (await store.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false)).Count() <= options.MaxEntries + 10,
 			TimeSpan.FromSeconds(2)).ConfigureAwait(false);
 
@@ -794,8 +793,9 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 							continue;
 						}
 
-						// Random operation
-						var operation = Random.Shared.Next(0, 3);
+						// Deterministic operation selection keeps concurrency coverage while
+						// avoiding run-to-run randomness under CI load.
+						var operation = (threadId + i) % 3;
 						switch (operation)
 						{
 							case 0:
@@ -891,11 +891,9 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		// Dispose after a short delay
 		var disposalTask = Task.Run(async () =>
 		{
-			var operationsObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-				() => operationsPrimed.Task.IsCompleted,
-				TimeSpan.FromSeconds(10),
-				TimeSpan.FromMilliseconds(20));
-			operationsObserved.ShouldBeTrue("operations should be primed before disposal");
+			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+				operationsPrimed.Task,
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10))).ConfigureAwait(false);
 			store.Dispose();
 		});
 
@@ -1022,32 +1020,33 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		var cleanupResults = new ConcurrentBag<int>();
 		var stateChangeResults = new ConcurrentBag<bool>();
 
-		// Act - Create messages with staggered timing
+		// Act - Create all messages before racing state changes and cleanup.
 		var createTasks = Enumerable.Range(0, messageCount).Select(async i =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(i % 5).ConfigureAwait(false); // Stagger creation times
 			var messageId = $"timing-attack-{i}";
 			_ = await store.CreateEntryAsync(messageId, TestHandler, "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false);
 			return messageId;
 		});
 
 		var messageIds = await Task.WhenAll(createTasks).ConfigureAwait(false);
+		var cleanupGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var stateChangeGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		// Concurrent cleanup attempts at precise timing
+		// Concurrent cleanup attempts race state transitions without relying on wall-clock timing.
 		var cleanupTasks = Enumerable.Range(0, 10).Select(async i =>
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(35 + i).ConfigureAwait(false); // Just after expiry
-			var result = await store.CleanupAsync(options.RetentionPeriod, CancellationToken.None);
+			await cleanupGate.Task.ConfigureAwait(false);
+			var result = await store.CleanupAsync(TimeSpan.Zero, CancellationToken.None).ConfigureAwait(false);
 			cleanupResults.Add(result);
 		});
 
-		// Concurrent state changes during cleanup window
-		var stateChangeTasks = messageIds.Take(50).Select(async messageId =>
+		// Concurrent state changes happen in parallel with cleanup.
+		var stateChangeTasks = messageIds.Take(50).Select(async (messageId, index) =>
 		{
 			try
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(Random.Shared.Next(25, 45)).ConfigureAwait(false); // During expiry window
-				if (Random.Shared.Next(0, 2) == 0)
+				await stateChangeGate.Task.ConfigureAwait(false);
+				if (index % 2 == 0)
 				{
 					await store.MarkProcessedAsync(messageId, TestHandler, CancellationToken.None);
 				}
@@ -1065,6 +1064,8 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 			}
 		});
 
+		cleanupGate.TrySetResult();
+		stateChangeGate.TrySetResult();
 		await Task.WhenAll(cleanupTasks.Concat(stateChangeTasks));
 
 		// Assert - Total operations should be consistent
@@ -1231,8 +1232,9 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 				_ = await store.CreateEntryAsync(messageId, TestHandler, "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false);
 				await Task.Yield();
 
-				// Random state change
-				if (Random.Shared.Next(0, 2) == 0)
+				// Deterministic state change selection avoids flaky randomness while
+				// still exercising both terminal transitions.
+				if (i % 2 == 0)
 				{
 					await store.MarkProcessedAsync(messageId, TestHandler, CancellationToken.None);
 				}
@@ -1392,15 +1394,15 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		return store;
 	}
 
-	private static async Task WaitForConditionAsync(Func<Task<bool>> condition, TimeSpan timeout)
+	private static async Task AwaitStoreConditionAsync(Func<Task<bool>> condition, TimeSpan timeout)
 	{
-		var scaledTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(timeout);
+		var scaledTimeout = TestTimeouts.Scale(timeout);
 		if (scaledTimeout < TimeSpan.FromSeconds(10))
 		{
 			scaledTimeout = TimeSpan.FromSeconds(10);
 		}
 
-		var conditionMet = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+		var conditionMet = await WaitHelpers.WaitUntilAsync(
 				condition,
 				scaledTimeout,
 				TimeSpan.FromMilliseconds(100))
@@ -1409,4 +1411,3 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		conditionMet.ShouldBeTrue($"Condition was not met within {scaledTimeout}.");
 	}
 }
-

@@ -155,9 +155,8 @@ public sealed class MaterializedViewRefreshServiceShould
 
 		using var cts = new CancellationTokenSource();
 
-		// Act - start and wait briefly
+		// Act
 		await service.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(100);
 		await service.StopAsync(cts.Token);
 
 		// Assert - no scope should be created when disabled
@@ -190,12 +189,23 @@ public sealed class MaterializedViewRefreshServiceShould
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(200); // Give time for catch-up
+		var catchUpObserved = await WaitHelpers.WaitUntilAsync(() =>
+		{
+			try
+			{
+				A.CallTo(() => _scopeFactory.CreateScope()).MustHaveHappened();
+				return true;
+			}
+			catch (ExpectationException)
+			{
+				return false;
+			}
+		}, timeout: TimeSpan.FromSeconds(3), pollInterval: TimeSpan.FromMilliseconds(25));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
 		// Assert - scope should have been created for catch-up
-		A.CallTo(() => _scopeFactory.CreateScope()).MustHaveHappenedOnceOrMore();
+		catchUpObserved.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -252,11 +262,22 @@ public sealed class MaterializedViewRefreshServiceShould
 
 		// Act & Assert - should not throw
 		await service.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(200);
+		var scopeCreated = await WaitHelpers.WaitUntilAsync(() =>
+		{
+			try
+			{
+				A.CallTo(() => _scopeFactory.CreateScope()).MustHaveHappened();
+				return true;
+			}
+			catch (ExpectationException)
+			{
+				return false;
+			}
+		}, timeout: TimeSpan.FromSeconds(3), pollInterval: TimeSpan.FromMilliseconds(25));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
-		// No exception means success
+		scopeCreated.ShouldBeTrue();
 	}
 
 	#endregion
@@ -283,7 +304,6 @@ public sealed class MaterializedViewRefreshServiceShould
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50);
 
 		// Request shutdown
 		await cts.CancelAsync();
@@ -315,7 +335,6 @@ public sealed class MaterializedViewRefreshServiceShould
 		await service.StartAsync(cts.Token);
 
 		// Cancel quickly - should not wait for the full 10 minute interval
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(100);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -414,7 +433,6 @@ public sealed class MaterializedViewRefreshServiceShould
 
 		// Act & Assert - should not throw, service uses 30s default
 		await service.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(100);
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 	}
@@ -503,12 +521,15 @@ public sealed class MaterializedViewRefreshServiceShould
 
 		// Act
 		await service.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(500); // Give time for retry
+		var retryObserved = await WaitHelpers.WaitUntilAsync(
+			() => Volatile.Read(ref callCount) > 1,
+			timeout: TimeSpan.FromSeconds(3),
+			pollInterval: TimeSpan.FromMilliseconds(25));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
 		// Assert - processor should have been called more than once due to retry
-		// Note: exact behavior depends on registration availability
+		retryObserved.ShouldBeTrue();
 	}
 
 	#endregion

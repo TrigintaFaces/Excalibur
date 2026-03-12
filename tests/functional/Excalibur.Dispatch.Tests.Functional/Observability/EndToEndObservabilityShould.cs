@@ -39,10 +39,10 @@ public sealed class EndToEndObservabilityShould : FunctionalTestBase
 
 		// Act - Simulate order processing with logging
 		logger.LogInformation("Processing order created event for Order {OrderId}", orderId);
-		await Task.Delay(10).ConfigureAwait(false); // Intentional: simulates processing time between pipeline steps
+		await Task.Yield();
 
 		logger.LogInformation("Processing payment for Order {OrderId}, Payment {PaymentId}", orderId, "payment-789");
-		await Task.Delay(10).ConfigureAwait(false); // Intentional: simulates processing time between pipeline steps
+		await Task.Yield();
 
 		logger.LogInformation("Order {OrderId} processing completed with status: {Status}", orderId, "Completed");
 
@@ -94,11 +94,6 @@ public sealed class EndToEndObservabilityShould : FunctionalTestBase
 			logger.LogInformation("Order {OrderId} processing completed", orderId);
 		}
 
-		// Poll for logs to be captured rather than using a fixed delay
-		await WaitUntilAsync(
-			() => _observabilityHarness.LoggerProvider.Count >= 6,
-			TimeSpan.FromSeconds(2));
-
 		// Assert - Messages were processed (logs captured)
 		var logEntries = _observabilityHarness.LoggerProvider.Entries;
 		logEntries.ShouldNotBeEmpty("Message processing should generate logs");
@@ -131,11 +126,6 @@ public sealed class EndToEndObservabilityShould : FunctionalTestBase
 		{
 			logger.LogError(ex, "Error processing order with ID {OrderId}", -999);
 		}
-
-		// Poll for error log to be captured rather than using a fixed delay
-		await WaitUntilAsync(
-			() => _observabilityHarness.LoggerProvider.Entries.Any(l => l.Level == LogLevel.Error),
-			TimeSpan.FromSeconds(2));
 
 		// Assert - Error was logged
 		var errorLogs = _observabilityHarness.LoggerProvider.Entries
@@ -194,11 +184,6 @@ public sealed class EndToEndObservabilityShould : FunctionalTestBase
 		// Act - Log diagnostic information
 		logger.LogInformation("Processing diagnostic order {OrderId} with correlation {CorrelationId}",
 			9999, "diagnostic-test-001");
-
-		// Poll for diagnostic log to be captured rather than using a fixed delay
-		await WaitUntilAsync(
-			() => _observabilityHarness.LoggerProvider.Count > 0,
-			TimeSpan.FromSeconds(2));
 
 		// Assert - Structured logging captured for troubleshooting
 		var logEntries = _observabilityHarness.LoggerProvider.Entries;
@@ -293,7 +278,7 @@ public sealed class OrderCreatedEventHandler(ILogger<OrderCreatedEventHandler> l
 			message.OrderId, message.CustomerId, message.Amount);
 
 		// Intentional: simulates async processing work in handler
-		await Task.Delay(20, cancellationToken).ConfigureAwait(false);
+		await Task.Yield();
 
 		// Simulate error condition
 		if (message.OrderId < 0)
@@ -324,7 +309,7 @@ public sealed class PaymentProcessedCommandHandler(ILogger<PaymentProcessedComma
 			"Processing payment for Order {OrderId}, Payment {PaymentId}, Amount {Amount}",
 			message.OrderId, message.PaymentId, message.Amount);
 
-		await Task.Delay(15, cancellationToken).ConfigureAwait(false); // Intentional: simulates async processing work
+		await Task.Yield();
 
 		context.Items["PaymentProcessedAt"] = DateTimeOffset.UtcNow;
 		context.Items["PaymentMethod"] = "CreditCard";
@@ -347,7 +332,7 @@ public sealed class OrderProcessedEventHandler(ILogger<OrderProcessedEventHandle
 			"Order {OrderId} processing completed with status: {Status}",
 			message.OrderId, message.Status);
 
-		await Task.Delay(10, cancellationToken).ConfigureAwait(false); // Intentional: simulates async processing work
+		await Task.Yield();
 
 		context.Items["FinalStatus"] = message.Status;
 		context.Items["CompletedAt"] = DateTimeOffset.UtcNow;

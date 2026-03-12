@@ -22,6 +22,22 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 [Trait("Component", "Core")]
 public sealed class HandlerTimeoutMiddlewareShould
 {
+	private static async Task WaitUntilCancelledAsync(CancellationToken cancellationToken)
+	{
+		cancellationToken.ThrowIfCancellationRequested();
+
+		var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var registration = cancellationToken.Register(static state =>
+		{
+			var tcs = (TaskCompletionSource)state!;
+			tcs.TrySetResult();
+		}, completion);
+
+		await completion.Task.ConfigureAwait(false);
+		await registration.DisposeAsync().ConfigureAwait(false);
+		throw new OperationCanceledException(cancellationToken);
+	}
+
 	[Fact]
 	public async Task PassThroughWhenDisabled()
 	{
@@ -68,7 +84,7 @@ public sealed class HandlerTimeoutMiddlewareShould
 			context,
 			async (_, _, ct) =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+				await WaitUntilCancelledAsync(ct).ConfigureAwait(false);
 				return MessageResult.Success();
 			},
 			CancellationToken.None).ConfigureAwait(false);
@@ -100,7 +116,7 @@ public sealed class HandlerTimeoutMiddlewareShould
 			context,
 			async (_, _, ct) =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+				await WaitUntilCancelledAsync(ct).ConfigureAwait(false);
 				return MessageResult.Success();
 			},
 			CancellationToken.None).ConfigureAwait(false);
@@ -133,7 +149,7 @@ public sealed class HandlerTimeoutMiddlewareShould
 			context,
 			async (_, _, ct) =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+				await WaitUntilCancelledAsync(ct).ConfigureAwait(false);
 				return MessageResult.Success();
 			},
 			CancellationToken.None).ConfigureAwait(false);
@@ -165,7 +181,7 @@ public sealed class HandlerTimeoutMiddlewareShould
 					context,
 					async (_, _, ct) =>
 					{
-						await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(Timeout.InfiniteTimeSpan, ct).ConfigureAwait(false);
+						await WaitUntilCancelledAsync(ct).ConfigureAwait(false);
 						return MessageResult.Success();
 					},
 					CancellationToken.None)
@@ -195,8 +211,7 @@ public sealed class HandlerTimeoutMiddlewareShould
 					context,
 					async (_, _, ct) =>
 					{
-						ct.ThrowIfCancellationRequested();
-						await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromMilliseconds(1), ct).ConfigureAwait(false);
+						await WaitUntilCancelledAsync(ct).ConfigureAwait(false);
 						return MessageResult.Success();
 					},
 					cts.Token)

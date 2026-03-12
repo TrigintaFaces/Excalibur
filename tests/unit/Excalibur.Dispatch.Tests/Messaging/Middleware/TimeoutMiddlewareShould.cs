@@ -23,6 +23,22 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
 {
     private TimeoutMiddleware? _sut;
 
+    private static async Task WaitUntilCancelledAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var registration = cancellationToken.Register(static state =>
+        {
+            var tcs = (TaskCompletionSource)state!;
+            tcs.TrySetResult();
+        }, completion);
+
+        await completion.Task.ConfigureAwait(false);
+        await registration.DisposeAsync().ConfigureAwait(false);
+        throw new OperationCanceledException(cancellationToken);
+    }
+
     private TimeoutMiddleware CreateSut(TimeoutOptions? options = null)
     {
         var opts = options ?? new TimeoutOptions { Enabled = true, DefaultTimeout = TimeSpan.FromSeconds(5) };
@@ -89,7 +105,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
                 message, context,
                 async (_, _, ct) =>
                 {
-                    await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromSeconds(30), ct).ConfigureAwait(false);
+                    await WaitUntilCancelledAsync(ct).ConfigureAwait(false);
                     return MessageResult.Success();
                 },
                 CancellationToken.None).AsTask());
@@ -114,7 +130,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
             message, context,
             async (_, _, ct) =>
             {
-                await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromSeconds(30), ct).ConfigureAwait(false);
+                await WaitUntilCancelledAsync(ct).ConfigureAwait(false);
                 return MessageResult.Success();
             },
             CancellationToken.None);
@@ -195,8 +211,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
                 message, context,
                 async (_, _, ct) =>
                 {
-                    ct.ThrowIfCancellationRequested();
-                    await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
+                    await WaitUntilCancelledAsync(ct).ConfigureAwait(false);
                     return MessageResult.Success();
                 },
                 cts.Token).AsTask());
@@ -221,7 +236,7 @@ public sealed class TimeoutMiddlewareShould : IAsyncDisposable
             message, context,
             async (_, _, ct) =>
             {
-                await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromSeconds(30), ct).ConfigureAwait(false);
+                await WaitUntilCancelledAsync(ct).ConfigureAwait(false);
                 return MessageResult.Success();
             },
             CancellationToken.None);

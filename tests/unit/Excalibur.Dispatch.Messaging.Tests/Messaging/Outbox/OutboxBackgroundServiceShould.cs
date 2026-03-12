@@ -34,8 +34,13 @@ public sealed class OutboxBackgroundServiceShould
 	{
 		// Arrange
 		var callCount = 0;
+		var pendingObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => _publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
-			.Invokes(() => Interlocked.Increment(ref callCount))
+			.Invokes(() =>
+			{
+				Interlocked.Increment(ref callCount);
+				_ = pendingObserved.TrySetResult(true);
+			})
 			.Returns(PublishingResult.Success(0));
 
 		var options = CreateOptions(pollingInterval: TimeSpan.FromMilliseconds(100));
@@ -46,7 +51,9 @@ public sealed class OutboxBackgroundServiceShould
 		var task = service.StartAsync(cts.Token);
 
 		// Poll until the publisher has been called at least once (generous timeout for CI load)
-		await WaitUntilAsync(() => Volatile.Read(ref callCount) >= 1, TimeSpan.FromSeconds(30));
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			pendingObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 
 		cts.Cancel();
 		await task;
@@ -60,8 +67,13 @@ public sealed class OutboxBackgroundServiceShould
 	{
 		// Arrange
 		var callCount = 0;
+		var scheduledObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => _publisher.PublishScheduledMessagesAsync(A<CancellationToken>._))
-			.Invokes(() => Interlocked.Increment(ref callCount))
+			.Invokes(() =>
+			{
+				Interlocked.Increment(ref callCount);
+				_ = scheduledObserved.TrySetResult(true);
+			})
 			.Returns(PublishingResult.Success(0));
 
 		var options = CreateOptions(
@@ -74,7 +86,9 @@ public sealed class OutboxBackgroundServiceShould
 		var task = service.StartAsync(cts.Token);
 
 		// Poll until the scheduled publisher has been called at least once (generous timeout for CI load)
-		await WaitUntilAsync(() => Volatile.Read(ref callCount) >= 1, TimeSpan.FromSeconds(30));
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			scheduledObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 
 		cts.Cancel();
 		await task;
@@ -87,6 +101,14 @@ public sealed class OutboxBackgroundServiceShould
 	public async Task SkipScheduledMessagesWhenDisabled()
 	{
 		// Arrange
+		var pendingObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var scheduledObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		_ = A.CallTo(() => _publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
+			.Invokes(() => _ = pendingObserved.TrySetResult(true))
+			.Returns(PublishingResult.Success(0));
+		_ = A.CallTo(() => _publisher.PublishScheduledMessagesAsync(A<CancellationToken>._))
+			.Invokes(() => _ = scheduledObserved.TrySetResult(true))
+			.Returns(PublishingResult.Success(0));
 		var options = CreateOptions(
 			pollingInterval: TimeSpan.FromMilliseconds(100),
 			processScheduled: false);
@@ -95,11 +117,14 @@ public sealed class OutboxBackgroundServiceShould
 
 		// Act
 		var task = service.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(2000);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			pendingObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 		cts.Cancel();
 		await task;
 
 		// Assert
+		scheduledObserved.Task.IsCompleted.ShouldBeFalse();
 		A.CallTo(() => _publisher.PublishScheduledMessagesAsync(A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
@@ -109,8 +134,13 @@ public sealed class OutboxBackgroundServiceShould
 	{
 		// Arrange
 		var callCount = 0;
+		var retryObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => _publisher.RetryFailedMessagesAsync(5, A<CancellationToken>._))
-			.Invokes(() => Interlocked.Increment(ref callCount))
+			.Invokes(() =>
+			{
+				Interlocked.Increment(ref callCount);
+				_ = retryObserved.TrySetResult(true);
+			})
 			.Returns(PublishingResult.Success(0));
 
 		var options = CreateOptions(
@@ -124,7 +154,9 @@ public sealed class OutboxBackgroundServiceShould
 		var task = service.StartAsync(cts.Token);
 
 		// Poll until the retry method has been called at least once (generous timeout for cross-process CPU starvation under full-suite VS Test Explorer load)
-		await WaitUntilAsync(() => Volatile.Read(ref callCount) >= 1, TimeSpan.FromSeconds(120));
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			retryObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(120))).ConfigureAwait(false);
 
 		cts.Cancel();
 		await task;
@@ -137,6 +169,14 @@ public sealed class OutboxBackgroundServiceShould
 	public async Task SkipRetryWhenDisabled()
 	{
 		// Arrange
+		var pendingObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var retryObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		_ = A.CallTo(() => _publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
+			.Invokes(() => _ = pendingObserved.TrySetResult(true))
+			.Returns(PublishingResult.Success(0));
+		_ = A.CallTo(() => _publisher.RetryFailedMessagesAsync(A<int>._, A<CancellationToken>._))
+			.Invokes(() => _ = retryObserved.TrySetResult(true))
+			.Returns(PublishingResult.Success(0));
 		var options = CreateOptions(
 			pollingInterval: TimeSpan.FromMilliseconds(100),
 			retryFailed: false);
@@ -145,11 +185,14 @@ public sealed class OutboxBackgroundServiceShould
 
 		// Act
 		var task = service.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(2000);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			pendingObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 		cts.Cancel();
 		await task;
 
 		// Assert
+		retryObserved.Task.IsCompleted.ShouldBeFalse();
 		A.CallTo(() => _publisher.RetryFailedMessagesAsync(A<int>._, A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
@@ -158,17 +201,33 @@ public sealed class OutboxBackgroundServiceShould
 	public async Task NotProcessWhenDisabled()
 	{
 		// Arrange
+		var pendingObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		_ = A.CallTo(() => _publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
+			.Invokes(() => _ = pendingObserved.TrySetResult(true))
+			.Returns(PublishingResult.Success(0));
 		var options = CreateOptions(enabled: false);
 		var service = new OutboxBackgroundService(_publisher, options, _logger);
 		var cts = new CancellationTokenSource();
 
 		// Act
 		var task = service.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(2000);
+		var unexpectedProcessingObserved = false;
+		try
+		{
+			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+				pendingObserved.Task,
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromMilliseconds(250))).ConfigureAwait(false);
+			unexpectedProcessingObserved = true;
+		}
+		catch (TimeoutException)
+		{
+			unexpectedProcessingObserved = false;
+		}
 		cts.Cancel();
 		await task;
 
 		// Assert
+		unexpectedProcessingObserved.ShouldBeFalse();
 		A.CallTo(() => _publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
 			.MustNotHaveHappened();
 	}
@@ -178,12 +237,16 @@ public sealed class OutboxBackgroundServiceShould
 	{
 		// Arrange
 		var callCount = 0;
+		var recoveryObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => _publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
 				var current = Interlocked.Increment(ref callCount);
 				if (current == 1)
+				{
 					throw new InvalidOperationException("Test error");
+				}
+				_ = recoveryObserved.TrySetResult(true);
 				return Task.FromResult(PublishingResult.Success(1));
 			});
 
@@ -195,7 +258,9 @@ public sealed class OutboxBackgroundServiceShould
 		var task = service.StartAsync(cts.Token);
 
 		// Poll until at least 2 calls (one error + one recovery), generous timeout for full-suite load
-		await WaitUntilAsync(() => Volatile.Read(ref callCount) >= 2, TimeSpan.FromSeconds(60));
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			recoveryObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(60))).ConfigureAwait(false);
 
 		cts.Cancel();
 		await task;
@@ -203,7 +268,7 @@ public sealed class OutboxBackgroundServiceShould
 		// Assert - service recovered from the first error and continued processing
 		// Under extreme full-suite parallel load, the background service timer may be starved,
 		// so we verify at least the first call happened (error was thrown but didn't crash the service)
-		callCount.ShouldBeGreaterThanOrEqualTo(1);
+		callCount.ShouldBeGreaterThanOrEqualTo(2);
 	}
 
 	[Fact]
@@ -216,12 +281,12 @@ public sealed class OutboxBackgroundServiceShould
 
 		// Act
 		var task = service.StartAsync(cts.Token);
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50);
 		cts.Cancel();
 
 		// Assert - should complete within reasonable time
-		var completed = await Task.WhenAny(task, global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(1000));
-		completed.ShouldBe(task);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10))).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -241,11 +306,6 @@ public sealed class OutboxBackgroundServiceShould
 		// Act & Assert
 		_ = Should.Throw<ArgumentNullException>(() =>
 			new OutboxBackgroundService(_publisher, null!, _logger));
-	}
-
-	private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
-	{
-		_ = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(condition, timeout).ConfigureAwait(false);
 	}
 
 	private static IOptions<OutboxProcessingOptions> CreateOptions(

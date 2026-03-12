@@ -148,7 +148,7 @@ public class ChannelBatchUtilitiesShould
 		var readTask = ChannelBatchUtilities.DequeueBatchAsync(channel.Reader, batchSize: 5, CancellationToken.None);
 
 		// Act
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50); // Allow read to start waiting
+		await Task.Yield();
 		await channel.Writer.WriteAsync(42);
 
 		var batch = await readTask;
@@ -254,8 +254,8 @@ public class ChannelBatchUtilitiesShould
 			batchSize: 5,
 			waitTimeout: TimeSpan.FromSeconds(30), CancellationToken.None);
 
-		// Act — generous delay for cross-process CPU starvation under full-suite VS Test Explorer load
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(200);
+		// Act
+		await Task.Yield();
 		await channel.Writer.WriteAsync(42);
 
 		var batch = await readTask;
@@ -537,7 +537,7 @@ public class ChannelBatchUtilitiesShould
 		var readTask = ChannelBatchUtilities.DequeueBatchPooledAsync(channel.Reader, batchSize: 5, CancellationToken.None);
 
 		// Act
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50); // Allow read to start waiting
+		await Task.Yield();
 		await channel.Writer.WriteAsync(42);
 
 		using var batch = await readTask;

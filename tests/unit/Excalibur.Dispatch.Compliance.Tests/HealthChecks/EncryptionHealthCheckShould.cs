@@ -10,6 +10,11 @@ public sealed class EncryptionHealthCheckShould
 	private readonly IEncryptionProvider _encryptionProvider = A.Fake<IEncryptionProvider>();
 	private readonly IKeyManagementProvider _keyManagementProvider = A.Fake<IKeyManagementProvider>();
 
+	private static Task SimulateSlowDependencyAsync()
+	{
+		return global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromMilliseconds(20));
+	}
+
 	[Fact]
 	public async Task Return_unhealthy_when_encryption_fails()
 	{
@@ -160,7 +165,7 @@ public sealed class EncryptionHealthCheckShould
 		A.CallTo(() => _encryptionProvider.EncryptAsync(A<byte[]>._, A<EncryptionContext>._, A<CancellationToken>._))
 			.ReturnsLazily(async call =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(20);
+				await SimulateSlowDependencyAsync();
 				capturedPlaintext = call.GetArgument<byte[]>(0);
 				return new EncryptedData
 				{
@@ -175,7 +180,7 @@ public sealed class EncryptionHealthCheckShould
 		A.CallTo(() => _encryptionProvider.DecryptAsync(A<EncryptedData>._, A<EncryptionContext>._, A<CancellationToken>._))
 			.ReturnsLazily(async _ =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(20);
+				await SimulateSlowDependencyAsync();
 				return capturedPlaintext ?? [];
 			});
 
@@ -202,7 +207,7 @@ public sealed class EncryptionHealthCheckShould
 		A.CallTo(() => _keyManagementProvider.GetActiveKeyAsync(null, A<CancellationToken>._))
 			.ReturnsLazily(async _ =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(20);
+				await SimulateSlowDependencyAsync();
 				return new KeyMetadata
 				{
 					KeyId = "active-key",
@@ -236,7 +241,7 @@ public sealed class EncryptionHealthCheckShould
 		A.CallTo(() => _encryptionProvider.EncryptAsync(A<byte[]>._, A<EncryptionContext>._, A<CancellationToken>._))
 			.ReturnsLazily(async call =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(20);
+				await SimulateSlowDependencyAsync();
 				capturedPlaintext = call.GetArgument<byte[]>(0);
 				return new EncryptedData
 				{
@@ -251,13 +256,13 @@ public sealed class EncryptionHealthCheckShould
 		A.CallTo(() => _encryptionProvider.DecryptAsync(A<EncryptedData>._, A<EncryptionContext>._, A<CancellationToken>._))
 			.ReturnsLazily(async _ =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(20);
+				await SimulateSlowDependencyAsync();
 				return capturedPlaintext ?? [];
 			});
 		A.CallTo(() => _keyManagementProvider.GetActiveKeyAsync(null, A<CancellationToken>._))
 			.ReturnsLazily(async _ =>
 			{
-				await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(20);
+				await SimulateSlowDependencyAsync();
 				return new KeyMetadata
 				{
 					KeyId = "active-key",

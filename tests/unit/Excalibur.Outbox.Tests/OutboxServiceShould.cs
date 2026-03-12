@@ -17,6 +17,31 @@ namespace Excalibur.Outbox.Tests;
 [Trait("Priority", "0")]
 public sealed class OutboxServiceShould : UnitTestBase
 {
+	private static Task AwaitCancellationAsync(CancellationToken cancellationToken)
+	{
+		if (cancellationToken.IsCancellationRequested)
+		{
+			return Task.FromCanceled(cancellationToken);
+		}
+
+		var signal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var registration = cancellationToken.Register(static state =>
+		{
+			((TaskCompletionSource)state!).TrySetCanceled();
+		}, signal);
+
+		return signal.Task.ContinueWith(
+			static async (task, state) =>
+			{
+				using var capturedRegistration = (CancellationTokenRegistration)state!;
+				await task.ConfigureAwait(false);
+			},
+			registration,
+			CancellationToken.None,
+			TaskContinuationOptions.ExecuteSynchronously,
+			TaskScheduler.Default).Unwrap();
+	}
+
 	#region Constructor Tests
 
 	[Fact]
@@ -88,7 +113,7 @@ public sealed class OutboxServiceShould : UnitTestBase
 				var ct = call.GetArgument<CancellationToken>(1);
 				try
 				{
-					await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(Timeout.Infinite, ct);
+					await AwaitCancellationAsync(ct).ConfigureAwait(false);
 				}
 				catch (OperationCanceledException)
 				{
@@ -103,11 +128,9 @@ public sealed class OutboxServiceShould : UnitTestBase
 
 		// Act - Start the service and let ExecuteAsync run briefly
 		await service.StartAsync(cts.Token);
-		var dispatchObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-			() => dispatchStarted.Task.IsCompleted,
-			TimeSpan.FromSeconds(10),
-			TimeSpan.FromMilliseconds(20));
-		dispatchObserved.ShouldBeTrue("outbox dispatch should start");
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			dispatchStarted.Task,
+			TimeSpan.FromSeconds(10));
 
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
@@ -135,7 +158,7 @@ public sealed class OutboxServiceShould : UnitTestBase
 				var ct = call.GetArgument<CancellationToken>(1);
 				try
 				{
-					await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(Timeout.Infinite, ct);
+					await AwaitCancellationAsync(ct).ConfigureAwait(false);
 				}
 				catch (OperationCanceledException)
 				{
@@ -150,11 +173,9 @@ public sealed class OutboxServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		var dispatchObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-			() => dispatchStarted.Task.IsCompleted,
-			TimeSpan.FromSeconds(10),
-			TimeSpan.FromMilliseconds(20));
-		dispatchObserved.ShouldBeTrue("outbox dispatch should start");
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			dispatchStarted.Task,
+			TimeSpan.FromSeconds(10));
 
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);

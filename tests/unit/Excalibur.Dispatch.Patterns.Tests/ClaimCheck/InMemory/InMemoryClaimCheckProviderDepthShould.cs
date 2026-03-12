@@ -25,10 +25,8 @@ public sealed class InMemoryClaimCheckProviderDepthShould
 		// Arrange
 		var provider = CreateProvider(o => o.DefaultTtl = TimeSpan.FromMilliseconds(1));
 		var payload = "expired"u8.ToArray();
-		await provider.StoreAsync(payload, CancellationToken.None);
-
-		// Wait for expiration
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(500);
+		var reference = await provider.StoreAsync(payload, CancellationToken.None);
+		await WaitForExpirationAsync(reference);
 
 		// Store a non-expiring entry
 		var provider2Opts = new ClaimCheckOptions { DefaultTtl = TimeSpan.Zero };
@@ -48,12 +46,12 @@ public sealed class InMemoryClaimCheckProviderDepthShould
 	{
 		// Arrange - Store 5 entries that will expire quickly
 		var provider = CreateProvider(o => o.DefaultTtl = TimeSpan.FromMilliseconds(1));
+		var references = new List<ClaimCheckReference>();
 		for (var i = 0; i < 5; i++)
 		{
-			await provider.StoreAsync(new byte[] { (byte)i }, CancellationToken.None);
+			references.Add(await provider.StoreAsync(new byte[] { (byte)i }, CancellationToken.None));
 		}
-
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(500);
+		await WaitForExpirationAsync(references);
 
 		// Act - Remove at most 2
 		var removed = await provider.CleanupExpiredAsync(2, CancellationToken.None);
@@ -83,12 +81,12 @@ public sealed class InMemoryClaimCheckProviderDepthShould
 	{
 		// Arrange - Store entries that will expire
 		var provider = CreateProvider(o => o.DefaultTtl = TimeSpan.FromMilliseconds(1));
+		var references = new List<ClaimCheckReference>();
 		for (var i = 0; i < 10; i++)
 		{
-			await provider.StoreAsync(new byte[] { (byte)i }, CancellationToken.None);
+			references.Add(await provider.StoreAsync(new byte[] { (byte)i }, CancellationToken.None));
 		}
-
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(500);
+		await WaitForExpirationAsync(references);
 
 		// Act - Cancel immediately
 		using var cts = new CancellationTokenSource();
@@ -104,12 +102,12 @@ public sealed class InMemoryClaimCheckProviderDepthShould
 	{
 		// Arrange
 		var provider = CreateProvider(o => o.DefaultTtl = TimeSpan.FromMilliseconds(1));
+		var references = new List<ClaimCheckReference>();
 		for (var i = 0; i < 3; i++)
 		{
-			await provider.StoreAsync(new byte[] { (byte)i }, CancellationToken.None);
+			references.Add(await provider.StoreAsync(new byte[] { (byte)i }, CancellationToken.None));
 		}
-
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(500);
+		await WaitForExpirationAsync(references);
 
 		// Act
 		var removed = provider.RemoveExpiredEntries();
@@ -125,8 +123,7 @@ public sealed class InMemoryClaimCheckProviderDepthShould
 		// Arrange
 		var provider = CreateProvider(o => o.DefaultTtl = TimeSpan.FromMilliseconds(1));
 		var reference = await provider.StoreAsync("expired"u8.ToArray(), CancellationToken.None);
-
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(500);
+		await WaitForExpirationAsync(reference);
 
 		// Act & Assert
 		var ex = await Should.ThrowAsync<InvalidOperationException>(() =>
@@ -247,6 +244,29 @@ public sealed class InMemoryClaimCheckProviderDepthShould
 		var options = new ClaimCheckOptions();
 		configure?.Invoke(options);
 		return new InMemoryClaimCheckProvider(Microsoft.Extensions.Options.Options.Create(options));
+	}
+
+	private static Task WaitForExpirationAsync(ClaimCheckReference reference)
+	{
+		return WaitForExpirationAsync(new[] { reference });
+	}
+
+	private static async Task WaitForExpirationAsync(IEnumerable<ClaimCheckReference> references)
+	{
+		var latestExpiration = references
+			.Select(static reference => reference.ExpiresAt)
+			.Where(static expiration => expiration.HasValue)
+			.Max();
+
+		latestExpiration.ShouldNotBeNull();
+
+		var expired = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+				() => DateTimeOffset.UtcNow >= latestExpiration.Value,
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)),
+				TimeSpan.FromMilliseconds(5))
+			.ConfigureAwait(false);
+
+		expired.ShouldBeTrue("Expected claim check entries to expire before cleanup.");
 	}
 }
 
