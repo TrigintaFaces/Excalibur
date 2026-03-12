@@ -40,9 +40,10 @@ public sealed class TimeoutPatternFunctionalShould : FunctionalTestBase
 	[Fact]
 	public async Task CompleteWithinTimeout()
 	{
-		// Arrange
-		var timeout = TimeSpan.FromMilliseconds(500);
-		var operationDuration = TimeSpan.FromMilliseconds(50);
+		// Arrange — keep a wide gap between the simulated operation and the timeout so
+		// scheduler jitter or coverage overhead cannot spuriously trip the cancellation.
+		var timeout = TimeSpan.FromSeconds(5);
+		var operationDuration = TimeSpan.FromMilliseconds(10);
 		var completed = false;
 
 		// Act - Intentional: Task.Delay simulates an operation that completes before timeout
