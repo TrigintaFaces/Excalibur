@@ -1,4 +1,1 @@
 #nullable enable
-Microsoft.Extensions.DependencyInjection.MongoDbLeaderElectionBuilderExtensions
-static Microsoft.Extensions.DependencyInjection.MongoDbLeaderElectionBuilderExtensions.UseMongoDB(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder, string! resourceName, System.Action<Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions!>! configure) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
-static Microsoft.Extensions.DependencyInjection.MongoDbLeaderElectionBuilderExtensions.UseMongoDB(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder, string! resourceName, string! connectionString) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!

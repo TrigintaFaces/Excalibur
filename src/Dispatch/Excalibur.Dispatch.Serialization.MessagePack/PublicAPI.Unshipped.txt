@@ -1,3 +1,1 @@
 #nullable enable
-static Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationExtensions.RegisterMessagePack(this Excalibur.Dispatch.Serialization.ISerializationBuilder! builder) -> Excalibur.Dispatch.Serialization.ISerializationBuilder!
-static Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializationExtensions.RegisterMessagePack(this Excalibur.Dispatch.Serialization.ISerializationBuilder! builder, MessagePack.MessagePackSerializerOptions! options) -> Excalibur.Dispatch.Serialization.ISerializationBuilder!

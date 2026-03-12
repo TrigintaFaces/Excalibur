@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 
 using Excalibur.Dispatch.Serialization.MessagePack;
@@ -31,12 +32,13 @@ public class PackageDiSmokeTests
 	/// Verifies that each package's primary DI registration succeeds without throwing.
 	/// </summary>
 	[Theory]
-	[MemberData(nameof(AllPackageRegistrations))]
-	public void Package_Registers_Without_Exceptions(string packageName, Action<IServiceCollection> register)
+	[MemberData(nameof(AllPackageRegistrationsData))]
+	public void Package_Registers_Without_Exceptions(string packageName)
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		services.AddLogging();
+		var register = GetRegistration(packageName);
 
 		// Act
 		var exception = Record.Exception(() => register(services));
@@ -50,12 +52,13 @@ public class PackageDiSmokeTests
 	/// This catches deferred resolution failures (missing dependencies, circular refs).
 	/// </summary>
 	[Theory]
-	[MemberData(nameof(AllPackageRegistrations))]
-	public void Package_Builds_ServiceProvider_Without_Exceptions(string packageName, Action<IServiceCollection> register)
+	[MemberData(nameof(AllPackageRegistrationsData))]
+	public void Package_Builds_ServiceProvider_Without_Exceptions(string packageName)
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		services.AddLogging();
+		var register = GetRegistration(packageName);
 		register(services);
 
 		// Act
@@ -77,7 +80,14 @@ public class PackageDiSmokeTests
 
 	private const string MockConnectionString = "Server=smoke-test;Database=smoke;Trusted_Connection=true";
 
-	public static IEnumerable<object[]> AllPackageRegistrations()
+	private static readonly Lazy<IReadOnlyDictionary<string, Action<IServiceCollection>>> RegistrationMap =
+		new(() => AllPackageRegistrations().ToDictionary(static x => x.PackageName, static x => x.Register, StringComparer.Ordinal));
+
+	public static TheoryData<string> AllPackageRegistrationsData => CreateAllPackageRegistrationsData();
+
+	internal static Action<IServiceCollection> GetRegistration(string packageName) => RegistrationMap.Value[packageName];
+
+	public static IEnumerable<(string PackageName, Action<IServiceCollection> Register)> AllPackageRegistrations()
 	{
 		// ══════════════════════════════════════════════════════════
 		// DISPATCH CORE PACKAGES (Excalibur.Dispatch)
@@ -456,5 +466,18 @@ public class PackageDiSmokeTests
 			s.AddSqlServerJobCoordinator(_ => { }));
 	}
 
-	private static object[] Reg(string name, Action<IServiceCollection> register) => [name, register];
+	private static TheoryData<string> CreateAllPackageRegistrationsData()
+	{
+		var data = new TheoryData<string>();
+
+		foreach (var (packageName, _) in AllPackageRegistrations())
+		{
+			data.Add(packageName);
+		}
+
+		return data;
+	}
+
+	private static (string PackageName, Action<IServiceCollection> Register) Reg(string name, Action<IServiceCollection> register)
+		=> (name, register);
 }

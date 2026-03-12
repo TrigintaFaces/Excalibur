@@ -61,7 +61,7 @@ public sealed partial class SystemTextJsonSerializerDepthShould
 		using var serializer = CreateReflectionSerializer();
 
 		// Act
-		var json = serializer.Serialize(new TestPayload { Name = "test" }, typeof(TestPayload));
+		var json = serializer.Serialize(new TestPayload { Name = "test" });
 
 		// Assert — use Ordinal comparison to distinguish "name" from "Name"
 		json.ShouldContain("\"name\"");
@@ -76,7 +76,7 @@ public sealed partial class SystemTextJsonSerializerDepthShould
 		using var serializer = CreateReflectionSerializer();
 
 		// Act
-		var result = serializer.Deserialize("{\"name\":\"hello\",\"count\":5}", typeof(TestPayload));
+		var result = serializer.Deserialize<TestPayload>("{\"name\":\"hello\",\"count\":5}");
 
 		// Assert
 		var payload = result.ShouldBeOfType<TestPayload>();
@@ -131,7 +131,7 @@ public sealed partial class SystemTextJsonSerializerDepthShould
 		using var serializer = CreateReflectionSerializer();
 
 		// Act
-		var json = serializer.Serialize(new TestPayload { Name = "reflection-test" }, typeof(TestPayload));
+		var json = serializer.Serialize(new TestPayload { Name = "reflection-test" });
 
 		// Assert — valid JSON with camelCase naming
 		json.ShouldContain("\"name\"");
@@ -145,7 +145,7 @@ public sealed partial class SystemTextJsonSerializerDepthShould
 		using var serializer = CreateReflectionSerializer();
 
 		// Act & Assert
-		Should.Throw<JsonException>(() => serializer.Deserialize("{not valid}", typeof(TestPayload)));
+		Should.Throw<JsonException>(() => serializer.Deserialize<TestPayload>("{not valid}"));
 	}
 
 	[Fact]
@@ -156,8 +156,8 @@ public sealed partial class SystemTextJsonSerializerDepthShould
 		var original = new TestPayload { Name = "roundtrip", Count = 999 };
 
 		// Act
-		var json = serializer.Serialize(original, typeof(TestPayload));
-		var result = serializer.Deserialize(json, typeof(TestPayload));
+		var json = serializer.Serialize(original);
+		var result = serializer.Deserialize<TestPayload>(json);
 
 		// Assert
 		var payload = result.ShouldBeOfType<TestPayload>();
@@ -175,8 +175,8 @@ public sealed partial class SystemTextJsonSerializerDepthShould
 		var payload = new Dictionary<string, string> { ["key"] = "value" };
 
 		// Act
-		var json = serializer.Serialize(payload, typeof(Dictionary<string, string>));
-		var result = serializer.Deserialize(json, typeof(Dictionary<string, string>));
+		var json = serializer.Serialize(payload);
+		var result = serializer.Deserialize<Dictionary<string, string>>(json);
 
 		// Assert
 		json.ShouldContain("\"key\":\"value\"");

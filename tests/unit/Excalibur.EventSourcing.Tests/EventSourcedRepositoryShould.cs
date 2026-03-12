@@ -41,7 +41,7 @@ public sealed class EventSourcedRepositoryShould
 		public override string AggregateId { get; init; } = string.Empty;
 
 		int IVersionedMessage.Version => 1;
-		public new string MessageType => "TestCreatedEvent";
+		string IVersionedMessage.MessageType => "TestCreatedEvent";
 	}
 
 	/// <summary>
@@ -54,7 +54,7 @@ public sealed class EventSourcedRepositoryShould
 		public override string AggregateId { get; init; } = string.Empty;
 
 		int IVersionedMessage.Version => 2;
-		public new string MessageType => "TestCreatedEvent";
+		string IVersionedMessage.MessageType => "TestCreatedEvent";
 	}
 
 	/// <summary>

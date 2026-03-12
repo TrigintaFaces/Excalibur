@@ -1,4 +1,1 @@
 #nullable enable
-Excalibur.Cdc.Firestore.CdcBuilderFirestoreExtensions
-static Excalibur.Cdc.Firestore.CdcBuilderFirestoreExtensions.UseFirestore(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.Firestore.FirestoreCdcOptions!>! configure) -> Excalibur.Cdc.ICdcBuilder!
-static Excalibur.Cdc.Firestore.CdcBuilderFirestoreExtensions.UseFirestore(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.Firestore.FirestoreCdcOptions!>! configureCdc, System.Action<Excalibur.Cdc.Firestore.FirestoreCdcStateStoreOptions!>! configureStateStore) -> Excalibur.Cdc.ICdcBuilder!

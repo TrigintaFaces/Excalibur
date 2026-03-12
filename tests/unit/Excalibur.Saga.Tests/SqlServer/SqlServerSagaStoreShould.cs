@@ -19,6 +19,16 @@ public sealed class SqlServerSagaStoreShould : UnitTestBase
 	private readonly ILogger<SqlServerSagaStore> _logger = NullLoggerFactory.CreateLogger<SqlServerSagaStore>();
 	private readonly DispatchJsonSerializer _serializer = new DispatchJsonSerializer();
 
+	protected override void Dispose(bool disposing)
+	{
+		if (disposing)
+		{
+			_serializer.Dispose();
+		}
+
+		base.Dispose(disposing);
+	}
+
 	#region Simple Constructor Tests (Connection String)
 
 	[Fact]

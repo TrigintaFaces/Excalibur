@@ -48,11 +48,8 @@ public class ValidateOnStartSweepTests
 		var totalOptionsTypes = 0;
 		var totalWithValidation = 0;
 
-		foreach (var regData in allRegistrations)
+		foreach (var (packageName, register) in allRegistrations)
 		{
-			var packageName = (string)regData[0];
-			var register = (Action<IServiceCollection>)regData[1];
-
 			var services = new ServiceCollection();
 			services.AddLogging();
 
@@ -126,11 +123,12 @@ public class ValidateOnStartSweepTests
 	/// </summary>
 	[Theory]
 	[MemberData(nameof(PackagesWithOptionsData))]
-	public void Package_Options_Are_Discoverable(string packageName, Action<IServiceCollection> register)
+	public void Package_Options_Are_Discoverable(string packageName)
 	{
 		// Arrange
 		var services = new ServiceCollection();
 		services.AddLogging();
+		var register = PackageDiSmokeTests.GetRegistration(packageName);
 		register(services);
 
 		// Act
@@ -141,14 +139,15 @@ public class ValidateOnStartSweepTests
 		_output.WriteLine($"[{packageName}] Options types: {string.Join(", ", optionsTypes.Select(t => t.Name))}");
 	}
 
-	public static IEnumerable<object[]> PackagesWithOptionsData()
-	{
-		// Reuse the same registrations from A.1 but only yield those that configure Options
-		foreach (var regData in PackageDiSmokeTests.AllPackageRegistrations())
-		{
-			var packageName = (string)regData[0];
-			var register = (Action<IServiceCollection>)regData[1];
+	public static TheoryData<string> PackagesWithOptionsData => CreatePackagesWithOptionsData();
 
+	private static TheoryData<string> CreatePackagesWithOptionsData()
+	{
+		var data = new TheoryData<string>();
+
+		// Reuse the same registrations from A.1 but only yield those that configure Options
+		foreach (var (packageName, register) in PackageDiSmokeTests.AllPackageRegistrations())
+		{
 			var services = new ServiceCollection();
 			services.AddLogging();
 
@@ -164,9 +163,11 @@ public class ValidateOnStartSweepTests
 			var optionsTypes = GetConfiguredOptionsTypes(services);
 			if (optionsTypes.Count > 0)
 			{
-				yield return regData;
+				data.Add(packageName);
 			}
 		}
+
+		return data;
 	}
 
 	/// <summary>

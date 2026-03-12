@@ -219,7 +219,7 @@ public sealed class SnapshotUpgraderShould
 		var upgrader = new TestV1ToV2SnapshotUpgrader(serializer);
 
 		var oldData = new byte[] { 1, 2, 3 };
-		A.CallTo(() => serializer.Deserialize<SnapshotV1>(oldData)).Returns(null);
+		A.CallTo(() => serializer.Deserialize<SnapshotV1>(oldData)).Returns((SnapshotV1)null!);
 
 		// Act & Assert
 		var exception = Should.Throw<InvalidOperationException>(() => upgrader.Upgrade(oldData));

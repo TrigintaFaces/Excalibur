@@ -1,2 +1,1 @@
 #nullable enable
-static Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializationExtensions.RegisterProtobuf(this Excalibur.Dispatch.Serialization.ISerializationBuilder! builder) -> Excalibur.Dispatch.Serialization.ISerializationBuilder!

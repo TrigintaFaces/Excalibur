@@ -145,14 +145,16 @@ public sealed class MigrationIspSplitShould : UnitTestBase
 	public void EncryptionVersion_ComparisonOperators_WorkCorrectly()
 	{
 		var v10 = EncryptionVersion.Version10;
+		var v10Copy = new EncryptionVersion(1, 0);
 		var v11 = EncryptionVersion.Version11;
+		var v11Copy = new EncryptionVersion(1, 1);
 
 		(v10 < v11).ShouldBeTrue();
 		(v11 > v10).ShouldBeTrue();
 		(v10 <= v11).ShouldBeTrue();
-		(v10 <= v10).ShouldBeTrue();
+		(v10 <= v10Copy).ShouldBeTrue();
 		(v11 >= v10).ShouldBeTrue();
-		(v11 >= v11).ShouldBeTrue();
+		(v11 >= v11Copy).ShouldBeTrue();
 
 		(v10 > v11).ShouldBeFalse();
 		(v11 < v10).ShouldBeFalse();

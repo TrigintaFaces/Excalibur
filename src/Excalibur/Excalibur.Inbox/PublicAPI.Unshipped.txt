@@ -1,5 +1,1 @@
 #nullable enable
-Excalibur.Inbox.DependencyInjection.IInboxBuilder
-Excalibur.Inbox.DependencyInjection.IInboxBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-Microsoft.Extensions.DependencyInjection.InboxServiceCollectionExtensions
-static Microsoft.Extensions.DependencyInjection.InboxServiceCollectionExtensions.AddExcaliburInbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Inbox.DependencyInjection.IInboxBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

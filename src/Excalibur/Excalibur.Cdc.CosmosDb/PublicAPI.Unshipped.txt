@@ -1,4 +1,1 @@
 #nullable enable
-Excalibur.Cdc.CosmosDb.CdcBuilderCosmosDbExtensions
-static Excalibur.Cdc.CosmosDb.CdcBuilderCosmosDbExtensions.UseCosmosDb(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions!>! configure) -> Excalibur.Cdc.ICdcBuilder!
-static Excalibur.Cdc.CosmosDb.CdcBuilderCosmosDbExtensions.UseCosmosDb(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.CosmosDb.CosmosDbCdcOptions!>! configureCdc, System.Action<Excalibur.Cdc.CosmosDb.CosmosDbCdcStateStoreOptions!>! configureStateStore) -> Excalibur.Cdc.ICdcBuilder!

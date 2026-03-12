@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.BatchProcessing;
 /// </summary>
 [Collection("Performance Tests")]
 [Trait("Category", "Unit")]
-public sealed class BatchProcessorShould : IDisposable
+public sealed class BatchProcessorShould : IAsyncDisposable
 {
 	private static readonly string[] ThreeItemBatch = ["item1", "item2", "item3"];
 	private static readonly string[] TwoItemBatch = ["item1", "item2"];
@@ -862,11 +862,14 @@ public sealed class BatchProcessorShould : IDisposable
 		uniqueItems.ShouldBe(expectedCount);
 	}
 
-	public void Dispose()
+	public async ValueTask DisposeAsync()
 	{
 		foreach (var disposable in _disposables)
 		{
-			disposable?.Dispose();
+			if (disposable is not null)
+			{
+				await disposable.DisposeAsync().ConfigureAwait(false);
+			}
 		}
 	}
 }

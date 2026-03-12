@@ -140,7 +140,7 @@ public sealed class EncryptionFunctionalShould
 
 		public void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
 		{
-			var bytes = JsonSerializer.SerializeToUtf8Bytes(value, typeof(T));
+			var bytes = JsonSerializer.SerializeToUtf8Bytes(value);
 			bufferWriter.Write(bytes);
 		}
 

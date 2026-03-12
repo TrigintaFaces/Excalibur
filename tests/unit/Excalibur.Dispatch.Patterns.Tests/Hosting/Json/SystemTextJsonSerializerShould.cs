@@ -48,7 +48,7 @@ public sealed class SystemTextJsonSerializerShould : IDisposable
 		var value = new TestPayload { Name = "test", Count = 42 };
 
 		// Act
-		var json = _serializer.Serialize(value, typeof(TestPayload));
+		var json = _serializer.Serialize(value);
 
 		// Assert
 		json.ShouldNotBeNullOrWhiteSpace();
@@ -63,7 +63,7 @@ public sealed class SystemTextJsonSerializerShould : IDisposable
 		var json = """{"name":"test","count":42}""";
 
 		// Act
-		var result = _serializer.Deserialize(json, typeof(TestPayload));
+		var result = _serializer.Deserialize<TestPayload>(json);
 
 		// Assert
 		var payload = result.ShouldBeOfType<TestPayload>();
@@ -78,8 +78,8 @@ public sealed class SystemTextJsonSerializerShould : IDisposable
 		var original = new TestPayload { Name = "roundtrip", Count = 99 };
 
 		// Act
-		var json = _serializer.Serialize(original, typeof(TestPayload));
-		var deserialized = _serializer.Deserialize(json, typeof(TestPayload));
+		var json = _serializer.Serialize(original);
+		var deserialized = _serializer.Deserialize<TestPayload>(json);
 
 		// Assert
 		var result = deserialized.ShouldBeOfType<TestPayload>();
@@ -99,7 +99,7 @@ public sealed class SystemTextJsonSerializerShould : IDisposable
 		var value = new TestPayload { Name = "custom", Count = 42 };
 
 		// Act
-		var json = serializer.Serialize(value, typeof(TestPayload));
+		var json = serializer.Serialize(value);
 
 		// Assert — serializer produces valid JSON with camelCase (default)
 		json.ShouldContain("\"name\"");
@@ -132,7 +132,7 @@ public sealed class SystemTextJsonSerializerShould : IDisposable
 	public void Deserialize_InvalidJson_ThrowsJsonException()
 	{
 		// Act & Assert
-		Should.Throw<JsonException>(() => _serializer.Deserialize("not valid json", typeof(TestPayload)));
+		Should.Throw<JsonException>(() => _serializer.Deserialize<TestPayload>("not valid json"));
 	}
 
 	[Fact]
@@ -142,7 +142,7 @@ public sealed class SystemTextJsonSerializerShould : IDisposable
 		var json = """{"Name":"pascal","Count":7}""";
 
 		// Act
-		var result = _serializer.Deserialize(json, typeof(TestPayload));
+		var result = _serializer.Deserialize<TestPayload>(json);
 
 		// Assert
 		var payload = result.ShouldBeOfType<TestPayload>();

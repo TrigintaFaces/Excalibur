@@ -1,3 +1,1 @@
 #nullable enable
-Excalibur.Data.DynamoDb.DynamoDbAttributeValueConverter
-static Excalibur.Data.DynamoDb.DynamoDbAttributeValueConverter.ToAttributeValueMap(System.Collections.Generic.Dictionary<string!, Amazon.DynamoDBStreams.Model.AttributeValue!>? streamValues) -> System.Collections.Generic.Dictionary<string!, Amazon.DynamoDBv2.Model.AttributeValue!>?

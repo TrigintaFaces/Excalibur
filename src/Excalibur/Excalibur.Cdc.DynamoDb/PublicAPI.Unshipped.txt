@@ -1,4 +1,1 @@
 #nullable enable
-Excalibur.Cdc.DynamoDb.CdcBuilderDynamoDbExtensions
-static Excalibur.Cdc.DynamoDb.CdcBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions!>! configure) -> Excalibur.Cdc.ICdcBuilder!
-static Excalibur.Cdc.DynamoDb.CdcBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions!>! configureCdc, System.Action<Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStoreOptions!>! configureStateStore) -> Excalibur.Cdc.ICdcBuilder!
