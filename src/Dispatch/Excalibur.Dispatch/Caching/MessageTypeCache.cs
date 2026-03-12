@@ -3,7 +3,6 @@
 
 
 using System.Collections.Concurrent;
-using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 
@@ -30,10 +29,13 @@ public static class MessageTypeCache
 	/// <summary>
 	/// Pre-computed type metadata using frozen collections for O(1) lookup performance.
 	/// </summary>
-	private static FrozenDictionary<Type, MessageTypeMetadata> _typeCache = FrozenDictionary<Type, MessageTypeMetadata>.Empty;
+	private static System.Collections.Frozen.FrozenDictionary<Type, MessageTypeMetadata> _typeCache =
+		System.Collections.Frozen.FrozenDictionary<Type, MessageTypeMetadata>.Empty;
 	private static readonly ConcurrentDictionary<Type, MessageTypeMetadata> _fallbackTypeCache = new();
 
-	private static FrozenDictionary<string, Type> _nameToTypeCache = FrozenDictionary<string, Type>.Empty;
+	// Keep name lookups on an ordinal Dictionary to avoid runtime instability in FrozenDictionary<string, T>
+	// for some nested-type key layouts on current .NET 10 builds.
+	private static Dictionary<string, Type> _nameToTypeCache = new(StringComparer.Ordinal);
 	private static volatile bool _initialized;
 
 	/// <summary>
@@ -87,7 +89,7 @@ public static class MessageTypeCache
 			}
 
 			_typeCache = typeDict.ToFrozenDictionary();
-			_nameToTypeCache = nameDict.ToFrozenDictionary(StringComparer.Ordinal);
+			_nameToTypeCache = new Dictionary<string, Type>(nameDict, StringComparer.Ordinal);
 			_fallbackTypeCache.Clear();
 			_initialized = true;
 		}
@@ -133,8 +135,17 @@ public static class MessageTypeCache
 	/// <param name="typeName"> The full or simple name of the type. </param>
 	/// <returns> The resolved type or null if not found. </returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static Type? ResolveType(string typeName) =>
-		string.IsNullOrEmpty(typeName) ? null : _nameToTypeCache.GetValueOrDefault(typeName);
+	public static Type? ResolveType(string typeName)
+	{
+		if (string.IsNullOrEmpty(typeName))
+		{
+			return null;
+		}
+
+		return _nameToTypeCache.TryGetValue(typeName, out var type)
+			? type
+			: null;
+	}
 
 	/// <summary>
 	/// Gets the type name for routing purposes without allocation.
@@ -174,8 +185,8 @@ public static class MessageTypeCache
 	{
 		lock (_initLock)
 		{
-			_typeCache = FrozenDictionary<Type, MessageTypeMetadata>.Empty;
-			_nameToTypeCache = FrozenDictionary<string, Type>.Empty;
+			_typeCache = System.Collections.Frozen.FrozenDictionary<Type, MessageTypeMetadata>.Empty;
+			_nameToTypeCache = new Dictionary<string, Type>(StringComparer.Ordinal);
 			_fallbackTypeCache.Clear();
 			_initialized = false;
 		}

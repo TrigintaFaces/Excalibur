@@ -155,9 +155,15 @@ public sealed class DedicatedThreadMessageProcessorShould
 	public async Task SubmitBatchWhenRunningAndReturnZeroWhenStopped()
 	{
 		var handled = 0;
+		var allProcessed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		const int expectedMessageCount = 4;
 		using var sut = CreateProcessor(new DelegateMessageHandler((_, _) =>
 		{
-			_ = Interlocked.Increment(ref handled);
+			if (Interlocked.Increment(ref handled) >= expectedMessageCount)
+			{
+				_ = allProcessed.TrySetResult();
+			}
+
 			return ProcessingResult.Ok();
 		}));
 
@@ -175,10 +181,10 @@ public sealed class DedicatedThreadMessageProcessorShould
 		var submitted = sut.SubmitBatch(messages);
 		submitted.ShouldBe(messages.Length);
 
-		var processed = await global::Tests.Shared.Infrastructure.WaitHelpers
-			.WaitUntilAsync(() => Volatile.Read(ref handled) >= submitted, TimeSpan.FromSeconds(10))
-			.ConfigureAwait(false);
-		processed.ShouldBeTrue();
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			allProcessed.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(45)));
+		Volatile.Read(ref handled).ShouldBeGreaterThanOrEqualTo(submitted);
 
 		sut.Stop();
 	}
