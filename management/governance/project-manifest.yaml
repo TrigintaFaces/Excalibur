@@ -16,11 +16,11 @@ projects:
   - path: benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
   - path: benchmarks/Excalibur.Dispatch.Core.Tests.Performance/Excalibur.Dispatch.Core.Tests.Performance.csproj
   - path: load-tests/Excalibur.Dispatch.LoadTests/Excalibur.Dispatch.LoadTests.csproj
-  - path: samples/01-getting-started/DispatchMinimal/Excalibur.DispatchMinimal.csproj
-  - path: samples/01-getting-started/ExcaliburCqrs/ExcaliburCqrs.csproj
-  - path: samples/01-getting-started/GettingStarted/GettingStarted.csproj
-  - path: samples/01-getting-started/MinimalSample/MinimalSample.csproj
-  - path: samples/01-getting-started/QuickDemo/QuickDemo.csproj
+  - path: samples/01-getting-started/DispatchOnly/Excalibur.DispatchOnly.csproj
+  - path: samples/01-getting-started/EventSourcingIntro/EventSourcingIntro.csproj
+  - path: samples/01-getting-started/HelloDispatch/HelloDispatch.csproj
+  - path: samples/01-getting-started/InteractiveDemo/InteractiveDemo.csproj
+  - path: samples/01-getting-started/WebApiQuickStart/WebApiQuickStart.csproj
   - path: samples/02-messaging-transports/AwsSqs/AwsSqsSample.csproj
   - path: samples/02-messaging-transports/AzureServiceBus/AzureServiceBusSample.csproj
   - path: samples/02-messaging-transports/Kafka/KafkaSample.csproj
@@ -67,6 +67,7 @@ projects:
   - path: samples/09-advanced/Versioning.Examples/UserProfileVersioning/UserProfileVersioning.csproj
   - path: samples/13-jobs/CdcJobQuartz/CdcJobQuartz.csproj
   - path: samples/10-real-world/EnhancedStores/ECommerceSample/ECommerceSample.csproj
+  - path: samples/10-real-world/EnterpriseOrderProcessing/EnterpriseOrderProcessing.csproj
   - path: samples/10-real-world/OrderProcessing/OrderProcessing.csproj
   - path: samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj
   - path: samples/12-vertical-slice-api/HealthcareApi/HealthcareApi.csproj
@@ -232,6 +233,7 @@ projects:
   - path: tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj
   - path: tests/performance/Excalibur.Dispatch.Messaging.Performance.Tests/Excalibur.Dispatch.Messaging.Performance.Tests.csproj
   - path: tests/performance/Excalibur.Dispatch.Performance.Tests/Excalibur.Dispatch.Performance.Tests.csproj
+  - path: tests/smoke/Excalibur.Dispatch.Tests.Smoke/Excalibur.Dispatch.Tests.Smoke.csproj
   - path: tests/unit/Excalibur.A3.Tests/Excalibur.A3.Tests.csproj
   - path: tests/unit/Excalibur.Application.Tests/Excalibur.Application.Tests.csproj
   - path: tests/unit/Excalibur.Caching.Tests/Excalibur.Caching.Tests.csproj
