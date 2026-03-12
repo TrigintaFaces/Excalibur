@@ -98,7 +98,7 @@ public sealed class RabbitMqOptionsValidator : IValidateOptions<RabbitMqOptions>
 			}
 
 			// Port validation (if specified, should be valid)
-			if (uri.Port is not (-1) and (<= 0 or > 65535))
+			if (uri.Port is not -1 and (<= 0 or > 65535))
 			{
 				return false;
 			}
