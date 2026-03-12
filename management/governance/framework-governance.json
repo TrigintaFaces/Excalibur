@@ -420,6 +420,201 @@
         "project": "samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj",
         "mode": "run",
         "timeoutSeconds": 20
+      },
+      {
+        "project": "samples/02-messaging-transports/AwsSqs/AwsSqsSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/02-messaging-transports/AzureServiceBus/AzureServiceBusSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/02-messaging-transports/Kafka/KafkaSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/02-messaging-transports/MultiProviderQueueProcessor/MultiProviderQueueProcessor.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/02-messaging-transports/RabbitMQ/RabbitMQSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/03-cloud-native/CloudNativePatterns.Examples/ClaimCheck/ClaimCheck.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/04-reliability/RetryAndCircuitBreaker/RetryAndCircuitBreaker.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/05-serverless/AwsLambda/AwsLambda.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/05-serverless/AzureFunctions/AzureFunctions.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/05-serverless/GoogleCloudFunctions/GoogleCloudFunctions.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/06-security/AuditLogging/AuditLogging.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/06-security/AwsSecretsManager/AwsSecretsManager.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/06-security/AzureKeyVault/AzureKeyVault.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/06-security/MessageEncryption/MessageEncryption.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/07-observability/HealthChecks/HealthChecks.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/07-observability/OpenTelemetry/OpenTelemetry.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/08-serialization/MemoryPackSample/MemoryPackSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/08-serialization/MessagePackSample/MessagePackSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/08-serialization/Protobuf/Protobuf.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/CdcAntiCorruption/CdcAntiCorruption.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/CdcEventStoreElasticsearch/CdcEventStoreElasticsearch.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/CosmosDbEventStore/CosmosDbEventStore.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/EventUpcasting/EventUpcasting.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/FluentValidationSample/FluentValidationSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/JobWorkerSample/JobWorkerSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/LeaderElection/LeaderElection.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/ProjectionsSample/ProjectionsSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/SessionManagement/SessionManagementExample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/SnapshotStrategies/SnapshotStrategies.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/SqlServerEventStore/SqlServerEventStore.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/StreamingHandlers/StreamingHandlers.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/Versioning.Examples/EcommerceOrderVersioning/EcommerceOrderVersioning.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/Versioning.Examples/IntegrationEventVersioning/IntegrationEventVersioning.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/Versioning.Examples/UserProfileVersioning/UserProfileVersioning.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/10-real-world/EnhancedStores/ECommerceSample/ECommerceSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/10-real-world/EnterpriseOrderProcessing/EnterpriseOrderProcessing.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/10-real-world/OrderProcessing/OrderProcessing.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/12-vertical-slice-api/HealthcareApi/HealthcareApi.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/13-jobs/CdcJobQuartz/CdcJobQuartz.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
       }
     ]
   },
