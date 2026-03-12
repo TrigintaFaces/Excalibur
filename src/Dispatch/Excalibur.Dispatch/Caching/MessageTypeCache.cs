@@ -35,8 +35,9 @@ public static class MessageTypeCache
 	private static readonly ConcurrentDictionary<Type, MessageTypeMetadata> _fallbackTypeCache = new();
 
 	// Keep name lookups on an ordinal Dictionary to avoid runtime instability in FrozenDictionary<string, T>
-	// for some nested-type key layouts on current .NET 10 builds.
-	private static Dictionary<string, Type> _nameToTypeCache = new(StringComparer.Ordinal);
+	// for some nested-type key layouts on current .NET 10 builds. The field remains interface-typed so
+	// tests can safely reset it via reflection to FrozenDictionary.Empty.
+	private static IReadOnlyDictionary<string, Type> _nameToTypeCache = FrozenDictionary<string, Type>.Empty;
 	private static volatile bool _initialized;
 
 	/// <summary>
@@ -187,7 +188,7 @@ public static class MessageTypeCache
 		lock (_initLock)
 		{
 			_typeCache = System.Collections.Frozen.FrozenDictionary<Type, MessageTypeMetadata>.Empty;
-			_nameToTypeCache = new Dictionary<string, Type>(StringComparer.Ordinal);
+			_nameToTypeCache = FrozenDictionary<string, Type>.Empty;
 			_fallbackTypeCache.Clear();
 			_initialized = false;
 		}
