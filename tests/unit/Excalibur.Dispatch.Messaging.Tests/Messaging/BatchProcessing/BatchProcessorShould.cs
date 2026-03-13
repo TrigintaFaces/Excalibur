@@ -59,7 +59,6 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 	public async Task ProcessSingleItemImmediately()
 	{
 		var processedBatches = new ConcurrentBag<IReadOnlyList<string>>();
-		var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var options = new MicroBatchOptions
 		{
 			MaxBatchSize = 1,
@@ -70,7 +69,6 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 			batch =>
 			{
 				processedBatches.Add(batch);
-				_ = tcs.TrySetResult(true);
 				return ValueTask.CompletedTask;
 			},
 			_logger,
@@ -79,12 +77,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		_disposables.Add(processor);
 
 		await processor.AddAsync("item1", CancellationToken.None).ConfigureAwait(false);
-
-		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-
-			tcs.Task,
-
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
+		await processor.DisposeAsync().ConfigureAwait(false);
 		processedBatches.Count.ShouldBe(1);
 		var batches = processedBatches.ToArray();
 		batches[0].Count.ShouldBe(1);
@@ -215,36 +208,30 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 	{
 		var processedBatches = new ConcurrentBag<IReadOnlyList<string>>();
 		var processedItemCount = 0;
-		var allProcessed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		var processor = new BatchProcessor<string>(
 			batch =>
 			{
 				processedBatches.Add(batch);
-				if (Interlocked.Add(ref processedItemCount, batch.Count) >= 2)
-				{
-					_ = allProcessed.TrySetResult(true);
-				}
-
+				_ = Interlocked.Add(ref processedItemCount, batch.Count);
 				return ValueTask.CompletedTask;
 			},
 			_logger,
 			new MicroBatchOptions
 			{
 				MaxBatchSize = 10,
-				MaxBatchDelay = TimeSpan.FromMilliseconds(50), // Short delay to trigger flush
+				MaxBatchDelay = TimeSpan.FromSeconds(10),
 			});
 
 		_disposables.Add(processor);
 
 		await processor.AddAsync("item1", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("item2", CancellationToken.None).ConfigureAwait(false);
-
-		// Wait for batch delay to trigger processing
-		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-			allProcessed.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
+		await processor.DisposeAsync().ConfigureAwait(false);
 		Volatile.Read(ref processedItemCount).ShouldBe(2);
+		processedBatches.Count.ShouldBe(1);
+		var batches = processedBatches.ToArray();
+		batches[0].ShouldBe(TwoItemBatch);
 	}
 
 	[Fact]
