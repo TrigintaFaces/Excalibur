@@ -239,20 +239,14 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 			MessageId = message.Id.ToString(),
 		};
 		context.SetMessageType(message.GetType().Name);
-		var processingCompleted = new TaskCompletionSource<bool>();
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 		{
-			_ = processingCompleted.TrySetResult(true);
 			return new ValueTask<IMessageResult>(MessageResult.Success());
 		}
 
 		// Act
-		var resultTask = middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
-		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-			processingCompleted.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
-		var result = await resultTask.ConfigureAwait(false);
+		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		result.IsSuccess.ShouldBeTrue();
