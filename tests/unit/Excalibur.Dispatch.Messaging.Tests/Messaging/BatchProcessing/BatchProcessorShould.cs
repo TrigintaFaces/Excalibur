@@ -489,6 +489,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 	{
 		var callCount = 0;
 		var processedItems = new ConcurrentBag<string>();
+		var firstFailureObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var successfulRetryObserved = new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		// Use batch size of 1 to ensure each item is processed separately
@@ -500,6 +501,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 				var currentCall = Interlocked.Increment(ref callCount);
 				if (currentCall == 1)
 				{
+					_ = firstFailureObserved.TrySetResult();
 					await Task.Yield();
 					throw new InvalidOperationException("Async test exception");
 				}
@@ -520,6 +522,9 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		_disposables.Add(processor);
 
 		await processor.AddAsync("item1", CancellationToken.None).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			firstFailureObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(45))).ConfigureAwait(false);
 		await processor.AddAsync("item2", CancellationToken.None).ConfigureAwait(false);
 
 		var successfulBatch = await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
