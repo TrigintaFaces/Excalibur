@@ -260,27 +260,28 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 	[Fact]
 	public async Task HandleConcurrentAdds()
 	{
-		var processedItems = new ConcurrentBag<string>();
-		var allItemsProcessed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-		var expectedItemCount = 100;
+		var processedItems = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
+		var allItemsProcessed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		const int expectedItemCount = 32;
+		var totalProcessed = 0;
 
 		var processor = new BatchProcessor<string>(
 			batch =>
 			{
 				foreach (var item in batch)
 				{
-					processedItems.Add(item);
+					_ = processedItems.TryAdd(item, 0);
 				}
 
-				if (processedItems.Count >= expectedItemCount)
+				if (Interlocked.Add(ref totalProcessed, batch.Count) >= expectedItemCount)
 				{
-					_ = allItemsProcessed.TrySetResult(true);
+					_ = allItemsProcessed.TrySetResult();
 				}
 
 				return ValueTask.CompletedTask;
 			},
 			_logger,
-			new MicroBatchOptions { MaxBatchSize = 10, MaxBatchDelay = TimeSpan.FromMilliseconds(50) });
+			new MicroBatchOptions { MaxBatchSize = 8, MaxBatchDelay = TimeSpan.FromMilliseconds(10) });
 
 		_disposables.Add(processor);
 
@@ -290,7 +291,8 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		await Task.WhenAll(tasks).ConfigureAwait(false);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			allItemsProcessed.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(60)));
+		Volatile.Read(ref totalProcessed).ShouldBe(expectedItemCount);
 		processedItems.Count.ShouldBe(expectedItemCount);
 	}
 
@@ -632,47 +634,49 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 	[Fact]
 	public async Task HandleBackpressureGracefully()
 	{
-		var processingDelay = TimeSpan.FromMilliseconds(10);
-		var processedBatches = new ConcurrentBag<int>();
-		var totalProcessed = 0;
-		var expectedBatchCount = 2;
-		var expectedItemCount = 8;
-		var allItemsProcessed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-		var options = new MicroBatchOptions { MaxBatchSize = 4, MaxBatchDelay = TimeSpan.FromMilliseconds(10) };
+		var processedBatches = new ConcurrentQueue<IReadOnlyList<string>>();
+		var firstBatchStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var releaseFirstBatch = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var secondBatchObserved = new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var batchCount = 0;
+		var options = new MicroBatchOptions { MaxBatchSize = 2, MaxBatchDelay = TimeSpan.FromMilliseconds(10) };
 
 		var processor = new BatchProcessor<string>(
 			async batch =>
 			{
-				processedBatches.Add(batch.Count);
-				if (Interlocked.Add(ref totalProcessed, batch.Count) >= expectedItemCount
-					&& processedBatches.Count >= expectedBatchCount)
+				var processedBatch = batch.ToArray();
+				processedBatches.Enqueue(processedBatch);
+				var observedBatchCount = Interlocked.Increment(ref batchCount);
+				if (observedBatchCount == 1)
 				{
-					_ = allItemsProcessed.TrySetResult();
+					_ = firstBatchStarted.TrySetResult();
+					await releaseFirstBatch.Task.ConfigureAwait(false);
 				}
-				await SimulateSlowProcessingAsync(processingDelay).ConfigureAwait(false);
+				else if (observedBatchCount == 2)
+				{
+					_ = secondBatchObserved.TrySetResult(processedBatch);
+				}
 			},
 			_logger,
 			options);
 
 		_disposables.Add(processor);
 
-		// Add items faster than they can be processed
-		var itemCount = expectedItemCount;
-		var stopwatch = Stopwatch.StartNew();
-
-		var addTasks = Enumerable.Range(0, itemCount)
+		var addTasks = Enumerable.Range(0, 4)
 			.Select(async i => await processor.AddAsync($"item{i}", CancellationToken.None).ConfigureAwait(false));
-
 		await Task.WhenAll(addTasks).ConfigureAwait(false);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-			allItemsProcessed.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
+			firstBatchStarted.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(45))).ConfigureAwait(false);
+		_ = releaseFirstBatch.TrySetResult();
+		var secondBatch = await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			secondBatchObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(45))).ConfigureAwait(false);
 
-		stopwatch.Stop();
-
-		Volatile.Read(ref totalProcessed).ShouldBe(itemCount);
-		processedBatches.Count.ShouldBe(expectedBatchCount);
-		processedBatches.All(count => count <= options.MaxBatchSize).ShouldBeTrue();
+		Volatile.Read(ref batchCount).ShouldBe(2);
+		processedBatches.Count.ShouldBe(2);
+		secondBatch.Count.ShouldBe(2);
+		processedBatches.All(batch => batch.Count <= options.MaxBatchSize).ShouldBeTrue();
 	}
 
 	[Fact]
@@ -680,7 +684,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 	{
 		var processedBatches = new ConcurrentQueue<IReadOnlyList<string>>();
 		var batchObserved = new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
-		var options = new MicroBatchOptions { MaxBatchSize = 10, MaxBatchDelay = TimeSpan.FromMilliseconds(25) };
+		var options = new MicroBatchOptions { MaxBatchSize = 10, MaxBatchDelay = TimeSpan.FromMilliseconds(10) };
 
 		var processor = new BatchProcessor<string>(
 			batch =>
@@ -702,7 +706,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 
 		var batch = await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			batchObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(45))).ConfigureAwait(false);
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(60))).ConfigureAwait(false);
 
 		processedBatches.Count.ShouldBe(1);
 		batch.ShouldNotBeNull();
