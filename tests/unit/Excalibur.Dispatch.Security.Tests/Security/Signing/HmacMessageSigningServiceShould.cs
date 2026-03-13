@@ -85,7 +85,12 @@ public sealed class HmacMessageSigningServiceShould : IDisposable
     public async Task SignStringContentWithHmacSha256()
     {
         // Arrange
-        var context = new SigningContext { Algorithm = SigningAlgorithm.HMACSHA256, Format = SignatureFormat.Base64 };
+        var context = new SigningContext
+        {
+            Algorithm = SigningAlgorithm.HMACSHA256,
+            Format = SignatureFormat.Base64,
+            IncludeTimestamp = false
+        };
 
         // Act
         var signature = await _sut.SignMessageAsync("hello world", context, CancellationToken.None);

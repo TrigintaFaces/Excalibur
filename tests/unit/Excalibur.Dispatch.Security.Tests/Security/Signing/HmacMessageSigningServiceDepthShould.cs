@@ -50,6 +50,7 @@ public sealed class HmacMessageSigningServiceDepthShould : IDisposable
 		{
 			Algorithm = SigningAlgorithm.HMACSHA256,
 			Format = SignatureFormat.Base64,
+			IncludeTimestamp = false,
 		};
 
 		// Act
