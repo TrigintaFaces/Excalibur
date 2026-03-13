@@ -401,51 +401,11 @@ public sealed class EncryptionMigrationServiceShould
 		};
 		var targetContext = CreateEncryptionContext();
 		var progressReports = new List<EncryptionMigrationProgress>();
-		var progress = new Progress<EncryptionMigrationProgress>(p => progressReports.Add(p));
-		var options = new BatchMigrationOptions
-		{
-			TrackProgress = true,
-			Progress = progress,
-			MaxDegreeOfParallelism = 1
-		};
-		var decryptedBytes = new byte[] { 1, 2, 3 };
-
-		_ = A.CallTo(() => _encryptionProvider.DecryptAsync(A<EncryptedData>._, A<EncryptionContext>._, A<CancellationToken>._))
-			.Returns(decryptedBytes);
-		_ = A.CallTo(() => _encryptionProvider.EncryptAsync(decryptedBytes, targetContext, A<CancellationToken>._))
-			.Returns(CreateEncryptedData("new-key"));
-
-		// Act
-		_ = await _sut.MigrateBatchAsync(items, targetContext, options, CancellationToken.None);
-
-		// Assert
-		progressReports.Count.ShouldBeGreaterThanOrEqualTo(1);
-	}
-
-	[Fact]
-	public async Task MigrateBatchAsync_ReportProgressWithCorrectProperties()
-	{
-		// Arrange
-		var items = new List<EncryptionMigrationItem>
-		{
-			CreateMigrationItem("item-1", "key-1"),
-			CreateMigrationItem("item-2", "key-2")
-		};
-		var targetContext = CreateEncryptionContext();
-		var progressReports = new List<EncryptionMigrationProgress>();
+		var progressReported = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var progress = new Progress<EncryptionMigrationProgress>(p =>
 		{
-			// Clone the progress to avoid race conditions
-			progressReports.Add(new EncryptionMigrationProgress
-			{
-				TotalItems = p.TotalItems,
-				CompletedItems = p.CompletedItems,
-				SucceededItems = p.SucceededItems,
-				FailedItems = p.FailedItems,
-				CurrentItemId = p.CurrentItemId,
-				Elapsed = p.Elapsed,
-				EstimatedRemaining = p.EstimatedRemaining
-			});
+			progressReports.Add(p);
+			_ = progressReported.TrySetResult(true);
 		});
 		var options = new BatchMigrationOptions
 		{
@@ -462,6 +422,59 @@ public sealed class EncryptionMigrationServiceShould
 
 		// Act
 		_ = await _sut.MigrateBatchAsync(items, targetContext, options, CancellationToken.None);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			progressReported.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
+
+		// Assert
+		progressReports.Count.ShouldBeGreaterThanOrEqualTo(1);
+	}
+
+	[Fact]
+	public async Task MigrateBatchAsync_ReportProgressWithCorrectProperties()
+	{
+		// Arrange
+		var items = new List<EncryptionMigrationItem>
+		{
+			CreateMigrationItem("item-1", "key-1"),
+			CreateMigrationItem("item-2", "key-2")
+		};
+		var targetContext = CreateEncryptionContext();
+		var progressReports = new List<EncryptionMigrationProgress>();
+		var progressReported = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var progress = new Progress<EncryptionMigrationProgress>(p =>
+		{
+			// Clone the progress to avoid race conditions
+			progressReports.Add(new EncryptionMigrationProgress
+			{
+				TotalItems = p.TotalItems,
+				CompletedItems = p.CompletedItems,
+				SucceededItems = p.SucceededItems,
+				FailedItems = p.FailedItems,
+				CurrentItemId = p.CurrentItemId,
+				Elapsed = p.Elapsed,
+				EstimatedRemaining = p.EstimatedRemaining
+			});
+			_ = progressReported.TrySetResult(true);
+		});
+		var options = new BatchMigrationOptions
+		{
+			TrackProgress = true,
+			Progress = progress,
+			MaxDegreeOfParallelism = 1
+		};
+		var decryptedBytes = new byte[] { 1, 2, 3 };
+
+		_ = A.CallTo(() => _encryptionProvider.DecryptAsync(A<EncryptedData>._, A<EncryptionContext>._, A<CancellationToken>._))
+			.Returns(decryptedBytes);
+		_ = A.CallTo(() => _encryptionProvider.EncryptAsync(decryptedBytes, targetContext, A<CancellationToken>._))
+			.Returns(CreateEncryptedData("new-key"));
+
+		// Act
+		_ = await _sut.MigrateBatchAsync(items, targetContext, options, CancellationToken.None);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			progressReported.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 
 		// Assert
 		progressReports.Count.ShouldBeGreaterThanOrEqualTo(1);
