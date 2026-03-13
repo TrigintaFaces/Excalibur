@@ -428,18 +428,22 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 
 		var batchSizes = new ConcurrentBag<int>();
 		var totalProcessed = 0;
-		var allItemsProcessed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var firstBatchProcessed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var secondBatchProcessed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		var processor = new BatchProcessor<string>(
 			batch =>
 			{
 				batchSizes.Add(batch.Count);
 				var currentTotal = Interlocked.Add(ref totalProcessed, batch.Count);
+				if (currentTotal >= 5)
+				{
+					_ = firstBatchProcessed.TrySetResult();
+				}
 				if (currentTotal >= 10)
 				{
-					_ = allItemsProcessed.TrySetResult();
+					_ = secondBatchProcessed.TrySetResult();
 				}
-
 				return ValueTask.CompletedTask;
 			},
 			_logger,
@@ -447,19 +451,29 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 
 		_disposables.Add(processor);
 
-		// Add exactly 2 full batches
-		for (var i = 0; i < 10; i++)
+		// Add the first full batch and wait until it is observed.
+		for (var i = 0; i < 5; i++)
 		{
 			await processor.AddAsync($"item{i}", CancellationToken.None).ConfigureAwait(false);
 		}
 
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-			allItemsProcessed.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(45)));
+			firstBatchProcessed.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(45))).ConfigureAwait(false);
+
+		// Add the second full batch and wait until it is observed.
+		for (var i = 5; i < 10; i++)
+		{
+			await processor.AddAsync($"item{i}", CancellationToken.None).ConfigureAwait(false);
+		}
+
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			secondBatchProcessed.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(45))).ConfigureAwait(false);
 
 		Volatile.Read(ref totalProcessed).ShouldBe(10);
-		batchSizes.All(size => size <= options.MaxBatchSize).ShouldBeTrue();
-		batchSizes.Count(size => size == options.MaxBatchSize).ShouldBeGreaterThanOrEqualTo(2);
+		batchSizes.Count.ShouldBe(2);
+		batchSizes.All(size => size == options.MaxBatchSize).ShouldBeTrue();
 	}
 
 	[Fact]
