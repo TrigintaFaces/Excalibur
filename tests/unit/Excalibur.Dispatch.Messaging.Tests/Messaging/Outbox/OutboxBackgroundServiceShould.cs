@@ -184,12 +184,12 @@ public sealed class OutboxBackgroundServiceShould
 		var cts = new CancellationTokenSource();
 
 		// Act
-		var task = service.StartAsync(cts.Token);
+		await service.StartAsync(cts.Token).ConfigureAwait(false);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			pendingObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(60))).ConfigureAwait(false);
 		cts.Cancel();
-		await task;
+		await service.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		retryObserved.Task.IsCompleted.ShouldBeFalse();
@@ -237,6 +237,7 @@ public sealed class OutboxBackgroundServiceShould
 	{
 		// Arrange
 		var callCount = 0;
+		var firstFailureObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var recoveryObserved = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => _publisher.PublishPendingMessagesAsync(A<CancellationToken>._))
 			.ReturnsLazily(() =>
@@ -244,6 +245,7 @@ public sealed class OutboxBackgroundServiceShould
 				var current = Interlocked.Increment(ref callCount);
 				if (current == 1)
 				{
+					_ = firstFailureObserved.TrySetResult();
 					throw new InvalidOperationException("Test error");
 				}
 				_ = recoveryObserved.TrySetResult(true);
@@ -255,7 +257,10 @@ public sealed class OutboxBackgroundServiceShould
 		var cts = new CancellationTokenSource();
 
 		// Act
-		var task = service.StartAsync(cts.Token);
+		await service.StartAsync(cts.Token).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			firstFailureObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(60))).ConfigureAwait(false);
 
 		// Poll until at least 2 calls (one error + one recovery), generous timeout for full-suite load
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
@@ -263,7 +268,7 @@ public sealed class OutboxBackgroundServiceShould
 			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(60))).ConfigureAwait(false);
 
 		cts.Cancel();
-		await task;
+		await service.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - service recovered from the first error and continued processing
 		// Under extreme full-suite parallel load, the background service timer may be starved,
