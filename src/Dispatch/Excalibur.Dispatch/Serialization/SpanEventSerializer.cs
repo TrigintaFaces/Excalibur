@@ -70,13 +70,9 @@ public sealed class SpanEventSerializer : IEventSerializer
 		// Prefer MemoryPack for best Span support, fall back to current serializer
 		_pluggable = registry.GetByName("MemoryPack")
 					 ?? registry.GetById(SerializerIds.MemoryPack)
-					 ?? registry.GetCurrent().Serializer;
-
-		if (_pluggable is null)
-		{
-			throw new InvalidOperationException(
-				"No serializer available. Register MemoryPack or configure a default serializer.");
-		}
+					 ?? registry.GetCurrent().Serializer
+					 ?? throw new InvalidOperationException(
+						"No serializer available. Register MemoryPack or configure a default serializer.");
 	}
 
 	#region Span-based methods

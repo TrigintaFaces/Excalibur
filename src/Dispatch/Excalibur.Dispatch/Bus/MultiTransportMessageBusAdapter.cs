@@ -177,11 +177,8 @@ public sealed class MultiTransportMessageBusAdapter : IMessageBusAdapter, IMessa
 		}
 		else
 		{
-			adapter = _defaultAdapter;
-			if (adapter is null)
-			{
-				throw new InvalidOperationException(ErrorMessages.NoDefaultAdapterConfigured);
-			}
+			adapter = _defaultAdapter
+				?? throw new InvalidOperationException(ErrorMessages.NoDefaultAdapterConfigured);
 		}
 
 		await adapter.SubscribeAsync(subscriptionName, messageHandler, options, cancellationToken).ConfigureAwait(false);
