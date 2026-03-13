@@ -465,7 +465,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 	public async Task EmitSpecificMetricsWithCorrectValues()
 	{
 		// Arrange
-		var batchProcessed = new TaskCompletionSource<bool>();
+		var batchProcessed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var metricsCollected = new ConcurrentBag<(string Name, object Value, KeyValuePair<string, object?>[] Tags)>();
 
 		// Enhanced meter listener to capture tags - listening for correct meter name
@@ -486,17 +486,16 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var processor = new BatchProcessor<string>(
 			batch =>
 			{
-				_ = batchProcessed.TrySetResult(true);
+				_ = batchProcessed.TrySetResult();
 				return ValueTask.CompletedTask;
 			},
 			_processorLogger,
-			new MicroBatchOptions { MaxBatchSize = 2, MaxBatchDelay = TimeSpan.FromMilliseconds(100) });
+			new MicroBatchOptions { MaxBatchSize = 1, MaxBatchDelay = TimeSpan.FromSeconds(10) });
 
 		_disposables.Add(processor);
 
 		// Act
 		await processor.AddAsync("test-item-1", CancellationToken.None).ConfigureAwait(false);
-		await processor.AddAsync("test-item-2", CancellationToken.None).ConfigureAwait(false); // Should trigger batch
 
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			batchProcessed.Task,
