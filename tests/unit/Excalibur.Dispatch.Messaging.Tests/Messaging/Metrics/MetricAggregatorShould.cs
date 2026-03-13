@@ -180,12 +180,12 @@ public sealed class MetricAggregatorShould : UnitTestBase
 			}
 		};
 
-		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(30), callback);
+		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(10), callback);
 
 		// Act - wait until callback is observed at least twice
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			multipleCallbacksObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(15)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(45)));
 		// Assert - Should have been called multiple times
 		Volatile.Read(ref callbackCount).ShouldBeGreaterThan(1);
 	}

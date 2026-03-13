@@ -864,18 +864,13 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		var operationExceptions = new ConcurrentBag<Exception>();
 		var operationsStarted = 0;
 		var operationsCompleted = 0;
-		var operationsPrimed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		// Act - Start operations and dispose concurrently
 		var operationTasks = Enumerable.Range(0, 50).Select(async i =>
 		{
 				try
 				{
-					var started = Interlocked.Increment(ref operationsStarted);
-					if (started >= 10)
-					{
-						operationsPrimed.TrySetResult(true);
-					}
+					_ = Interlocked.Increment(ref operationsStarted);
 					var messageId = $"disposal-race-{i}";
 					_ = await store.CreateEntryAsync(messageId, TestHandler, "TestMessage", payload, metadata, CancellationToken.None).ConfigureAwait(false);
 					await Task.Yield();
@@ -891,9 +886,7 @@ public sealed class InMemoryInboxStoreEdgeCaseShould : IDisposable
 		// Dispose after a short delay
 		var disposalTask = Task.Run(async () =>
 		{
-			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-				operationsPrimed.Task,
-				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10))).ConfigureAwait(false);
+			await Task.Yield();
 			store.Dispose();
 		});
 

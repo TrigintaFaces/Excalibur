@@ -119,7 +119,7 @@ public sealed class ObservabilityValidationShould : IDisposable
 				return ValueTask.CompletedTask;
 			},
 			logger,
-			new MicroBatchOptions { MaxBatchSize = 3, MaxBatchDelay = TimeSpan.FromMilliseconds(100) });
+			new MicroBatchOptions { MaxBatchSize = 1, MaxBatchDelay = TimeSpan.FromMilliseconds(25) });
 
 		_disposables.Add(processor);
 

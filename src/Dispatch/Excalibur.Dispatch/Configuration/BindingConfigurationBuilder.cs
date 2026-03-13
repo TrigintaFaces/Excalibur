@@ -95,12 +95,15 @@ internal sealed class BindingConfigurationBuilder(
 		IPipelineProfile? profile = null;
 		if (!string.IsNullOrWhiteSpace(_pipelineName))
 		{
-			profile = profileRegistry.GetProfile(_pipelineName)
-				?? throw new InvalidOperationException(
+			profile = profileRegistry.GetProfile(_pipelineName);
+			if (profile is null)
+			{
+				throw new InvalidOperationException(
 					string.Format(
 						CultureInfo.CurrentCulture,
 						Resources.BindingConfigurationBuilder_PipelineNotFoundFormat,
 						_pipelineName));
+			}
 		}
 
 		return new TransportBinding(
