@@ -45,6 +45,8 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy(), timeoutMonitor);
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		var completed = await timeoutMonitor.WaitForCompletionAsync(ScheduleProcessingTimeout, CancellationToken.None).ConfigureAwait(false);
+		completed.ShouldBeTrue();
 		var processed = await store.WaitForStoreCallAsync(ScheduleProcessingTimeout, CancellationToken.None).ConfigureAwait(false);
 		processed.ShouldBeTrue();
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
@@ -79,9 +81,12 @@ public sealed class TimeAwareScheduledMessageServiceShould
 		_ = A.CallTo(() => dispatcher.DispatchAsync(A<IDispatchAction>._, A<IMessageContext>._, A<CancellationToken>._))
 			.Returns(MessageResult.Success());
 
-		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy(), new RecordingTimeoutMonitor());
+		var timeoutMonitor = new RecordingTimeoutMonitor();
+		using var sut = CreateService(store, dispatcher, serializer, new NoTimeoutPolicy(), timeoutMonitor);
 
 		await sut.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		var completed = await timeoutMonitor.WaitForCompletionAsync(ScheduleProcessingTimeout, CancellationToken.None).ConfigureAwait(false);
+		completed.ShouldBeTrue();
 		var processed = await store.WaitForStoreCallAsync(ScheduleProcessingTimeout, CancellationToken.None).ConfigureAwait(false);
 		processed.ShouldBeTrue();
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
