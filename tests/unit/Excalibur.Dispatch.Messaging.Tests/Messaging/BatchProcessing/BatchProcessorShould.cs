@@ -617,9 +617,11 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 	[Fact]
 	public async Task HandleBackpressureGracefully()
 	{
-		var processingDelay = TimeSpan.FromMilliseconds(20);
+		var processingDelay = TimeSpan.FromMilliseconds(10);
 		var processedBatches = new ConcurrentBag<int>();
 		var totalProcessed = 0;
+		var expectedBatchCount = 2;
+		var expectedItemCount = 8;
 		var allItemsProcessed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var options = new MicroBatchOptions { MaxBatchSize = 4, MaxBatchDelay = TimeSpan.FromMilliseconds(10) };
 
@@ -627,7 +629,8 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 			async batch =>
 			{
 				processedBatches.Add(batch.Count);
-				if (Interlocked.Add(ref totalProcessed, batch.Count) >= 20)
+				if (Interlocked.Add(ref totalProcessed, batch.Count) >= expectedItemCount
+					&& processedBatches.Count >= expectedBatchCount)
 				{
 					_ = allItemsProcessed.TrySetResult();
 				}
@@ -639,7 +642,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		_disposables.Add(processor);
 
 		// Add items faster than they can be processed
-		var itemCount = 20;
+		var itemCount = expectedItemCount;
 		var stopwatch = Stopwatch.StartNew();
 
 		var addTasks = Enumerable.Range(0, itemCount)
@@ -653,6 +656,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		stopwatch.Stop();
 
 		Volatile.Read(ref totalProcessed).ShouldBe(itemCount);
+		processedBatches.Count.ShouldBe(expectedBatchCount);
 		processedBatches.All(count => count <= options.MaxBatchSize).ShouldBeTrue();
 	}
 
