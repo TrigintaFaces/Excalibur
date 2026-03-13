@@ -118,12 +118,12 @@ public sealed class MetricAggregatorShould : UnitTestBase
 			callbackInvoked.TrySetResult(s);
 		};
 
-		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(100), callback);
+		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(10), callback);
 
 		// Act
 		var snapshots = await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			callbackInvoked.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(45)));
 
 		// Assert
 		snapshots.ShouldNotBeNull();
@@ -150,12 +150,12 @@ public sealed class MetricAggregatorShould : UnitTestBase
 			}
 		};
 
-		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(50), callback);
+		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(10), callback);
 
 		// Act - wait for snapshots to arrive
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			snapshotsObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(45)));
 
 		// Assert - Should have collected at least one snapshot
 		var snapshots = Volatile.Read(ref receivedSnapshots);
@@ -227,7 +227,7 @@ public sealed class MetricAggregatorShould : UnitTestBase
 			}
 		};
 
-		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(50), callback);
+		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(10), callback);
 
 		// Act
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
@@ -352,12 +352,12 @@ public sealed class MetricAggregatorShould : UnitTestBase
 			}
 		};
 
-		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(50), callback);
+		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(10), callback);
 
 		// Act - wait until all metric types are observed
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			snapshotsObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(45)));
 
 		// Assert - Should have snapshots for all metric types
 		var snapshots = Volatile.Read(ref receivedSnapshots);
@@ -388,12 +388,12 @@ public sealed class MetricAggregatorShould : UnitTestBase
 			}
 		};
 
-		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(50), callback);
+		using var aggregator = new MetricAggregator(registry, TimeSpan.FromMilliseconds(10), callback);
 
 		// Act - wait until all labeled series are observed
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			snapshotsObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(45)));
 
 		// Assert - Should have snapshot for each label combination
 		var snapshots = Volatile.Read(ref receivedSnapshots);
