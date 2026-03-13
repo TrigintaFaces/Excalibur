@@ -27,16 +27,6 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		_disposables = [];
 	}
 
-	private static Task PauseForBatchBoundaryAsync(TimeSpan delay)
-	{
-		return global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(delay);
-	}
-
-	private static Task SimulateSlowProcessingAsync(TimeSpan delay)
-	{
-		return global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(delay);
-	}
-
 	[Fact]
 	public void ThrowArgumentNullExceptionForNullBatchProcessor() =>
 		_ = Should.Throw<ArgumentNullException>(() =>
@@ -768,14 +758,26 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		var batchSizes = new ConcurrentBag<int>();
 		var totalProcessed = 0;
 		var allItemsProcessed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		// Use per-burst TCS signals instead of Task.Delay to enforce batch boundaries
+		var burst1Processed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var burst2Processed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var options = new MicroBatchOptions { MaxBatchSize = 20, MaxBatchDelay = TimeSpan.FromMilliseconds(50) };
-		var burstSeparationDelay = TimeSpan.FromMilliseconds(250);
 
 		var processor = new BatchProcessor<string>(
 			batch =>
 			{
 				batchSizes.Add(batch.Count);
 				var currentTotal = Interlocked.Add(ref totalProcessed, batch.Count);
+				// Signal when burst1 items (2) are processed
+				if (currentTotal >= 2)
+				{
+					_ = burst1Processed.TrySetResult();
+				}
+				// Signal when burst1 + burst2 items (2 + 5 = 7) are processed
+				if (currentTotal >= 7)
+				{
+					_ = burst2Processed.TrySetResult();
+				}
 				if (currentTotal >= 32)
 				{
 					_ = allItemsProcessed.TrySetResult();
@@ -787,43 +789,35 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 
 		_disposables.Add(processor);
 
-		// Separate bursts with pauses longer than MaxBatchDelay so batching boundaries
-		// are driven by the configured timer instead of callback scheduling races.
+		// Burst 1: Add 2 items, then wait for them to be processed before next burst
 		await processor.AddAsync("burst1-item1", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("burst1-item2", CancellationToken.None).ConfigureAwait(false);
-		await PauseForBatchBoundaryAsync(burstSeparationDelay).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			burst1Processed.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 
+		// Burst 2: Add 5 items, then wait for them to be processed
 		await processor.AddAsync("burst2-item1", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("burst2-item2", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("burst2-item3", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("burst2-item4", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("burst2-item5", CancellationToken.None).ConfigureAwait(false);
-		await PauseForBatchBoundaryAsync(burstSeparationDelay).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			burst2Processed.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 
-		// Add enough items to trigger size-based batching
+		// Burst 3: Add 25 items to trigger size-based batching
 		for (var i = 0; i < 25; i++)
 		{
 			await processor.AddAsync($"burst3-item{i}", CancellationToken.None).ConfigureAwait(false);
 		}
 
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-
 			allItemsProcessed.Task,
-
 			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(45)));
 		batchSizes.Count.ShouldBeGreaterThan(1);
 		batchSizes.All(size => size <= options.MaxBatchSize).ShouldBeTrue();
 		Volatile.Read(ref totalProcessed).ShouldBe(32); // 2 + 5 + 25 = 32 total items
-	}
-
-	private static async Task AwaitConditionAsync(Func<bool> condition, TimeSpan timeout)
-	{
-		var scaledTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(timeout);
-		var conditionSatisfied = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-			condition,
-			scaledTimeout,
-			TimeSpan.FromMilliseconds(100)).ConfigureAwait(false);
-		conditionSatisfied.ShouldBeTrue($"Condition was not satisfied within {scaledTimeout}.");
 	}
 
 	[Fact]

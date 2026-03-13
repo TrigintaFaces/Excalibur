@@ -47,16 +47,6 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		_testActivitySource = new ActivitySource("Test", "1.0.0");
 	}
 
-	private static async Task<bool> WaitForConditionAsync(Func<bool> condition, TimeSpan timeout)
-	{
-		var scaledTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(timeout);
-		return await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-				condition,
-				scaledTimeout,
-				TimeSpan.FromMilliseconds(100))
-			.ConfigureAwait(false);
-	}
-
 	[Fact]
 	public async Task CreateDistributedTracingSpansForBatchingMiddleware()
 	{

@@ -1,0 +1,130 @@
+name: Release Rehearsal
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_NOLOGO: true
+
+jobs:
+  release-rehearsal:
+    name: Release Rehearsal
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ github.event_name == 'pull_request' }}
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Run release rehearsal
+        shell: pwsh
+        run: |
+          ./eng/ci/release-rehearsal.ps1 -OutDir ReleaseRehearsalReport
+
+      - name: Sign NuGet packages (if certificate available)
+        if: env.NUGET_SIGNING_CERT_BASE64 != ''
+        shell: pwsh
+        env:
+          NUGET_SIGNING_CERT_BASE64: ${{ secrets.NUGET_SIGNING_CERT_BASE64 }}
+          NUGET_SIGNING_CERT_PASSWORD: ${{ secrets.NUGET_SIGNING_CERT_PASSWORD }}
+        run: |
+          $certPath = Join-Path $env:RUNNER_TEMP 'nuget-signing.pfx'
+          try {
+            [System.IO.File]::WriteAllBytes($certPath, [System.Convert]::FromBase64String($env:NUGET_SIGNING_CERT_BASE64))
+
+            $packages = Get-ChildItem -Path 'ReleaseRehearsalReport' -Filter '*.nupkg' -Recurse -ErrorAction SilentlyContinue
+            if ($packages.Count -eq 0) {
+              # Check local feed output from pack-local.ps1
+              $localFeed = Join-Path (Split-Path $PSScriptRoot -Parent) 'artifacts/packages'
+              $packages = Get-ChildItem -Path $localFeed -Filter '*.nupkg' -Recurse -ErrorAction SilentlyContinue
+            }
+
+            if ($packages.Count -eq 0) {
+              Write-Host "No .nupkg files found to sign."
+              exit 0
+            }
+
+            foreach ($pkg in $packages) {
+              Write-Host "Signing: $($pkg.Name)"
+              dotnet nuget sign $pkg.FullName `
+                --certificate-path $certPath `
+                --certificate-password $env:NUGET_SIGNING_CERT_PASSWORD `
+                --timestamper http://timestamp.digicert.com `
+                --overwrite
+              if ($LASTEXITCODE -ne 0) {
+                throw "Failed to sign $($pkg.Name)"
+              }
+            }
+
+            Write-Host "All packages signed successfully."
+
+            # Verify signatures
+            foreach ($pkg in $packages) {
+              Write-Host "Verifying: $($pkg.Name)"
+              dotnet nuget verify $pkg.FullName
+              if ($LASTEXITCODE -ne 0) {
+                Write-Warning "Signature verification returned non-zero for $($pkg.Name) -- may require trusted root."
+              }
+            }
+          }
+          finally {
+            if (Test-Path $certPath) { Remove-Item $certPath -Force }
+          }
+
+      - name: NuGet signing skipped (no certificate)
+        if: env.NUGET_SIGNING_CERT_BASE64 == ''
+        env:
+          NUGET_SIGNING_CERT_BASE64: ${{ secrets.NUGET_SIGNING_CERT_BASE64 }}
+        shell: bash
+        run: |
+          echo "::notice::NuGet package signing skipped -- NUGET_SIGNING_CERT_BASE64 secret not configured."
+          echo "To enable signing, add NUGET_SIGNING_CERT_BASE64 and NUGET_SIGNING_CERT_PASSWORD secrets."
+
+      - name: Upload rehearsal report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-rehearsal-report
+          path: ReleaseRehearsalReport/
+          retention-days: 30
+
+      - name: Post rehearsal summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "ReleaseRehearsalReport/summary.md" ]; then
+            cat ReleaseRehearsalReport/summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Release rehearsal report not generated." >> "$GITHUB_STEP_SUMMARY"
+          fi

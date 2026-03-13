@@ -13,11 +13,13 @@ dotnet pack --configuration Release --no-build --output $OutDir | Tee-Object -Fi
 # Validate csproj metadata hints
 $csprojs = @()
 if (Test-Path $ShippingSolutionFilter) {
-  $filter = Get-Content -Raw -- $ShippingSolutionFilter | ConvertFrom-Json
+  $filter = Get-Content -Raw -LiteralPath $ShippingSolutionFilter | ConvertFrom-Json
   $csprojs = foreach ($projPath in $filter.solution.projects) {
-    $fullPath = Join-Path $RepoRoot $projPath
-    if (Test-Path $fullPath) {
-      Get-Item $fullPath
+    # Normalize path separators for cross-platform (slnf uses backslashes)
+    $normalizedPath = $projPath.Replace('\', [IO.Path]::DirectorySeparatorChar)
+    $fullPath = Join-Path $RepoRoot $normalizedPath
+    if (Test-Path -LiteralPath $fullPath) {
+      Get-Item -LiteralPath $fullPath
     }
   }
 }
@@ -34,10 +36,10 @@ function Get-Prop([xml]$xml, [string]$name){
 
 function Try-ReadProjectXml([string]$path) {
   try {
-    return [xml](Get-Content -Raw -- $path)
+    return [xml](Get-Content -Raw -LiteralPath $path)
   }
   catch {
-    Write-Warning "Skipping non-project or malformed XML file: $path"
+    Write-Warning "Skipping non-project or malformed XML file: $path -- $_"
     return $null
   }
 }
