@@ -59,16 +59,18 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 	public async Task ProcessSingleItemImmediately()
 	{
 		var processedBatches = new ConcurrentBag<IReadOnlyList<string>>();
+		var itemProcessed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var options = new MicroBatchOptions
 		{
 			MaxBatchSize = 1,
-			MaxBatchDelay = TimeSpan.FromSeconds(10),
+			MaxBatchDelay = TimeSpan.FromMilliseconds(25),
 		};
 
 		var processor = new BatchProcessor<string>(
 			batch =>
 			{
 				processedBatches.Add(batch);
+				_ = itemProcessed.TrySetResult(true);
 				return ValueTask.CompletedTask;
 			},
 			_logger,
@@ -77,6 +79,9 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		_disposables.Add(processor);
 
 		await processor.AddAsync("item1", CancellationToken.None).ConfigureAwait(false);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			itemProcessed.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(60))).ConfigureAwait(false);
 		await processor.DisposeAsync().ConfigureAwait(false);
 		processedBatches.Count.ShouldBe(1);
 		var batches = processedBatches.ToArray();
