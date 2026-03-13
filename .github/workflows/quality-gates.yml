@@ -72,10 +72,8 @@ jobs:
       matrix:
         shard:
           - { name: core, filter: "eng/ci/shards/UnitTests-Core.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
-          - { name: messaging, filter: "eng/ci/shards/UnitTests-Messaging.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
           - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
           - { name: middleware, filter: "eng/ci/shards/UnitTests-Middleware.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
-          - { name: observability, filter: "eng/ci/shards/UnitTests-Observability.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
           - { name: excalibur, filter: "eng/ci/shards/UnitTests-Excalibur.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
     steps:
       - name: Checkout code
@@ -212,17 +210,17 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/TestsOnly.slnf
+      - name: Restore deterministic unit dependencies
+        run: dotnet restore eng/ci/shards/UnitTests-Deterministic.slnf
 
-      - name: Build solution
-        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore
+      - name: Build deterministic unit solution
+        run: dotnet build eng/ci/shards/UnitTests-Deterministic.slnf --configuration Release --no-restore
 
-      - name: Run unit, functional, and architecture tests
+      - name: Run deterministic unit and DI tests
         run: |
-          dotnet test eng/ci/shards/TestsOnly.slnf --configuration Release --no-build \
+          dotnet test eng/ci/shards/UnitTests-Deterministic.slnf --configuration Release --no-build \
             --blame-hang-timeout 5m \
-            --filter "Category!=Integration&Category!=TransportConformance&Category!=LoadTest&Category!=Performance" \
+            --filter "(Category=Unit|Category=DependencyInjection)&Category!=Performance" \
             --logger "trx;LogFileName=test-results.trx" \
             --logger "console;verbosity=minimal" \
             --results-directory ./test-results

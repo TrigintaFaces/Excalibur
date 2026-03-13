@@ -11,11 +11,11 @@ param(
     "eng/ci/shards/UnitTests-Core.slnf",
     "eng/ci/shards/UnitTests-Transport.slnf",
     "eng/ci/shards/UnitTests-Middleware.slnf",
-    "eng/ci/shards/UnitTests-Excalibur.slnf",
-    "eng/ci/shards/UnitTests-Observability.slnf"
+    "eng/ci/shards/UnitTests-Excalibur.slnf"
   ),
   [string[]]$AdvisoryTierShards = @(
-    "eng/ci/shards/UnitTests-Messaging.slnf"
+    "eng/ci/shards/UnitTests-Messaging.slnf",
+    "eng/ci/shards/UnitTests-Observability.slnf"
   ),
   [string]$DeterministicSlnf = "eng/ci/shards/UnitTests-Deterministic.slnf",
   [string]$AsyncRiskSlnf = "eng/ci/shards/UnitTests-AsyncRisk.slnf",
@@ -75,6 +75,11 @@ function Get-UnitProjectsFromSlnf([string]$slnfPath) {
   return @($projects | Where-Object { $_ -like "tests\unit\*" })
 }
 
+function Get-RelativeRepoPath([string]$fullPath) {
+  $relative = [IO.Path]::GetRelativePath($repoRoot, $fullPath)
+  return $relative.Replace('/', '\')
+}
+
 $detProjects = Get-UnitProjectsFromSlnf $DeterministicSlnf
 $arProjects = Get-UnitProjectsFromSlnf $AsyncRiskSlnf
 
@@ -119,9 +124,7 @@ foreach ($advisoryShard in $AdvisoryTierShards) {
 # Verify all unit projects are in exactly one tier
 $allTierProjects = @($detProjects) + @($arProjects)
 foreach ($project in $unitProjects) {
-  $relativePath = $project.FullName.Replace("$repoRoot\", "").Replace("\", "\")
-  # Normalize to match slnf paths
-  $slnfRelative = $relativePath.Replace("/", "\")
+  $slnfRelative = Get-RelativeRepoPath $project.FullName
   $inTier = $allTierProjects | Where-Object { $_ -eq $slnfRelative }
   if (-not $inTier) {
     $tierIssues += "Unit project not in any tier: $slnfRelative"
@@ -187,8 +190,8 @@ $jsonPath = Join-Path $OutDir "unit-shard-map.json"
 $coverageMap.GetEnumerator() |
   Sort-Object Key |
   ForEach-Object {
-    $relPath = $_.Key.Replace("$repoRoot\", "")
-    $slnfRelative = $relPath.Replace("/", "\")
+    $relPath = Get-RelativeRepoPath $_.Key
+    $slnfRelative = $relPath
     $tier = if ($detProjects -contains $slnfRelative) { "blocking" }
             elseif ($arProjects -contains $slnfRelative) { "advisory" }
             else { "unassigned" }

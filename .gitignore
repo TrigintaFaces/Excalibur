@@ -33,6 +33,7 @@ merged-coverage/
 tmp-coverage-*/
 ApiCompatReport/
 PublicApiBaselineReport/
+ReleaseRehearsalReport/
 TransitiveBloatReport/
 UnitShardReport/
 management/reports/

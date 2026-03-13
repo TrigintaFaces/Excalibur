@@ -629,7 +629,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		var releaseFirstBatch = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var secondBatchObserved = new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var batchCount = 0;
-		var options = new MicroBatchOptions { MaxBatchSize = 2, MaxBatchDelay = TimeSpan.FromMilliseconds(10) };
+		var options = new MicroBatchOptions { MaxBatchSize = 2, MaxBatchDelay = TimeSpan.FromSeconds(1) };
 
 		var processor = new BatchProcessor<string>(
 			async batch =>
@@ -652,12 +652,13 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 
 		_disposables.Add(processor);
 
-		var addTasks = Enumerable.Range(0, 4)
-			.Select(async i => await processor.AddAsync($"item{i}", CancellationToken.None).ConfigureAwait(false));
-		await Task.WhenAll(addTasks).ConfigureAwait(false);
+		await processor.AddAsync("item0", CancellationToken.None).ConfigureAwait(false);
+		await processor.AddAsync("item1", CancellationToken.None).ConfigureAwait(false);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			firstBatchStarted.Task,
 			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(45))).ConfigureAwait(false);
+		await processor.AddAsync("item2", CancellationToken.None).ConfigureAwait(false);
+		await processor.AddAsync("item3", CancellationToken.None).ConfigureAwait(false);
 		_ = releaseFirstBatch.TrySetResult();
 		var secondBatch = await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			secondBatchObserved.Task,

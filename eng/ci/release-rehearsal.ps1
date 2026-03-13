@@ -141,8 +141,7 @@ Run-Step 'Validate package composition' {
     if (-not (Test-Path $compScript)) {
         throw "validate-package-composition.ps1 not found at: $compScript"
     }
-    $compArgs = @('-SkipBuild')
-    & $compScript @compArgs
+    & $compScript -SkipBuild
     if ($LASTEXITCODE -ne 0) {
         throw "validate-package-composition.ps1 failed (exit code $LASTEXITCODE)"
     }
@@ -186,9 +185,9 @@ Run-Step 'Validate governance stack' {
 
 # --- Report ---
 $totalDuration = ([DateTime]::UtcNow - $StartTime)
-$passedCount = ($steps | Where-Object { $_.Status -eq 'passed' }).Count
-$failedCount = ($steps | Where-Object { $_.Status -eq 'failed' }).Count
-$skippedCount = ($steps | Where-Object { $_.Status -eq 'skipped' }).Count
+$passedCount = @($steps | Where-Object { $_.Status -eq 'passed' }).Count
+$failedCount = @($steps | Where-Object { $_.Status -eq 'failed' }).Count
+$skippedCount = @($steps | Where-Object { $_.Status -eq 'skipped' }).Count
 $overallStatus = if ($failedCount -eq 0) { 'PASSED' } else { 'FAILED' }
 
 $summaryPath = Join-Path $OutDir 'summary.md'

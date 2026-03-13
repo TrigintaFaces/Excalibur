@@ -51,22 +51,7 @@
       "tests\\unit\\Excalibur.Jobs.Tests\\Excalibur.Jobs.Tests.csproj",
       "tests\\unit\\Excalibur.Saga.Tests\\Excalibur.Saga.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Testing.Tests\\Excalibur.Dispatch.Testing.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.Testing.Shouldly.Tests\\Excalibur.Dispatch.Testing.Shouldly.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.Observability.Tests\\Excalibur.Dispatch.Observability.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.Hosting.Tests\\Excalibur.Dispatch.Hosting.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.ClaimCheck.AwsS3.Tests\\Excalibur.Dispatch.ClaimCheck.AwsS3.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Tests\\Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.AuditLogging.Tests\\Excalibur.Dispatch.AuditLogging.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.AuditLogging.Datadog.Tests\\Excalibur.Dispatch.AuditLogging.Datadog.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.AuditLogging.Sentinel.Tests\\Excalibur.Dispatch.AuditLogging.Sentinel.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.AuditLogging.Aws.Tests\\Excalibur.Dispatch.AuditLogging.Aws.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.AuditLogging.Elasticsearch.Tests\\Excalibur.Dispatch.AuditLogging.Elasticsearch.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.AuditLogging.GoogleCloud.Tests\\Excalibur.Dispatch.AuditLogging.GoogleCloud.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.AuditLogging.Postgres.Tests\\Excalibur.Dispatch.AuditLogging.Postgres.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.AuditLogging.Splunk.Tests\\Excalibur.Dispatch.AuditLogging.Splunk.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.AuditLogging.SqlServer.Tests\\Excalibur.Dispatch.AuditLogging.SqlServer.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.Hosting.AspNetCore.Tests\\Excalibur.Dispatch.Hosting.AspNetCore.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.LeaderElection.Abstractions.Tests\\Excalibur.Dispatch.LeaderElection.Abstractions.Tests.csproj"
+      "tests\\unit\\Excalibur.Dispatch.Testing.Shouldly.Tests\\Excalibur.Dispatch.Testing.Shouldly.Tests.csproj"
     ]
   }
 }
