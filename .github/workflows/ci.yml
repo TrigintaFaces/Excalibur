@@ -1401,11 +1401,23 @@ jobs:
           echo "Using base solution filter: $selected"
           echo "BASE_UNIT_TESTS_SLNF=$selected" >> "$GITHUB_ENV"
       - name: Restore & build base
+        id: base_restore_build
+        continue-on-error: true
         working-directory: base
         run: |
           dotnet restore "$BASE_UNIT_TESTS_SLNF"
           dotnet build "$BASE_UNIT_TESTS_SLNF" --configuration Release --no-restore
+      - name: Mark base build status
+        shell: bash
+        run: |
+          if [[ "${{ steps.base_restore_build.outcome }}" != "success" ]]; then
+            echo "::warning::Base snapshot restore/build failed; skipping coverage diff for this PR."
+            echo "SKIP_COVERAGE_DIFF=true" >> "$GITHUB_ENV"
+          fi
       - name: Run tests with coverage (base)
+        id: base_test_coverage
+        if: env.SKIP_COVERAGE_DIFF != 'true'
+        continue-on-error: true
         working-directory: base
         run: |
           dotnet test "$BASE_UNIT_TESTS_SLNF" \
@@ -1416,6 +1428,19 @@ jobs:
             --results-directory ../base-cov \
             --filter "(Category=Unit|Category=DependencyInjection)&Category!=Performance" \
             -- RunConfiguration.TestSessionTimeout=1800000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+      - name: Mark base test status
+        if: env.SKIP_COVERAGE_DIFF != 'true'
+        shell: bash
+        run: |
+          if [[ "${{ steps.base_test_coverage.outcome }}" != "success" ]]; then
+            echo "::warning::Base snapshot tests/coverage failed; skipping coverage diff for this PR."
+            echo "SKIP_COVERAGE_DIFF=true" >> "$GITHUB_ENV"
+          fi
+      - name: Create empty changed file set when coverage diff is skipped
+        if: env.SKIP_COVERAGE_DIFF == 'true'
+        shell: bash
+        run: |
+          printf '[]' > changed-files.json
       - name: Download head coverage artifacts (all shards)
         uses: actions/download-artifact@v4
         with:
@@ -1477,6 +1502,10 @@ jobs:
       - name: Enforce ≤1% coverage drop on touched files (Dispatch+Excalibur)
         shell: pwsh
         run: |
+          if ($env:SKIP_COVERAGE_DIFF -eq 'true') {
+            Write-Warning 'Base snapshot did not build/test cleanly; skipping coverage diff.'
+            exit 0
+          }
           $changedFile = "changed-files.json"
           $changed = @()
           if (Test-Path $changedFile) {
