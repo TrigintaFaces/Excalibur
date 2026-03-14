@@ -1,0 +1,14 @@
+#nullable enable
+Excalibur.Hosting.HealthChecksBuilderExtensions
+Excalibur.Hosting.MemoryHealthCheckOptions
+Excalibur.Hosting.MemoryHealthCheckOptions.AllocatedMemoryThresholdKB.get -> int
+Excalibur.Hosting.MemoryHealthCheckOptions.AllocatedMemoryThresholdKB.set -> void
+Excalibur.Hosting.MemoryHealthCheckOptions.MemoryHealthCheckOptions() -> void
+Excalibur.Hosting.MemoryHealthCheckOptions.WorkingSetThresholdBytes.get -> long
+Excalibur.Hosting.MemoryHealthCheckOptions.WorkingSetThresholdBytes.set -> void
+Microsoft.AspNetCore.Builder.ExcaliburHealthChecksApplicationExtensions
+Microsoft.Extensions.DependencyInjection.HealthChecksServiceCollectionExtensions
+static Excalibur.Hosting.HealthChecksBuilderExtensions.AddMemoryHealthChecks(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! healthChecks) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Excalibur.Hosting.HealthChecksBuilderExtensions.AddMemoryHealthChecks(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! healthChecks, System.Action<Excalibur.Hosting.MemoryHealthCheckOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.AspNetCore.Builder.ExcaliburHealthChecksApplicationExtensions.UseExcaliburHealthChecks(this Microsoft.AspNetCore.Builder.IApplicationBuilder! app) -> Microsoft.AspNetCore.Builder.IApplicationBuilder!
+static Microsoft.Extensions.DependencyInjection.HealthChecksServiceCollectionExtensions.AddExcaliburHealthChecks(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!>? withHealthChecks = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

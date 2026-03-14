@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Transport;
 /// dispatched directly (not via a transport adapter).
 /// </para>
 /// </remarks>
-public sealed class TransportContextProvider : ITransportContextProvider
+internal sealed class TransportContextProvider : ITransportContextProvider
 {
 	/// <summary>
 	/// The well-known property name used by transport adapters to indicate the binding name.

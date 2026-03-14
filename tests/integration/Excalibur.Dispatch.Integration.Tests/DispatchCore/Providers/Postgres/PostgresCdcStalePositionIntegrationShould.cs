@@ -4,7 +4,7 @@
 using Dapper;
 
 using Excalibur.Cdc;
-using Excalibur.Data.Postgres.Cdc;
+using Excalibur.Cdc.Postgres;
 
 using Npgsql;
 

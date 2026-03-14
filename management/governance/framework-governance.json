@@ -283,32 +283,23 @@
       "quarantinedDefinition": "Known drift or missing dependencies; excluded from certified catalog until remediated."
     },
     "certified": [
-      "samples/01-getting-started/DispatchMinimal/Excalibur.DispatchMinimal.csproj",
-      "samples/01-getting-started/ExcaliburCqrs/ExcaliburCqrs.csproj",
-      "samples/01-getting-started/GettingStarted/GettingStarted.csproj",
-      "samples/01-getting-started/MinimalSample/MinimalSample.csproj",
-      "samples/01-getting-started/QuickDemo/QuickDemo.csproj",
-      "samples/02-messaging-transports/MultiBusSample/MultiBusSample.csproj",
-      "samples/02-messaging-transports/RemoteBusSample/RemoteBusSample.csproj",
-      "samples/02-messaging-transports/TransportBindings/TransportBindings.csproj",
-      "samples/04-reliability/OutboxPattern/OutboxPattern.csproj",
-      "samples/04-reliability/SagaOrchestration/SagaOrchestration.csproj",
-      "samples/09-advanced/BackgroundServices/AtLeastOnceWithInbox/AtLeastOnceWithInbox.csproj",
-      "samples/09-advanced/BackgroundServices/MinimizedWindow/MinimizedWindow.csproj",
-      "samples/09-advanced/BackgroundServices/PerformanceComparison/PerformanceComparison.csproj",
-      "samples/09-advanced/BackgroundServices/TransactionalWhenApplicable/TransactionalWhenApplicable.csproj",
-      "samples/09-advanced/MinimalJobSample/MinimalJobSample.csproj",
-      "samples/09-advanced/WebWorkerSample/WebHost/WebHost.csproj",
-      "samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj"
-    ],
-    "quarantined": [
+      "samples/01-getting-started/DispatchOnly/Excalibur.DispatchOnly.csproj",
+      "samples/01-getting-started/EventSourcingIntro/EventSourcingIntro.csproj",
+      "samples/01-getting-started/HelloDispatch/HelloDispatch.csproj",
+      "samples/01-getting-started/InteractiveDemo/InteractiveDemo.csproj",
+      "samples/01-getting-started/WebApiQuickStart/WebApiQuickStart.csproj",
       "samples/02-messaging-transports/AwsSqs/AwsSqsSample.csproj",
       "samples/02-messaging-transports/AzureServiceBus/AzureServiceBusSample.csproj",
       "samples/02-messaging-transports/Kafka/KafkaSample.csproj",
+      "samples/02-messaging-transports/MultiBusSample/MultiBusSample.csproj",
       "samples/02-messaging-transports/MultiProviderQueueProcessor/MultiProviderQueueProcessor.csproj",
       "samples/02-messaging-transports/RabbitMQ/RabbitMQSample.csproj",
+      "samples/02-messaging-transports/RemoteBusSample/RemoteBusSample.csproj",
+      "samples/02-messaging-transports/TransportBindings/TransportBindings.csproj",
       "samples/03-cloud-native/CloudNativePatterns.Examples/ClaimCheck/ClaimCheck.csproj",
+      "samples/04-reliability/OutboxPattern/OutboxPattern.csproj",
       "samples/04-reliability/RetryAndCircuitBreaker/RetryAndCircuitBreaker.csproj",
+      "samples/04-reliability/SagaOrchestration/SagaOrchestration.csproj",
       "samples/05-serverless/AwsLambda/AwsLambda.csproj",
       "samples/05-serverless/AzureFunctions/AzureFunctions.csproj",
       "samples/05-serverless/GoogleCloudFunctions/GoogleCloudFunctions.csproj",
@@ -321,6 +312,10 @@
       "samples/08-serialization/MemoryPackSample/MemoryPackSample.csproj",
       "samples/08-serialization/MessagePackSample/MessagePackSample.csproj",
       "samples/08-serialization/Protobuf/Protobuf.csproj",
+      "samples/09-advanced/BackgroundServices/AtLeastOnceWithInbox/AtLeastOnceWithInbox.csproj",
+      "samples/09-advanced/BackgroundServices/MinimizedWindow/MinimizedWindow.csproj",
+      "samples/09-advanced/BackgroundServices/PerformanceComparison/PerformanceComparison.csproj",
+      "samples/09-advanced/BackgroundServices/TransactionalWhenApplicable/TransactionalWhenApplicable.csproj",
       "samples/09-advanced/CdcAntiCorruption/CdcAntiCorruption.csproj",
       "samples/09-advanced/CdcEventStoreElasticsearch/CdcEventStoreElasticsearch.csproj",
       "samples/09-advanced/CosmosDbEventStore/CosmosDbEventStore.csproj",
@@ -328,6 +323,7 @@
       "samples/09-advanced/FluentValidationSample/FluentValidationSample.csproj",
       "samples/09-advanced/JobWorkerSample/JobWorkerSample.csproj",
       "samples/09-advanced/LeaderElection/LeaderElection.csproj",
+      "samples/09-advanced/MinimalJobSample/MinimalJobSample.csproj",
       "samples/09-advanced/ProjectionsSample/ProjectionsSample.csproj",
       "samples/09-advanced/SessionManagement/SessionManagementExample.csproj",
       "samples/09-advanced/SnapshotStrategies/SnapshotStrategies.csproj",
@@ -336,36 +332,37 @@
       "samples/09-advanced/Versioning.Examples/EcommerceOrderVersioning/EcommerceOrderVersioning.csproj",
       "samples/09-advanced/Versioning.Examples/IntegrationEventVersioning/IntegrationEventVersioning.csproj",
       "samples/09-advanced/Versioning.Examples/UserProfileVersioning/UserProfileVersioning.csproj",
-      "samples/09-advanced/WebWorkerSample/Contracts/WebWorkerSample.Contracts.csproj",
-      "samples/13-jobs/CdcJobQuartz/CdcJobQuartz.csproj",
-      "samples/10-real-world/ECommerce/ECommerceSample.csproj",
       "samples/10-real-world/EnhancedStores/ECommerceSample/ECommerceSample.csproj",
+      "samples/10-real-world/EnterpriseOrderProcessing/EnterpriseOrderProcessing.csproj",
       "samples/10-real-world/OrderProcessing/OrderProcessing.csproj",
-      "samples/12-vertical-slice-api/HealthcareApi/HealthcareApi.csproj"
+      "samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj",
+      "samples/12-vertical-slice-api/HealthcareApi/HealthcareApi.csproj",
+      "samples/13-jobs/CdcJobQuartz/CdcJobQuartz.csproj"
     ],
+    "quarantined": [],
     "smokeProfiles": [
       {
-        "project": "samples/01-getting-started/DispatchMinimal/Excalibur.DispatchMinimal.csproj",
+        "project": "samples/01-getting-started/DispatchOnly/Excalibur.DispatchOnly.csproj",
         "mode": "run",
         "timeoutSeconds": 20
       },
       {
-        "project": "samples/01-getting-started/ExcaliburCqrs/ExcaliburCqrs.csproj",
+        "project": "samples/01-getting-started/EventSourcingIntro/EventSourcingIntro.csproj",
         "mode": "run",
         "timeoutSeconds": 20
       },
       {
-        "project": "samples/01-getting-started/GettingStarted/GettingStarted.csproj",
+        "project": "samples/01-getting-started/WebApiQuickStart/WebApiQuickStart.csproj",
         "mode": "build",
         "timeoutSeconds": null
       },
       {
-        "project": "samples/01-getting-started/MinimalSample/MinimalSample.csproj",
+        "project": "samples/01-getting-started/HelloDispatch/HelloDispatch.csproj",
         "mode": "build",
         "timeoutSeconds": null
       },
       {
-        "project": "samples/01-getting-started/QuickDemo/QuickDemo.csproj",
+        "project": "samples/01-getting-started/InteractiveDemo/InteractiveDemo.csproj",
         "mode": "build",
         "timeoutSeconds": null
       },
@@ -420,14 +417,204 @@
         "timeoutSeconds": 20
       },
       {
-        "project": "samples/09-advanced/WebWorkerSample/WebHost/WebHost.csproj",
+        "project": "samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj",
+        "mode": "run",
+        "timeoutSeconds": 20
+      },
+      {
+        "project": "samples/02-messaging-transports/AwsSqs/AwsSqsSample.csproj",
         "mode": "build",
         "timeoutSeconds": null
       },
       {
-        "project": "samples/11-aot/Excalibur.Dispatch.Aot.Sample/Excalibur.Dispatch.Aot.Sample.csproj",
-        "mode": "run",
-        "timeoutSeconds": 20
+        "project": "samples/02-messaging-transports/AzureServiceBus/AzureServiceBusSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/02-messaging-transports/Kafka/KafkaSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/02-messaging-transports/MultiProviderQueueProcessor/MultiProviderQueueProcessor.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/02-messaging-transports/RabbitMQ/RabbitMQSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/03-cloud-native/CloudNativePatterns.Examples/ClaimCheck/ClaimCheck.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/04-reliability/RetryAndCircuitBreaker/RetryAndCircuitBreaker.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/05-serverless/AwsLambda/AwsLambda.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/05-serverless/AzureFunctions/AzureFunctions.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/05-serverless/GoogleCloudFunctions/GoogleCloudFunctions.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/06-security/AuditLogging/AuditLogging.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/06-security/AwsSecretsManager/AwsSecretsManager.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/06-security/AzureKeyVault/AzureKeyVault.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/06-security/MessageEncryption/MessageEncryption.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/07-observability/HealthChecks/HealthChecks.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/07-observability/OpenTelemetry/OpenTelemetry.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/08-serialization/MemoryPackSample/MemoryPackSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/08-serialization/MessagePackSample/MessagePackSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/08-serialization/Protobuf/Protobuf.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/CdcAntiCorruption/CdcAntiCorruption.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/CdcEventStoreElasticsearch/CdcEventStoreElasticsearch.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/CosmosDbEventStore/CosmosDbEventStore.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/EventUpcasting/EventUpcasting.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/FluentValidationSample/FluentValidationSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/JobWorkerSample/JobWorkerSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/LeaderElection/LeaderElection.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/ProjectionsSample/ProjectionsSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/SessionManagement/SessionManagementExample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/SnapshotStrategies/SnapshotStrategies.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/SqlServerEventStore/SqlServerEventStore.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/StreamingHandlers/StreamingHandlers.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/Versioning.Examples/EcommerceOrderVersioning/EcommerceOrderVersioning.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/Versioning.Examples/IntegrationEventVersioning/IntegrationEventVersioning.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/Versioning.Examples/UserProfileVersioning/UserProfileVersioning.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/10-real-world/EnhancedStores/ECommerceSample/ECommerceSample.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/10-real-world/EnterpriseOrderProcessing/EnterpriseOrderProcessing.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/10-real-world/OrderProcessing/OrderProcessing.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/12-vertical-slice-api/HealthcareApi/HealthcareApi.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/13-jobs/CdcJobQuartz/CdcJobQuartz.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
       }
     ]
   },
@@ -620,6 +807,18 @@
       }
     },
     {
+      "name": "Excalibur inbox family",
+      "packagePattern": "^Excalibur\\.Inbox($|\\.)",
+      "suites": {
+        "unit": [
+          "tests/unit/Excalibur.Data.Tests/Excalibur.Data.Tests.csproj"
+        ],
+        "integration": [
+          "tests/integration/Excalibur.Integration.Tests/Excalibur.Integration.Tests.csproj"
+        ]
+      }
+    },
+    {
       "name": "Excalibur migrate tool",
       "packagePattern": "^Excalibur\\.Migrate\\.Tool$",
       "suites": {
@@ -631,5 +830,64 @@
         ]
       }
     }
-  ]
+  ],
+  "docsParity": {
+    "contributorCapabilityDoc": "docs/architecture/capability-ownership-matrix.md",
+    "consumerCapabilityDoc": "docs-site/docs/architecture/capability-ownership-matrix.md",
+    "boundaryDocs": [
+      "docs/architecture/dispatch-excalibur-boundary.md",
+      "docs-site/docs/architecture/dispatch-excalibur-boundary.md"
+    ],
+    "requiredDocPairs": [
+      {
+        "contributor": "docs/architecture/dispatch-excalibur-boundary.md",
+        "consumer": "docs-site/docs/architecture/dispatch-excalibur-boundary.md"
+      },
+      {
+        "contributor": "docs/architecture/capability-ownership-matrix.md",
+        "consumer": "docs-site/docs/architecture/capability-ownership-matrix.md"
+      },
+      {
+        "contributor": "docs/architecture/capability-migration-map.md",
+        "consumer": "docs-site/docs/architecture/capability-migration-map.md"
+      },
+      {
+        "contributor": "docs/operations/runtime-contract.md",
+        "consumer": "docs-site/docs/operations/runtime-contract.md"
+      },
+      {
+        "contributor": "docs/operations/reliability-guarantees.md",
+        "consumer": "docs-site/docs/operations/reliability-guarantees.md"
+      },
+      {
+        "contributor": "docs/operations/slo-sli-telemetry.md",
+        "consumer": "docs-site/docs/operations/slo-sli-telemetry.md"
+      },
+      {
+        "contributor": "docs/operations/incident-runbooks.md",
+        "consumer": "docs-site/docs/operations/incident-runbooks.md"
+      },
+      {
+        "contributor": "docs/security/threat-model-baseline.md",
+        "consumer": "docs-site/docs/security/threat-model.md"
+      }
+    ],
+    "requiredContributorDocs": [
+      "docs/compliance/control-evidence-map.md",
+      "docs/contribution/architecture-review-board.md",
+      "docs/contribution/package-lifecycle-policy.md"
+    ],
+    "prTemplatePath": ".github/pull_request_template.md",
+    "requiredPrChecklistMarkers": [
+      "Architecture & Governance",
+      "Dispatch/Excalibur ownership matrix",
+      "docs-site parity",
+      "sample catalog update"
+    ],
+    "legacyPostgresConsumerAllowList": [
+      "docs-site/docs/architecture/capability-ownership-matrix.md",
+      "docs-site/docs/observability/metric-naming-conventions.md",
+      "docs-site/docs/observability/metrics-reference.md"
+    ]
+  }
 }

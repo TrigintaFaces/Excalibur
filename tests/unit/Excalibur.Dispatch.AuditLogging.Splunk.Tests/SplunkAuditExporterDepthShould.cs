@@ -21,10 +21,12 @@ public sealed class SplunkAuditExporterDepthShould : IDisposable
 {
 	private readonly SplunkExporterOptions _options = new()
 	{
-		HecEndpoint = new Uri("https://splunk.local:8088/services/collector"),
-		HecToken = "test-token",
-		MaxRetryAttempts = 0,
-		MaxBatchSize = 100,
+		Connection = new()
+		{
+			HecEndpoint = new Uri("https://splunk.local:8088/services/collector"),
+			HecToken = "test-token"
+		},
+		Batch = new() { MaxRetryAttempts = 0, MaxBatchSize = 100 },
 		UseAck = false
 	};
 
@@ -41,7 +43,7 @@ public sealed class SplunkAuditExporterDepthShould : IDisposable
 	[Fact]
 	public void OptionsHecEndpoint_HaveRequiredAttribute()
 	{
-		var prop = typeof(SplunkExporterOptions).GetProperty(nameof(SplunkExporterOptions.HecEndpoint));
+		var prop = typeof(SplunkConnectionOptions).GetProperty(nameof(SplunkConnectionOptions.HecEndpoint));
 		prop.ShouldNotBeNull();
 		prop!.GetCustomAttributes(typeof(RequiredAttribute), false).ShouldNotBeEmpty();
 	}
@@ -49,7 +51,7 @@ public sealed class SplunkAuditExporterDepthShould : IDisposable
 	[Fact]
 	public void OptionsHecToken_HaveRequiredAttribute()
 	{
-		var prop = typeof(SplunkExporterOptions).GetProperty(nameof(SplunkExporterOptions.HecToken));
+		var prop = typeof(SplunkConnectionOptions).GetProperty(nameof(SplunkConnectionOptions.HecToken));
 		prop.ShouldNotBeNull();
 		prop!.GetCustomAttributes(typeof(RequiredAttribute), false).ShouldNotBeEmpty();
 	}
@@ -58,7 +60,7 @@ public sealed class SplunkAuditExporterDepthShould : IDisposable
 	public async Task ExportBatch_TrackErrors_WhenChunkThrowsException()
 	{
 		// Arrange
-		_options.MaxBatchSize = 1;
+		_options.Batch.MaxBatchSize = 1;
 		_handler.SetException(new HttpRequestException("Network failure"));
 		var sut = CreateExporter();
 		var events = new List<AuditEvent>
@@ -140,7 +142,7 @@ public sealed class SplunkAuditExporterDepthShould : IDisposable
 	public async Task ExportBatch_ReturnCorrectCounts_WithMultipleChunks()
 	{
 		// Arrange — 5 events with batch size 2 = 3 chunks
-		_options.MaxBatchSize = 2;
+		_options.Batch.MaxBatchSize = 2;
 		_handler.SetResponse(HttpStatusCode.OK);
 		var sut = CreateExporter();
 		var events = Enumerable.Range(1, 5)

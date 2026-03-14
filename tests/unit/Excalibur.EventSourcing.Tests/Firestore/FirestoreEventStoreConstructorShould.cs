@@ -100,7 +100,7 @@ public sealed class FirestoreEventStoreConstructorShould : UnitTestBase
 		var store = new FirestoreEventStore(_validOptions, _logger);
 
 		// Act & Assert
-		store.ProviderType.ShouldBe(CloudProviderType.Firestore);
+		store.CloudProvider.ShouldBe(CloudProviderType.Firestore);
 	}
 
 	#endregion CloudProviderType Tests

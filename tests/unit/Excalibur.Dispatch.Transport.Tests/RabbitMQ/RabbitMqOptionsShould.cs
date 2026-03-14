@@ -14,30 +14,44 @@ public sealed class RabbitMqOptionsShould : UnitTestBase
 		// Arrange & Act
 		var options = new RabbitMqOptions();
 
-		// Assert
-		options.ConnectionString.ShouldBe(string.Empty);
+		// Assert - Root properties
 		options.Exchange.ShouldBe(string.Empty);
 		options.RoutingKey.ShouldBe(string.Empty);
-		options.QueueName.ShouldBe(string.Empty);
 		options.EnableEncryption.ShouldBeFalse();
-		options.PrefetchCount.ShouldBe((ushort)100);
-		options.PrefetchGlobal.ShouldBeFalse();
-		options.QueueDurable.ShouldBeTrue();
-		options.QueueExclusive.ShouldBeFalse();
-		options.QueueAutoDelete.ShouldBeFalse();
-		_ = options.QueueArguments.ShouldNotBeNull();
-		options.QueueArguments.ShouldBeEmpty();
-		options.AutoAck.ShouldBeFalse();
-		options.MaxBatchSize.ShouldBe(50);
-		options.MaxBatchWaitMs.ShouldBe(500);
-		options.ConsumerTag.ShouldBe("dispatch-consumer");
-		options.EnableDeadLetterExchange.ShouldBeFalse();
-		options.DeadLetterExchange.ShouldBeNull();
-		options.DeadLetterRoutingKey.ShouldBeNull();
-		options.RequeueOnReject.ShouldBeFalse();
-		options.ConnectionTimeoutSeconds.ShouldBe(30);
-		options.AutomaticRecoveryEnabled.ShouldBeTrue();
-		options.NetworkRecoveryIntervalSeconds.ShouldBe(10);
+
+		// Assert - Sub-option objects are initialized
+		_ = options.Connection.ShouldNotBeNull();
+		_ = options.Queue.ShouldNotBeNull();
+		_ = options.DeadLetter.ShouldNotBeNull();
+		_ = options.Consumption.ShouldNotBeNull();
+
+		// Assert - Connection defaults
+		options.Connection.ConnectionString.ShouldBe(string.Empty);
+		options.Connection.ConnectionTimeoutSeconds.ShouldBe(30);
+		options.Connection.AutomaticRecoveryEnabled.ShouldBeTrue();
+		options.Connection.NetworkRecoveryIntervalSeconds.ShouldBe(10);
+
+		// Assert - Queue defaults
+		options.Queue.QueueName.ShouldBe(string.Empty);
+		options.Queue.QueueDurable.ShouldBeTrue();
+		options.Queue.QueueExclusive.ShouldBeFalse();
+		options.Queue.QueueAutoDelete.ShouldBeFalse();
+		_ = options.Queue.QueueArguments.ShouldNotBeNull();
+		options.Queue.QueueArguments.ShouldBeEmpty();
+
+		// Assert - DeadLetter defaults
+		options.DeadLetter.EnableDeadLetterExchange.ShouldBeFalse();
+		options.DeadLetter.DeadLetterExchange.ShouldBeNull();
+		options.DeadLetter.DeadLetterRoutingKey.ShouldBeNull();
+		options.DeadLetter.RequeueOnReject.ShouldBeFalse();
+
+		// Assert - Consumption defaults
+		options.Consumption.PrefetchCount.ShouldBe((ushort)100);
+		options.Consumption.PrefetchGlobal.ShouldBeFalse();
+		options.Consumption.AutoAck.ShouldBeFalse();
+		options.Consumption.MaxBatchSize.ShouldBe(50);
+		options.Consumption.MaxBatchWaitMs.ShouldBe(500);
+		options.Consumption.ConsumerTag.ShouldBe("dispatch-consumer");
 	}
 
 	[Fact]
@@ -47,10 +61,10 @@ public sealed class RabbitMqOptionsShould : UnitTestBase
 		var options = new RabbitMqOptions();
 
 		// Act
-		options.ConnectionString = "amqp://user:pass@localhost:5672";
+		options.Connection.ConnectionString = "amqp://user:pass@localhost:5672";
 
 		// Assert
-		options.ConnectionString.ShouldBe("amqp://user:pass@localhost:5672");
+		options.Connection.ConnectionString.ShouldBe("amqp://user:pass@localhost:5672");
 	}
 
 	[Fact]
@@ -60,10 +74,10 @@ public sealed class RabbitMqOptionsShould : UnitTestBase
 		var options = new RabbitMqOptions();
 
 		// Act
-		options.PrefetchCount = 200;
+		options.Consumption.PrefetchCount = 200;
 
 		// Assert
-		options.PrefetchCount.ShouldBe((ushort)200);
+		options.Consumption.PrefetchCount.ShouldBe((ushort)200);
 	}
 
 	[Fact]
@@ -73,10 +87,10 @@ public sealed class RabbitMqOptionsShould : UnitTestBase
 		var options = new RabbitMqOptions();
 
 		// Act
-		options.QueueDurable = false;
+		options.Queue.QueueDurable = false;
 
 		// Assert
-		options.QueueDurable.ShouldBeFalse();
+		options.Queue.QueueDurable.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -86,10 +100,10 @@ public sealed class RabbitMqOptionsShould : UnitTestBase
 		var options = new RabbitMqOptions();
 
 		// Act
-		options.AutoAck = true;
+		options.Consumption.AutoAck = true;
 
 		// Assert
-		options.AutoAck.ShouldBeTrue();
+		options.Consumption.AutoAck.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -99,10 +113,10 @@ public sealed class RabbitMqOptionsShould : UnitTestBase
 		var options = new RabbitMqOptions();
 
 		// Act
-		options.MaxBatchSize = 100;
+		options.Consumption.MaxBatchSize = 100;
 
 		// Assert
-		options.MaxBatchSize.ShouldBe(100);
+		options.Consumption.MaxBatchSize.ShouldBe(100);
 	}
 
 	[Fact]
@@ -112,14 +126,14 @@ public sealed class RabbitMqOptionsShould : UnitTestBase
 		var options = new RabbitMqOptions();
 
 		// Act
-		options.EnableDeadLetterExchange = true;
-		options.DeadLetterExchange = "dlx";
-		options.DeadLetterRoutingKey = "dlx-routing";
+		options.DeadLetter.EnableDeadLetterExchange = true;
+		options.DeadLetter.DeadLetterExchange = "dlx";
+		options.DeadLetter.DeadLetterRoutingKey = "dlx-routing";
 
 		// Assert
-		options.EnableDeadLetterExchange.ShouldBeTrue();
-		options.DeadLetterExchange.ShouldBe("dlx");
-		options.DeadLetterRoutingKey.ShouldBe("dlx-routing");
+		options.DeadLetter.EnableDeadLetterExchange.ShouldBeTrue();
+		options.DeadLetter.DeadLetterExchange.ShouldBe("dlx");
+		options.DeadLetter.DeadLetterRoutingKey.ShouldBe("dlx-routing");
 	}
 
 	[Fact]
@@ -129,10 +143,10 @@ public sealed class RabbitMqOptionsShould : UnitTestBase
 		var options = new RabbitMqOptions();
 
 		// Act
-		options.AutomaticRecoveryEnabled = false;
+		options.Connection.AutomaticRecoveryEnabled = false;
 
 		// Assert
-		options.AutomaticRecoveryEnabled.ShouldBeFalse();
+		options.Connection.AutomaticRecoveryEnabled.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -142,10 +156,10 @@ public sealed class RabbitMqOptionsShould : UnitTestBase
 		var options = new RabbitMqOptions();
 
 		// Act
-		options.QueueArguments["x-message-ttl"] = 60000;
+		options.Queue.QueueArguments["x-message-ttl"] = 60000;
 
 		// Assert
-		options.QueueArguments.ShouldContainKey("x-message-ttl");
-		options.QueueArguments["x-message-ttl"].ShouldBe(60000);
+		options.Queue.QueueArguments.ShouldContainKey("x-message-ttl");
+		options.Queue.QueueArguments["x-message-ttl"].ShouldBe(60000);
 	}
 }

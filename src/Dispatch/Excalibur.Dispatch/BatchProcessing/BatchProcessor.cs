@@ -182,20 +182,6 @@ public sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 
 		_disposed = true;
 
-		try
-		{
-			// Safe cancellation - check before calling Cancel()
-			if (!_shutdownTokenSource.IsCancellationRequested)
-			{
-				await _shutdownTokenSource.CancelAsync().ConfigureAwait(false);
-			}
-		}
-		catch (ObjectDisposedException)
-		{
-			// CTS already disposed by another thread - safe to ignore
-			LogShutdownCancellationTokenDisposed(_logger);
-		}
-
 		_ = _inputChannel.Writer.TryComplete();
 
 		try
@@ -209,6 +195,17 @@ public sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 			catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
 			{
 				LogProcessingTaskTimeout(_logger);
+				try
+				{
+					if (!_shutdownTokenSource.IsCancellationRequested)
+					{
+						await _shutdownTokenSource.CancelAsync().ConfigureAwait(false);
+					}
+				}
+				catch (ObjectDisposedException)
+				{
+					LogShutdownCancellationTokenDisposed(_logger);
+				}
 			}
 			catch (OperationCanceledException)
 			{
@@ -328,12 +325,17 @@ public sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 		try
 		{
 			// Use WaitToReadAsync with timeout instead of ReadAllAsync to enable time-based flushing
-			while (!cancellationToken.IsCancellationRequested)
+			while (true)
 			{
 				// Clean up completed tasks to free slots for new batches
 				lock (_inFlightTasksLock)
 				{
 					_ = _inFlightTasks.RemoveAll(t => t.IsCompleted);
+				}
+
+				if (cancellationToken.IsCancellationRequested)
+				{
+					break;
 				}
 
 				// Wait if we've hit the concurrent batch limit
@@ -477,6 +479,11 @@ public sealed partial class BatchProcessor<T> : IDisposable, IAsyncDisposable
 
 					pendingItems.Clear();
 					lastFlush = now;
+				}
+
+				if (_inputChannel.Reader.Completion.IsCompleted && pendingItems.Count == 0)
+				{
+					break;
 				}
 			}
 

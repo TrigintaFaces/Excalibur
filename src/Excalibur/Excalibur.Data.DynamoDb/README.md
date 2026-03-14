@@ -28,7 +28,7 @@ dotnet add package Excalibur.Data.DynamoDb
 ```csharp
 services.AddDynamoDb(options =>
 {
-    options.Region = "us-east-1";
+    options.Connection.Region = "us-east-1";
     options.DefaultTableName = "MyTable";
     options.DefaultPartitionKeyAttribute = "pk";
     options.DefaultSortKeyAttribute = "sk";
@@ -46,13 +46,15 @@ services.AddDynamoDb(Configuration.GetSection("DynamoDb"));
 ```json
 {
   "DynamoDb": {
-    "Region": "us-east-1",
     "DefaultTableName": "MyTable",
     "DefaultPartitionKeyAttribute": "pk",
     "DefaultSortKeyAttribute": "sk",
     "UseConsistentReads": false,
-    "TimeoutInSeconds": 30,
-    "MaxRetryAttempts": 3
+    "Connection": {
+      "Region": "us-east-1",
+      "TimeoutInSeconds": 30,
+      "MaxRetryAttempts": 3
+    }
   }
 }
 ```
@@ -71,29 +73,28 @@ services.AddDynamoDbWithClient(options =>
 
 ## Configuration Options
 
-### Connection Settings
+### Root Settings (`DynamoDbOptions`)
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `Name` | `DynamoDb` | Provider instance name for identification |
+| `DefaultTableName` | Required | Default table for operations |
+| `DefaultPartitionKeyAttribute` | `pk` | Partition key attribute name |
+| `DefaultSortKeyAttribute` | `sk` | Sort key attribute name |
+| `UseConsistentReads` | `false` | Enable strongly consistent reads by default |
+| `EnableStreams` | `false` | Enable DynamoDB Streams for change data capture |
+| `StreamViewType` | `NEW_AND_OLD_IMAGES` | What data to include in stream records |
+
+### Connection Settings (`DynamoDbConnectionOptions`)
+
+Access via `options.Connection.*`:
+
+| Option | Default | Description |
+|--------|---------|-------------|
 | `Region` | null | AWS region (e.g., "us-east-1") |
 | `ServiceUrl` | null | Custom service URL (for local development) |
 | `AccessKey` | null | AWS access key (optional, uses default credentials if not set) |
 | `SecretKey` | null | AWS secret key (optional, uses default credentials if not set) |
-| `DefaultTableName` | Required | Default table for operations |
-
-### Table Key Settings
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `DefaultPartitionKeyAttribute` | `pk` | Partition key attribute name |
-| `DefaultSortKeyAttribute` | `sk` | Sort key attribute name |
-
-### Performance Settings
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `UseConsistentReads` | `false` | Enable strongly consistent reads by default |
 | `TimeoutInSeconds` | `30` | Request timeout |
 | `MaxRetryAttempts` | `3` | Maximum retry attempts for transient failures |
 | `ReadCapacityUnits` | null | On-demand scaling hint for reads |
@@ -201,7 +202,7 @@ For local development with DynamoDB Local:
 ```csharp
 services.AddDynamoDb(options =>
 {
-    options.ServiceUrl = "http://localhost:8000";
+    options.Connection.ServiceUrl = "http://localhost:8000";
     options.DefaultTableName = "LocalTable";
 });
 ```
@@ -274,7 +275,7 @@ DynamoDB supports multiple authentication methods:
 // Uses default credentials chain (EC2 instance profile, ECS task role, etc.)
 services.AddDynamoDb(options =>
 {
-    options.Region = "us-east-1";
+    options.Connection.Region = "us-east-1";
     options.DefaultTableName = "MyTable";
 });
 ```
@@ -284,9 +285,9 @@ services.AddDynamoDb(options =>
 ```csharp
 services.AddDynamoDb(options =>
 {
-    options.Region = "us-east-1";
-    options.AccessKey = "YOUR_ACCESS_KEY";
-    options.SecretKey = "YOUR_SECRET_KEY";
+    options.Connection.Region = "us-east-1";
+    options.Connection.AccessKey = "YOUR_ACCESS_KEY";
+    options.Connection.SecretKey = "YOUR_SECRET_KEY";
     options.DefaultTableName = "MyTable";
 });
 ```

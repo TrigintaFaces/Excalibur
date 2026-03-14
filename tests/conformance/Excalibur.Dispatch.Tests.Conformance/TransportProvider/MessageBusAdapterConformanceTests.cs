@@ -63,7 +63,9 @@ public abstract class MessageBusAdapterConformanceTests
 		var adapter = CreateAdapter();
 
 		// Act & Assert
-		adapter.SupportsPublishing.ShouldBe(ExpectedSupportsPublishing);
+		var capabilities = adapter as IMessageBusAdapterCapabilities;
+		capabilities.ShouldNotBeNull();
+		capabilities.SupportsPublishing.ShouldBe(ExpectedSupportsPublishing);
 	}
 
 	[Fact]
@@ -73,7 +75,9 @@ public abstract class MessageBusAdapterConformanceTests
 		var adapter = CreateAdapter();
 
 		// Act & Assert
-		adapter.SupportsSubscription.ShouldBe(ExpectedSupportsSubscription);
+		var capabilities = adapter as IMessageBusAdapterCapabilities;
+		capabilities.ShouldNotBeNull();
+		capabilities.SupportsSubscription.ShouldBe(ExpectedSupportsSubscription);
 	}
 
 	[Fact]
@@ -83,7 +87,9 @@ public abstract class MessageBusAdapterConformanceTests
 		var adapter = CreateAdapter();
 
 		// Act & Assert
-		adapter.SupportsTransactions.ShouldBe(ExpectedSupportsTransactions);
+		var capabilities = adapter as IMessageBusAdapterCapabilities;
+		capabilities.ShouldNotBeNull();
+		capabilities.SupportsTransactions.ShouldBe(ExpectedSupportsTransactions);
 	}
 
 	[Fact]
@@ -136,11 +142,12 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
 
 		// Act & Assert
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 		// Should not throw
 	}
 
@@ -149,13 +156,14 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
 		// Act & Assert
-		_ = await Should.ThrowAsync<OperationCanceledException>(() => adapter.StartAsync(cts.Token)).ConfigureAwait(false);
+		_ = await Should.ThrowAsync<OperationCanceledException>(() => lifecycle.StartAsync(cts.Token)).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -163,12 +171,13 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Act & Assert
-		await adapter.StopAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StopAsync(CancellationToken.None).ConfigureAwait(false);
 		// Should not throw
 	}
 
@@ -177,14 +186,15 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
 		// Act & Assert
-		_ = await Should.ThrowAsync<OperationCanceledException>(() => adapter.StopAsync(cts.Token)).ConfigureAwait(false);
+		_ = await Should.ThrowAsync<OperationCanceledException>(() => lifecycle.StopAsync(cts.Token)).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -192,12 +202,13 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
 
 		// Act
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false); // Second call should not throw
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false); // Second call should not throw
 
 		// Assert Should not throw
 	}
@@ -207,13 +218,14 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Act
-		await adapter.StopAsync(CancellationToken.None).ConfigureAwait(false);
-		await adapter.StopAsync(CancellationToken.None).ConfigureAwait(false); // Second call should not throw
+		await lifecycle.StopAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StopAsync(CancellationToken.None).ConfigureAwait(false); // Second call should not throw
 
 		// Assert Should not throw
 	}
@@ -223,11 +235,12 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
 
 		// Act & Assert
-		await adapter.StopAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StopAsync(CancellationToken.None).ConfigureAwait(false);
 		// Should not throw
 	}
 
@@ -236,14 +249,15 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		var message = CreateTestMessage();
 		var context = CreateTestMessageContext();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Act & Assert
-		if (adapter.SupportsPublishing)
+		if (adapter is IMessageBusAdapterCapabilities { SupportsPublishing: true })
 		{
 			var result = await adapter.PublishAsync(message, context, CancellationToken.None).ConfigureAwait(false);
 			_ = result.ShouldNotBeNull();
@@ -259,13 +273,14 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		var context = CreateTestMessageContext();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Act & Assert
-		if (adapter.SupportsPublishing)
+		if (adapter is IMessageBusAdapterCapabilities { SupportsPublishing: true })
 		{
 			_ = await Should.ThrowAsync<ArgumentNullException>(() => adapter.PublishAsync(null!, context, CancellationToken.None)).ConfigureAwait(false);
 		}
@@ -276,13 +291,14 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		var message = CreateTestMessage();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Act & Assert
-		if (adapter.SupportsPublishing)
+		if (adapter is IMessageBusAdapterCapabilities { SupportsPublishing: true })
 		{
 			_ = await Should.ThrowAsync<ArgumentNullException>(() => adapter.PublishAsync(message, null!, CancellationToken.None)).ConfigureAwait(false);
 		}
@@ -293,16 +309,17 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		var message = CreateTestMessage();
 		var context = CreateTestMessageContext();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
 		// Act & Assert
-		if (adapter.SupportsPublishing)
+		if (adapter is IMessageBusAdapterCapabilities { SupportsPublishing: true })
 		{
 			_ = await Should.ThrowAsync<OperationCanceledException>(() => adapter.PublishAsync(message, context, cts.Token)).ConfigureAwait(false);
 		}
@@ -313,14 +330,15 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		var subscriptionName = TestSubscriptionName;
 		var messageHandler = CreateTestMessageHandler();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Act & Assert
-		if (adapter.SupportsSubscription)
+		if (adapter is IMessageBusAdapterCapabilities { SupportsSubscription: true })
 		{
 			await adapter.SubscribeAsync(subscriptionName, messageHandler, options, CancellationToken.None).ConfigureAwait(false);
 			// Should not throw
@@ -337,13 +355,14 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		var messageHandler = CreateTestMessageHandler();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Act & Assert
-		if (adapter.SupportsSubscription)
+		if (adapter is IMessageBusAdapterCapabilities { SupportsSubscription: true })
 		{
 			_ = await Should.ThrowAsync<ArgumentException>(() =>
 				adapter.SubscribeAsync(null!, messageHandler, options, CancellationToken.None)).ConfigureAwait(false);
@@ -355,13 +374,14 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		var messageHandler = CreateTestMessageHandler();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Act & Assert
-		if (adapter.SupportsSubscription)
+		if (adapter is IMessageBusAdapterCapabilities { SupportsSubscription: true })
 		{
 			_ = await Should.ThrowAsync<ArgumentException>(() => adapter.SubscribeAsync("", messageHandler, options, CancellationToken.None)).ConfigureAwait(false);
 		}
@@ -372,13 +392,14 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		var subscriptionName = TestSubscriptionName;
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Act & Assert
-		if (adapter.SupportsSubscription)
+		if (adapter is IMessageBusAdapterCapabilities { SupportsSubscription: true })
 		{
 			_ = await Should.ThrowAsync<ArgumentNullException>(() =>
 				adapter.SubscribeAsync(subscriptionName, null!, options, CancellationToken.None)).ConfigureAwait(false);
@@ -390,16 +411,17 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		var subscriptionName = TestSubscriptionName;
 		var messageHandler = CreateTestMessageHandler();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
 		// Act & Assert
-		if (adapter.SupportsSubscription)
+		if (adapter is IMessageBusAdapterCapabilities { SupportsSubscription: true })
 		{
 			_ = await Should.ThrowAsync<OperationCanceledException>(() =>
 				adapter.SubscribeAsync(subscriptionName, messageHandler, options, cts.Token)).ConfigureAwait(false);
@@ -411,13 +433,14 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		var subscriptionName = TestSubscriptionName;
 		var messageHandler = CreateTestMessageHandler();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
-		if (adapter.SupportsSubscription)
+		if (adapter is IMessageBusAdapterCapabilities { SupportsSubscription: true })
 		{
 			await adapter.SubscribeAsync(subscriptionName, messageHandler, options, CancellationToken.None).ConfigureAwait(false);
 		}
@@ -432,9 +455,10 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(() => adapter.UnsubscribeAsync(null!, CancellationToken.None)).ConfigureAwait(false);
@@ -445,9 +469,10 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ArgumentException>(() => adapter.UnsubscribeAsync("", CancellationToken.None)).ConfigureAwait(false);
@@ -458,10 +483,11 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		var subscriptionName = TestSubscriptionName;
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
@@ -474,12 +500,13 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Act
-		var result = await adapter.CheckHealthAsync(CancellationToken.None).ConfigureAwait(false);
+		var result = await lifecycle.CheckHealthAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -491,14 +518,15 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 		using var cts = new CancellationTokenSource();
 		await cts.CancelAsync().ConfigureAwait(false);
 
 		// Act & Assert
-		_ = await Should.ThrowAsync<OperationCanceledException>(() => adapter.CheckHealthAsync(cts.Token)).ConfigureAwait(false);
+		_ = await Should.ThrowAsync<OperationCanceledException>(() => lifecycle.CheckHealthAsync(cts.Token)).ConfigureAwait(false);
 	}
 
 	[Fact]
@@ -506,9 +534,10 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Act & Assert
 		adapter.Dispose();
@@ -520,10 +549,11 @@ public abstract class MessageBusAdapterConformanceTests
 	{
 		// Arrange
 		var adapter = CreateAdapter();
+		var lifecycle = GetLifecycle(adapter);
 		var options = CreateTestOptions();
 		await adapter.InitializeAsync(options, CancellationToken.None).ConfigureAwait(false);
-		await adapter.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		await adapter.StopAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StartAsync(CancellationToken.None).ConfigureAwait(false);
+		await lifecycle.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Act & Assert
 		adapter.Dispose();
@@ -564,4 +594,12 @@ public abstract class MessageBusAdapterConformanceTests
 			await Task.Delay(10, cancellationToken).ConfigureAwait(false);
 			return MessageResult.Success();
 		};
+
+	/// <summary>
+	///     Casts the adapter to <see cref="IMessageBusAdapterLifecycle" /> for lifecycle operations.
+	/// </summary>
+	/// <param name="adapter"> The adapter to cast. </param>
+	/// <returns> The adapter as <see cref="IMessageBusAdapterLifecycle" />. </returns>
+	private static IMessageBusAdapterLifecycle GetLifecycle(IMessageBusAdapter adapter) =>
+		(IMessageBusAdapterLifecycle)adapter;
 }

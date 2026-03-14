@@ -1,0 +1,345 @@
+name: Nightly CI Build
+
+on:
+  schedule:
+    # Run at 04:00 UTC daily
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+    inputs:
+      skip_integration_tests:
+        description: 'Skip integration tests (Docker-dependent)'
+        required: false
+        default: false
+        type: boolean
+
+# No cancel-in-progress -- nightly builds should always complete
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+jobs:
+  # Step 1: ShippingOnly restore + build
+  shipping-build:
+    name: ShippingOnly Build (Release)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore (ShippingOnly)
+        run: dotnet restore eng/ci/shards/ShippingOnly.slnf
+
+      - name: Build (Release, ShippingOnly)
+        run: dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore
+
+  # Step 2: Deterministic unit test shards
+  deterministic-unit-tests:
+    name: Deterministic Unit Tests (${{ matrix.shard.name }})
+    runs-on: ubuntu-latest
+    needs: shipping-build
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - { name: core, filter: "eng/ci/shards/UnitTests-Core.slnf" }
+          - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf" }
+          - { name: middleware, filter: "eng/ci/shards/UnitTests-Middleware.slnf" }
+          - { name: excalibur, filter: "eng/ci/shards/UnitTests-Excalibur.slnf" }
+          - { name: observability, filter: "eng/ci/shards/UnitTests-Observability.slnf" }
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ matrix.shard.filter }}
+
+      - name: Build shard
+        run: dotnet build ${{ matrix.shard.filter }} --configuration Release --no-restore
+
+      - name: Run Unit Tests
+        run: |
+          dotnet test ${{ matrix.shard.filter }} \
+            --configuration Release \
+            --no-build \
+            --blame-hang-timeout 5m \
+            --logger "trx;LogFileName=nightly-unit-${{ matrix.shard.name }}.trx" \
+            --logger "console;verbosity=minimal" \
+            --results-directory ./TestResults \
+            --filter "(Category=Unit|Category=DependencyInjection)&Category!=Performance" \
+            -- RunConfiguration.TestSessionTimeout=600000
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-unit-${{ matrix.shard.name }}
+          path: TestResults/*.trx
+          retention-days: 14
+
+  # Step 3: Integration tests (single-threaded for Docker stability)
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: deterministic-unit-tests
+    if: ${{ !inputs.skip_integration_tests }}
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore eng/ci/shards/IntegrationTests.slnf
+
+      - name: Build
+        run: dotnet build eng/ci/shards/IntegrationTests.slnf --configuration Release --no-restore
+
+      - name: Run Integration Tests (-m:1)
+        run: |
+          dotnet test eng/ci/shards/IntegrationTests.slnf \
+            --configuration Release \
+            --no-build \
+            -m:1 \
+            --blame-hang-timeout 10m \
+            --logger "trx;LogFileName=nightly-integration.trx" \
+            --logger "console;verbosity=minimal" \
+            --results-directory ./TestResults \
+            --filter "Category=Integration|Category=EndToEnd" \
+            -- RunConfiguration.TestSessionTimeout=1800000
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-integration
+          path: TestResults/*.trx
+          retention-days: 14
+
+  # Step 4: Package composition validation
+  package-composition:
+    name: Package Composition
+    runs-on: ubuntu-latest
+    needs: shipping-build
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore and build (ShippingOnly)
+        run: |
+          dotnet restore eng/ci/shards/ShippingOnly.slnf
+          dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore
+
+      - name: Validate package composition
+        shell: pwsh
+        run: ./eng/validate-package-composition.ps1 -SkipBuild
+
+  # Step 5: Dependency vulnerability audit
+  dependency-audit:
+    name: Dependency Vulnerability Audit
+    runs-on: ubuntu-latest
+    needs: shipping-build
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Run dependency audit
+        shell: pwsh
+        run: |
+          ./eng/ci/dependency-audit.ps1 `
+            -OutDir management/reports/DependencyAuditReport `
+            -ProjectRoot src `
+            -PerProjectTimeoutSeconds 60 `
+            -TotalBudgetMinutes 15 `
+            -MaxProjects 180 `
+            -FailOnGuardrailBreach
+
+      - name: Upload dependency audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-dependency-audit
+          path: management/reports/DependencyAuditReport
+          retention-days: 14
+
+  # Step 6: Nightly summary + failure notification
+  nightly-summary:
+    name: Nightly Summary
+    runs-on: ubuntu-latest
+    needs: [shipping-build, deterministic-unit-tests, integration-tests, package-composition, dependency-audit]
+    if: always()
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Compute nightly results
+        id: results
+        shell: bash
+        run: |
+          # Check job outcomes from needs context
+          shipping="${{ needs.shipping-build.result }}"
+          unit="${{ needs.deterministic-unit-tests.result }}"
+          integration="${{ needs.integration-tests.result }}"
+          packages="${{ needs.package-composition.result }}"
+          audit="${{ needs.dependency-audit.result }}"
+
+          failures=""
+          if [ "$shipping" != "success" ]; then failures="${failures}shipping-build ($shipping), "; fi
+          if [ "$unit" != "success" ]; then failures="${failures}deterministic-unit-tests ($unit), "; fi
+          if [ "$integration" != "success" ] && [ "$integration" != "skipped" ]; then failures="${failures}integration-tests ($integration), "; fi
+          if [ "$packages" != "success" ]; then failures="${failures}package-composition ($packages), "; fi
+          if [ "$audit" != "success" ]; then failures="${failures}dependency-audit ($audit), "; fi
+
+          if [ -z "$failures" ]; then
+            echo "status=passed" >> "$GITHUB_OUTPUT"
+            echo "failures=" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+            echo "failures=${failures%, }" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post nightly summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "# Nightly CI Build Summary"
+            echo ""
+            echo "- **Status:** ${{ steps.results.outputs.status == 'passed' && 'PASSED' || 'FAILED' }}"
+            echo "- **Date:** $(date -u '+%Y-%m-%d %H:%M:%S') UTC"
+            echo "- **Ref:** ${{ github.sha }}"
+            echo ""
+            echo "## Job Results"
+            echo ""
+            echo "| Job | Result |"
+            echo "|-----|--------|"
+            echo "| ShippingOnly Build | ${{ needs.shipping-build.result }} |"
+            echo "| Deterministic Unit Tests | ${{ needs.deterministic-unit-tests.result }} |"
+            echo "| Integration Tests | ${{ needs.integration-tests.result }} |"
+            echo "| Package Composition | ${{ needs.package-composition.result }} |"
+            echo "| Dependency Audit | ${{ needs.dependency-audit.result }} |"
+            if [ -n "${{ steps.results.outputs.failures }}" ]; then
+              echo ""
+              echo "## Failures"
+              echo ""
+              echo "${{ steps.results.outputs.failures }}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create GitHub issue on failure
+        if: steps.results.outputs.status == 'failed'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const failures = '${{ steps.results.outputs.failures }}';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const today = new Date().toISOString().split('T')[0];
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Nightly CI failure: ${today}`,
+              body: [
+                `## Nightly CI Build Failed`,
+                ``,
+                `**Date:** ${today}`,
+                `**Run:** [${context.runId}](${runUrl})`,
+                `**Commit:** ${context.sha}`,
+                ``,
+                `### Failed Jobs`,
+                ``,
+                failures,
+                ``,
+                `### Action Required`,
+                ``,
+                `Investigate and fix the failing jobs before the next nightly run.`,
+                `This issue was automatically created by the nightly CI workflow.`
+              ].join('\n'),
+              labels: ['ci-nightly', 'bug']
+            });

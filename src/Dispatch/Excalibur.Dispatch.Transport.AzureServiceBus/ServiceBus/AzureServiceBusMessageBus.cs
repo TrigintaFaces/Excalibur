@@ -5,9 +5,9 @@
 using Azure.Messaging.ServiceBus;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Abstractions.Transport;
-using Excalibur.Dispatch.Extensions;
 using Excalibur.Dispatch.Transport.AzureServiceBus;
 
 using Microsoft.Extensions.Logging;

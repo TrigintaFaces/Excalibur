@@ -19,9 +19,9 @@ public sealed class DatadogExporterOptionsShould
 		options.Hostname.ShouldBeNull();
 		options.Tags.ShouldBeNull();
 		options.MaxBatchSize.ShouldBe(500);
-		options.MaxRetryAttempts.ShouldBe(3);
-		options.RetryBaseDelay.ShouldBe(TimeSpan.FromSeconds(1));
-		options.Timeout.ShouldBe(TimeSpan.FromSeconds(30));
+		options.Retry.MaxRetryAttempts.ShouldBe(3);
+		options.Retry.RetryBaseDelay.ShouldBe(TimeSpan.FromSeconds(1));
+		options.Retry.Timeout.ShouldBe(TimeSpan.FromSeconds(30));
 		options.UseCompression.ShouldBeTrue();
 	}
 

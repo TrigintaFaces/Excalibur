@@ -73,7 +73,7 @@ public sealed class ParallelSagaStepFunctionalShould
 			NullLogger<ParallelSagaStep<TestSagaData>>.Instance)
 		{
 			Strategy = ParallelismStrategy.Unlimited,
-			RequireAllSuccess = true,
+			FailurePolicy = ParallelFailurePolicy.RequireAll,
 		};
 
 		// Act
@@ -107,14 +107,13 @@ public sealed class ParallelSagaStepFunctionalShould
 		{
 			Strategy = ParallelismStrategy.Batched,
 			MaxDegreeOfParallelism = 1,
-			ContinueOnFailure = true,
-			RequireAllSuccess = false,
+			FailurePolicy = ParallelFailurePolicy.ContinueOnFailure,
 		};
 
 		// Act
 		var result = await sut.ExecuteAsync(context, CancellationToken.None);
 
-		// Assert - should succeed since RequireAllSuccess is false and ContinueOnFailure is true
+		// Assert - should succeed since FailurePolicy is ContinueOnFailure
 		result.IsSuccess.ShouldBeTrue();
 	}
 

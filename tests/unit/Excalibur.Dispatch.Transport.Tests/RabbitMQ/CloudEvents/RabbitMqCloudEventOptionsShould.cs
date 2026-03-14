@@ -15,29 +15,40 @@ public sealed class RabbitMqCloudEventOptionsShould
 		// Arrange & Act
 		var options = new RabbitMqCloudEventOptions();
 
-		// Assert
+		// Assert - Sub-option references
 		options.Consumer.ShouldNotBeNull();
 		options.Publisher.ShouldNotBeNull();
-		options.DefaultExchange.ShouldBe("cloudevents");
-		options.ExchangeType.ShouldBe(RabbitMqExchangeType.Topic);
-		options.RoutingStrategy.ShouldBe(RabbitMqRoutingStrategy.EventType);
+		options.Exchange.ShouldNotBeNull();
+		options.DeadLetter.ShouldNotBeNull();
+		options.Recovery.ShouldNotBeNull();
+
+		// Assert - Root properties
 		options.DefaultQueue.ShouldBeNull();
 		options.DurableQueues.ShouldBeTrue();
-		options.DurableExchanges.ShouldBeTrue();
-		options.EnablePublisherConfirms.ShouldBeTrue();
-		options.MandatoryPublishing.ShouldBeTrue();
-		options.Persistence.ShouldBe(RabbitMqPersistence.Persistent);
-		options.MessageTtl.ShouldBe(TimeSpan.FromDays(7));
-		options.MaxMessageSizeBytes.ShouldBe(128 * 1024 * 1024);
-		options.EnableDeadLetterExchange.ShouldBeTrue();
-		options.DeadLetterExchange.ShouldBe("cloudevents.dlx");
-		options.MaxRetryAttempts.ShouldBe(3);
-		options.RetryDelay.ShouldBe(TimeSpan.FromSeconds(30));
 		options.UseQuorumQueues.ShouldBeFalse();
 		options.PrefetchCount.ShouldBe((ushort)10);
 		options.EnableConsumerAcks.ShouldBeTrue();
-		options.AutomaticRecoveryEnabled.ShouldBeTrue();
-		options.NetworkRecoveryInterval.ShouldBe(TimeSpan.FromSeconds(5));
+
+		// Assert - Exchange sub-options
+		options.Exchange.DefaultExchange.ShouldBe("cloudevents");
+		options.Exchange.ExchangeType.ShouldBe(RabbitMQExchangeType.Topic);
+		options.Exchange.RoutingStrategy.ShouldBe(RabbitMqRoutingStrategy.EventType);
+		options.Exchange.DurableExchanges.ShouldBeTrue();
+		options.Exchange.EnablePublisherConfirms.ShouldBeTrue();
+		options.Exchange.MandatoryPublishing.ShouldBeTrue();
+		options.Exchange.Persistence.ShouldBe(RabbitMqPersistence.Persistent);
+		options.Exchange.MessageTtl.ShouldBe(TimeSpan.FromDays(7));
+		options.Exchange.MaxMessageSizeBytes.ShouldBe(128 * 1024 * 1024);
+
+		// Assert - DeadLetter sub-options
+		options.DeadLetter.EnableDeadLetterExchange.ShouldBeTrue();
+		options.DeadLetter.DeadLetterExchange.ShouldBe("cloudevents.dlx");
+		options.DeadLetter.MaxRetryAttempts.ShouldBe(3);
+		options.DeadLetter.RetryDelay.ShouldBe(TimeSpan.FromSeconds(30));
+
+		// Assert - Recovery sub-options
+		options.Recovery.AutomaticRecoveryEnabled.ShouldBeTrue();
+		options.Recovery.NetworkRecoveryInterval.ShouldBe(TimeSpan.FromSeconds(5));
 	}
 
 	[Fact]
@@ -46,49 +57,64 @@ public sealed class RabbitMqCloudEventOptionsShould
 		// Arrange & Act
 		var options = new RabbitMqCloudEventOptions
 		{
-			DefaultExchange = "my-exchange",
-			ExchangeType = RabbitMqExchangeType.Fanout,
-			RoutingStrategy = RabbitMqRoutingStrategy.Subject,
 			DefaultQueue = "my-queue",
 			DurableQueues = false,
-			DurableExchanges = false,
-			EnablePublisherConfirms = false,
-			MandatoryPublishing = false,
-			Persistence = RabbitMqPersistence.Transient,
-			MessageTtl = TimeSpan.FromHours(1),
-			MaxMessageSizeBytes = 64 * 1024 * 1024,
-			EnableDeadLetterExchange = false,
-			DeadLetterExchange = "custom-dlx",
-			MaxRetryAttempts = 5,
-			RetryDelay = TimeSpan.FromMinutes(1),
 			UseQuorumQueues = true,
 			PrefetchCount = 50,
 			EnableConsumerAcks = false,
-			AutomaticRecoveryEnabled = false,
-			NetworkRecoveryInterval = TimeSpan.FromSeconds(10),
+			Exchange =
+			{
+				DefaultExchange = "my-exchange",
+				ExchangeType = RabbitMQExchangeType.Fanout,
+				RoutingStrategy = RabbitMqRoutingStrategy.Subject,
+				DurableExchanges = false,
+				EnablePublisherConfirms = false,
+				MandatoryPublishing = false,
+				Persistence = RabbitMqPersistence.Transient,
+				MessageTtl = TimeSpan.FromHours(1),
+				MaxMessageSizeBytes = 64 * 1024 * 1024,
+			},
+			DeadLetter =
+			{
+				EnableDeadLetterExchange = false,
+				DeadLetterExchange = "custom-dlx",
+				MaxRetryAttempts = 5,
+				RetryDelay = TimeSpan.FromMinutes(1),
+			},
+			Recovery =
+			{
+				AutomaticRecoveryEnabled = false,
+				NetworkRecoveryInterval = TimeSpan.FromSeconds(10),
+			},
 		};
 
-		// Assert
-		options.DefaultExchange.ShouldBe("my-exchange");
-		options.ExchangeType.ShouldBe(RabbitMqExchangeType.Fanout);
-		options.RoutingStrategy.ShouldBe(RabbitMqRoutingStrategy.Subject);
+		// Assert - Root properties
 		options.DefaultQueue.ShouldBe("my-queue");
 		options.DurableQueues.ShouldBeFalse();
-		options.DurableExchanges.ShouldBeFalse();
-		options.EnablePublisherConfirms.ShouldBeFalse();
-		options.MandatoryPublishing.ShouldBeFalse();
-		options.Persistence.ShouldBe(RabbitMqPersistence.Transient);
-		options.MessageTtl.ShouldBe(TimeSpan.FromHours(1));
-		options.MaxMessageSizeBytes.ShouldBe(64 * 1024 * 1024);
-		options.EnableDeadLetterExchange.ShouldBeFalse();
-		options.DeadLetterExchange.ShouldBe("custom-dlx");
-		options.MaxRetryAttempts.ShouldBe(5);
-		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(1));
 		options.UseQuorumQueues.ShouldBeTrue();
 		options.PrefetchCount.ShouldBe((ushort)50);
 		options.EnableConsumerAcks.ShouldBeFalse();
-		options.AutomaticRecoveryEnabled.ShouldBeFalse();
-		options.NetworkRecoveryInterval.ShouldBe(TimeSpan.FromSeconds(10));
+
+		// Assert - Exchange sub-options
+		options.Exchange.DefaultExchange.ShouldBe("my-exchange");
+		options.Exchange.ExchangeType.ShouldBe(RabbitMQExchangeType.Fanout);
+		options.Exchange.RoutingStrategy.ShouldBe(RabbitMqRoutingStrategy.Subject);
+		options.Exchange.DurableExchanges.ShouldBeFalse();
+		options.Exchange.EnablePublisherConfirms.ShouldBeFalse();
+		options.Exchange.MandatoryPublishing.ShouldBeFalse();
+		options.Exchange.Persistence.ShouldBe(RabbitMqPersistence.Transient);
+		options.Exchange.MessageTtl.ShouldBe(TimeSpan.FromHours(1));
+		options.Exchange.MaxMessageSizeBytes.ShouldBe(64 * 1024 * 1024);
+
+		// Assert - DeadLetter sub-options
+		options.DeadLetter.EnableDeadLetterExchange.ShouldBeFalse();
+		options.DeadLetter.DeadLetterExchange.ShouldBe("custom-dlx");
+		options.DeadLetter.MaxRetryAttempts.ShouldBe(5);
+		options.DeadLetter.RetryDelay.ShouldBe(TimeSpan.FromMinutes(1));
+
+		// Assert - Recovery sub-options
+		options.Recovery.AutomaticRecoveryEnabled.ShouldBeFalse();
+		options.Recovery.NetworkRecoveryInterval.ShouldBe(TimeSpan.FromSeconds(10));
 	}
 
 	[Fact]
@@ -100,5 +126,17 @@ public sealed class RabbitMqCloudEventOptionsShould
 		// Assert
 		options.Consumer.ShouldBeOfType<RabbitMqConsumerOptions>();
 		options.Publisher.ShouldBeOfType<RabbitMqPublisherOptions>();
+	}
+
+	[Fact]
+	public void ExposeNewSubOptionTypes()
+	{
+		// Arrange & Act
+		var options = new RabbitMqCloudEventOptions();
+
+		// Assert
+		options.Exchange.ShouldBeOfType<RabbitMqCloudEventExchangeOptions>();
+		options.DeadLetter.ShouldBeOfType<RabbitMqCloudEventDeadLetterOptions>();
+		options.Recovery.ShouldBeOfType<RabbitMqCloudEventRecoveryOptions>();
 	}
 }

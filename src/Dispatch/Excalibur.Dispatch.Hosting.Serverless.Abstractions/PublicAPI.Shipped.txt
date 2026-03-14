@@ -1,1 +1,182 @@
 #nullable enable
+abstract Excalibur.Dispatch.Hosting.Serverless.ColdStartOptimizerBase.IsEnabled.get -> bool
+abstract Excalibur.Dispatch.Hosting.Serverless.ColdStartOptimizerBase.PlatformName.get -> string!
+abstract Excalibur.Dispatch.Hosting.Serverless.ColdStartOptimizerBase.WarmupPlatformSdkAsync() -> System.Threading.Tasks.Task!
+abstract Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.AccountId.get -> string!
+abstract Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.CloudProvider.get -> string!
+abstract Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.ExecutionDeadline.get -> System.DateTimeOffset
+abstract Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.FunctionName.get -> string!
+abstract Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.FunctionVersion.get -> string!
+abstract Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.InvokedFunctionArn.get -> string!
+abstract Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.LogGroupName.get -> string!
+abstract Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.LogStreamName.get -> string!
+abstract Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.MemoryLimitInMB.get -> int
+abstract Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.Region.get -> string!
+abstract Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.RequestId.get -> string!
+const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ColdStartOptimizationCompleted = 50054 -> int
+const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ColdStartOptimizationEnabled = 50053 -> int
+const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ContextCreated = 50004 -> int
+const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ExecutionCancelled = 50009 -> int
+const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ExecutionCompleted = 50006 -> int
+const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ExecutionFailed = 50007 -> int
+const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ExecutionStarted = 50005 -> int
+const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ExecutionTimedOut = 50008 -> int
+const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.HostingServiceStarting = 50000 -> int
+const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.HostingServiceStopping = 50001 -> int
+const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.PlatformFallback = 50056 -> int
+const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.PlatformSelected = 50055 -> int
+const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ProviderFactoryCreated = 50050 -> int
+const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ProviderReady = 50003 -> int
+const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ProviderRegistered = 50051 -> int
+const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ProviderResolved = 50052 -> int
+const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.ProviderUnavailable = 50002 -> int
+const Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId.UnableToDetectPlatform = 50057 -> int
+Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions
+Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.AwsLambdaOptions() -> void
+Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.EnableProvisionedConcurrency.get -> bool
+Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.EnableProvisionedConcurrency.set -> void
+Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.Handler.get -> string?
+Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.Handler.set -> void
+Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.PackageType.get -> string!
+Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.PackageType.set -> void
+Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.ReservedConcurrency.get -> int?
+Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.ReservedConcurrency.set -> void
+Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.Runtime.get -> string!
+Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions.Runtime.set -> void
+Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions
+Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions.AzureFunctionsOptions() -> void
+Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions.EnableDurableFunctions.get -> bool
+Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions.EnableDurableFunctions.set -> void
+Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions.HostingPlan.get -> string!
+Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions.HostingPlan.set -> void
+Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions.RuntimeVersion.get -> string!
+Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions.RuntimeVersion.set -> void
+Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions.StorageConnectionString.get -> string?
+Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions.StorageConnectionString.set -> void
+Excalibur.Dispatch.Hosting.Serverless.ColdStartOptimizerBase
+Excalibur.Dispatch.Hosting.Serverless.ColdStartOptimizerBase.ColdStartOptimizerBase(System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger! logger) -> void
+Excalibur.Dispatch.Hosting.Serverless.ColdStartOptimizerBase.OptimizeAsync() -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Hosting.Serverless.ColdStartOptimizerBase.WarmupAsync() -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions
+Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.GoogleCloudFunctionsOptions() -> void
+Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.IngressSettings.get -> string!
+Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.IngressSettings.set -> void
+Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.MaxInstances.get -> int?
+Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.MaxInstances.set -> void
+Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.MinInstances.get -> int?
+Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.MinInstances.set -> void
+Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.Runtime.get -> string!
+Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.Runtime.set -> void
+Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.VpcConnector.get -> string?
+Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions.VpcConnector.set -> void
+Excalibur.Dispatch.Hosting.Serverless.IColdStartOptimizer
+Excalibur.Dispatch.Hosting.Serverless.IColdStartOptimizer.IsEnabled.get -> bool
+Excalibur.Dispatch.Hosting.Serverless.IColdStartOptimizer.OptimizeAsync() -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Hosting.Serverless.IColdStartOptimizer.WarmupAsync() -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Hosting.Serverless.IServerlessContext
+Excalibur.Dispatch.Hosting.Serverless.IServerlessContext.ElapsedTime.get -> System.TimeSpan
+Excalibur.Dispatch.Hosting.Serverless.IServerlessContext.ExecutionDeadline.get -> System.DateTimeOffset
+Excalibur.Dispatch.Hosting.Serverless.IServerlessContext.FunctionName.get -> string!
+Excalibur.Dispatch.Hosting.Serverless.IServerlessContext.GetService(System.Type! serviceType) -> object?
+Excalibur.Dispatch.Hosting.Serverless.IServerlessContext.Logger.get -> Microsoft.Extensions.Logging.ILogger!
+Excalibur.Dispatch.Hosting.Serverless.IServerlessContext.Platform.get -> Excalibur.Dispatch.Hosting.Serverless.ServerlessPlatform
+Excalibur.Dispatch.Hosting.Serverless.IServerlessContext.PlatformContext.get -> object!
+Excalibur.Dispatch.Hosting.Serverless.IServerlessContext.Properties.get -> System.Collections.Generic.IDictionary<string!, object!>!
+Excalibur.Dispatch.Hosting.Serverless.IServerlessContext.RemainingTime.get -> System.TimeSpan
+Excalibur.Dispatch.Hosting.Serverless.IServerlessContext.RequestId.get -> string!
+Excalibur.Dispatch.Hosting.Serverless.IServerlessContext.TraceContext.get -> Excalibur.Dispatch.Hosting.Serverless.TraceContext?
+Excalibur.Dispatch.Hosting.Serverless.IServerlessHostConfigurator
+Excalibur.Dispatch.Hosting.Serverless.IServerlessHostConfigurator.ConfigureHost(Microsoft.Extensions.Hosting.IHostBuilder! hostBuilder, Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions! options) -> void
+Excalibur.Dispatch.Hosting.Serverless.IServerlessHostConfigurator.ConfigureServices(Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions! options) -> void
+Excalibur.Dispatch.Hosting.Serverless.IServerlessHostProvider
+Excalibur.Dispatch.Hosting.Serverless.IServerlessHostProvider.CreateContext(object! platformContext) -> Excalibur.Dispatch.Hosting.Serverless.IServerlessContext!
+Excalibur.Dispatch.Hosting.Serverless.IServerlessHostProvider.ExecuteAsync<TInput, TOutput>(TInput! input, Excalibur.Dispatch.Hosting.Serverless.IServerlessContext! context, System.Func<TInput!, Excalibur.Dispatch.Hosting.Serverless.IServerlessContext!, System.Threading.CancellationToken, System.Threading.Tasks.Task<TOutput!>!>! handler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TOutput!>!
+Excalibur.Dispatch.Hosting.Serverless.IServerlessHostProvider.GetService(System.Type! serviceType) -> object?
+Excalibur.Dispatch.Hosting.Serverless.IServerlessHostProvider.IsAvailable.get -> bool
+Excalibur.Dispatch.Hosting.Serverless.IServerlessHostProvider.Platform.get -> Excalibur.Dispatch.Hosting.Serverless.ServerlessPlatform
+Excalibur.Dispatch.Hosting.Serverless.IServerlessHostProviderFactory
+Excalibur.Dispatch.Hosting.Serverless.IServerlessHostProviderFactory.AvailableProviders.get -> System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Hosting.Serverless.IServerlessHostProvider!>!
+Excalibur.Dispatch.Hosting.Serverless.IServerlessHostProviderFactory.CreateProvider(Excalibur.Dispatch.Hosting.Serverless.ServerlessPlatform? preferredPlatform = null) -> Excalibur.Dispatch.Hosting.Serverless.IServerlessHostProvider!
+Excalibur.Dispatch.Hosting.Serverless.IServerlessHostProviderFactory.DetectPlatform() -> Excalibur.Dispatch.Hosting.Serverless.ServerlessPlatform
+Excalibur.Dispatch.Hosting.Serverless.IServerlessHostProviderFactory.GetProvider(Excalibur.Dispatch.Hosting.Serverless.ServerlessPlatform platform) -> Excalibur.Dispatch.Hosting.Serverless.IServerlessHostProvider!
+Excalibur.Dispatch.Hosting.Serverless.IServerlessHostProviderFactory.RegisterProvider(Excalibur.Dispatch.Hosting.Serverless.IServerlessHostProvider! provider) -> void
+Excalibur.Dispatch.Hosting.Serverless.IServerlessPlatformDetails
+Excalibur.Dispatch.Hosting.Serverless.IServerlessPlatformDetails.AccountId.get -> string!
+Excalibur.Dispatch.Hosting.Serverless.IServerlessPlatformDetails.CloudProvider.get -> string!
+Excalibur.Dispatch.Hosting.Serverless.IServerlessPlatformDetails.FunctionVersion.get -> string!
+Excalibur.Dispatch.Hosting.Serverless.IServerlessPlatformDetails.InvokedFunctionArn.get -> string!
+Excalibur.Dispatch.Hosting.Serverless.IServerlessPlatformDetails.LogGroupName.get -> string!
+Excalibur.Dispatch.Hosting.Serverless.IServerlessPlatformDetails.LogStreamName.get -> string!
+Excalibur.Dispatch.Hosting.Serverless.IServerlessPlatformDetails.MemoryLimitInMB.get -> int
+Excalibur.Dispatch.Hosting.Serverless.IServerlessPlatformDetails.Region.get -> string!
+Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase
+Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.Dispose() -> void
+Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.ElapsedTime.get -> System.TimeSpan
+Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.GetService(System.Type! serviceType) -> object?
+Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.Logger.get -> Microsoft.Extensions.Logging.ILogger!
+Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.Platform.get -> Excalibur.Dispatch.Hosting.Serverless.ServerlessPlatform
+Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.PlatformContext.get -> object!
+Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.Properties.get -> System.Collections.Generic.IDictionary<string!, object!>!
+Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.RemainingTime.get -> System.TimeSpan
+Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.ServerlessContextBase(object! platformContext, Excalibur.Dispatch.Hosting.Serverless.ServerlessPlatform platform, Microsoft.Extensions.Logging.ILogger! logger) -> void
+Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.ThrowIfDisposed() -> void
+Excalibur.Dispatch.Hosting.Serverless.ServerlessEventId
+Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions
+Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.AwsLambda.get -> Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions!
+Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.AwsLambda.set -> void
+Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.AzureFunctions.get -> Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions!
+Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.AzureFunctions.set -> void
+Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.EnableColdStartOptimization.get -> bool
+Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.EnableColdStartOptimization.set -> void
+Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.EnvironmentVariables.get -> System.Collections.Generic.IDictionary<string!, string!>!
+Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.ExecutionTimeout.get -> System.TimeSpan?
+Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.ExecutionTimeout.set -> void
+Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.GoogleCloudFunctions.get -> Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions!
+Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.GoogleCloudFunctions.set -> void
+Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.MemoryLimitMB.get -> int?
+Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.MemoryLimitMB.set -> void
+Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.PreferredPlatform.get -> Excalibur.Dispatch.Hosting.Serverless.ServerlessPlatform?
+Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.PreferredPlatform.set -> void
+Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.ServerlessHostOptions() -> void
+Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.Telemetry.get -> Excalibur.Dispatch.Hosting.Serverless.ServerlessTelemetryOptions!
+Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions.Telemetry.set -> void
+Excalibur.Dispatch.Hosting.Serverless.ServerlessPlatform
+Excalibur.Dispatch.Hosting.Serverless.ServerlessPlatform.AwsLambda = 1 -> Excalibur.Dispatch.Hosting.Serverless.ServerlessPlatform
+Excalibur.Dispatch.Hosting.Serverless.ServerlessPlatform.AzureFunctions = 2 -> Excalibur.Dispatch.Hosting.Serverless.ServerlessPlatform
+Excalibur.Dispatch.Hosting.Serverless.ServerlessPlatform.GoogleCloudFunctions = 3 -> Excalibur.Dispatch.Hosting.Serverless.ServerlessPlatform
+Excalibur.Dispatch.Hosting.Serverless.ServerlessPlatform.Unknown = 0 -> Excalibur.Dispatch.Hosting.Serverless.ServerlessPlatform
+Excalibur.Dispatch.Hosting.Serverless.ServerlessTelemetryOptions
+Excalibur.Dispatch.Hosting.Serverless.ServerlessTelemetryOptions.EnableDistributedTracing.get -> bool
+Excalibur.Dispatch.Hosting.Serverless.ServerlessTelemetryOptions.EnableDistributedTracing.set -> void
+Excalibur.Dispatch.Hosting.Serverless.ServerlessTelemetryOptions.EnableMetrics.get -> bool
+Excalibur.Dispatch.Hosting.Serverless.ServerlessTelemetryOptions.EnableMetrics.set -> void
+Excalibur.Dispatch.Hosting.Serverless.ServerlessTelemetryOptions.EnableStructuredLogging.get -> bool
+Excalibur.Dispatch.Hosting.Serverless.ServerlessTelemetryOptions.EnableStructuredLogging.set -> void
+Excalibur.Dispatch.Hosting.Serverless.ServerlessTelemetryOptions.ServerlessTelemetryOptions() -> void
+Excalibur.Dispatch.Hosting.Serverless.TraceContext
+Excalibur.Dispatch.Hosting.Serverless.TraceContext.ParentSpanId.get -> string?
+Excalibur.Dispatch.Hosting.Serverless.TraceContext.ParentSpanId.init -> void
+Excalibur.Dispatch.Hosting.Serverless.TraceContext.SpanId.get -> string!
+Excalibur.Dispatch.Hosting.Serverless.TraceContext.SpanId.init -> void
+Excalibur.Dispatch.Hosting.Serverless.TraceContext.TraceFlags.get -> string?
+Excalibur.Dispatch.Hosting.Serverless.TraceContext.TraceFlags.init -> void
+Excalibur.Dispatch.Hosting.Serverless.TraceContext.TraceId.get -> string!
+Excalibur.Dispatch.Hosting.Serverless.TraceContext.TraceId.init -> void
+Excalibur.Dispatch.Hosting.Serverless.TraceContext.TraceParent.get -> string?
+Excalibur.Dispatch.Hosting.Serverless.TraceContext.TraceParent.init -> void
+Excalibur.Dispatch.Hosting.Serverless.TraceContext.TraceState.get -> string?
+Excalibur.Dispatch.Hosting.Serverless.TraceContext.TraceState.init -> void
+Microsoft.Extensions.DependencyInjection.ServerlessServiceCollectionExtensions
+Microsoft.Extensions.Hosting.ServerlessHostBuilderExtensions
+static Microsoft.Extensions.DependencyInjection.ServerlessServiceCollectionExtensions.AddAwsLambdaHosting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ServerlessServiceCollectionExtensions.AddAzureFunctionsHosting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ServerlessServiceCollectionExtensions.AddCustomServerlessProvider(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.Hosting.Serverless.IServerlessHostProvider! provider) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ServerlessServiceCollectionExtensions.AddGoogleCloudFunctionsHosting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ServerlessServiceCollectionExtensions.AddServerlessHosting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.Hosting.ServerlessHostBuilderExtensions.UseAwsLambda(this Microsoft.Extensions.Hosting.IHostBuilder! hostBuilder, System.Action<Excalibur.Dispatch.Hosting.Serverless.AwsLambdaOptions!>? configureOptions = null) -> Microsoft.Extensions.Hosting.IHostBuilder!
+static Microsoft.Extensions.Hosting.ServerlessHostBuilderExtensions.UseAzureFunctions(this Microsoft.Extensions.Hosting.IHostBuilder! hostBuilder, System.Action<Excalibur.Dispatch.Hosting.Serverless.AzureFunctionsOptions!>? configureOptions = null) -> Microsoft.Extensions.Hosting.IHostBuilder!
+static Microsoft.Extensions.Hosting.ServerlessHostBuilderExtensions.UseGoogleCloudFunctions(this Microsoft.Extensions.Hosting.IHostBuilder! hostBuilder, System.Action<Excalibur.Dispatch.Hosting.Serverless.GoogleCloudFunctionsOptions!>? configureOptions = null) -> Microsoft.Extensions.Hosting.IHostBuilder!
+static Microsoft.Extensions.Hosting.ServerlessHostBuilderExtensions.UseServerlessHosting(this Microsoft.Extensions.Hosting.IHostBuilder! hostBuilder, System.Action<Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions!>? configureOptions = null) -> Microsoft.Extensions.Hosting.IHostBuilder!
+virtual Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.Dispose(bool disposing) -> void
+virtual Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.TraceContext.get -> Excalibur.Dispatch.Hosting.Serverless.TraceContext?
+virtual Excalibur.Dispatch.Hosting.Serverless.ServerlessContextBase.TraceContext.set -> void

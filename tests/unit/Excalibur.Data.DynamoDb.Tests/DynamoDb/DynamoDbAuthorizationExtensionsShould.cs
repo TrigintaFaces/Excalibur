@@ -49,7 +49,7 @@ public sealed class DynamoDbAuthorizationExtensionsShould
 		// Act
 		var result = services.AddDynamoDbAuthorization(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 		});
 
 		// Assert
@@ -65,7 +65,7 @@ public sealed class DynamoDbAuthorizationExtensionsShould
 		// Act
 		services.AddDynamoDbAuthorization(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 		});
 
 		// Assert
@@ -83,7 +83,7 @@ public sealed class DynamoDbAuthorizationExtensionsShould
 		// Act
 		services.AddDynamoDbAuthorization(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 		});
 
 		// Assert
@@ -193,7 +193,7 @@ public sealed class DynamoDbAuthorizationExtensionsShould
 		// Act
 		var result = services.AddDynamoDbGrantStore(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 		});
 
 		// Assert
@@ -209,7 +209,7 @@ public sealed class DynamoDbAuthorizationExtensionsShould
 		// Act
 		services.AddDynamoDbGrantStore(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 		});
 
 		// Assert
@@ -227,7 +227,7 @@ public sealed class DynamoDbAuthorizationExtensionsShould
 		// Act
 		services.AddDynamoDbGrantStore(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 		});
 
 		// Assert
@@ -269,7 +269,7 @@ public sealed class DynamoDbAuthorizationExtensionsShould
 		// Act
 		var result = services.AddDynamoDbActivityGroupGrantStore(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 		});
 
 		// Assert
@@ -285,7 +285,7 @@ public sealed class DynamoDbAuthorizationExtensionsShould
 		// Act
 		services.AddDynamoDbActivityGroupGrantStore(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 		});
 
 		// Assert
@@ -303,7 +303,7 @@ public sealed class DynamoDbAuthorizationExtensionsShould
 		// Act
 		services.AddDynamoDbActivityGroupGrantStore(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 		});
 
 		// Assert

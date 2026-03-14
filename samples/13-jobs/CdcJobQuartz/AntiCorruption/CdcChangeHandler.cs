@@ -3,7 +3,7 @@
 
 using CdcJobQuartz.Domain;
 
-using Excalibur.Data.SqlServer.Cdc;
+using Excalibur.Cdc.SqlServer;
 using Excalibur.EventSourcing.Abstractions;
 
 using Microsoft.Extensions.Logging;

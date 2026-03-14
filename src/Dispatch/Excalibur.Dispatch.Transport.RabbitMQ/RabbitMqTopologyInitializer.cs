@@ -7,7 +7,7 @@ using RabbitMQ.Client;
 
 namespace Excalibur.Dispatch.Transport.RabbitMQ;
 
-public sealed partial class RabbitMqTopologyInitializer
+internal sealed partial class RabbitMqTopologyInitializer
 {
 	private const string QuorumQueueType = "quorum";
 	private const string QueueTypeKey = "x-queue-type";
@@ -48,7 +48,7 @@ public sealed partial class RabbitMqTopologyInitializer
 				.ExchangeDeclareAsync(
 					exchange: exchangeName,
 					type: exchangeType,
-					durable: _cloudEventOptions?.DurableExchanges ?? true,
+					durable: _cloudEventOptions?.Exchange.DurableExchanges ?? true,
 					autoDelete: false,
 					arguments: null,
 					cancellationToken: cancellationToken)
@@ -71,16 +71,16 @@ public sealed partial class RabbitMqTopologyInitializer
 		_ = await channel
 			.QueueDeclareAsync(
 				queue: queueName,
-				durable: _options.QueueDurable,
-				exclusive: _options.QueueExclusive,
-				autoDelete: _options.QueueAutoDelete,
+				durable: _options.Queue.QueueDurable,
+				exclusive: _options.Queue.QueueExclusive,
+				autoDelete: _options.Queue.QueueAutoDelete,
 				arguments: queueArguments,
 				cancellationToken: cancellationToken)
 			.ConfigureAwait(false);
 
 		if (_logger is not null)
 		{
-			LogQueueDeclared(_logger, queueName, _options.QueueDurable, _options.QueueAutoDelete);
+			LogQueueDeclared(_logger, queueName, _options.Queue.QueueDurable, _options.Queue.QueueAutoDelete);
 		}
 
 		if (!string.IsNullOrWhiteSpace(exchangeName))
@@ -129,28 +129,28 @@ public sealed partial class RabbitMqTopologyInitializer
 	private string ResolveExchangeName() =>
 		!string.IsNullOrWhiteSpace(_options.Exchange)
 			? _options.Exchange
-			: _cloudEventOptions?.DefaultExchange ?? string.Empty;
+			: _cloudEventOptions?.Exchange.DefaultExchange ?? string.Empty;
 
 	private string ResolveQueueName() =>
-		!string.IsNullOrWhiteSpace(_options.QueueName)
-			? _options.QueueName
+		!string.IsNullOrWhiteSpace(_options.Queue.QueueName)
+			? _options.Queue.QueueName
 			: _cloudEventOptions?.DefaultQueue ?? string.Empty;
 
 	private string ResolveExchangeType()
 	{
-		var exchangeType = _cloudEventOptions?.ExchangeType ?? RabbitMqExchangeType.Topic;
+		var exchangeType = _cloudEventOptions?.Exchange.ExchangeType ?? RabbitMQExchangeType.Topic;
 		return exchangeType switch
 		{
-			RabbitMqExchangeType.Direct => ExchangeType.Direct,
-			RabbitMqExchangeType.Fanout => ExchangeType.Fanout,
-			RabbitMqExchangeType.Headers => ExchangeType.Headers,
+			RabbitMQExchangeType.Direct => ExchangeType.Direct,
+			RabbitMQExchangeType.Fanout => ExchangeType.Fanout,
+			RabbitMQExchangeType.Headers => ExchangeType.Headers,
 			_ => ExchangeType.Topic,
 		};
 	}
 
 	private Dictionary<string, object?> BuildQueueArguments()
 	{
-		var arguments = new Dictionary<string, object?>(_options.QueueArguments, StringComparer.Ordinal);
+		var arguments = new Dictionary<string, object?>(_options.Queue.QueueArguments, StringComparer.Ordinal);
 
 		if (_cloudEventOptions?.UseQuorumQueues == true &&
 			!arguments.ContainsKey(QueueTypeKey))
@@ -165,13 +165,13 @@ public sealed partial class RabbitMqTopologyInitializer
 			arguments[DeadLetterExchangeKey] = deadLetterExchange;
 		}
 
-		if (!string.IsNullOrWhiteSpace(_options.DeadLetterRoutingKey) &&
+		if (!string.IsNullOrWhiteSpace(_options.DeadLetter.DeadLetterRoutingKey) &&
 			!arguments.ContainsKey(DeadLetterRoutingKey))
 		{
-			arguments[DeadLetterRoutingKey] = _options.DeadLetterRoutingKey;
+			arguments[DeadLetterRoutingKey] = _options.DeadLetter.DeadLetterRoutingKey;
 		}
 
-		if (_cloudEventOptions?.MessageTtl is { } ttl &&
+		if (_cloudEventOptions?.Exchange.MessageTtl is { } ttl &&
 			ttl > TimeSpan.Zero &&
 			!arguments.ContainsKey(MessageTtlKey))
 		{
@@ -183,15 +183,15 @@ public sealed partial class RabbitMqTopologyInitializer
 
 	private string? ResolveDeadLetterExchange()
 	{
-		if (_options.EnableDeadLetterExchange && !string.IsNullOrWhiteSpace(_options.DeadLetterExchange))
+		if (_options.DeadLetter.EnableDeadLetterExchange && !string.IsNullOrWhiteSpace(_options.DeadLetter.DeadLetterExchange))
 		{
-			return _options.DeadLetterExchange;
+			return _options.DeadLetter.DeadLetterExchange;
 		}
 
-		if (_cloudEventOptions?.EnableDeadLetterExchange == true &&
-			!string.IsNullOrWhiteSpace(_cloudEventOptions.DeadLetterExchange))
+		if (_cloudEventOptions?.DeadLetter.EnableDeadLetterExchange == true &&
+			!string.IsNullOrWhiteSpace(_cloudEventOptions.DeadLetter.DeadLetterExchange))
 		{
-			return _cloudEventOptions.DeadLetterExchange;
+			return _cloudEventOptions.DeadLetter.DeadLetterExchange;
 		}
 
 		return null;
@@ -209,7 +209,7 @@ public sealed partial class RabbitMqTopologyInitializer
 			.ExchangeDeclareAsync(
 				exchange: deadLetterExchange,
 				type: ExchangeType.Direct,
-				durable: _cloudEventOptions?.DurableExchanges ?? true,
+				durable: _cloudEventOptions?.Exchange.DurableExchanges ?? true,
 				autoDelete: false,
 				arguments: null,
 				cancellationToken: cancellationToken)

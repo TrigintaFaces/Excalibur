@@ -104,7 +104,7 @@ public static class GoogleCloudEventsServiceCollectionExtensions
 
 		if (enableDoDCompliance)
 		{
-			_ = services.Configure<CloudEventOptions>(static options => options.CustomValidator = static (cloudEvent, cancellationToken) =>
+			_ = services.Configure<CloudEventOptions>(static options => options.Schema.CustomValidator = static (cloudEvent, cancellationToken) =>
 			{
 				// Validate DoD-required envelope properties
 				var hasCorrelationId = cloudEvent.GetAttribute("correlationid") != null;

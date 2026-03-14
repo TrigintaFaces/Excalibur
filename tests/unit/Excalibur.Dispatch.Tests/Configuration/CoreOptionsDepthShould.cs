@@ -66,28 +66,6 @@ public sealed class CoreOptionsDepthShould
 		Enum.GetValues<CompressionType>().Length.ShouldBe(5);
 	}
 
-	// --- DispatchProfileOptions ---
-
-	[Fact]
-	public void DispatchProfileOptions_DefaultValues_AreCorrect()
-	{
-		// Act
-		var options = new DispatchProfileOptions();
-
-		// Assert
-		options.ProfileName.ShouldBe(string.Empty);
-	}
-
-	[Fact]
-	public void DispatchProfileOptions_ProfileName_IsSettable()
-	{
-		// Act
-		var options = new DispatchProfileOptions { ProfileName = "production" };
-
-		// Assert
-		options.ProfileName.ShouldBe("production");
-	}
-
 	// --- EncryptionOptions ---
 
 	[Fact]
@@ -354,19 +332,6 @@ public sealed class CoreOptionsDepthShould
 		options.Timeout.ShouldBe(TimeSpan.FromSeconds(5));
 		options.Interval.ShouldBe(TimeSpan.FromMinutes(1));
 		options.FailureThreshold.ShouldBe(5);
-	}
-
-	// --- MiddlewareRegistrationOptions ---
-
-	[Fact]
-	public void MiddlewareRegistrationOptions_DefaultValues_AreCorrect()
-	{
-		// Act
-		var options = new MiddlewareRegistrationOptions();
-
-		// Assert
-		options.Registrations.ShouldNotBeNull();
-		options.Registrations.ShouldBeEmpty();
 	}
 
 	// --- MultiTransportOptions ---

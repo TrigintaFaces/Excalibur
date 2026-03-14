@@ -40,7 +40,7 @@ public static class DatadogServiceCollectionExtensions
 		_ = services.AddHttpClient<DatadogAuditExporter>((sp, client) =>
 		{
 			var options = sp.GetRequiredService<IOptions<DatadogExporterOptions>>().Value;
-			client.Timeout = options.Timeout;
+			client.Timeout = options.Retry.Timeout;
 		});
 
 		_ = services.AddSingleton<IAuditLogExporter, DatadogAuditExporter>();

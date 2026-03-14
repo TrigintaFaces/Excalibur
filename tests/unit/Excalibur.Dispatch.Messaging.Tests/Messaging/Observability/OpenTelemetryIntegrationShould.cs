@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.BatchProcessing;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Batch;
@@ -12,7 +13,7 @@ using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Options.Performance;
 using Excalibur.Dispatch.Tests.TestFakes;
 
-using Excalibur.Data.InMemory.Inbox;
+using Excalibur.Inbox.InMemory;
 
 using MessageResult = Excalibur.Dispatch.Tests.TestFakes.MessageResult;
 
@@ -46,16 +47,6 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		_testActivitySource = new ActivitySource("Test", "1.0.0");
 	}
 
-	private static async Task<bool> WaitForConditionAsync(Func<bool> condition, TimeSpan timeout)
-	{
-		var scaledTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(timeout);
-		return await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-				condition,
-				scaledTimeout,
-				TimeSpan.FromMilliseconds(100))
-			.ConfigureAwait(false);
-	}
-
 	[Fact]
 	public async Task CreateDistributedTracingSpansForBatchingMiddleware()
 	{
@@ -68,8 +59,8 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var context = new FakeMessageContext
 		{
 			MessageId = message.Id.ToString(),
-			MessageType = message.GetType().Name
 		};
+		context.SetMessageType(message.GetType().Name);
 		var nextCalled = false;
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
@@ -101,7 +92,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var invokeActivity = batchingActivities.FirstOrDefault(a => a.DisplayName == "UnifiedBatchingMiddleware.Invoke");
 		_ = invokeActivity.ShouldNotBeNull();
 		invokeActivity.GetTagItem("message.id").ShouldBe(context.MessageId);
-		invokeActivity.GetTagItem("message.type").ShouldBe(context.MessageType);
+		invokeActivity.GetTagItem("message.type").ShouldBe(context.GetMessageType());
 		_ = invokeActivity.GetTagItem("batching.enabled").ShouldNotBeNull();
 	}
 
@@ -120,8 +111,8 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var context = new FakeMessageContext
 		{
 			MessageId = message.Id.ToString(),
-			MessageType = message.GetType().Name
 		};
+		context.SetMessageType(message.GetType().Name);
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 		{
@@ -149,7 +140,8 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 	{
 		// Arrange
 		var processedItems = new ConcurrentBag<string>();
-		var tcs = new TaskCompletionSource<bool>();
+		var processedItemCount = 0;
+		var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		var processor = new BatchProcessor<string>(
 			batch =>
@@ -159,7 +151,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 					processedItems.Add(item);
 				}
 
-				if (processedItems.Count >= 4)
+				if (Interlocked.Add(ref processedItemCount, batch.Count) >= 4)
 				{
 					_ = tcs.TrySetResult(true);
 				}
@@ -186,6 +178,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		_ = _disposables.Remove(processor); // Remove to avoid double disposal in test cleanup
 
 		// Assert
+		Volatile.Read(ref processedItemCount).ShouldBe(4);
 		processedItems.Count.ShouldBe(4);
 
 		// Verify metrics infrastructure is operational
@@ -199,30 +192,22 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 	public async Task EmitCorrectMetricsForBatchSizeAndDuration()
 	{
 		// Arrange
-		var batchProcessed = new TaskCompletionSource<bool>();
 		var processedBatches = new ConcurrentBag<IReadOnlyList<string>>();
 
-		var processor = new BatchProcessor<string>(
+		// Act
+		await using (var processor = new BatchProcessor<string>(
 			batch =>
 			{
 				processedBatches.Add(batch);
-				_ = batchProcessed.TrySetResult(true);
 				return ValueTask.CompletedTask;
 			},
 			_processorLogger,
-			new MicroBatchOptions { MaxBatchSize = 2, MaxBatchDelay = TimeSpan.FromMilliseconds(50) });
+			new MicroBatchOptions { MaxBatchSize = 2, MaxBatchDelay = TimeSpan.FromMilliseconds(50) }))
+		{
+			await processor.AddAsync("item1", CancellationToken.None).ConfigureAwait(false);
+			await processor.AddAsync("item2", CancellationToken.None).ConfigureAwait(false); // Should trigger batch size limit
+		}
 
-		_disposables.Add(processor);
-
-		// Act
-		await processor.AddAsync("item1", CancellationToken.None).ConfigureAwait(false);
-		await processor.AddAsync("item2", CancellationToken.None).ConfigureAwait(false); // Should trigger batch size limit
-
-		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-
-			batchProcessed.Task,
-
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		// Assert
 		processedBatches.Count.ShouldBe(1);
 		processedBatches.ShouldContain(batch => batch.Count == 2);
@@ -244,22 +229,16 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var context = new FakeMessageContext
 		{
 			MessageId = message.Id.ToString(),
-			MessageType = message.GetType().Name
 		};
-		var processingCompleted = new TaskCompletionSource<bool>();
+		context.SetMessageType(message.GetType().Name);
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 		{
-			_ = processingCompleted.TrySetResult(true);
 			return new ValueTask<IMessageResult>(MessageResult.Success());
 		}
 
 		// Act
-		var resultTask = middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None);
-		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-			processingCompleted.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
-		var result = await resultTask.ConfigureAwait(false);
+		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		result.IsSuccess.ShouldBeTrue();
@@ -316,8 +295,8 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var context = new FakeMessageContext
 		{
 			MessageId = message.Id.ToString(),
-			MessageType = message.GetType().Name
 		};
+		context.SetMessageType(message.GetType().Name);
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 		{
@@ -348,7 +327,8 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 	{
 		// Arrange
 		var processedItems = new ConcurrentBag<(string Item, string? TraceId)>();
-		var tcs = new TaskCompletionSource<bool>();
+		var processedItemCount = 0;
+		var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		var processor = new BatchProcessor<string>(
 			batch =>
@@ -358,7 +338,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 					processedItems.Add((item, Activity.Current?.TraceId.ToString()));
 				}
 
-				if (processedItems.Count >= 3)
+				if (Interlocked.Add(ref processedItemCount, batch.Count) >= 3)
 				{
 					_ = tcs.TrySetResult(true);
 				}
@@ -386,6 +366,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 
 			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		// Assert
+		Volatile.Read(ref processedItemCount).ShouldBe(3);
 		processedItems.Count.ShouldBe(3);
 
 		// Verify trace context is maintained or appropriately handled in batch processing
@@ -426,8 +407,8 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var context = new FakeMessageContext
 		{
 			MessageId = message.Id.ToString(),
-			MessageType = message.GetType().Name
 		};
+		context.SetMessageType(message.GetType().Name);
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 		{
@@ -450,7 +431,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 
 		_ = invokeActivity.ShouldNotBeNull();
 		invokeActivity.GetTagItem("message.id").ShouldBe(context.MessageId);
-		invokeActivity.GetTagItem("message.type").ShouldBe(context.MessageType);
+		invokeActivity.GetTagItem("message.type").ShouldBe(context.GetMessageType());
 		invokeActivity.GetTagItem("batching.key").ShouldBe("test-batch-key");
 		invokeActivity.GetTagItem("batching.enabled").ShouldBe(true);
 		invokeActivity.GetTagItem("batching.added").ShouldBe(true);
@@ -460,7 +441,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 	public async Task EmitSpecificMetricsWithCorrectValues()
 	{
 		// Arrange
-		var batchProcessed = new TaskCompletionSource<bool>();
+		var batchProcessed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		var metricsCollected = new ConcurrentBag<(string Name, object Value, KeyValuePair<string, object?>[] Tags)>();
 
 		// Enhanced meter listener to capture tags - listening for correct meter name
@@ -481,24 +462,20 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var processor = new BatchProcessor<string>(
 			batch =>
 			{
-				_ = batchProcessed.TrySetResult(true);
+				_ = batchProcessed.TrySetResult();
 				return ValueTask.CompletedTask;
 			},
 			_processorLogger,
-			new MicroBatchOptions { MaxBatchSize = 2, MaxBatchDelay = TimeSpan.FromMilliseconds(100) });
+			new MicroBatchOptions { MaxBatchSize = 1, MaxBatchDelay = TimeSpan.FromSeconds(10) });
 
 		_disposables.Add(processor);
 
 		// Act
 		await processor.AddAsync("test-item-1", CancellationToken.None).ConfigureAwait(false);
-		await processor.AddAsync("test-item-2", CancellationToken.None).ConfigureAwait(false); // Should trigger batch
 
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-
 			batchProcessed.Task,
-
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
-			_ = await WaitForConditionAsync(() => !metricsCollected.IsEmpty, ObservabilityWaitTimeout);
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 
 		// Assert - verify batch processing completed and metrics infrastructure works
 		// Note: Metrics emission depends on the internal meter configuration
@@ -549,11 +526,11 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var context = new FakeMessageContext
 		{
 			MessageId = message.Id.ToString(),
-			MessageType = message.GetType().Name
 		};
+		context.SetMessageType(message.GetType().Name);
 		context.SetCorrelationId(expectedCorrelationId);
 		context.CausationId = expectedCausationId.ToString();
-		context.TenantId = expectedTenantId;
+		context.GetOrCreateIdentityFeature().TenantId = expectedTenantId;
 
 		var observedCorrelationIds = new ConcurrentBag<string>();
 		var observedTenantIds = new ConcurrentBag<string>();
@@ -665,8 +642,8 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 			var context = new FakeMessageContext
 			{
 				MessageId = message.Id.ToString(),
-				MessageType = message.GetType().Name
 			};
+			context.SetMessageType(message.GetType().Name);
 
 			ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 			{
@@ -715,7 +692,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		performanceMeterListener.SetMeasurementEventCallback<double>((instrument, measurement, tags, state) => performanceMetrics.Add((instrument.Name, measurement, DateTime.UtcNow)));
 		performanceMeterListener.Start();
 
-		var completionSignal = new TaskCompletionSource<bool>();
+		var completionSignal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var processor = new BatchProcessor<string>(
 			async batch =>
 			{
@@ -734,13 +711,9 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		await processor.AddAsync("perf-test-3", CancellationToken.None).ConfigureAwait(false); // Should trigger batch
 
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-
 			completionSignal.Task,
-
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 		var processingEnd = DateTime.UtcNow;
-
-			_ = await WaitForConditionAsync(() => !performanceMetrics.IsEmpty, ObservabilityWaitTimeout);
 
 		// Assert
 		var processingDuration = (processingEnd - processingStart).TotalMilliseconds;
@@ -791,10 +764,10 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var context = new FakeMessageContext
 		{
 			MessageId = message.Id.ToString(),
-			MessageType = message.GetType().Name
 		};
+		context.SetMessageType(message.GetType().Name);
 		context.SetCorrelationId(correlationId);
-		context.TenantId = tenantId;
+		context.GetOrCreateIdentityFeature().TenantId = tenantId;
 
 		ValueTask<IMessageResult> NextDelegate(IDispatchMessage msg, IMessageContext ctx, CancellationToken ct)
 		{
@@ -803,8 +776,6 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 
 		// Act
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(true);
-
-			_ = await WaitForConditionAsync(() => !logEntries.IsEmpty, ObservabilityWaitTimeout);
 
 		// Assert
 		result.IsSuccess.ShouldBeTrue();
@@ -852,8 +823,8 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var context = new FakeMessageContext
 		{
 			MessageId = message.Id.ToString(),
-			MessageType = message.GetType().Name
 		};
+		context.SetMessageType(message.GetType().Name);
 
 		using var cts = new CancellationTokenSource();
 		var cancellationHandled = false;
@@ -928,7 +899,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var observedTraceIds = new ConcurrentBag<string>();
 		var observedSpanIds = new ConcurrentBag<string>();
 
-		var completionSignal = new TaskCompletionSource<bool>();
+		var completionSignal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var processor = new BatchProcessor<string>(
 			async batch =>
 			{
@@ -990,7 +961,7 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		var batchMetrics = new ConcurrentBag<(string MetricName, double Value, string[] Tags)>();
 		var batchesProcessed = 0;
 		var totalItemsProcessed = 0;
-		var allBatchesCompleted = new TaskCompletionSource<bool>();
+		var allBatchesCompleted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		using var aggregationMeterListener = new MeterListener();
 		aggregationMeterListener.InstrumentPublished = (instrument, listener) =>
@@ -1032,34 +1003,25 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 				return ValueTask.CompletedTask;
 			},
 			_processorLogger,
-			new MicroBatchOptions { MaxBatchSize = 2, MaxBatchDelay = TimeSpan.FromMilliseconds(100) });
+			new MicroBatchOptions { MaxBatchSize = 2, MaxBatchDelay = TimeSpan.FromSeconds(5) });
 
 		_disposables.Add(processor);
 
-		// Act - Process multiple batches
+		// Act - Process three deterministic size-triggered batches
 		await processor.AddAsync("batch1-item1", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("batch1-item2", CancellationToken.None).ConfigureAwait(false); // Batch 1 (size trigger)
-
-		(await WaitForConditionAsync(() => Volatile.Read(ref batchesProcessed) >= 1, TimeSpan.FromSeconds(15)))
-			.ShouldBeTrue("first batch should be processed");
 
 		await processor.AddAsync("batch2-item1", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("batch2-item2", CancellationToken.None).ConfigureAwait(false); // Batch 2 (size trigger)
 
-		(await WaitForConditionAsync(() => Volatile.Read(ref batchesProcessed) >= 2, TimeSpan.FromSeconds(15)))
-			.ShouldBeTrue("second batch should be processed");
-
-			await processor.AddAsync("batch3-item1", CancellationToken.None).ConfigureAwait(false);
-			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-				allBatchesCompleted.Task,
-				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
-		(await WaitForConditionAsync(() => Volatile.Read(ref totalItemsProcessed) >= 5, TimeSpan.FromSeconds(15)))
-			.ShouldBeTrue("all enqueued items should be processed before aggregation assertions");
-			_ = await WaitForConditionAsync(() => !batchMetrics.IsEmpty, ObservabilityWaitTimeout);
-
+		await processor.AddAsync("batch3-item1", CancellationToken.None).ConfigureAwait(false);
+		await processor.AddAsync("batch3-item2", CancellationToken.None).ConfigureAwait(false); // Batch 3 (size trigger)
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			allBatchesCompleted.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 		// Assert - Primary assertions: batch processing completed correctly
 		batchesProcessed.ShouldBeGreaterThanOrEqualTo(3);
-		totalItemsProcessed.ShouldBeGreaterThanOrEqualTo(5);
+		totalItemsProcessed.ShouldBeGreaterThanOrEqualTo(6);
 
 		// Verify metrics aggregation if metrics were collected
 		var allMetrics = batchMetrics.ToList();

@@ -4,6 +4,7 @@
 using CloudNative.CloudEvents;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.CloudEvents;
 using Excalibur.Dispatch.Options.CloudEvents;
 using Excalibur.Dispatch.Tests.TestFakes;
@@ -147,7 +148,7 @@ public sealed class CloudEventMiddlewareShould
 	public async Task ProcessIncomingCloudEvent_FromContextItems()
 	{
 		// Arrange
-		var middleware = CreateMiddleware(new CloudEventOptions { ValidateSchema = false });
+		var middleware = CreateMiddleware(new CloudEventOptions { Schema = { ValidateSchema = false } });
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext { MessageId = "test-1" };
 
@@ -166,14 +167,14 @@ public sealed class CloudEventMiddlewareShould
 		// Assert
 		result.IsSuccess.ShouldBeTrue();
 		context.MessageId.ShouldBe("ce-123");
-		context.Source.ShouldBe("urn:test-source");
+		context.GetSource().ShouldBe("urn:test-source");
 	}
 
 	[Fact]
 	public async Task EnrichContext_WithCorrelationId_FromCloudEventExtension()
 	{
 		// Arrange
-		var middleware = CreateMiddleware(new CloudEventOptions { ValidateSchema = false });
+		var middleware = CreateMiddleware(new CloudEventOptions { Schema = { ValidateSchema = false } });
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext { MessageId = "test-1" };
 
@@ -197,7 +198,7 @@ public sealed class CloudEventMiddlewareShould
 	public async Task EnrichContext_WithTraceParent_FromCloudEventExtension()
 	{
 		// Arrange
-		var middleware = CreateMiddleware(new CloudEventOptions { ValidateSchema = false });
+		var middleware = CreateMiddleware(new CloudEventOptions { Schema = { ValidateSchema = false } });
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext { MessageId = "test-1" };
 
@@ -214,14 +215,14 @@ public sealed class CloudEventMiddlewareShould
 		_ = await middleware.InvokeAsync(message, context, CreateSuccessDelegate(), CancellationToken.None);
 
 		// Assert
-		context.TraceParent.ShouldBe("00-trace-id-span-id-01");
+		context.GetTraceParent().ShouldBe("00-trace-id-span-id-01");
 	}
 
 	[Fact]
 	public async Task CopyExtensionAttributes_ToContextItems()
 	{
 		// Arrange
-		var middleware = CreateMiddleware(new CloudEventOptions { ValidateSchema = false });
+		var middleware = CreateMiddleware(new CloudEventOptions { Schema = { ValidateSchema = false } });
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext { MessageId = "test-1" };
 
@@ -246,7 +247,7 @@ public sealed class CloudEventMiddlewareShould
 	public async Task ExcludeExtensions_WhenConfiguredInOptions()
 	{
 		// Arrange
-		var options = new CloudEventOptions { ValidateSchema = false };
+		var options = new CloudEventOptions { Schema = { ValidateSchema = false } };
 		options.ExcludedExtensions.Add("secretext");
 
 		var middleware = CreateMiddleware(options);
@@ -279,7 +280,7 @@ public sealed class CloudEventMiddlewareShould
 	public async Task ThrowInvalidOperationException_WhenCloudEventHasNoType()
 	{
 		// Arrange
-		var middleware = CreateMiddleware(new CloudEventOptions { ValidateSchema = false });
+		var middleware = CreateMiddleware(new CloudEventOptions { Schema = { ValidateSchema = false } });
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext { MessageId = "test-1" };
 
@@ -303,11 +304,14 @@ public sealed class CloudEventMiddlewareShould
 		var validatorCalled = false;
 		var options = new CloudEventOptions
 		{
-			ValidateSchema = false,
-			CustomValidator = (ce, ct) =>
+			Schema =
 			{
-				validatorCalled = true;
-				return Task.FromResult(true);
+				ValidateSchema = false,
+				CustomValidator = (ce, ct) =>
+				{
+					validatorCalled = true;
+					return Task.FromResult(true);
+				},
 			},
 		};
 		var middleware = CreateMiddleware(options);
@@ -335,8 +339,11 @@ public sealed class CloudEventMiddlewareShould
 		// Arrange
 		var options = new CloudEventOptions
 		{
-			ValidateSchema = false,
-			CustomValidator = (ce, ct) => Task.FromResult(false),
+			Schema =
+			{
+				ValidateSchema = false,
+				CustomValidator = (ce, ct) => Task.FromResult(false),
+			},
 		};
 		var middleware = CreateMiddleware(options);
 		var message = new FakeDispatchMessage();
@@ -386,7 +393,7 @@ public sealed class CloudEventMiddlewareShould
 	public async Task DetectIncomingCloudEvent_FromAlternateKey()
 	{
 		// Arrange
-		var middleware = CreateMiddleware(new CloudEventOptions { ValidateSchema = false });
+		var middleware = CreateMiddleware(new CloudEventOptions { Schema = { ValidateSchema = false } });
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext { MessageId = "test-1" };
 
@@ -414,7 +421,7 @@ public sealed class CloudEventMiddlewareShould
 	public async Task SetSentTimestamp_FromCloudEventTime()
 	{
 		// Arrange
-		var middleware = CreateMiddleware(new CloudEventOptions { ValidateSchema = false });
+		var middleware = CreateMiddleware(new CloudEventOptions { Schema = { ValidateSchema = false } });
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext { MessageId = "test-1" };
 		var eventTime = new DateTimeOffset(2026, 1, 15, 10, 30, 0, TimeSpan.Zero);
@@ -432,14 +439,14 @@ public sealed class CloudEventMiddlewareShould
 		_ = await middleware.InvokeAsync(message, context, CreateSuccessDelegate(), CancellationToken.None);
 
 		// Assert
-		context.SentTimestampUtc.ShouldBe(eventTime);
+		context.GetSentTimestampUtc().ShouldBe(eventTime);
 	}
 
 	[Fact]
 	public async Task SetSource_FromCloudEventSource()
 	{
 		// Arrange
-		var middleware = CreateMiddleware(new CloudEventOptions { ValidateSchema = false });
+		var middleware = CreateMiddleware(new CloudEventOptions { Schema = { ValidateSchema = false } });
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext { MessageId = "test-1" };
 
@@ -455,7 +462,7 @@ public sealed class CloudEventMiddlewareShould
 		_ = await middleware.InvokeAsync(message, context, CreateSuccessDelegate(), CancellationToken.None);
 
 		// Assert
-		context.Source.ShouldBe("https://my-service.example.com/events");
+		context.GetSource().ShouldBe("https://my-service.example.com/events");
 	}
 
 	#endregion
@@ -466,7 +473,7 @@ public sealed class CloudEventMiddlewareShould
 	public async Task ValidateSchema_WhenRegistryIsAvailable()
 	{
 		// Arrange
-		var options = new CloudEventOptions { ValidateSchema = true };
+		var options = new CloudEventOptions { Schema = { ValidateSchema = true } };
 		var middleware = CreateMiddleware(options, includeSchemaRegistry: true);
 		var message = new FakeDispatchMessage();
 		var context = new FakeMessageContext { MessageId = "test-1" };

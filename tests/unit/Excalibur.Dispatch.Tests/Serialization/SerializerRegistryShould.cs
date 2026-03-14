@@ -470,7 +470,7 @@ public sealed class SerializerRegistryShould
 		registry.Register(SerializerIds.MemoryPack, serializer);
 		registry.SetCurrent("TestSerializer");
 
-		var results = new List<(byte Id, IPluggableSerializer Serializer)>();
+		var results = new List<(byte Id, ISerializer Serializer)>();
 		var threads = new Thread[100];
 
 		// Act - Read current serializer from 100 threads concurrently
@@ -650,9 +650,9 @@ public sealed class SerializerRegistryShould
 
 	#region Helper Methods
 
-	private static IPluggableSerializer CreateFakeSerializer(string name)
+	private static ISerializer CreateFakeSerializer(string name)
 	{
-		var fake = A.Fake<IPluggableSerializer>();
+		var fake = A.Fake<ISerializer>();
 		_ = A.CallTo(() => fake.Name).Returns(name);
 		_ = A.CallTo(() => fake.Version).Returns("1.0.0");
 		return fake;

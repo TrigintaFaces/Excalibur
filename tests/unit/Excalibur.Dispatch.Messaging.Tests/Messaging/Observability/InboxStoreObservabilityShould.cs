@@ -3,7 +3,7 @@
 
 using System.Text;
 
-using Excalibur.Data.InMemory.Inbox;
+using Excalibur.Inbox.InMemory;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Observability;
 

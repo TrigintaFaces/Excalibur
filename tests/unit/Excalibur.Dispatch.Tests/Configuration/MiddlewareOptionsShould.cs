@@ -255,15 +255,15 @@ public sealed class MiddlewareOptionsShould
 		options.BypassOutboxForTypes.ShouldBeNull();
 		options.PublishBatchSize.ShouldBe(100);
 		options.PublishPollingInterval.ShouldBe(TimeSpan.FromSeconds(5));
-		options.MaxRetries.ShouldBe(3);
-		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(5));
-		options.EnableExponentialRetryBackoff.ShouldBeFalse();
-		options.MaxRetryDelay.ShouldBe(TimeSpan.FromMinutes(30));
+		options.Retry.MaxRetries.ShouldBe(3);
+		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(5));
+		options.Retry.EnableExponentialRetryBackoff.ShouldBeFalse();
+		options.Retry.MaxRetryDelay.ShouldBe(TimeSpan.FromMinutes(30));
 		options.CleanupAge.ShouldBe(TimeSpan.FromDays(7));
 		options.CleanupInterval.ShouldBe(TimeSpan.FromHours(1));
-		options.EnableAdaptivePolling.ShouldBeFalse();
-		options.MinPollingInterval.ShouldBe(TimeSpan.FromMilliseconds(500));
-		options.AdaptivePollingBackoffMultiplier.ShouldBe(2.0);
+		options.AdaptivePolling.EnableAdaptivePolling.ShouldBeFalse();
+		options.AdaptivePolling.MinPollingInterval.ShouldBe(TimeSpan.FromMilliseconds(500));
+		options.AdaptivePolling.AdaptivePollingBackoffMultiplier.ShouldBe(2.0);
 	}
 
 	// --- OutboxOptionsValidator ---
@@ -327,7 +327,7 @@ public sealed class MiddlewareOptionsShould
 	{
 		// Arrange
 		var validator = new OutboxOptionsValidator();
-		var options = new MiddlewareOutboxOptions { MaxRetries = -1 };
+		var options = new MiddlewareOutboxOptions { Retry = { MaxRetries = -1 } };
 
 		// Act
 		var result = validator.Validate(null, options);
@@ -342,7 +342,7 @@ public sealed class MiddlewareOptionsShould
 	{
 		// Arrange
 		var validator = new OutboxOptionsValidator();
-		var options = new MiddlewareOutboxOptions { RetryDelay = TimeSpan.Zero };
+		var options = new MiddlewareOutboxOptions { Retry = { RetryDelay = TimeSpan.Zero } };
 
 		// Act
 		var result = validator.Validate(null, options);
@@ -359,9 +359,12 @@ public sealed class MiddlewareOptionsShould
 		var validator = new OutboxOptionsValidator();
 		var options = new MiddlewareOutboxOptions
 		{
-			EnableExponentialRetryBackoff = true,
-			RetryDelay = TimeSpan.FromMinutes(10),
-			MaxRetryDelay = TimeSpan.FromMinutes(5),
+			Retry =
+			{
+				EnableExponentialRetryBackoff = true,
+				RetryDelay = TimeSpan.FromMinutes(10),
+				MaxRetryDelay = TimeSpan.FromMinutes(5),
+			},
 		};
 
 		// Act
@@ -379,8 +382,11 @@ public sealed class MiddlewareOptionsShould
 		var validator = new OutboxOptionsValidator();
 		var options = new MiddlewareOutboxOptions
 		{
-			EnableAdaptivePolling = true,
-			MinPollingInterval = TimeSpan.FromSeconds(10),
+			AdaptivePolling =
+			{
+				EnableAdaptivePolling = true,
+				MinPollingInterval = TimeSpan.FromSeconds(10),
+			},
 			PublishPollingInterval = TimeSpan.FromSeconds(5),
 		};
 
@@ -399,8 +405,11 @@ public sealed class MiddlewareOptionsShould
 		var validator = new OutboxOptionsValidator();
 		var options = new MiddlewareOutboxOptions
 		{
-			EnableAdaptivePolling = true,
-			AdaptivePollingBackoffMultiplier = 0.5,
+			AdaptivePolling =
+			{
+				EnableAdaptivePolling = true,
+				AdaptivePollingBackoffMultiplier = 0.5,
+			},
 		};
 
 		// Act

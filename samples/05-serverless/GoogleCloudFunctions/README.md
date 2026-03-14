@@ -205,8 +205,10 @@ public class Startup : FunctionsStartup
         services.AddExcaliburGoogleCloudFunctionsServerless(opts =>
         {
             opts.EnableColdStartOptimization = true;
-            opts.EnableDistributedTracing = true;
+            opts.Telemetry.EnableDistributedTracing = true;
+            opts.Telemetry.EnableStructuredLogging = true;
             opts.GoogleCloudFunctions.Runtime = "dotnet8";
+            opts.GoogleCloudFunctions.IngressSettings = "ALLOW_ALL";
         });
     }
 }

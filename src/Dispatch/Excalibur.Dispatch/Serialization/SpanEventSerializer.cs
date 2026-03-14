@@ -9,15 +9,16 @@ using Excalibur.Dispatch.Abstractions.Serialization;
 namespace Excalibur.Dispatch.Serialization;
 
 /// <summary>
-/// Zero-allocation event serializer implementation using the pluggable serialization infrastructure.
+/// Event serializer implementation using the pluggable serialization infrastructure.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This serializer implements <see cref="IZeroAllocEventSerializer"/> by delegating to the
-/// configured <see cref="IPluggableSerializer"/> (typically MemoryPack for highest performance).
+/// This serializer implements <see cref="IEventSerializer"/> by delegating to the
+/// configured <see cref="ISerializer"/> (typically MemoryPack for highest performance).
+/// Also provides Span-based overloads for zero-allocation scenarios.
 /// </para>
 /// <para>
-/// <b>Usage Pattern:</b>
+/// <b>Usage Pattern (Span-based):</b>
 /// </para>
 /// <code>
 /// var size = serializer.GetEventSize(evt);
@@ -32,20 +33,15 @@ namespace Excalibur.Dispatch.Serialization;
 ///     ArrayPool&lt;byte&gt;.Shared.Return(buffer);
 /// }
 /// </code>
-/// <para>
-/// <b>Size Estimation:</b> The <see cref="GetEventSize"/> and <see cref="IZeroAllocEventSerializer.GetSnapshotSize"/>
-/// methods serialize the object once to determine exact size, then add a safety margin.
-/// For best performance in tight loops, consider caching size estimates for similar objects.
-/// </para>
 /// </remarks>
-public sealed class SpanEventSerializer : IZeroAllocEventSerializer
+public sealed class SpanEventSerializer : IEventSerializer
 {
 	/// <summary>
 	/// Safety margin added to size estimates to handle serializer overhead variations.
 	/// </summary>
 	private const int SizeMargin = 64;
 
-	private readonly IPluggableSerializer _pluggable;
+	private readonly ISerializer _pluggable;
 
 	/// <summary>
 	/// Initializes a new instance of <see cref="SpanEventSerializer"/> using the specified
@@ -53,7 +49,7 @@ public sealed class SpanEventSerializer : IZeroAllocEventSerializer
 	/// </summary>
 	/// <param name="pluggable">The underlying pluggable serializer (typically MemoryPack).</param>
 	/// <exception cref="ArgumentNullException">Thrown when pluggable is null.</exception>
-	public SpanEventSerializer(IPluggableSerializer pluggable)
+	public SpanEventSerializer(ISerializer pluggable)
 	{
 		_pluggable = pluggable ?? throw new ArgumentNullException(nameof(pluggable));
 	}
@@ -74,18 +70,16 @@ public sealed class SpanEventSerializer : IZeroAllocEventSerializer
 		// Prefer MemoryPack for best Span support, fall back to current serializer
 		_pluggable = registry.GetByName("MemoryPack")
 					 ?? registry.GetById(SerializerIds.MemoryPack)
-					 ?? registry.GetCurrent().Serializer;
-
-		if (_pluggable == null)
-		{
-			throw new InvalidOperationException(
-				"No serializer available. Register MemoryPack or configure a default serializer.");
-		}
+					 ?? registry.GetCurrent().Serializer
+					 ?? throw new InvalidOperationException(
+						"No serializer available. Register MemoryPack or configure a default serializer.");
 	}
 
-	#region IZeroAllocEventSerializer - Span-based methods
+	#region Span-based methods
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Serializes an event to a caller-provided span buffer.
+	/// </summary>
 	[RequiresDynamicCode("Serialization of events requires dynamic code generation for type inspection")]
 	[RequiresUnreferencedCode("Serialization may reference types not preserved during trimming")]
 	public int SerializeEvent(IDomainEvent domainEvent, Span<byte> buffer)
@@ -107,7 +101,9 @@ public sealed class SpanEventSerializer : IZeroAllocEventSerializer
 		return bytes.Length;
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Deserializes an event from a read-only span (zero-copy).
+	/// </summary>
 	[RequiresDynamicCode("Deserialization of events requires dynamic code generation for type inspection")]
 	[RequiresUnreferencedCode("Deserialization may reference types not preserved during trimming")]
 	public IDomainEvent DeserializeEvent(ReadOnlySpan<byte> data, Type eventType)
@@ -125,7 +121,9 @@ public sealed class SpanEventSerializer : IZeroAllocEventSerializer
 		return domainEvent;
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets the required buffer size for serializing an event.
+	/// </summary>
 	[RequiresDynamicCode("Size calculation may require dynamic code generation")]
 	[RequiresUnreferencedCode("Size calculation may reference types not preserved during trimming")]
 	public int GetEventSize(IDomainEvent domainEvent)
@@ -138,7 +136,9 @@ public sealed class SpanEventSerializer : IZeroAllocEventSerializer
 		return bytes.Length + SizeMargin;
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Serializes a snapshot to a caller-provided span buffer.
+	/// </summary>
 	[RequiresDynamicCode("Serialization of snapshots requires dynamic code generation for type inspection")]
 	[RequiresUnreferencedCode("Serialization may reference types not preserved during trimming")]
 	public int SerializeSnapshot(object snapshot, Span<byte> buffer)
@@ -160,7 +160,9 @@ public sealed class SpanEventSerializer : IZeroAllocEventSerializer
 		return bytes.Length;
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Deserializes a snapshot from a read-only span (zero-copy).
+	/// </summary>
 	[RequiresDynamicCode("Deserialization of snapshots requires dynamic code generation for type inspection")]
 	[RequiresUnreferencedCode("Deserialization may reference types not preserved during trimming")]
 	public object DeserializeSnapshot(ReadOnlySpan<byte> data, Type snapshotType)
@@ -170,7 +172,9 @@ public sealed class SpanEventSerializer : IZeroAllocEventSerializer
 		return _pluggable.DeserializeObject(data, snapshotType);
 	}
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets the required buffer size for serializing a snapshot.
+	/// </summary>
 	[RequiresDynamicCode("Size calculation may require dynamic code generation")]
 	[RequiresUnreferencedCode("Size calculation may reference types not preserved during trimming")]
 	public int GetSnapshotSize(object snapshot)
@@ -183,7 +187,7 @@ public sealed class SpanEventSerializer : IZeroAllocEventSerializer
 		return bytes.Length + SizeMargin;
 	}
 
-	#endregion IZeroAllocEventSerializer - Span-based methods
+	#endregion Span-based methods
 
 	#region IEventSerializer - byte[] and type resolution methods
 

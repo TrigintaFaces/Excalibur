@@ -14,28 +14,10 @@ namespace Excalibur.Data.DynamoDb.Authorization;
 public sealed class DynamoDbAuthorizationOptions
 {
 	/// <summary>
-	/// Gets or sets the AWS service URL (for local development with LocalStack or DynamoDB Local).
+	/// Gets or sets the connection and credential options for DynamoDB.
 	/// </summary>
-	/// <value>The service URL. If set, takes precedence over Region.</value>
-	public string? ServiceUrl { get; set; }
-
-	/// <summary>
-	/// Gets or sets the AWS region.
-	/// </summary>
-	/// <value>The AWS region name (e.g., "us-east-1").</value>
-	public string? Region { get; set; }
-
-	/// <summary>
-	/// Gets or sets the AWS access key (optional if using IAM roles).
-	/// </summary>
-	/// <value>The AWS access key.</value>
-	public string? AccessKey { get; set; }
-
-	/// <summary>
-	/// Gets or sets the AWS secret key (optional if using IAM roles).
-	/// </summary>
-	/// <value>The AWS secret key.</value>
-	public string? SecretKey { get; set; }
+	/// <value>Connection options including service URL, region, and credentials.</value>
+	public DynamoDbConnectionOptions Connection { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets the table name for grants.
@@ -93,7 +75,7 @@ public sealed class DynamoDbAuthorizationOptions
 	/// </summary>
 	/// <returns>The AWS region endpoint, or null if not configured.</returns>
 	public RegionEndpoint? GetRegionEndpoint() =>
-		string.IsNullOrWhiteSpace(Region) ? null : RegionEndpoint.GetBySystemName(Region);
+		string.IsNullOrWhiteSpace(Connection.Region) ? null : RegionEndpoint.GetBySystemName(Connection.Region);
 
 	/// <summary>
 	/// Validates the options and throws if invalid.
@@ -101,13 +83,13 @@ public sealed class DynamoDbAuthorizationOptions
 	/// <exception cref="InvalidOperationException">Thrown when required options are missing.</exception>
 	public void Validate()
 	{
-		var hasLocalConfig = !string.IsNullOrWhiteSpace(ServiceUrl);
-		var hasAwsConfig = !string.IsNullOrWhiteSpace(Region);
+		var hasLocalConfig = !string.IsNullOrWhiteSpace(Connection.ServiceUrl);
+		var hasAwsConfig = !string.IsNullOrWhiteSpace(Connection.Region);
 
 		if (!hasLocalConfig && !hasAwsConfig)
 		{
 			throw new InvalidOperationException(
-				"Either ServiceUrl (for local development) or Region (for AWS) must be provided.");
+				"Either Connection.ServiceUrl (for local development) or Connection.Region (for AWS) must be provided.");
 		}
 
 		if (string.IsNullOrWhiteSpace(GrantsTableName))

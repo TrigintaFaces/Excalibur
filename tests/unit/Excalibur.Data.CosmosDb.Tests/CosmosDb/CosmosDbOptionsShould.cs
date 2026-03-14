@@ -22,21 +22,21 @@ public sealed class CosmosDbOptionsShould : UnitTestBase
 
 		// Assert
 		options.Name.ShouldBe("CosmosDb");
-		options.AccountEndpoint.ShouldBeNull();
-		options.AccountKey.ShouldBeNull();
-		options.ConnectionString.ShouldBeNull();
+		options.Client.AccountEndpoint.ShouldBeNull();
+		options.Client.AccountKey.ShouldBeNull();
+		options.Client.ConnectionString.ShouldBeNull();
 		options.DatabaseName.ShouldBeNull();
 		options.DefaultContainerName.ShouldBeNull();
 		options.DefaultPartitionKeyPath.ShouldBe("/id");
-		options.ConsistencyLevel.ShouldBeNull();
-		options.ApplicationName.ShouldBeNull();
-		options.PreferredRegions.ShouldBeNull();
-		options.EnableContentResponseOnWrite.ShouldBeTrue();
-		options.MaxRetryAttempts.ShouldBe(9);
-		options.MaxRetryWaitTimeInSeconds.ShouldBe(30);
-		options.UseDirectMode.ShouldBeTrue();
+		options.Client.ConsistencyLevel.ShouldBeNull();
+		options.Client.ApplicationName.ShouldBeNull();
+		options.Client.PreferredRegions.ShouldBeNull();
+		options.Client.Resilience.EnableContentResponseOnWrite.ShouldBeFalse();
+		options.Client.Resilience.MaxRetryAttempts.ShouldBe(9);
+		options.Client.Resilience.MaxRetryWaitTimeInSeconds.ShouldBe(30);
+		options.Client.UseDirectMode.ShouldBeTrue();
 		options.MaxConnectionsPerEndpoint.ShouldBe(50);
-		options.RequestTimeoutInSeconds.ShouldBe(60);
+		options.Client.Resilience.RequestTimeoutInSeconds.ShouldBe(30);
 		options.IdleConnectionTimeoutInSeconds.ShouldBe(600);
 		options.EnableTcpConnectionEndpointRediscovery.ShouldBeTrue();
 		options.BulkExecutionMaxDegreeOfParallelism.ShouldBe(25);
@@ -49,9 +49,9 @@ public sealed class CosmosDbOptionsShould : UnitTestBase
 		// Arrange
 		var options = new CosmosDbOptions
 		{
-			ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=test==",
 			DatabaseName = "TestDb"
 		};
+		options.Client.ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=test==";
 
 		// Act & Assert - should not throw
 		Should.NotThrow(() => options.Validate());
@@ -63,10 +63,10 @@ public sealed class CosmosDbOptionsShould : UnitTestBase
 		// Arrange
 		var options = new CosmosDbOptions
 		{
-			AccountEndpoint = "https://test.documents.azure.com:443/",
-			AccountKey = "test==",
 			DatabaseName = "TestDb"
 		};
+		options.Client.AccountEndpoint = "https://test.documents.azure.com:443/";
+		options.Client.AccountKey = "test==";
 
 		// Act & Assert - should not throw
 		Should.NotThrow(() => options.Validate());
@@ -90,10 +90,8 @@ public sealed class CosmosDbOptionsShould : UnitTestBase
 	public void ThrowWhenDatabaseNameMissing()
 	{
 		// Arrange
-		var options = new CosmosDbOptions
-		{
-			ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=test=="
-		};
+		var options = new CosmosDbOptions();
+		options.Client.ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=test==";
 
 		// Act & Assert
 		var exception = Should.Throw<InvalidOperationException>(() => options.Validate());
@@ -106,21 +104,27 @@ public sealed class CosmosDbOptionsShould : UnitTestBase
 		// Act
 		var options = new CosmosDbOptions
 		{
+			Client =
+			{
+				AccountEndpoint = "https://test.documents.azure.com:443/",
+				AccountKey = "testKey==",
+				ConsistencyLevel = Microsoft.Azure.Cosmos.ConsistencyLevel.Session,
+				ApplicationName = "TestApp",
+				PreferredRegions = ["East US", "West US"],
+				UseDirectMode = false,
+				Resilience =
+				{
+					EnableContentResponseOnWrite = false,
+					MaxRetryAttempts = 5,
+					MaxRetryWaitTimeInSeconds = 60,
+					RequestTimeoutInSeconds = 120
+				}
+			},
 			Name = "CustomCosmosDb",
-			AccountEndpoint = "https://test.documents.azure.com:443/",
-			AccountKey = "testKey==",
 			DatabaseName = "CustomDb",
 			DefaultContainerName = "Items",
 			DefaultPartitionKeyPath = "/tenantId",
-			ConsistencyLevel = Microsoft.Azure.Cosmos.ConsistencyLevel.Session,
-			ApplicationName = "TestApp",
-			PreferredRegions = ["East US", "West US"],
-			EnableContentResponseOnWrite = false,
-			MaxRetryAttempts = 5,
-			MaxRetryWaitTimeInSeconds = 60,
-			UseDirectMode = false,
 			MaxConnectionsPerEndpoint = 100,
-			RequestTimeoutInSeconds = 120,
 			IdleConnectionTimeoutInSeconds = 300,
 			EnableTcpConnectionEndpointRediscovery = false,
 			BulkExecutionMaxDegreeOfParallelism = 50,
@@ -130,9 +134,9 @@ public sealed class CosmosDbOptionsShould : UnitTestBase
 		// Assert
 		options.Name.ShouldBe("CustomCosmosDb");
 		options.DefaultPartitionKeyPath.ShouldBe("/tenantId");
-		options.ConsistencyLevel.ShouldBe(Microsoft.Azure.Cosmos.ConsistencyLevel.Session);
-		options.PreferredRegions.ShouldContain("East US");
-		options.EnableContentResponseOnWrite.ShouldBeFalse();
+		options.Client.ConsistencyLevel.ShouldBe(Microsoft.Azure.Cosmos.ConsistencyLevel.Session);
+		options.Client.PreferredRegions.ShouldContain("East US");
+		options.Client.Resilience.EnableContentResponseOnWrite.ShouldBeFalse();
 		options.AllowBulkExecution.ShouldBeTrue();
 	}
 }

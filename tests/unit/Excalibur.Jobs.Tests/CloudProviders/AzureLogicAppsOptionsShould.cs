@@ -3,7 +3,7 @@
 
 using Azure.Core;
 
-using Excalibur.Jobs.CloudProviders.Azure;
+using Excalibur.Jobs.Azure;
 
 namespace Excalibur.Jobs.Tests.CloudProviders;
 

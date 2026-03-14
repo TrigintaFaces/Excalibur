@@ -9,6 +9,10 @@ namespace Excalibur.Jobs.Quartz;
 /// <summary>
 /// Provides a fluent API for configuring individual jobs in the Excalibur job system.
 /// </summary>
+/// <remarks>
+/// Core interface with 4 methods. Convenience methods are available
+/// as extension methods in <see cref="JobConfiguratorExtensions"/>.
+/// </remarks>
 public interface IJobConfigurator
 {
 	/// <summary>
@@ -35,16 +39,6 @@ public interface IJobConfigurator
 		where TContext : class;
 
 	/// <summary>
-	/// Adds a recurring job that executes at a specified interval.
-	/// </summary>
-	/// <typeparam name="TJob"> The job implementation type. </typeparam>
-	/// <param name="interval"> The interval between job executions. </param>
-	/// <param name="jobKey"> Optional unique key for the job. If not provided, the job type name will be used. </param>
-	/// <returns> The job configurator for chaining. </returns>
-	IJobConfigurator AddRecurringJob<TJob>(TimeSpan interval, string? jobKey = null)
-		where TJob : class, IBackgroundJob;
-
-	/// <summary>
 	/// Adds a one-time job that executes immediately.
 	/// </summary>
 	/// <typeparam name="TJob"> The job implementation type. </typeparam>
@@ -61,22 +55,5 @@ public interface IJobConfigurator
 	/// <param name="jobKey"> Optional unique key for the job. If not provided, the job type name will be used. </param>
 	/// <returns> The job configurator for chaining. </returns>
 	IJobConfigurator AddDelayedJob<TJob>(TimeSpan delay, string? jobKey = null)
-		where TJob : class, IBackgroundJob;
-
-	/// <summary>
-	/// Conditionally adds a job based on a predicate.
-	/// </summary>
-	/// <param name="condition"> The condition to evaluate. </param>
-	/// <param name="configureJob"> Action to configure the job if the condition is true. </param>
-	/// <returns> The job configurator for chaining. </returns>
-	IJobConfigurator AddJobIf(bool condition, Action<IJobConfigurator> configureJob);
-
-	/// <summary>
-	/// Adds multiple instances of the same job type with different configurations.
-	/// </summary>
-	/// <typeparam name="TJob"> The job implementation type. </typeparam>
-	/// <param name="configurations"> Array of job configurations. </param>
-	/// <returns> The job configurator for chaining. </returns>
-	IJobConfigurator AddJobInstances<TJob>(params JobConfiguration[] configurations)
 		where TJob : class, IBackgroundJob;
 }

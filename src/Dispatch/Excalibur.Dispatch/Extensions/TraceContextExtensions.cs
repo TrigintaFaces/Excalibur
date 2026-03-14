@@ -5,6 +5,7 @@
 using System.Diagnostics;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 
 namespace Excalibur.Dispatch.Extensions;
 
@@ -18,10 +19,10 @@ public static class TraceContextExtensions
 	/// </summary>
 	/// <param name="context"> Message context. </param>
 	/// <returns> The traceparent string if available; otherwise, <c> null </c>. </returns>
-	public static string? GetTraceParent(this IMessageContext context)
+	public static string? GetTraceParentOrCurrent(this IMessageContext context)
 	{
 		ArgumentNullException.ThrowIfNull(context);
 
-		return context.TraceParent ?? Activity.Current?.Id;
+		return context.GetTraceParent() ?? Activity.Current?.Id;
 	}
 }

@@ -381,6 +381,41 @@ For feature-rich APIs, consider organizing code using **vertical slice architect
 
 See [Vertical Slice Architecture](../architecture/vertical-slice-architecture.md) for guidance and a [working healthcare sample](https://github.com/TrigintaFaces/Excalibur/tree/main/samples/12-vertical-slice-api).
 
+## Content Negotiation
+
+Dispatch provides custom ASP.NET Core formatters that bridge `ISerializerRegistry` with the MVC content negotiation pipeline. Any registered `ISerializer` with a `ContentType` automatically becomes a supported media type for both input and output.
+
+```csharp
+// 1. Register serializers
+builder.Services.AddDispatchSerialization(serializers =>
+{
+    serializers.AddSystemTextJson();   // application/json
+    serializers.AddMessagePack();      // application/x-msgpack
+});
+
+// 2. Add content negotiation formatters
+builder.Services.AddControllers()
+    .AddDispatchContentNegotiation();
+```
+
+This adds:
+- **`DispatchInputFormatter`** — Deserializes request bodies using the matching `ISerializer` based on the `Content-Type` header
+- **`DispatchOutputFormatter`** — Serializes response bodies using the matching `ISerializer` based on the `Accept` header
+
+Clients can then request different formats:
+
+```bash
+# JSON (default)
+curl -H "Accept: application/json" https://api.example.com/orders/123
+
+# MessagePack
+curl -H "Accept: application/x-msgpack" https://api.example.com/orders/123
+```
+
+:::note
+Content negotiation requires the Dispatch serialization infrastructure to be configured first via `AddDispatchSerialization()`. The formatters are registered at position 0 in the MVC formatter list, so they take priority over default formatters for matching content types.
+:::
+
 ## See Also
 
 - [Minimal API Hosting Bridge](./minimal-api-bridge.md) — Map HTTP endpoints to Dispatch messages with zero boilerplate

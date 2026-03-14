@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// <summary>
 /// Represents dead letter configuration.
 /// </summary>
-public sealed record DeadLetterConfiguration(
+internal sealed record DeadLetterConfiguration(
 	string Exchange,
 	string RoutingKey,
 	int MaxRetries,

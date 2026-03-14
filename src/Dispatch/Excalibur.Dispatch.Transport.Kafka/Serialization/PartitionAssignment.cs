@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// <param name="Partition"> The partition number. </param>
 /// <param name="Offset"> The assigned offset. </param>
 /// <param name="ConsumerId"> The consumer identifier. </param>
-public sealed record PartitionAssignment(
+internal sealed record PartitionAssignment(
 	string Topic,
 	int Partition,
 	long Offset,

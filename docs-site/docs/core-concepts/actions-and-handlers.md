@@ -14,7 +14,6 @@ Actions represent work to be done, and handlers contain the business logic to pr
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
-  dotnet add package Excalibur.Dispatch.Abstractions
   ```
 - Familiarity with [dependency injection](./dependency-injection.md) and [getting started](../getting-started/index.md)
 

@@ -8,7 +8,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Implements a fixed long polling strategy that uses a constant wait time.
 /// </summary>
-public sealed class FixedLongPollingStrategy : ILongPollingStrategy
+internal sealed class FixedLongPollingStrategy : ILongPollingStrategy
 {
 	private readonly TimeSpan _fixedWaitTime;
 	private long _totalReceives;

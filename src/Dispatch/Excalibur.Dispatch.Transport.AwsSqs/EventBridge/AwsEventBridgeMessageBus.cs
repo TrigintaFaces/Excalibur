@@ -5,9 +5,9 @@ using Amazon.EventBridge;
 using Amazon.EventBridge.Model;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Abstractions.Transport;
-using Excalibur.Dispatch.Extensions;
 using Excalibur.Dispatch.Transport.AwsSqs;
 
 using Microsoft.Extensions.Logging;
@@ -35,7 +35,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// See the pluggable serialization architecture documentation for details.
 /// </para>
 /// </remarks>
-public sealed partial class AwsEventBridgeMessageBus(
+internal sealed partial class AwsEventBridgeMessageBus(
 	IAmazonEventBridge client,
 	IPayloadSerializer serializer,
 	AwsEventBridgeOptions options,
@@ -129,9 +129,10 @@ public sealed partial class AwsEventBridgeMessageBus(
 
 	private string ResolveSource(IMessageContext context)
 	{
-		if (!string.IsNullOrWhiteSpace(context.Source))
+		var source = context.GetSource();
+		if (!string.IsNullOrWhiteSpace(source))
 		{
-			return context.Source;
+			return source;
 		}
 
 		return string.IsNullOrWhiteSpace(options.DefaultSource) ? "dispatch" : options.DefaultSource;
@@ -139,9 +140,10 @@ public sealed partial class AwsEventBridgeMessageBus(
 
 	private string ResolveDetailType(IMessageContext context, string fallbackType)
 	{
-		if (!string.IsNullOrWhiteSpace(context.MessageType))
+		var messageType = context.GetMessageType();
+		if (!string.IsNullOrWhiteSpace(messageType))
 		{
-			return context.MessageType;
+			return messageType;
 		}
 
 		return string.IsNullOrWhiteSpace(options.DefaultDetailType) ? fallbackType : options.DefaultDetailType;

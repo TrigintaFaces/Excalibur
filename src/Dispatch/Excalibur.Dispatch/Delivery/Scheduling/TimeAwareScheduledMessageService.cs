@@ -8,7 +8,8 @@ using System.Globalization;
 using Cronos;
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Delivery.Registry;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Messaging;
@@ -35,7 +36,7 @@ namespace Excalibur.Dispatch.Delivery;
 public partial class TimeAwareScheduledMessageService(
 	IScheduleStore scheduleStore,
 	IDispatcher dispatcher,
-	IJsonSerializer serializer,
+	DispatchJsonSerializer serializer,
 	ITimePolicy timePolicy,
 	ITimeoutMonitor? timeoutMonitor,
 	IOptions<SchedulerOptions> options,
@@ -208,14 +209,16 @@ public partial class TimeAwareScheduledMessageService(
 	{
 		var context = DispatchContextInitializer.CreateDefaultContext();
 		context.CorrelationId = item.CorrelationId;
-		context.TraceParent = item.TraceParent;
-		context.TenantId = item.TenantId;
-		context.UserId = item.UserId;
 
-		// Add timeout context information to the dispatch context properties
-		context.Properties["TimeoutOperationType"] = timeoutContext.Complexity.ToString();
-		context.Properties["ScheduledMessageId"] = item.Id.ToString();
-		context.Properties["OriginalScheduleTime"] = item.NextExecutionUtc?.ToString(CultureInfo.InvariantCulture) ?? "Unknown";
+		var identityFeature = context.GetOrCreateIdentityFeature();
+		identityFeature.TraceParent = item.TraceParent;
+		identityFeature.TenantId = item.TenantId;
+		identityFeature.UserId = item.UserId;
+
+		// Add timeout context information to the dispatch context Items
+		context.Items["TimeoutOperationType"] = timeoutContext.Complexity.ToString();
+		context.Items["ScheduledMessageId"] = item.Id.ToString();
+		context.Items["OriginalScheduleTime"] = item.NextExecutionUtc?.ToString(CultureInfo.InvariantCulture) ?? "Unknown";
 
 		return context;
 	}
@@ -362,8 +365,8 @@ public partial class TimeAwareScheduledMessageService(
 	/// <param name="cancellationToken"> Cancellation token for timeout enforcement. </param>
 	/// <returns> The deserialized message or null if deserialization fails. </returns>
 	/// <exception cref="TimeoutException"> </exception>
-	[RequiresUnreferencedCode("Calls Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer.DeserializeAsync(String, Type)")]
-	[RequiresDynamicCode("Calls Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer.DeserializeAsync(String, Type)")]
+	[RequiresUnreferencedCode("Calls DispatchJsonSerializer.DeserializeAsync(String, Type)")]
+	[RequiresDynamicCode("Calls DispatchJsonSerializer.DeserializeAsync(String, Type)")]
 	private async Task<object?> DeserializeMessageAsync(string messageBody, Type messageType, CancellationToken cancellationToken)
 	{
 		try

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Data.CosmosDb.Inbox;
+using Excalibur.Inbox.CosmosDb;
 
 namespace Excalibur.Data.Tests.CosmosDb;
 
@@ -26,7 +26,7 @@ public sealed class CosmosDbInboxOptionsShould
 		var options = new CosmosDbInboxOptions();
 
 		// Assert
-		options.AccountEndpoint.ShouldBeNull();
+		options.Client.AccountEndpoint.ShouldBeNull();
 	}
 
 	[Fact]
@@ -36,7 +36,7 @@ public sealed class CosmosDbInboxOptionsShould
 		var options = new CosmosDbInboxOptions();
 
 		// Assert
-		options.AccountKey.ShouldBeNull();
+		options.Client.AccountKey.ShouldBeNull();
 	}
 
 	[Fact]
@@ -46,7 +46,7 @@ public sealed class CosmosDbInboxOptionsShould
 		var options = new CosmosDbInboxOptions();
 
 		// Assert
-		options.ConnectionString.ShouldBeNull();
+		options.Client.ConnectionString.ShouldBeNull();
 	}
 
 	[Fact]
@@ -86,7 +86,7 @@ public sealed class CosmosDbInboxOptionsShould
 		var options = new CosmosDbInboxOptions();
 
 		// Assert
-		options.ConsistencyLevel.ShouldBeNull();
+		options.Client.ConsistencyLevel.ShouldBeNull();
 	}
 
 	[Fact]
@@ -96,7 +96,7 @@ public sealed class CosmosDbInboxOptionsShould
 		var options = new CosmosDbInboxOptions();
 
 		// Assert
-		options.MaxRetryAttempts.ShouldBe(9);
+		options.Client.Resilience.MaxRetryAttempts.ShouldBe(9);
 	}
 
 	[Fact]
@@ -106,17 +106,17 @@ public sealed class CosmosDbInboxOptionsShould
 		var options = new CosmosDbInboxOptions();
 
 		// Assert
-		options.MaxRetryWaitTimeInSeconds.ShouldBe(30);
+		options.Client.Resilience.MaxRetryWaitTimeInSeconds.ShouldBe(30);
 	}
 
 	[Fact]
-	public void RequestTimeoutInSeconds_DefaultsToSixty()
+	public void RequestTimeoutInSeconds_DefaultsToThirty()
 	{
 		// Arrange & Act
 		var options = new CosmosDbInboxOptions();
 
 		// Assert
-		options.RequestTimeoutInSeconds.ShouldBe(60);
+		options.Client.Resilience.RequestTimeoutInSeconds.ShouldBe(30);
 	}
 
 	[Fact]
@@ -136,7 +136,7 @@ public sealed class CosmosDbInboxOptionsShould
 		var options = new CosmosDbInboxOptions();
 
 		// Assert
-		options.UseDirectMode.ShouldBeTrue();
+		options.Client.UseDirectMode.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -146,7 +146,7 @@ public sealed class CosmosDbInboxOptionsShould
 		var options = new CosmosDbInboxOptions();
 
 		// Assert
-		options.PreferredRegions.ShouldBeNull();
+		options.Client.PreferredRegions.ShouldBeNull();
 	}
 
 	[Fact]
@@ -156,7 +156,7 @@ public sealed class CosmosDbInboxOptionsShould
 		var options = new CosmosDbInboxOptions();
 
 		// Assert
-		options.EnableContentResponseOnWrite.ShouldBeFalse();
+		options.Client.Resilience.EnableContentResponseOnWrite.ShouldBeFalse();
 	}
 
 	#endregion
@@ -177,10 +177,8 @@ public sealed class CosmosDbInboxOptionsShould
 	public void Validate_Succeeds_WithConnectionString()
 	{
 		// Arrange
-		var options = new CosmosDbInboxOptions
-		{
-			ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=xyz"
-		};
+		var options = new CosmosDbInboxOptions();
+		options.Client.ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=xyz";
 
 		// Act & Assert - Should not throw
 		options.Validate();
@@ -190,11 +188,9 @@ public sealed class CosmosDbInboxOptionsShould
 	public void Validate_Succeeds_WithEndpointAndKey()
 	{
 		// Arrange
-		var options = new CosmosDbInboxOptions
-		{
-			AccountEndpoint = "https://test.documents.azure.com:443/",
-			AccountKey = "xyz"
-		};
+		var options = new CosmosDbInboxOptions();
+		options.Client.AccountEndpoint = "https://test.documents.azure.com:443/";
+		options.Client.AccountKey = "xyz";
 
 		// Act & Assert - Should not throw
 		options.Validate();
@@ -206,9 +202,9 @@ public sealed class CosmosDbInboxOptionsShould
 		// Arrange
 		var options = new CosmosDbInboxOptions
 		{
-			ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=xyz",
 			DatabaseName = ""
 		};
+		options.Client.ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=xyz";
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(() => options.Validate());
@@ -220,9 +216,9 @@ public sealed class CosmosDbInboxOptionsShould
 		// Arrange
 		var options = new CosmosDbInboxOptions
 		{
-			ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=xyz",
 			ContainerName = ""
 		};
+		options.Client.ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=xyz";
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(() => options.Validate());
@@ -238,35 +234,41 @@ public sealed class CosmosDbInboxOptionsShould
 		// Arrange & Act
 		var options = new CosmosDbInboxOptions
 		{
-			AccountEndpoint = "https://test.documents.azure.com:443/",
-			AccountKey = "test-key",
-			ConnectionString = "connection-string",
+			Client =
+			{
+				AccountEndpoint = "https://test.documents.azure.com:443/",
+				AccountKey = "test-key",
+				ConnectionString = "connection-string",
+				UseDirectMode = false,
+				PreferredRegions = new List<string> { "East US", "West US" },
+				Resilience =
+				{
+					MaxRetryAttempts = 5,
+					MaxRetryWaitTimeInSeconds = 60,
+					RequestTimeoutInSeconds = 120,
+					EnableContentResponseOnWrite = true
+				}
+			},
 			DatabaseName = "my-db",
 			ContainerName = "my-container",
 			PartitionKeyPath = "/custom_key",
-			MaxRetryAttempts = 5,
-			MaxRetryWaitTimeInSeconds = 60,
-			RequestTimeoutInSeconds = 120,
-			DefaultTimeToLiveSeconds = 3600,
-			UseDirectMode = false,
-			PreferredRegions = new List<string> { "East US", "West US" },
-			EnableContentResponseOnWrite = true
+			DefaultTimeToLiveSeconds = 3600
 		};
 
 		// Assert
-		options.AccountEndpoint.ShouldBe("https://test.documents.azure.com:443/");
-		options.AccountKey.ShouldBe("test-key");
-		options.ConnectionString.ShouldBe("connection-string");
+		options.Client.AccountEndpoint.ShouldBe("https://test.documents.azure.com:443/");
+		options.Client.AccountKey.ShouldBe("test-key");
+		options.Client.ConnectionString.ShouldBe("connection-string");
 		options.DatabaseName.ShouldBe("my-db");
 		options.ContainerName.ShouldBe("my-container");
 		options.PartitionKeyPath.ShouldBe("/custom_key");
-		options.MaxRetryAttempts.ShouldBe(5);
-		options.MaxRetryWaitTimeInSeconds.ShouldBe(60);
-		options.RequestTimeoutInSeconds.ShouldBe(120);
+		options.Client.Resilience.MaxRetryAttempts.ShouldBe(5);
+		options.Client.Resilience.MaxRetryWaitTimeInSeconds.ShouldBe(60);
+		options.Client.Resilience.RequestTimeoutInSeconds.ShouldBe(120);
 		options.DefaultTimeToLiveSeconds.ShouldBe(3600);
-		options.UseDirectMode.ShouldBeFalse();
-		options.PreferredRegions.Count.ShouldBe(2);
-		options.EnableContentResponseOnWrite.ShouldBeTrue();
+		options.Client.UseDirectMode.ShouldBeFalse();
+		options.Client.PreferredRegions.Count.ShouldBe(2);
+		options.Client.Resilience.EnableContentResponseOnWrite.ShouldBeTrue();
 	}
 
 	#endregion

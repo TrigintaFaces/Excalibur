@@ -51,11 +51,11 @@ public sealed partial class RedisPersistenceProvider : IPersistenceProvider, IPe
 		}
 
 		var configOptions = ConfigurationOptions.Parse(_options.ConnectionString);
-		configOptions.ConnectTimeout = _options.ConnectTimeout * 1000; // Convert to milliseconds
-		configOptions.SyncTimeout = _options.SyncTimeout * 1000;
-		configOptions.AsyncTimeout = _options.AsyncTimeout * 1000;
-		configOptions.ConnectRetry = _options.ConnectRetry;
-		configOptions.AbortOnConnectFail = _options.AbortOnConnectFail;
+		configOptions.ConnectTimeout = _options.Pool.ConnectTimeout * 1000; // Convert to milliseconds
+		configOptions.SyncTimeout = _options.Pool.SyncTimeout * 1000;
+		configOptions.AsyncTimeout = _options.Pool.AsyncTimeout * 1000;
+		configOptions.ConnectRetry = _options.Pool.ConnectRetry;
+		configOptions.AbortOnConnectFail = _options.Pool.AbortOnConnectFail;
 		configOptions.AllowAdmin = _options.AllowAdmin;
 
 		if (_options.UseSsl)
@@ -75,13 +75,13 @@ public sealed partial class RedisPersistenceProvider : IPersistenceProvider, IPe
 			.Handle<RedisException>()
 			.Or<RedisTimeoutException>()
 			.WaitAndRetryAsync(
-				_options.RetryCount,
+				_options.Pool.RetryCount,
 				retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
 				onRetry: (exception, timeSpan, retryCount, context) =>
 					LogRetryWarning(_logger, exception, retryCount, timeSpan.TotalMilliseconds));
 
 		// Initialize data request retry policy
-		RetryPolicy = new RedisRetryPolicy(_options.RetryCount, _logger);
+		RetryPolicy = new RedisRetryPolicy(_options.Pool.RetryCount, _logger);
 
 		Name = _options.Name ?? "redis";
 	}
@@ -196,9 +196,9 @@ public sealed partial class RedisPersistenceProvider : IPersistenceProvider, IPe
 			["Name"] = Name,
 			["DatabaseId"] = _options.DatabaseId,
 			["UseSsl"] = _options.UseSsl,
-			["ConnectTimeout"] = _options.ConnectTimeout,
-			["SyncTimeout"] = _options.SyncTimeout,
-			["AsyncTimeout"] = _options.AsyncTimeout,
+			["ConnectTimeout"] = _options.Pool.ConnectTimeout,
+			["SyncTimeout"] = _options.Pool.SyncTimeout,
+			["AsyncTimeout"] = _options.Pool.AsyncTimeout,
 			["IsConnected"] = _connection.IsConnected,
 			["IsReadOnly"] = _options.IsReadOnly,
 			["IsAvailable"] = IsAvailable,
@@ -253,11 +253,11 @@ public sealed partial class RedisPersistenceProvider : IPersistenceProvider, IPe
 			var stats = new Dictionary<string, object>
 				(StringComparer.Ordinal)
 			{
-				["ConnectTimeout"] = _options.ConnectTimeout,
-				["SyncTimeout"] = _options.SyncTimeout,
-				["AsyncTimeout"] = _options.AsyncTimeout,
-				["ConnectRetry"] = _options.ConnectRetry,
-				["AbortOnConnectFail"] = _options.AbortOnConnectFail,
+				["ConnectTimeout"] = _options.Pool.ConnectTimeout,
+				["SyncTimeout"] = _options.Pool.SyncTimeout,
+				["AsyncTimeout"] = _options.Pool.AsyncTimeout,
+				["ConnectRetry"] = _options.Pool.ConnectRetry,
+				["AbortOnConnectFail"] = _options.Pool.AbortOnConnectFail,
 				["IsConnected"] = _connection.IsConnected,
 			};
 

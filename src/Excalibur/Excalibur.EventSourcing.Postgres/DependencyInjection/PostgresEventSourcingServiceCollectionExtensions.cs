@@ -49,7 +49,7 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 			new PostgresEventStore(
 				connectionString,
 				sp.GetRequiredService<ILogger<PostgresEventStore>>(),
-				sp.GetService<IInternalSerializer>(),
+				sp.GetService<ISerializer>(),
 				sp.GetService<IPayloadSerializer>()));
 
 		RegisterEventStoreTelemetryWrapper(services);
@@ -80,7 +80,7 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 			new PostgresEventStore(
 				dataSource,
 				sp.GetRequiredService<ILogger<PostgresEventStore>>(),
-				sp.GetService<IInternalSerializer>(),
+				sp.GetService<ISerializer>(),
 				sp.GetService<IPayloadSerializer>()));
 
 		RegisterEventStoreTelemetryWrapper(services);
@@ -203,7 +203,7 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 	/// services.AddPostgresEventSourcing(options =>
 	/// {
 	///     options.ConnectionString = configuration.GetConnectionString("EventStore");
-	///     options.RegisterHealthChecks = true;
+	///     options.HealthChecks.RegisterHealthChecks = true;
 	/// });
 	/// </code>
 	/// </para>
@@ -233,20 +233,20 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 		_ = services.AddPostgresOutboxStore(options.ConnectionString);
 
 		// Register health checks if enabled
-		if (options.RegisterHealthChecks)
+		if (options.HealthChecks.RegisterHealthChecks)
 		{
 			_ = services.AddHealthChecks()
 				.AddNpgSql(
 					options.ConnectionString,
-					name: options.EventStoreHealthCheckName,
+					name: options.HealthChecks.EventStoreHealthCheckName,
 					tags: ["eventstore", "Postgres", "eventsourcing"])
 				.AddNpgSql(
 					options.ConnectionString,
-					name: options.SnapshotStoreHealthCheckName,
+					name: options.HealthChecks.SnapshotStoreHealthCheckName,
 					tags: ["snapshotstore", "Postgres", "eventsourcing"])
 				.AddNpgSql(
 					options.ConnectionString,
-					name: options.OutboxStoreHealthCheckName,
+					name: options.HealthChecks.OutboxStoreHealthCheckName,
 					tags: ["outbox", "Postgres", "eventsourcing"]);
 		}
 
@@ -274,7 +274,7 @@ public static class PostgresEventSourcingServiceCollectionExtensions
 		return services.AddPostgresEventSourcing(options =>
 		{
 			options.ConnectionString = connectionString;
-			options.RegisterHealthChecks = registerHealthChecks;
+			options.HealthChecks.RegisterHealthChecks = registerHealthChecks;
 		});
 	}
 

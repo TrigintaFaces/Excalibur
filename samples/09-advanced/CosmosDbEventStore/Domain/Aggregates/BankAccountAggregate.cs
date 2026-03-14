@@ -92,7 +92,7 @@ public class BankAccountAggregate : AggregateRoot<Guid>
 		ArgumentOutOfRangeException.ThrowIfNegative(initialDeposit);
 
 		var account = new BankAccountAggregate(id);
-		account.RaiseEvent(new AccountOpened(id, accountHolder, accountType, initialDeposit, account.Version));
+		account.RaiseEvent(new AccountOpened(id, accountHolder, accountType, initialDeposit));
 		return account;
 	}
 
@@ -108,7 +108,7 @@ public class BankAccountAggregate : AggregateRoot<Guid>
 
 		EnsureAccountIsActive();
 
-		RaiseEvent(new MoneyDeposited(Id, amount, reference, Version));
+		RaiseEvent(new MoneyDeposited(Id, amount, reference));
 	}
 
 	/// <summary>
@@ -130,7 +130,7 @@ public class BankAccountAggregate : AggregateRoot<Guid>
 				$"Insufficient funds. Available: {Balance:C}, Requested: {amount:C}");
 		}
 
-		RaiseEvent(new MoneyWithdrawn(Id, amount, reference, Version));
+		RaiseEvent(new MoneyWithdrawn(Id, amount, reference));
 	}
 
 	/// <summary>
@@ -153,7 +153,7 @@ public class BankAccountAggregate : AggregateRoot<Guid>
 				$"Insufficient funds for transfer. Available: {Balance:C}, Requested: {amount:C}");
 		}
 
-		RaiseEvent(new MoneyTransferred(Id, targetAccountId, amount, reference, Version));
+		RaiseEvent(new MoneyTransferred(Id, targetAccountId, amount, reference));
 	}
 
 	/// <summary>
@@ -173,7 +173,7 @@ public class BankAccountAggregate : AggregateRoot<Guid>
 				$"Cannot close account with balance {Balance:C}. Please withdraw or transfer all funds first.");
 		}
 
-		RaiseEvent(new AccountClosed(Id, reason, Version));
+		RaiseEvent(new AccountClosed(Id, reason));
 	}
 
 	/// <inheritdoc/>

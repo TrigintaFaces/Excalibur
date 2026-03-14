@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Caching;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -18,7 +19,7 @@ public sealed class CachingServiceCollectionExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton(A.Fake<Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer>());
+		services.AddSingleton(new DispatchJsonSerializer());
 
 		// Act
 		services.AddDispatchCaching();
@@ -36,7 +37,7 @@ public sealed class CachingServiceCollectionExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton(A.Fake<Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer>());
+		services.AddSingleton(new DispatchJsonSerializer());
 
 		// Act
 		services.AddDispatchCaching(opts =>
@@ -57,7 +58,7 @@ public sealed class CachingServiceCollectionExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton(A.Fake<Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer>());
+		services.AddSingleton(new DispatchJsonSerializer());
 
 		// Act
 		services.AddDispatchMemoryCaching();
@@ -74,7 +75,7 @@ public sealed class CachingServiceCollectionExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton(A.Fake<Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer>());
+		services.AddSingleton(new DispatchJsonSerializer());
 
 		// Act
 		services.AddDispatchHybridCaching();
@@ -92,7 +93,7 @@ public sealed class CachingServiceCollectionExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton(A.Fake<Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer>());
+		services.AddSingleton(new DispatchJsonSerializer());
 
 		// Act
 		services.AddDispatchCaching();
@@ -108,7 +109,7 @@ public sealed class CachingServiceCollectionExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton(A.Fake<Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer>());
+		services.AddSingleton(new DispatchJsonSerializer());
 
 		// Act
 		services.AddDispatchCaching();
@@ -125,7 +126,7 @@ public sealed class CachingServiceCollectionExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton(A.Fake<Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer>());
+		services.AddSingleton(new DispatchJsonSerializer());
 
 		// Act
 		services.AddDispatchCaching();
@@ -143,7 +144,7 @@ public sealed class CachingServiceCollectionExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton(A.Fake<Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer>());
+		services.AddSingleton(new DispatchJsonSerializer());
 
 		// Act
 		services.AddDispatchCaching();
@@ -160,7 +161,7 @@ public sealed class CachingServiceCollectionExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		services.AddSingleton(A.Fake<Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer>());
+		services.AddSingleton(new DispatchJsonSerializer());
 
 		// Act
 		services.AddDispatchCaching();

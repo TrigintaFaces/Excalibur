@@ -132,7 +132,7 @@ public sealed class AggregateTestFixtureResultShould
 	{
 		// Arrange
 		var fixture = new AggregateTestFixture<TestAggregate>()
-			.Given(new AggregateInitialized("id", 1, "Test"))
+			.Given(new AggregateInitialized { AggregateId = "id", Version = 1, Name = "Test" })
 			.When(agg => agg.IncrementBy(5))
 			.Then();
 
@@ -264,7 +264,7 @@ public sealed class AggregateTestFixtureResultShould
 	{
 		// Arrange
 		var fixture = new AggregateTestFixture<TestAggregate>()
-			.Given(new AggregateInitialized("id", 1, "Test"))
+			.Given(new AggregateInitialized { AggregateId = "id", Version = 1, Name = "Test" })
 			.When(agg => agg.Initialize("Duplicate"))
 			.Then();
 
@@ -286,7 +286,7 @@ public sealed class AggregateTestFixtureResultShould
 	{
 		// Arrange & Act & Assert
 		_ = new AggregateTestFixture<TestAggregate>()
-			.Given(new AggregateInitialized("order-1", 1, "Order"))
+			.Given(new AggregateInitialized { AggregateId = "order-1", Version = 1, Name = "Order" })
 			.When(agg => agg.IncrementBy(42))
 			.Then()
 			.ShouldNotThrow()

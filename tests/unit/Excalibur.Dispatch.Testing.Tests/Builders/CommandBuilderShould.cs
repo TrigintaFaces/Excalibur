@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Testing;
 using Excalibur.Dispatch.Testing.Builders;
 
@@ -57,7 +58,7 @@ public sealed class CommandBuilderShould
 			.WithTenantId("tenant-abc")
 			.Build();
 
-		context.TenantId.ShouldBe("tenant-abc");
+		context.GetTenantId().ShouldBe("tenant-abc");
 	}
 
 	[Fact]
@@ -67,7 +68,7 @@ public sealed class CommandBuilderShould
 			.WithUserId("user-1")
 			.Build();
 
-		context.UserId.ShouldBe("user-1");
+		context.GetUserId().ShouldBe("user-1");
 	}
 
 	[Fact]

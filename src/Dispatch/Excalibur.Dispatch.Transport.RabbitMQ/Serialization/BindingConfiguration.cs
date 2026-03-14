@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// <summary>
 /// Represents binding configuration.
 /// </summary>
-public sealed record BindingConfiguration(
+internal sealed record BindingConfiguration(
 	string Queue,
 	string Exchange,
 	string RoutingKey,

@@ -13,7 +13,7 @@ Get started quickly with `dotnet new` templates for Excalibur projects.
 - **.NET 8.0+** (or .NET 9/10 for latest features)
 - Install the template pack:
   ```bash
-  dotnet new install Excalibur.Templates
+  dotnet new install Excalibur.Dispatch.Templates
   ```
 
 ## Available Templates
@@ -21,9 +21,13 @@ Get started quickly with `dotnet new` templates for Excalibur projects.
 | Template | Short Name | Description | Key Options |
 |----------|------------|-------------|-------------|
 | Dispatch API | `dispatch-api` | ASP.NET Core API with Dispatch messaging | `--Transport`, `--IncludeDocker`, `--IncludeTests` |
+| Dispatch Minimal API | `dispatch-minimal-api` | Minimal API endpoints with Dispatch messaging | `--Transport`, `--IncludeDocker`, `--IncludeTests` |
 | Dispatch Worker | `dispatch-worker` | Background worker with message processing | `--Transport`, `--IncludeDocker`, `--IncludeTests` |
+| Dispatch Serverless | `dispatch-serverless` | Serverless function with Dispatch messaging | `--Platform`, `--Transport`, `--IncludeDocker` |
 | Excalibur DDD | `excalibur-ddd` | Domain-Driven Design with Event Sourcing | `--Database`, `--IncludeDocker`, `--IncludeTests` |
 | Excalibur CQRS | `excalibur-cqrs` | Full CQRS pattern with event sourcing | `--Transport`, `--Database`, `--IncludeDocker`, `--IncludeTests` |
+| Excalibur Saga | `excalibur-saga` | Saga / process manager with orchestration | `--Transport`, `--Database`, `--Framework` |
+| Excalibur Outbox | `excalibur-outbox` | Reliable outbox messaging pattern | `--Transport`, `--Database`, `--Framework` |
 
 ## Installation
 
@@ -65,6 +69,31 @@ dotnet new dispatch-api -n MyApi --Transport kafka --IncludeTests
 
 # With Docker support
 dotnet new dispatch-api -n MyApi --Transport rabbitmq --IncludeDocker
+```
+
+### Dispatch Minimal API
+
+Create a minimal API project without controllers:
+
+```bash
+dotnet new dispatch-minimal-api -n MyMinimalApi
+cd MyMinimalApi
+dotnet run
+```
+
+**What's included:**
+- Minimal API endpoints using `app.MapPost`/`app.MapGet` (no controllers)
+- Dispatch registration via `AddDispatch()` unified builder
+- Sample `CreateOrderAction` / `GetOrderAction` with working handler implementations
+- `InMemoryOrderStore` demonstrating a replaceable persistence pattern
+- Transport selection via `--Transport` option (all 6 transports supported)
+
+```bash
+# With Kafka transport
+dotnet new dispatch-minimal-api -n MyMinimalApi --Transport kafka
+
+# With Docker support
+dotnet new dispatch-minimal-api -n MyMinimalApi --Transport rabbitmq --IncludeDocker
 ```
 
 ### Dispatch Worker
@@ -128,17 +157,103 @@ dotnet new excalibur-cqrs -n MyCqrs
 dotnet new excalibur-cqrs -n MyCqrs --Transport kafka --Database postgresql --IncludeTests --IncludeDocker
 ```
 
+### Dispatch Serverless
+
+Create a serverless function project:
+
+```bash
+dotnet new dispatch-serverless -n MyFunction
+```
+
+**What's included:**
+- Platform-specific scaffolding for Azure Functions, AWS Lambda, or Google Cloud Functions
+- Dispatch registration via `AddDispatch()` unified builder
+- Sample `CreateOrderHandler` with message processing
+- Transport selection via `--Transport` option (all 6 transports supported)
+
+```bash
+# Azure Functions (default)
+dotnet new dispatch-serverless -n MyFunction --Platform azure
+
+# AWS Lambda
+dotnet new dispatch-serverless -n MyFunction --Platform aws --Transport awssqs
+
+# Google Cloud Functions
+dotnet new dispatch-serverless -n MyFunction --Platform gcp --Transport googlepubsub
+```
+
+**Platform details:**
+
+| Platform | Entry Point | Config Files |
+|----------|-------------|-------------|
+| Azure Functions | `Program.cs` with `HostBuilder.ConfigureFunctionsWebApplication()` | `host.json`, `local.settings.json` |
+| AWS Lambda | `Function.cs` with Lambda handler, `Startup.cs` for DI | `aws-lambda-tools-defaults.json` |
+| Google Cloud Functions | `Function.cs` with HTTP handler, `Startup.cs` for DI | -- |
+
+### Excalibur Saga
+
+Create a saga / process manager project:
+
+```bash
+dotnet new excalibur-saga -n MySaga
+cd MySaga
+dotnet run
+```
+
+**What's included:**
+- Saga orchestration via `AddExcaliburSaga()` unified builder
+- Sample `OrderSaga` process manager with 3 steps (CollectPayment, ReserveInventory, ShipOrder) including compensation
+- `OrderSagaData` implementing `ISagaData`
+- Messages: `StartOrderProcessing` action + domain events
+- Builder configuration: `UseSqlServer()`, `WithOrchestration()`, `WithCorrelation()`, `WithInstrumentation()`
+- Transport selection via `--Transport` option (all 6 transports supported)
+- Database selection via `--Database` option (sqlserver, inmemory)
+
+```bash
+# With Kafka transport
+dotnet new excalibur-saga -n MySaga --Transport kafka
+
+# With in-memory database (for testing)
+dotnet new excalibur-saga -n MySaga --Database inmemory
+```
+
+### Excalibur Outbox
+
+Create an outbox pattern project for reliable messaging:
+
+```bash
+dotnet new excalibur-outbox -n MyOutbox
+cd MyOutbox
+dotnet run
+```
+
+**What's included:**
+- Outbox pattern via `AddExcaliburOutbox()` unified builder
+- Sample `PlaceOrderHandler` using `IActionHandler<PlaceOrderCommand>` with outbox publishing
+- Messages: `PlaceOrderCommand` action + `OrderPlacedEvent`
+- Builder configuration: `UseSqlServer()`, `WithProcessing()`, `EnableBackgroundProcessing()`
+- Transport selection via `--Transport` option (all 6 transports supported)
+- Database selection via `--Database` option (sqlserver, inmemory)
+
+```bash
+# With RabbitMQ transport
+dotnet new excalibur-outbox -n MyOutbox --Transport rabbitmq
+
+# With in-memory for development
+dotnet new excalibur-outbox -n MyOutbox --Database inmemory
+```
+
 ## Template Options
 
 ### Common Options (All Templates)
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `--Framework` | choice | `net8.0` | Target framework (`net8.0`, `net9.0`) |
+| `--Framework` | choice | `net10.0` | Target framework (`net8.0`, `net9.0`, `net10.0`) |
 | `--IncludeDocker` | bool | `false` | Include Dockerfile and .dockerignore |
 | `--IncludeTests` | bool | `false` | Include test project (xUnit + Shouldly + FakeItEasy) |
 
-### Transport Options (dispatch-api, dispatch-worker, excalibur-cqrs)
+### Transport Options (dispatch-api, dispatch-minimal-api, dispatch-worker, dispatch-serverless, excalibur-cqrs, excalibur-saga, excalibur-outbox)
 
 | Option | Description |
 |--------|-------------|
@@ -147,12 +262,25 @@ dotnet new excalibur-cqrs -n MyCqrs --Transport kafka --Database postgresql --In
 | `rabbitmq` | RabbitMQ transport |
 | `azureservicebus` | Azure Service Bus transport |
 | `awssqs` | AWS SQS transport |
+| `googlepubsub` | Google Cloud Pub/Sub transport |
 
 ```bash
 dotnet new dispatch-api -n MyApi --Transport kafka
 ```
 
-### Database Options (excalibur-ddd, excalibur-cqrs)
+### Platform Options (dispatch-serverless)
+
+| Option | Description |
+|--------|-------------|
+| `azure` | Azure Functions isolated worker (default) |
+| `aws` | AWS Lambda |
+| `gcp` | Google Cloud Functions |
+
+```bash
+dotnet new dispatch-serverless -n MyFunction --Platform aws
+```
+
+### Database Options (excalibur-ddd, excalibur-cqrs, excalibur-saga, excalibur-outbox)
 
 | Option | Description |
 |--------|-------------|
@@ -205,6 +333,43 @@ MyApi/
     ├── Handlers/
     │   └── CreateOrderHandlerShould.cs
     └── MyApi.Tests.csproj
+```
+
+### dispatch-minimal-api
+
+```
+MyMinimalApi/
+├── Actions/
+│   ├── CreateOrderAction.cs
+│   └── GetOrderAction.cs
+├── Handlers/
+│   ├── CreateOrderHandler.cs
+│   └── GetOrderHandler.cs
+├── Infrastructure/
+│   └── InMemoryOrderStore.cs
+├── Program.cs
+├── appsettings.json
+├── MyMinimalApi.csproj
+├── Dockerfile              (--IncludeDocker)
+└── .dockerignore            (--IncludeDocker)
+```
+
+### dispatch-serverless
+
+```
+MyFunction/
+├── Handlers/
+│   └── CreateOrderHandler.cs
+├── Messages/
+│   └── OrderMessages.cs
+├── Program.cs               (Azure Functions)
+├── Function.cs              (AWS Lambda / GCF)
+├── Startup.cs               (AWS Lambda / GCF)
+├── MyFunction.csproj
+├── appsettings.json
+├── host.json                (Azure Functions)
+├── local.settings.json      (Azure Functions)
+└── aws-lambda-tools-defaults.json (AWS Lambda)
 ```
 
 ### dispatch-worker

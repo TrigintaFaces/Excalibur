@@ -38,6 +38,7 @@ public static class MigrationServiceCollectionExtensions
 		_ = services.Configure(configureOptions ?? (_ => { }));
 		services.TryAddSingleton<MigrationService>();
 		services.TryAddSingleton<IMigrationService>(sp => sp.GetRequiredService<MigrationService>());
+		services.TryAddSingleton<IMigrationInfo>(sp => sp.GetRequiredService<MigrationService>());
 
 		return services;
 	}

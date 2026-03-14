@@ -41,7 +41,7 @@ public class ShoppingCartAggregate : AggregateRoot<Guid>
 	public static ShoppingCartAggregate Create(Guid id)
 	{
 		var cart = new ShoppingCartAggregate(id);
-		cart.RaiseEvent(new CartCreated(id, cart.Version));
+		cart.RaiseEvent(new CartCreated(id));
 		return cart;
 	}
 
@@ -55,7 +55,7 @@ public class ShoppingCartAggregate : AggregateRoot<Guid>
 			throw new InvalidOperationException("Cannot add items to checked out cart");
 		}
 
-		RaiseEvent(new ItemAddedToCart(Id, productId, name, price, quantity, Version));
+		RaiseEvent(new ItemAddedToCart(Id, productId, name, price, quantity));
 	}
 
 	/// <summary>
@@ -68,7 +68,7 @@ public class ShoppingCartAggregate : AggregateRoot<Guid>
 			throw new InvalidOperationException("Cannot remove items from checked out cart");
 		}
 
-		RaiseEvent(new ItemRemovedFromCart(Id, productId, Version));
+		RaiseEvent(new ItemRemovedFromCart(Id, productId));
 	}
 
 	/// <summary>
@@ -81,7 +81,7 @@ public class ShoppingCartAggregate : AggregateRoot<Guid>
 			throw new InvalidOperationException("Cannot update checked out cart");
 		}
 
-		RaiseEvent(new CartItemQuantityUpdated(Id, productId, newQuantity, Version));
+		RaiseEvent(new CartItemQuantityUpdated(Id, productId, newQuantity));
 	}
 
 	/// <summary>
@@ -99,7 +99,7 @@ public class ShoppingCartAggregate : AggregateRoot<Guid>
 			throw new InvalidOperationException("Cannot checkout empty cart");
 		}
 
-		RaiseEvent(new CartCheckedOut(Id, TotalPrice, Version));
+		RaiseEvent(new CartCheckedOut(Id, TotalPrice));
 	}
 
 	/// <inheritdoc/>
@@ -173,24 +173,34 @@ public class CartItem
 
 #region Events
 
-public sealed record CartCreated(Guid CartId, long Version)
-	: DomainEvent(CartId.ToString(), Version);
+public sealed record CartCreated(Guid CartId) : DomainEvent
+{
+	public override string AggregateId => CartId.ToString();
+}
 
 public sealed record ItemAddedToCart(
 	Guid CartId,
 	string ProductId,
 	string ProductName,
 	decimal Price,
-	int Quantity,
-	long Version) : DomainEvent(CartId.ToString(), Version);
+	int Quantity) : DomainEvent
+{
+	public override string AggregateId => CartId.ToString();
+}
 
-public sealed record ItemRemovedFromCart(Guid CartId, string ProductId, long Version)
-	: DomainEvent(CartId.ToString(), Version);
+public sealed record ItemRemovedFromCart(Guid CartId, string ProductId) : DomainEvent
+{
+	public override string AggregateId => CartId.ToString();
+}
 
-public sealed record CartItemQuantityUpdated(Guid CartId, string ProductId, int NewQuantity, long Version)
-	: DomainEvent(CartId.ToString(), Version);
+public sealed record CartItemQuantityUpdated(Guid CartId, string ProductId, int NewQuantity) : DomainEvent
+{
+	public override string AggregateId => CartId.ToString();
+}
 
-public sealed record CartCheckedOut(Guid CartId, decimal TotalPrice, long Version)
-	: DomainEvent(CartId.ToString(), Version);
+public sealed record CartCheckedOut(Guid CartId, decimal TotalPrice) : DomainEvent
+{
+	public override string AggregateId => CartId.ToString();
+}
 
 #endregion

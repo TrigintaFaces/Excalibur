@@ -1040,42 +1040,6 @@ namespace Excalibur.Dispatch {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Thread count must be positive..
-        /// </summary>
-        internal static string DedicatedThreadMessageProcessor_ThreadCountMustBePositive {
-            get {
-                return ResourceManager.GetString("DedicatedThreadMessageProcessor_ThreadCountMustBePositive", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Processor is already running..
-        /// </summary>
-        internal static string DedicatedThreadMessageProcessor_AlreadyRunning {
-            get {
-                return ResourceManager.GetString("DedicatedThreadMessageProcessor_AlreadyRunning", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Capacity must be at least two..
-        /// </summary>
-        internal static string LockFreeMessageBuffer_CapacityMustBeAtLeastTwo {
-            get {
-                return ResourceManager.GetString("LockFreeMessageBuffer_CapacityMustBeAtLeastTwo", resourceCulture);
-            }
-        }
-
-        /// <summary>
-        ///   Looks up a localized string similar to Buffer size must be at least two..
-        /// </summary>
-        internal static string MpmcLockFreeBuffer_BufferSizeMustBeAtLeastTwo {
-            get {
-                return ResourceManager.GetString("MpmcLockFreeBuffer_BufferSizeMustBeAtLeastTwo", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   Looks up a localized string similar to Duplicate transport name '{0}'. Transport names must be unique..
         /// </summary>
         internal static string TransportConfigurationValidator_DuplicateTransportNameFormat {

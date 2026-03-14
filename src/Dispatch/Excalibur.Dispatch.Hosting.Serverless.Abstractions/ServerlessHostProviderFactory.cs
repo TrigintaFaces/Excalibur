@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Hosting.Serverless;
 /// <summary>
 /// Default implementation of the serverless host provider factory.
 /// </summary>
-public partial class ServerlessHostProviderFactory : IServerlessHostProviderFactory
+internal partial class ServerlessHostProviderFactory : IServerlessHostProviderFactory
 {
 	private readonly ILogger<ServerlessHostProviderFactory> _logger;
 	private readonly ConcurrentDictionary<ServerlessPlatform, IServerlessHostProvider> _providers;

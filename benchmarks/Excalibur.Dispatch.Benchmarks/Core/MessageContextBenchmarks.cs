@@ -15,6 +15,7 @@ using BenchmarkDotNet.Diagnosers;
 using BenchmarkDotNet.Jobs;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 
 namespace Excalibur.Dispatch.Benchmarks.Core;
 
@@ -46,15 +47,15 @@ public class MessageContextBenchmarks
 		_context = new Messaging.MessageContext
 		{
 			CorrelationId = TestCorrelationId,
-			UserId = TestUserId,
-			TenantId = TestTenantId,
 			MessageId = "msg-001",
 			CausationId = "cause-001",
-			TraceParent = "00-trace-parent-value",
-			Source = "BenchmarkSource",
-			MessageType = "BenchmarkMessage",
-			ContentType = "application/json",
 		};
+		_context.GetOrCreateIdentityFeature().UserId = TestUserId;
+		_context.GetOrCreateIdentityFeature().TenantId = TestTenantId;
+		_context.GetOrCreateIdentityFeature().TraceParent = "00-trace-parent-value";
+		_context.GetOrCreateRoutingFeature().Source = "BenchmarkSource";
+		_context.SetMessageType("BenchmarkMessage");
+		_context.SetContentType("application/json");
 
 		// Pre-populate some Items for read benchmarks
 		_context.Items["CorrelationId"] = TestCorrelationId;
@@ -75,19 +76,19 @@ public class MessageContextBenchmarks
 	public string? DirectProperty_CorrelationId() => _context.CorrelationId;
 
 	[Benchmark]
-	public string? DirectProperty_UserId() => _context.UserId;
+	public string? DirectProperty_UserId() => _context.GetUserId();
 
 	[Benchmark]
-	public string? DirectProperty_TenantId() => _context.TenantId;
+	public string? DirectProperty_TenantId() => _context.GetTenantId();
 
 	[Benchmark]
 	public string? DirectProperty_MessageId() => _context.MessageId;
 
 	[Benchmark]
-	public string? DirectProperty_Source() => _context.Source;
+	public string? DirectProperty_Source() => _context.GetSource();
 
 	[Benchmark]
-	public string? DirectProperty_MessageType() => _context.MessageType;
+	public string? DirectProperty_MessageType() => _context.GetMessageType();
 
 	// =========================================================================
 	// SECTION 2: Items Dictionary Access (Baseline - Potential Optimization)
@@ -231,8 +232,8 @@ public class MessageContextBenchmarks
 	{
 		// Read message properties
 		_ = _context.CorrelationId;
-		_ = _context.MessageType;
-		_ = _context.UserId;
+		_ = _context.GetMessageType();
+		_ = _context.GetUserId();
 
 		// Write validation result
 		_context.Items["Validation:Passed"] = true;
@@ -262,13 +263,13 @@ public class MessageContextBenchmarks
 		// Read all hot-path properties (simulates middleware pipeline)
 		_ = _context.CorrelationId;
 		_ = _context.CausationId;
-		_ = _context.UserId;
-		_ = _context.TenantId;
+		_ = _context.GetUserId();
+		_ = _context.GetTenantId();
 		_ = _context.MessageId;
-		_ = _context.TraceParent;
-		_ = _context.Source;
-		_ = _context.MessageType;
-		_ = _context.ContentType;
+		_ = _context.GetTraceParent();
+		_ = _context.GetSource();
+		_ = _context.GetMessageType();
+		_ = _context.GetContentType();
 	}
 
 	// =========================================================================

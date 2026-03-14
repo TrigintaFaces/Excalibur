@@ -4,6 +4,7 @@
 #pragma warning disable IL2026, IL3050 // Suppress for test - RequiresUnreferencedCode/RequiresDynamicCode
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Observability.Context;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -243,8 +244,10 @@ public sealed class ContextFlowTrackerDepthShould : IAsyncDisposable
 		_tracker = CreateTracker(options);
 
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>();
 		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.TenantId).Returns((string?)null); // Missing TenantId
+		A.CallTo(() => context.Items).Returns(items);
+		// TenantId is checked via Items fallback in ValidateContextIntegrity, not present
 
 		// Act
 		var result = _tracker.ValidateContextIntegrity(context);
@@ -280,9 +283,13 @@ public sealed class ContextFlowTrackerDepthShould : IAsyncDisposable
 		// Arrange
 		_tracker = CreateTracker();
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>();
+		var features = new Dictionary<Type, object>();
 		A.CallTo(() => context.MessageId).Returns("  "); // Whitespace
 		A.CallTo(() => context.CorrelationId).Returns("corr-1");
-		A.CallTo(() => context.MessageType).Returns("TestType");
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
+		context.SetMessageType("TestType");
 
 		// Act
 		var result = _tracker.ValidateContextIntegrity(context);
@@ -314,6 +321,7 @@ public sealed class ContextFlowTrackerDepthShould : IAsyncDisposable
 		A.CallTo(() => context.MessageId).Returns((string?)null);
 		A.CallTo(() => context.CorrelationId).Returns("corr-1");
 		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
 
 		// Act — should not throw even with null MessageId
 		_tracker.RecordContextState(context, "stage1");
@@ -369,11 +377,18 @@ public sealed class ContextFlowTrackerDepthShould : IAsyncDisposable
 	private static IMessageContext CreateFakeContext(string messageId, string correlationId)
 	{
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>();
+		var features = new Dictionary<Type, object>();
+
 		A.CallTo(() => context.MessageId).Returns(messageId);
 		A.CallTo(() => context.CorrelationId).Returns(correlationId);
-		A.CallTo(() => context.MessageType).Returns("TestMessage");
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
-		A.CallTo(() => context.ReceivedTimestampUtc).Returns(DateTimeOffset.UtcNow);
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
+
+		// Set MessageType via extension (stored in Items)
+		context.SetMessageType("TestMessage");
+		context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
+
 		return context;
 	}
 }

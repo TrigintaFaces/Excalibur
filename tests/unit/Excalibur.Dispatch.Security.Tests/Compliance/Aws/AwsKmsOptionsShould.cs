@@ -33,17 +33,17 @@ public sealed class AwsKmsOptionsShould
 		options.UseFipsEndpoint.ShouldBeFalse();
 		options.KeyAliasPrefix.ShouldBe("excalibur-dispatch");
 		options.Environment.ShouldBeNull();
-		options.DefaultKeySpec.ShouldBe("SYMMETRIC_DEFAULT");
-		options.MetadataCacheDurationSeconds.ShouldBe(300);
-		options.EnableDataKeyCache.ShouldBeTrue();
-		options.DataKeyCacheDurationSeconds.ShouldBe(300);
-		options.DataKeyCacheMaxSize.ShouldBe(1000);
-		options.DefaultDeletionRetentionDays.ShouldBe(30);
-		options.EnableAutoRotation.ShouldBeTrue();
+		options.KeyPolicy.DefaultKeySpec.ShouldBe("SYMMETRIC_DEFAULT");
+		options.Cache.MetadataCacheDurationSeconds.ShouldBe(300);
+		options.Cache.EnableDataKeyCache.ShouldBeTrue();
+		options.Cache.DataKeyCacheDurationSeconds.ShouldBe(300);
+		options.Cache.DataKeyCacheMaxSize.ShouldBe(1000);
+		options.KeyPolicy.DefaultDeletionRetentionDays.ShouldBe(30);
+		options.KeyPolicy.EnableAutoRotation.ShouldBeTrue();
 		options.ServiceUrl.ShouldBeNull();
-		options.CreateMultiRegionKeys.ShouldBeFalse();
-		options.ReplicaRegions.ShouldNotBeNull();
-		options.ReplicaRegions.ShouldBeEmpty();
+		options.KeyPolicy.CreateMultiRegionKeys.ShouldBeFalse();
+		options.KeyPolicy.ReplicaRegions.ShouldNotBeNull();
+		options.KeyPolicy.ReplicaRegions.ShouldBeEmpty();
 	}
 
 	#endregion
@@ -232,10 +232,10 @@ public sealed class AwsKmsOptionsShould
 		var options = new AwsKmsOptions();
 
 		// Act
-		options.DefaultKeySpec = "RSA_2048";
+		options.KeyPolicy.DefaultKeySpec = "RSA_2048";
 
 		// Assert
-		options.DefaultKeySpec.ShouldBe("RSA_2048");
+		options.KeyPolicy.DefaultKeySpec.ShouldBe("RSA_2048");
 	}
 
 	[Fact]
@@ -245,10 +245,10 @@ public sealed class AwsKmsOptionsShould
 		var options = new AwsKmsOptions();
 
 		// Act
-		options.MetadataCacheDurationSeconds = 600;
+		options.Cache.MetadataCacheDurationSeconds = 600;
 
 		// Assert
-		options.MetadataCacheDurationSeconds.ShouldBe(600);
+		options.Cache.MetadataCacheDurationSeconds.ShouldBe(600);
 	}
 
 	[Fact]
@@ -258,10 +258,10 @@ public sealed class AwsKmsOptionsShould
 		var options = new AwsKmsOptions();
 
 		// Act
-		options.EnableDataKeyCache = false;
+		options.Cache.EnableDataKeyCache = false;
 
 		// Assert
-		options.EnableDataKeyCache.ShouldBeFalse();
+		options.Cache.EnableDataKeyCache.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -271,10 +271,10 @@ public sealed class AwsKmsOptionsShould
 		var options = new AwsKmsOptions();
 
 		// Act
-		options.DataKeyCacheDurationSeconds = 120;
+		options.Cache.DataKeyCacheDurationSeconds = 120;
 
 		// Assert
-		options.DataKeyCacheDurationSeconds.ShouldBe(120);
+		options.Cache.DataKeyCacheDurationSeconds.ShouldBe(120);
 	}
 
 	[Fact]
@@ -284,10 +284,10 @@ public sealed class AwsKmsOptionsShould
 		var options = new AwsKmsOptions();
 
 		// Act
-		options.DataKeyCacheMaxSize = 500;
+		options.Cache.DataKeyCacheMaxSize = 500;
 
 		// Assert
-		options.DataKeyCacheMaxSize.ShouldBe(500);
+		options.Cache.DataKeyCacheMaxSize.ShouldBe(500);
 	}
 
 	[Fact]
@@ -297,10 +297,10 @@ public sealed class AwsKmsOptionsShould
 		var options = new AwsKmsOptions();
 
 		// Act
-		options.DefaultDeletionRetentionDays = 14;
+		options.KeyPolicy.DefaultDeletionRetentionDays = 14;
 
 		// Assert
-		options.DefaultDeletionRetentionDays.ShouldBe(14);
+		options.KeyPolicy.DefaultDeletionRetentionDays.ShouldBe(14);
 	}
 
 	[Fact]
@@ -310,10 +310,10 @@ public sealed class AwsKmsOptionsShould
 		var options = new AwsKmsOptions();
 
 		// Act
-		options.EnableAutoRotation = false;
+		options.KeyPolicy.EnableAutoRotation = false;
 
 		// Assert
-		options.EnableAutoRotation.ShouldBeFalse();
+		options.KeyPolicy.EnableAutoRotation.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -336,10 +336,10 @@ public sealed class AwsKmsOptionsShould
 		var options = new AwsKmsOptions();
 
 		// Act
-		options.CreateMultiRegionKeys = true;
+		options.KeyPolicy.CreateMultiRegionKeys = true;
 
 		// Assert
-		options.CreateMultiRegionKeys.ShouldBeTrue();
+		options.KeyPolicy.CreateMultiRegionKeys.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -354,11 +354,11 @@ public sealed class AwsKmsOptionsShould
 		};
 
 		// Act
-		options.ReplicaRegions = regions;
+		options.KeyPolicy.ReplicaRegions = regions;
 
 		// Assert
-		options.ReplicaRegions.ShouldBe(regions);
-		options.ReplicaRegions.Count.ShouldBe(2);
+		options.KeyPolicy.ReplicaRegions.ShouldBe(regions);
+		options.KeyPolicy.ReplicaRegions.Count.ShouldBe(2);
 	}
 
 	#endregion
@@ -375,16 +375,22 @@ public sealed class AwsKmsOptionsShould
 			UseFipsEndpoint = true,
 			KeyAliasPrefix = "gov-app",
 			Environment = "govcloud",
-			DefaultKeySpec = "SYMMETRIC_DEFAULT",
-			MetadataCacheDurationSeconds = 600,
-			EnableDataKeyCache = true,
-			DataKeyCacheDurationSeconds = 180,
-			DataKeyCacheMaxSize = 2000,
-			DefaultDeletionRetentionDays = 7,
-			EnableAutoRotation = true,
-			ServiceUrl = null,
-			CreateMultiRegionKeys = false,
-			ReplicaRegions = []
+			Cache =
+			{
+				MetadataCacheDurationSeconds = 600,
+				EnableDataKeyCache = true,
+				DataKeyCacheDurationSeconds = 180,
+				DataKeyCacheMaxSize = 2000
+			},
+			KeyPolicy =
+			{
+				DefaultKeySpec = "SYMMETRIC_DEFAULT",
+				DefaultDeletionRetentionDays = 7,
+				EnableAutoRotation = true,
+				CreateMultiRegionKeys = false,
+				ReplicaRegions = []
+			},
+			ServiceUrl = null
 		};
 
 		// Assert
@@ -392,15 +398,15 @@ public sealed class AwsKmsOptionsShould
 		options.UseFipsEndpoint.ShouldBeTrue();
 		options.KeyAliasPrefix.ShouldBe("gov-app");
 		options.Environment.ShouldBe("govcloud");
-		options.MetadataCacheDurationSeconds.ShouldBe(600);
-		options.EnableDataKeyCache.ShouldBeTrue();
-		options.DataKeyCacheDurationSeconds.ShouldBe(180);
-		options.DataKeyCacheMaxSize.ShouldBe(2000);
-		options.DefaultDeletionRetentionDays.ShouldBe(7);
-		options.EnableAutoRotation.ShouldBeTrue();
+		options.Cache.MetadataCacheDurationSeconds.ShouldBe(600);
+		options.Cache.EnableDataKeyCache.ShouldBeTrue();
+		options.Cache.DataKeyCacheDurationSeconds.ShouldBe(180);
+		options.Cache.DataKeyCacheMaxSize.ShouldBe(2000);
+		options.KeyPolicy.DefaultDeletionRetentionDays.ShouldBe(7);
+		options.KeyPolicy.EnableAutoRotation.ShouldBeTrue();
 		options.ServiceUrl.ShouldBeNull();
-		options.CreateMultiRegionKeys.ShouldBeFalse();
-		options.ReplicaRegions.ShouldBeEmpty();
+		options.KeyPolicy.CreateMultiRegionKeys.ShouldBeFalse();
+		options.KeyPolicy.ReplicaRegions.ShouldBeEmpty();
 
 		// Verify alias generation with full config
 		var alias = options.BuildKeyAlias("classified-key");
@@ -416,13 +422,16 @@ public sealed class AwsKmsOptionsShould
 			Region = RegionEndpoint.USEast1,
 			ServiceUrl = "http://localhost:4566",
 			KeyAliasPrefix = "localtest",
-			EnableAutoRotation = false
+			KeyPolicy =
+			{
+				EnableAutoRotation = false
+			}
 		};
 
 		// Assert
 		options.ServiceUrl.ShouldBe("http://localhost:4566");
 		options.Region.ShouldBe(RegionEndpoint.USEast1);
-		options.EnableAutoRotation.ShouldBeFalse();
+		options.KeyPolicy.EnableAutoRotation.ShouldBeFalse();
 
 		var alias = options.BuildKeyAlias("test-key");
 		alias.ShouldBe("alias/localtest-test-key");
@@ -435,23 +444,26 @@ public sealed class AwsKmsOptionsShould
 		var options = new AwsKmsOptions
 		{
 			Region = RegionEndpoint.USEast1,
-			CreateMultiRegionKeys = true,
-			ReplicaRegions =
-			[
-				RegionEndpoint.EUWest1,
-				RegionEndpoint.APNortheast1,
-				RegionEndpoint.SAEast1
-			],
+			KeyPolicy =
+			{
+				CreateMultiRegionKeys = true,
+				ReplicaRegions =
+				[
+					RegionEndpoint.EUWest1,
+					RegionEndpoint.APNortheast1,
+					RegionEndpoint.SAEast1
+				]
+			},
 			KeyAliasPrefix = "global-app",
 			Environment = "production"
 		};
 
 		// Assert
-		options.CreateMultiRegionKeys.ShouldBeTrue();
-		options.ReplicaRegions.Count.ShouldBe(3);
-		options.ReplicaRegions.ShouldContain(RegionEndpoint.EUWest1);
-		options.ReplicaRegions.ShouldContain(RegionEndpoint.APNortheast1);
-		options.ReplicaRegions.ShouldContain(RegionEndpoint.SAEast1);
+		options.KeyPolicy.CreateMultiRegionKeys.ShouldBeTrue();
+		options.KeyPolicy.ReplicaRegions.Count.ShouldBe(3);
+		options.KeyPolicy.ReplicaRegions.ShouldContain(RegionEndpoint.EUWest1);
+		options.KeyPolicy.ReplicaRegions.ShouldContain(RegionEndpoint.APNortheast1);
+		options.KeyPolicy.ReplicaRegions.ShouldContain(RegionEndpoint.SAEast1);
 
 		var alias = options.BuildKeyAlias("mrk-key");
 		alias.ShouldBe("alias/global-app-production-mrk-key");

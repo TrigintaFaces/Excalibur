@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Data.DynamoDb.Saga;
+using Excalibur.Saga.DynamoDb;
 
 namespace Excalibur.Data.Tests.DynamoDb;
 
@@ -26,7 +26,7 @@ public sealed class DynamoDbSagaOptionsShould
 		var options = new DynamoDbSagaOptions();
 
 		// Assert
-		options.ServiceUrl.ShouldBeNull();
+		options.Connection.ServiceUrl.ShouldBeNull();
 	}
 
 	[Fact]
@@ -36,7 +36,7 @@ public sealed class DynamoDbSagaOptionsShould
 		var options = new DynamoDbSagaOptions();
 
 		// Assert
-		options.Region.ShouldBeNull();
+		options.Connection.Region.ShouldBeNull();
 	}
 
 	[Fact]
@@ -46,7 +46,7 @@ public sealed class DynamoDbSagaOptionsShould
 		var options = new DynamoDbSagaOptions();
 
 		// Assert
-		options.AccessKey.ShouldBeNull();
+		options.Connection.AccessKey.ShouldBeNull();
 	}
 
 	[Fact]
@@ -56,7 +56,7 @@ public sealed class DynamoDbSagaOptionsShould
 		var options = new DynamoDbSagaOptions();
 
 		// Assert
-		options.SecretKey.ShouldBeNull();
+		options.Connection.SecretKey.ShouldBeNull();
 	}
 
 	[Fact]
@@ -139,10 +139,13 @@ public sealed class DynamoDbSagaOptionsShould
 		// Act
 		var options = new DynamoDbSagaOptions
 		{
-			ServiceUrl = "http://localhost:8000",
-			Region = "eu-west-1",
-			AccessKey = "saga-access-key",
-			SecretKey = "saga-secret-key",
+			Connection =
+			{
+				ServiceUrl = "http://localhost:8000",
+				Region = "eu-west-1",
+				AccessKey = "saga-access-key",
+				SecretKey = "saga-secret-key"
+			},
 			TableName = "custom_sagas",
 			MaxRetryAttempts = 5,
 			TimeoutInSeconds = 45,
@@ -153,10 +156,10 @@ public sealed class DynamoDbSagaOptionsShould
 		};
 
 		// Assert
-		options.ServiceUrl.ShouldBe("http://localhost:8000");
-		options.Region.ShouldBe("eu-west-1");
-		options.AccessKey.ShouldBe("saga-access-key");
-		options.SecretKey.ShouldBe("saga-secret-key");
+		options.Connection.ServiceUrl.ShouldBe("http://localhost:8000");
+		options.Connection.Region.ShouldBe("eu-west-1");
+		options.Connection.AccessKey.ShouldBe("saga-access-key");
+		options.Connection.SecretKey.ShouldBe("saga-secret-key");
 		options.TableName.ShouldBe("custom_sagas");
 		options.MaxRetryAttempts.ShouldBe(5);
 		options.TimeoutInSeconds.ShouldBe(45);
@@ -174,10 +177,8 @@ public sealed class DynamoDbSagaOptionsShould
 	public void Validate_Succeeds_WithServiceUrl()
 	{
 		// Arrange
-		var options = new DynamoDbSagaOptions
-		{
-			ServiceUrl = "http://localhost:8000"
-		};
+		var options = new DynamoDbSagaOptions();
+		options.Connection.ServiceUrl = "http://localhost:8000";
 
 		// Act & Assert - Should not throw
 		options.Validate();
@@ -187,10 +188,8 @@ public sealed class DynamoDbSagaOptionsShould
 	public void Validate_Succeeds_WithRegion()
 	{
 		// Arrange
-		var options = new DynamoDbSagaOptions
-		{
-			Region = "us-west-2"
-		};
+		var options = new DynamoDbSagaOptions();
+		options.Connection.Region = "us-west-2";
 
 		// Act & Assert - Should not throw
 		options.Validate();
@@ -214,9 +213,9 @@ public sealed class DynamoDbSagaOptionsShould
 		// Arrange
 		var options = new DynamoDbSagaOptions
 		{
-			ServiceUrl = "http://localhost:8000",
 			TableName = ""
 		};
+		options.Connection.ServiceUrl = "http://localhost:8000";
 
 		// Act & Assert
 		var exception = Should.Throw<InvalidOperationException>(() => options.Validate());
@@ -229,9 +228,9 @@ public sealed class DynamoDbSagaOptionsShould
 		// Arrange
 		var options = new DynamoDbSagaOptions
 		{
-			ServiceUrl = "http://localhost:8000",
 			TableName = "   "
 		};
+		options.Connection.ServiceUrl = "http://localhost:8000";
 
 		// Act & Assert
 		var exception = Should.Throw<InvalidOperationException>(() => options.Validate());
@@ -246,10 +245,8 @@ public sealed class DynamoDbSagaOptionsShould
 	public void GetRegionEndpoint_ReturnsEndpoint_WhenRegionIsSet()
 	{
 		// Arrange
-		var options = new DynamoDbSagaOptions
-		{
-			Region = "ap-southeast-1"
-		};
+		var options = new DynamoDbSagaOptions();
+		options.Connection.Region = "ap-southeast-1";
 
 		// Act
 		var endpoint = options.GetRegionEndpoint();
@@ -276,10 +273,8 @@ public sealed class DynamoDbSagaOptionsShould
 	public void GetRegionEndpoint_ReturnsNull_WhenRegionIsEmpty()
 	{
 		// Arrange
-		var options = new DynamoDbSagaOptions
-		{
-			Region = ""
-		};
+		var options = new DynamoDbSagaOptions();
+		options.Connection.Region = "";
 
 		// Act
 		var endpoint = options.GetRegionEndpoint();

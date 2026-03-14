@@ -25,10 +25,10 @@ public sealed class HybridWaitStrategyShould
 	}
 
 	[Fact]
-	public void BePublicAndSealed()
+	public void BeInternalAndSealed()
 	{
 		// Assert
-		typeof(HybridWaitStrategy).IsPublic.ShouldBeTrue();
+		typeof(HybridWaitStrategy).IsNotPublic.ShouldBeTrue();
 		typeof(HybridWaitStrategy).IsSealed.ShouldBeTrue();
 	}
 

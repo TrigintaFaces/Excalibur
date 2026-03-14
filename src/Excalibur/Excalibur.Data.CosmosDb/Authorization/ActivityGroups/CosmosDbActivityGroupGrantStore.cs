@@ -168,7 +168,7 @@ public sealed partial class CosmosDbActivityGroupGrantStore : IActivityGroupGran
 		};
 
 		var partitionKey = new PartitionKey(document.TenantId);
-		var options = new ItemRequestOptions { EnableContentResponseOnWrite = _options.EnableContentResponseOnWrite };
+		var options = new ItemRequestOptions { EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite };
 
 		_ = await _container.UpsertItemAsync(
 			document,
@@ -278,30 +278,30 @@ public sealed partial class CosmosDbActivityGroupGrantStore : IActivityGroupGran
 	{
 		var options = new CosmosClientOptions
 		{
-			MaxRetryAttemptsOnRateLimitedRequests = _options.MaxRetryAttempts,
-			MaxRetryWaitTimeOnRateLimitedRequests = TimeSpan.FromSeconds(_options.MaxRetryWaitTimeInSeconds),
-			EnableContentResponseOnWrite = _options.EnableContentResponseOnWrite,
-			RequestTimeout = TimeSpan.FromSeconds(_options.RequestTimeoutInSeconds),
-			ConnectionMode = _options.UseDirectMode ? ConnectionMode.Direct : ConnectionMode.Gateway,
+			MaxRetryAttemptsOnRateLimitedRequests = _options.Client.Resilience.MaxRetryAttempts,
+			MaxRetryWaitTimeOnRateLimitedRequests = TimeSpan.FromSeconds(_options.Client.Resilience.MaxRetryWaitTimeInSeconds),
+			EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite,
+			RequestTimeout = TimeSpan.FromSeconds(_options.Client.Resilience.RequestTimeoutInSeconds),
+			ConnectionMode = _options.Client.UseDirectMode ? ConnectionMode.Direct : ConnectionMode.Gateway,
 			UseSystemTextJsonSerializerWithOptions = new System.Text.Json.JsonSerializerOptions
 			{
 				PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
 			}
 		};
 
-		if (_options.ConsistencyLevel.HasValue)
+		if (_options.Client.ConsistencyLevel.HasValue)
 		{
-			options.ConsistencyLevel = _options.ConsistencyLevel.Value;
+			options.ConsistencyLevel = _options.Client.ConsistencyLevel.Value;
 		}
 
-		if (_options.PreferredRegions is { Count: > 0 })
+		if (_options.Client.PreferredRegions is { Count: > 0 })
 		{
-			options.ApplicationPreferredRegions = _options.PreferredRegions.ToList();
+			options.ApplicationPreferredRegions = _options.Client.PreferredRegions.ToList();
 		}
 
-		if (_options.HttpClientFactory is not null)
+		if (_options.Client.HttpClientFactory is not null)
 		{
-			options.HttpClientFactory = _options.HttpClientFactory;
+			options.HttpClientFactory = _options.Client.HttpClientFactory;
 		}
 
 		return options;
@@ -309,12 +309,12 @@ public sealed partial class CosmosDbActivityGroupGrantStore : IActivityGroupGran
 
 	private CosmosClient CreateClient(CosmosClientOptions options)
 	{
-		if (!string.IsNullOrWhiteSpace(_options.ConnectionString))
+		if (!string.IsNullOrWhiteSpace(_options.Client.ConnectionString))
 		{
-			return new CosmosClient(_options.ConnectionString, options);
+			return new CosmosClient(_options.Client.ConnectionString, options);
 		}
 
-		return new CosmosClient(_options.AccountEndpoint, _options.AccountKey, options);
+		return new CosmosClient(_options.Client.AccountEndpoint, _options.Client.AccountKey, options);
 	}
 
 	private async Task EnsureInitializedAsync(CancellationToken cancellationToken)

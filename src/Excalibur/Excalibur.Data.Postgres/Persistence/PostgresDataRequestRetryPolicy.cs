@@ -26,10 +26,10 @@ public sealed class PostgresDataRequestRetryPolicy(PostgresPersistenceOptions op
 	private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
 	/// <inheritdoc />
-	public int MaxRetryAttempts => _options.MaxRetryAttempts;
+	public int MaxRetryAttempts => _options.Resilience.MaxRetryAttempts;
 
 	/// <inheritdoc />
-	public TimeSpan BaseRetryDelay => TimeSpan.FromMilliseconds(_options.RetryDelayMilliseconds);
+	public TimeSpan BaseRetryDelay => TimeSpan.FromMilliseconds(_options.Resilience.RetryDelayMilliseconds);
 
 	/// <inheritdoc />
 	public async Task<TResult> ResolveAsync<TConnection, TResult>(

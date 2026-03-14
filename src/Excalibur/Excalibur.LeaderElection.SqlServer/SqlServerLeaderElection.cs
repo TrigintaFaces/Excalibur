@@ -40,6 +40,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	private bool _isStarted;
 	private volatile bool _isLeader;
 	private string? _currentLeaderId;
+	private volatile bool _disposed;
 	private DateTimeOffset _lastSuccessfulRenewal;
 
 	/// <summary>
@@ -93,6 +94,8 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	/// <inheritdoc/>
 	public async Task StartAsync(CancellationToken cancellationToken)
 	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
 		lock (_lock)
 		{
 			if (_isStarted)
@@ -115,6 +118,8 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	/// <inheritdoc/>
 	public async Task StopAsync(CancellationToken cancellationToken)
 	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
 		bool wasLeader;
 
 		lock (_lock)
@@ -173,13 +178,32 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 	/// </summary>
 	public async ValueTask DisposeAsync()
 	{
-		await StopAsync(CancellationToken.None).ConfigureAwait(false);
+		if (_disposed)
+		{
+			return;
+		}
+
+		_disposed = true;
+
+		if (_isStarted)
+		{
+			try
+			{
+				await StopAsync(CancellationToken.None).ConfigureAwait(false);
+			}
+			catch (Exception)
+			{
+				// Safe cleanup during disposal
+			}
+		}
 
 		if (_connection != null)
 		{
 			await _connection.DisposeAsync().ConfigureAwait(false);
 			_connection = null;
 		}
+
+		_renewalCts?.Dispose();
 	}
 
 	private async Task TryAcquireLockAsync(CancellationToken cancellationToken)
@@ -289,7 +313,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 						var elapsed = DateTimeOffset.UtcNow - _lastSuccessfulRenewal;
 						if (elapsed > _options.GracePeriod)
 						{
-							LoseLeadership();
+							await LoseLeadershipAsync().ConfigureAwait(false);
 						}
 					}
 					else
@@ -311,7 +335,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 					var elapsed = DateTimeOffset.UtcNow - _lastSuccessfulRenewal;
 					if (elapsed > _options.GracePeriod)
 					{
-						LoseLeadership();
+						await LoseLeadershipAsync().ConfigureAwait(false);
 					}
 				}
 			}
@@ -386,7 +410,7 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 		LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, CandidateId, _lockResource));
 	}
 
-	private void LoseLeadership()
+	private async Task LoseLeadershipAsync()
 	{
 		lock (_lock)
 		{
@@ -405,18 +429,19 @@ public sealed partial class SqlServerLeaderElection : ILeaderElection, IAsyncDis
 			LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, _lockResource));
 		}
 
-		// Clean up connection
+		// Clean up connection asynchronously
 		if (_connection != null)
 		{
 			try
 			{
-				_connection.Close();
+				await _connection.CloseAsync().ConfigureAwait(false);
 			}
 			catch
 			{
-				// Ignore
+				// Ignore connection close errors during leadership loss
 			}
 
+			await _connection.DisposeAsync().ConfigureAwait(false);
 			_connection = null;
 		}
 	}

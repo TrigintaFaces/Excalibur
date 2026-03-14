@@ -4,7 +4,7 @@ This sample demonstrates how to use `Excalibur.Dispatch.Hosting.AzureFunctions` 
 
 ## Prerequisites
 
-- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
 - [Azure Functions Core Tools v4](https://docs.microsoft.com/azure/azure-functions/functions-run-local)
 - [Azurite](https://docs.microsoft.com/azure/storage/common/storage-use-azurite) (for local storage emulation)
 - [Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli) (for deployment)
@@ -155,8 +155,10 @@ This sample uses `Excalibur.Dispatch.Hosting.AzureFunctions` which includes cold
 builder.Services.AddExcaliburAzureFunctionsServerless(opts =>
 {
     opts.EnableColdStartOptimization = true;
-    opts.EnableDistributedTracing = true;
+    opts.Telemetry.EnableDistributedTracing = true;
+    opts.Telemetry.EnableStructuredLogging = true;
     opts.AzureFunctions.HostingPlan = "Consumption";
+    opts.AzureFunctions.RuntimeVersion = "~4";
 });
 ```
 

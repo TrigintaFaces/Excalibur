@@ -46,8 +46,8 @@ public static class Startup
 		_ = services.AddExcaliburAwsLambdaServerless(opts =>
 		{
 			opts.EnableColdStartOptimization = true;
-			opts.EnableDistributedTracing = true;
-			opts.EnableStructuredLogging = true;
+			opts.Telemetry.EnableDistributedTracing = true;
+			opts.Telemetry.EnableStructuredLogging = true;
 
 			// AWS Lambda specific options
 			opts.AwsLambda.Runtime = "dotnet8";

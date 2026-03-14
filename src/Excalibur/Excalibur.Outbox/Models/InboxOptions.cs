@@ -4,6 +4,67 @@
 namespace Excalibur.Outbox;
 
 /// <summary>
+/// Batch-related configuration for inbox message processing.
+/// </summary>
+public sealed class InboxBatchOptions
+{
+	/// <summary>
+	/// Gets the batch size for loading messages from storage.
+	/// </summary>
+	/// <value>The producer batch size.</value>
+	public int ProducerBatchSize { get; }
+
+	/// <summary>
+	/// Gets the batch size for processing messages.
+	/// </summary>
+	/// <value>The consumer batch size.</value>
+	public int ConsumerBatchSize { get; }
+
+	/// <summary>
+	/// Gets a value indicating whether dynamic batch sizing is enabled.
+	/// </summary>
+	/// <value><see langword="true"/> if dynamic batch sizing is enabled; otherwise, <see langword="false"/>.</value>
+	public bool EnableDynamicBatchSizing { get; }
+
+	/// <summary>
+	/// Gets the minimum batch size when dynamic sizing is enabled.
+	/// </summary>
+	/// <value>The minimum batch size.</value>
+	public int MinBatchSize { get; }
+
+	/// <summary>
+	/// Gets the maximum batch size when dynamic sizing is enabled.
+	/// </summary>
+	/// <value>The maximum batch size.</value>
+	public int MaxBatchSize { get; }
+
+	/// <summary>
+	/// Gets a value indicating whether batch database operations are enabled.
+	/// </summary>
+	/// <value><see langword="true"/> if batch database operations are enabled; otherwise, <see langword="false"/>.</value>
+	public bool EnableBatchDatabaseOperations { get; }
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="InboxBatchOptions"/> class.
+	/// </summary>
+	internal InboxBatchOptions(
+		int producerBatchSize,
+		int consumerBatchSize,
+		bool enableDynamicBatchSizing,
+		int minBatchSize,
+		int maxBatchSize,
+		bool enableBatchDatabaseOperations)
+	{
+		ProducerBatchSize = producerBatchSize;
+		ConsumerBatchSize = consumerBatchSize;
+		EnableDynamicBatchSizing = enableDynamicBatchSizing;
+		MinBatchSize = minBatchSize;
+		MaxBatchSize = maxBatchSize;
+		EnableBatchDatabaseOperations = enableBatchDatabaseOperations;
+	}
+}
+
+/// <summary>
 /// Immutable configuration options for the inbox pattern.
 /// </summary>
 /// <remarks>
@@ -76,17 +137,18 @@ public sealed class InboxOptions
 	{
 		Preset = preset;
 		QueueCapacity = queueCapacity;
-		ProducerBatchSize = producerBatchSize;
-		ConsumerBatchSize = consumerBatchSize;
+		Batch = new InboxBatchOptions(
+			producerBatchSize,
+			consumerBatchSize,
+			enableDynamicBatchSizing,
+			minBatchSize,
+			maxBatchSize,
+			enableBatchDatabaseOperations);
 		PerRunTotal = perRunTotal;
 		MaxAttempts = maxAttempts;
 		ParallelProcessingDegree = parallelProcessingDegree;
 		BatchProcessingTimeout = batchProcessingTimeout;
 		DefaultMessageTtl = defaultMessageTtl;
-		EnableDynamicBatchSizing = enableDynamicBatchSizing;
-		MinBatchSize = minBatchSize;
-		MaxBatchSize = maxBatchSize;
-		EnableBatchDatabaseOperations = enableBatchDatabaseOperations;
 	}
 
 	// ========================================
@@ -211,16 +273,10 @@ public sealed class InboxOptions
 	public int QueueCapacity { get; }
 
 	/// <summary>
-	/// Gets the batch size for loading messages from storage.
+	/// Gets the batch processing options.
 	/// </summary>
-	/// <value>The producer batch size.</value>
-	public int ProducerBatchSize { get; }
-
-	/// <summary>
-	/// Gets the batch size for processing messages.
-	/// </summary>
-	/// <value>The consumer batch size.</value>
-	public int ConsumerBatchSize { get; }
+	/// <value>The batch options controlling sizing and database operations.</value>
+	public InboxBatchOptions Batch { get; }
 
 	/// <summary>
 	/// Gets the maximum number of messages to process per run.
@@ -251,28 +307,4 @@ public sealed class InboxOptions
 	/// </summary>
 	/// <value>The default message TTL, or null if no expiration.</value>
 	public TimeSpan? DefaultMessageTtl { get; }
-
-	/// <summary>
-	/// Gets a value indicating whether dynamic batch sizing is enabled.
-	/// </summary>
-	/// <value><see langword="true"/> if dynamic batch sizing is enabled; otherwise, <see langword="false"/>.</value>
-	public bool EnableDynamicBatchSizing { get; }
-
-	/// <summary>
-	/// Gets the minimum batch size when dynamic sizing is enabled.
-	/// </summary>
-	/// <value>The minimum batch size.</value>
-	public int MinBatchSize { get; }
-
-	/// <summary>
-	/// Gets the maximum batch size when dynamic sizing is enabled.
-	/// </summary>
-	/// <value>The maximum batch size.</value>
-	public int MaxBatchSize { get; }
-
-	/// <summary>
-	/// Gets a value indicating whether batch database operations are enabled.
-	/// </summary>
-	/// <value><see langword="true"/> if batch database operations are enabled; otherwise, <see langword="false"/>.</value>
-	public bool EnableBatchDatabaseOperations { get; }
 }

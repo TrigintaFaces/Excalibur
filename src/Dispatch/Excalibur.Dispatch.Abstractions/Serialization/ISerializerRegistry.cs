@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Abstractions.Serialization;
 /// (Outbox, Inbox, Event Store). It maintains:
 /// </para>
 /// <list type="bullet">
-///   <item>A mapping of serializer IDs to <see cref="IPluggableSerializer"/> implementations</item>
+///   <item>A mapping of serializer IDs to <see cref="ISerializer"/> implementations</item>
 ///   <item>A mapping of serializer names to IDs for lookup by name</item>
 ///   <item>The currently active serializer for new message serialization</item>
 /// </list>
@@ -47,7 +47,7 @@ public interface ISerializerRegistry
 	///   <item>Serializer name is already registered</item>
 	/// </list>
 	/// </exception>
-	void Register(byte id, IPluggableSerializer serializer);
+	void Register(byte id, ISerializer serializer);
 
 	/// <summary>
 	/// Sets the current serializer to use for new messages.
@@ -64,14 +64,14 @@ public interface ISerializerRegistry
 	/// <exception cref="InvalidOperationException">
 	/// Thrown when no current serializer is configured. Call <see cref="SetCurrent"/> first.
 	/// </exception>
-	(byte Id, IPluggableSerializer Serializer) GetCurrent();
+	(byte Id, ISerializer Serializer) GetCurrent();
 
 	/// <summary>
 	/// Gets a serializer by its ID.
 	/// </summary>
 	/// <param name="id">The serializer ID (from payload magic byte).</param>
 	/// <returns>The serializer, or null if not registered.</returns>
-	IPluggableSerializer? GetById(byte id);
+	ISerializer? GetById(byte id);
 
 	/// <summary>
 	/// Gets all registered serializers.
@@ -84,5 +84,5 @@ public interface ISerializerRegistry
 	/// This method is useful for diagnostics, migration tools, and error messages
 	/// that need to list available serializers.
 	/// </remarks>
-	IReadOnlyCollection<(byte Id, string Name, IPluggableSerializer Serializer)> GetAll();
+	IReadOnlyCollection<(byte Id, string Name, ISerializer Serializer)> GetAll();
 }

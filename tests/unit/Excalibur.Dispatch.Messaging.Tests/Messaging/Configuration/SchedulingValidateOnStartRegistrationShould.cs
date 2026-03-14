@@ -46,8 +46,8 @@ public sealed class SchedulingValidateOnStartRegistrationShould
 		// Assert - defaults should pass validation
 		value.HeavyOperationMultiplier.ShouldBe(2.0);
 		value.ComplexOperationMultiplier.ShouldBe(1.5);
-		value.AdaptiveTimeoutPercentile.ShouldBe(95);
-		value.MinimumSampleSize.ShouldBe(50);
+		value.Adaptive.AdaptiveTimeoutPercentile.ShouldBe(95);
+		value.Adaptive.MinimumSampleSize.ShouldBe(50);
 	}
 
 	[Fact]
@@ -89,26 +89,26 @@ public sealed class SchedulingValidateOnStartRegistrationShould
 	}
 
 	[Fact]
-	public void ShimProperties_DelegateToSubOptions()
+	public void SubOptionProperties_DelegateToSubOptions()
 	{
-		// Arrange - shim properties on TimeAwareSchedulerOptions delegate to SchedulerAdaptiveOptions.
-		// The [Range] attributes live on SchedulerAdaptiveOptions, not on the shim properties,
+		// Arrange - sub-option properties on TimeAwareSchedulerOptions are accessed via Timeouts/Adaptive.
+		// The [Range] attributes live on SchedulerAdaptiveOptions, not on the parent,
 		// so ValidateDataAnnotations does not validate them at the top level.
-		// This test verifies the delegation works correctly.
+		// This test verifies the sub-options work correctly.
 		var services = new ServiceCollection();
 
 		_ = services.AddTimeAwareScheduling(opts =>
 		{
-			opts.AdaptiveTimeoutPercentile = 90;
-			opts.MinimumSampleSize = 200;
-			opts.MaxTimeoutEscalations = 7;
+			opts.Adaptive.AdaptiveTimeoutPercentile = 90;
+			opts.Adaptive.MinimumSampleSize = 200;
+			opts.Adaptive.MaxTimeoutEscalations = 7;
 		});
 
 		// Act
 		using var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<TimeAwareSchedulerOptions>>().Value;
 
-		// Assert - values set via shim properties should be reflected in sub-options
+		// Assert - values set via sub-options should be reflected
 		options.Adaptive.AdaptiveTimeoutPercentile.ShouldBe(90);
 		options.Adaptive.MinimumSampleSize.ShouldBe(200);
 		options.Adaptive.MaxTimeoutEscalations.ShouldBe(7);
@@ -124,9 +124,9 @@ public sealed class SchedulingValidateOnStartRegistrationShould
 		{
 			opts.HeavyOperationMultiplier = 3.0;
 			opts.ComplexOperationMultiplier = 2.0;
-			opts.AdaptiveTimeoutPercentile = 90;
-			opts.MinimumSampleSize = 100;
-			opts.MaxTimeoutEscalations = 5;
+			opts.Adaptive.AdaptiveTimeoutPercentile = 90;
+			opts.Adaptive.MinimumSampleSize = 100;
+			opts.Adaptive.MaxTimeoutEscalations = 5;
 		});
 
 		// Act
@@ -136,8 +136,8 @@ public sealed class SchedulingValidateOnStartRegistrationShould
 		// Assert
 		options.HeavyOperationMultiplier.ShouldBe(3.0);
 		options.ComplexOperationMultiplier.ShouldBe(2.0);
-		options.AdaptiveTimeoutPercentile.ShouldBe(90);
-		options.MinimumSampleSize.ShouldBe(100);
-		options.MaxTimeoutEscalations.ShouldBe(5);
+		options.Adaptive.AdaptiveTimeoutPercentile.ShouldBe(90);
+		options.Adaptive.MinimumSampleSize.ShouldBe(100);
+		options.Adaptive.MaxTimeoutEscalations.ShouldBe(5);
 	}
 }

@@ -7,7 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Scheduling;
 
@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Delivery;
 /// <remarks> Initializes a new instance of the <see cref="RecurringDispatchScheduler" /> class. </remarks>
 public sealed partial class RecurringDispatchScheduler(
 	IScheduleStore scheduleStore,
-	IJsonSerializer serializer,
+	DispatchJsonSerializer serializer,
 	IOptions<SchedulerOptions> options,
 	ICronScheduler cronScheduler,
 	IOptions<CronScheduleOptions> cronOptions,
@@ -53,7 +53,7 @@ public sealed partial class RecurringDispatchScheduler(
 
 		var type = typeof(TMessage);
 		var name = type.AssemblyQualifiedName ?? type.FullName!;
-		var body = await serializer.SerializeAsync(message).ConfigureAwait(false);
+		var body = await serializer.SerializeAsync(message, typeof(TMessage)).ConfigureAwait(false);
 
 		var scheduled = new ScheduledMessage
 		{
@@ -107,7 +107,7 @@ public sealed partial class RecurringDispatchScheduler(
 
 		// Validate cron expression using our cron scheduler
 		var cronExpr = cronScheduler.Parse(cronExpression, timeZone);
-		var body = await serializer.SerializeAsync(message).ConfigureAwait(false);
+		var body = await serializer.SerializeAsync(message, typeof(TMessage)).ConfigureAwait(false);
 
 		// Calculate next execution time
 		var nextRun = cronExpr.GetNextOccurrenceUtc(DateTimeOffset.UtcNow);
@@ -146,7 +146,7 @@ public sealed partial class RecurringDispatchScheduler(
 	{
 		var type = typeof(TMessage);
 		var name = type.AssemblyQualifiedName ?? type.FullName!;
-		var body = await serializer.SerializeAsync(message).ConfigureAwait(false);
+		var body = await serializer.SerializeAsync(message, typeof(TMessage)).ConfigureAwait(false);
 
 		var entry = new ScheduledMessage
 		{

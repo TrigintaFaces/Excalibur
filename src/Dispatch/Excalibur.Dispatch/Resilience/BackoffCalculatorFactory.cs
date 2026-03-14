@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Resilience;
 /// <summary>
 /// Factory for creating backoff calculators based on strategy configuration.
 /// </summary>
-public static class BackoffCalculatorFactory
+internal static class BackoffCalculatorFactory
 {
 	/// <summary>
 	/// Creates a backoff calculator based on the specified strategy.
@@ -23,19 +23,19 @@ public static class BackoffCalculatorFactory
 
 		return strategy switch
 		{
-			BackoffStrategy.Fixed => new FixedBackoffCalculator(options.BaseDelay),
-			BackoffStrategy.Linear => new LinearBackoffCalculator(options.BaseDelay, options.MaxDelay),
+			BackoffStrategy.Fixed => new FixedBackoffCalculator(options.Backoff.BaseDelay),
+			BackoffStrategy.Linear => new LinearBackoffCalculator(options.Backoff.BaseDelay, options.Backoff.MaxDelay),
 			BackoffStrategy.Exponential => new ExponentialBackoffCalculator(
-				options.BaseDelay,
-				options.MaxDelay,
-				options.BackoffMultiplier,
+				options.Backoff.BaseDelay,
+				options.Backoff.MaxDelay,
+				options.Backoff.BackoffMultiplier,
 				enableJitter: false),
 			BackoffStrategy.ExponentialWithJitter => new ExponentialBackoffCalculator(
-				options.BaseDelay,
-				options.MaxDelay,
-				options.BackoffMultiplier,
+				options.Backoff.BaseDelay,
+				options.Backoff.MaxDelay,
+				options.Backoff.BackoffMultiplier,
 				enableJitter: true,
-				options.JitterFactor),
+				options.Backoff.JitterFactor),
 			_ => throw new ArgumentOutOfRangeException(
 				nameof(strategy),
 				strategy,
@@ -55,18 +55,18 @@ public static class BackoffCalculatorFactory
 
 		return strategy switch
 		{
-			RetryStrategy.FixedDelay => new FixedBackoffCalculator(options.BaseDelay),
-			RetryStrategy.ExponentialBackoff => options.EnableJitter
+			RetryStrategy.FixedDelay => new FixedBackoffCalculator(options.Backoff.BaseDelay),
+			RetryStrategy.ExponentialBackoff => options.Backoff.EnableJitter
 				? new ExponentialBackoffCalculator(
-					options.BaseDelay,
-					options.MaxDelay,
-					options.BackoffMultiplier,
+					options.Backoff.BaseDelay,
+					options.Backoff.MaxDelay,
+					options.Backoff.BackoffMultiplier,
 					enableJitter: true,
-					options.JitterFactor)
+					options.Backoff.JitterFactor)
 				: new ExponentialBackoffCalculator(
-					options.BaseDelay,
-					options.MaxDelay,
-					options.BackoffMultiplier,
+					options.Backoff.BaseDelay,
+					options.Backoff.MaxDelay,
+					options.Backoff.BackoffMultiplier,
 					enableJitter: false),
 			_ => throw new ArgumentOutOfRangeException(
 				nameof(strategy),

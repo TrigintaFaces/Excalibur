@@ -267,19 +267,48 @@ foreach ($result in $results | Where-Object { $_.BuildStatus -eq 'PASS' }) {
 
     $stdoutPath = Join-Path $RepoRoot (".sample-smoke-{0}.out.log" -f ([guid]::NewGuid().ToString('N')))
     $stderrPath = Join-Path $RepoRoot (".sample-smoke-{0}.err.log" -f ([guid]::NewGuid().ToString('N')))
+    $process = $null
 
     try {
-        $process = Start-Process -FilePath 'dotnet' -ArgumentList @('run', '--project', $fullPath, '--configuration', $Configuration, '--no-build') -PassThru -NoNewWindow -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
-        $timedOut = $false
-        try {
-            Wait-Process -Id $process.Id -Timeout $timeoutSeconds
-        }
-        catch {
-            $timedOut = $true
+        $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+        $startInfo.FileName = 'dotnet'
+        $startInfo.UseShellExecute = $false
+        $startInfo.CreateNoWindow = $true
+        $startInfo.RedirectStandardOutput = $true
+        $startInfo.RedirectStandardError = $true
+        $null = $startInfo.ArgumentList.Add('run')
+        $null = $startInfo.ArgumentList.Add('--project')
+        $null = $startInfo.ArgumentList.Add($fullPath)
+        $null = $startInfo.ArgumentList.Add('--configuration')
+        $null = $startInfo.ArgumentList.Add($Configuration)
+        $null = $startInfo.ArgumentList.Add('--no-build')
+
+        $process = [System.Diagnostics.Process]::new()
+        $process.StartInfo = $startInfo
+        $null = $process.Start()
+
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+
+        $timedOut = -not $process.WaitForExit($timeoutSeconds * 1000)
+        if ($timedOut) {
+            try {
+                $process.Kill($true)
+            }
+            catch {
+                # Best-effort kill for smoke validation only.
+            }
+
+            $null = $process.WaitForExit(5000)
         }
 
+        $stdout = $stdoutTask.GetAwaiter().GetResult()
+        $stderr = $stderrTask.GetAwaiter().GetResult()
+
+        Set-Content -Path $stdoutPath -Value $stdout -NoNewline
+        Set-Content -Path $stderrPath -Value $stderr -NoNewline
+
         if ($timedOut) {
-            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
             Write-Host 'OK (timed out after startup)' -ForegroundColor Green
             $result.SmokeStatus = 'PASS'
             $result.Message = "Run-mode smoke passed (process started, timed out after ${timeoutSeconds}s)"
@@ -307,6 +336,10 @@ foreach ($result in $results | Where-Object { $_.BuildStatus -eq 'PASS' }) {
         }
     }
     finally {
+        if ($null -ne $process) {
+            $process.Dispose()
+        }
+
         if (-not $Detailed) {
             Remove-Item $stdoutPath -ErrorAction SilentlyContinue
             Remove-Item $stderrPath -ErrorAction SilentlyContinue

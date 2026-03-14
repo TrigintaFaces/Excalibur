@@ -110,11 +110,11 @@ public sealed class DeliveryOptionsShould
 		options.MaxAttempts.ShouldBe(5);
 		options.DefaultMessageTimeToLive.ShouldBeNull();
 		options.Deduplication.ShouldNotBeNull();
-		options.ParallelProcessingDegree.ShouldBe(1);
-		options.EnableDynamicBatchSizing.ShouldBeFalse();
-		options.MinBatchSize.ShouldBe(10);
-		options.MaxBatchSize.ShouldBe(1000);
-		options.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(5));
+		options.BatchProcessing.ParallelProcessingDegree.ShouldBe(1);
+		options.BatchProcessing.EnableDynamicBatchSizing.ShouldBeFalse();
+		options.BatchProcessing.MinBatchSize.ShouldBe(10);
+		options.BatchProcessing.MaxBatchSize.ShouldBe(1000);
+		options.BatchProcessing.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(5));
 		options.EnableBatchDatabaseOperations.ShouldBeTrue();
 	}
 
@@ -172,9 +172,12 @@ public sealed class DeliveryOptionsShould
 		// Arrange
 		var options = new InboxOptions
 		{
-			EnableDynamicBatchSizing = true,
-			MinBatchSize = 500,
-			MaxBatchSize = 100,
+			BatchProcessing =
+			{
+				EnableDynamicBatchSizing = true,
+				MinBatchSize = 500,
+				MaxBatchSize = 100,
+			},
 		};
 
 		// Act
@@ -189,7 +192,7 @@ public sealed class DeliveryOptionsShould
 	public void InboxOptions_Validate_DetectsZeroBatchTimeout()
 	{
 		// Arrange
-		var options = new InboxOptions { BatchProcessingTimeout = TimeSpan.Zero };
+		var options = new InboxOptions { BatchProcessing = { BatchProcessingTimeout = TimeSpan.Zero } };
 
 		// Act
 		var result = InboxOptions.Validate(options);
@@ -266,11 +269,11 @@ public sealed class DeliveryOptionsShould
 		options.ConsumerBatchSize.ShouldBe(100);
 		options.MaxAttempts.ShouldBe(5);
 		options.DefaultMessageTimeToLive.ShouldBeNull();
-		options.ParallelProcessingDegree.ShouldBe(1);
-		options.EnableDynamicBatchSizing.ShouldBeFalse();
-		options.MinBatchSize.ShouldBe(10);
-		options.MaxBatchSize.ShouldBe(1000);
-		options.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(5));
+		options.BatchProcessing.ParallelProcessingDegree.ShouldBe(1);
+		options.BatchProcessing.EnableDynamicBatchSizing.ShouldBeFalse();
+		options.BatchProcessing.MinBatchSize.ShouldBe(10);
+		options.BatchProcessing.MaxBatchSize.ShouldBe(1000);
+		options.BatchProcessing.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(5));
 		options.EnableBatchDatabaseOperations.ShouldBeTrue();
 		options.DeliveryGuarantee.ShouldBe(OutboxDeliveryGuarantee.AtLeastOnce);
 	}
@@ -285,8 +288,8 @@ public sealed class DeliveryOptionsShould
 		options.PerRunTotal.ShouldBe(10000);
 		options.ProducerBatchSize.ShouldBe(1000);
 		options.ConsumerBatchSize.ShouldBe(1000);
-		options.ParallelProcessingDegree.ShouldBe(8);
-		options.EnableDynamicBatchSizing.ShouldBeTrue();
+		options.BatchProcessing.ParallelProcessingDegree.ShouldBe(8);
+		options.BatchProcessing.EnableDynamicBatchSizing.ShouldBeTrue();
 		options.DeliveryGuarantee.ShouldBe(OutboxDeliveryGuarantee.AtLeastOnce);
 	}
 
@@ -299,8 +302,8 @@ public sealed class DeliveryOptionsShould
 		// Assert
 		options.PerRunTotal.ShouldBe(1000);
 		options.ProducerBatchSize.ShouldBe(100);
-		options.ParallelProcessingDegree.ShouldBe(4);
-		options.EnableDynamicBatchSizing.ShouldBeFalse();
+		options.BatchProcessing.ParallelProcessingDegree.ShouldBe(4);
+		options.BatchProcessing.EnableDynamicBatchSizing.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -312,7 +315,7 @@ public sealed class DeliveryOptionsShould
 		// Assert
 		options.PerRunTotal.ShouldBe(100);
 		options.ProducerBatchSize.ShouldBe(10);
-		options.ParallelProcessingDegree.ShouldBe(1);
+		options.BatchProcessing.ParallelProcessingDegree.ShouldBe(1);
 		options.DeliveryGuarantee.ShouldBe(OutboxDeliveryGuarantee.MinimizedWindow);
 	}
 
@@ -352,8 +355,8 @@ public sealed class DeliveryOptionsShould
 		var modified = original.WithParallelDegree(16);
 
 		// Assert
-		modified.ParallelProcessingDegree.ShouldBe(16);
-		original.ParallelProcessingDegree.ShouldBe(4); // unchanged
+		modified.BatchProcessing.ParallelProcessingDegree.ShouldBe(16);
+		original.BatchProcessing.ParallelProcessingDegree.ShouldBe(4); // unchanged
 	}
 
 	[Fact]
@@ -384,7 +387,7 @@ public sealed class DeliveryOptionsShould
 		var options = OutboxOptions.HighThroughput().WithTimeout(TimeSpan.FromMinutes(15));
 
 		// Assert
-		options.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(15));
+		options.BatchProcessing.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(15));
 	}
 
 	[Fact]

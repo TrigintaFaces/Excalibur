@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -73,6 +73,10 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Caching\Excalibur.Caching.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Postgres\Excalibur.Data.Postgres.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Cdc.Postgres\Excalibur.Cdc.Postgres.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.Postgres\Excalibur.Outbox.Postgres.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.Postgres\Excalibur.Inbox.Postgres.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.Postgres\Excalibur.LeaderElection.Postgres.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Redis\Excalibur.Data.Redis.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.CosmosDb\Excalibur.Data.CosmosDb.csproj" />
@@ -80,6 +84,14 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Firestore\Excalibur.Data.Firestore.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.MongoDB\Excalibur.Data.MongoDB.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.SqlServer\Excalibur.Saga.SqlServer.csproj" />
+    <!-- Extracted concern.provider packages -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Cdc.SqlServer\Excalibur.Cdc.SqlServer.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Cdc.CosmosDb\Excalibur.Cdc.CosmosDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Cdc.DynamoDb\Excalibur.Cdc.DynamoDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Cdc.Firestore\Excalibur.Cdc.Firestore.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Cdc.MongoDB\Excalibur.Cdc.MongoDB.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.Redis\Excalibur.Outbox.Redis.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.Redis\Excalibur.Inbox.Redis.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Testing\Excalibur.Testing.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.SqlServer\Excalibur.Outbox.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.SqlServer\Excalibur.EventSourcing.SqlServer.csproj" />
@@ -87,10 +99,12 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting\Excalibur.Hosting.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Hosting.Web\Excalibur.Hosting.Web.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Postgres\Excalibur.EventSourcing.Postgres.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.CosmosDb\Excalibur.EventSourcing.CosmosDb.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.DynamoDb\Excalibur.EventSourcing.DynamoDb.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.Firestore\Excalibur.EventSourcing.Firestore.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.InMemory\Excalibur.EventSourcing.InMemory.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing.MongoDB\Excalibur.EventSourcing.MongoDB.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />

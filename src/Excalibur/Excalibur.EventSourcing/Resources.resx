@@ -54,12 +54,6 @@
   <data name="EventSourcedRepository_DeleteRequiresTombstoneFormat" xml:space="preserve">
     <value>Delete operation requires a tombstone event implementation. Override DeleteAsync in a derived repository class for aggregate {0}.</value>
   </data>
-  <data name="EventSourcedRepository_FindRequiresExecutorFormat" xml:space="preserve">
-    <value>Find operation requires a query executor implementation. Override FindAsync in a derived repository class or inject an IQueryExecutor&lt;{0}&gt;.</value>
-  </data>
-  <data name="EventSourcedRepository_QueryRequiresExecutorFormat" xml:space="preserve">
-    <value>Query operation requires a query executor implementation. Override QueryAsync in a derived repository class or inject an IQueryExecutor&lt;{0}&gt;.</value>
-  </data>
   <data name="EventSourcedRepository_SaveFailedFormat" xml:space="preserve">
     <value>Failed to save aggregate {0}: {1}</value>
   </data>

@@ -183,24 +183,20 @@ public sealed class SessionContextShould
             }
         };
 
-        // Act
-        sut.Dispose();
+		// Act
+		sut.Dispose();
 
-        // Assert
-        var callbackStartedObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-            () => callbackStarted.Task.IsCompleted,
-            TimeSpan.FromSeconds(10),
-            TimeSpan.FromMilliseconds(20));
-        callbackStartedObserved.ShouldBeTrue("callback should start when disposing synchronously");
-        callbackCompleted.Task.IsCompleted.ShouldBeFalse();
+		// Assert
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			callbackStarted.Task,
+			TimeSpan.FromSeconds(10));
+		callbackCompleted.Task.IsCompleted.ShouldBeFalse();
 
-        allowCallbackCompletion.TrySetResult();
-        var callbackCompletedObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-            () => callbackCompleted.Task.IsCompleted,
-            TimeSpan.FromSeconds(10),
-            TimeSpan.FromMilliseconds(20));
-        callbackCompletedObserved.ShouldBeTrue("callback should complete after being released");
-    }
+		allowCallbackCompletion.TrySetResult();
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			callbackCompleted.Task,
+			TimeSpan.FromSeconds(10));
+	}
 
     [Fact]
     public async Task Dispose_async_waits_for_async_callback_completion()
@@ -217,16 +213,14 @@ public sealed class SessionContextShould
             }
         };
 
-        // Act
-        var disposeTask = sut.DisposeAsync().AsTask();
-        var callbackStartedObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-            () => callbackStarted.Task.IsCompleted,
-            TimeSpan.FromSeconds(10),
-            TimeSpan.FromMilliseconds(20));
-        callbackStartedObserved.ShouldBeTrue("callback should start before dispose async completes");
+		// Act
+		var disposeTask = sut.DisposeAsync().AsTask();
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			callbackStarted.Task,
+			TimeSpan.FromSeconds(10));
 
-        // Assert
-        disposeTask.IsCompleted.ShouldBeFalse();
+		// Assert
+		disposeTask.IsCompleted.ShouldBeFalse();
         allowCallbackCompletion.TrySetResult();
         await disposeTask;
     }
@@ -248,14 +242,12 @@ public sealed class SessionContextShould
             }
         };
 
-        // Act
-        sut.Dispose();
-        var callbackStartedObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-            () => callbackStarted.Task.IsCompleted,
-            TimeSpan.FromSeconds(10),
-            TimeSpan.FromMilliseconds(20));
-        callbackStartedObserved.ShouldBeTrue("callback should start on synchronous dispose");
-        await sut.DisposeAsync();
+		// Act
+		sut.Dispose();
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			callbackStarted.Task,
+			TimeSpan.FromSeconds(10));
+		await sut.DisposeAsync();
 
         // Assert
         callbackInvocations.ShouldBe(1);

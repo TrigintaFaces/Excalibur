@@ -57,23 +57,25 @@ public sealed class AdaptationImpactShould
 	}
 
 	[Theory]
-	[InlineData(AdaptationImpact.Minor)]
-	[InlineData(AdaptationImpact.Moderate)]
-	[InlineData(AdaptationImpact.Major)]
-	public void BeDefinedForAllValues(AdaptationImpact impact)
+	[InlineData(0)]
+	[InlineData(1)]
+	[InlineData(2)]
+	public void BeDefinedForAllValues(int impactValue)
 	{
 		// Assert
+		var impact = (AdaptationImpact)impactValue;
 		Enum.IsDefined(impact).ShouldBeTrue();
 	}
 
 	[Theory]
-	[InlineData(0, AdaptationImpact.Minor)]
-	[InlineData(1, AdaptationImpact.Moderate)]
-	[InlineData(2, AdaptationImpact.Major)]
-	public void CastFromInt_ReturnsCorrectValue(int value, AdaptationImpact expected)
+	[InlineData(0, 0)]
+	[InlineData(1, 1)]
+	[InlineData(2, 2)]
+	public void CastFromInt_ReturnsCorrectValue(int value, int expectedValue)
 	{
 		// Act
 		var impact = (AdaptationImpact)value;
+		var expected = (AdaptationImpact)expectedValue;
 
 		// Assert
 		impact.ShouldBe(expected);

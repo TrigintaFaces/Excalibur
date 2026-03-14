@@ -1,5 +1,5 @@
 global using Excalibur.Data.DynamoDb;
-global using Excalibur.Data.DynamoDb.Cdc;
+global using Excalibur.Cdc.DynamoDb;
 
 global using FakeItEasy;
 

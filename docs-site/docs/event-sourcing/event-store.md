@@ -249,7 +249,7 @@ services.AddJsonSerialization(options =>
 Event types are discovered automatically by the serializer based on their `EventType` property (defaults to the class name). For custom type names, override the property in your event class:
 
 ```csharp
-public sealed record OrderCreated(Guid OrderId, string CustomerId) : DomainEventBase
+public sealed record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
     public override string EventType => "order.created.v1";

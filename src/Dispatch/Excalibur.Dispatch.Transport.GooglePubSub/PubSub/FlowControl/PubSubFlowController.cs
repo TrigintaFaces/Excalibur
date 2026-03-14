@@ -6,7 +6,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Controls the flow of messages in PubSub operations.
 /// </summary>
-public sealed class PubSubFlowController : IDisposable
+internal sealed class PubSubFlowController : IDisposable
 {
 	private readonly int _maxConcurrency;
 	private readonly int _maxOutstandingMessages;

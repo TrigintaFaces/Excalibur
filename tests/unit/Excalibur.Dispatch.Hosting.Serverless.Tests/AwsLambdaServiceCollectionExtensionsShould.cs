@@ -49,7 +49,7 @@ public sealed class AwsLambdaServiceCollectionExtensionsShould : UnitTestBase
 		_ = services.AddLogging();
 		_ = services.AddSingleton<ILogger>(NullLogger.Instance);
 
-		_ = services.AddAwsLambdaServerless(options => options.EnableDistributedTracing = false);
+		_ = services.AddAwsLambdaServerless(options => options.Telemetry.EnableDistributedTracing = false);
 		_ = services.AddAwsLambdaServerless();
 
 		var hostProviderRegistrations = services.Count(sd => sd.ServiceType == typeof(IServerlessHostProvider));
@@ -57,6 +57,6 @@ public sealed class AwsLambdaServiceCollectionExtensionsShould : UnitTestBase
 
 		using var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<ServerlessHostOptions>>().Value;
-		options.EnableDistributedTracing.ShouldBeFalse();
+		options.Telemetry.EnableDistributedTracing.ShouldBeFalse();
 	}
 }

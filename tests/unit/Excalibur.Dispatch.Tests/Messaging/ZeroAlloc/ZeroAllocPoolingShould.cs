@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Dispatch.ZeroAlloc;
 
@@ -175,20 +176,28 @@ public sealed class ZeroAllocPoolingShould
 	}
 
 	[Fact]
-	public void PooledMessageContextFactory_CreateChildContext_DelegatesToParent()
+	public void PooledMessageContextFactory_CreateChildContext_ReturnsChildContext()
 	{
-		// Arrange
+		// Arrange -- CreateChildContext is now an extension method, so we use a real context
 		var pool = A.Fake<IMessageContextPool>();
 		var parent = A.Fake<IMessageContext>();
-		var child = A.Fake<IMessageContext>();
-		A.CallTo(() => parent.CreateChildContext()).Returns(child);
+		var parentItems = new Dictionary<string, object>();
+		var parentFeatures = new Dictionary<Type, object>();
+		A.CallTo(() => parent.Items).Returns(parentItems);
+		A.CallTo(() => parent.Features).Returns(parentFeatures);
+		A.CallTo(() => parent.MessageId).Returns("parent-msg-id");
+		A.CallTo(() => parent.CorrelationId).Returns("parent-corr-id");
 		var factory = new PooledMessageContextFactory(pool);
 
 		// Act
-		var result = factory.CreateChildContext(parent);
+		var child = factory.CreateChildContext(parent);
 
-		// Assert
-		result.ShouldBe(child);
+		// Assert -- extension method creates a ChildMessageContext with propagated IDs
+		child.ShouldNotBeNull();
+		child.CorrelationId.ShouldBe("parent-corr-id");
+		child.CausationId.ShouldBe("parent-msg-id");
+		child.MessageId.ShouldNotBeNullOrWhiteSpace();
+		child.MessageId.ShouldNotBe("parent-msg-id");
 	}
 
 	[Fact]

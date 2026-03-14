@@ -1,0 +1,27 @@
+#nullable enable
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions.DefaultBatchSize.get -> int
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions.DefaultBatchSize.set -> void
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions.ElasticsearchOutboxOptions() -> void
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions.IndexName.get -> string!
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions.IndexName.set -> void
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions.RefreshPolicy.get -> string!
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions.RefreshPolicy.set -> void
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions.SentMessageRetentionDays.get -> int
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions.SentMessageRetentionDays.set -> void
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore.CleanupSentMessagesAsync(System.DateTimeOffset olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore.ElasticsearchOutboxStore(Elastic.Clients.Elasticsearch.ElasticsearchClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore!>! logger) -> void
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore.EnqueueAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore.GetFailedMessagesAsync(int maxRetries, System.DateTimeOffset? olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.OutboundMessage!>!>
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore.GetScheduledMessagesAsync(System.DateTimeOffset scheduledBefore, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.OutboundMessage!>!>
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.OutboxStatistics!>
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore.GetUnsentMessagesAsync(int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.OutboundMessage!>!>
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore.MarkFailedAsync(string! messageId, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore.MarkSentAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxStore.StageMessageAsync(Excalibur.Dispatch.Abstractions.OutboundMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Microsoft.Extensions.DependencyInjection.ElasticsearchOutboxExtensions
+Microsoft.Extensions.DependencyInjection.OutboxBuilderElasticsearchExtensions
+static Microsoft.Extensions.DependencyInjection.ElasticsearchOutboxExtensions.AddElasticsearchOutboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ElasticsearchOutboxExtensions.UseElasticsearchOutboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.OutboxBuilderElasticsearchExtensions.UseElasticSearch(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.ElasticSearch.ElasticsearchOutboxOptions!>! configure) -> Excalibur.Outbox.IOutboxBuilder!

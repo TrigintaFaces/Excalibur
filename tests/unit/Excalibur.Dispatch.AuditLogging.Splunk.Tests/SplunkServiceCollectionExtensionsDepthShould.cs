@@ -24,8 +24,8 @@ public sealed class SplunkServiceCollectionExtensionsDepthShould
 		// Act
 		var result = services.AddSplunkAuditExporter(o =>
 		{
-			o.HecEndpoint = new Uri("https://splunk.local:8088/services/collector");
-			o.HecToken = "test-token";
+			o.Connection.HecEndpoint = new Uri("https://splunk.local:8088/services/collector");
+			o.Connection.HecToken = "test-token";
 		});
 
 		// Assert
@@ -41,8 +41,8 @@ public sealed class SplunkServiceCollectionExtensionsDepthShould
 		// Act
 		services.AddSplunkAuditExporter(o =>
 		{
-			o.HecEndpoint = new Uri("https://splunk.local:8088/services/collector");
-			o.HecToken = "test-token";
+			o.Connection.HecEndpoint = new Uri("https://splunk.local:8088/services/collector");
+			o.Connection.HecToken = "test-token";
 		});
 
 		// Assert
@@ -59,8 +59,8 @@ public sealed class SplunkServiceCollectionExtensionsDepthShould
 		// Act
 		services.AddSplunkAuditExporter(o =>
 		{
-			o.HecEndpoint = new Uri("https://splunk.local:8088/services/collector");
-			o.HecToken = "test-token";
+			o.Connection.HecEndpoint = new Uri("https://splunk.local:8088/services/collector");
+			o.Connection.HecToken = "test-token";
 		});
 
 		// Assert

@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Jobs.Coordination;
-
 using FakeItEasy;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -76,8 +74,7 @@ public sealed class CoordinationServiceCollectionExtensionsDepthShould
 		// Act
 		services.AddJobCoordinationRedis(multiplexer);
 
-		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(IJobCoordinator));
+		// Assert -- sub-interfaces registered, composite IJobCoordinator deleted
 		services.ShouldContain(sd => sd.ServiceType == typeof(IJobLockProvider));
 		services.ShouldContain(sd => sd.ServiceType == typeof(IJobRegistry));
 		services.ShouldContain(sd => sd.ServiceType == typeof(IJobDistributor));
@@ -96,64 +93,4 @@ public sealed class CoordinationServiceCollectionExtensionsDepthShould
 		// Assert
 		result.ShouldBeSameAs(services);
 	}
-
-	[Fact]
-	public void AddJobCoordination_Generic_ThrowsOnNullServices()
-	{
-		IServiceCollection? services = null;
-
-		Should.Throw<ArgumentNullException>(() =>
-			services!.AddJobCoordination<CoordTestCustomCoordinator>());
-	}
-
-	[Fact]
-	public void AddJobCoordination_Generic_RegistersCustomCoordinator()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddJobCoordination<CoordTestCustomCoordinator>();
-
-		// Assert
-		services.ShouldContain(sd => sd.ServiceType == typeof(CoordTestCustomCoordinator));
-		services.ShouldContain(sd => sd.ServiceType == typeof(IJobCoordinator));
-		services.ShouldContain(sd => sd.ServiceType == typeof(IJobLockProvider));
-		services.ShouldContain(sd => sd.ServiceType == typeof(IJobRegistry));
-		services.ShouldContain(sd => sd.ServiceType == typeof(IJobDistributor));
-	}
-
-	[Fact]
-	public void AddJobCoordination_Generic_ReturnsSameServices()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		var result = services.AddJobCoordination<CoordTestCustomCoordinator>();
-
-		// Assert
-		result.ShouldBeSameAs(services);
-	}
-}
-
-internal sealed class CoordTestCustomCoordinator : IJobCoordinator
-{
-	public Task<IDistributedJobLock?> TryAcquireLockAsync(string jobKey, TimeSpan lockDuration, CancellationToken cancellationToken) =>
-		Task.FromResult<IDistributedJobLock?>(null);
-
-	public Task RegisterInstanceAsync(string instanceId, JobInstanceInfo instanceInfo, CancellationToken cancellationToken) =>
-		Task.CompletedTask;
-
-	public Task UnregisterInstanceAsync(string instanceId, CancellationToken cancellationToken) =>
-		Task.CompletedTask;
-
-	public Task<IEnumerable<JobInstanceInfo>> GetActiveInstancesAsync(CancellationToken cancellationToken) =>
-		Task.FromResult<IEnumerable<JobInstanceInfo>>(Array.Empty<JobInstanceInfo>());
-
-	public Task<string?> DistributeJobAsync(string jobKey, object jobData, CancellationToken cancellationToken) =>
-		Task.FromResult<string?>(null);
-
-	public Task ReportJobCompletionAsync(string jobKey, string instanceId, bool success, object? result, CancellationToken cancellationToken) =>
-		Task.CompletedTask;
 }

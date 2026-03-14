@@ -4,6 +4,7 @@
 using System.Diagnostics;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Observability.Context;
 
@@ -95,10 +96,15 @@ public sealed class ContextTraceEnricherShould : IDisposable
 		// Arrange
 		_enricher = CreateEnricher();
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>();
+		var features = new Dictionary<Type, object>();
+
 		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.MessageType).Returns("TestMessage");
 		A.CallTo(() => context.CorrelationId).Returns("corr-1");
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
+
+		context.SetMessageType("TestMessage");
 
 		using var activity = _activitySource.StartActivity("test");
 
@@ -119,6 +125,7 @@ public sealed class ContextTraceEnricherShould : IDisposable
 		_enricher = CreateEnricher();
 		var context = A.Fake<IMessageContext>();
 		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
 
 		// Act
 		using var activity = _enricher.CreateContextOperationSpan("TestOp", context);
@@ -166,9 +173,15 @@ public sealed class ContextTraceEnricherShould : IDisposable
 		// Arrange
 		_enricher = CreateEnricher();
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>();
+		var features = new Dictionary<Type, object>();
+
 		A.CallTo(() => context.CorrelationId).Returns("corr-1");
 		A.CallTo(() => context.CausationId).Returns("cause-1");
-		A.CallTo(() => context.MessageType).Returns("TestMessage");
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
+
+		context.SetMessageType("TestMessage");
 
 		var carrier = new Dictionary<string, string>();
 

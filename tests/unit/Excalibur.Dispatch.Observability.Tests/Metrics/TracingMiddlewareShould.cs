@@ -41,6 +41,19 @@ public sealed class TracingMiddlewareShould : IDisposable
 		}
 	}
 
+	/// <summary>
+	/// Creates a fake <see cref="IMessageContext"/> backed by a real Items dictionary
+	/// so that extension methods (GetItem, SetItem, ContainsItem) work correctly.
+	/// </summary>
+	private static IMessageContext CreateFakeContext(Dictionary<string, object>? items = null)
+	{
+		var context = A.Fake<IMessageContext>();
+		var itemsDict = items ?? new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Items).Returns(itemsDict);
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
+		return context;
+	}
+
 	[Fact]
 	public void ThrowOnNullSanitizer()
 	{
@@ -60,7 +73,7 @@ public sealed class TracingMiddlewareShould : IDisposable
 		// Arrange
 		var middleware = new TracingMiddleware(_fakeSanitizer);
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
+		var context = CreateFakeContext();
 		var expectedResult = A.Fake<IMessageResult>();
 		A.CallTo(() => expectedResult.IsSuccess).Returns(true);
 

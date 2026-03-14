@@ -48,7 +48,7 @@ public sealed class ComplianceMonitoringServiceShould
 	public async Task Exit_immediately_when_disabled()
 	{
 		var scopeFactory = A.Fake<IServiceScopeFactory>();
-		var options = new Soc2Options { EnableContinuousMonitoring = false };
+		var options = new Soc2Options { Monitoring = new Soc2MonitoringOptions { EnableContinuousMonitoring = false } };
 		var sut = new ComplianceMonitoringService(
 			scopeFactory,
 			Microsoft.Extensions.Options.Options.Create(options),
@@ -78,9 +78,12 @@ public sealed class ComplianceMonitoringServiceShould
 
 		var options = new Soc2Options
 		{
-			EnableContinuousMonitoring = true,
-			MonitoringInterval = TimeSpan.FromMilliseconds(50),
-			EnableAlerts = false
+			Monitoring = new Soc2MonitoringOptions
+			{
+				EnableContinuousMonitoring = true,
+				MonitoringInterval = TimeSpan.FromMilliseconds(50),
+				EnableAlerts = false,
+			},
 		};
 
 		var sut = new ComplianceMonitoringService(
@@ -120,6 +123,7 @@ public sealed class ComplianceMonitoringServiceShould
 				{
 					throw new InvalidOperationException("First cycle fails");
 				}
+
 				return Task.FromResult(CreateCompliantStatus());
 			});
 
@@ -127,9 +131,12 @@ public sealed class ComplianceMonitoringServiceShould
 
 		var options = new Soc2Options
 		{
-			EnableContinuousMonitoring = true,
-			MonitoringInterval = TimeSpan.FromMilliseconds(50),
-			EnableAlerts = false
+			Monitoring = new Soc2MonitoringOptions
+			{
+				EnableContinuousMonitoring = true,
+				MonitoringInterval = TimeSpan.FromMilliseconds(50),
+				EnableAlerts = false,
+			},
 		};
 
 		var sut = new ComplianceMonitoringService(
@@ -178,10 +185,13 @@ public sealed class ComplianceMonitoringServiceShould
 
 		var options = new Soc2Options
 		{
-			EnableContinuousMonitoring = true,
-			MonitoringInterval = TimeSpan.FromMilliseconds(50),
-			EnableAlerts = true,
-			AlertThreshold = GapSeverity.Low
+			Monitoring = new Soc2MonitoringOptions
+			{
+				EnableContinuousMonitoring = true,
+				MonitoringInterval = TimeSpan.FromMilliseconds(50),
+				EnableAlerts = true,
+				AlertThreshold = GapSeverity.Low,
+			},
 		};
 
 		var sut = new ComplianceMonitoringService(
@@ -227,10 +237,13 @@ public sealed class ComplianceMonitoringServiceShould
 
 		var options = new Soc2Options
 		{
-			EnableContinuousMonitoring = true,
-			MonitoringInterval = TimeSpan.FromMilliseconds(50),
-			EnableAlerts = true,
-			AlertThreshold = GapSeverity.High // High threshold, gap is Low
+			Monitoring = new Soc2MonitoringOptions
+			{
+				EnableContinuousMonitoring = true,
+				MonitoringInterval = TimeSpan.FromMilliseconds(50),
+				EnableAlerts = true,
+				AlertThreshold = GapSeverity.High, // High threshold, gap is Low
+			},
 		};
 
 		var sut = new ComplianceMonitoringService(
@@ -264,10 +277,10 @@ public sealed class ComplianceMonitoringServiceShould
 	{
 		var options = new Soc2Options();
 
-		options.EnableContinuousMonitoring.ShouldBeTrue();
-		options.MonitoringInterval.ShouldBe(TimeSpan.FromHours(1));
-		options.EnableAlerts.ShouldBeTrue();
-		options.AlertThreshold.ShouldBe(GapSeverity.Medium);
+		options.Monitoring.EnableContinuousMonitoring.ShouldBeTrue();
+		options.Monitoring.MonitoringInterval.ShouldBe(TimeSpan.FromHours(1));
+		options.Monitoring.EnableAlerts.ShouldBeTrue();
+		options.Monitoring.AlertThreshold.ShouldBe(GapSeverity.Medium);
 		options.EvidenceRetentionPeriod.ShouldBe(TimeSpan.FromDays(365 * 7));
 		options.DefaultTestSampleSize.ShouldBe(25);
 		options.MinimumTypeIIPeriodDays.ShouldBe(90);
@@ -288,8 +301,8 @@ public sealed class ComplianceMonitoringServiceShould
 					Level = ComplianceLevel.FullyCompliant,
 					CompliancePercentage = 100,
 					ActiveControls = 5,
-					ControlsWithIssues = 0
-				}
+					ControlsWithIssues = 0,
+				},
 			},
 			CriterionStatuses = new Dictionary<TrustServicesCriterion, CriterionStatus>
 			{
@@ -299,10 +312,10 @@ public sealed class ComplianceMonitoringServiceShould
 					IsMet = true,
 					EffectivenessScore = 100,
 					LastValidated = DateTimeOffset.UtcNow,
-					EvidenceCount = 5
-				}
+					EvidenceCount = 5,
+				},
 			},
-			ActiveGaps = []
+			ActiveGaps = [],
 		};
 
 	private static ComplianceStatus CreateStatusWithGaps() =>
@@ -317,8 +330,8 @@ public sealed class ComplianceMonitoringServiceShould
 					Level = ComplianceLevel.PartiallyCompliant,
 					CompliancePercentage = 50,
 					ActiveControls = 5,
-					ControlsWithIssues = 2
-				}
+					ControlsWithIssues = 2,
+				},
 			},
 			CriterionStatuses = new Dictionary<TrustServicesCriterion, CriterionStatus>
 			{
@@ -328,8 +341,8 @@ public sealed class ComplianceMonitoringServiceShould
 					IsMet = false,
 					EffectivenessScore = 50,
 					LastValidated = DateTimeOffset.UtcNow,
-					EvidenceCount = 3
-				}
+					EvidenceCount = 3,
+				},
 			},
 			ActiveGaps =
 			[
@@ -340,9 +353,9 @@ public sealed class ComplianceMonitoringServiceShould
 					Description = "Encryption not configured",
 					Severity = GapSeverity.High,
 					Remediation = "Configure encryption provider",
-					IdentifiedAt = DateTimeOffset.UtcNow
-				}
-			]
+					IdentifiedAt = DateTimeOffset.UtcNow,
+				},
+			],
 		};
 
 	private static ComplianceStatus CreateStatusWithLowSeverityGap() =>
@@ -357,8 +370,8 @@ public sealed class ComplianceMonitoringServiceShould
 					Level = ComplianceLevel.SubstantiallyCompliant,
 					CompliancePercentage = 90,
 					ActiveControls = 5,
-					ControlsWithIssues = 1
-				}
+					ControlsWithIssues = 1,
+				},
 			},
 			CriterionStatuses = new Dictionary<TrustServicesCriterion, CriterionStatus>
 			{
@@ -368,8 +381,8 @@ public sealed class ComplianceMonitoringServiceShould
 					IsMet = true,
 					EffectivenessScore = 90,
 					LastValidated = DateTimeOffset.UtcNow,
-					EvidenceCount = 5
-				}
+					EvidenceCount = 5,
+				},
 			},
 			ActiveGaps =
 			[
@@ -380,9 +393,9 @@ public sealed class ComplianceMonitoringServiceShould
 					Description = "Minor documentation gap",
 					Severity = GapSeverity.Low,
 					Remediation = "Update documentation",
-					IdentifiedAt = DateTimeOffset.UtcNow
-				}
-			]
+					IdentifiedAt = DateTimeOffset.UtcNow,
+				},
+			],
 		};
 
 	private static (IServiceScopeFactory, IServiceScope) SetupScopeFactory(

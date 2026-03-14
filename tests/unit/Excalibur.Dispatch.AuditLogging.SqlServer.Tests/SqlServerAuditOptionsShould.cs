@@ -13,10 +13,10 @@ public sealed class SqlServerAuditOptionsShould
 		options.SchemaName.ShouldBe("audit");
 		options.TableName.ShouldBe("AuditEvents");
 		options.BatchInsertSize.ShouldBe(1000);
-		options.RetentionPeriod.ShouldBe(TimeSpan.FromDays(7 * 365));
-		options.EnableRetentionEnforcement.ShouldBeTrue();
-		options.RetentionCleanupInterval.ShouldBe(TimeSpan.FromDays(1));
-		options.RetentionCleanupBatchSize.ShouldBe(10000);
+		options.Retention.RetentionPeriod.ShouldBe(TimeSpan.FromDays(7 * 365));
+		options.Retention.EnableRetentionEnforcement.ShouldBeTrue();
+		options.Retention.CleanupInterval.ShouldBe(TimeSpan.FromDays(1));
+		options.Retention.CleanupBatchSize.ShouldBe(10000);
 		options.CommandTimeoutSeconds.ShouldBe(30);
 		options.UsePartitioning.ShouldBeFalse();
 		options.EnableHashChain.ShouldBeTrue();
@@ -32,10 +32,13 @@ public sealed class SqlServerAuditOptionsShould
 			SchemaName = "custom_schema",
 			TableName = "CustomEvents",
 			BatchInsertSize = 500,
-			RetentionPeriod = TimeSpan.FromDays(365),
-			EnableRetentionEnforcement = false,
-			RetentionCleanupInterval = TimeSpan.FromHours(12),
-			RetentionCleanupBatchSize = 5000,
+			Retention = new()
+			{
+				RetentionPeriod = TimeSpan.FromDays(365),
+				EnableRetentionEnforcement = false,
+				CleanupInterval = TimeSpan.FromHours(12),
+				CleanupBatchSize = 5000
+			},
 			CommandTimeoutSeconds = 60,
 			UsePartitioning = true,
 			EnableHashChain = false,
@@ -46,10 +49,10 @@ public sealed class SqlServerAuditOptionsShould
 		options.SchemaName.ShouldBe("custom_schema");
 		options.TableName.ShouldBe("CustomEvents");
 		options.BatchInsertSize.ShouldBe(500);
-		options.RetentionPeriod.ShouldBe(TimeSpan.FromDays(365));
-		options.EnableRetentionEnforcement.ShouldBeFalse();
-		options.RetentionCleanupInterval.ShouldBe(TimeSpan.FromHours(12));
-		options.RetentionCleanupBatchSize.ShouldBe(5000);
+		options.Retention.RetentionPeriod.ShouldBe(TimeSpan.FromDays(365));
+		options.Retention.EnableRetentionEnforcement.ShouldBeFalse();
+		options.Retention.CleanupInterval.ShouldBe(TimeSpan.FromHours(12));
+		options.Retention.CleanupBatchSize.ShouldBe(5000);
 		options.CommandTimeoutSeconds.ShouldBe(60);
 		options.UsePartitioning.ShouldBeTrue();
 		options.EnableHashChain.ShouldBeFalse();

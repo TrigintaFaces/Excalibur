@@ -25,7 +25,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// For publishing messages, the adapter uses AzureEventHubMessageBus.
 /// </para>
 /// </remarks>
-public sealed partial class AzureEventHubsTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
+internal sealed partial class AzureEventHubsTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
 {
 	/// <summary>
 	/// The default transport name for Azure Event Hubs adapters.
@@ -128,9 +128,9 @@ public sealed partial class AzureEventHubsTransportAdapter : ITransportAdapter, 
 			var context = new MessageContext(message, _serviceProvider)
 			{
 				MessageId = messageId,
-				MessageType = message.GetType().FullName,
-				ReceivedTimestampUtc = DateTimeOffset.UtcNow,
 			};
+			context.SetMessageType(message.GetType().FullName);
+			context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
 
 			var result = await dispatcher.DispatchAsync(message, context, cancellationToken).ConfigureAwait(false);
 			TransportMeter.RecordMessageReceived(Name, TransportType, messageType);
@@ -426,7 +426,7 @@ public sealed partial class AzureEventHubsTransportAdapter : ITransportAdapter, 
 /// <summary>
 /// Configuration options for the Azure Event Hubs transport adapter.
 /// </summary>
-public sealed class AzureEventHubsTransportAdapterOptions
+internal sealed class AzureEventHubsTransportAdapterOptions
 {
 	/// <summary>
 	/// Gets or sets the name of this transport adapter instance.

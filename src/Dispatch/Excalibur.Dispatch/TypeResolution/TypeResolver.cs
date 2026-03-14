@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.TypeResolution;
 /// <summary>
 /// Utility class for AOT-compatible type resolution.
 /// </summary>
-public static class TypeResolver
+internal static class TypeResolver
 {
 	/// <summary>
 	/// Resolves a type by name using the appropriate method based on runtime mode.

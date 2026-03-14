@@ -3,6 +3,7 @@
 
 using System.Diagnostics;
 
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Messaging;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -120,8 +121,8 @@ public sealed class DispatchContextInitializerShould
 			var context = DispatchContextInitializer.CreateDefaultContext(provider);
 
 			// Assert
-			_ = context.TraceParent.ShouldNotBeNull();
-			context.TraceParent.ShouldBe(activity.Id);
+			_ = context.GetTraceParent().ShouldNotBeNull();
+			context.GetTraceParent().ShouldBe(activity.Id);
 		}
 		finally
 		{

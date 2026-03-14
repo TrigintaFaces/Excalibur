@@ -57,7 +57,7 @@ public sealed class TransportContextProviderShould : UnitTestBase
 		var registry = new TransportBindingRegistry();
 		var provider = new TransportContextProvider(registry);
 		var context = A.Fake<IMessageContext>();
-		_ = A.CallTo(() => context.Properties).Returns(new Dictionary<string, object?>());
+		_ = A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
 
 		// Act
 		var binding = provider.GetTransportBinding(context);
@@ -73,11 +73,11 @@ public sealed class TransportContextProviderShould : UnitTestBase
 		var registry = new TransportBindingRegistry();
 		var provider = new TransportContextProvider(registry);
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>
+		var items = new Dictionary<string, object>
 		{
 			[TransportContextProvider.TransportBindingNameProperty] = string.Empty
 		};
-		_ = A.CallTo(() => context.Properties).Returns(properties);
+		_ = A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		var binding = provider.GetTransportBinding(context);
@@ -93,11 +93,11 @@ public sealed class TransportContextProviderShould : UnitTestBase
 		var registry = new TransportBindingRegistry();
 		var provider = new TransportContextProvider(registry);
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>
+		var items = new Dictionary<string, object>
 		{
 			[TransportContextProvider.TransportBindingNameProperty] = "unknown-binding"
 		};
-		_ = A.CallTo(() => context.Properties).Returns(properties);
+		_ = A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		var binding = provider.GetTransportBinding(context);
@@ -117,11 +117,11 @@ public sealed class TransportContextProviderShould : UnitTestBase
 
 		var provider = new TransportContextProvider(registry);
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>
+		var items = new Dictionary<string, object>
 		{
 			[TransportContextProvider.TransportBindingNameProperty] = "test-binding"
 		};
-		_ = A.CallTo(() => context.Properties).Returns(properties);
+		_ = A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		var binding = provider.GetTransportBinding(context);
@@ -142,11 +142,11 @@ public sealed class TransportContextProviderShould : UnitTestBase
 
 		var provider = new TransportContextProvider(registry);
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>
+		var items = new Dictionary<string, object>
 		{
 			[TransportContextProvider.TransportBindingNameProperty] = "test-binding" // lowercase - won't match
 		};
-		_ = A.CallTo(() => context.Properties).Returns(properties);
+		_ = A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		var binding = provider.GetTransportBinding(context);
@@ -166,11 +166,11 @@ public sealed class TransportContextProviderShould : UnitTestBase
 
 		var provider = new TransportContextProvider(registry);
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>
+		var items = new Dictionary<string, object>
 		{
 			[TransportContextProvider.TransportBindingNameProperty] = "Test-Binding" // exact case - matches
 		};
-		_ = A.CallTo(() => context.Properties).Returns(properties);
+		_ = A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		var binding = provider.GetTransportBinding(context);
@@ -206,13 +206,13 @@ public sealed class TransportContextProviderShould : UnitTestBase
 
 		var provider = new TransportContextProvider(registry);
 
-		// Create a real-ish context with properties dictionary
+		// Create a real-ish context with items dictionary
 		var context = A.Fake<IMessageContext>();
-		var properties = new Dictionary<string, object?>
+		var items = new Dictionary<string, object>
 		{
 			[TransportContextProvider.TransportBindingNameProperty] = "rabbitmq"
 		};
-		_ = A.CallTo(() => context.Properties).Returns(properties);
+		_ = A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		var binding = provider.GetTransportBinding(context);
@@ -248,11 +248,11 @@ public sealed class TransportContextProviderShould : UnitTestBase
 
 		// Test kafka binding
 		var kafkaContext = A.Fake<IMessageContext>();
-		var kafkaProps = new Dictionary<string, object?>
+		var kafkaItems = new Dictionary<string, object>
 		{
 			[TransportContextProvider.TransportBindingNameProperty] = "kafka"
 		};
-		_ = A.CallTo(() => kafkaContext.Properties).Returns(kafkaProps);
+		_ = A.CallTo(() => kafkaContext.Items).Returns(kafkaItems);
 
 		// Act
 		var binding = provider.GetTransportBinding(kafkaContext);

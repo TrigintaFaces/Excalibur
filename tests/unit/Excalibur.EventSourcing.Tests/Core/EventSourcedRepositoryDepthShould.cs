@@ -18,7 +18,7 @@ namespace Excalibur.EventSourcing.Tests.Core;
 
 /// <summary>
 /// Depth coverage tests for <see cref="EventSourcedRepository{TAggregate,TKey}"/>
-/// covering GetByIdAsync, SaveAsync, ExistsAsync, DeleteAsync, QueryAsync, FindAsync,
+/// covering GetByIdAsync, SaveAsync, ExistsAsync, DeleteAsync,
 /// ETag validation, concurrency failures, and snapshot integration.
 /// </summary>
 [Trait("Category", "Unit")]
@@ -293,19 +293,19 @@ public sealed class EventSourcedRepositoryDepthShould
 	}
 
 	[Fact]
-	public async Task QueryAsync_ThrowsNotSupportedException()
+	public void QueryAsync_RemovedFromConcreteClass()
 	{
-		var repo = CreateRepository();
-		await Should.ThrowAsync<NotSupportedException>(() =>
-			repo.QueryAsync(new TestQuery(), CancellationToken.None));
+		// CQRS write-side only — QueryAsync fully removed in C.1
+		var method = typeof(EventSourcedRepository<TestRepoAggregate, string>).GetMethod("QueryAsync");
+		method.ShouldBeNull("QueryAsync was removed — CQRS write-side only");
 	}
 
 	[Fact]
-	public async Task FindAsync_ThrowsNotSupportedException()
+	public void FindAsync_RemovedFromConcreteClass()
 	{
-		var repo = CreateRepository();
-		await Should.ThrowAsync<NotSupportedException>(() =>
-			repo.FindAsync(new TestQuery(), CancellationToken.None));
+		// CQRS write-side only — FindAsync fully removed in C.1
+		var method = typeof(EventSourcedRepository<TestRepoAggregate, string>).GetMethod("FindAsync");
+		method.ShouldBeNull("FindAsync was removed — CQRS write-side only");
 	}
 
 	[Fact]
@@ -380,5 +380,4 @@ public sealed class EventSourcedRepositoryDepthShould
 		public IDictionary<string, object>? Metadata { get; init; }
 	}
 
-	private sealed class TestQuery : IAggregateQuery<TestRepoAggregate>;
 }

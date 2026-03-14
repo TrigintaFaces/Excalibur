@@ -3,45 +3,41 @@
 
 using System.Text.Json;
 
+using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Serialization;
-using Excalibur.Dispatch.Options.Core;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Serialization;
 
 /// <summary>
-/// Unit tests for SystemTextJsonMessageSerializer covering JSON serialization scenarios.
+/// Unit tests for SystemTextJsonSerializer covering JSON serialization scenarios.
 /// </summary>
 [Trait("Category", "Unit")]
 public sealed class SystemTextJsonMessageSerializerShould : UnitTestBase
 {
-	private readonly SystemTextJsonMessageSerializer _sut;
+	private readonly SystemTextJsonSerializer _sut;
 
 	public SystemTextJsonMessageSerializerShould()
 	{
-		var options = Microsoft.Extensions.Options.Options.Create(new JsonSerializationOptions
+		_sut = new SystemTextJsonSerializer(new JsonSerializerOptions
 		{
-			JsonSerializerOptions = new JsonSerializerOptions
-			{
-				PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-			},
+			PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
 		});
-		_sut = new SystemTextJsonMessageSerializer(options);
 	}
 
 	#region Serializer Properties Tests
 
 	[Fact]
-	public void SerializerName_ReturnsSystemTextJson()
+	public void Name_ReturnsSystemTextJson()
 	{
 		// Assert
-		_sut.SerializerName.ShouldBe("SystemTextJson");
+		_sut.Name.ShouldBe("System.Text.Json");
 	}
 
 	[Fact]
-	public void SerializerVersion_ReturnsExpectedVersion()
+	public void Version_ReturnsExpectedVersion()
 	{
 		// Assert
-		_sut.SerializerVersion.ShouldBe("1.0.0");
+		_sut.Version.ShouldNotBeNullOrEmpty();
 	}
 
 	#endregion Serializer Properties Tests
@@ -55,7 +51,7 @@ public sealed class SystemTextJsonMessageSerializerShould : UnitTestBase
 		var message = new SimpleMessage { Id = 1, Name = "Test" };
 
 		// Act
-		var result = _sut.Serialize(message);
+		var result = _sut.SerializeToBytes(message);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -74,7 +70,7 @@ public sealed class SystemTextJsonMessageSerializerShould : UnitTestBase
 		};
 
 		// Act
-		var result = _sut.Serialize(message);
+		var result = _sut.SerializeToBytes(message);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -92,7 +88,7 @@ public sealed class SystemTextJsonMessageSerializerShould : UnitTestBase
 		};
 
 		// Act
-		var result = _sut.Serialize(messages);
+		var result = _sut.SerializeToBytes(messages);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -110,7 +106,7 @@ public sealed class SystemTextJsonMessageSerializerShould : UnitTestBase
 		};
 
 		// Act
-		var result = _sut.Serialize(dictionary);
+		var result = _sut.SerializeToBytes(dictionary);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -126,7 +122,7 @@ public sealed class SystemTextJsonMessageSerializerShould : UnitTestBase
 	{
 		// Arrange
 		var original = new SimpleMessage { Id = 42, Name = "Test" };
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<SimpleMessage>(serialized);
@@ -147,7 +143,7 @@ public sealed class SystemTextJsonMessageSerializerShould : UnitTestBase
 			Name = "Parent",
 			Child = new ChildMessage { Value = "Nested" },
 		};
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<ComplexMessage>(serialized);
@@ -169,7 +165,7 @@ public sealed class SystemTextJsonMessageSerializerShould : UnitTestBase
 			new() { Id = 1, Name = "First" },
 			new() { Id = 2, Name = "Second" },
 		};
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<List<SimpleMessage>>(serialized);
@@ -190,7 +186,7 @@ public sealed class SystemTextJsonMessageSerializerShould : UnitTestBase
 			["one"] = 1,
 			["two"] = 2,
 		};
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<Dictionary<string, int>>(serialized);
@@ -214,7 +210,7 @@ public sealed class SystemTextJsonMessageSerializerShould : UnitTestBase
 		{
 			Timestamp = new DateTimeOffset(2025, 1, 15, 10, 30, 0, TimeSpan.Zero),
 		};
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<MessageWithDateTime>(serialized);
@@ -228,7 +224,7 @@ public sealed class SystemTextJsonMessageSerializerShould : UnitTestBase
 	{
 		// Arrange
 		var original = new MessageWithEnum { Status = MessageStatus.Processing };
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<MessageWithEnum>(serialized);
@@ -242,7 +238,7 @@ public sealed class SystemTextJsonMessageSerializerShould : UnitTestBase
 	{
 		// Arrange
 		var original = new SimpleMessage { Id = 1, Name = "日本語テスト 🎉" };
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<SimpleMessage>(serialized);
@@ -256,7 +252,7 @@ public sealed class SystemTextJsonMessageSerializerShould : UnitTestBase
 	{
 		// Arrange
 		var original = new MessageWithDecimal { Amount = 123.456789m };
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<MessageWithDecimal>(serialized);
@@ -270,37 +266,42 @@ public sealed class SystemTextJsonMessageSerializerShould : UnitTestBase
 	#region Error Handling Tests
 
 	[Fact]
-	public void Serialize_WithNull_ThrowsArgumentNullException()
+	public void Serialize_WithNull_ProducesValidOutput()
 	{
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => _sut.Serialize<SimpleMessage>(null!));
+		// Act - New consolidated serializer follows STJ pattern: null serializes to "null"
+		var result = _sut.SerializeToBytes<SimpleMessage>(null!);
+
+		// Assert
+		_ = result.ShouldNotBeNull();
 	}
 
 	[Fact]
 	public void Deserialize_WithNull_ThrowsArgumentNullException()
 	{
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => _sut.Deserialize<SimpleMessage>(null!));
+		// Act & Assert - Must call extension method explicitly; instance method resolves
+		// via implicit byte[]->ReadOnlySpan conversion, bypassing the null guard.
+		_ = Should.Throw<ArgumentNullException>(() =>
+			SerializerExtensions.Deserialize<SimpleMessage>(_sut, (byte[])null!));
 	}
 
 	[Fact]
-	public void Deserialize_InvalidJson_ThrowsJsonException()
+	public void Deserialize_InvalidJson_ThrowsSerializationException()
 	{
 		// Arrange
 		var invalidData = System.Text.Encoding.UTF8.GetBytes("not valid json {{{");
 
 		// Act & Assert
-		_ = Should.Throw<JsonException>(() => _sut.Deserialize<SimpleMessage>(invalidData));
+		_ = Should.Throw<SerializationException>(() => _sut.Deserialize<SimpleMessage>(invalidData));
 	}
 
 	[Fact]
-	public void Deserialize_EmptyArray_ThrowsJsonException()
+	public void Deserialize_EmptyArray_ThrowsSerializationException()
 	{
 		// Arrange
 		var emptyData = Array.Empty<byte>();
 
 		// Act & Assert
-		_ = Should.Throw<JsonException>(() => _sut.Deserialize<SimpleMessage>(emptyData));
+		_ = Should.Throw<SerializationException>(() => _sut.Deserialize<SimpleMessage>(emptyData));
 	}
 
 	#endregion Error Handling Tests
@@ -314,7 +315,7 @@ public sealed class SystemTextJsonMessageSerializerShould : UnitTestBase
 		var emptyList = new List<SimpleMessage>();
 
 		// Act
-		var result = _sut.Serialize(emptyList);
+		var result = _sut.SerializeToBytes(emptyList);
 
 		// Assert
 		_ = result.ShouldNotBeNull();
@@ -326,7 +327,7 @@ public sealed class SystemTextJsonMessageSerializerShould : UnitTestBase
 	{
 		// Arrange
 		var original = new List<SimpleMessage>();
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<List<SimpleMessage>>(serialized);

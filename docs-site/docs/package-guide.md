@@ -6,7 +6,15 @@ description: Choose the right Excalibur packages for your application architectu
 
 # Package Guide
 
-Excalibur is one framework with focused package families. Install only what your application needs — every package beyond `Excalibur.Dispatch` is optional.
+:::tip Framework Maturity
+**44,000+ automated tests** | **119 NuGet packages** | **10-stage CI pipeline** | **PublicAPI analyzer** on every package | **.NET 8/9/10**
+:::
+
+:::info Dispatch Stands Alone
+**Yes, you can use Excalibur.Dispatch by itself.** It's a complete messaging framework -- no event sourcing, domain modeling, or compliance packages required. See [Dispatch Only](getting-started/dispatch-only.md) for a focused guide.
+:::
+
+Excalibur is one framework with focused package families. Install only what your application needs -- every package beyond `Excalibur.Dispatch` is optional.
 
 ## Quick Summary
 
@@ -47,17 +55,28 @@ flowchart TD
 
 ## Scenario-Based Package Selection
 
+### Dispatch-Only Scenarios
+
+These scenarios use `Excalibur.Dispatch` alone -- no domain modeling, event sourcing, or sagas required.
+
 | If You're Building... | Install These |
 |----------------------|---------------|
-| Simple API with handlers (MediatR replacement) | `Excalibur.Dispatch`, `Excalibur.Dispatch.Abstractions` |
+| Simple API with handlers (MediatR replacement) | `Excalibur.Dispatch` |
 | Message-driven microservices with Kafka | + `Excalibur.Dispatch.Transport.Kafka` |
+| Azure Functions serverless | `Excalibur.Dispatch.Hosting.AzureFunctions` |
+| AWS Lambda serverless | `Excalibur.Dispatch.Hosting.AwsLambda` |
+| Production ASP.NET Core app | + `Excalibur.Hosting.Web` |
+
+### Extended Scenarios
+
+These scenarios add domain modeling, persistence, or compliance packages on top of Dispatch.
+
+| If You're Building... | Install These |
+|----------------------|---------------|
 | DDD application with aggregates | + `Excalibur.Domain` |
 | Event-sourced system | + `Excalibur.EventSourcing`, `Excalibur.EventSourcing.SqlServer` |
 | CQRS with projections | + `Excalibur.Caching` |
 | Long-running workflows | + `Excalibur.Saga`, `Excalibur.Saga.SqlServer` |
-| Azure Functions serverless | `Excalibur.Dispatch.Hosting.AzureFunctions` |
-| AWS Lambda serverless | `Excalibur.Dispatch.Hosting.AwsLambda` |
-| Production ASP.NET Core app | + `Excalibur.Hosting.Web` |
 | SOC2/GDPR compliant system | + `Excalibur.Dispatch.Compliance.*`, `Excalibur.Dispatch.AuditLogging.*` |
 
 ---
@@ -93,7 +112,6 @@ flowchart TD
 
 ```bash
 dotnet add package Excalibur.Dispatch
-dotnet add package Excalibur.Dispatch.Abstractions
 ```
 
 ```csharp

@@ -8,13 +8,13 @@ using Excalibur.Dispatch.Tests.Serialization.TestData;
 namespace Excalibur.Dispatch.Tests.Serialization;
 
 /// <summary>
-/// Unit tests for <see cref="MemoryPackPluggableSerializer"/> validating serialization,
+/// Unit tests for <see cref="MemoryPackSerializer"/> validating serialization,
 /// deserialization, and error handling behavior.
 /// </summary>
 [Trait("Category", "Unit")]
 public sealed class MemoryPackPluggableSerializerShould
 {
-	private readonly MemoryPackPluggableSerializer _sut = new();
+	private readonly MemoryPackSerializer _sut = new();
 
 	#region Property Tests
 
@@ -43,18 +43,21 @@ public sealed class MemoryPackPluggableSerializerShould
 		var message = new TestMessage { Name = "Test", Value = 42 };
 
 		// Act
-		var result = _sut.Serialize(message);
+		var result = _sut.SerializeToBytes(message);
 
 		// Assert
 		result.ShouldNotBeEmpty();
 	}
 
 	[Fact]
-	public void Serialize_WithNull_ThrowsArgumentNullException()
+	public void Serialize_WithNull_ProducesValidOutput()
 	{
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			_sut.Serialize<TestMessage>(null!));
+		// Act — MemoryPack serializes null as a nil marker
+		var result = ((ISerializer)_sut).SerializeToBytes<TestMessage>(null!);
+
+		// Assert
+		result.ShouldNotBeNull();
+		result.Length.ShouldBeGreaterThan(0);
 	}
 
 	[Fact]
@@ -74,7 +77,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		};
 
 		// Act
-		var result = _sut.Serialize(message);
+		var result = _sut.SerializeToBytes(message);
 
 		// Assert
 		result.ShouldNotBeEmpty();
@@ -95,7 +98,7 @@ public sealed class MemoryPackPluggableSerializerShould
 			Value = 12345,
 			Timestamp = new DateTime(2025, 1, 15, 10, 30, 0, DateTimeKind.Utc)
 		};
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<TestMessage>(serialized);
@@ -146,7 +149,7 @@ public sealed class MemoryPackPluggableSerializerShould
 				["priority"] = 1
 			}
 		};
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 
 		// Act
 		var result = _sut.Deserialize<ComplexTestMessage>(serialized);
@@ -176,7 +179,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		};
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -197,7 +200,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		};
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -218,7 +221,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		};
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<ComplexTestMessage>(serialized);
 
 		// Assert
@@ -239,7 +242,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		};
 
 		// Act
-		var serialized = _sut.Serialize(original);
+		var serialized = _sut.SerializeToBytes(original);
 		var result = _sut.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -262,7 +265,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		// Act
 		foreach (var message in messages)
 		{
-			tasks.Add(Task.Run(() => _sut.Serialize(message)));
+			tasks.Add(Task.Run(() => _sut.SerializeToBytes(message)));
 		}
 
 		var results = await Task.WhenAll(tasks);
@@ -279,7 +282,7 @@ public sealed class MemoryPackPluggableSerializerShould
 		var messages = Enumerable.Range(0, 100)
 			.Select(i => new TestMessage { Name = $"Message{i}", Value = i })
 			.ToList();
-		var serialized = messages.Select(m => _sut.Serialize(m)).ToList();
+		var serialized = messages.Select(m => _sut.SerializeToBytes(m)).ToList();
 		var tasks = new List<Task<TestMessage>>();
 
 		// Act

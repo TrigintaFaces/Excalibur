@@ -199,7 +199,7 @@ public abstract class FirestoreDataProviderTestBase : IAsyncDisposable
 	#region Query Tests
 
 	/// <summary>
-	/// Verifies that query returns results.
+	/// Verifies that query returns results via the query sub-interface.
 	/// </summary>
 	protected virtual async Task Query_ShouldReturnResults()
 	{
@@ -209,7 +209,11 @@ public abstract class FirestoreDataProviderTestBase : IAsyncDisposable
 
 		_ = await provider.CreateAsync(doc, partitionKey, CancellationToken.None).ConfigureAwait(false);
 
-		var results = await provider.QueryAsync<TestDocument>(
+		var queryOps = provider.GetService(typeof(ICloudNativePersistenceQueryOperations))
+			as ICloudNativePersistenceQueryOperations
+			?? throw new InvalidOperationException("Provider should expose ICloudNativePersistenceQueryOperations via GetService.");
+
+		var results = await queryOps.QueryAsync<TestDocument>(
 			"*", partitionKey, null, null, CancellationToken.None).ConfigureAwait(false);
 
 		if (results.Documents.Count == 0)

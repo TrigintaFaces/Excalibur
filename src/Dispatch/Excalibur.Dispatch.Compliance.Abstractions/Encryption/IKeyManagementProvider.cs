@@ -5,7 +5,7 @@
 namespace Excalibur.Dispatch.Compliance;
 
 /// <summary>
-/// Provides key management operations including retrieval, rotation, and deletion.
+/// Provides core key management operations including retrieval, rotation, and active key lookup.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -15,6 +15,10 @@ namespace Excalibur.Dispatch.Compliance;
 /// - Automated key rotation policies
 /// </para>
 /// <para> Implementations must ensure key material is never exposed in logs or errors. </para>
+/// <para>
+/// Administrative operations (listing, deletion, suspension) are defined in <see cref="IKeyManagementAdmin"/>.
+/// Implementations typically implement both interfaces.
+/// </para>
 /// </remarks>
 public interface IKeyManagementProvider
 {
@@ -37,14 +41,12 @@ public interface IKeyManagementProvider
 	Task<KeyMetadata?> GetKeyVersionAsync(string keyId, int version, CancellationToken cancellationToken);
 
 	/// <summary>
-	/// Lists all keys matching the specified filter criteria.
+	/// Gets the currently active key for encryption operations.
 	/// </summary>
-	/// <param name="status"> Optional filter by key status. Null returns all statuses. </param>
-	/// <param name="purpose"> Optional filter by key purpose. Null returns all purposes. </param>
+	/// <param name="purpose"> Optional purpose to filter keys. </param>
 	/// <param name="cancellationToken"> A token to cancel the operation. </param>
-	/// <returns> A list of key metadata matching the criteria. </returns>
-	Task<IReadOnlyList<KeyMetadata>> ListKeysAsync(
-		KeyStatus? status,
+	/// <returns> The active key metadata, or null if no active key exists. </returns>
+	Task<KeyMetadata?> GetActiveKeyAsync(
 		string? purpose,
 		CancellationToken cancellationToken);
 
@@ -62,6 +64,38 @@ public interface IKeyManagementProvider
 		EncryptionAlgorithm algorithm,
 		string? purpose,
 		DateTimeOffset? expiresAt,
+		CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Provides administrative key management operations including listing, deletion, and suspension.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This interface separates administrative operations from core key management
+/// (<see cref="IKeyManagementProvider"/>) following the Interface Segregation Principle.
+/// Consumers that only need to retrieve or rotate keys should depend on
+/// <see cref="IKeyManagementProvider"/> instead.
+/// </para>
+/// <para>
+/// Administrative operations include:
+/// - Key inventory and listing
+/// - Key deletion (crypto-shredding for GDPR compliance)
+/// - Key suspension for security incidents
+/// </para>
+/// </remarks>
+public interface IKeyManagementAdmin
+{
+	/// <summary>
+	/// Lists all keys matching the specified filter criteria.
+	/// </summary>
+	/// <param name="status"> Optional filter by key status. Null returns all statuses. </param>
+	/// <param name="purpose"> Optional filter by key purpose. Null returns all purposes. </param>
+	/// <param name="cancellationToken"> A token to cancel the operation. </param>
+	/// <returns> A list of key metadata matching the criteria. </returns>
+	Task<IReadOnlyList<KeyMetadata>> ListKeysAsync(
+		KeyStatus? status,
+		string? purpose,
 		CancellationToken cancellationToken);
 
 	/// <summary>
@@ -92,15 +126,5 @@ public interface IKeyManagementProvider
 	Task<bool> SuspendKeyAsync(
 		string keyId,
 		string reason,
-		CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Gets the currently active key for encryption operations.
-	/// </summary>
-	/// <param name="purpose"> Optional purpose to filter keys. </param>
-	/// <param name="cancellationToken"> A token to cancel the operation. </param>
-	/// <returns> The active key metadata, or null if no active key exists. </returns>
-	Task<KeyMetadata?> GetActiveKeyAsync(
-		string? purpose,
 		CancellationToken cancellationToken);
 }

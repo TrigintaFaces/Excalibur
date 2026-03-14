@@ -1,1 +1,129 @@
 #nullable enable
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStore
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStore.FindRegistrationsForDataSubjectAsync(string! dataSubjectId, Excalibur.Dispatch.Compliance.DataSubjectIdType idType, string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.DataLocationRegistration!>!>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStore.GetAllRegistrationsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.DataLocationRegistration!>!>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStore.GetDataMapEntriesAsync(string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.DataMapEntry!>!>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStore.GetDiscoveredLocationsAsync(string! dataSubjectId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.DataLocation!>!>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStore.GetService(System.Type! serviceType) -> object?
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStore.RecordDiscoveredLocationAsync(Excalibur.Dispatch.Compliance.DataLocation! location, string! dataSubjectId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStore.RemoveRegistrationAsync(string! tableName, string! fieldName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStore.SaveRegistrationAsync(Excalibur.Dispatch.Compliance.DataLocationRegistration! registration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStore.SqlServerDataInventoryStore(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStore!>! logger) -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStoreOptions
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStoreOptions.AutoCreateSchema.get -> bool
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStoreOptions.AutoCreateSchema.set -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStoreOptions.CommandTimeoutSeconds.get -> int
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStoreOptions.CommandTimeoutSeconds.set -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStoreOptions.ConnectionString.get -> string!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStoreOptions.ConnectionString.set -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStoreOptions.DiscoveredLocationsTableName.get -> string!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStoreOptions.DiscoveredLocationsTableName.set -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStoreOptions.FullDiscoveredLocationsTableName.get -> string!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStoreOptions.FullRegistrationsTableName.get -> string!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStoreOptions.RegistrationsTableName.get -> string!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStoreOptions.RegistrationsTableName.set -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStoreOptions.SchemaName.get -> string!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStoreOptions.SchemaName.set -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStoreOptions.SqlServerDataInventoryStoreOptions() -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStoreOptions.Validate() -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.CleanupExpiredCertificatesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.GetCertificateAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.ErasureCertificate?>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.GetCertificateByIdAsync(System.Guid certificateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.ErasureCertificate?>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.GetScheduledRequestsAsync(int maxResults, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.ErasureStatus!>!>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.GetService(System.Type! serviceType) -> object?
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.GetStatusAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.ErasureStatus?>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.ListRequestsAsync(Excalibur.Dispatch.Compliance.ErasureRequestStatus? status, string? tenantId, System.DateTimeOffset? fromDate, System.DateTimeOffset? toDate, int pageNumber, int pageSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.ErasureStatus!>!>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.RecordCancellationAsync(System.Guid requestId, string! reason, string! cancelledBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.RecordCompletionAsync(System.Guid requestId, int keysDeleted, int recordsAffected, System.Guid certificateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.SaveCertificateAsync(Excalibur.Dispatch.Compliance.ErasureCertificate! certificate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.SaveRequestAsync(Excalibur.Dispatch.Compliance.ErasureRequest! request, System.DateTimeOffset scheduledExecutionTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.SqlServerErasureStore(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore!>! logger) -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStore.UpdateStatusAsync(System.Guid requestId, Excalibur.Dispatch.Compliance.ErasureRequestStatus status, string? errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.AutoCreateSchema.get -> bool
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.AutoCreateSchema.set -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.CertificatesTableName.get -> string!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.CertificatesTableName.set -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.CommandTimeoutSeconds.get -> int
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.CommandTimeoutSeconds.set -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.ConnectionString.get -> string!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.ConnectionString.set -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.FullCertificatesTableName.get -> string!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.FullRequestsTableName.get -> string!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.RequestsTableName.get -> string!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.RequestsTableName.set -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.SchemaName.get -> string!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.SchemaName.set -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.SqlServerErasureStoreOptions() -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions.Validate() -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStore
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStore.GetActiveHoldsForDataSubjectAsync(string! dataSubjectIdHash, string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.LegalHold!>!>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStore.GetActiveHoldsForTenantAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.LegalHold!>!>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStore.GetExpiredHoldsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.LegalHold!>!>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStore.GetHoldAsync(System.Guid holdId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.LegalHold?>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStore.GetService(System.Type! serviceType) -> object?
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStore.ListActiveHoldsAsync(string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.LegalHold!>!>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStore.ListAllHoldsAsync(string? tenantId, System.DateTimeOffset? fromDate, System.DateTimeOffset? toDate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.LegalHold!>!>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStore.SaveHoldAsync(Excalibur.Dispatch.Compliance.LegalHold! hold, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStore.SqlServerLegalHoldStore(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStore!>! logger) -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStore.UpdateHoldAsync(Excalibur.Dispatch.Compliance.LegalHold! hold, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStoreOptions
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStoreOptions.AutoCreateSchema.get -> bool
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStoreOptions.AutoCreateSchema.set -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStoreOptions.CommandTimeoutSeconds.get -> int
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStoreOptions.CommandTimeoutSeconds.set -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStoreOptions.ConnectionString.get -> string!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStoreOptions.ConnectionString.set -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStoreOptions.FullTableName.get -> string!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStoreOptions.SchemaName.get -> string!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStoreOptions.SchemaName.set -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStoreOptions.SqlServerLegalHoldStoreOptions() -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStoreOptions.TableName.get -> string!
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStoreOptions.TableName.set -> void
+Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStoreOptions.Validate() -> void
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.AutoExpireTokens.get -> bool
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.AutoExpireTokens.set -> void
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.CommandTimeoutSeconds.get -> int
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.CommandTimeoutSeconds.set -> void
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.ConnectionString.get -> string!
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.ConnectionString.set -> void
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.DefaultCustodianCount.get -> int
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.DefaultCustodianCount.set -> void
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.DefaultThreshold.get -> int
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.DefaultThreshold.set -> void
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.DefaultTokenExpiration.get -> System.TimeSpan
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.DefaultTokenExpiration.set -> void
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.FullyQualifiedTableName.get -> string!
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.FullyQualifiedTokensTableName.get -> string!
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.Schema.get -> string!
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.Schema.set -> void
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.SqlServerKeyEscrowOptions() -> void
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.TableName.get -> string!
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.TableName.set -> void
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.TokensTableName.get -> string!
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions.TokensTableName.set -> void
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowService
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowService.BackupKeyAsync(string! keyId, System.ReadOnlyMemory<byte> keyMaterial, Excalibur.Dispatch.Compliance.EscrowOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.EscrowReceipt!>!
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowService.Dispose() -> void
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowService.GenerateRecoveryTokensAsync(string! keyId, int custodianCount, int threshold, System.TimeSpan? expiresIn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.RecoveryToken![]!>!
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowService.GetEscrowStatusAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.EscrowStatus?>!
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowService.RecoverKeyAsync(string! keyId, Excalibur.Dispatch.Compliance.RecoveryToken! token, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.ReadOnlyMemory<byte>>!
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowService.RevokeEscrowAsync(string! keyId, string? reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.SqlServer.SqlServerKeyEscrowService.SqlServerKeyEscrowService(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions!>! options, Excalibur.Dispatch.Compliance.IEncryptionProvider! encryptionProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.SqlServer.SqlServerKeyEscrowService!>! logger) -> void
+Microsoft.Extensions.DependencyInjection.SqlServerDataInventoryStoreServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.SqlServerErasureStoreServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.SqlServerKeyEscrowServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.SqlServerLegalHoldStoreServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.SqlServerDataInventoryStoreServiceCollectionExtensions.AddSqlServerDataInventoryStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerDataInventoryStoreServiceCollectionExtensions.AddSqlServerDataInventoryStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerDataInventoryStoreServiceCollectionExtensions.AddSqlServerDataInventoryStoreFromConfiguration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionStringName, System.Action<Excalibur.Compliance.SqlServer.Erasure.SqlServerDataInventoryStoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerErasureStoreServiceCollectionExtensions.AddSqlServerErasureStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerErasureStoreServiceCollectionExtensions.AddSqlServerErasureStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerErasureStoreServiceCollectionExtensions.AddSqlServerErasureStoreFromConfiguration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionStringName, System.Action<Excalibur.Compliance.SqlServer.Erasure.SqlServerErasureStoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerKeyEscrowServiceCollectionExtensions.AddSqlServerKeyEscrow(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerKeyEscrowServiceCollectionExtensions.AddSqlServerKeyEscrow(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.SqlServer.SqlServerKeyEscrowOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerLegalHoldStoreServiceCollectionExtensions.AddSqlServerLegalHoldStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerLegalHoldStoreServiceCollectionExtensions.AddSqlServerLegalHoldStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerLegalHoldStoreServiceCollectionExtensions.AddSqlServerLegalHoldStoreFromConfiguration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionStringName, System.Action<Excalibur.Compliance.SqlServer.Erasure.SqlServerLegalHoldStoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

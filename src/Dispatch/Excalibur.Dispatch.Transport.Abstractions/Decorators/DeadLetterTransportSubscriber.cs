@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Transport.Decorators;
 /// Uses a delegate for dead-letter routing to decouple from the specific <c>IDeadLetterQueueManager</c> interface,
 /// allowing transport DI to wire the appropriate handler.
 /// </remarks>
-public sealed class DeadLetterTransportSubscriber : DelegatingTransportSubscriber
+internal sealed class DeadLetterTransportSubscriber : DelegatingTransportSubscriber
 {
 	private readonly Func<TransportReceivedMessage, string?, CancellationToken, Task> _deadLetterHandler;
 	private readonly string _transportName;

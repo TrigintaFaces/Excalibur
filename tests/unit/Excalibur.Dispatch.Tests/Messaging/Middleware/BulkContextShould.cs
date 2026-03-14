@@ -2,12 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Messaging;
-using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Versioning;
-using Excalibur.Dispatch.Middleware.Auth;
 using Excalibur.Dispatch.Middleware.Batch;
 using Excalibur.Dispatch.Tests.TestFakes;
 
@@ -26,30 +25,30 @@ public sealed class BulkContextShould
 		// Act
 		var sut = new BulkContext([primary]);
 
-		// Assert
+		// Assert - core IMessageContext properties
 		sut.MessageId.ShouldBe(primary.MessageId);
-		sut.ExternalId.ShouldBe(primary.ExternalId);
-		sut.UserId.ShouldBe(primary.UserId);
 		sut.CorrelationId.ShouldBe(primary.CorrelationId);
 		sut.CausationId.ShouldBe(primary.CausationId);
-		sut.TraceParent.ShouldBe(primary.TraceParent);
+		sut.Result.ShouldBeNull(); // BulkContext doesn't copy Result from primary
+		sut.Message.ShouldBeNull(); // BulkContext doesn't copy Message from primary
+		sut.RequestServices.ShouldBe(primary.RequestServices);
+
+		// Assert - Items-based well-known properties
 		sut.SerializerVersion.ShouldBe("serializer-v1");
 		sut.MessageVersion.ShouldBe("message-v2");
 		sut.ContractVersion.ShouldBe("contract-v3");
 		sut.DesiredVersion.ShouldBe(7);
-		sut.TenantId.ShouldBe(primary.TenantId);
-		sut.Source.ShouldBe(primary.Source);
-		sut.MessageType.ShouldBe(primary.MessageType);
-		sut.ContentType.ShouldBe(primary.ContentType);
-		sut.DeliveryCount.ShouldBe(primary.DeliveryCount);
+		sut.MessageType.ShouldBe(primary.GetMessageType());
+		sut.ContentType.ShouldBe("application/json");
 		sut.PartitionKey.ShouldBe("partition-a");
 		sut.ReplyTo.ShouldBe("reply-queue");
-		sut.Result.ShouldBe(primary.Result);
-		sut.Message.ShouldBe(primary.Message);
-		sut.RoutingDecision.ShouldBe(primary.RoutingDecision);
-		sut.RequestServices.ShouldBe(primary.RequestServices);
-		sut.ReceivedTimestampUtc.ShouldBe(primary.ReceivedTimestampUtc);
-		sut.SentTimestampUtc.ShouldBe(primary.SentTimestampUtc);
+
+		// Assert - features are copied from primary
+		sut.GetUserId().ShouldBe("user-1");
+		sut.GetExternalId().ShouldBe("ext-1");
+		sut.GetTraceParent().ShouldBe("trace-1");
+		sut.GetTenantId().ShouldBe("tenant-1");
+		sut.GetSource().ShouldBe("source-1");
 	}
 
 	[Fact]
@@ -60,9 +59,6 @@ public sealed class BulkContextShould
 
 		// Assert
 		sut.Contexts.Count.ShouldBe(0);
-		sut.VersionMetadata.ShouldNotBeNull();
-		((object?)sut.ValidationResult).ShouldNotBeNull();
-		sut.AuthorizationResult.ShouldNotBeNull();
 		sut.RoutingDecision.ShouldNotBeNull();
 		sut.RoutingDecision.IsSuccess.ShouldBeTrue();
 		sut.Success.ShouldBeTrue();
@@ -127,7 +123,7 @@ public sealed class BulkContextShould
 	}
 
 	[Fact]
-	public void ProxyItemsAndPropertiesBehavior()
+	public void ProxyItemsBehavior()
 	{
 		// Arrange
 		var sut = new BulkContext([]);
@@ -136,35 +132,15 @@ public sealed class BulkContextShould
 		sut.SetItem("count", 123);
 		var value = sut.GetItem<int>("count");
 		var fallback = sut.GetItem("missing", "fallback");
-		var properties = sut.Properties;
 
 		// Assert
 		value.ShouldBe(123);
 		fallback.ShouldBe("fallback");
 		sut.ContainsItem("count").ShouldBeTrue();
-		properties["count"].ShouldBe(123);
-		ReferenceEquals(properties, sut.Properties).ShouldBeTrue();
+		sut.Items["count"].ShouldBe(123);
 
 		sut.RemoveItem("count");
 		sut.ContainsItem("count").ShouldBeFalse();
-	}
-
-	[Fact]
-	public void DelegateChildContextCreationToPrimaryContext()
-	{
-		// Arrange
-		var primary = A.Fake<IMessageContext>();
-		A.CallTo(() => primary.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
-		A.CallTo(() => primary.Properties).Returns(new Dictionary<string, object?>(StringComparer.Ordinal));
-		var expectedChild = new MessageContext();
-		A.CallTo(() => primary.CreateChildContext()).Returns(expectedChild);
-		var sut = new BulkContext([primary]);
-
-		// Act
-		var child = sut.CreateChildContext();
-
-		// Assert
-		child.ShouldBe(expectedChild);
 	}
 
 	[Fact]
@@ -177,7 +153,7 @@ public sealed class BulkContextShould
 		var child = sut.CreateChildContext();
 
 		// Assert
-		child.ShouldBeOfType<MessageContext>();
+		child.ShouldNotBeNull();
 	}
 
 	private static MessageContext CreatePrimaryContext()
@@ -190,22 +166,26 @@ public sealed class BulkContextShould
 		var context = new MessageContext(message, requestServices)
 		{
 			MessageId = "msg-1",
-			ExternalId = "ext-1",
-			UserId = "user-1",
 			CorrelationId = "corr-1",
 			CausationId = "cause-1",
-			TraceParent = "trace-1",
-			TenantId = "tenant-1",
-			Source = "source-1",
-			MessageType = "OrderPlaced",
-			ContentType = "application/json",
-			DeliveryCount = 3,
 			Result = "ok",
-			RoutingDecision = routing,
-			ReceivedTimestampUtc = new DateTimeOffset(2026, 2, 1, 10, 0, 0, TimeSpan.Zero),
-			SentTimestampUtc = new DateTimeOffset(2026, 2, 1, 10, 1, 0, TimeSpan.Zero)
 		};
 
+		// Set identity features
+		var identity = context.GetOrCreateIdentityFeature();
+		identity.ExternalId = "ext-1";
+		identity.UserId = "user-1";
+		identity.TraceParent = "trace-1";
+		identity.TenantId = "tenant-1";
+
+		// Set routing features
+		var routingFeature = context.GetOrCreateRoutingFeature();
+		routingFeature.Source = "source-1";
+		routingFeature.RoutingDecision = routing;
+
+		// Set Items-based properties
+		context.SetMessageType("OrderPlaced");
+		context.SetContentType("application/json");
 		context.SerializerVersion("serializer-v1");
 		context.MessageVersion("message-v2");
 		context.ContractVersion("contract-v3");

@@ -20,7 +20,7 @@ using DispatchEncryptionAlgorithm = Excalibur.Dispatch.Compliance.EncryptionAlgo
 namespace Excalibur.Dispatch.Compliance.Vault;
 
 /// <summary>
-/// HashiCorp Vault implementation of <see cref="IKeyManagementProvider" />.
+/// HashiCorp Vault implementation of <see cref="IKeyManagementProvider" /> and <see cref="IKeyManagementAdmin" />.
 /// </summary>
 /// <remarks>
 /// <para> This provider integrates with HashiCorp Vault's Transit secrets engine:
@@ -36,7 +36,7 @@ namespace Excalibur.Dispatch.Compliance.Vault;
 /// the client.
 /// </para>
 /// </remarks>
-public sealed partial class VaultKeyProvider : IKeyManagementProvider, IDisposable
+public sealed partial class VaultKeyProvider : IKeyManagementProvider, IKeyManagementAdmin, IDisposable
 {
 	private static readonly CompositeFormat KubernetesJwtNotFoundFormat =
 		CompositeFormat.Parse(Resources.VaultKeyProvider_KubernetesJwtNotFound);

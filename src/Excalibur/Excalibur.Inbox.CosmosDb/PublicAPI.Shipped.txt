@@ -1,0 +1,36 @@
+#nullable enable
+Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions
+Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions.Client.get -> Excalibur.Data.CosmosDb.CosmosDbClientOptions!
+Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions.Client.set -> void
+Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions.ContainerName.get -> string!
+Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions.ContainerName.set -> void
+Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions.CosmosDbInboxOptions() -> void
+Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions.DatabaseName.get -> string!
+Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions.DatabaseName.set -> void
+Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions.DefaultTimeToLiveSeconds.get -> int
+Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions.DefaultTimeToLiveSeconds.set -> void
+Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions.PartitionKeyPath.get -> string!
+Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions.PartitionKeyPath.set -> void
+Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions.Validate() -> void
+Excalibur.Inbox.CosmosDb.CosmosDbInboxStore
+Excalibur.Inbox.CosmosDb.CosmosDbInboxStore.CleanupAsync(System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Excalibur.Inbox.CosmosDb.CosmosDbInboxStore.CosmosDbInboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.CosmosDb.CosmosDbInboxStore!>! logger) -> void
+Excalibur.Inbox.CosmosDb.CosmosDbInboxStore.CreateEntryAsync(string! messageId, string! handlerType, string! messageType, byte[]! payload, System.Collections.Generic.IDictionary<string!, object!>! metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry!>
+Excalibur.Inbox.CosmosDb.CosmosDbInboxStore.Dispose() -> void
+Excalibur.Inbox.CosmosDb.CosmosDbInboxStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Inbox.CosmosDb.CosmosDbInboxStore.GetAllEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry!>!>
+Excalibur.Inbox.CosmosDb.CosmosDbInboxStore.GetEntryAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry?>
+Excalibur.Inbox.CosmosDb.CosmosDbInboxStore.GetFailedEntriesAsync(int maxRetries, System.DateTimeOffset? olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry!>!>
+Excalibur.Inbox.CosmosDb.CosmosDbInboxStore.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxStatistics!>
+Excalibur.Inbox.CosmosDb.CosmosDbInboxStore.InitializeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Inbox.CosmosDb.CosmosDbInboxStore.IsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Excalibur.Inbox.CosmosDb.CosmosDbInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Inbox.CosmosDb.CosmosDbInboxStore.MarkProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Inbox.CosmosDb.CosmosDbInboxStore.TryMarkAsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Microsoft.Extensions.DependencyInjection.CosmosDbInboxExtensions
+Microsoft.Extensions.DependencyInjection.InboxBuilderCosmosDbExtensions
+static Microsoft.Extensions.DependencyInjection.CosmosDbInboxExtensions.AddCosmosDbInboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! databaseName) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CosmosDbInboxExtensions.AddCosmosDbInboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CosmosDbInboxExtensions.UseCosmosDbInboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, string! connectionString, string! databaseName) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.CosmosDbInboxExtensions.UseCosmosDbInboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.InboxBuilderCosmosDbExtensions.UseCosmosDb(this Excalibur.Inbox.DependencyInjection.IInboxBuilder! builder, System.Action<Excalibur.Inbox.CosmosDb.CosmosDbInboxOptions!>! configure) -> Excalibur.Inbox.DependencyInjection.IInboxBuilder!

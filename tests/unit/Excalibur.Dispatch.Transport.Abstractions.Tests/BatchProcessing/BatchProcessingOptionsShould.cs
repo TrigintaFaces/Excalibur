@@ -9,7 +9,7 @@ public class BatchProcessingOptionsShould
     {
         var options = new BatchProcessingOptions();
 
-        options.MaxBatchSize.ShouldBe(100);
+        options.Collection.MaxBatchSize.ShouldBe(100);
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class BatchProcessingOptionsShould
     {
         var options = new BatchProcessingOptions();
 
-        options.CompletionStrategy.ShouldBe(BatchCompletionStrategy.Size);
+        options.Collection.CompletionStrategy.ShouldBe(BatchCompletionStrategy.Size);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class BatchProcessingOptionsShould
     {
         var options = new BatchProcessingOptions();
 
-        options.MinBatchSize.ShouldBe(1);
+        options.Collection.MinBatchSize.ShouldBe(1);
     }
 
     [Fact]
@@ -98,5 +98,13 @@ public class BatchProcessingOptionsShould
         var options = new BatchProcessingOptions();
 
         options.DefaultPriority.ShouldBe(BatchPriority.Normal);
+    }
+
+    [Fact]
+    public void Should_Default_Collection_SubOptions_Initialized()
+    {
+        var options = new BatchProcessingOptions();
+
+        options.Collection.ShouldNotBeNull();
     }
 }

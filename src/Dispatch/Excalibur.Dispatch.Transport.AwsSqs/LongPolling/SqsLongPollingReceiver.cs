@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Implements optimized SQS message receiving with adaptive long polling.
 /// </summary>
-public sealed partial class SqsLongPollingReceiver : ILongPollingReceiver
+internal sealed partial class SqsLongPollingReceiver : ILongPollingReceiver
 {
 	private readonly IAmazonSQS _sqsClient;
 	private readonly ILongPollingStrategy _pollingStrategy;

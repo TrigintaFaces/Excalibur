@@ -93,7 +93,7 @@ public sealed class DynamoDbEventStoreConstructorShould : UnitTestBase
 		var store = new DynamoDbEventStore(_client, _streamsClient, _validOptions, _logger);
 
 		// Act & Assert
-		store.ProviderType.ShouldBe(CloudProviderType.DynamoDb);
+		store.CloudProvider.ShouldBe(CloudProviderType.DynamoDb);
 	}
 
 	#endregion CloudProviderType Tests

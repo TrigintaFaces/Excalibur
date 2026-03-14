@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Buffers;
+
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Serialization.MemoryPack;
@@ -73,7 +75,7 @@ public sealed class SerializationHealthCheckShould
 	{
 		// Arrange
 		var registry = new SerializerRegistry();
-		var memoryPackSerializer = new MemoryPackPluggableSerializer();
+		var memoryPackSerializer = new MemoryPackSerializer();
 		registry.Register(SerializerIds.MemoryPack, memoryPackSerializer);
 		registry.SetCurrent("MemoryPack");
 
@@ -99,8 +101,8 @@ public sealed class SerializationHealthCheckShould
 	{
 		// Arrange
 		var registry = new SerializerRegistry();
-		var memoryPackSerializer = new MemoryPackPluggableSerializer();
-		var jsonSerializer = new SystemTextJsonPluggableSerializer();
+		var memoryPackSerializer = new MemoryPackSerializer();
+		var jsonSerializer = new SystemTextJsonSerializer();
 
 		registry.Register(SerializerIds.MemoryPack, memoryPackSerializer);
 		registry.Register(SerializerIds.SystemTextJson, jsonSerializer);
@@ -171,12 +173,13 @@ public sealed class SerializationHealthCheckShould
 	/// <summary>
 	/// Test serializer that fails during serialization.
 	/// </summary>
-	private sealed class FailingSerializeSerializer : IPluggableSerializer
+	private sealed class FailingSerializeSerializer : ISerializer
 	{
 		public string Name => "FailingSerialize";
 		public string Version => "1.0.0";
+		public string ContentType => "application/octet-stream";
 
-		public byte[] Serialize<T>(T value)
+		public void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
 			=> throw new InvalidOperationException("Intentional serialization failure");
 
 		public T Deserialize<T>(ReadOnlySpan<byte> data)
@@ -192,12 +195,20 @@ public sealed class SerializationHealthCheckShould
 	/// <summary>
 	/// Test serializer that fails during deserialization.
 	/// </summary>
-	private sealed class FailingDeserializeSerializer : IPluggableSerializer
+	private sealed class FailingDeserializeSerializer : ISerializer
 	{
 		public string Name => "FailingDeserialize";
 		public string Version => "1.0.0";
+		public string ContentType => "application/octet-stream";
 
-		public byte[] Serialize<T>(T value) => [1, 2, 3];
+		public void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
+		{
+			var span = bufferWriter.GetSpan(3);
+			span[0] = 1;
+			span[1] = 2;
+			span[2] = 3;
+			bufferWriter.Advance(3);
+		}
 
 		public T Deserialize<T>(ReadOnlySpan<byte> data)
 			=> throw new InvalidOperationException("Intentional deserialization failure");
@@ -217,7 +228,7 @@ public sealed class SerializationHealthCheckShould
 	{
 		// Arrange
 		var registry = new SerializerRegistry();
-		var memoryPackSerializer = new MemoryPackPluggableSerializer();
+		var memoryPackSerializer = new MemoryPackSerializer();
 		registry.Register(SerializerIds.MemoryPack, memoryPackSerializer);
 		registry.SetCurrent("MemoryPack");
 
@@ -243,7 +254,7 @@ public sealed class SerializationHealthCheckShould
 	{
 		// Arrange
 		var registry = new SerializerRegistry();
-		var memoryPackSerializer = new MemoryPackPluggableSerializer();
+		var memoryPackSerializer = new MemoryPackSerializer();
 		registry.Register(SerializerIds.MemoryPack, memoryPackSerializer);
 		registry.SetCurrent("MemoryPack");
 
@@ -268,7 +279,7 @@ public sealed class SerializationHealthCheckShould
 	{
 		// Arrange
 		var registry = new SerializerRegistry();
-		var memoryPackSerializer = new MemoryPackPluggableSerializer();
+		var memoryPackSerializer = new MemoryPackSerializer();
 		registry.Register(SerializerIds.MemoryPack, memoryPackSerializer);
 		registry.SetCurrent("MemoryPack");
 

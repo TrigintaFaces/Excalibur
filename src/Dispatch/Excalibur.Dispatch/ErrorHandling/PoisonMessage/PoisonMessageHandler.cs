@@ -7,7 +7,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.ErrorHandling;
@@ -28,7 +29,7 @@ public sealed partial class PoisonMessageHandler : IPoisonMessageHandler, IDispo
 	private volatile bool _disposed;
 
 	private readonly IDeadLetterStore _deadLetterStore;
-	private readonly IJsonSerializer _serializer;
+	private readonly DispatchJsonSerializer _serializer;
 	private readonly IServiceProvider _serviceProvider;
 	private readonly PoisonMessageOptions _options;
 	private readonly ILogger<PoisonMessageHandler> _logger;
@@ -39,7 +40,7 @@ public sealed partial class PoisonMessageHandler : IPoisonMessageHandler, IDispo
 	/// </summary>
 	public PoisonMessageHandler(
 		IDeadLetterStore deadLetterStore,
-		IJsonSerializer serializer,
+		DispatchJsonSerializer serializer,
 		IServiceProvider serviceProvider,
 		IOptions<PoisonMessageOptions> options,
 		ILogger<PoisonMessageHandler> logger)
@@ -81,19 +82,19 @@ public sealed partial class PoisonMessageHandler : IPoisonMessageHandler, IDispo
 		try
 		{
 			// Serialize the message and metadata
-			var messageBody = await _serializer.SerializeAsync(message).ConfigureAwait(false);
+			var messageBody = await _serializer.SerializeAsync(message, message.GetType()).ConfigureAwait(false);
 			var metadata = new DispatchMessageMetadata(
 				MessageId: context.MessageId ?? Guid.NewGuid().ToString("N"),
 				CorrelationId: context.CorrelationId ?? Guid.NewGuid().ToString("N"),
 				CausationId: context.CausationId,
-				TraceParent: context.TraceParent,
-				TenantId: context.TenantId,
-				UserId: context.UserId,
+				TraceParent: context.GetTraceParent(),
+				TenantId: context.GetTenantId(),
+				UserId: context.GetUserId(),
 				ContentType: "application/json",
 				SerializerVersion: "1.0",
 				MessageVersion: "1.0",
 				ContractVersion: "1.0.0");
-			var messageMetadata = await _serializer.SerializeAsync(metadata).ConfigureAwait(false);
+			var messageMetadata = await _serializer.SerializeAsync(metadata, typeof(DispatchMessageMetadata)).ConfigureAwait(false);
 
 			// Extract processing info from context
 			var processingInfo = ExtractProcessingInfo(context);
@@ -235,7 +236,7 @@ public sealed partial class PoisonMessageHandler : IPoisonMessageHandler, IDispo
 		var totalCount = await _deadLetterStore.GetCountAsync(cancellationToken).ConfigureAwait(false);
 
 		// Get recent messages for time window calculation
-		var recentFilter = new DeadLetterFilter { FromDate = DateTimeOffset.UtcNow.Subtract(_options.AlertTimeWindow), MaxResults = 1000 };
+		var recentFilter = new DeadLetterFilter { FromDate = DateTimeOffset.UtcNow.Subtract(_options.Alerting.AlertTimeWindow), MaxResults = 1000 };
 
 		var recentMessages = await _deadLetterStore.GetMessagesAsync(recentFilter, cancellationToken)
 			.ConfigureAwait(false);
@@ -253,7 +254,7 @@ public sealed partial class PoisonMessageHandler : IPoisonMessageHandler, IDispo
 		{
 			TotalCount = totalCount,
 			RecentCount = recentMessagesList.Count,
-			TimeWindow = _options.AlertTimeWindow,
+			TimeWindow = _options.Alerting.AlertTimeWindow,
 			MessagesByType = messagesByType,
 			MessagesByReason = messagesByReason,
 			OldestMessageDate = recentMessagesList.Count > 0

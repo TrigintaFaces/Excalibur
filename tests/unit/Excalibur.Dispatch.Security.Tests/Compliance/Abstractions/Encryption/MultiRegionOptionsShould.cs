@@ -34,11 +34,11 @@ public sealed class MultiRegionOptionsShould
         options.ReplicationMode.ShouldBe(ReplicationMode.Asynchronous);
         options.RpoTarget.ShouldBe(TimeSpan.FromMinutes(15));
         options.RtoTarget.ShouldBe(TimeSpan.FromMinutes(5));
-        options.HealthCheckInterval.ShouldBe(TimeSpan.FromSeconds(30));
-        options.FailoverThreshold.ShouldBe(3);
-        options.EnableAutomaticFailover.ShouldBeTrue();
+        options.Failover.HealthCheckInterval.ShouldBe(TimeSpan.FromSeconds(30));
+        options.Failover.FailoverThreshold.ShouldBe(3);
+        options.Failover.EnableAutomaticFailover.ShouldBeTrue();
         options.OperationTimeout.ShouldBe(TimeSpan.FromSeconds(10));
-        options.AsyncReplicationInterval.ShouldBe(TimeSpan.FromMinutes(5));
+        options.Failover.AsyncReplicationInterval.ShouldBe(TimeSpan.FromMinutes(5));
         options.EnableMetrics.ShouldBeTrue();
         options.EnableAuditEvents.ShouldBeTrue();
     }

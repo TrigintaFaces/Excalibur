@@ -60,22 +60,6 @@ public sealed class GooglePubSubCloudEventOptions
 	public string? DefaultSubscription { get; set; }
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to enable message compression for large CloudEvents.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether to enable message compression for large CloudEvents.
-	/// </value>
-	public bool EnableCompression { get; set; }
-
-	/// <summary>
-	/// Gets or sets the threshold (in bytes) for triggering message compression.
-	/// </summary>
-	/// <value>
-	/// The threshold (in bytes) for triggering message compression.
-	/// </value>
-	public int CompressionThreshold { get; set; } = 1024 * 1024; // 1MB
-
-	/// <summary>
 	/// Gets or sets a value indicating whether to use exactly-once delivery (requires enabling on the subscription).
 	/// </summary>
 	/// <value>
@@ -98,6 +82,36 @@ public sealed class GooglePubSubCloudEventOptions
 	/// The retry policy for message publishing.
 	/// </value>
 	public GooglePubSubRetryPolicy RetryPolicy { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the compression and monitoring configuration for CloudEvents.
+	/// </summary>
+	/// <value>
+	/// The compression and monitoring configuration.
+	/// </value>
+	public CloudEventTransportOptions Transport { get; set; } = new();
+}
+
+/// <summary>
+/// Configuration options for CloudEvent transport concerns including compression and monitoring.
+/// </summary>
+public sealed class CloudEventTransportOptions
+{
+	/// <summary>
+	/// Gets or sets a value indicating whether to enable message compression for large CloudEvents.
+	/// </summary>
+	/// <value>
+	/// A value indicating whether to enable message compression for large CloudEvents.
+	/// </value>
+	public bool EnableCompression { get; set; }
+
+	/// <summary>
+	/// Gets or sets the threshold (in bytes) for triggering message compression.
+	/// </summary>
+	/// <value>
+	/// The threshold (in bytes) for triggering message compression.
+	/// </value>
+	public int CompressionThreshold { get; set; } = 1024 * 1024; // 1MB
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to enable Cloud Monitoring integration.

@@ -130,9 +130,9 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 		_ = services.AddOptions<TimeAwareSchedulerOptions>()
 			.Configure(options =>
 			{
-				options.EnableAdaptiveTimeouts = true;
-				options.IncludeTimeoutMetrics = true;
-				options.LogSchedulingTimeouts = true;
+				options.Adaptive.EnableAdaptiveTimeouts = true;
+				options.Timeouts.IncludeTimeoutMetrics = true;
+				options.Timeouts.LogSchedulingTimeouts = true;
 				configureScheduler?.Invoke(options);
 			})
 			.ValidateDataAnnotations()
@@ -163,10 +163,10 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 		_ = services.AddOptions<TimeAwareSchedulerOptions>()
 			.Configure(options =>
 			{
-				options.EnableTimeoutPolicies = true;
-				options.EnableAdaptiveTimeouts = false;
-				options.IncludeTimeoutMetrics = false;
-				options.LogSchedulingTimeouts = false;
+				options.Timeouts.EnableTimeoutPolicies = true;
+				options.Adaptive.EnableAdaptiveTimeouts = false;
+				options.Timeouts.IncludeTimeoutMetrics = false;
+				options.Timeouts.LogSchedulingTimeouts = false;
 				configureScheduler?.Invoke(options);
 			})
 			.ValidateDataAnnotations()
@@ -190,11 +190,11 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 		// Add adaptive TimePolicy services with optimized configuration
 		_ = services.AddAdaptiveTimeouts(options =>
 		{
-			options.UseAdaptiveTimeouts = true;
-			options.MinimumSampleSize = 25; // Lower sample size for faster adaptation
-			options.AdaptiveTimeoutPercentile = 90; // Slightly lower percentile for better performance
-			options.IncludeTimeoutMetrics = true;
-			options.LogTimeoutEvents = true;
+			options.Adaptive.UseAdaptiveTimeouts = true;
+			options.Adaptive.MinimumSampleSize = 25; // Lower sample size for faster adaptation
+			options.Adaptive.AdaptiveTimeoutPercentile = 90; // Slightly lower percentile for better performance
+			options.Observability.IncludeTimeoutMetrics = true;
+			options.Observability.LogTimeoutEvents = true;
 		});
 
 		// Register the time-aware scheduled message service
@@ -204,18 +204,18 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 		_ = services.AddOptions<TimeAwareSchedulerOptions>()
 			.Configure(options =>
 			{
-				options.EnableAdaptiveTimeouts = true;
-				options.EnableTimeoutEscalation = true;
-				options.MinimumSampleSize = 25;
-				options.AdaptiveTimeoutPercentile = 90;
-				options.IncludeTimeoutMetrics = true;
-				options.LogSchedulingTimeouts = true;
+				options.Adaptive.EnableAdaptiveTimeouts = true;
+				options.Adaptive.EnableTimeoutEscalation = true;
+				options.Adaptive.MinimumSampleSize = 25;
+				options.Adaptive.AdaptiveTimeoutPercentile = 90;
+				options.Timeouts.IncludeTimeoutMetrics = true;
+				options.Timeouts.LogSchedulingTimeouts = true;
 
 				// Optimize timeouts for high performance
 				options.PollInterval = TimeSpan.FromSeconds(15); // More frequent polling
-				options.ScheduleRetrievalTimeout = TimeSpan.FromSeconds(20);
-				options.DeserializationTimeout = TimeSpan.FromSeconds(5);
-				options.ScheduleUpdateTimeout = TimeSpan.FromSeconds(10);
+				options.Timeouts.ScheduleRetrievalTimeout = TimeSpan.FromSeconds(20);
+				options.Timeouts.DeserializationTimeout = TimeSpan.FromSeconds(5);
+				options.Timeouts.ScheduleUpdateTimeout = TimeSpan.FromSeconds(10);
 
 				configureScheduler?.Invoke(options);
 			})
@@ -285,14 +285,14 @@ public static class TimeAwareSchedulingServiceCollectionExtensions
 	{
 		_ = services.Configure<TimeAwareSchedulerOptions>(static options =>
 		{
-			options.LogSchedulingTimeouts = true;
-			options.IncludeTimeoutMetrics = true;
+			options.Timeouts.LogSchedulingTimeouts = true;
+			options.Timeouts.IncludeTimeoutMetrics = true;
 		});
 
 		_ = services.Configure<TimePolicyOptions>(static options =>
 		{
-			options.LogTimeoutEvents = true;
-			options.IncludeTimeoutMetrics = true;
+			options.Observability.LogTimeoutEvents = true;
+			options.Observability.IncludeTimeoutMetrics = true;
 		});
 
 		return services;

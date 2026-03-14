@@ -345,11 +345,11 @@ Prevent operations from blocking indefinitely:
 Limit concurrent executions to prevent resource exhaustion:
 
 ```csharp
-// BulkheadManager limits concurrent calls
-// Configured via Polly bulkhead policies
+// Bulkhead isolation limits concurrent calls
+// Configured via Polly bulkhead policies (resolved through DI)
 ```
 
-`BulkheadManager` manages named bulkhead isolations to prevent one slow operation from consuming all available threads.
+The bulkhead manager (resolved via DI as `IBulkheadManager`) manages named bulkhead isolations to prevent one slow operation from consuming all available threads.
 
 ### Graceful Degradation
 
@@ -417,7 +417,7 @@ public record DegradationLevelConfig(
 |-----------|---------|---------------|
 | `IRetryPolicy` | Built-in | `PollyRetryPolicyAdapter` |
 | `ICircuitBreakerPolicy` | Built-in | `PollyCircuitBreakerPolicyAdapter` |
-| `IBackoffCalculator` | Built-in | `PollyBackoffCalculatorAdapter` |
+| `IBackoffCalculator` | Built-in | Polly adapter (internal, resolved via DI) |
 | `ITransportCircuitBreakerRegistry` | Built-in | `PollyTransportCircuitBreakerRegistry` |
 
 ## Configuration

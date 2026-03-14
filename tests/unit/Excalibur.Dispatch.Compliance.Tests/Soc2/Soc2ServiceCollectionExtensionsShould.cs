@@ -35,7 +35,7 @@ public sealed class Soc2ServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddSoc2Compliance(opts => opts.EnableContinuousMonitoring = false);
+		services.AddSoc2Compliance(opts => opts.Monitoring.EnableContinuousMonitoring = false);
 
 		// Assert
 		services.Any(d => d.ServiceType == typeof(ISoc2ComplianceService)).ShouldBeTrue();

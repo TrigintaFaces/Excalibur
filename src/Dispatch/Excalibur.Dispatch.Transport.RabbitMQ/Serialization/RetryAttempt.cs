@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// <summary>
 /// Represents a retry attempt.
 /// </summary>
-public sealed record RetryAttempt(
+internal sealed record RetryAttempt(
 	int AttemptNumber,
 	DateTimeOffset AttemptTime,
 	string? Error,

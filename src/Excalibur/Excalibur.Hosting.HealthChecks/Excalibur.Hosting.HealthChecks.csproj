@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Hosting.HealthChecks</PackageId>
+    <Description>Health check UI and monitoring integration for Excalibur hosting, including readiness/liveness endpoints and health check dashboard.</Description>
+    <PackageTags>excalibur;hosting;healthchecks;monitoring;health-ui;aot</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Hosting\Excalibur.Hosting.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="AspNetCore.HealthChecks.System" />
+    <PackageReference Include="AspNetCore.HealthChecks.UI" />
+    <PackageReference Include="AspNetCore.HealthChecks.UI.Client" />
+    <PackageReference Include="AspNetCore.HealthChecks.Uris" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

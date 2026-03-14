@@ -1,0 +1,33 @@
+#nullable enable
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElection
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElection.BecameLeader -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElection.CandidateId.get -> string!
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElection.CurrentLeaderId.get -> string?
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElection.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElection.IsLeader.get -> bool
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElection.LeaderChanged -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs!>?
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElection.LostLeadership -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElection.MongoDbLeaderElection(MongoDB.Driver.IMongoClient! client, string! resourceName, Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions!>! mongoOptions, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! electionOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.MongoDB.MongoDbLeaderElection!>! logger) -> void
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElection.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElection.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions.CollectionName.get -> string!
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions.CollectionName.set -> void
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions.ConnectionString.get -> string!
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions.ConnectionString.set -> void
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions.DatabaseName.get -> string!
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions.DatabaseName.set -> void
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions.LeaseDurationSeconds.get -> int
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions.LeaseDurationSeconds.set -> void
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions.MongoDbLeaderElectionOptions() -> void
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions.RenewIntervalSeconds.get -> int
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions.RenewIntervalSeconds.set -> void
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions.TimeoutInSeconds.get -> int
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions.TimeoutInSeconds.set -> void
+Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions.Validate() -> void
+Microsoft.Extensions.DependencyInjection.MongoDbLeaderElectionBuilderExtensions
+Microsoft.Extensions.DependencyInjection.MongoDbLeaderElectionExtensions
+static Microsoft.Extensions.DependencyInjection.MongoDbLeaderElectionBuilderExtensions.UseMongoDB(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder, string! resourceName, string! connectionString) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
+static Microsoft.Extensions.DependencyInjection.MongoDbLeaderElectionBuilderExtensions.UseMongoDB(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder, string! resourceName, System.Action<Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions!>! configure) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
+static Microsoft.Extensions.DependencyInjection.MongoDbLeaderElectionExtensions.AddMongoDbLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! resourceName, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MongoDbLeaderElectionExtensions.AddMongoDbLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! resourceName, System.Action<Excalibur.LeaderElection.MongoDB.MongoDbLeaderElectionOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

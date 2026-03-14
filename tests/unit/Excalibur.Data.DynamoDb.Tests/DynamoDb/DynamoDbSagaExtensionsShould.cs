@@ -3,7 +3,7 @@
 
 using Amazon.DynamoDBv2;
 
-using Excalibur.Data.DynamoDb.Saga;
+using Excalibur.Saga.DynamoDb;
 using Excalibur.Dispatch.Abstractions.Messaging;
 
 using FakeItEasy;
@@ -57,7 +57,7 @@ public sealed class DynamoDbSagaExtensionsShould
 		// Act
 		var result = services.AddDynamoDbSagaStore(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 			options.TableName = "sagas";
 		});
 
@@ -74,7 +74,7 @@ public sealed class DynamoDbSagaExtensionsShould
 		// Act
 		services.AddDynamoDbSagaStore(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 			options.TableName = "sagas";
 		});
 
@@ -91,7 +91,7 @@ public sealed class DynamoDbSagaExtensionsShould
 		// Act
 		services.AddDynamoDbSagaStore(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 			options.TableName = "sagas";
 		});
 

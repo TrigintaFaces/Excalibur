@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// Base implementation of batch processor with common functionality.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="BatchProcessorBase" /> class. </remarks>
-public abstract class BatchProcessorBase(ILogger logger, BatchMetricsCollector metricsCollector) : IBatchProcessor, IDisposable
+internal abstract class BatchProcessorBase(ILogger logger, BatchMetricsCollector metricsCollector) : IBatchProcessor, IDisposable
 {
 	private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 	private readonly ActivitySource _activitySource = new("Excalibur.Dispatch.Extensions.Google.BatchProcessing");

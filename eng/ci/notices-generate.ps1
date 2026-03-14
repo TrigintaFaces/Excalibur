@@ -3,6 +3,8 @@ param(
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$RepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$SolutionPath = Join-Path $RepoRoot 'Excalibur.sln'
 
 function Get-PackageVersionsFromDirectoryProps {
   param([string]$Path)
@@ -18,7 +20,19 @@ function Get-PackageVersionsFromDirectoryProps {
 
 function Get-PackageReferencesFromCsproj {
   param([string]$Path)
-  $xml = [xml](Get-Content -Raw -- $Path)
+  try {
+    $xml = [xml](Get-Content -Raw -- $Path)
+  }
+  catch {
+    Write-Warning "Skipping non-project or malformed XML file: $Path"
+    return @()
+  }
+
+  if ($null -eq $xml.DocumentElement -or $xml.DocumentElement.Name -ne 'Project') {
+    Write-Warning "Skipping file without a valid <Project> root: $Path"
+    return @()
+  }
+
   $nodes = $xml.SelectNodes('//PackageReference')
   foreach ($n in $nodes) {
     $id = ''
@@ -35,10 +49,32 @@ function Get-PackageReferencesFromCsproj {
   }
 }
 
-$central = Get-PackageVersionsFromDirectoryProps (Join-Path (Get-Location) 'Directory.Packages.props')
-$projRefs = Get-ChildItem -Recurse -File -Filter *.csproj |
-  Where-Object { $_.FullName -notmatch '[\\/](obj|bin)[\\/]' } |
-  ForEach-Object { Get-PackageReferencesFromCsproj $_.FullName }
+function Get-SolutionProjectPaths {
+  param([string]$Path)
+
+  if (!(Test-Path $Path)) { return @() }
+
+  $projectRegex = 'Project\(".*?"\)\s*=\s*".*?",\s*"(.*?\.csproj)"'
+  $solutionDir = Split-Path -Parent $Path
+
+  return Get-Content -- $Path |
+    Select-String -Pattern $projectRegex |
+    ForEach-Object {
+      $relativePath = $_.Matches[0].Groups[1].Value -replace '\\', [IO.Path]::DirectorySeparatorChar
+      Join-Path $solutionDir $relativePath
+    } |
+    Where-Object { Test-Path $_ }
+}
+
+$central = Get-PackageVersionsFromDirectoryProps (Join-Path $RepoRoot 'Directory.Packages.props')
+$projectPaths = Get-SolutionProjectPaths $SolutionPath
+if ($projectPaths.Count -eq 0) {
+  $projectPaths = Get-ChildItem -Path (Join-Path $RepoRoot 'src') -Recurse -File -Filter *.csproj |
+    Where-Object { $_.FullName -notmatch '[\\/](obj|bin|templates)[\\/]' } |
+    Select-Object -ExpandProperty FullName
+}
+
+$projRefs = $projectPaths | ForEach-Object { Get-PackageReferencesFromCsproj $_ }
 
 # Merge by Id, prefer explicit versions then central
 $all = @{}

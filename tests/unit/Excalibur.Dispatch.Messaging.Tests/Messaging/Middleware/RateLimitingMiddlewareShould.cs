@@ -40,6 +40,9 @@ public sealed class RateLimitingMiddlewareShould : IDisposable
 		_context = A.Fake<IMessageContext>();
 
 		_ = A.CallTo(() => _context.MessageId).Returns("test-message-id");
+		// Set up Items and Features dictionaries for extension method support
+		_ = A.CallTo(() => _context.Items).Returns(new Dictionary<string, object>());
+		_ = A.CallTo(() => _context.Features).Returns(new Dictionary<Type, object>());
 
 		_successDelegate = (msg, ctx, ct) => new ValueTask<IMessageResult>(MessageResult.Success());
 	}
@@ -286,13 +289,18 @@ public sealed class RateLimitingMiddlewareShould : IDisposable
 		};
 		var middleware = CreateMiddleware(options);
 
-		// Setup tenant1 context
+		// Setup tenant1 context -- GetItem<string>("TenantId") is an extension method
+		// that reads from Items dictionary, so we set up Items with TenantId values
 		var context1 = A.Fake<IMessageContext>();
-		_ = A.CallTo(() => context1.GetItem<string>("TenantId")).Returns("tenant1");
+		var items1 = new Dictionary<string, object> { ["TenantId"] = "tenant1" };
+		_ = A.CallTo(() => context1.Items).Returns(items1);
+		_ = A.CallTo(() => context1.Features).Returns(new Dictionary<Type, object>());
 
 		// Setup tenant2 context
 		var context2 = A.Fake<IMessageContext>();
-		_ = A.CallTo(() => context2.GetItem<string>("TenantId")).Returns("tenant2");
+		var items2 = new Dictionary<string, object> { ["TenantId"] = "tenant2" };
+		_ = A.CallTo(() => context2.Items).Returns(items2);
+		_ = A.CallTo(() => context2.Features).Returns(new Dictionary<Type, object>());
 
 		// Act - First request for tenant1 succeeds
 		var result1 = await middleware.InvokeAsync(_message, context1, _successDelegate, CancellationToken.None);

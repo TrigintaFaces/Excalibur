@@ -25,10 +25,10 @@ public sealed class SpinWaitStrategyShould
 	}
 
 	[Fact]
-	public void BePublicAndSealed()
+	public void BeInternalAndSealed()
 	{
 		// Assert
-		typeof(SpinWaitStrategy).IsPublic.ShouldBeTrue();
+		typeof(SpinWaitStrategy).IsNotPublic.ShouldBeTrue();
 		typeof(SpinWaitStrategy).IsSealed.ShouldBeTrue();
 	}
 

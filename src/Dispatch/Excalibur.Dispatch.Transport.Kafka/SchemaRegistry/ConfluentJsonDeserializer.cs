@@ -27,7 +27,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// Uses <see cref="ReadOnlyMemory{T}"/> for zero-copy deserialization from Kafka consumer buffers.
 /// </para>
 /// </remarks>
-public sealed class ConfluentJsonDeserializer : IConfluentFormatDeserializer
+internal sealed class ConfluentJsonDeserializer : IConfluentFormatDeserializer
 {
 	private readonly ISchemaTypeResolver _typeResolver;
 	private readonly ISubjectNameStrategy _subjectNameStrategy;

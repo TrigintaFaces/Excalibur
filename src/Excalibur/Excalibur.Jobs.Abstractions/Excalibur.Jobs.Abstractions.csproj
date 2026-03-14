@@ -3,8 +3,8 @@
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageId>Excalibur.Jobs.Abstractions</PackageId>
-    <Description>Core abstractions for background job processing in the Excalibur framework, with Quartz integration.</Description>
-    <PackageTags>excalibur;jobs;abstractions;background;quartz;scheduling</PackageTags>
+    <Description>Core abstractions for background job processing in the Excalibur framework.</Description>
+    <PackageTags>excalibur;jobs;abstractions;background;scheduling</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
   </PropertyGroup>
@@ -14,19 +14,6 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Options" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
-    <PackageReference Include="Quartz" />
-  </ItemGroup>
-  <!-- Excalibur internal references (always ProjectReference) -->
-  <ItemGroup>
-    <ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
-  </ItemGroup>
-  <!-- Development mode: Dispatch ProjectReferences -->
-  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
-    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
-  </ItemGroup>
-  <!-- CI mode: PackageReference for Dispatch packages -->
-  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
-    <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
   </ItemGroup>
   <ItemGroup>
     <AdditionalFiles Include="PublicAPI.Shipped.txt" />

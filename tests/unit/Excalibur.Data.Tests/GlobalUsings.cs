@@ -4,9 +4,9 @@ global using System.Data;
 
 global using Excalibur.Data.Abstractions;
 global using Excalibur.Data.CosmosDb;
-global using Excalibur.Data.CosmosDb.Cdc;
+global using Excalibur.Cdc.CosmosDb;
+global using Excalibur.Cdc.DynamoDb;
 global using Excalibur.Data.DynamoDb;
-global using Excalibur.Data.DynamoDb.Cdc;
 
 global using FakeItEasy;
 
@@ -21,3 +21,4 @@ global using Tests.Shared;
 global using Tests.Shared.Categories;
 
 global using Xunit;
+global using Excalibur.Dispatch.Serialization;

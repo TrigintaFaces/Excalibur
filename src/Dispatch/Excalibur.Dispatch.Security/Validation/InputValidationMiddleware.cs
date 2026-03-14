@@ -261,13 +261,13 @@ public sealed partial class InputValidationMiddleware(
 		}
 
 		// Check for control characters
-		if (_options.BlockControlCharacters && ContainsControlCharacters(value))
+		if (_options.InjectionPrevention.BlockControlCharacters && ContainsControlCharacters(value))
 		{
 			validationContext.AddError($"Property '{propertyName}' contains prohibited control characters");
 		}
 
 		// Check for HTML/Script content
-		if (_options.BlockHtmlContent && ContainsHtmlContent(value))
+		if (_options.InjectionPrevention.BlockHtmlContent && ContainsHtmlContent(value))
 		{
 			validationContext.AddError($"Property '{propertyName}' contains prohibited HTML content");
 		}
@@ -289,7 +289,7 @@ public sealed partial class InputValidationMiddleware(
 		}
 
 		// Validate timestamp using the available timestamp properties
-		var timestamp = context.SentTimestampUtc ?? context.ReceivedTimestampUtc;
+		var timestamp = context.GetSentTimestampUtc() ?? context.GetReceivedTimestampUtc();
 		var now = DateTimeOffset.UtcNow;
 
 		// Future timestamp
@@ -346,35 +346,35 @@ public sealed partial class InputValidationMiddleware(
 		var json = JsonSerializer.Serialize(message);
 
 		// SQL Injection patterns
-		if (_options.BlockSqlInjection && SqlInjectionRegex().IsMatch(json))
+		if (_options.InjectionPrevention.BlockSqlInjection && SqlInjectionRegex().IsMatch(json))
 		{
 			validationContext.AddError("Potential SQL injection detected");
 			validationContext.IsSuspicious = true;
 		}
 
 		// NoSQL Injection patterns
-		if (_options.BlockNoSqlInjection && NoSqlInjectionRegex().IsMatch(json))
+		if (_options.InjectionPrevention.BlockNoSqlInjection && NoSqlInjectionRegex().IsMatch(json))
 		{
 			validationContext.AddError("Potential NoSQL injection detected");
 			validationContext.IsSuspicious = true;
 		}
 
 		// Command Injection patterns
-		if (_options.BlockCommandInjection && CommandInjectionRegex().IsMatch(json))
+		if (_options.InjectionPrevention.BlockCommandInjection && CommandInjectionRegex().IsMatch(json))
 		{
 			validationContext.AddError("Potential command injection detected");
 			validationContext.IsSuspicious = true;
 		}
 
 		// Path Traversal patterns
-		if (_options.BlockPathTraversal && PathTraversalRegex().IsMatch(json))
+		if (_options.InjectionPrevention.BlockPathTraversal && PathTraversalRegex().IsMatch(json))
 		{
 			validationContext.AddError("Potential path traversal detected");
 			validationContext.IsSuspicious = true;
 		}
 
 		// LDAP Injection patterns
-		if (_options.BlockLdapInjection && LdapInjectionRegex().IsMatch(json))
+		if (_options.InjectionPrevention.BlockLdapInjection && LdapInjectionRegex().IsMatch(json))
 		{
 			validationContext.AddError("Potential LDAP injection detected");
 			validationContext.IsSuspicious = true;

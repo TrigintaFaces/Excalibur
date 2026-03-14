@@ -8,25 +8,30 @@ builder.Services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 #if (UseKafka)
-    dispatch.AddKafkaTransport("default", kafka =>
+    dispatch.UseKafka(kafka =>
     {
         kafka.BootstrapServers(builder.Configuration["Kafka:BootstrapServers"] ?? "localhost:9092");
     });
 #elif (UseRabbitMQ)
-    dispatch.AddRabbitMQTransport("default", rmq =>
+    dispatch.UseRabbitMQ(rmq =>
     {
         rmq.ConnectionString(builder.Configuration["RabbitMQ:ConnectionString"] ?? "amqp://guest:guest@localhost:5672/");
     });
 #elif (UseAzureServiceBus)
-    dispatch.AddAzureServiceBusTransport("default", asb =>
+    dispatch.UseAzureServiceBus(asb =>
     {
         asb.ConnectionString(builder.Configuration["AzureServiceBus:ConnectionString"]
             ?? throw new InvalidOperationException("AzureServiceBus:ConnectionString is required."));
     });
 #elif (UseAwsSqs)
-    dispatch.AddAwsSqsTransport("default", sqs =>
+    dispatch.UseAwsSqs(sqs =>
     {
-        sqs.ConfigureAwsOptions(aws => { aws.Region = builder.Configuration["AWS:Region"] ?? "us-east-1"; });
+        sqs.UseRegion(builder.Configuration["AWS:Region"] ?? "us-east-1");
+    });
+#elif (UseGooglePubSub)
+    dispatch.UseGooglePubSub(pubsub =>
+    {
+        pubsub.ProjectId(builder.Configuration["GooglePubSub:ProjectId"] ?? "my-project");
     });
 #endif
 });

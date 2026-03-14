@@ -38,9 +38,9 @@ Leader election is a distributed systems pattern where multiple instances of an 
 public interface ILeaderElection
 {
     // Events
-    event EventHandler<LeaderElectionEventArgs>? OnBecameLeader;
-    event EventHandler<LeaderElectionEventArgs>? OnLostLeadership;
-    event EventHandler<LeaderChangedEventArgs>? OnLeaderChanged;
+    event EventHandler<LeaderElectionEventArgs>? BecameLeader;
+    event EventHandler<LeaderElectionEventArgs>? LostLeadership;
+    event EventHandler<LeaderChangedEventArgs>? LeaderChanged;
 
     // Properties
     string CandidateId { get; }
@@ -92,9 +92,9 @@ The sample demonstrates the complete lifecycle:
 ### 2. Leadership Change Callbacks
 
 Events fire when leadership changes:
-- `OnBecameLeader` - This instance is now the leader
-- `OnLostLeadership` - This instance lost leadership
-- `OnLeaderChanged` - Any leadership change (useful for followers)
+- `BecameLeader` - This instance is now the leader
+- `LostLeadership` - This instance lost leadership
+- `LeaderChanged` - Any leadership change (useful for followers)
 
 ### 3. Leader Work Pattern
 
@@ -264,9 +264,9 @@ Renew Interval: 00:00:10
 Grace Period: 00:00:15
 
 Event handlers registered for:
-  - OnBecameLeader
-  - OnLostLeadership
-  - OnLeaderChanged
+  - BecameLeader
+  - LostLeadership
+  - LeaderChanged
 
 === Demo 2: Start Leader Election ===
 

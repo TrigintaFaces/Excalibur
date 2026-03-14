@@ -179,7 +179,7 @@ public static class AwsCloudEventsServiceCollectionExtensions
 
 		if (enableDoDCompliance)
 		{
-			_ = services.Configure<CloudEventOptions>(static options => options.CustomValidator = (cloudEvent, cancellationToken) =>
+			_ = services.Configure<CloudEventOptions>(static options => options.Schema.CustomValidator = (cloudEvent, cancellationToken) =>
 			{
 				// Validate DoD-required envelope properties
 				var hasCorrelationId = cloudEvent.GetAttribute("correlationid") != null;
@@ -210,8 +210,8 @@ public static class AwsCloudEventsServiceCollectionExtensions
 
 		_ = services.Configure<CloudEventOptions>(options =>
 		{
-			var existingTransformer = options.OutgoingTransformer;
-			options.OutgoingTransformer = async (ce, evt, ctx, ct) =>
+			var existingTransformer = options.Schema.OutgoingTransformer;
+			options.Schema.OutgoingTransformer = async (ce, evt, ctx, ct) =>
 			{
 				// Call existing transformer first
 				if (existingTransformer != null)

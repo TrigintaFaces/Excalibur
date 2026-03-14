@@ -38,7 +38,7 @@ public sealed class ChannelEventSource : EventSource
 	/// Writes channel metrics to the event source.
 	/// </summary>
 	[NonEvent]
-	public void WriteChannelMetrics(string channelType, ChannelMetrics metrics)
+	internal void WriteChannelMetrics(string channelType, ChannelMetrics metrics)
 	{
 		ArgumentNullException.ThrowIfNull(metrics);
 

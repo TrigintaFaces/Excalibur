@@ -28,7 +28,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// rather than replacing it. It handles message processing but not offset management.
 /// </para>
 /// </remarks>
-public sealed class ConfluentMessageProcessor
+internal sealed class ConfluentMessageProcessor
 {
 	private readonly IConfluentFormatDeserializer _deserializer;
 	private readonly IDispatcher _dispatcher;
@@ -199,7 +199,7 @@ public sealed class ConfluentMessageProcessor
 /// <summary>
 /// Represents the result of message processing.
 /// </summary>
-public sealed class ProcessingResult
+internal sealed class ProcessingResult
 {
 	private ProcessingResult(
 		ProcessingStatus status,

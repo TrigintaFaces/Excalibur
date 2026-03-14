@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// Detects deserialization failure patterns.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="DeserializationFailureRule" /> class. </remarks>
-public sealed class DeserializationFailureRule(string name) : PoisonDetectionRuleBase(name)
+internal sealed class DeserializationFailureRule(string name) : PoisonDetectionRuleBase(name)
 {
 	private static readonly string[] DeserializationIndicators =
 	[

@@ -2,6 +2,7 @@
 // Union of all global usings from merged test projects
 
 global using Excalibur.Dispatch.Patterns.ClaimCheck;
+global using Excalibur.Dispatch.Serialization;
 
 global using FakeItEasy;
 

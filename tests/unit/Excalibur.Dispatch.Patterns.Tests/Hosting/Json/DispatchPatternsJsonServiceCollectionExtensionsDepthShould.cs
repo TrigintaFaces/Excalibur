@@ -25,7 +25,7 @@ public sealed class DispatchPatternsJsonServiceCollectionExtensionsDepthShould
 	}
 
 	[Fact]
-	public void AddJsonSerialization_RegistersIJsonSerializer()
+	public void AddJsonSerialization_RegistersDispatchJsonSerializer()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -35,7 +35,7 @@ public sealed class DispatchPatternsJsonServiceCollectionExtensionsDepthShould
 		using var sp = services.BuildServiceProvider();
 
 		// Assert
-		sp.GetService<IJsonSerializer>().ShouldNotBeNull();
+		sp.GetService<DispatchJsonSerializer>().ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -77,8 +77,8 @@ public sealed class DispatchPatternsJsonServiceCollectionExtensionsDepthShould
 		using var sp = services.BuildServiceProvider();
 
 		// Act
-		var first = sp.GetRequiredService<IJsonSerializer>();
-		var second = sp.GetRequiredService<IJsonSerializer>();
+		var first = sp.GetRequiredService<DispatchJsonSerializer>();
+		var second = sp.GetRequiredService<DispatchJsonSerializer>();
 
 		// Assert
 		first.ShouldBeSameAs(second);
@@ -89,7 +89,7 @@ public sealed class DispatchPatternsJsonServiceCollectionExtensionsDepthShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var existingSerializer = A.Fake<IJsonSerializer>();
+		var existingSerializer = new DispatchJsonSerializer();
 		services.AddSingleton(existingSerializer);
 
 		// Act
@@ -97,7 +97,7 @@ public sealed class DispatchPatternsJsonServiceCollectionExtensionsDepthShould
 		using var sp = services.BuildServiceProvider();
 
 		// Assert - The first registration wins (TryAddSingleton)
-		sp.GetRequiredService<IJsonSerializer>().ShouldBeSameAs(existingSerializer);
+		sp.GetRequiredService<DispatchJsonSerializer>().ShouldBeSameAs(existingSerializer);
 	}
 
 	[Fact]
@@ -108,7 +108,7 @@ public sealed class DispatchPatternsJsonServiceCollectionExtensionsDepthShould
 	}
 
 	[Fact]
-	public void AddDispatchPatternsClaimCheckJson_RegistersIBinaryMessageSerializer()
+	public void AddDispatchPatternsClaimCheckJson_RegistersISerializer()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -120,7 +120,7 @@ public sealed class DispatchPatternsJsonServiceCollectionExtensionsDepthShould
 		using var sp = services.BuildServiceProvider();
 
 		// Assert
-		sp.GetService<IBinaryMessageSerializer>().ShouldNotBeNull();
+		sp.GetService<ISerializer>().ShouldNotBeNull();
 	}
 
 	[Fact]

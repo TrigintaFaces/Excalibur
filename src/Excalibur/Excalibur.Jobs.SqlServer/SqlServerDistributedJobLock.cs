@@ -3,7 +3,7 @@
 
 using Dapper;
 
-using Excalibur.Jobs.Coordination;
+using Excalibur.Jobs.Abstractions.Coordination;
 
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;

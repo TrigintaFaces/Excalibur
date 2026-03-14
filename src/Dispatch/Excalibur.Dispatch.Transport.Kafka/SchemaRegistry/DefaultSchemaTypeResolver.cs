@@ -27,7 +27,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// Thread-safe for concurrent access.
 /// </para>
 /// </remarks>
-public sealed class DefaultSchemaTypeResolver : ISchemaTypeResolver
+internal sealed class DefaultSchemaTypeResolver : ISchemaTypeResolver
 {
 	private readonly ISchemaRegistryClient _schemaRegistryClient;
 	private readonly ILogger<DefaultSchemaTypeResolver> _logger;

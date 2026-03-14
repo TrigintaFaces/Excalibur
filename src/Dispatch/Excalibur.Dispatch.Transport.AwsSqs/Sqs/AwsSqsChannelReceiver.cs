@@ -87,10 +87,10 @@ public sealed partial class AwsSqsChannelReceiver : IAsyncDisposable
 			: 10;
 
 		// Wire long polling wait time from options (0-20 seconds, default 20 for max long polling)
-		_waitTimeSeconds = (int)Math.Clamp(sqsOptions.WaitTimeSeconds.TotalSeconds, 0, 20);
+		_waitTimeSeconds = (int)Math.Clamp(sqsOptions.Consumer.WaitTimeSeconds.TotalSeconds, 0, 20);
 
 		// Wire visibility timeout from options (used for ChangeMessageVisibilityAsync)
-		_visibilityTimeoutSeconds = (int)Math.Clamp(sqsOptions.VisibilityTimeout.TotalSeconds, 0, 43200);
+		_visibilityTimeoutSeconds = (int)Math.Clamp(sqsOptions.Consumer.VisibilityTimeout.TotalSeconds, 0, 43200);
 
 		// Batch delete interval (default 100ms, configurable via BatchTimeoutMs)
 		_batchDeleteIntervalMs = channelOptions?.BatchTimeoutMs > 0 ? channelOptions.BatchTimeoutMs : 100;

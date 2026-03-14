@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Configuration;
 /// <summary>
 /// Default implementation of the pipeline profile registry.
 /// </summary>
-public sealed class PipelineProfileRegistry : IPipelineProfileRegistry
+internal sealed class PipelineProfileRegistry : IPipelineProfileRegistry
 {
 	private readonly ConcurrentDictionary<string, IPipelineProfile> _profiles = new(StringComparer.Ordinal);
 	private readonly IMiddlewareApplicabilityStrategy? _applicabilityStrategy;

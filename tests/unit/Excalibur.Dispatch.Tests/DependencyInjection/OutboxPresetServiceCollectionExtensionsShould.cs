@@ -45,8 +45,8 @@ public sealed class OutboxPresetServiceCollectionExtensionsShould
 		options.PerRunTotal.ShouldBe(10000);
 		options.ProducerBatchSize.ShouldBe(1000);
 		options.ConsumerBatchSize.ShouldBe(1000);
-		options.ParallelProcessingDegree.ShouldBe(8);
-		options.EnableDynamicBatchSizing.ShouldBeTrue();
+		options.BatchProcessing.ParallelProcessingDegree.ShouldBe(8);
+		options.BatchProcessing.EnableDynamicBatchSizing.ShouldBeTrue();
 		options.DeliveryGuarantee.ShouldBe(OutboxDeliveryGuarantee.AtLeastOnce);
 	}
 
@@ -59,12 +59,12 @@ public sealed class OutboxPresetServiceCollectionExtensionsShould
 		// Act
 		services.AddOutboxHighThroughput(opts =>
 		{
-			opts.ParallelProcessingDegree = 4;
+			opts.BatchProcessing.ParallelProcessingDegree = 4;
 		});
 
 		// Assert
 		var options = ResolveOptions(services);
-		options.ParallelProcessingDegree.ShouldBe(4);
+		options.BatchProcessing.ParallelProcessingDegree.ShouldBe(4);
 		// Other preset values should be preserved
 		options.PerRunTotal.ShouldBe(10000);
 		options.ProducerBatchSize.ShouldBe(1000);
@@ -101,8 +101,8 @@ public sealed class OutboxPresetServiceCollectionExtensionsShould
 		options.PerRunTotal.ShouldBe(1000);
 		options.ProducerBatchSize.ShouldBe(100);
 		options.ConsumerBatchSize.ShouldBe(100);
-		options.ParallelProcessingDegree.ShouldBe(4);
-		options.EnableDynamicBatchSizing.ShouldBeFalse();
+		options.BatchProcessing.ParallelProcessingDegree.ShouldBe(4);
+		options.BatchProcessing.EnableDynamicBatchSizing.ShouldBeFalse();
 		options.DeliveryGuarantee.ShouldBe(OutboxDeliveryGuarantee.AtLeastOnce);
 	}
 
@@ -155,8 +155,8 @@ public sealed class OutboxPresetServiceCollectionExtensionsShould
 		options.PerRunTotal.ShouldBe(100);
 		options.ProducerBatchSize.ShouldBe(10);
 		options.ConsumerBatchSize.ShouldBe(10);
-		options.ParallelProcessingDegree.ShouldBe(1);
-		options.EnableDynamicBatchSizing.ShouldBeFalse();
+		options.BatchProcessing.ParallelProcessingDegree.ShouldBe(1);
+		options.BatchProcessing.EnableDynamicBatchSizing.ShouldBeFalse();
 		options.EnableBatchDatabaseOperations.ShouldBeFalse();
 		options.DeliveryGuarantee.ShouldBe(OutboxDeliveryGuarantee.MinimizedWindow);
 	}
@@ -171,13 +171,13 @@ public sealed class OutboxPresetServiceCollectionExtensionsShould
 		services.AddOutboxHighReliability(opts =>
 		{
 			opts.MaxAttempts = 15;
-			opts.BatchProcessingTimeout = TimeSpan.FromMinutes(3);
+			opts.BatchProcessing.BatchProcessingTimeout = TimeSpan.FromMinutes(3);
 		});
 
 		// Assert
 		var options = ResolveOptions(services);
 		options.MaxAttempts.ShouldBe(15);
-		options.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(3));
+		options.BatchProcessing.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(3));
 		// Other preset values preserved
 		options.PerRunTotal.ShouldBe(100);
 	}

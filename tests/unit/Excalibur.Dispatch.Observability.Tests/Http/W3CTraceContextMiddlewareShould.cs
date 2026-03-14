@@ -18,6 +18,19 @@ public sealed class W3CTraceContextMiddlewareShould
 {
 	private readonly W3CTraceContextMiddleware _sut = new();
 
+	/// <summary>
+	/// Creates a fake <see cref="IMessageContext"/> backed by a real Items dictionary
+	/// so that extension methods (GetItem, SetItem, ContainsItem) work correctly.
+	/// </summary>
+	private static IMessageContext CreateFakeContext(Dictionary<string, object>? items = null)
+	{
+		var context = A.Fake<IMessageContext>();
+		var itemsDict = items ?? new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Items).Returns(itemsDict);
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
+		return context;
+	}
+
 	[Fact]
 	public void HavePreProcessingStage()
 	{
@@ -29,11 +42,8 @@ public sealed class W3CTraceContextMiddlewareShould
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.GetItem<string>(W3CTraceContextMiddleware.TraceparentKey))
-			.Returns(null);
-		A.CallTo(() => context.GetItem<IDictionary<string, string>>("Headers"))
-			.Returns(null);
+		var context = CreateFakeContext();
+		// No traceparent or headers in Items
 
 		var nextCalled = false;
 		ValueTask<IMessageResult> next(IDispatchMessage m, IMessageContext c, CancellationToken ct)
@@ -54,11 +64,11 @@ public sealed class W3CTraceContextMiddlewareShould
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.GetItem<string>(W3CTraceContextMiddleware.TraceparentKey))
-			.Returns("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01");
-		A.CallTo(() => context.GetItem<string>(W3CTraceContextMiddleware.TracestateKey))
-			.Returns(null);
+		var items = new Dictionary<string, object>(StringComparer.Ordinal)
+		{
+			[W3CTraceContextMiddleware.TraceparentKey] = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+		};
+		var context = CreateFakeContext(items);
 
 		var nextCalled = false;
 		ValueTask<IMessageResult> next(IDispatchMessage m, IMessageContext c, CancellationToken ct)
@@ -79,9 +89,11 @@ public sealed class W3CTraceContextMiddlewareShould
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.GetItem<string>(W3CTraceContextMiddleware.TraceparentKey))
-			.Returns("invalid-traceparent");
+		var items = new Dictionary<string, object>(StringComparer.Ordinal)
+		{
+			[W3CTraceContextMiddleware.TraceparentKey] = "invalid-traceparent",
+		};
+		var context = CreateFakeContext(items);
 
 		var nextCalled = false;
 		ValueTask<IMessageResult> next(IDispatchMessage m, IMessageContext c, CancellationToken ct)
@@ -102,18 +114,15 @@ public sealed class W3CTraceContextMiddlewareShould
 	{
 		// Arrange
 		var message = A.Fake<IDispatchMessage>();
-		var context = A.Fake<IMessageContext>();
 		var headers = new Dictionary<string, string>
 		{
 			["traceparent"] = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
 		};
-
-		A.CallTo(() => context.GetItem<string>(W3CTraceContextMiddleware.TraceparentKey))
-			.Returns(null);
-		A.CallTo(() => context.GetItem<IDictionary<string, string>>("Headers"))
-			.Returns(headers);
-		A.CallTo(() => context.GetItem<string>(W3CTraceContextMiddleware.TracestateKey))
-			.Returns(null);
+		var items = new Dictionary<string, object>(StringComparer.Ordinal)
+		{
+			["Headers"] = headers,
+		};
+		var context = CreateFakeContext(items);
 
 		var nextCalled = false;
 		ValueTask<IMessageResult> next(IDispatchMessage m, IMessageContext c, CancellationToken ct)

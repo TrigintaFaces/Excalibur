@@ -23,7 +23,7 @@ namespace Excalibur.Testing.Conformance;
 /// retrieval, cleanup, and statistics behavior.
 /// </para>
 /// <para>
-/// Note: EnqueueAsync is intentionally excluded as it requires IUtf8JsonSerializer
+/// Note: EnqueueAsync is intentionally excluded as it requires DispatchJsonSerializer
 /// dependency. Use StageMessageAsync for conformance testing.
 /// </para>
 /// </remarks>

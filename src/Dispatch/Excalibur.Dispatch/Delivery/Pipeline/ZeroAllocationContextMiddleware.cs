@@ -5,6 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Messaging;
 
 namespace Excalibur.Dispatch.Delivery.Pipeline;
@@ -46,7 +47,7 @@ public sealed class ZeroAllocationContextMiddleware : ZeroAllocationMiddlewareBa
 			if (envelope.Context is MessageContext && envelope.Headers.TryGetValue("DeliveryCount", out var dc) &&
 				int.TryParse(dc, out var deliveryCount))
 			{
-				envelope.Context.DeliveryCount = deliveryCount;
+				envelope.Context.GetOrCreateProcessingFeature().DeliveryCount = deliveryCount;
 			}
 		}
 

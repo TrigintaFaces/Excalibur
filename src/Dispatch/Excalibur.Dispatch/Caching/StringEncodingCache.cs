@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Caching;
 /// High-performance cache for UTF-8 encoded strings to avoid repeated encoding allocations. Identified as 5-8% CPU improvement opportunity
 /// in profiling.
 /// </summary>
-public sealed class StringEncodingCache : IDisposable
+internal sealed class StringEncodingCache : IDisposable
 {
 	private readonly ConcurrentDictionary<string, CachedEncoding> _cache;
 	private readonly int _maxCacheSize;

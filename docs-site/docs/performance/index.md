@@ -10,50 +10,43 @@ Excalibur.Dispatch is designed for low-latency messaging with explicit performan
 
 ## Before You Start
 
-- **.NET 8.0+** (latest comparative validation run used .NET 10.0.103)
+- **.NET 8.0+** (benchmarks validated on .NET 10.0.103)
 - Familiarity with [pipeline profiles](../pipeline/profiles.md) and [middleware](../middleware/index.md)
 
-## Key Performance Metrics (Mar 2, 2026 Baseline)
+## Key Performance Metrics
 
-Baseline source folder:
-- `benchmarks/baselines/net10.0/dispatch-comparative-20260302/results/`
+Results: `benchmarks/runs/BenchmarkDotNet.Artifacts/results/`
 
 | Metric | Value | Source |
 |--------|-------|--------|
-| Dispatch single command (lean) | 75.32 ns | MediatRComparisonBenchmarks |
-| Dispatch ultra-local API (single command) | 31.54 ns | MediatRComparisonBenchmarks |
-| Dispatch singleton-promoted (single command) | 31.73 ns | MediatRComparisonBenchmarks |
-| Dispatch vs Wolverine InvokeAsync | 132.26 ns vs 368.19 ns | WolverineInProcessComparisonBenchmarks |
-| Dispatch vs MassTransit Mediator | 178.2 ns vs 4,120.8 ns | MassTransitMediatorComparisonBenchmarks |
-| Dispatch queued command end-to-end | 1.147 us | TransportQueueParityComparisonBenchmarks |
-| Pre-routed local command | 78.17 ns | RoutingFirstParityBenchmarks |
+| Dispatch single command (lean) | 63.56 ns | MediatRComparisonBenchmarks |
+| Dispatch ultra-local API (single command) | 30.32 ns | MediatRComparisonBenchmarks |
+| Dispatch vs Wolverine InvokeAsync | 72.02 ns vs 200.31 ns | WolverineInProcessComparisonBenchmarks |
+| Dispatch vs MassTransit Mediator | 96.59 ns vs 1,276.16 ns | MassTransitMediatorComparisonBenchmarks |
+| Handler activation | 26.69 ns / 24 B | DispatchHotPathBreakdownBenchmarks |
+| Context creation | 13.23 ns / 216 B | DispatchThroughputBenchmarks |
 
-## Latest Comparative Validation (Mar 2, 2026)
+## Diagnostics Baseline
 
-- Command:
-  - `pwsh eng/run-comparative-benchmarks.ps1 -NoBuild -NoRestore -RuntimeProfile ci`
-- Status: `7/7` classes passed, `78` benchmark rows, `0` failures
-- Duration: `00:29:10.72`
-- Evidence reports:
-  - `benchmarks/baselines/net10.0/dispatch-comparative-20260302/results/Excalibur.Dispatch.Benchmarks.Comparative.MediatRComparisonBenchmarks-report-github.md`
-  - `benchmarks/baselines/net10.0/dispatch-comparative-20260302/results/Excalibur.Dispatch.Benchmarks.Comparative.WolverineInProcessComparisonBenchmarks-report-github.md`
-  - `benchmarks/baselines/net10.0/dispatch-comparative-20260302/results/Excalibur.Dispatch.Benchmarks.Comparative.WolverineComparisonBenchmarks-report-github.md`
-  - `benchmarks/baselines/net10.0/dispatch-comparative-20260302/results/Excalibur.Dispatch.Benchmarks.Comparative.MassTransitMediatorComparisonBenchmarks-report-github.md`
-  - `benchmarks/baselines/net10.0/dispatch-comparative-20260302/results/Excalibur.Dispatch.Benchmarks.Comparative.MassTransitComparisonBenchmarks-report-github.md`
-  - `benchmarks/baselines/net10.0/dispatch-comparative-20260302/results/Excalibur.Dispatch.Benchmarks.Comparative.PipelineComparisonBenchmarks-report-github.md`
-  - `benchmarks/baselines/net10.0/dispatch-comparative-20260302/results/Excalibur.Dispatch.Benchmarks.Comparative.TransportQueueParityComparisonBenchmarks-report-github.md`
+28 benchmark classes, 0 failures.
 
-This comparative refresh is now the active source for the in-process, pipeline, and queue values above.
+| Metric | Value | Allocated |
+|--------|-------|-----------|
+| Single command dispatch | 56.95 ns | 160 B |
+| Query with response | 69.84 ns | 352 B |
+| FinalDispatchHandler | 94.81 ns | 296 B |
+| Handler activation | 26.69 ns | 24 B |
+| Context creation | 13.23 ns | 216 B |
+| Notification to 3 handlers | 115.03 ns | 240 B |
+| Dispatch single command (MediatR bench) | 63.56 ns | 240 B |
 
 ## Comparison Snapshot
 
 | Track | Status |
 |------|--------|
-| MediatR in-process parity | MediatR ~1.3-1.6x faster on standard command/query paths; Dispatch ultra-local/singleton paths ~1.1-1.5x faster |
-| Wolverine in-process parity | **Dispatch ~2.3-3.0x faster on command/query paths, ~18x on notifications** |
-| MassTransit mediator in-process parity | Dispatch ~12.3-55.7x faster |
-| Pipeline parity (3 middleware) | MediatR ~1.8-2.2x faster; Wolverine ~1.2-1.5x faster; Dispatch ~5.7-7.4x faster than MassTransit |
-| Queued/bus end-to-end parity | Dispatch ~3.2-6.3x faster than Wolverine, ~12.3-21.2x faster than MassTransit |
+| MediatR in-process parity | MediatR ~1.4x faster on standard command; Dispatch ultra-local ~1.5x faster; notification within 1.2x |
+| Wolverine in-process parity | **Dispatch ~2.8x faster on command, ~54x on notifications** |
+| MassTransit mediator in-process parity | Dispatch ~13.2x faster on single command |
 
 See [Competitor Comparison](./competitor-comparison.md) for full tables and methodology notes.
 
@@ -96,6 +89,17 @@ context.ProcessingAttempts++;
 | [MessageContext Best Practices](./messagecontext-best-practices.md) | Hot-path optimization patterns |
 | [Competitor Comparison](./competitor-comparison.md) | Multi-track benchmarks vs MediatR/Wolverine/MassTransit |
 
+## Hot-Path Optimizations
+
+Five micro-optimizations targeting the dispatch hot path:
+
+| Optimization | Pattern |
+|-------------|---------|
+| Dual-write elimination in `RoutingDecisionAccessor` | Single-write via `CachedRoutingDecision` field |
+| `RoutingDecision.Local` singleton | Cached static property (like `Task.CompletedTask`) |
+| Lock removal on `MessageContext.Success` | Volatile fields + `AggressiveInlining` |
+| Single-lookup `GetOrCreateFeature` | `TryGetValue` + direct store |
+
 ## Memory Allocation Strategy
 
 Dispatch reduces allocations through:
@@ -104,6 +108,8 @@ Dispatch reduces allocations through:
 2. `ArrayPool<T>` on batch-style paths
 3. Lazy initialization for optional context state
 4. ValueTask-based local fast paths
+5. Hot-path single-write patterns eliminating redundant dictionary allocations
+6. Package extraction reducing dependency graph complexity (64.88 MB at 100K ops)
 
 ## Running Benchmarks
 

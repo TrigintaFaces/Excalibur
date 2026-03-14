@@ -23,7 +23,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// <summary>
 /// Maps CloudEvents to Azure Service Bus messages and vice versa.
 /// </summary>
-public sealed class AzureServiceBusCloudEventAdapter : ICloudEventMapper<ServiceBusMessage>
+internal sealed class AzureServiceBusCloudEventAdapter : ICloudEventMapper<ServiceBusMessage>
 {
 	private const string CloudEventsStructuredContentType = "application/cloudevents+json";
 

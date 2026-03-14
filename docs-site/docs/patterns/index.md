@@ -171,7 +171,7 @@ Each pattern supports multiple storage backends:
 |-------|---------|----------|
 | SQL Server | `Excalibur.Outbox.SqlServer` | SQL Server databases |
 | PostgreSQL | `Excalibur.Data.Postgres` | PostgreSQL databases |
-| MongoDB | `Excalibur.Data.MongoDB` | MongoDB databases |
+| MongoDB | `Excalibur.Outbox.MongoDB` | MongoDB databases |
 | CosmosDB | `Excalibur.Outbox.CosmosDb` | Azure Cosmos DB |
 | DynamoDB | `Excalibur.Outbox.DynamoDb` | AWS DynamoDB |
 | Firestore | `Excalibur.Outbox.Firestore` | Google Firestore |

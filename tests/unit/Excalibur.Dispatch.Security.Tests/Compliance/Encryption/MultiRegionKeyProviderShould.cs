@@ -17,19 +17,19 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 
 	public MultiRegionKeyProviderShould()
 	{
-		_primaryProvider = A.Fake<IKeyManagementProvider>();
-		_secondaryProvider = A.Fake<IKeyManagementProvider>();
+		_primaryProvider = A.Fake<IKeyManagementProvider>(o => o.Implements<IKeyManagementAdmin>());
+		_secondaryProvider = A.Fake<IKeyManagementProvider>(o => o.Implements<IKeyManagementAdmin>());
 		_logger = NullLogger<MultiRegionKeyProvider>.Instance;
 		_options = CreateDefaultOptions();
 
 		// Setup default healthy providers
-		_ = A.CallTo(() => _primaryProvider.ListKeysAsync(
+		_ = A.CallTo(() => ((IKeyManagementAdmin)_primaryProvider).ListKeysAsync(
 				A<KeyStatus?>._,
 				A<string?>._,
 				A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<KeyMetadata>>([]));
 
-		_ = A.CallTo(() => _secondaryProvider.ListKeysAsync(
+		_ = A.CallTo(() => ((IKeyManagementAdmin)_secondaryProvider).ListKeysAsync(
 				A<KeyStatus?>._,
 				A<string?>._,
 				A<CancellationToken>._))
@@ -100,7 +100,7 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 		var sut = CreateSut();
 
 		// Act
-		var health = await sut.GetPrimaryHealthAsync(CancellationToken.None);
+		var health = await ((IMultiRegionHealthMonitor)sut).GetPrimaryHealthAsync(CancellationToken.None);
 
 		// Assert
 		_ = health.ShouldNotBeNull();
@@ -115,7 +115,7 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 		var sut = CreateSut();
 
 		// Act
-		var health = await sut.GetSecondaryHealthAsync(CancellationToken.None);
+		var health = await ((IMultiRegionHealthMonitor)sut).GetSecondaryHealthAsync(CancellationToken.None);
 
 		// Assert
 		_ = health.ShouldNotBeNull();
@@ -126,9 +126,8 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 	[Fact]
 	public async Task GetPrimaryHealthAsync_ReturnUnhealthyStatus_WhenProviderFails()
 	{
-		// Arrange
-		_ = A.CallTo(() => _primaryProvider.ListKeysAsync(
-				A<KeyStatus?>._,
+		// Arrange -- health check probes via GetActiveKeyAsync, not ListKeysAsync
+		_ = A.CallTo(() => _primaryProvider.GetActiveKeyAsync(
 				A<string?>._,
 				A<CancellationToken>._))
 			.Throws(new InvalidOperationException("Connection failed"));
@@ -136,7 +135,7 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 		var sut = CreateSut();
 
 		// Act
-		var health = await sut.GetPrimaryHealthAsync(CancellationToken.None);
+		var health = await ((IMultiRegionHealthMonitor)sut).GetPrimaryHealthAsync(CancellationToken.None);
 
 		// Assert
 		health.IsHealthy.ShouldBeFalse();
@@ -150,7 +149,7 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 		var sut = CreateSut();
 
 		// Act
-		var status = await sut.GetReplicationStatusAsync(CancellationToken.None);
+		var status = await ((IMultiRegionHealthMonitor)sut).GetReplicationStatusAsync(CancellationToken.None);
 
 		// Assert
 		_ = status.ShouldNotBeNull();
@@ -212,9 +211,8 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 	[Fact]
 	public async Task ForceFailoverAsync_ThrowWhenSecondaryUnhealthy()
 	{
-		// Arrange
-		_ = A.CallTo(() => _secondaryProvider.ListKeysAsync(
-				A<KeyStatus?>._,
+		// Arrange -- health check probes via GetActiveKeyAsync, not ListKeysAsync
+		_ = A.CallTo(() => _secondaryProvider.GetActiveKeyAsync(
 				A<string?>._,
 				A<CancellationToken>._))
 			.Throws(new InvalidOperationException("Secondary down"));
@@ -277,8 +275,8 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 		var sut = CreateSut();
 		await sut.ForceFailoverAsync("Setup failover", CancellationToken.None);
 
-		_ = A.CallTo(() => _primaryProvider.ListKeysAsync(
-				A<KeyStatus?>._,
+		// Health check probes via GetActiveKeyAsync, not ListKeysAsync
+		_ = A.CallTo(() => _primaryProvider.GetActiveKeyAsync(
 				A<string?>._,
 				A<CancellationToken>._))
 			.Throws(new InvalidOperationException("Primary still down"));
@@ -373,10 +371,10 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 		var sut = CreateSut();
 
 		// Act
-		_ = await sut.ListKeysAsync(null, null, CancellationToken.None);
+		_ = await ((IKeyManagementAdmin)sut).ListKeysAsync(null, null, CancellationToken.None);
 
 		// Assert
-		_ = A.CallTo(() => _primaryProvider.ListKeysAsync(
+		_ = A.CallTo(() => ((IKeyManagementAdmin)_primaryProvider).ListKeysAsync(
 				A<KeyStatus?>._,
 				A<string?>._,
 				A<CancellationToken>._))
@@ -452,17 +450,17 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 	public async Task DeleteKeyAsync_DelegateToActiveProvider()
 	{
 		// Arrange
-		_ = A.CallTo(() => _primaryProvider.DeleteKeyAsync("key-1", 30, A<CancellationToken>._))
+		_ = A.CallTo(() => ((IKeyManagementAdmin)_primaryProvider).DeleteKeyAsync("key-1", 30, A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
 
 		var sut = CreateSut();
 
 		// Act
-		var result = await sut.DeleteKeyAsync("key-1", 30, CancellationToken.None);
+		var result = await ((IKeyManagementAdmin)sut).DeleteKeyAsync("key-1", 30, CancellationToken.None);
 
 		// Assert
 		result.ShouldBeTrue();
-		_ = A.CallTo(() => _primaryProvider.DeleteKeyAsync("key-1", 30, A<CancellationToken>._))
+		_ = A.CallTo(() => ((IKeyManagementAdmin)_primaryProvider).DeleteKeyAsync("key-1", 30, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -470,17 +468,17 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 	public async Task SuspendKeyAsync_DelegateToActiveProvider()
 	{
 		// Arrange
-		_ = A.CallTo(() => _primaryProvider.SuspendKeyAsync("key-1", "Compromised", A<CancellationToken>._))
+		_ = A.CallTo(() => ((IKeyManagementAdmin)_primaryProvider).SuspendKeyAsync("key-1", "Compromised", A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
 
 		var sut = CreateSut();
 
 		// Act
-		var result = await sut.SuspendKeyAsync("key-1", "Compromised", CancellationToken.None);
+		var result = await ((IKeyManagementAdmin)sut).SuspendKeyAsync("key-1", "Compromised", CancellationToken.None);
 
 		// Assert
 		result.ShouldBeTrue();
-		_ = A.CallTo(() => _primaryProvider.SuspendKeyAsync("key-1", "Compromised", A<CancellationToken>._))
+		_ = A.CallTo(() => ((IKeyManagementAdmin)_primaryProvider).SuspendKeyAsync("key-1", "Compromised", A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -529,7 +527,7 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<ObjectDisposedException>(() =>
-			sut.GetPrimaryHealthAsync(CancellationToken.None));
+			((IMultiRegionHealthMonitor)sut).GetPrimaryHealthAsync(CancellationToken.None));
 	}
 
 	[Fact]
@@ -593,8 +591,11 @@ public sealed class MultiRegionKeyProviderShould : IDisposable
 			Endpoint = new Uri("https://secondary.example.com"),
 			Priority = 1
 		},
-		EnableAutomaticFailover = false, // Disable for most tests to avoid timing issues
-		HealthCheckInterval = TimeSpan.FromHours(1), // Long interval for tests
+		Failover = new MultiRegionFailoverOptions
+		{
+			EnableAutomaticFailover = false, // Disable for most tests to avoid timing issues
+			HealthCheckInterval = TimeSpan.FromHours(1), // Long interval for tests
+		},
 		OperationTimeout = TimeSpan.FromSeconds(5),
 		RtoTarget = TimeSpan.FromMinutes(5),
 		RpoTarget = TimeSpan.FromMinutes(15)

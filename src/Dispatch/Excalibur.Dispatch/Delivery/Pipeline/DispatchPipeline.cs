@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Delivery.Pipeline;
 /// </summary>
 /// <param name="middlewares"> Collection of middleware to execute. </param>
 /// <param name="applicabilityStrategy"> Optional strategy for determining middleware applicability. If null, uses default strategy. </param>
-public sealed class DispatchPipeline(
+internal sealed class DispatchPipeline(
 	IEnumerable<IDispatchMiddleware> middlewares,
 	IMiddlewareApplicabilityStrategy? applicabilityStrategy = null) : IDispatchPipeline
 {

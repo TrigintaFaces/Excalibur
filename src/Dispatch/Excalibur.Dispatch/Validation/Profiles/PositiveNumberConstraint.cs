@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Validation;
 /// <remarks> Initializes a new instance of the <see cref="PositiveNumberConstraint" /> class. </remarks>
 /// <param name="fieldName"> The name of the field to validate. </param>
 /// <param name="errorMessage"> The error message to display when validation fails. </param>
-public sealed class PositiveNumberConstraint(string fieldName, string errorMessage) : BaseFieldConstraint(fieldName, errorMessage)
+internal sealed class PositiveNumberConstraint(string fieldName, string errorMessage) : BaseFieldConstraint(fieldName, errorMessage)
 {
 	/// <summary>
 	/// Determines whether the field contains a positive numeric value.

@@ -1,0 +1,41 @@
+#nullable enable
+Excalibur.Inbox.Firestore.FirestoreInboxOptions
+Excalibur.Inbox.Firestore.FirestoreInboxOptions.CollectionName.get -> string!
+Excalibur.Inbox.Firestore.FirestoreInboxOptions.CollectionName.set -> void
+Excalibur.Inbox.Firestore.FirestoreInboxOptions.CredentialsJson.get -> string?
+Excalibur.Inbox.Firestore.FirestoreInboxOptions.CredentialsJson.set -> void
+Excalibur.Inbox.Firestore.FirestoreInboxOptions.CredentialsPath.get -> string?
+Excalibur.Inbox.Firestore.FirestoreInboxOptions.CredentialsPath.set -> void
+Excalibur.Inbox.Firestore.FirestoreInboxOptions.DefaultTtlSeconds.get -> int
+Excalibur.Inbox.Firestore.FirestoreInboxOptions.DefaultTtlSeconds.set -> void
+Excalibur.Inbox.Firestore.FirestoreInboxOptions.EmulatorHost.get -> string?
+Excalibur.Inbox.Firestore.FirestoreInboxOptions.EmulatorHost.set -> void
+Excalibur.Inbox.Firestore.FirestoreInboxOptions.FirestoreInboxOptions() -> void
+Excalibur.Inbox.Firestore.FirestoreInboxOptions.ProjectId.get -> string?
+Excalibur.Inbox.Firestore.FirestoreInboxOptions.ProjectId.set -> void
+Excalibur.Inbox.Firestore.FirestoreInboxOptions.TimeoutInSeconds.get -> int
+Excalibur.Inbox.Firestore.FirestoreInboxOptions.TimeoutInSeconds.set -> void
+Excalibur.Inbox.Firestore.FirestoreInboxOptions.Validate() -> void
+Excalibur.Inbox.Firestore.FirestoreInboxStore
+Excalibur.Inbox.Firestore.FirestoreInboxStore.CleanupAsync(System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Excalibur.Inbox.Firestore.FirestoreInboxStore.CreateEntryAsync(string! messageId, string! handlerType, string! messageType, byte[]! payload, System.Collections.Generic.IDictionary<string!, object!>! metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry!>
+Excalibur.Inbox.Firestore.FirestoreInboxStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Inbox.Firestore.FirestoreInboxStore.FirestoreInboxStore(Google.Cloud.Firestore.FirestoreDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.Firestore.FirestoreInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.Firestore.FirestoreInboxStore!>! logger) -> void
+Excalibur.Inbox.Firestore.FirestoreInboxStore.FirestoreInboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.Firestore.FirestoreInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.Firestore.FirestoreInboxStore!>! logger) -> void
+Excalibur.Inbox.Firestore.FirestoreInboxStore.GetAllEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry!>!>
+Excalibur.Inbox.Firestore.FirestoreInboxStore.GetEntryAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry?>
+Excalibur.Inbox.Firestore.FirestoreInboxStore.GetFailedEntriesAsync(int maxRetries, System.DateTimeOffset? olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry!>!>
+Excalibur.Inbox.Firestore.FirestoreInboxStore.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxStatistics!>
+Excalibur.Inbox.Firestore.FirestoreInboxStore.IsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Excalibur.Inbox.Firestore.FirestoreInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Inbox.Firestore.FirestoreInboxStore.MarkProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Inbox.Firestore.FirestoreInboxStore.TryMarkAsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Microsoft.Extensions.DependencyInjection.FirestoreInboxExtensions
+Microsoft.Extensions.DependencyInjection.InboxBuilderFirestoreExtensions
+static Microsoft.Extensions.DependencyInjection.FirestoreInboxExtensions.AddFirestoreInboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! projectId) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.FirestoreInboxExtensions.AddFirestoreInboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Inbox.Firestore.FirestoreInboxOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.FirestoreInboxExtensions.AddFirestoreInboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, Google.Cloud.Firestore.FirestoreDb!>! dbProvider, System.Action<Excalibur.Inbox.Firestore.FirestoreInboxOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.FirestoreInboxExtensions.UseFirestoreInboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, string! projectId) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.FirestoreInboxExtensions.UseFirestoreInboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Inbox.Firestore.FirestoreInboxOptions!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.FirestoreInboxExtensions.UseFirestoreInboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Func<System.IServiceProvider!, Google.Cloud.Firestore.FirestoreDb!>! dbProvider, System.Action<Excalibur.Inbox.Firestore.FirestoreInboxOptions!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.InboxBuilderFirestoreExtensions.UseFirestore(this Excalibur.Inbox.DependencyInjection.IInboxBuilder! builder, System.Action<Excalibur.Inbox.Firestore.FirestoreInboxOptions!>! configure) -> Excalibur.Inbox.DependencyInjection.IInboxBuilder!

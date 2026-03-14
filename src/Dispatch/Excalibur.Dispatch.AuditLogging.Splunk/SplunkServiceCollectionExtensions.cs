@@ -33,7 +33,7 @@ public static class SplunkServiceCollectionExtensions
 		_ = services.AddHttpClient<SplunkAuditExporter>((sp, client) =>
 			{
 				var options = sp.GetRequiredService<Options.IOptions<SplunkExporterOptions>>().Value;
-				client.Timeout = options.RequestTimeout;
+				client.Timeout = options.Batch.RequestTimeout;
 			})
 			.ConfigurePrimaryHttpMessageHandler(sp =>
 			{
@@ -41,7 +41,7 @@ public static class SplunkServiceCollectionExtensions
 
 				var handler = new HttpClientHandler();
 
-				if (!options.ValidateCertificate)
+				if (!options.Connection.ValidateCertificate)
 				{
 					handler.ServerCertificateCustomValidationCallback =
 						HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
@@ -77,7 +77,7 @@ public static class SplunkServiceCollectionExtensions
 		_ = services.AddHttpClient<SplunkAuditExporter>((sp, client) =>
 			{
 				var options = sp.GetRequiredService<Options.IOptions<SplunkExporterOptions>>().Value;
-				client.Timeout = options.RequestTimeout;
+				client.Timeout = options.Batch.RequestTimeout;
 			})
 			.ConfigurePrimaryHttpMessageHandler(sp =>
 			{
@@ -85,7 +85,7 @@ public static class SplunkServiceCollectionExtensions
 
 				var handler = new HttpClientHandler();
 
-				if (!options.ValidateCertificate)
+				if (!options.Connection.ValidateCertificate)
 				{
 					handler.ServerCertificateCustomValidationCallback =
 						HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;

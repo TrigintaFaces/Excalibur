@@ -88,8 +88,7 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 			externalOrderId,
 			customerId,
 			customerExternalId,
-			orderDate,
-			order.Version));
+			orderDate));
 		return order;
 	}
 
@@ -120,8 +119,7 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 			externalItemId,
 			productName,
 			quantity,
-			unitPrice,
-			Version));
+			unitPrice));
 	}
 
 	/// <summary>
@@ -147,8 +145,7 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 			Id,
 			itemId,
 			existing.Quantity,
-			newQuantity,
-			Version));
+			newQuantity));
 	}
 
 	/// <summary>
@@ -169,8 +166,7 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 			itemId,
 			existing.ProductName,
 			existing.Quantity,
-			existing.UnitPrice,
-			Version));
+			existing.UnitPrice));
 	}
 
 	/// <summary>
@@ -185,7 +181,7 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 			return; // No change
 		}
 
-		RaiseEvent(new OrderStatusUpdated(Id, Status, newStatus, Version));
+		RaiseEvent(new OrderStatusUpdated(Id, Status, newStatus));
 	}
 
 	/// <summary>
@@ -200,7 +196,7 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 			return; // Already shipped
 		}
 
-		RaiseEvent(new OrderShipped(Id, shippedDate, Version));
+		RaiseEvent(new OrderShipped(Id, shippedDate));
 	}
 
 	/// <summary>
@@ -218,7 +214,7 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 			return; // Already delivered
 		}
 
-		RaiseEvent(new OrderDelivered(Id, deliveredDate, Version));
+		RaiseEvent(new OrderDelivered(Id, deliveredDate));
 	}
 
 	/// <summary>
@@ -236,7 +232,7 @@ public sealed class OrderAggregate : AggregateRoot<Guid>
 			throw new InvalidOperationException("Cannot cancel a delivered order");
 		}
 
-		RaiseEvent(new OrderCancelled(Id, reason, Version));
+		RaiseEvent(new OrderCancelled(Id, reason));
 	}
 
 	/// <inheritdoc/>

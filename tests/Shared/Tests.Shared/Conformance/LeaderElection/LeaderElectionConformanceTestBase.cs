@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.LeaderElection;
+using Tests.Shared.Infrastructure;
 
 namespace Tests.Shared.Conformance.LeaderElection;
 
@@ -105,7 +106,7 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 		await Election.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - Wait for leadership to be acquired
-		await WaitUntilAsync(() => Election.IsLeader, EventTimeout).ConfigureAwait(false);
+		await AwaitConditionAsync(() => Election.IsLeader, EventTimeout).ConfigureAwait(false);
 		Election.IsLeader.ShouldBeTrue("Should become leader when there is no competition");
 		Election.CurrentLeaderId.ShouldBe(Election.CandidateId);
 	}
@@ -114,14 +115,18 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 	public async Task StartAsync_RaisesBecameLeaderEvent()
 	{
 		// Arrange
-		var becameLeaderRaised = new TaskCompletionSource<LeaderElectionEventArgs>();
+		var becameLeaderRaised = new TaskCompletionSource<LeaderElectionEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
 		Election.BecameLeader += (_, args) => becameLeaderRaised.TrySetResult(args);
 
 		// Act
 		await Election.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		var args = await WaitForTaskAsync(becameLeaderRaised.Task, EventTimeout).ConfigureAwait(false);
+		var args = await WaitHelpers.AwaitSignalAsync(
+			becameLeaderRaised.Task,
+			EventTimeout,
+			pollInterval: TimeSpan.FromMilliseconds(25),
+			cancellationToken: CancellationToken.None).ConfigureAwait(false);
 		args.ShouldNotBeNull("BecameLeader event should have been raised");
 		args.CandidateId.ShouldBe(Election.CandidateId);
 	}
@@ -130,14 +135,18 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 	public async Task StartAsync_RaisesLeaderChangedEvent()
 	{
 		// Arrange
-		var leaderChangedRaised = new TaskCompletionSource<LeaderChangedEventArgs>();
+		var leaderChangedRaised = new TaskCompletionSource<LeaderChangedEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
 		Election.LeaderChanged += (_, args) => leaderChangedRaised.TrySetResult(args);
 
 		// Act
 		await Election.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		var args = await WaitForTaskAsync(leaderChangedRaised.Task, EventTimeout).ConfigureAwait(false);
+		var args = await WaitHelpers.AwaitSignalAsync(
+			leaderChangedRaised.Task,
+			EventTimeout,
+			pollInterval: TimeSpan.FromMilliseconds(25),
+			cancellationToken: CancellationToken.None).ConfigureAwait(false);
 		args.ShouldNotBeNull("LeaderChanged event should have been raised");
 		args.NewLeaderId.ShouldBe(Election.CandidateId);
 	}
@@ -147,7 +156,7 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 	{
 		// Act - Start twice
 		await Election.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		await WaitUntilAsync(() => Election.IsLeader, EventTimeout).ConfigureAwait(false);
+		await AwaitConditionAsync(() => Election.IsLeader, EventTimeout).ConfigureAwait(false);
 
 		// Second start should not throw
 		await Should.NotThrowAsync(
@@ -165,10 +174,14 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 	{
 		// Arrange
 		await Election.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		await WaitUntilAsync(() => Election.IsLeader, EventTimeout).ConfigureAwait(false);
+		await AwaitConditionAsync(() => Election.IsLeader, EventTimeout).ConfigureAwait(false);
 
-		// Act - Wait for some lease renewal cycles
-		await Task.Delay(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+		// Act - hold leadership for a bounded stability window.
+		await WaitHelpers.AwaitSignalAsync(
+			Task.Delay(TimeSpan.FromSeconds(3)),
+			EventTimeout,
+			pollInterval: TimeSpan.FromMilliseconds(25),
+			cancellationToken: CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - Should still be leader after renewals
 		Election.IsLeader.ShouldBeTrue("Should maintain leadership through lease renewals");
@@ -183,10 +196,14 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 		Election.LostLeadership += (_, _) => lostLeadership = true;
 
 		await Election.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		await WaitUntilAsync(() => Election.IsLeader, EventTimeout).ConfigureAwait(false);
+		await AwaitConditionAsync(() => Election.IsLeader, EventTimeout).ConfigureAwait(false);
 
-		// Act - Wait through several renewal cycles
-		await Task.Delay(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+		// Act - hold leadership through a bounded stability window.
+		await WaitHelpers.AwaitSignalAsync(
+			Task.Delay(TimeSpan.FromSeconds(3)),
+			EventTimeout,
+			pollInterval: TimeSpan.FromMilliseconds(25),
+			cancellationToken: CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
 		lostLeadership.ShouldBeFalse("Should not lose leadership while actively renewing");
@@ -201,7 +218,7 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 	{
 		// Arrange
 		await Election.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		await WaitUntilAsync(() => Election.IsLeader, EventTimeout).ConfigureAwait(false);
+		await AwaitConditionAsync(() => Election.IsLeader, EventTimeout).ConfigureAwait(false);
 
 		// Act
 		await Election.StopAsync(CancellationToken.None).ConfigureAwait(false);
@@ -214,17 +231,21 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 	public async Task StopAsync_RaisesLostLeadershipEvent()
 	{
 		// Arrange
-		var lostLeadershipRaised = new TaskCompletionSource<LeaderElectionEventArgs>();
+		var lostLeadershipRaised = new TaskCompletionSource<LeaderElectionEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
 		Election.LostLeadership += (_, args) => lostLeadershipRaised.TrySetResult(args);
 
 		await Election.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		await WaitUntilAsync(() => Election.IsLeader, EventTimeout).ConfigureAwait(false);
+		await AwaitConditionAsync(() => Election.IsLeader, EventTimeout).ConfigureAwait(false);
 
 		// Act
 		await Election.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		var args = await WaitForTaskAsync(lostLeadershipRaised.Task, EventTimeout).ConfigureAwait(false);
+		var args = await WaitHelpers.AwaitSignalAsync(
+			lostLeadershipRaised.Task,
+			EventTimeout,
+			pollInterval: TimeSpan.FromMilliseconds(25),
+			cancellationToken: CancellationToken.None).ConfigureAwait(false);
 		args.ShouldNotBeNull("LostLeadership event should have been raised");
 		args.CandidateId.ShouldBe(Election.CandidateId);
 	}
@@ -234,7 +255,7 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 	{
 		// Arrange
 		await Election.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		await WaitUntilAsync(() => Election.IsLeader, EventTimeout).ConfigureAwait(false);
+		await AwaitConditionAsync(() => Election.IsLeader, EventTimeout).ConfigureAwait(false);
 
 		// Act - Stop twice
 		await Election.StopAsync(CancellationToken.None).ConfigureAwait(false);
@@ -259,7 +280,7 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 	{
 		// Arrange
 		await Election.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		await WaitUntilAsync(() => Election.IsLeader, EventTimeout).ConfigureAwait(false);
+		await AwaitConditionAsync(() => Election.IsLeader, EventTimeout).ConfigureAwait(false);
 
 		await using var competitor = await CreateCompetingElectionAsync().ConfigureAwait(false);
 		await competitor.StartAsync(CancellationToken.None).ConfigureAwait(false);
@@ -268,7 +289,7 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 		await Election.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert - Competitor should eventually become leader
-		await WaitUntilAsync(() => competitor.IsLeader, EventTimeout).ConfigureAwait(false);
+		await AwaitConditionAsync(() => competitor.IsLeader, EventTimeout).ConfigureAwait(false);
 		competitor.IsLeader.ShouldBeTrue("Competitor should become leader after primary stops");
 		competitor.CurrentLeaderId.ShouldBe(competitor.CandidateId);
 	}
@@ -282,7 +303,7 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 		competitor.LeaderChanged += (_, args) => leaderChangedEvents.Add(args);
 
 		await Election.StartAsync(CancellationToken.None).ConfigureAwait(false);
-		await WaitUntilAsync(() => Election.IsLeader, EventTimeout).ConfigureAwait(false);
+		await AwaitConditionAsync(() => Election.IsLeader, EventTimeout).ConfigureAwait(false);
 
 		await competitor.StartAsync(CancellationToken.None).ConfigureAwait(false);
 
@@ -290,7 +311,7 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 		await Election.StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 		// Assert
-		await WaitUntilAsync(() => competitor.IsLeader, EventTimeout).ConfigureAwait(false);
+		await AwaitConditionAsync(() => competitor.IsLeader, EventTimeout).ConfigureAwait(false);
 		leaderChangedEvents.ShouldNotBeEmpty("LeaderChanged should have been raised on competitor");
 	}
 
@@ -318,7 +339,7 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 			await Task.WhenAll(startTasks).ConfigureAwait(false);
 
 			// Wait for leadership to stabilize
-			await WaitUntilAsync(
+			await AwaitConditionAsync(
 				() => competitors.Any(c => c.IsLeader),
 				EventTimeout).ConfigureAwait(false);
 
@@ -355,12 +376,22 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 				c.StartAsync(CancellationToken.None));
 			await Task.WhenAll(startTasks).ConfigureAwait(false);
 
-			await WaitUntilAsync(
+			await AwaitConditionAsync(
 				() => competitors.Any(c => c.IsLeader),
 				EventTimeout).ConfigureAwait(false);
 
-			// Wait for all to have a consistent view
-			await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+			// Wait until all candidates observe the same leader.
+			await AwaitConditionAsync(
+				() =>
+				{
+					var leaderIds = competitors
+						.Where(c => c.CurrentLeaderId is not null)
+						.Select(c => c.CurrentLeaderId)
+						.Distinct()
+						.ToList();
+					return leaderIds.Count == 1 && competitors.All(c => c.CurrentLeaderId is not null);
+				},
+				EventTimeout).ConfigureAwait(false);
 
 			// Assert - All agree on who the leader is
 			var leaderIds = competitors
@@ -388,23 +419,14 @@ public abstract class LeaderElectionConformanceTestBase : IAsyncLifetime
 	/// <summary>
 	/// Polls until a condition is true or timeout is reached.
 	/// </summary>
-	protected static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
+	protected static async Task AwaitConditionAsync(Func<bool> condition, TimeSpan timeout)
 	{
-		var deadline = DateTimeOffset.UtcNow + timeout;
-		while (!condition() && DateTimeOffset.UtcNow < deadline)
-		{
-			await Task.Delay(100).ConfigureAwait(false);
-		}
-	}
-
-	/// <summary>
-	/// Waits for a task to complete within the specified timeout.
-	/// Returns the result or null if timed out.
-	/// </summary>
-	private static async Task<T?> WaitForTaskAsync<T>(Task<T> task, TimeSpan timeout) where T : class
-	{
-		var completed = await Task.WhenAny(task, Task.Delay(timeout)).ConfigureAwait(false);
-		return completed == task ? await task.ConfigureAwait(false) : null;
+		var observed = await WaitHelpers.WaitUntilAsync(
+			condition,
+			timeout,
+			TimeSpan.FromMilliseconds(25),
+			CancellationToken.None).ConfigureAwait(false);
+		observed.ShouldBeTrue($"Condition should have been observed within {timeout}.");
 	}
 
 	#endregion Helper Methods

@@ -15,9 +15,9 @@ public sealed class AwsSqsOptionsShould : UnitTestBase
 		var options = new AwsSqsOptions();
 
 		// Assert
-		options.MaxNumberOfMessages.ShouldBe(10);
-		options.WaitTimeSeconds.ShouldBe(TimeSpan.FromSeconds(20));
-		options.VisibilityTimeout.ShouldBe(TimeSpan.FromSeconds(30));
+		options.Consumer.MaxNumberOfMessages.ShouldBe(10);
+		options.Consumer.WaitTimeSeconds.ShouldBe(TimeSpan.FromSeconds(20));
+		options.Consumer.VisibilityTimeout.ShouldBe(TimeSpan.FromSeconds(30));
 		options.MessageRetentionPeriod.ShouldBe(345600);
 		options.UseFifoQueue.ShouldBeFalse();
 		options.ContentBasedDeduplication.ShouldBeFalse();
@@ -45,10 +45,10 @@ public sealed class AwsSqsOptionsShould : UnitTestBase
 		var options = new AwsSqsOptions();
 
 		// Act
-		options.MaxNumberOfMessages = 5;
+		options.Consumer.MaxNumberOfMessages = 5;
 
 		// Assert
-		options.MaxNumberOfMessages.ShouldBe(5);
+		options.Consumer.MaxNumberOfMessages.ShouldBe(5);
 	}
 
 	[Fact]
@@ -58,10 +58,10 @@ public sealed class AwsSqsOptionsShould : UnitTestBase
 		var options = new AwsSqsOptions();
 
 		// Act
-		options.WaitTimeSeconds = TimeSpan.FromSeconds(10);
+		options.Consumer.WaitTimeSeconds = TimeSpan.FromSeconds(10);
 
 		// Assert
-		options.WaitTimeSeconds.ShouldBe(TimeSpan.FromSeconds(10));
+		options.Consumer.WaitTimeSeconds.ShouldBe(TimeSpan.FromSeconds(10));
 	}
 
 	[Fact]
@@ -71,10 +71,10 @@ public sealed class AwsSqsOptionsShould : UnitTestBase
 		var options = new AwsSqsOptions();
 
 		// Act
-		options.VisibilityTimeout = TimeSpan.FromSeconds(60);
+		options.Consumer.VisibilityTimeout = TimeSpan.FromSeconds(60);
 
 		// Assert
-		options.VisibilityTimeout.ShouldBe(TimeSpan.FromSeconds(60));
+		options.Consumer.VisibilityTimeout.ShouldBe(TimeSpan.FromSeconds(60));
 	}
 
 	[Fact]

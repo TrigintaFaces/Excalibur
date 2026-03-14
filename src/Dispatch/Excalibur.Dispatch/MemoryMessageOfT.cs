@@ -7,7 +7,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 
 namespace Excalibur.Dispatch.Messaging;
 
@@ -23,7 +23,7 @@ public sealed class MemoryMessageOfT<[DynamicallyAccessedMembers(DynamicallyAcce
 		new ReadOnlyDictionary<string, object>(new Dictionary<string, object>(0, StringComparer.Ordinal));
 
 	private readonly IMemoryOwner<byte>? _memoryOwner;
-	private readonly IUtf8JsonSerializer? _serializer;
+	private readonly DispatchJsonSerializer? _serializer;
 	private DefaultMessageFeatures? _features;
 	private Guid _id;
 	private string? _messageId;
@@ -38,7 +38,7 @@ public sealed class MemoryMessageOfT<[DynamicallyAccessedMembers(DynamicallyAcce
 	/// <param name="contentType"> The content type of the message body. </param>
 	public MemoryMessageOfT(
 		IMemoryOwner<byte> memoryOwner,
-		IUtf8JsonSerializer serializer,
+		DispatchJsonSerializer serializer,
 		string contentType = "application/json")
 		: this(memoryOwner, serializer, memoryOwner?.Memory.Length ?? throw new ArgumentNullException(nameof(memoryOwner)), contentType)
 	{
@@ -53,7 +53,7 @@ public sealed class MemoryMessageOfT<[DynamicallyAccessedMembers(DynamicallyAcce
 	/// <param name="contentType"> The content type of the message body. </param>
 	public MemoryMessageOfT(
 		IMemoryOwner<byte> memoryOwner,
-		IUtf8JsonSerializer serializer,
+		DispatchJsonSerializer serializer,
 		int payloadLength,
 		string contentType = "application/json")
 	{
@@ -78,7 +78,7 @@ public sealed class MemoryMessageOfT<[DynamicallyAccessedMembers(DynamicallyAcce
 	/// <param name="contentType"> The content type of the message body. </param>
 	public MemoryMessageOfT(
 		Memory<byte> body,
-		IUtf8JsonSerializer serializer,
+		DispatchJsonSerializer serializer,
 		string contentType)
 	{
 		_serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));

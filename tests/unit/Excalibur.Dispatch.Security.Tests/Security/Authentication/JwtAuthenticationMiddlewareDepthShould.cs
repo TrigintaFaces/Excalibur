@@ -31,7 +31,6 @@ public sealed class JwtAuthenticationMiddlewareDepthShould
 	private readonly IMessageContext _context;
 	private readonly IMessageResult _successResult;
 	private readonly Dictionary<string, object> _contextItems;
-	private readonly Dictionary<string, object?> _contextProperties;
 
 	public JwtAuthenticationMiddlewareDepthShould()
 	{
@@ -44,11 +43,9 @@ public sealed class JwtAuthenticationMiddlewareDepthShould
 		_context = A.Fake<IMessageContext>();
 		_successResult = A.Fake<IMessageResult>();
 		_contextItems = new Dictionary<string, object>(StringComparer.Ordinal);
-		_contextProperties = new Dictionary<string, object?>(StringComparer.Ordinal);
 
 		A.CallTo(() => _successResult.Succeeded).Returns(true);
 		A.CallTo(() => _context.Items).Returns(_contextItems);
-		A.CallTo(() => _context.Properties).Returns(_contextProperties);
 	}
 
 	[Fact]
@@ -63,9 +60,9 @@ public sealed class JwtAuthenticationMiddlewareDepthShould
 		// Act
 		await sut.InvokeAsync(_message, _context, next, CancellationToken.None);
 
-		// Assert
-		_contextProperties.ShouldContainKey("UserId");
-		_contextProperties["UserId"].ShouldBe("user-from-sub");
+		// Assert — SetProperty writes to Items
+		_contextItems.ShouldContainKey("UserId");
+		_contextItems["UserId"].ShouldBe("user-from-sub");
 	}
 
 	[Fact]
@@ -85,8 +82,8 @@ public sealed class JwtAuthenticationMiddlewareDepthShould
 		await sut.InvokeAsync(_message, _context, next, CancellationToken.None);
 
 		// Assert
-		_contextProperties.ShouldContainKey("Email");
-		_contextProperties["Email"].ShouldBe("user@test.com");
+		_contextItems.ShouldContainKey("Email");
+		_contextItems["Email"].ShouldBe("user@test.com");
 	}
 
 	[Fact]
@@ -108,7 +105,7 @@ public sealed class JwtAuthenticationMiddlewareDepthShould
 		await sut.InvokeAsync(_message, _context, next, CancellationToken.None);
 
 		// Assert — TenantId NOT set because "tid" is remapped by the default JWT handler
-		_contextProperties.ShouldNotContainKey("TenantId");
+		_contextItems.ShouldNotContainKey("TenantId");
 	}
 
 	[Fact]
@@ -129,8 +126,8 @@ public sealed class JwtAuthenticationMiddlewareDepthShould
 		await sut.InvokeAsync(_message, _context, next, CancellationToken.None);
 
 		// Assert
-		_contextProperties.ShouldContainKey("TenantId");
-		_contextProperties["TenantId"].ShouldBe("tenant-abc");
+		_contextItems.ShouldContainKey("TenantId");
+		_contextItems["TenantId"].ShouldBe("tenant-abc");
 	}
 
 	[Fact]
@@ -151,8 +148,8 @@ public sealed class JwtAuthenticationMiddlewareDepthShould
 		await sut.InvokeAsync(_message, _context, next, CancellationToken.None);
 
 		// Assert
-		_contextProperties.ShouldContainKey("Roles");
-		var roles = _contextProperties["Roles"] as List<string>;
+		_contextItems.ShouldContainKey("Roles");
+		var roles = _contextItems["Roles"] as List<string>;
 		roles.ShouldNotBeNull();
 		roles.ShouldContain("Admin");
 		roles.ShouldContain("Editor");
@@ -172,12 +169,12 @@ public sealed class JwtAuthenticationMiddlewareDepthShould
 		await sut.InvokeAsync(_message, _context, next, CancellationToken.None);
 
 		// Assert
-		_contextProperties.ShouldContainKey("AuthenticatedAt");
-		var authTime = (DateTimeOffset)_contextProperties["AuthenticatedAt"]!;
+		_contextItems.ShouldContainKey("AuthenticatedAt");
+		var authTime = (DateTimeOffset)_contextItems["AuthenticatedAt"];
 		authTime.ShouldBeGreaterThanOrEqualTo(before);
 
-		_contextProperties.ShouldContainKey("AuthenticationMethod");
-		_contextProperties["AuthenticationMethod"].ShouldBe("jwt"); // default when no amr claim
+		_contextItems.ShouldContainKey("AuthenticationMethod");
+		_contextItems["AuthenticationMethod"].ShouldBe("jwt"); // default when no amr claim
 	}
 
 	[Fact]
@@ -200,8 +197,8 @@ public sealed class JwtAuthenticationMiddlewareDepthShould
 		await sut.InvokeAsync(_message, _context, next, CancellationToken.None);
 
 		// Assert — AuthenticationMethod defaults to "jwt" because "amr" is remapped
-		_contextProperties.ShouldContainKey("AuthenticationMethod");
-		_contextProperties["AuthenticationMethod"].ShouldBe("jwt");
+		_contextItems.ShouldContainKey("AuthenticationMethod");
+		_contextItems["AuthenticationMethod"].ShouldBe("jwt");
 	}
 
 	[Fact]
@@ -224,8 +221,8 @@ public sealed class JwtAuthenticationMiddlewareDepthShould
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
-		_contextProperties.ShouldContainKey("UserId");
-		_contextProperties["UserId"].ShouldBe("user-header");
+		_contextItems.ShouldContainKey("UserId");
+		_contextItems["UserId"].ShouldBe("user-header");
 	}
 
 	[Fact]
@@ -324,8 +321,8 @@ public sealed class JwtAuthenticationMiddlewareDepthShould
 		await sut.InvokeAsync(_message, _context, next, CancellationToken.None);
 
 		// Assert
-		_contextProperties.ShouldContainKey("Principal");
-		var principal = _contextProperties["Principal"] as ClaimsPrincipal;
+		_contextItems.ShouldContainKey("Principal");
+		var principal = _contextItems["Principal"] as ClaimsPrincipal;
 		principal.ShouldNotBeNull();
 		principal.Identity.ShouldNotBeNull();
 		principal.Identity!.IsAuthenticated.ShouldBeTrue();
@@ -348,8 +345,8 @@ public sealed class JwtAuthenticationMiddlewareDepthShould
 		await sut.InvokeAsync(_message, _context, next, CancellationToken.None);
 
 		// Assert
-		_contextProperties.ShouldContainKey("UserName");
-		_contextProperties["UserName"].ShouldBe("John Doe");
+		_contextItems.ShouldContainKey("UserName");
+		_contextItems["UserName"].ShouldBe("John Doe");
 	}
 
 	[Fact]

@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Excalibur.Dispatch.Tests.Smoke</RootNamespace>
+    <AssemblyName>Excalibur.Dispatch.Tests.Smoke</AssemblyName>
+  </PropertyGroup>
+
+  <!-- All 115 shipping library packages (excludes analyzers, source generators, and tool projects) -->
+  <ItemGroup>
+    <!-- Dispatch packages -->
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Abstractions/Excalibur.Dispatch.Abstractions.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.AuditLogging.Aws/Excalibur.Dispatch.AuditLogging.Aws.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.AuditLogging.Datadog/Excalibur.Dispatch.AuditLogging.Datadog.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.AuditLogging.Elasticsearch/Excalibur.Dispatch.AuditLogging.Elasticsearch.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.AuditLogging.GoogleCloud/Excalibur.Dispatch.AuditLogging.GoogleCloud.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.AuditLogging.Postgres/Excalibur.Dispatch.AuditLogging.Postgres.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.AuditLogging.Sentinel/Excalibur.Dispatch.AuditLogging.Sentinel.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.AuditLogging.Splunk/Excalibur.Dispatch.AuditLogging.Splunk.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.AuditLogging.SqlServer/Excalibur.Dispatch.AuditLogging.SqlServer.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.AuditLogging/Excalibur.Dispatch.AuditLogging.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Caching/Excalibur.Dispatch.Caching.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.ClaimCheck.AwsS3/Excalibur.Dispatch.ClaimCheck.AwsS3.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage/Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Compliance.Abstractions/Excalibur.Dispatch.Compliance.Abstractions.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Compliance.Aws/Excalibur.Dispatch.Compliance.Aws.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Compliance.Azure/Excalibur.Dispatch.Compliance.Azure.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Compliance.Vault/Excalibur.Dispatch.Compliance.Vault.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Compliance/Excalibur.Dispatch.Compliance.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Hosting.AspNetCore/Excalibur.Dispatch.Hosting.AspNetCore.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Hosting.AwsLambda/Excalibur.Dispatch.Hosting.AwsLambda.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Hosting.AzureFunctions/Excalibur.Dispatch.Hosting.AzureFunctions.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Hosting.GoogleCloudFunctions/Excalibur.Dispatch.Hosting.GoogleCloudFunctions.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Hosting.Serverless.Abstractions/Excalibur.Dispatch.Hosting.Serverless.Abstractions.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.LeaderElection.Abstractions/Excalibur.Dispatch.LeaderElection.Abstractions.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Observability.Aws/Excalibur.Dispatch.Observability.Aws.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Observability/Excalibur.Dispatch.Observability.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Patterns.Azure/Excalibur.Dispatch.Patterns.Azure.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Patterns.ClaimCheck.InMemory/Excalibur.Dispatch.Patterns.ClaimCheck.InMemory.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Patterns.Hosting.Json/Excalibur.Dispatch.Patterns.Hosting.Json.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Patterns/Excalibur.Dispatch.Patterns.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Resilience.Polly/Excalibur.Dispatch.Resilience.Polly.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Security.Aws/Excalibur.Dispatch.Security.Aws.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Security.Azure/Excalibur.Dispatch.Security.Azure.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Security/Excalibur.Dispatch.Security.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Serialization.MemoryPack/Excalibur.Dispatch.Serialization.MemoryPack.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Serialization.MessagePack/Excalibur.Dispatch.Serialization.MessagePack.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Serialization.Protobuf/Excalibur.Dispatch.Serialization.Protobuf.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Testing.Shouldly/Excalibur.Dispatch.Testing.Shouldly.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Testing/Excalibur.Dispatch.Testing.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Transport.Abstractions/Excalibur.Dispatch.Transport.Abstractions.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Transport.AwsSqs/Excalibur.Dispatch.Transport.AwsSqs.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Transport.AzureServiceBus/Excalibur.Dispatch.Transport.AzureServiceBus.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Transport.GooglePubSub/Excalibur.Dispatch.Transport.GooglePubSub.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Transport.Grpc/Excalibur.Dispatch.Transport.Grpc.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Transport.Kafka/Excalibur.Dispatch.Transport.Kafka.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Transport.RabbitMQ/Excalibur.Dispatch.Transport.RabbitMQ.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch.Validation.FluentValidation/Excalibur.Dispatch.Validation.FluentValidation.csproj" />
+    <ProjectReference Include="../../../src/Dispatch/Excalibur.Dispatch/Excalibur.Dispatch.csproj" />
+
+    <!-- Excalibur packages -->
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.A3.Abstractions/Excalibur.A3.Abstractions.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.A3/Excalibur.A3.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Application/Excalibur.Application.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Caching/Excalibur.Caching.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Cdc/Excalibur.Cdc.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Cdc.SqlServer/Excalibur.Cdc.SqlServer.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Outbox.InMemory/Excalibur.Outbox.InMemory.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Inbox.InMemory/Excalibur.Inbox.InMemory.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Compliance.Postgres/Excalibur.Compliance.Postgres.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Compliance.SqlServer/Excalibur.Compliance.SqlServer.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.Abstractions/Excalibur.Data.Abstractions.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.CosmosDb/Excalibur.Data.CosmosDb.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.DataProcessing/Excalibur.Data.DataProcessing.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.DynamoDb/Excalibur.Data.DynamoDb.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.ElasticSearch/Excalibur.Data.ElasticSearch.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.Firestore/Excalibur.Data.Firestore.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.InMemory/Excalibur.Data.InMemory.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.MongoDB/Excalibur.Data.MongoDB.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.MySql/Excalibur.Data.MySql.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.Postgres/Excalibur.Data.Postgres.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.Redis/Excalibur.Data.Redis.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Data.SqlServer/Excalibur.Data.SqlServer.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Data/Excalibur.Data.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Domain/Excalibur.Domain.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.EventSourcing.Abstractions/Excalibur.EventSourcing.Abstractions.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.EventSourcing.CosmosDb/Excalibur.EventSourcing.CosmosDb.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.EventSourcing.DynamoDb/Excalibur.EventSourcing.DynamoDb.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.EventSourcing.Firestore/Excalibur.EventSourcing.Firestore.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.EventSourcing.InMemory/Excalibur.EventSourcing.InMemory.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.EventSourcing.Postgres/Excalibur.EventSourcing.Postgres.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.EventSourcing.Redis/Excalibur.EventSourcing.Redis.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.EventSourcing.SqlServer/Excalibur.EventSourcing.SqlServer.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.EventSourcing/Excalibur.EventSourcing.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting.AwsLambda/Excalibur.Hosting.AwsLambda.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting.Aws/Excalibur.Hosting.Aws.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting.AzureFunctions/Excalibur.Hosting.AzureFunctions.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting.GoogleCloudFunctions/Excalibur.Hosting.GoogleCloudFunctions.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting.HealthChecks/Excalibur.Hosting.HealthChecks.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting.Jobs/Excalibur.Hosting.Jobs.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting.Logging.Serilog/Excalibur.Hosting.Logging.Serilog.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting.Observability/Excalibur.Hosting.Observability.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting.Serverless/Excalibur.Hosting.Serverless.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting.Web/Excalibur.Hosting.Web.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Hosting/Excalibur.Hosting.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Jobs.Abstractions/Excalibur.Jobs.Abstractions.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Jobs.Aws/Excalibur.Jobs.Aws.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Jobs.Azure/Excalibur.Jobs.Azure.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Jobs.Cdc/Excalibur.Jobs.Cdc.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Jobs.DataProcessing/Excalibur.Jobs.DataProcessing.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Jobs.GoogleCloud/Excalibur.Jobs.GoogleCloud.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Jobs.Redis/Excalibur.Jobs.Redis.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Jobs.SqlServer/Excalibur.Jobs.SqlServer.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Jobs/Excalibur.Jobs.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.LeaderElection.Consul/Excalibur.LeaderElection.Consul.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.LeaderElection.InMemory/Excalibur.LeaderElection.InMemory.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.LeaderElection.Kubernetes/Excalibur.LeaderElection.Kubernetes.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.LeaderElection.Redis/Excalibur.LeaderElection.Redis.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.LeaderElection.SqlServer/Excalibur.LeaderElection.SqlServer.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.LeaderElection/Excalibur.LeaderElection.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Outbox.CosmosDb/Excalibur.Outbox.CosmosDb.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Outbox.DynamoDb/Excalibur.Outbox.DynamoDb.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Outbox.Firestore/Excalibur.Outbox.Firestore.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Outbox.SqlServer/Excalibur.Outbox.SqlServer.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Outbox/Excalibur.Outbox.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Saga.SqlServer/Excalibur.Saga.SqlServer.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Saga/Excalibur.Saga.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Security.Abstractions/Excalibur.Security.Abstractions.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Security/Excalibur.Security.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Testing.Conformance/Excalibur.Testing.Conformance.csproj" />
+    <ProjectReference Include="../../../src/Excalibur/Excalibur.Testing/Excalibur.Testing.csproj" />
+  </ItemGroup>
+</Project>

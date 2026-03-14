@@ -29,19 +29,27 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<TestProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(10);
 		var context = CreateTestContext(provider);
 		var progressReports = new List<DocumentProgress>();
+		var completedObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		var progress = new Progress<DocumentProgress>(p => progressReports.Add(p));
+		var progress = new Progress<DocumentProgress>(p =>
+		{
+			progressReports.Add(p);
+			if (p.PercentComplete >= 100.0)
+			{
+				completedObserved.TrySetResult();
+			}
+		});
 
 		// Act
 		await dispatcher.DispatchWithProgressAsync(document, context, progress, CancellationToken.None);
-
-		// Small delay to ensure all progress reports are collected
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			completedObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 
 		// Assert
 		progressReports.Count.ShouldBeGreaterThan(0);
@@ -62,17 +70,27 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<TestProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(5);
 		var context = CreateTestContext(provider);
 		var progressReports = new List<DocumentProgress>();
+		var completedObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		var progress = new Progress<DocumentProgress>(p => progressReports.Add(p));
+		var progress = new Progress<DocumentProgress>(p =>
+		{
+			progressReports.Add(p);
+			if (p.PercentComplete >= 100.0)
+			{
+				completedObserved.TrySetResult();
+			}
+		});
 
 		// Act
 		await dispatcher.DispatchWithProgressAsync(document, context, progress, CancellationToken.None);
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			completedObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 
 		// Assert - progress should be monotonically increasing
 		var percentages = progressReports.Select(p => p.PercentComplete).Where(p => p >= 0).ToList();
@@ -95,17 +113,27 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<TestProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(10);
 		var context = CreateTestContext(provider);
 		var progressReports = new List<DocumentProgress>();
+		var completedObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		var progress = new Progress<DocumentProgress>(p => progressReports.Add(p));
+		var progress = new Progress<DocumentProgress>(p =>
+		{
+			progressReports.Add(p);
+			if (p.PercentComplete >= 100.0)
+			{
+				completedObserved.TrySetResult();
+			}
+		});
 
 		// Act
 		await dispatcher.DispatchWithProgressAsync(document, context, progress, CancellationToken.None);
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			completedObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 
 		// Assert - items processed should eventually equal total
 		progressReports.Last().ItemsProcessed.ShouldBe(10);
@@ -121,7 +149,7 @@ public sealed class ProgressDocumentHandlerShould
 		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(10);
 		var context = CreateTestContext(provider);
@@ -149,7 +177,7 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<TestProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 		var context = CreateTestContext(provider);
 		var progress = new Progress<DocumentProgress>(_ => { });
 
@@ -175,7 +203,7 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<TestProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(10);
 		var progress = new Progress<DocumentProgress>(_ => { });
@@ -202,7 +230,7 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<TestProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(10);
 		var context = CreateTestContext(provider);
@@ -231,7 +259,7 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<TestProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(20);
 		var context = CreateTestContext(provider);
@@ -287,13 +315,18 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<ErrorThrowingProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(10);
 		var context = CreateTestContext(provider);
 		var progressReports = new List<DocumentProgress>();
+		var progressObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		var progress = new Progress<DocumentProgress>(p => progressReports.Add(p));
+		var progress = new Progress<DocumentProgress>(p =>
+		{
+			progressReports.Add(p);
+			progressObserved.TrySetResult();
+		});
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<InvalidOperationException>(async () =>
@@ -304,7 +337,9 @@ public sealed class ProgressDocumentHandlerShould
 		exception.Message.ShouldContain("Simulated progress handler error");
 
 		// Should have received some progress before error
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			progressObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		progressReports.Count.ShouldBeGreaterThan(0);
 		progressReports.Last().ItemsProcessed.ShouldBeLessThanOrEqualTo(5);
 	}
@@ -322,17 +357,27 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<IndeterminateProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(5);
 		var context = CreateTestContext(provider);
 		var progressReports = new List<DocumentProgress>();
+		var completedObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		var progress = new Progress<DocumentProgress>(p => progressReports.Add(p));
+		var progress = new Progress<DocumentProgress>(p =>
+		{
+			progressReports.Add(p);
+			if (p.PercentComplete >= 100.0)
+			{
+				completedObserved.TrySetResult();
+			}
+		});
 
 		// Act
 		await dispatcher.DispatchWithProgressAsync(document, context, progress, CancellationToken.None);
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			completedObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 
 		// Assert - should have indeterminate progress (-1) reports
 		var indeterminateReports = progressReports.Where(p => p.PercentComplete == -1).ToList();
@@ -356,18 +401,28 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<MultiPhaseProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		// Use 9 items so it divides evenly into 3 phases
 		var document = new TestProgressDocument(9);
 		var context = CreateTestContext(provider);
 		var progressReports = new List<DocumentProgress>();
+		var completedObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		var progress = new Progress<DocumentProgress>(p => progressReports.Add(p));
+		var progress = new Progress<DocumentProgress>(p =>
+		{
+			progressReports.Add(p);
+			if (p.PercentComplete >= 100.0)
+			{
+				completedObserved.TrySetResult();
+			}
+		});
 
 		// Act
 		await dispatcher.DispatchWithProgressAsync(document, context, progress, CancellationToken.None);
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(50);
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			completedObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 
 		// Assert - should have different phases
 		var phases = progressReports.Select(p => p.CurrentPhase).Distinct().ToList();
@@ -389,7 +444,7 @@ public sealed class ProgressDocumentHandlerShould
 			sp => sp.GetRequiredService<TestProgressHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(5);
 		var context = CreateTestContext(provider);
@@ -459,4 +514,3 @@ public sealed class ProgressDocumentHandlerShould
 		return DispatchContextInitializer.CreateDefaultContext(provider);
 	}
 }
-

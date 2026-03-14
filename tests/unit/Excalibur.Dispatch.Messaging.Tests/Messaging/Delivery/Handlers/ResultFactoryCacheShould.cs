@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Delivery.Handlers;
@@ -299,12 +300,13 @@ public sealed class ResultFactoryCacheShould
 			busNames.Length > 0 ? busNames[0] : "local",
 			busNames.ToList());
 
-		return new FakeMessageContext
+		var ctx = new FakeMessageContext
 		{
 			MessageId = Guid.NewGuid().ToString(),
 			CorrelationId = Guid.NewGuid().ToString(),
-			RoutingDecision = routingDecision,
 		};
+		ctx.GetOrCreateRoutingFeature().RoutingDecision = routingDecision;
+		return ctx;
 	}
 
 	#endregion

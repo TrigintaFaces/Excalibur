@@ -75,12 +75,10 @@ services.AddDispatch(dispatch =>
 Validates messages using FluentValidation or DataAnnotations:
 
 ```csharp
-services.AddDispatch(options =>
+services.AddDispatch(dispatch =>
 {
-    options.ConfigurePipeline("Default", pipeline =>
-    {
-        pipeline.Use<ValidationMiddleware>();
-    });
+    // Shorthand registration
+    dispatch.UseValidation();
 });
 
 // Register validators
@@ -375,6 +373,51 @@ services.AddOpenTelemetry()
 | `dispatch.operation` | Operation type (handle, publish, middleware) |
 | `middleware.type` | Middleware class name (for middleware spans) |
 
+## Rate Limiting Middleware
+
+Protects the system from excessive message processing:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.UseRateLimiting(); // Registers RateLimitingMiddleware
+});
+```
+
+### Configuration
+
+```csharp
+services.Configure<RateLimitingOptions>(options =>
+{
+    options.PermitLimit = 100;
+    options.Window = TimeSpan.FromSeconds(10);
+    options.QueueLimit = 50;
+});
+```
+
+### Supported Algorithms
+
+| Algorithm | Description |
+|-----------|-------------|
+| Token Bucket | Smooth rate limiting with burst allowance |
+| Sliding Window | Rate limiting based on a sliding time window |
+| Fixed Window | Rate limiting based on fixed time windows |
+| Concurrency | Limits concurrent message processing |
+
+:::tip Pipeline Order
+Place `UseRateLimiting()` **before** `UseRetry()` to prevent retry amplification:
+
+```csharp
+dispatch.UseExceptionMapping()
+        .UseAuthentication()
+        .UseAuthorization()
+        .UseValidation()
+        .UseRateLimiting()   // Before retry
+        .UseRetry()
+        .UseCircuitBreaker();
+```
+:::
+
 ## Retry Middleware
 
 Automatic retry with configurable policies:
@@ -382,7 +425,7 @@ Automatic retry with configurable policies:
 ```csharp
 services.AddDispatch(dispatch =>
 {
-    dispatch.UseMiddleware<RetryMiddleware>();
+    dispatch.UseRetry(); // Registers RetryMiddleware
 });
 
 services.Configure<RetryOptions>(options =>
@@ -472,6 +515,242 @@ public record UpdateProductAction(string ProductId, string Name)
 
 The `CacheInvalidationMiddleware` automatically invalidates caches when these messages are processed.
 
+## Transaction Middleware
+
+Wraps downstream handlers in a transaction scope for atomic commit/rollback:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.UseTransaction(); // Registers TransactionMiddleware
+});
+```
+
+Ensures that all state changes within the handler execute atomically -- if any step fails, the entire transaction is rolled back.
+
+:::tip Pipeline Order
+Place `UseTransaction()` late in the pipeline, after validation but before outbox:
+
+```csharp
+dispatch.UseValidation()
+        .UseTransaction()
+        .UseOutbox();
+```
+:::
+
+## Outbox Middleware
+
+Stores outgoing messages in an outbox for reliable at-least-once delivery:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.UseOutbox(); // Registers OutboxMiddleware
+});
+```
+
+Messages are persisted to the outbox store within the current transaction and delivered asynchronously by a background processor.
+
+:::tip Pipeline Order
+Place `UseOutbox()` at the end of the pipeline, after `UseTransaction()`:
+
+```csharp
+dispatch.UseTransaction()
+        .UseOutbox();
+```
+:::
+
+## Inbox / Idempotency Middleware
+
+Tracks processed messages for idempotent handling and deduplicates before handler execution:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.UseInbox();       // Registers InboxMiddleware
+    // OR
+    dispatch.UseIdempotency(); // Alias -- registers the same InboxMiddleware
+});
+```
+
+Both `UseInbox()` and `UseIdempotency()` register the same `InboxMiddleware`. Use whichever name best communicates your intent.
+
+:::tip Pipeline Order
+Place inbox/idempotency early, before validation and transaction, to reject duplicates before doing any work:
+
+```csharp
+dispatch.UseInbox()
+        .UseValidation()
+        .UseTransaction()
+        .UseOutbox();
+```
+:::
+
+## CloudEvents Middleware
+
+Enriches messages with CloudEvents metadata (source, type, subject) per the [CloudEvents specification](https://cloudevents.io/):
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.UseCloudEvents(); // Registers CloudEventMiddleware
+});
+```
+
+:::tip Pipeline Order
+Place `UseCloudEvents()` early in the pipeline so downstream middleware sees CE metadata:
+
+```csharp
+dispatch.UseCloudEvents()
+        .UseAuthentication()
+        .UseAuthorization()
+        .UseValidation();
+```
+:::
+
+## Tenant Identity Middleware
+
+Resolves the current tenant from message context and makes it available to downstream handlers:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.UseTenantIdentity(); // Registers TenantIdentityMiddleware
+});
+```
+
+:::tip Pipeline Order
+Place after authentication but before authorization, so tenant context is available for tenant-scoped authorization policies:
+
+```csharp
+dispatch.UseAuthentication()
+        .UseTenantIdentity()
+        .UseAuthorization();
+```
+:::
+
+## Input Sanitization Middleware
+
+Sanitizes message properties to prevent injection attacks (XSS, SQL injection, etc.) before handler execution:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.UseInputSanitization(); // Registers InputSanitizationMiddleware
+});
+```
+
+:::tip Pipeline Order
+Place after authorization but before validation, so sanitized values are what gets validated:
+
+```csharp
+dispatch.UseAuthorization()
+        .UseInputSanitization()
+        .UseValidation();
+```
+:::
+
+## Performance Middleware
+
+Tracks message processing performance with detailed timing metrics:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.UsePerformance(); // Registers PerformanceMiddleware
+});
+```
+
+## Background Execution Middleware
+
+Offloads message processing to a background thread, freeing the caller:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.UseBackgroundExecution(); // Registers BackgroundExecutionMiddleware
+});
+```
+
+## Batching Middleware
+
+Batches multiple messages for unified processing, improving throughput:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.UseBatching(); // Registers UnifiedBatchingMiddleware
+});
+```
+
+## Contract Versioning Middleware
+
+Validates message contract versions before handler execution:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.UseContractVersioning(); // Registers ContractVersionCheckMiddleware
+});
+```
+
+## Audit Logging Middleware
+
+Logs message processing for audit trail and compliance:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.UseAuditLogging(); // Registers AuditLoggingMiddleware
+});
+```
+
+## Zero-Allocation Validation Middleware
+
+Validates messages using a zero-allocation path for high-throughput scenarios:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.UseZeroAllocMiddleware(); // Registers ZeroAllocationValidationMiddleware
+});
+```
+
+## CloudEvents Sub-Extensions
+
+In addition to `UseCloudEvents()` (which registers the core CloudEvent middleware), three service registration extensions provide CloudEvents-specific functionality:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    // Core CloudEvents middleware (enriches messages with CE metadata)
+    dispatch.UseCloudEvents();
+
+    // Validate CloudEvents before processing
+    dispatch.UseCloudEventValidation(async (cloudEvent, ct) =>
+    {
+        // Return true if valid, false to reject
+        return cloudEvent.Type is not null;
+    });
+
+    // Batch CloudEvents for efficient processing
+    dispatch.UseCloudEventBatching(options =>
+    {
+        // Configure batch options
+    });
+
+    // Transform CloudEvents during processing
+    dispatch.UseCloudEventTransformation(async (cloudEvent, dispatchEvent, context, ct) =>
+    {
+        // Transform the event
+    });
+});
+```
+
+:::note
+These extensions register **services** (not pipeline middleware). The `Use*()` naming provides consistency with the pipeline API surface.
+:::
+
 ## Middleware Presets
 
 Use presets for common configurations:
@@ -497,6 +776,65 @@ services.AddDispatch(dispatch =>
 | Development | Logging (Debug level), Validation, ExceptionMapping |
 | Production | Metrics, Tracing, Retry, ExceptionMapping |
 | Full | Logging, Validation, Metrics, Tracing, Retry, ExceptionMapping |
+
+## Recommended Pipeline Order
+
+When combining multiple middleware, use this recommended order:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch
+        .UseCloudEvents()          // Enrich early with CE metadata
+        .UsePerformance()          // Track processing timing
+        .UseAuthentication()       // Establish identity
+        .UseTenantIdentity()       // Resolve tenant after auth
+        .UseAuthorization()        // Check permissions
+        .UseAuditLogging()         // Audit trail after auth
+        .UseInbox()                // Deduplicate before processing
+        .UseInputSanitization()    // Sanitize before validation
+        .UseContractVersioning()   // Validate message version
+        .UseValidation()           // Validate structure
+        .UseRateLimiting()         // Throttle before retry
+        .UseRetry()                // Retry transient failures
+        .UseTransaction()          // Wrap in transaction
+        .UseOutbox();              // Store for reliable delivery
+});
+```
+
+Not all middleware is required -- pick the ones you need for your scenario. The order matters: security middleware should run before business logic middleware, and reliability middleware (retry, circuit breaker) should wrap the innermost operations.
+
+### Available Extensions Reference
+
+| Extension | Middleware | Category |
+|-----------|-----------|----------|
+| `UseLogging()` | `LoggingMiddleware` | Observability |
+| `UseMetrics()` | `MetricsMiddleware` | Observability |
+| `UseTracing()` | `TracingMiddleware` | Observability |
+| `UsePerformance()` | `PerformanceMiddleware` | Observability |
+| `UseAuditLogging()` | `AuditLoggingMiddleware` | Observability |
+| `UseValidation()` | `ValidationMiddleware` | Validation |
+| `UseInputSanitization()` | `InputSanitizationMiddleware` | Validation |
+| `UseZeroAllocMiddleware()` | `ZeroAllocationValidationMiddleware` | Validation |
+| `UseContractVersioning()` | `ContractVersionCheckMiddleware` | Validation |
+| `UseRetry()` | `RetryMiddleware` | Resilience |
+| `UseCircuitBreaker()` | `CircuitBreakerMiddleware` | Resilience |
+| `UseTimeout()` | `TimeoutMiddleware` | Resilience |
+| `UseBulkhead()` | `BulkheadMiddleware` | Resilience |
+| `UseRateLimiting()` | `RateLimitingMiddleware` | Resilience |
+| `UseExceptionMapping()` | `ExceptionMappingMiddleware` | Error Handling |
+| `UseTransaction()` | `TransactionMiddleware` | Reliability |
+| `UseOutbox()` | `OutboxMiddleware` | Reliability |
+| `UseInbox()` | `InboxMiddleware` | Reliability |
+| `UseIdempotency()` | `InboxMiddleware` (alias) | Reliability |
+| `UseDeduplication()` | `DeduplicationMiddleware` | Reliability |
+| `UseCloudEvents()` | `CloudEventMiddleware` | Messaging |
+| `UseTenantIdentity()` | `TenantIdentityMiddleware` | Security |
+| `UseBackgroundExecution()` | `BackgroundExecutionMiddleware` | Threading |
+| `UseBatching()` | `UnifiedBatchingMiddleware` | Throughput |
+| `UseCloudEventValidation()` | Service registration | CloudEvents |
+| `UseCloudEventBatching()` | Service registration | CloudEvents |
+| `UseCloudEventTransformation()` | Service registration | CloudEvents |
 
 ## Next Steps
 

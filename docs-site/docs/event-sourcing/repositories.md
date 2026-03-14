@@ -39,14 +39,6 @@ public interface IEventSourcedRepository<TAggregate, TKey>
 
     // Soft-delete via tombstone event
     Task DeleteAsync(TAggregate aggregate, CancellationToken cancellationToken);
-
-    // Query for multiple aggregates
-    Task<IReadOnlyList<TAggregate>> QueryAsync<TQuery>(TQuery query, CancellationToken cancellationToken)
-        where TQuery : IAggregateQuery<TAggregate>;
-
-    // Find single aggregate matching criteria
-    Task<TAggregate?> FindAsync<TQuery>(TQuery query, CancellationToken cancellationToken)
-        where TQuery : IAggregateQuery<TAggregate>;
 }
 ```
 
@@ -199,24 +191,9 @@ public async Task<bool> CanCreateOrderAsync(Guid orderId, CancellationToken ct)
 
 ### Querying Aggregates
 
-The repository supports querying via `IAggregateQuery<TAggregate>`:
+`IEventSourcedRepository` is a **write-side** contract following CQRS principles. It does not include query methods. For read workloads, use a separate read model or projection store.
 
-```csharp
-// Define a query
-public class DraftOrdersQuery : IAggregateQuery<Order>
-{
-    public OrderStatus Status { get; init; } = OrderStatus.Draft;
-}
-
-// Usage - QueryAsync returns multiple matches
-var draftOrders = await _repository.QueryAsync(new DraftOrdersQuery(), ct);
-
-// Usage - FindAsync returns first match or null
-var firstDraft = await _repository.FindAsync(new DraftOrdersQuery(), ct);
-```
-
-> **Note:** Query implementation depends on the underlying event store's capabilities.
-> Some stores may require projections for efficient querying.
+> **Note:** For production query workloads, use [Projections](./projections.md) or a dedicated read model rather than querying the event store directly.
 
 ### Soft Delete
 
@@ -306,22 +283,6 @@ public class OrderPlacementService
         await _unitOfWork.CommitAsync(ct);
     }
 }
-```
-
-### Specification Pattern
-
-Encapsulate query logic using `IAggregateQuery<T>`:
-
-```csharp
-public class DraftOrdersForCustomer : IAggregateQuery<Order>
-{
-    public string CustomerId { get; init; }
-    public OrderStatus Status { get; init; } = OrderStatus.Draft;
-}
-
-// Usage
-var query = new DraftOrdersForCustomer { CustomerId = "CUST-123" };
-var orders = await _repository.QueryAsync(query, ct);
 ```
 
 ## Error Handling

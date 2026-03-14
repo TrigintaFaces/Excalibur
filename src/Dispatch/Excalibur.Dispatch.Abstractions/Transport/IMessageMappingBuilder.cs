@@ -9,8 +9,8 @@ namespace Excalibur.Dispatch.Abstractions.Transport;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The message mapping builder provides a fluent API for defining how messages
-/// should be transformed when moving between different transport systems.
+/// Follows the <c>Microsoft.AspNetCore.Builder.IEndpointConventionBuilder</c> pattern:
+/// a single <see cref="Add"/> method with all fluent configuration via extension methods.
 /// </para>
 /// <example>
 /// <code>
@@ -20,11 +20,28 @@ namespace Excalibur.Dispatch.Abstractions.Transport;
 ///         .ToKafka(ctx => ctx.Topic = "orders")
 ///     .MapMessage&lt;PaymentProcessedEvent&gt;()
 ///         .ToRabbitMq(ctx => ctx.Exchange = "payments")
-///         .ToAzureServiceBus(ctx => ctx.TopicName = "payments"));
+///         .ToAzureServiceBus(ctx => ctx.TopicOrQueueName = "payments"));
 /// </code>
 /// </example>
 /// </remarks>
 public interface IMessageMappingBuilder
+{
+	/// <summary>
+	/// Adds a convention to the message mapping builder.
+	/// </summary>
+	/// <param name="convention">The convention to add.</param>
+	void Add(Action<IMessageMappingConventions> convention);
+}
+
+/// <summary>
+/// Provides the conventions context for configuring message mappings.
+/// </summary>
+/// <remarks>
+/// This type is the target of <see cref="IMessageMappingBuilder.Add"/> callbacks.
+/// Extension methods on <see cref="IMessageMappingBuilder"/> delegate to this interface
+/// to perform their work.
+/// </remarks>
+public interface IMessageMappingConventions
 {
 	/// <summary>
 	/// Begins configuration for mapping a specific message type.
@@ -38,88 +55,40 @@ public interface IMessageMappingBuilder
 	/// Registers a custom message mapper.
 	/// </summary>
 	/// <param name="mapper">The mapper to register.</param>
-	/// <returns>This builder for fluent configuration.</returns>
-	IMessageMappingBuilder RegisterMapper(IMessageMapper mapper);
+	void RegisterMapper(IMessageMapper mapper);
 
 	/// <summary>
 	/// Registers a custom message mapper with a factory.
 	/// </summary>
 	/// <typeparam name="TMapper">The type of mapper to register.</typeparam>
-	/// <returns>This builder for fluent configuration.</returns>
-	IMessageMappingBuilder RegisterMapper<TMapper>()
+	void RegisterMapper<TMapper>()
 		where TMapper : class, IMessageMapper;
 
 	/// <summary>
 	/// Registers the default set of mappers for common transport combinations.
 	/// </summary>
-	/// <returns>This builder for fluent configuration.</returns>
-	IMessageMappingBuilder UseDefaultMappers();
+	void UseDefaultMappers();
 
 	/// <summary>
 	/// Configures a global default mapping that applies to all message types
 	/// when no specific mapping is defined.
 	/// </summary>
 	/// <param name="configure">Action to configure the default mapping.</param>
-	/// <returns>This builder for fluent configuration.</returns>
-	IMessageMappingBuilder ConfigureDefaults(Action<IDefaultMappingBuilder> configure);
+	void ConfigureDefaults(Action<IDefaultMappingBuilder> configure);
 }
 
 /// <summary>
 /// Builder for configuring transport-specific mappings for a message type.
 /// </summary>
 /// <typeparam name="TMessage">The message type being configured.</typeparam>
+/// <remarks>
+/// The core interface provides <see cref="ToTransport"/> for custom/generic transport
+/// configuration. Transport-specific methods (ToRabbitMq, ToKafka, etc.) are provided
+/// as extension methods.
+/// </remarks>
 public interface IMessageTypeMappingBuilder<TMessage>
 	where TMessage : class
 {
-	/// <summary>
-	/// Configures RabbitMQ-specific mapping for this message type.
-	/// </summary>
-	/// <param name="configure">Action to configure the RabbitMQ context.</param>
-	/// <returns>This builder for fluent configuration.</returns>
-	IMessageTypeMappingBuilder<TMessage> ToRabbitMq(Action<IRabbitMqMappingContext> configure);
-
-	/// <summary>
-	/// Configures Kafka-specific mapping for this message type.
-	/// </summary>
-	/// <param name="configure">Action to configure the Kafka context.</param>
-	/// <returns>This builder for fluent configuration.</returns>
-	IMessageTypeMappingBuilder<TMessage> ToKafka(Action<IKafkaMappingContext> configure);
-
-	/// <summary>
-	/// Configures Azure Service Bus-specific mapping for this message type.
-	/// </summary>
-	/// <param name="configure">Action to configure the Azure Service Bus context.</param>
-	/// <returns>This builder for fluent configuration.</returns>
-	IMessageTypeMappingBuilder<TMessage> ToAzureServiceBus(Action<IAzureServiceBusMappingContext> configure);
-
-	/// <summary>
-	/// Configures AWS SQS-specific mapping for this message type.
-	/// </summary>
-	/// <param name="configure">Action to configure the AWS SQS context.</param>
-	/// <returns>This builder for fluent configuration.</returns>
-	IMessageTypeMappingBuilder<TMessage> ToAwsSqs(Action<IAwsSqsMappingContext> configure);
-
-	/// <summary>
-	/// Configures AWS SNS-specific mapping for this message type.
-	/// </summary>
-	/// <param name="configure">Action to configure the AWS SNS context.</param>
-	/// <returns>This builder for fluent configuration.</returns>
-	IMessageTypeMappingBuilder<TMessage> ToAwsSns(Action<IAwsSnsMappingContext> configure);
-
-	/// <summary>
-	/// Configures Google Pub/Sub-specific mapping for this message type.
-	/// </summary>
-	/// <param name="configure">Action to configure the Google Pub/Sub context.</param>
-	/// <returns>This builder for fluent configuration.</returns>
-	IMessageTypeMappingBuilder<TMessage> ToGooglePubSub(Action<IGooglePubSubMappingContext> configure);
-
-	/// <summary>
-	/// Configures gRPC-specific mapping for this message type.
-	/// </summary>
-	/// <param name="configure">Action to configure the gRPC context.</param>
-	/// <returns>This builder for fluent configuration.</returns>
-	IMessageTypeMappingBuilder<TMessage> ToGrpc(Action<IGrpcMappingContext> configure);
-
 	/// <summary>
 	/// Configures a custom transport mapping for this message type.
 	/// </summary>
@@ -138,42 +107,20 @@ public interface IMessageTypeMappingBuilder<TMessage>
 /// <summary>
 /// Builder for configuring default mapping behavior.
 /// </summary>
+/// <remarks>
+/// The core interface provides <see cref="ForTransport"/> for custom/generic transport
+/// default configuration. Transport-specific methods (ForRabbitMq, ForKafka, etc.)
+/// are provided as extension methods.
+/// </remarks>
 public interface IDefaultMappingBuilder
 {
 	/// <summary>
-	/// Configures the default RabbitMQ mapping.
+	/// Configures the default mapping for a specific transport.
 	/// </summary>
-	/// <param name="configure">Action to configure the RabbitMQ context.</param>
+	/// <param name="transportName">The name of the transport.</param>
+	/// <param name="configure">Action to configure the transport context.</param>
 	/// <returns>This builder for fluent configuration.</returns>
-	IDefaultMappingBuilder ForRabbitMq(Action<IRabbitMqMappingContext> configure);
-
-	/// <summary>
-	/// Configures the default Kafka mapping.
-	/// </summary>
-	/// <param name="configure">Action to configure the Kafka context.</param>
-	/// <returns>This builder for fluent configuration.</returns>
-	IDefaultMappingBuilder ForKafka(Action<IKafkaMappingContext> configure);
-
-	/// <summary>
-	/// Configures the default Azure Service Bus mapping.
-	/// </summary>
-	/// <param name="configure">Action to configure the Azure Service Bus context.</param>
-	/// <returns>This builder for fluent configuration.</returns>
-	IDefaultMappingBuilder ForAzureServiceBus(Action<IAzureServiceBusMappingContext> configure);
-
-	/// <summary>
-	/// Configures the default AWS SQS mapping.
-	/// </summary>
-	/// <param name="configure">Action to configure the AWS SQS context.</param>
-	/// <returns>This builder for fluent configuration.</returns>
-	IDefaultMappingBuilder ForAwsSqs(Action<IAwsSqsMappingContext> configure);
-
-	/// <summary>
-	/// Configures the default Google Pub/Sub mapping.
-	/// </summary>
-	/// <param name="configure">Action to configure the Google Pub/Sub context.</param>
-	/// <returns>This builder for fluent configuration.</returns>
-	IDefaultMappingBuilder ForGooglePubSub(Action<IGooglePubSubMappingContext> configure);
+	IDefaultMappingBuilder ForTransport(string transportName, Action<ITransportMessageContext> configure);
 }
 
 /// <summary>

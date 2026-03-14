@@ -1,0 +1,189 @@
+#nullable enable
+const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.IteratorExpired = "DYNAMODB_ITERATOR_EXPIRED" -> string!
+const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.ShardClosed = "DYNAMODB_SHARD_CLOSED" -> string!
+const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.ShardNotFound = "DYNAMODB_SHARD_NOT_FOUND" -> string!
+const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.StreamDisabled = "DYNAMODB_STREAM_DISABLED" -> string!
+const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.StreamNotFound = "DYNAMODB_STREAM_NOT_FOUND" -> string!
+const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.TrimmedData = "DYNAMODB_TRIMMED_DATA" -> string!
+const Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.Unknown = "DYNAMODB_UNKNOWN" -> string!
+Excalibur.Cdc.DynamoDb.CdcBuilderDynamoDbExtensions
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.AutoDiscoverShards.get -> bool
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.AutoDiscoverShards.set -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.DynamoDbCdcOptions() -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.MaxBatchSize.get -> int
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.MaxBatchSize.set -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.MaxWaitTime.get -> System.TimeSpan
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.MaxWaitTime.set -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.PollInterval.get -> System.TimeSpan
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.PollInterval.set -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.ProcessorName.get -> string!
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.ProcessorName.set -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.ShardDiscoveryInterval.get -> System.TimeSpan
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.ShardDiscoveryInterval.set -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.StartPosition.get -> Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition?
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.StartPosition.set -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.StreamArn.get -> string?
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.StreamArn.set -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.StreamViewType.get -> Excalibur.Cdc.DynamoDb.DynamoDbStreamViewType
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.StreamViewType.set -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.TableName.get -> string!
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.TableName.set -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions.Validate() -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition
+Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.Equals(Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition? other) -> bool
+Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.IsBeginning.get -> bool
+Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.ShardPositions.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
+Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.StreamArn.get -> string!
+Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.ToBase64() -> string!
+Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.ToBytes() -> byte[]!
+Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.WithoutShard(string! shardId) -> Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition!
+Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.WithShardPosition(string! shardId, string! sequenceNumber) -> Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition!
+Excalibur.Cdc.DynamoDb.DynamoDbCdcProcessor
+Excalibur.Cdc.DynamoDb.DynamoDbCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.DynamoDb.DynamoDbCdcProcessor.Dispose() -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Cdc.DynamoDb.DynamoDbCdcProcessor.DynamoDbCdcProcessor(Amazon.DynamoDBv2.IAmazonDynamoDB! dynamoClient, Amazon.DynamoDBStreams.IAmazonDynamoDBStreams! streamsClient, Excalibur.Cdc.DynamoDb.IDynamoDbCdcStateStore! stateStore, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.DynamoDb.DynamoDbCdcProcessor!>! logger) -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition!>!
+Excalibur.Cdc.DynamoDb.DynamoDbCdcProcessor.ProcessBatchAsync(System.Func<Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Cdc.DynamoDb.DynamoDbCdcProcessor.StartAsync(System.Func<Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions
+Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.AlwaysInvokeCallbackOnReset.get -> bool
+Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.AlwaysInvokeCallbackOnReset.init -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.AutoRefreshExpiredIterators.get -> bool
+Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.AutoRefreshExpiredIterators.init -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.HandleShardSplitsGracefully.get -> bool
+Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.HandleShardSplitsGracefully.init -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.IteratorRefreshInterval.get -> System.TimeSpan
+Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.IteratorRefreshInterval.init -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.MaxRecoveryAttempts.get -> int
+Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.MaxRecoveryAttempts.init -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.OnPositionReset.get -> Excalibur.Cdc.CdcPositionResetHandler?
+Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.OnPositionReset.init -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.RecoveryAttemptDelay.get -> System.TimeSpan
+Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.RecoveryAttemptDelay.init -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.RecoveryStrategy.get -> Excalibur.Cdc.StalePositionRecoveryStrategy
+Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.RecoveryStrategy.init -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcRecoveryOptions.Validate() -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateEntry
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateEntry.DynamoDbCdcStateEntry() -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateEntry.EventCount.get -> long
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateEntry.EventCount.set -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateEntry.PositionData.get -> string!
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateEntry.PositionData.set -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateEntry.ProcessorName.get -> string!
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateEntry.ProcessorName.set -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateEntry.UpdatedAt.get -> System.DateTimeOffset
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateEntry.UpdatedAt.set -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStore
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStore.DeletePositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStore.Dispose() -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStore.DynamoDbCdcStateStore(Amazon.DynamoDBv2.IAmazonDynamoDB! dynamoClient, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStore!>! logger) -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStore.DynamoDbCdcStateStore(Amazon.DynamoDBv2.IAmazonDynamoDB! dynamoClient, string! tableName, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStore!>! logger) -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStore.GetPositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition?>!
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStore.SavePositionAsync(string! processorName, Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStoreOptions
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStoreOptions.DynamoDbCdcStateStoreOptions() -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStoreOptions.TableName.get -> string!
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStoreOptions.TableName.set -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStoreOptions.Validate() -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStoreOptionsValidator
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStoreOptionsValidator.DynamoDbCdcStateStoreOptionsValidator() -> void
+Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStoreOptionsValidator.Validate(string? name, Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStoreOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.ChangeType.get -> Excalibur.Cdc.DynamoDb.DynamoDbDataChangeType
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.ChangeType.init -> void
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.DynamoDbDataChangeEvent() -> void
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.EventId.get -> string?
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.EventId.init -> void
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.Keys.get -> System.Collections.Generic.Dictionary<string!, Amazon.DynamoDBv2.Model.AttributeValue!>!
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.Keys.init -> void
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.NewImage.get -> System.Collections.Generic.Dictionary<string!, Amazon.DynamoDBv2.Model.AttributeValue!>?
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.NewImage.init -> void
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.OldImage.get -> System.Collections.Generic.Dictionary<string!, Amazon.DynamoDBv2.Model.AttributeValue!>?
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.OldImage.init -> void
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.Position.get -> Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition!
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.Position.init -> void
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.SequenceNumber.get -> string!
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.SequenceNumber.init -> void
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.ShardId.get -> string!
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.ShardId.init -> void
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.Timestamp.get -> System.DateTimeOffset
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.Timestamp.init -> void
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeType
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeType.Insert = 0 -> Excalibur.Cdc.DynamoDb.DynamoDbDataChangeType
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeType.Modify = 1 -> Excalibur.Cdc.DynamoDb.DynamoDbDataChangeType
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeType.Remove = 2 -> Excalibur.Cdc.DynamoDb.DynamoDbDataChangeType
+Excalibur.Cdc.DynamoDb.DynamoDbDataChangeTypeExtensions
+Excalibur.Cdc.DynamoDb.DynamoDbStalePositionDetector
+Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException
+Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.DynamoDbStalePositionException() -> void
+Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.DynamoDbStalePositionException(Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs) -> void
+Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.DynamoDbStalePositionException(string! message) -> void
+Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.DynamoDbStalePositionException(string! message, Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs) -> void
+Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.DynamoDbStalePositionException(string! message, System.Exception! innerException) -> void
+Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.EventArgs.get -> Excalibur.Cdc.CdcPositionResetEventArgs?
+Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.ProcessorId.get -> string?
+Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.ReasonCode.get -> string?
+Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.SequenceNumber.get -> string?
+Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.ShardId.get -> string?
+Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.StalePosition.get -> byte[]?
+Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.StreamArn.get -> string?
+Excalibur.Cdc.DynamoDb.DynamoDbStalePositionException.TableName.get -> string?
+Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes
+Excalibur.Cdc.DynamoDb.DynamoDbStreamViewType
+Excalibur.Cdc.DynamoDb.DynamoDbStreamViewType.KeysOnly = 0 -> Excalibur.Cdc.DynamoDb.DynamoDbStreamViewType
+Excalibur.Cdc.DynamoDb.DynamoDbStreamViewType.NewAndOldImages = 3 -> Excalibur.Cdc.DynamoDb.DynamoDbStreamViewType
+Excalibur.Cdc.DynamoDb.DynamoDbStreamViewType.NewImage = 1 -> Excalibur.Cdc.DynamoDb.DynamoDbStreamViewType
+Excalibur.Cdc.DynamoDb.DynamoDbStreamViewType.OldImage = 2 -> Excalibur.Cdc.DynamoDb.DynamoDbStreamViewType
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcProcessor
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition!>!
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcProcessor.ProcessBatchAsync(System.Func<Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcProcessor.StartAsync(System.Func<Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcStateStore
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcStateStore.DeletePositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcStateStore.GetPositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition?>!
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcStateStore.SavePositionAsync(string! processorName, Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.DynamoDb.InMemoryDynamoDbCdcStateStore
+Excalibur.Cdc.DynamoDb.InMemoryDynamoDbCdcStateStore.Clear() -> void
+Excalibur.Cdc.DynamoDb.InMemoryDynamoDbCdcStateStore.DeletePositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.DynamoDb.InMemoryDynamoDbCdcStateStore.Dispose() -> void
+Excalibur.Cdc.DynamoDb.InMemoryDynamoDbCdcStateStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Cdc.DynamoDb.InMemoryDynamoDbCdcStateStore.GetAllPositions() -> System.Collections.Generic.IReadOnlyDictionary<string!, Excalibur.Cdc.DynamoDb.DynamoDbCdcStateEntry!>!
+Excalibur.Cdc.DynamoDb.InMemoryDynamoDbCdcStateStore.GetPositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition?>!
+Excalibur.Cdc.DynamoDb.InMemoryDynamoDbCdcStateStore.InMemoryDynamoDbCdcStateStore() -> void
+Excalibur.Cdc.DynamoDb.InMemoryDynamoDbCdcStateStore.SavePositionAsync(string! processorName, Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Microsoft.Extensions.DependencyInjection.DynamoDbCdcServiceCollectionExtensions
+override Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.Equals(Excalibur.Dispatch.Abstractions.ChangePosition? other) -> bool
+override Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.Equals(object? obj) -> bool
+override Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.GetHashCode() -> int
+override Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.IsValid.get -> bool
+override Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.Timestamp.get -> System.DateTimeOffset?
+override Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.ToString() -> string!
+override Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.ToToken() -> string!
+static Excalibur.Cdc.DynamoDb.CdcBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions!>! configure) -> Excalibur.Cdc.ICdcBuilder!
+static Excalibur.Cdc.DynamoDb.CdcBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions!>! configureCdc, System.Action<Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStoreOptions!>! configureStateStore) -> Excalibur.Cdc.ICdcBuilder!
+static Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.Beginning(string! streamArn) -> Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition!
+static Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.FromBase64(string! base64) -> Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition!
+static Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.FromShardPositions(string! streamArn, System.Collections.Generic.IReadOnlyDictionary<string!, string!>! shardPositions) -> Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition!
+static Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.Now(string! streamArn) -> Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition!
+static Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition.TryFromBase64(string? base64, out Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition? position) -> bool
+static Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.CreateInsert(Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition! position, string! shardId, string! sequenceNumber, System.Collections.Generic.Dictionary<string!, Amazon.DynamoDBv2.Model.AttributeValue!>! keys, System.Collections.Generic.Dictionary<string!, Amazon.DynamoDBv2.Model.AttributeValue!>? newImage, System.DateTimeOffset timestamp, string? eventId) -> Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent!
+static Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.CreateModify(Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition! position, string! shardId, string! sequenceNumber, System.Collections.Generic.Dictionary<string!, Amazon.DynamoDBv2.Model.AttributeValue!>! keys, System.Collections.Generic.Dictionary<string!, Amazon.DynamoDBv2.Model.AttributeValue!>? newImage, System.Collections.Generic.Dictionary<string!, Amazon.DynamoDBv2.Model.AttributeValue!>? oldImage, System.DateTimeOffset timestamp, string? eventId) -> Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent!
+static Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent.CreateRemove(Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition! position, string! shardId, string! sequenceNumber, System.Collections.Generic.Dictionary<string!, Amazon.DynamoDBv2.Model.AttributeValue!>! keys, System.Collections.Generic.Dictionary<string!, Amazon.DynamoDBv2.Model.AttributeValue!>? oldImage, System.DateTimeOffset timestamp, string? eventId) -> Excalibur.Cdc.DynamoDb.DynamoDbDataChangeEvent!
+static Excalibur.Cdc.DynamoDb.DynamoDbDataChangeTypeExtensions.ToCdcChangeType(this Excalibur.Cdc.DynamoDb.DynamoDbDataChangeType changeType) -> Excalibur.Cdc.CdcChangeType
+static Excalibur.Cdc.DynamoDb.DynamoDbStalePositionDetector.CreateEventArgs(System.Exception! exception, string! processorId, Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition? stalePosition = null, Excalibur.Cdc.DynamoDb.DynamoDbCdcPosition? newPosition = null, string? streamArn = null, string? tableName = null, string? shardId = null, string? sequenceNumber = null) -> Excalibur.Cdc.CdcPositionResetEventArgs!
+static Excalibur.Cdc.DynamoDb.DynamoDbStalePositionDetector.GetReasonCode(System.Exception? exception) -> string!
+static Excalibur.Cdc.DynamoDb.DynamoDbStalePositionDetector.GetStalePositionExceptionType(System.Exception? exception) -> string?
+static Excalibur.Cdc.DynamoDb.DynamoDbStalePositionDetector.IsStalePositionException(System.Exception? exception) -> bool
+static Excalibur.Cdc.DynamoDb.DynamoDbStalePositionDetector.StalePositionExceptionTypes.get -> System.Collections.Generic.IReadOnlySet<string!>!
+static Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.FromErrorMessage(string? errorMessage) -> string!
+static Excalibur.Cdc.DynamoDb.DynamoDbStalePositionReasonCodes.FromExceptionType(string? exceptionTypeName) -> string!
+static Microsoft.Extensions.DependencyInjection.DynamoDbCdcServiceCollectionExtensions.AddDynamoDbCdc(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DynamoDbCdcServiceCollectionExtensions.AddDynamoDbCdc(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! sectionName) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DynamoDbCdcServiceCollectionExtensions.AddDynamoDbCdc(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.DynamoDb.DynamoDbCdcOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DynamoDbCdcServiceCollectionExtensions.AddDynamoDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! tableName, System.Action<Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DynamoDbCdcServiceCollectionExtensions.AddDynamoDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DynamoDbCdcServiceCollectionExtensions.AddInMemoryDynamoDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -31,7 +31,7 @@ public sealed class ResiliencePolicyIntegrationShould : IntegrationTestBase
 
 		var activeCount = 0;
 		var maxConcurrent = 0;
-		var operationGate = new TaskCompletionSource<bool>();
+		var operationGate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		// Act - Start 5 operations, but only 2 should run concurrently
 		var tasks = Enumerable.Range(0, 5).Select(async i =>
@@ -56,8 +56,15 @@ public sealed class ResiliencePolicyIntegrationShould : IntegrationTestBase
 			}, TestCancellationToken).ConfigureAwait(false);
 		}).ToList();
 
+		var concurrencyReached = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+				() => Volatile.Read(ref activeCount) == options.MaxConcurrency,
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
+				TimeSpan.FromMilliseconds(10),
+				TestCancellationToken)
+			.ConfigureAwait(false);
+		concurrencyReached.ShouldBeTrue("Expected the bulkhead to reach its configured concurrency before releasing the gate.");
+
 		// Allow operations to proceed
-		await Task.Delay(100, TestCancellationToken).ConfigureAwait(false);
 		operationGate.SetResult(true);
 		await Task.WhenAll(tasks).ConfigureAwait(false);
 
@@ -77,8 +84,8 @@ public sealed class ResiliencePolicyIntegrationShould : IntegrationTestBase
 		};
 		using var bulkhead = new BulkheadPolicy("reject-test", options);
 
-		var blockedGate = new TaskCompletionSource<bool>();
-		var blockingStarted = new TaskCompletionSource<bool>();
+		var blockedGate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+		var blockingStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var rejectedCount = 0;
 
 		// Act - Start first operation to block the semaphore
@@ -93,7 +100,7 @@ public sealed class ResiliencePolicyIntegrationShould : IntegrationTestBase
 		_ = await blockingStarted.Task.ConfigureAwait(false);
 
 		// Start a second operation that will queue (waits on the semaphore)
-		var queuingStarted = new TaskCompletionSource<bool>();
+		var queuingStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var queuingTask = Task.Run(async () =>
 		{
 			queuingStarted.SetResult(true);
@@ -106,7 +113,13 @@ public sealed class ResiliencePolicyIntegrationShould : IntegrationTestBase
 
 		// Wait for the queuing task to have started (it will be waiting on the semaphore)
 		_ = await queuingStarted.Task.ConfigureAwait(false);
-		await Task.Delay(100, TestCancellationToken).ConfigureAwait(false);
+		var queueObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+				() => bulkhead.GetMetrics().QueueLength >= 1,
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
+				TimeSpan.FromMilliseconds(10),
+				TestCancellationToken)
+			.ConfigureAwait(false);
+		queueObserved.ShouldBeTrue("Expected one operation to be queued before verifying bulkhead rejections.");
 
 		// Now launch additional operations that should all be rejected (slot full + queue full)
 		var rejectionTasks = new List<Task>();

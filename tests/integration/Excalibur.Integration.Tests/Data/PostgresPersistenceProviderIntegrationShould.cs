@@ -214,9 +214,12 @@ public class PostgresPersistenceProviderIntegrationShould
 			Name = "postgres-test",
 			CommandTimeout = 30,
 			ConnectTimeout = 15,
-			MaxPoolSize = 10,
-			MinPoolSize = 1,
-			EnablePooling = true,
+			Pool =
+			{
+				MaxPoolSize = 10,
+				MinPoolSize = 1,
+				EnablePooling = true,
+			},
 			RetryCount = 3,
 			UseDataSource = true
 		});

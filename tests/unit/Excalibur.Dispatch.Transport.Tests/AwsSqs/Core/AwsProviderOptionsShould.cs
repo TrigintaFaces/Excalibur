@@ -17,17 +17,17 @@ public sealed class AwsProviderOptionsShould
 
 		// Assert
 		options.Region.ShouldBe("us-east-1");
-		options.Credentials.ShouldBeNull();
-		options.ServiceUrl.ShouldBeNull();
-		options.UseLocalStack.ShouldBeFalse();
-		options.LocalStackUrl.ShouldNotBeNull();
-		options.LocalStackUrl!.ToString().ShouldBe("http://localhost:4566/");
+		options.Connection.Credentials.ShouldBeNull();
+		options.Connection.ServiceUrl.ShouldBeNull();
+		options.Connection.UseLocalStack.ShouldBeFalse();
+		options.Connection.LocalStackUrl.ShouldNotBeNull();
+		options.Connection.LocalStackUrl!.ToString().ShouldBe("http://localhost:4566/");
 		options.MaxRetries.ShouldBe(3);
 		options.RequestTimeout.ShouldBe(TimeSpan.FromSeconds(30));
-		options.ValidateOnStartup.ShouldBeTrue();
-		options.VisibilityTimeout.ShouldBe(TimeSpan.FromSeconds(30));
-		options.WaitTimeSeconds.ShouldBe(TimeSpan.FromSeconds(20));
-		options.MaxNumberOfMessages.ShouldBe(10);
+		options.Connection.ValidateOnStartup.ShouldBeTrue();
+		options.Consumer.VisibilityTimeout.ShouldBe(TimeSpan.FromSeconds(30));
+		options.Consumer.WaitTimeSeconds.ShouldBe(TimeSpan.FromSeconds(20));
+		options.Consumer.MaxNumberOfMessages.ShouldBe(10);
 		options.EnableDeduplication.ShouldBeFalse();
 		options.EnableEncryption.ShouldBeFalse();
 		options.KmsKeyId.ShouldBeNull();
@@ -49,13 +49,16 @@ public sealed class AwsProviderOptionsShould
 		// Arrange & Act
 		var options = new AwsProviderOptions
 		{
-			UseLocalStack = true,
-			LocalStackUrl = new Uri("http://localstack:4566"),
+			Connection = new AwsSqsConnectionOptions
+			{
+				UseLocalStack = true,
+				LocalStackUrl = new Uri("http://localstack:4566"),
+			},
 		};
 
 		// Assert
-		options.UseLocalStack.ShouldBeTrue();
-		options.LocalStackUrl!.ToString().ShouldBe("http://localstack:4566/");
+		options.Connection.UseLocalStack.ShouldBeTrue();
+		options.Connection.LocalStackUrl!.ToString().ShouldBe("http://localstack:4566/");
 	}
 
 	[Fact]

@@ -58,19 +58,19 @@ public partial class PoisonMessageCleanupService : BackgroundService
 	/// <inheritdoc />
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
-		if (!_options.EnableAutoCleanup)
+		if (!_options.Cleanup.EnableAutoCleanup)
 		{
 			LogPoisonMessageAutoCleanupDisabled();
 			return;
 		}
 
-		LogPoisonMessageCleanupServiceStarted(_options.AutoCleanupInterval, _options.DeadLetterRetentionPeriod);
+		LogPoisonMessageCleanupServiceStarted(_options.Cleanup.AutoCleanupInterval, _options.Cleanup.DeadLetterRetentionPeriod);
 
 		while (!stoppingToken.IsCancellationRequested)
 		{
 			try
 			{
-				await Task.Delay(_options.AutoCleanupInterval, stoppingToken).ConfigureAwait(false);
+				await Task.Delay(_options.Cleanup.AutoCleanupInterval, stoppingToken).ConfigureAwait(false);
 
 				if (stoppingToken.IsCancellationRequested)
 				{
@@ -113,7 +113,7 @@ public partial class PoisonMessageCleanupService : BackgroundService
 
 		try
 		{
-			var retentionDays = (int)_options.DeadLetterRetentionPeriod.TotalDays;
+			var retentionDays = (int)_options.Cleanup.DeadLetterRetentionPeriod.TotalDays;
 			var cleanedCount = await _deadLetterStore.CleanupOldMessagesAsync(retentionDays, cancellationToken)
 				.ConfigureAwait(false);
 
@@ -138,7 +138,7 @@ public partial class PoisonMessageCleanupService : BackgroundService
 	/// </summary>
 	private async Task CheckAlertThresholdAsync(CancellationToken cancellationToken)
 	{
-		if (!_options.EnableAlerting)
+		if (!_options.Alerting.EnableAlerting)
 		{
 			return;
 		}
@@ -150,9 +150,9 @@ public partial class PoisonMessageCleanupService : BackgroundService
 			var statistics = await _poisonMessageHandler.GetStatisticsAsync(cancellationToken)
 				.ConfigureAwait(false);
 
-			if (statistics.RecentCount >= _options.AlertThreshold)
+			if (statistics.RecentCount >= _options.Alerting.AlertThreshold)
 			{
-				LogPoisonMessageAlertThresholdExceeded(statistics.RecentCount, _options.AlertThreshold, _options.AlertTimeWindow);
+				LogPoisonMessageAlertThresholdExceeded(statistics.RecentCount, _options.Alerting.AlertThreshold, _options.Alerting.AlertTimeWindow);
 
 				// Log details about the most common issues
 				if (statistics.MessagesByType.Count != 0)
@@ -181,7 +181,7 @@ public partial class PoisonMessageCleanupService : BackgroundService
 
 				_ = (activity?.SetTag("alert.triggered", value: true));
 				_ = (activity?.SetTag("alert.recent_count", statistics.RecentCount));
-				_ = (activity?.SetTag("alert.threshold", _options.AlertThreshold));
+				_ = (activity?.SetTag("alert.threshold", _options.Alerting.AlertThreshold));
 			}
 		}
 		catch (Exception ex)

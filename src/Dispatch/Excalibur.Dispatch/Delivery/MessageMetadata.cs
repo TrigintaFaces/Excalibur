@@ -5,6 +5,7 @@
 using System.Globalization;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 
 namespace Excalibur.Dispatch.Delivery;
 
@@ -87,9 +88,10 @@ public readonly struct MessageMetadata(
 		ArgumentNullException.ThrowIfNull(context);
 		var messageId = Guid.TryParse(context.MessageId, out var mid) ? mid : Guid.NewGuid();
 		var correlationId = context.CorrelationId is { } cid && Guid.TryParse(cid, out var guid2) ? guid2 : Guid.NewGuid();
-		var timestampTicks = context.ReceivedTimestampUtc.Ticks;
+		var receivedTimestamp = context.GetReceivedTimestampUtc() ?? default;
+		var timestampTicks = receivedTimestamp.Ticks;
 		var flags = context.GetItem("Flags", MessageFlags.None);
-		var deliveryCount = (byte)context.DeliveryCount;
+		var deliveryCount = (byte)context.GetDeliveryCount();
 		var priority = context.GetItem<byte>("Priority", 0);
 		var version = context.GetItem<ushort>("Version", 1);
 

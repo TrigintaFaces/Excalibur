@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Jobs.Coordination;
+using Excalibur.Jobs.Abstractions.Coordination;
 using Excalibur.Jobs.SqlServer;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -33,7 +33,6 @@ public static class SqlServerJobCoordinatorServiceCollectionExtensions
 			.ValidateOnStart();
 
 		_ = services.AddSingleton<SqlServerJobCoordinator>();
-		_ = services.AddSingleton<IJobCoordinator>(sp => sp.GetRequiredService<SqlServerJobCoordinator>());
 		_ = services.AddSingleton<IJobLockProvider>(sp => sp.GetRequiredService<SqlServerJobCoordinator>());
 		_ = services.AddSingleton<IJobRegistry>(sp => sp.GetRequiredService<SqlServerJobCoordinator>());
 		_ = services.AddSingleton<IJobDistributor>(sp => sp.GetRequiredService<SqlServerJobCoordinator>());

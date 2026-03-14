@@ -3,6 +3,7 @@
 
 
 using System.ComponentModel.DataAnnotations;
+using Microsoft.Extensions.Options;
 
 namespace Excalibur.Dispatch.Options.ErrorHandling;
 
@@ -31,28 +32,6 @@ public sealed class PoisonMessageOptions
 	/// The maximum processing time before a message is considered poison.
 	/// </value>
 	public TimeSpan MaxProcessingTime { get; set; } = TimeSpan.FromMinutes(5);
-
-	/// <summary>
-	/// Gets or sets the retention period for dead letter messages.
-	/// </summary>
-	/// <value>
-	/// The retention period for dead letter messages.
-	/// </value>
-	public TimeSpan DeadLetterRetentionPeriod { get; set; } = TimeSpan.FromDays(30);
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to automatically clean up old dead letter messages.
-	/// </summary>
-	/// <value>The current <see cref="EnableAutoCleanup"/> value.</value>
-	public bool EnableAutoCleanup { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the interval for automatic cleanup of old dead letter messages.
-	/// </summary>
-	/// <value>
-	/// The interval for automatic cleanup of old dead letter messages.
-	/// </value>
-	public TimeSpan AutoCleanupInterval { get; set; } = TimeSpan.FromDays(1);
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to capture full exception details in dead letter messages.
@@ -90,6 +69,55 @@ public sealed class PoisonMessageOptions
 	/// <value>The current <see cref="EnableMetrics"/> value.</value>
 	public bool EnableMetrics { get; set; } = true;
 
+	/// <summary>
+	/// Gets or sets the cleanup configuration for dead letter messages.
+	/// </summary>
+	/// <value>The cleanup configuration options.</value>
+	[ValidateObjectMembers]
+	public PoisonMessageCleanupOptions Cleanup { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the alerting configuration for poison messages.
+	/// </summary>
+	/// <value>The alerting configuration options.</value>
+	[ValidateObjectMembers]
+	public PoisonMessageAlertingOptions Alerting { get; set; } = new();
+
+}
+
+/// <summary>
+/// Configuration options for dead letter message cleanup.
+/// </summary>
+public sealed class PoisonMessageCleanupOptions
+{
+	/// <summary>
+	/// Gets or sets the retention period for dead letter messages.
+	/// </summary>
+	/// <value>
+	/// The retention period for dead letter messages.
+	/// </value>
+	public TimeSpan DeadLetterRetentionPeriod { get; set; } = TimeSpan.FromDays(30);
+
+	/// <summary>
+	/// Gets or sets a value indicating whether to automatically clean up old dead letter messages.
+	/// </summary>
+	/// <value>The current <see cref="EnableAutoCleanup"/> value.</value>
+	public bool EnableAutoCleanup { get; set; } = true;
+
+	/// <summary>
+	/// Gets or sets the interval for automatic cleanup of old dead letter messages.
+	/// </summary>
+	/// <value>
+	/// The interval for automatic cleanup of old dead letter messages.
+	/// </value>
+	public TimeSpan AutoCleanupInterval { get; set; } = TimeSpan.FromDays(1);
+}
+
+/// <summary>
+/// Configuration options for poison message alerting.
+/// </summary>
+public sealed class PoisonMessageAlertingOptions
+{
 	/// <summary>
 	/// Gets or sets a value indicating whether to enable alerting for poison messages.
 	/// </summary>

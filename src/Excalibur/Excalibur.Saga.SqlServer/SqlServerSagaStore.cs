@@ -3,7 +3,7 @@
 
 using Excalibur.Data.Abstractions;
 using Excalibur.Dispatch.Abstractions.Messaging;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Saga.SqlServer.Requests;
 
 using Microsoft.Data.SqlClient;
@@ -32,7 +32,7 @@ public sealed class SqlServerSagaStore : ISagaStore
 {
 	private readonly Func<SqlConnection> _connectionFactory;
 	private readonly ILogger<SqlServerSagaStore> _logger;
-	private readonly IJsonSerializer _serializer;
+	private readonly DispatchJsonSerializer _serializer;
 	private readonly SqlServerSagaStoreOptions _options;
 
 	/// <summary>
@@ -43,13 +43,13 @@ public sealed class SqlServerSagaStore : ISagaStore
 	/// <param name="serializer">The JSON serializer for saga state serialization.</param>
 	/// <remarks>
 	/// This is the simple constructor for most users.
-	/// Use <see cref="SqlServerSagaStore(Func{SqlConnection}, ILogger{SqlServerSagaStore}, IJsonSerializer)"/>
+	/// Use <see cref="SqlServerSagaStore(Func{SqlConnection}, ILogger{SqlServerSagaStore}, DispatchJsonSerializer)"/>
 	/// for advanced scenarios like multi-database setups or custom connection pooling.
 	/// </remarks>
 	public SqlServerSagaStore(
 		string connectionString,
 		ILogger<SqlServerSagaStore> logger,
-		IJsonSerializer serializer)
+		DispatchJsonSerializer serializer)
 		: this(CreateConnectionFactory(connectionString),
 			new SqlServerSagaStoreOptions(),
 			logger,
@@ -68,7 +68,7 @@ public sealed class SqlServerSagaStore : ISagaStore
 		string connectionString,
 		IOptions<SqlServerSagaStoreOptions> options,
 		ILogger<SqlServerSagaStore> logger,
-		IJsonSerializer serializer)
+		DispatchJsonSerializer serializer)
 		: this(CreateConnectionFactory(connectionString),
 			options?.Value ?? throw new ArgumentNullException(nameof(options)),
 			logger,
@@ -107,7 +107,7 @@ public sealed class SqlServerSagaStore : ISagaStore
 	public SqlServerSagaStore(
 		Func<SqlConnection> connectionFactory,
 		ILogger<SqlServerSagaStore> logger,
-		IJsonSerializer serializer)
+		DispatchJsonSerializer serializer)
 		: this(connectionFactory,
 			new SqlServerSagaStoreOptions(),
 			logger,
@@ -129,7 +129,7 @@ public sealed class SqlServerSagaStore : ISagaStore
 		Func<SqlConnection> connectionFactory,
 		IOptions<SqlServerSagaStoreOptions> options,
 		ILogger<SqlServerSagaStore> logger,
-		IJsonSerializer serializer)
+		DispatchJsonSerializer serializer)
 		: this(connectionFactory,
 			options?.Value ?? throw new ArgumentNullException(nameof(options)),
 			logger,
@@ -141,7 +141,7 @@ public sealed class SqlServerSagaStore : ISagaStore
 		Func<SqlConnection> connectionFactory,
 		SqlServerSagaStoreOptions options,
 		ILogger<SqlServerSagaStore> logger,
-		IJsonSerializer serializer)
+		DispatchJsonSerializer serializer)
 	{
 		_connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
 		_options = options ?? throw new ArgumentNullException(nameof(options));

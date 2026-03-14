@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Cdc.CosmosDb;
 using Excalibur.Data.CosmosDb;
-namespace Excalibur.Data.Tests.CosmosDb.Cdc;
+
+namespace Excalibur.Data.Tests.CosmosDb;
 
 /// <summary>
 /// Unit tests for <see cref="CosmosDbCdcOptions"/>.
@@ -23,15 +25,15 @@ public sealed class CosmosDbCdcOptionsShould : UnitTestBase
 		options.DatabaseId.ShouldBe(string.Empty);
 		options.ContainerId.ShouldBe(string.Empty);
 		options.ProcessorName.ShouldBe("cdc-processor");
-		options.Mode.ShouldBe(CosmosDbCdcMode.LatestVersion);
-		options.StartPosition.ShouldBeNull();
-		options.MaxBatchSize.ShouldBe(100);
-		options.PollInterval.ShouldBe(TimeSpan.FromSeconds(5));
-		options.MaxWaitTime.ShouldBe(TimeSpan.FromSeconds(30));
+		options.ChangeFeed.Mode.ShouldBe(CosmosDbCdcMode.LatestVersion);
+		options.ChangeFeed.StartPosition.ShouldBeNull();
+		options.ChangeFeed.MaxBatchSize.ShouldBe(100);
+		options.ChangeFeed.PollInterval.ShouldBe(TimeSpan.FromSeconds(5));
+		options.ChangeFeed.MaxWaitTime.ShouldBe(TimeSpan.FromSeconds(30));
 		options.PartitionKeyPath.ShouldBeNull();
 		options.PartitionKeyValues.ShouldBeNull();
-		options.IncludeTimestamp.ShouldBeTrue();
-		options.IncludeLsn.ShouldBeTrue();
+		options.ChangeFeed.IncludeTimestamp.ShouldBeTrue();
+		options.ChangeFeed.IncludeLsn.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -123,7 +125,7 @@ public sealed class CosmosDbCdcOptionsShould : UnitTestBase
 			ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=test==",
 			DatabaseId = "TestDb",
 			ContainerId = "TestContainer",
-			MaxBatchSize = maxBatchSize
+			ChangeFeed = { MaxBatchSize = maxBatchSize }
 		};
 
 		// Act & Assert
@@ -140,7 +142,7 @@ public sealed class CosmosDbCdcOptionsShould : UnitTestBase
 			ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=test==",
 			DatabaseId = "TestDb",
 			ContainerId = "TestContainer",
-			PollInterval = TimeSpan.Zero
+			ChangeFeed = { PollInterval = TimeSpan.Zero }
 		};
 
 		// Act & Assert
@@ -157,7 +159,7 @@ public sealed class CosmosDbCdcOptionsShould : UnitTestBase
 			ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=test==",
 			DatabaseId = "TestDb",
 			ContainerId = "TestContainer",
-			MaxWaitTime = TimeSpan.FromSeconds(-1)
+			ChangeFeed = { MaxWaitTime = TimeSpan.FromSeconds(-1) }
 		};
 
 		// Act & Assert
@@ -178,15 +180,18 @@ public sealed class CosmosDbCdcOptionsShould : UnitTestBase
 			DatabaseId = "CustomDb",
 			ContainerId = "CustomContainer",
 			ProcessorName = "custom-processor",
-			Mode = CosmosDbCdcMode.AllVersionsAndDeletes,
-			StartPosition = startPosition,
-			MaxBatchSize = 500,
-			PollInterval = TimeSpan.FromSeconds(10),
-			MaxWaitTime = TimeSpan.FromMinutes(1),
 			PartitionKeyPath = "/tenantId",
 			PartitionKeyValues = ["tenant1", "tenant2"],
-			IncludeTimestamp = false,
-			IncludeLsn = false
+			ChangeFeed =
+			{
+				Mode = CosmosDbCdcMode.AllVersionsAndDeletes,
+				StartPosition = startPosition,
+				MaxBatchSize = 500,
+				PollInterval = TimeSpan.FromSeconds(10),
+				MaxWaitTime = TimeSpan.FromMinutes(1),
+				IncludeTimestamp = false,
+				IncludeLsn = false
+			}
 		};
 
 		// Assert
@@ -194,16 +199,16 @@ public sealed class CosmosDbCdcOptionsShould : UnitTestBase
 		options.DatabaseId.ShouldBe("CustomDb");
 		options.ContainerId.ShouldBe("CustomContainer");
 		options.ProcessorName.ShouldBe("custom-processor");
-		options.Mode.ShouldBe(CosmosDbCdcMode.AllVersionsAndDeletes);
-		options.StartPosition.ShouldBe(startPosition);
-		options.MaxBatchSize.ShouldBe(500);
-		options.PollInterval.ShouldBe(TimeSpan.FromSeconds(10));
-		options.MaxWaitTime.ShouldBe(TimeSpan.FromMinutes(1));
+		options.ChangeFeed.Mode.ShouldBe(CosmosDbCdcMode.AllVersionsAndDeletes);
+		options.ChangeFeed.StartPosition.ShouldBe(startPosition);
+		options.ChangeFeed.MaxBatchSize.ShouldBe(500);
+		options.ChangeFeed.PollInterval.ShouldBe(TimeSpan.FromSeconds(10));
+		options.ChangeFeed.MaxWaitTime.ShouldBe(TimeSpan.FromMinutes(1));
 		options.PartitionKeyPath.ShouldBe("/tenantId");
 		options.PartitionKeyValues.ShouldContain("tenant1");
 		options.PartitionKeyValues.ShouldContain("tenant2");
-		options.IncludeTimestamp.ShouldBeFalse();
-		options.IncludeLsn.ShouldBeFalse();
+		options.ChangeFeed.IncludeTimestamp.ShouldBeFalse();
+		options.ChangeFeed.IncludeLsn.ShouldBeFalse();
 	}
 
 	[Theory]

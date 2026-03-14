@@ -14,7 +14,6 @@ Excalibur provides building blocks for domain-driven design (DDD): **aggregates*
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Domain
-  dotnet add package Excalibur.Dispatch.Abstractions
   ```
 - Familiarity with [event sourcing](../event-sourcing/index.md) concepts if using event-sourced aggregates
 
@@ -88,7 +87,7 @@ public class Order : AggregateRoot<Guid>
 
 ### 3. Use Events for State Changes
 
-All state changes happen through domain events. Events extend the `DomainEventBase` abstract record:
+All state changes happen through domain events. Events extend the `DomainEvent` abstract record:
 
 ```csharp
 // 1. Validate and raise event
@@ -179,18 +178,18 @@ public class Order : AggregateRoot<Guid>
     }
 }
 
-// Domain Events extend DomainEventBase abstract record
-public record OrderCreated(Guid OrderId, string CustomerId) : DomainEventBase
+// Domain Events extend DomainEvent abstract record
+public record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
 
-public record OrderLineAdded(Guid OrderId, string ProductId, int Quantity, decimal UnitPrice) : DomainEventBase
+public record OrderLineAdded(Guid OrderId, string ProductId, int Quantity, decimal UnitPrice) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
 
-public record OrderSubmitted(Guid OrderId) : DomainEventBase
+public record OrderSubmitted(Guid OrderId) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }

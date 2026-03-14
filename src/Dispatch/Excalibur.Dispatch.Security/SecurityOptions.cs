@@ -14,6 +14,60 @@ namespace Excalibur.Dispatch.Security;
 public sealed class SecurityOptions
 {
 	/// <summary>
+	/// Gets or sets the encryption configuration options.
+	/// </summary>
+	/// <value>
+	/// The encryption configuration options.
+	/// </value>
+	public SecurityEncryptionOptions Encryption { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the message signing configuration options.
+	/// </summary>
+	/// <value>
+	/// The message signing configuration options.
+	/// </value>
+	public SecuritySigningOptions Signing { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the rate limiting configuration options.
+	/// </summary>
+	/// <value>
+	/// The rate limiting configuration options.
+	/// </value>
+	public SecurityRateLimitOptions RateLimiting { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the authentication configuration options.
+	/// </summary>
+	/// <value>
+	/// The authentication configuration options.
+	/// </value>
+	public SecurityAuthenticationOptions Authentication { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets a value indicating whether security headers should be added to responses.
+	/// </summary>
+	/// <value>
+	/// <see langword="true"/> if security headers should be added to responses; otherwise, <see langword="false"/>. The default is <see langword="true"/>.
+	/// </value>
+	public bool EnableSecurityHeaders { get; set; } = true;
+
+	/// <summary>
+	/// Gets or initializes custom security headers to add to responses.
+	/// </summary>
+	/// <value>
+	/// A dictionary of custom security headers to add to responses, or an empty dictionary if no custom headers are configured.
+	/// </value>
+	public IDictionary<string, string> CustomHeaders { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
+}
+
+/// <summary>
+/// Encryption configuration options for security.
+/// </summary>
+public sealed class SecurityEncryptionOptions
+{
+	/// <summary>
 	/// Gets or sets a value indicating whether message encryption is enabled.
 	/// </summary>
 	/// <value>
@@ -44,7 +98,13 @@ public sealed class SecurityOptions
 	/// The AWS KMS key ARN for encryption key management, or <see langword="null"/> if not configured.
 	/// </value>
 	public string? AwsKmsKeyArn { get; set; }
+}
 
+/// <summary>
+/// Message signing configuration options for security.
+/// </summary>
+public sealed class SecuritySigningOptions
+{
 	/// <summary>
 	/// Gets or sets a value indicating whether message signing is enabled.
 	/// </summary>
@@ -60,7 +120,13 @@ public sealed class SecurityOptions
 	/// The signing algorithm to use for message signatures. The default is <see cref="SigningAlgorithm.HMACSHA256"/>.
 	/// </value>
 	public SigningAlgorithm SigningAlgorithm { get; set; } = SigningAlgorithm.HMACSHA256;
+}
 
+/// <summary>
+/// Rate limiting configuration options for security.
+/// </summary>
+public sealed class SecurityRateLimitOptions
+{
 	/// <summary>
 	/// Gets or sets a value indicating whether rate limiting is enabled.
 	/// </summary>
@@ -84,7 +150,13 @@ public sealed class SecurityOptions
 	/// The default rate limiting parameters to apply when no specific limits are configured.
 	/// </value>
 	public RateLimits DefaultRateLimits { get; set; } = new();
+}
 
+/// <summary>
+/// Authentication configuration options for security.
+/// </summary>
+public sealed class SecurityAuthenticationOptions
+{
 	/// <summary>
 	/// Gets or sets a value indicating whether authentication is enabled.
 	/// </summary>
@@ -124,20 +196,4 @@ public sealed class SecurityOptions
 	/// The JWT token signing key for authentication validation, or <see langword="null"/> if not configured.
 	/// </value>
 	public string? JwtSigningKey { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether security headers should be added to responses.
-	/// </summary>
-	/// <value>
-	/// <see langword="true"/> if security headers should be added to responses; otherwise, <see langword="false"/>. The default is <see langword="true"/>.
-	/// </value>
-	public bool EnableSecurityHeaders { get; set; } = true;
-
-	/// <summary>
-	/// Gets or initializes custom security headers to add to responses.
-	/// </summary>
-	/// <value>
-	/// A dictionary of custom security headers to add to responses, or an empty dictionary if no custom headers are configured.
-	/// </value>
-	public IDictionary<string, string> CustomHeaders { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
 }

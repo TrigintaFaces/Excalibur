@@ -446,18 +446,18 @@ public sealed partial class DynamoDbGrantStore : IGrantStore, IGrantQueryStore, 
 			MaxErrorRetry = _options.MaxRetryAttempts
 		};
 
-		if (!string.IsNullOrWhiteSpace(_options.ServiceUrl))
+		if (!string.IsNullOrWhiteSpace(_options.Connection.ServiceUrl))
 		{
-			config.ServiceURL = _options.ServiceUrl;
+			config.ServiceURL = _options.Connection.ServiceUrl;
 		}
 		else if (_options.GetRegionEndpoint() is { } region)
 		{
 			config.RegionEndpoint = region;
 		}
 
-		if (!string.IsNullOrWhiteSpace(_options.AccessKey) && !string.IsNullOrWhiteSpace(_options.SecretKey))
+		if (!string.IsNullOrWhiteSpace(_options.Connection.AccessKey) && !string.IsNullOrWhiteSpace(_options.Connection.SecretKey))
 		{
-			var credentials = new BasicAWSCredentials(_options.AccessKey, _options.SecretKey);
+			var credentials = new BasicAWSCredentials(_options.Connection.AccessKey, _options.Connection.SecretKey);
 			return new AmazonDynamoDBClient(credentials, config);
 		}
 

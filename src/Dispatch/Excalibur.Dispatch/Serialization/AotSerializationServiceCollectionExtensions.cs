@@ -4,7 +4,6 @@
 
 using System.Text.Json.Serialization;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.CloudEvents;
 using Excalibur.Dispatch.Serialization;
 
@@ -30,15 +29,11 @@ public static class AotSerializationServiceCollectionExtensions
 		services.TryAddSingleton(_ =>
 			context ?? CoreMessageJsonContext.Default);
 
-		services.TryAddSingleton<IMessageSerializer>(sp =>
+		services.TryAddSingleton(sp =>
 		{
 			var ctx = sp.GetService<JsonSerializerContext>();
 			return new AotJsonSerializer(ctx);
 		});
-
-		services.TryAddSingleton(sp =>
-			sp.GetRequiredService<IMessageSerializer>() as IBinaryMessageSerializer
-			?? throw new InvalidOperationException("Registered IMessageSerializer does not implement IBinaryMessageSerializer"));
 
 		return services;
 	}
@@ -64,12 +59,8 @@ public static class AotSerializationServiceCollectionExtensions
 		this IServiceCollection services,
 		params JsonSerializerContext[] contexts)
 	{
-		services.TryAddSingleton<IMessageSerializer>(_ =>
+		services.TryAddSingleton(_ =>
 			new CompositeAotJsonSerializer(contexts));
-
-		services.TryAddSingleton(sp =>
-			sp.GetRequiredService<IMessageSerializer>() as IBinaryMessageSerializer
-			?? throw new InvalidOperationException("Registered IMessageSerializer does not implement IBinaryMessageSerializer"));
 
 		return services;
 	}

@@ -207,13 +207,13 @@ public static class GooglePubSubTransportServiceCollectionExtensions
 				options.ProjectId = transportOptions.ProjectId ?? string.Empty;
 				options.TopicId = transportOptions.TopicId ?? string.Empty;
 				options.SubscriptionId = transportOptions.SubscriptionId ?? string.Empty;
-				options.MaxPullMessages = transportOptions.MaxPullMessages;
-				options.AckDeadlineSeconds = transportOptions.AckDeadlineSeconds;
-				options.EnableAutoAckExtension = transportOptions.EnableAutoAckExtension;
+				options.Subscriber.MaxPullMessages = transportOptions.MaxPullMessages;
+				options.Subscriber.AckDeadlineSeconds = transportOptions.AckDeadlineSeconds;
+				options.Subscriber.EnableAutoAckExtension = transportOptions.EnableAutoAckExtension;
 				options.MaxConcurrentMessages = transportOptions.MaxConcurrentMessages;
-				options.EnableDeadLetterTopic = transportOptions.EnableDeadLetterTopic;
-				options.DeadLetterTopicId = transportOptions.DeadLetterTopicId;
-				options.EnableOpenTelemetry = transportOptions.EnableOpenTelemetry;
+				options.Subscriber.EnableDeadLetterTopic = transportOptions.EnableDeadLetterTopic;
+				options.Subscriber.DeadLetterTopicId = transportOptions.DeadLetterTopicId;
+				options.Telemetry.EnableOpenTelemetry = transportOptions.EnableOpenTelemetry;
 			})
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
@@ -363,8 +363,8 @@ public interface IGooglePubSubTransportBuilder
 	///     ce.UseOrderingKeys = true;
 	///     ce.UseExactlyOnceDelivery = true;
 	///     ce.EnableDeduplication = true;
-	///     ce.EnableCompression = true;
-	///     ce.CompressionThreshold = 1024 * 1024;
+	///     ce.Transport.EnableCompression = true;
+	///     ce.Transport.CompressionThreshold = 1024 * 1024;
 	/// });
 	/// </code>
 	/// </example>

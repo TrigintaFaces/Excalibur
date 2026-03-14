@@ -29,17 +29,27 @@ dotnet add package Excalibur.EventSourcing.SqlServer
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-// Combined registration (event store + snapshot store + outbox)
-services.AddSqlServerEventSourcing(connectionString);
-
-// Or with options
-services.AddSqlServerEventSourcing(options =>
+// Recommended: Builder-integrated registration
+services.AddExcaliburEventSourcing(es =>
 {
-    options.ConnectionString = connectionString;
-    options.EventStoreSchema = "es";
-    options.SnapshotStoreSchema = "es";
-    options.OutboxSchema = "es";
+    es.UseSqlServer(connectionString)
+      .AddRepository<OrderAggregate, Guid>();
 });
+
+// Or with detailed options
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UseSqlServer(options =>
+    {
+        options.ConnectionString = connectionString;
+        options.EventStoreSchema = "es";
+        options.SnapshotStoreSchema = "es";
+        options.OutboxSchema = "es";
+    });
+});
+
+// Alternative: Direct IServiceCollection registration
+services.AddSqlServerEventSourcing(connectionString);
 
 // Individual stores
 services.AddSqlServerEventStore(connectionString);
@@ -61,19 +71,30 @@ Open-source alternative with Npgsql-based access.
 ### Installation
 
 ```bash
-dotnet add package Excalibur.Data.Postgres
+dotnet add package Excalibur.EventSourcing.Postgres
 ```
 
 ### Setup
 
 ```csharp
-// With connection string
-services.AddPostgresEventStore(connectionString, options =>
+// Recommended: Builder-integrated registration
+services.AddExcaliburEventSourcing(es =>
 {
-    options.SchemaName = "public";  // Default
+    es.UsePostgres(connectionString)
+      .AddRepository<OrderAggregate, Guid>();
 });
 
-// With options
+// Or with options
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UsePostgres(options =>
+    {
+        options.ConnectionString = connectionString;
+        options.RegisterHealthChecks = true;
+    });
+});
+
+// Alternative: Direct IServiceCollection registration
 services.AddPostgresEventStore(connectionString, options =>
 {
     options.SchemaName = "events";
@@ -86,47 +107,6 @@ services.AddPostgresEventStore(
     options =>
     {
         options.SchemaName = "events";
-    });
-```
-
----
-
-## MongoDB
-
-Document-based event store with flexible schema.
-
-### Installation
-
-```bash
-dotnet add package Excalibur.Data.MongoDB
-```
-
-### Setup
-
-```csharp
-// With connection string and database name
-services.AddMongoDbEventStore(
-    "mongodb://localhost:27017",
-    "EventStore",
-    options =>
-    {
-        options.CollectionName = "events";
-    });
-
-// With options callback
-services.AddMongoDbEventStore(options =>
-{
-    options.ConnectionString = "mongodb://localhost:27017";
-    options.DatabaseName = "EventStore";
-    options.CollectionName = "events";
-});
-
-// With custom client factory (receives IServiceProvider)
-services.AddMongoDbEventStore(
-    sp => sp.GetRequiredService<IMongoClient>(),
-    options =>
-    {
-        options.DatabaseName = "EventStore";
     });
 ```
 
@@ -145,16 +125,30 @@ dotnet add package Excalibur.EventSourcing.CosmosDb
 ### Setup
 
 ```csharp
-// With options callback
+// Recommended: Builder-integrated registration
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UseCosmosDb(options =>
+    {
+        options.ConnectionString = connectionString;
+        options.DatabaseName = "events";
+        options.ContainerName = "event-store";
+    })
+    .AddRepository<OrderAggregate, Guid>();
+});
+
+// Or with IConfiguration binding
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UseCosmosDb(configuration.GetSection("CosmosDb"));
+});
+
+// Alternative: Direct registration
 services.AddCosmosDbEventStore(options =>
 {
     options.EventsContainerName = "events";
     options.PartitionKeyPath = "/streamId";  // Default
 });
-
-// From configuration
-services.AddCosmosDbEventStore(configuration);
-services.AddCosmosDbEventStore(configuration, sectionName: "CosmosDbEventStore");
 ```
 
 ### Partition Strategy
@@ -176,15 +170,28 @@ dotnet add package Excalibur.EventSourcing.DynamoDb
 ### Setup
 
 ```csharp
-// With options callback
-services.AddDynamoDbEventStore(options =>
+// Recommended: Builder-integrated registration
+services.AddExcaliburEventSourcing(es =>
 {
-    options.EventsTableName = "Events";  // Default
+    es.UseDynamoDb(options =>
+    {
+        options.TableName = "event-store";
+        options.Region = "us-east-1";
+    })
+    .AddRepository<OrderAggregate, Guid>();
 });
 
-// From configuration
-services.AddDynamoDbEventStore(configuration);
-services.AddDynamoDbEventStore(configuration, sectionName: "DynamoDbEventStore");
+// Or with IConfiguration binding
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UseDynamoDb(configuration.GetSection("DynamoDb"));
+});
+
+// Alternative: Direct registration
+services.AddDynamoDbEventStore(options =>
+{
+    options.EventsTableName = "Events";
+});
 ```
 
 ### Key Schema
@@ -206,16 +213,29 @@ dotnet add package Excalibur.EventSourcing.Firestore
 ### Setup
 
 ```csharp
-// With options callback
+// Recommended: Builder-integrated registration
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UseFirestore(options =>
+    {
+        options.ProjectId = "my-gcp-project";
+        options.CollectionName = "events";
+    })
+    .AddRepository<OrderAggregate, Guid>();
+});
+
+// Or with IConfiguration binding
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UseFirestore(configuration.GetSection("Firestore"));
+});
+
+// Alternative: Direct registration
 services.AddFirestoreEventStore(options =>
 {
     options.ProjectId = "my-gcp-project";
     options.EventsCollectionName = "events";
 });
-
-// From configuration
-services.AddFirestoreEventStore(configuration);
-services.AddFirestoreEventStore(configuration, sectionName: "FirestoreEventStore");
 ```
 
 ### Collection Structure
@@ -224,11 +244,73 @@ Firestore event stores use subcollections under aggregate documents, leveraging 
 
 ---
 
+## MongoDB
+
+Document-oriented event store with flexible schema and horizontal scaling via sharding.
+
+### Installation
+
+```bash
+dotnet add package Excalibur.EventSourcing.MongoDB
+```
+
+### Setup
+
+```csharp
+// Recommended: Builder-integrated registration
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UseMongoDB(options =>
+    {
+        options.ConnectionString = "mongodb://localhost:27017";
+        options.DatabaseName = "events";
+    })
+      .AddRepository<OrderAggregate, Guid>();
+});
+
+// Or with connection string shorthand
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UseMongoDB("mongodb://localhost:27017", "events")
+      .AddRepository<OrderAggregate, Guid>();
+});
+
+// Alternative: Direct IServiceCollection registration
+services.AddMongoDbEventStore(options =>
+{
+    options.ConnectionString = "mongodb://localhost:27017";
+    options.DatabaseName = "EventStore";
+    options.CollectionName = "events";
+});
+
+// With custom client factory (receives IServiceProvider)
+services.AddMongoDbEventStore(
+    sp => sp.GetRequiredService<IMongoClient>(),
+    options =>
+    {
+        options.DatabaseName = "EventStore";
+    });
+```
+
+### Document Model
+
+MongoDB event stores use a single collection per aggregate type with the aggregate ID as the document key. Events are stored as embedded arrays within the aggregate document.
+
+---
+
 ## In-Memory (Testing)
 
 For unit and integration tests:
 
 ```csharp
+// Recommended: Builder-integrated registration
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UseInMemory()
+      .AddRepository<OrderAggregate, Guid>();
+});
+
+// Alternative: Direct registration
 services.AddInMemoryEventStore();
 ```
 
@@ -239,8 +321,8 @@ services.AddInMemoryEventStore();
 | Provider | Package | Transaction Support | Scaling Model |
 |----------|---------|-------------------|---------------|
 | SQL Server | `Excalibur.EventSourcing.SqlServer` | Full ACID | Vertical + read replicas |
-| PostgreSQL | `Excalibur.Data.Postgres` | Full ACID | Vertical + read replicas |
-| MongoDB | `Excalibur.Data.MongoDB` | Document-level | Sharding |
+| PostgreSQL | `Excalibur.EventSourcing.Postgres` | Full ACID | Vertical + read replicas |
+| MongoDB | `Excalibur.EventSourcing.MongoDB` | Document-level | Sharding |
 | Cosmos DB | `Excalibur.EventSourcing.CosmosDb` | Partition-scoped | Global distribution |
 | DynamoDB | `Excalibur.EventSourcing.DynamoDb` | Item-level | On-demand / provisioned |
 | Firestore | `Excalibur.EventSourcing.Firestore` | Document-level | Automatic |

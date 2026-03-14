@@ -26,7 +26,7 @@ public sealed class DynamoDbAuthorizationOptionsShould
 		var options = new DynamoDbAuthorizationOptions();
 
 		// Assert
-		options.ServiceUrl.ShouldBeNull();
+		options.Connection.ServiceUrl.ShouldBeNull();
 	}
 
 	[Fact]
@@ -36,7 +36,7 @@ public sealed class DynamoDbAuthorizationOptionsShould
 		var options = new DynamoDbAuthorizationOptions();
 
 		// Assert
-		options.Region.ShouldBeNull();
+		options.Connection.Region.ShouldBeNull();
 	}
 
 	[Fact]
@@ -46,7 +46,7 @@ public sealed class DynamoDbAuthorizationOptionsShould
 		var options = new DynamoDbAuthorizationOptions();
 
 		// Assert
-		options.AccessKey.ShouldBeNull();
+		options.Connection.AccessKey.ShouldBeNull();
 	}
 
 	[Fact]
@@ -56,7 +56,7 @@ public sealed class DynamoDbAuthorizationOptionsShould
 		var options = new DynamoDbAuthorizationOptions();
 
 		// Assert
-		options.SecretKey.ShouldBeNull();
+		options.Connection.SecretKey.ShouldBeNull();
 	}
 
 	[Fact]
@@ -139,10 +139,13 @@ public sealed class DynamoDbAuthorizationOptionsShould
 		// Act
 		var options = new DynamoDbAuthorizationOptions
 		{
-			ServiceUrl = "http://localhost:8000",
-			Region = "us-east-1",
-			AccessKey = "auth-access-key",
-			SecretKey = "auth-secret-key",
+			Connection =
+			{
+				ServiceUrl = "http://localhost:8000",
+				Region = "us-east-1",
+				AccessKey = "auth-access-key",
+				SecretKey = "auth-secret-key"
+			},
 			GrantsTableName = "custom_grants",
 			ActivityGroupsTableName = "custom_activity_groups",
 			UserIndexName = "CustomUserIndex",
@@ -153,10 +156,10 @@ public sealed class DynamoDbAuthorizationOptionsShould
 		};
 
 		// Assert
-		options.ServiceUrl.ShouldBe("http://localhost:8000");
-		options.Region.ShouldBe("us-east-1");
-		options.AccessKey.ShouldBe("auth-access-key");
-		options.SecretKey.ShouldBe("auth-secret-key");
+		options.Connection.ServiceUrl.ShouldBe("http://localhost:8000");
+		options.Connection.Region.ShouldBe("us-east-1");
+		options.Connection.AccessKey.ShouldBe("auth-access-key");
+		options.Connection.SecretKey.ShouldBe("auth-secret-key");
 		options.GrantsTableName.ShouldBe("custom_grants");
 		options.ActivityGroupsTableName.ShouldBe("custom_activity_groups");
 		options.UserIndexName.ShouldBe("CustomUserIndex");
@@ -174,10 +177,8 @@ public sealed class DynamoDbAuthorizationOptionsShould
 	public void Validate_Succeeds_WithServiceUrl()
 	{
 		// Arrange
-		var options = new DynamoDbAuthorizationOptions
-		{
-			ServiceUrl = "http://localhost:8000"
-		};
+		var options = new DynamoDbAuthorizationOptions();
+		options.Connection.ServiceUrl = "http://localhost:8000";
 
 		// Act & Assert - Should not throw
 		options.Validate();
@@ -187,10 +188,8 @@ public sealed class DynamoDbAuthorizationOptionsShould
 	public void Validate_Succeeds_WithRegion()
 	{
 		// Arrange
-		var options = new DynamoDbAuthorizationOptions
-		{
-			Region = "us-east-1"
-		};
+		var options = new DynamoDbAuthorizationOptions();
+		options.Connection.Region = "us-east-1";
 
 		// Act & Assert - Should not throw
 		options.Validate();
@@ -214,9 +213,9 @@ public sealed class DynamoDbAuthorizationOptionsShould
 		// Arrange
 		var options = new DynamoDbAuthorizationOptions
 		{
-			ServiceUrl = "http://localhost:8000",
 			GrantsTableName = ""
 		};
+		options.Connection.ServiceUrl = "http://localhost:8000";
 
 		// Act & Assert
 		var exception = Should.Throw<InvalidOperationException>(() => options.Validate());
@@ -229,9 +228,9 @@ public sealed class DynamoDbAuthorizationOptionsShould
 		// Arrange
 		var options = new DynamoDbAuthorizationOptions
 		{
-			ServiceUrl = "http://localhost:8000",
 			ActivityGroupsTableName = ""
 		};
+		options.Connection.ServiceUrl = "http://localhost:8000";
 
 		// Act & Assert
 		var exception = Should.Throw<InvalidOperationException>(() => options.Validate());
@@ -244,9 +243,9 @@ public sealed class DynamoDbAuthorizationOptionsShould
 		// Arrange
 		var options = new DynamoDbAuthorizationOptions
 		{
-			ServiceUrl = "http://localhost:8000",
 			UserIndexName = ""
 		};
+		options.Connection.ServiceUrl = "http://localhost:8000";
 
 		// Act & Assert
 		var exception = Should.Throw<InvalidOperationException>(() => options.Validate());
@@ -261,10 +260,8 @@ public sealed class DynamoDbAuthorizationOptionsShould
 	public void GetRegionEndpoint_ReturnsEndpoint_WhenRegionIsSet()
 	{
 		// Arrange
-		var options = new DynamoDbAuthorizationOptions
-		{
-			Region = "eu-west-1"
-		};
+		var options = new DynamoDbAuthorizationOptions();
+		options.Connection.Region = "eu-west-1";
 
 		// Act
 		var endpoint = options.GetRegionEndpoint();
@@ -291,10 +288,8 @@ public sealed class DynamoDbAuthorizationOptionsShould
 	public void GetRegionEndpoint_ReturnsNull_WhenRegionIsWhitespace()
 	{
 		// Arrange
-		var options = new DynamoDbAuthorizationOptions
-		{
-			Region = "   "
-		};
+		var options = new DynamoDbAuthorizationOptions();
+		options.Connection.Region = "   ";
 
 		// Act
 		var endpoint = options.GetRegionEndpoint();

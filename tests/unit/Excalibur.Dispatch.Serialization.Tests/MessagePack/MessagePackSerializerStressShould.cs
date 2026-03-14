@@ -5,10 +5,12 @@ using Excalibur.Dispatch.Serialization.MessagePack;
 
 using MessagePack;
 
+using MpkSerializer = Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializer;
+
 namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 
 /// <summary>
-/// Stress and boundary tests for MessagePack serializers.
+/// Stress and boundary tests for the consolidated <see cref="MpkSerializer"/>.
 /// Tests edge cases with extreme values and repeated operations.
 /// </summary>
 [Trait("Category", "Unit")]
@@ -18,15 +20,15 @@ public sealed class MessagePackSerializerStressShould : UnitTestBase
 	#region Boundary Value Tests
 
 	[Fact]
-	public void DispatchSerializer_HandlesVeryLongString()
+	public void DefaultSerializer_HandlesVeryLongString()
 	{
 		// Arrange
-		var serializer = new DispatchMessagePackSerializer();
+		var serializer = new MpkSerializer();
 		var veryLongStr = new string('V', 100_000);
 		var message = new TestMessage { Id = 1, Name = veryLongStr };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestMessage>(bytes);
 
 		// Assert
@@ -34,16 +36,16 @@ public sealed class MessagePackSerializerStressShould : UnitTestBase
 	}
 
 	[Fact]
-	public void MessagePackMessageSerializer_HandlesVeryLongString()
+	public void NoCompressionSerializer_HandlesVeryLongString()
 	{
 		// Arrange
-		var options = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions());
-		var serializer = new MessagePackMessageSerializer(options);
+		var opts = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.None);
+		var serializer = new MpkSerializer(opts);
 		var veryLongStr = new string('W', 100_000);
 		var message = new TestMessage { Id = 2, Name = veryLongStr };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestMessage>(bytes);
 
 		// Assert
@@ -51,15 +53,15 @@ public sealed class MessagePackSerializerStressShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AotSerializer_HandlesVeryLongString()
+	public void StandardSerializer_HandlesVeryLongString()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(MessagePackSerializerOptions.Standard);
+		var serializer = new MpkSerializer(MessagePackSerializerOptions.Standard);
 		var veryLongStr = new string('X', 100_000);
 		var message = new TestMessage { Id = 3, Name = veryLongStr };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestMessage>(bytes);
 
 		// Assert
@@ -67,15 +69,15 @@ public sealed class MessagePackSerializerStressShould : UnitTestBase
 	}
 
 	[Fact]
-	public void PluggableSerializer_HandlesVeryLongString()
+	public void Serializer_HandlesVeryLongString_WithPluggableMessage()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var veryLongStr = new string('Y', 100_000);
 		var message = new TestPluggableMessage { Value = 4, Text = veryLongStr };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestPluggableMessage>(bytes);
 
 		// Assert
@@ -87,59 +89,59 @@ public sealed class MessagePackSerializerStressShould : UnitTestBase
 	#region Repeated Operation Tests
 
 	[Fact]
-	public void DispatchSerializer_HandlesRepeatedSerialization()
+	public void DefaultSerializer_HandlesRepeatedSerialization()
 	{
 		// Arrange
-		var serializer = new DispatchMessagePackSerializer();
+		var serializer = new MpkSerializer();
 
 		// Act & Assert - serialize/deserialize 50 times
 		for (var i = 0; i < 50; i++)
 		{
 			var message = new TestMessage { Id = i, Name = $"Repeat{i}" };
-			var bytes = serializer.Serialize(message);
+			var bytes = serializer.SerializeToBytes(message);
 			var result = serializer.Deserialize<TestMessage>(bytes);
 			result.Id.ShouldBe(i);
 		}
 	}
 
 	[Fact]
-	public void MessagePackMessageSerializer_HandlesRepeatedSerialization()
+	public void NoCompressionSerializer_HandlesRepeatedSerialization()
 	{
 		// Arrange
-		var options = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions());
-		var serializer = new MessagePackMessageSerializer(options);
+		var opts = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.None);
+		var serializer = new MpkSerializer(opts);
 
 		// Act & Assert
 		for (var i = 0; i < 50; i++)
 		{
 			var message = new TestMessage { Id = i, Name = $"MsgRepeat{i}" };
-			var bytes = serializer.Serialize(message);
+			var bytes = serializer.SerializeToBytes(message);
 			var result = serializer.Deserialize<TestMessage>(bytes);
 			result.Id.ShouldBe(i);
 		}
 	}
 
 	[Fact]
-	public void PluggableSerializer_HandlesRepeatedSerialization()
+	public void Serializer_HandlesRepeatedSerialization_WithPluggableMessage()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 
 		// Act & Assert
 		for (var i = 0; i < 50; i++)
 		{
 			var message = new TestPluggableMessage { Value = i, Text = $"PlugRepeat{i}" };
-			var bytes = serializer.Serialize(message);
+			var bytes = serializer.SerializeToBytes(message);
 			var result = serializer.Deserialize<TestPluggableMessage>(bytes);
 			result.Value.ShouldBe(i);
 		}
 	}
 
 	[Fact]
-	public void PluggableSerializer_HandlesRepeatedSerializeObject()
+	public void Serializer_HandlesRepeatedSerializeObject()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 
 		// Act & Assert
 		for (var i = 0; i < 50; i++)
@@ -156,15 +158,15 @@ public sealed class MessagePackSerializerStressShould : UnitTestBase
 	#region Unicode Stress Tests
 
 	[Fact]
-	public void DispatchSerializer_HandlesExtendedUnicode()
+	public void DefaultSerializer_HandlesExtendedUnicode()
 	{
 		// Arrange - includes emoji, CJK, Arabic, Hebrew
-		var serializer = new DispatchMessagePackSerializer();
+		var serializer = new MpkSerializer();
 		var unicodeStr = "\u00e9\u00e0\u00fc\u4e2d\u6587\u0627\u0644\u05e2\U0001f600\U0001f680";
 		var message = new TestMessage { Id = 1, Name = unicodeStr };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestMessage>(bytes);
 
 		// Assert
@@ -172,16 +174,16 @@ public sealed class MessagePackSerializerStressShould : UnitTestBase
 	}
 
 	[Fact]
-	public void MessagePackMessageSerializer_HandlesExtendedUnicode()
+	public void NoCompressionSerializer_HandlesExtendedUnicode()
 	{
 		// Arrange
-		var options = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions());
-		var serializer = new MessagePackMessageSerializer(options);
+		var opts = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.None);
+		var serializer = new MpkSerializer(opts);
 		var unicodeStr = "\u00e9\u00e0\u00fc\u4e2d\u6587\u0627\u0644\u05e2\U0001f600\U0001f680";
 		var message = new TestMessage { Id = 2, Name = unicodeStr };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestMessage>(bytes);
 
 		// Assert
@@ -189,15 +191,15 @@ public sealed class MessagePackSerializerStressShould : UnitTestBase
 	}
 
 	[Fact]
-	public void PluggableSerializer_HandlesExtendedUnicode()
+	public void Serializer_HandlesExtendedUnicode_WithPluggableMessage()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var unicodeStr = "\u00e9\u00e0\u00fc\u4e2d\u6587\u0627\u0644\u05e2\U0001f600\U0001f680";
 		var message = new TestPluggableMessage { Value = 3, Text = unicodeStr };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestPluggableMessage>(bytes);
 
 		// Assert
@@ -205,15 +207,15 @@ public sealed class MessagePackSerializerStressShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AotSerializer_HandlesExtendedUnicode()
+	public void StandardSerializer_HandlesExtendedUnicode()
 	{
 		// Arrange
-		var serializer = new AotMessagePackSerializer(MessagePackSerializerOptions.Standard);
+		var serializer = new MpkSerializer(MessagePackSerializerOptions.Standard);
 		var unicodeStr = "\u00e9\u00e0\u00fc\u4e2d\u6587\u0627\u0644\u05e2\U0001f600\U0001f680";
 		var message = new TestMessage { Id = 4, Name = unicodeStr };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestMessage>(bytes);
 
 		// Assert
@@ -225,49 +227,47 @@ public sealed class MessagePackSerializerStressShould : UnitTestBase
 	#region Compression Comparison
 
 	[Fact]
-	public void DispatchSerializer_CompressesLargeData()
+	public void Lz4Serializer_CompressesLargeData()
 	{
-		// Arrange - with LZ4 compression (default)
-		var compressedSerializer = new DispatchMessagePackSerializer();
+		// Arrange - with LZ4 compression
+		var compressedOpts = MessagePackSerializerOptions.Standard
+			.WithCompression(MessagePackCompression.Lz4BlockArray);
+		var compressedSerializer = new MpkSerializer(compressedOpts);
 
 		// No compression
 		var noCompressionOpts = MessagePackSerializerOptions.Standard
 			.WithCompression(MessagePackCompression.None);
-		var uncompressedSerializer = new DispatchMessagePackSerializer(noCompressionOpts);
+		var uncompressedSerializer = new MpkSerializer(noCompressionOpts);
 
 		var largeStr = new string('R', 10_000);
 		var message = new TestMessage { Id = 1, Name = largeStr };
 
 		// Act
-		var compressedBytes = compressedSerializer.Serialize(message);
-		var uncompressedBytes = uncompressedSerializer.Serialize(message);
+		var compressedBytes = compressedSerializer.SerializeToBytes(message);
+		var uncompressedBytes = uncompressedSerializer.SerializeToBytes(message);
 
 		// Assert - compressed should be smaller for repetitive data
 		compressedBytes.Length.ShouldBeLessThan(uncompressedBytes.Length);
 	}
 
 	[Fact]
-	public void MessagePackMessageSerializer_CompressesLargeData()
+	public void Lz4Block_CompressesLargeData()
 	{
 		// Arrange
-		var compressedOptions = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions
-		{
-			UseLz4Compression = true
-		});
-		var compressedSerializer = new MessagePackMessageSerializer(compressedOptions);
+		var compressedOpts = MessagePackSerializerOptions.Standard
+			.WithCompression(MessagePackCompression.Lz4Block);
+		var compressedSerializer = new MpkSerializer(compressedOpts);
 
-		var uncompressedOptions = Microsoft.Extensions.Options.Options.Create(new MessagePackSerializationOptions
-		{
-			UseLz4Compression = false
-		});
-		var uncompressedSerializer = new MessagePackMessageSerializer(uncompressedOptions);
+		var uncompressedOpts = MessagePackSerializerOptions.Standard
+			.WithCompression(MessagePackCompression.None);
+		var uncompressedSerializer = new MpkSerializer(uncompressedOpts);
 
 		var largeStr = new string('S', 10_000);
 		var message = new TestMessage { Id = 2, Name = largeStr };
 
 		// Act
-		var compressedBytes = compressedSerializer.Serialize(message);
-		var uncompressedBytes = uncompressedSerializer.Serialize(message);
+		var compressedBytes = compressedSerializer.SerializeToBytes(message);
+		var uncompressedBytes = uncompressedSerializer.SerializeToBytes(message);
 
 		// Assert
 		compressedBytes.Length.ShouldBeLessThan(uncompressedBytes.Length);
@@ -278,46 +278,45 @@ public sealed class MessagePackSerializerStressShould : UnitTestBase
 	#region Edge Case Values
 
 	[Fact]
-	public void AllSerializers_HandleNullString()
+	public void Serializer_HandleEmptyString()
 	{
-		// Arrange - TestMessage.Name defaults to string.Empty so we can't test null directly
-		// but we can test empty string
-		var dispatch = new DispatchMessagePackSerializer();
+		// Arrange
+		var serializer = new MpkSerializer();
 		var message = new TestMessage { Id = 0, Name = string.Empty };
 
 		// Act
-		var bytes = dispatch.Serialize(message);
-		var result = dispatch.Deserialize<TestMessage>(bytes);
+		var bytes = serializer.SerializeToBytes(message);
+		var result = serializer.Deserialize<TestMessage>(bytes);
 
 		// Assert
 		result.Name.ShouldBe(string.Empty);
 	}
 
 	[Fact]
-	public void AllSerializers_HandleWhitespaceOnlyString()
+	public void Serializer_HandleWhitespaceOnlyString()
 	{
 		// Arrange
-		var dispatch = new DispatchMessagePackSerializer();
+		var serializer = new MpkSerializer();
 		var message = new TestMessage { Id = 1, Name = "   \t\n\r   " };
 
 		// Act
-		var bytes = dispatch.Serialize(message);
-		var result = dispatch.Deserialize<TestMessage>(bytes);
+		var bytes = serializer.SerializeToBytes(message);
+		var result = serializer.Deserialize<TestMessage>(bytes);
 
 		// Assert
 		result.Name.ShouldBe("   \t\n\r   ");
 	}
 
 	[Fact]
-	public void AllSerializers_HandleNullCharInString()
+	public void Serializer_HandleNullCharInString()
 	{
 		// Arrange - string with embedded null character
-		var dispatch = new DispatchMessagePackSerializer();
+		var serializer = new MpkSerializer();
 		var message = new TestMessage { Id = 2, Name = "Before\0After" };
 
 		// Act
-		var bytes = dispatch.Serialize(message);
-		var result = dispatch.Deserialize<TestMessage>(bytes);
+		var bytes = serializer.SerializeToBytes(message);
+		var result = serializer.Deserialize<TestMessage>(bytes);
 
 		// Assert
 		result.Name.ShouldBe("Before\0After");

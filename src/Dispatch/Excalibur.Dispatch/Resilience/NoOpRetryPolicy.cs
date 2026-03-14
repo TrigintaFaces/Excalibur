@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Resilience;
 /// </code>
 /// </para>
 /// </remarks>
-public sealed class NoOpRetryPolicy : IRetryPolicy
+internal sealed class NoOpRetryPolicy : IRetryPolicy
 {
 	/// <summary>
 	/// Prevents external instantiation to enforce singleton pattern.

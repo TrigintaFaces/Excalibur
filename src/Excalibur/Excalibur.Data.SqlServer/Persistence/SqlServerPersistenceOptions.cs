@@ -12,79 +12,122 @@ namespace Excalibur.Data.SqlServer.Persistence;
 /// Configuration options for the SQL Server persistence provider.
 /// </summary>
 /// <remarks>
-/// Root options contain <see cref="IPersistenceOptions"/> interface properties plus sub-option groups
-/// for SQL Server-specific connection, security, and resiliency settings.
-/// Follows the Microsoft pattern of grouping related options into sub-option classes
-/// (e.g., <c>ServiceBusClientOptions</c>).
+/// Root options hold fundamentals (connection string, command timeout) and sub-option groups
+/// for connection, security, resiliency, pooling, and observability settings.
+/// Follows the Microsoft <c>KestrelServerOptions</c> pattern of grouped sub-option classes.
 /// </remarks>
 public sealed class SqlServerPersistenceOptions : IPersistenceOptions, IPersistenceResilienceOptions, IPersistencePoolingOptions, IPersistenceObservabilityOptions
 {
-	/// <summary>
-	/// Initializes a new instance of the <see cref="SqlServerPersistenceOptions" /> class.
-	/// </summary>
 	/// <inheritdoc />
 	[Required]
 	public string ConnectionString { get; set; } = string.Empty;
 
-	/// <inheritdoc />
-	[Range(1, 300)]
-	public int ConnectionTimeout { get; set; } = 30;
-
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets or sets the command timeout in seconds.
+	/// </summary>
+	/// <value>The command timeout in seconds. Defaults to 30.</value>
 	[Range(1, 3600)]
 	public int CommandTimeout { get; set; } = 30;
-
-	/// <inheritdoc />
-	[Range(0, 10)]
-	public int MaxRetryAttempts { get; set; } = 3;
-
-	/// <inheritdoc />
-	[Range(0, 60000)]
-	public int RetryDelayMilliseconds { get; set; } = 1000;
-
-	/// <inheritdoc />
-	public bool EnableConnectionPooling { get; set; } = true;
-
-	/// <inheritdoc />
-	[Range(1, 1000)]
-	public int MaxPoolSize { get; set; } = 100;
-
-	/// <inheritdoc />
-	[Range(0, 100)]
-	public int MinPoolSize { get; set; } = 10;
-
-	/// <inheritdoc />
-	public bool EnableDetailedLogging { get; set; }
-
-	/// <inheritdoc />
-	public bool EnableMetrics { get; set; } = true;
 
 	/// <inheritdoc />
 	public IDictionary<string, object> ProviderSpecificOptions { get; set; } = new Dictionary<string, object>(StringComparer.Ordinal);
 
 	/// <summary>
-	/// Gets the SQL Server connection options for application identity, protocol, and transport settings.
+	/// Gets the SQL Server connection options for application identity, protocol, timeout, and transport settings.
 	/// </summary>
-	/// <value>
-	/// The connection options. This property is initialized by default and cannot be replaced.
-	/// </value>
+	/// <value>The connection options. Initialized by default and cannot be replaced.</value>
 	public SqlServerConnectionOptions Connection { get; } = new();
 
 	/// <summary>
 	/// Gets the SQL Server security options for encryption, authentication, and Always Encrypted settings.
 	/// </summary>
-	/// <value>
-	/// The security options. This property is initialized by default and cannot be replaced.
-	/// </value>
+	/// <value>The security options. Initialized by default and cannot be replaced.</value>
 	public SqlServerSecurityOptions Security { get; } = new();
 
 	/// <summary>
-	/// Gets the SQL Server resiliency options for connection retry and resilience settings.
+	/// Gets the SQL Server resiliency options for connection and command retry settings.
 	/// </summary>
-	/// <value>
-	/// The resiliency options. This property is initialized by default and cannot be replaced.
-	/// </value>
+	/// <value>The resiliency options. Initialized by default and cannot be replaced.</value>
 	public SqlServerResiliencyOptions Resiliency { get; } = new();
+
+	/// <summary>
+	/// Gets the SQL Server connection pooling options.
+	/// </summary>
+	/// <value>The pooling options. Initialized by default and cannot be replaced.</value>
+	public SqlServerPoolingOptions Pooling { get; } = new();
+
+	/// <summary>
+	/// Gets the SQL Server observability options for logging and metrics.
+	/// </summary>
+	/// <value>The observability options. Initialized by default and cannot be replaced.</value>
+	public SqlServerObservabilityOptions Observability { get; } = new();
+
+	// Explicit interface implementations delegating to sub-options.
+	// These maintain backward compatibility with IPersistenceOptions consumers
+	// (e.g., PersistenceConfiguration) while keeping the root class <=10 properties.
+
+	/// <inheritdoc />
+	int IPersistenceOptions.ConnectionTimeout
+	{
+		get => Connection.ConnectionTimeout;
+		set => Connection.ConnectionTimeout = value;
+	}
+
+	/// <inheritdoc />
+	int IPersistenceOptions.CommandTimeout
+	{
+		get => CommandTimeout;
+		set => CommandTimeout = value;
+	}
+
+	/// <inheritdoc />
+	int IPersistenceResilienceOptions.MaxRetryAttempts
+	{
+		get => Resiliency.MaxRetryAttempts;
+		set => Resiliency.MaxRetryAttempts = value;
+	}
+
+	/// <inheritdoc />
+	int IPersistenceResilienceOptions.RetryDelayMilliseconds
+	{
+		get => Resiliency.RetryDelayMilliseconds;
+		set => Resiliency.RetryDelayMilliseconds = value;
+	}
+
+	/// <inheritdoc />
+	bool IPersistencePoolingOptions.EnableConnectionPooling
+	{
+		get => Pooling.EnableConnectionPooling;
+		set => Pooling.EnableConnectionPooling = value;
+	}
+
+	/// <inheritdoc />
+	int IPersistencePoolingOptions.MaxPoolSize
+	{
+		get => Pooling.MaxPoolSize;
+		set => Pooling.MaxPoolSize = value;
+	}
+
+	/// <inheritdoc />
+	int IPersistencePoolingOptions.MinPoolSize
+	{
+		get => Pooling.MinPoolSize;
+		set => Pooling.MinPoolSize = value;
+	}
+
+	/// <inheritdoc />
+	bool IPersistenceObservabilityOptions.EnableDetailedLogging
+	{
+		get => Observability.EnableDetailedLogging;
+		set => Observability.EnableDetailedLogging = value;
+	}
+
+	/// <inheritdoc />
+	bool IPersistenceObservabilityOptions.EnableMetrics
+	{
+		get => Observability.EnableMetrics;
+		set => Observability.EnableMetrics = value;
+	}
 
 	/// <inheritdoc />
 	public void Validate()
@@ -94,7 +137,7 @@ public sealed class SqlServerPersistenceOptions : IPersistenceOptions, IPersiste
 			throw new InvalidOperationException("Connection string required for SQL Server.");
 		}
 
-		if (ConnectionTimeout <= 0)
+		if (Connection.ConnectionTimeout <= 0)
 		{
 			throw new InvalidOperationException("Connection timeout must be greater than zero.");
 		}
@@ -104,29 +147,29 @@ public sealed class SqlServerPersistenceOptions : IPersistenceOptions, IPersiste
 			throw new InvalidOperationException("Command timeout must be greater than zero.");
 		}
 
-		if (MaxRetryAttempts < 0)
+		if (Resiliency.MaxRetryAttempts < 0)
 		{
 			throw new InvalidOperationException("Max retry attempts cannot be negative.");
 		}
 
-		if (RetryDelayMilliseconds < 0)
+		if (Resiliency.RetryDelayMilliseconds < 0)
 		{
 			throw new InvalidOperationException("Retry delay milliseconds cannot be negative.");
 		}
 
-		if (EnableConnectionPooling)
+		if (Pooling.EnableConnectionPooling)
 		{
-			if (MaxPoolSize <= 0)
+			if (Pooling.MaxPoolSize <= 0)
 			{
 				throw new InvalidOperationException("Max pool size must be greater than zero.");
 			}
 
-			if (MinPoolSize < 0)
+			if (Pooling.MinPoolSize < 0)
 			{
 				throw new InvalidOperationException("Min pool size cannot be negative.");
 			}
 
-			if (MinPoolSize > MaxPoolSize)
+			if (Pooling.MinPoolSize > Pooling.MaxPoolSize)
 			{
 				throw new InvalidOperationException("Min pool size cannot be greater than max pool size.");
 			}
@@ -138,89 +181,76 @@ public sealed class SqlServerPersistenceOptions : IPersistenceOptions, IPersiste
 }
 
 /// <summary>
-/// SQL Server connection options for application identity, protocol, and transport settings.
+/// SQL Server connection options for application identity, protocol, timeout, and transport settings.
 /// </summary>
 public sealed class SqlServerConnectionOptions
 {
 	/// <summary>
+	/// Gets or sets the connection timeout in seconds.
+	/// </summary>
+	/// <value>The connection timeout in seconds. Defaults to 30.</value>
+	[Range(1, 300)]
+	public int ConnectionTimeout { get; set; } = 30;
+
+	/// <summary>
 	/// Gets or sets the application name to be associated with the connection.
 	/// </summary>
-	/// <value>
-	/// The application name to be associated with the connection.
-	/// </value>
+	/// <value>The application name to be associated with the connection.</value>
 	public string ApplicationName { get; set; } = "Excalibur";
 
 	/// <summary>
 	/// Gets or sets the default database name for the connection.
 	/// </summary>
-	/// <value>
-	/// The default database name for the connection.
-	/// </value>
+	/// <value>The default database name for the connection.</value>
 	public string? DefaultDatabase { get; set; }
 
 	/// <summary>
 	/// Gets or sets a value indicating whether multi-subnet failover is enabled.
 	/// </summary>
-	/// <value>
-	/// <see langword="true"/> if multi-subnet failover is enabled; otherwise, <c>false</c>.
-	/// </value>
+	/// <value><see langword="true"/> if multi-subnet failover is enabled; otherwise, <c>false</c>.</value>
 	public bool MultiSubnetFailover { get; set; }
 
 	/// <summary>
 	/// Gets or sets the workstation ID for the connection.
 	/// </summary>
-	/// <value>
-	/// The workstation ID for the connection.
-	/// </value>
+	/// <value>The workstation ID for the connection.</value>
 	public string? WorkstationId { get; set; }
 
 	/// <summary>
 	/// Gets or sets the packet size for the connection.
 	/// </summary>
-	/// <value>
-	/// The packet size for the connection.
-	/// </value>
+	/// <value>The packet size for the connection.</value>
 	[Range(512, 32768)]
 	public int PacketSize { get; set; } = 8192;
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to enable Multiple Active Result Sets (MARS).
 	/// </summary>
-	/// <value>
-	/// <see langword="true"/> if Multiple Active Result Sets (MARS) is enabled; otherwise, <c>false</c>.
-	/// </value>
+	/// <value><see langword="true"/> if Multiple Active Result Sets (MARS) is enabled; otherwise, <c>false</c>.</value>
 	public bool EnableMars { get; set; }
 
 	/// <summary>
 	/// Gets or sets a value indicating whether transparent network IP resolution is enabled.
 	/// </summary>
-	/// <value>
-	/// <see langword="true"/> if transparent network IP resolution is enabled; otherwise, <c>false</c>.
-	/// </value>
+	/// <value><see langword="true"/> if transparent network IP resolution is enabled; otherwise, <c>false</c>.</value>
 	public bool EnableTransparentNetworkIPResolution { get; set; } = true;
 
 	/// <summary>
 	/// Gets or sets the application intent for the connection (ReadWrite or ReadOnly).
 	/// </summary>
-	/// <value>
-	/// The application intent for the connection (ReadWrite or ReadOnly).
-	/// </value>
+	/// <value>The application intent for the connection (ReadWrite or ReadOnly).</value>
 	public ApplicationIntent ApplicationIntent { get; set; } = ApplicationIntent.ReadWrite;
 
 	/// <summary>
 	/// Gets or sets the load balance timeout in seconds.
 	/// </summary>
-	/// <value>
-	/// The load balance timeout in seconds.
-	/// </value>
+	/// <value>The load balance timeout in seconds.</value>
 	public int LoadBalanceTimeout { get; set; }
 
 	/// <summary>
 	/// Gets or sets the connection pool blocking period.
 	/// </summary>
-	/// <value>
-	/// The connection pool blocking period.
-	/// </value>
+	/// <value>The connection pool blocking period.</value>
 	public PoolBlockingPeriod PoolBlockingPeriod { get; set; } = PoolBlockingPeriod.Auto;
 
 	/// <summary>
@@ -243,97 +273,89 @@ public sealed class SqlServerSecurityOptions
 	/// <summary>
 	/// Gets or sets a value indicating whether Always Encrypted is enabled for the connection.
 	/// </summary>
-	/// <value>
-	/// <see langword="true"/> if Always Encrypted is enabled for the connection; otherwise, <c>false</c>.
-	/// </value>
+	/// <value><see langword="true"/> if Always Encrypted is enabled for the connection; otherwise, <c>false</c>.</value>
 	public bool EnableAlwaysEncrypted { get; set; }
 
 	/// <summary>
 	/// Gets or sets the column encryption setting for Always Encrypted.
 	/// </summary>
-	/// <value>
-	/// The column encryption setting for Always Encrypted.
-	/// </value>
+	/// <value>The column encryption setting for Always Encrypted.</value>
 	public SqlConnectionColumnEncryptionSetting ColumnEncryptionSetting { get; set; }
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to trust the server certificate without validation.
 	/// </summary>
-	/// <value>
-	/// <see langword="true"/> if the server certificate should be trusted without validation; otherwise, <c>false</c>.
-	/// </value>
+	/// <value><see langword="true"/> if the server certificate should be trusted without validation; otherwise, <c>false</c>.</value>
 	public bool TrustServerCertificate { get; set; }
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to encrypt the connection.
 	/// </summary>
-	/// <value>
-	/// <see langword="true"/> if the connection should be encrypted; otherwise, <c>false</c>.
-	/// </value>
+	/// <value><see langword="true"/> if the connection should be encrypted; otherwise, <c>false</c>.</value>
 	public bool EncryptConnection { get; set; } = true;
 
 	/// <summary>
 	/// Gets or sets the enclave attestation URL for Always Encrypted with secure enclaves.
 	/// </summary>
-	/// <value>
-	/// The enclave attestation URL for Always Encrypted with secure enclaves.
-	/// </value>
+	/// <value>The enclave attestation URL for Always Encrypted with secure enclaves.</value>
 	public string? EnclaveAttestationUrl { get; set; }
 
 	/// <summary>
 	/// Gets or sets the attestation protocol for Always Encrypted with secure enclaves.
 	/// </summary>
-	/// <value>
-	/// The attestation protocol for Always Encrypted with secure enclaves.
-	/// </value>
+	/// <value>The attestation protocol for Always Encrypted with secure enclaves.</value>
 	public SqlAttestationProtocol AttestationProtocol { get; set; } = SqlAttestationProtocol.NotSpecified;
 
 	/// <summary>
 	/// Gets or sets the authentication method for the connection.
 	/// </summary>
-	/// <value>
-	/// The authentication method for the connection.
-	/// </value>
+	/// <value>The authentication method for the connection.</value>
 	public SqlAuthenticationMethod Authentication { get; set; } = SqlAuthenticationMethod.NotSpecified;
 }
 
 /// <summary>
-/// SQL Server resiliency options for connection retry and resilience settings.
+/// SQL Server resiliency options for connection and command retry settings.
 /// </summary>
 public sealed class SqlServerResiliencyOptions
 {
 	/// <summary>
+	/// Gets or sets the maximum number of command retry attempts for transient failures.
+	/// </summary>
+	/// <value>The maximum number of command retry attempts. Defaults to 3.</value>
+	[Range(0, 10)]
+	public int MaxRetryAttempts { get; set; } = 3;
+
+	/// <summary>
+	/// Gets or sets the delay between command retry attempts in milliseconds.
+	/// </summary>
+	/// <value>The delay between command retry attempts in milliseconds. Defaults to 1000.</value>
+	[Range(0, 60000)]
+	public int RetryDelayMilliseconds { get; set; } = 1000;
+
+	/// <summary>
 	/// Gets or sets a value indicating whether to enable connection resiliency.
 	/// </summary>
-	/// <value>
-	/// <see langword="true"/> if connection resiliency is enabled; otherwise, <c>false</c>.
-	/// </value>
+	/// <value><see langword="true"/> if connection resiliency is enabled; otherwise, <c>false</c>.</value>
 	public bool EnableConnectionResiliency { get; set; } = true;
 
 	/// <summary>
 	/// Gets or sets the connect retry count for connection resiliency.
 	/// </summary>
-	/// <value>
-	/// The connect retry count for connection resiliency.
-	/// </value>
+	/// <value>The connect retry count for connection resiliency.</value>
 	[Range(0, 255)]
 	public int ConnectRetryCount { get; set; } = 3;
 
 	/// <summary>
 	/// Gets or sets the connect retry interval in seconds.
 	/// </summary>
-	/// <value>
-	/// The connect retry interval in seconds.
-	/// </value>
+	/// <value>The connect retry interval in seconds.</value>
 	[Range(1, 60)]
 	public int ConnectRetryInterval { get; set; } = 10;
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to enable statistics collection.
 	/// </summary>
-	/// <value>
-	/// <see langword="true"/> if statistics collection is enabled; otherwise, <c>false</c>.
-	/// </value>
+	/// <value><see langword="true"/> if statistics collection is enabled; otherwise, <c>false</c>.</value>
 	public bool EnableStatisticsCollection { get; set; }
 
 	/// <summary>
@@ -351,4 +373,48 @@ public sealed class SqlServerResiliencyOptions
 			throw new InvalidOperationException("Connect retry interval must be between 1 and 60 seconds.");
 		}
 	}
+}
+
+/// <summary>
+/// SQL Server connection pooling options.
+/// </summary>
+public sealed class SqlServerPoolingOptions
+{
+	/// <summary>
+	/// Gets or sets a value indicating whether to enable connection pooling.
+	/// </summary>
+	/// <value><see langword="true"/> if connection pooling is enabled; otherwise, <c>false</c>. Defaults to <c>true</c>.</value>
+	public bool EnableConnectionPooling { get; set; } = true;
+
+	/// <summary>
+	/// Gets or sets the maximum pool size when connection pooling is enabled.
+	/// </summary>
+	/// <value>The maximum pool size. Defaults to 100.</value>
+	[Range(1, 1000)]
+	public int MaxPoolSize { get; set; } = 100;
+
+	/// <summary>
+	/// Gets or sets the minimum pool size when connection pooling is enabled.
+	/// </summary>
+	/// <value>The minimum pool size. Defaults to 10.</value>
+	[Range(0, 100)]
+	public int MinPoolSize { get; set; } = 10;
+}
+
+/// <summary>
+/// SQL Server observability options for logging and metrics.
+/// </summary>
+public sealed class SqlServerObservabilityOptions
+{
+	/// <summary>
+	/// Gets or sets a value indicating whether to enable detailed logging.
+	/// </summary>
+	/// <value><see langword="true"/> if detailed logging is enabled; otherwise, <c>false</c>.</value>
+	public bool EnableDetailedLogging { get; set; }
+
+	/// <summary>
+	/// Gets or sets a value indicating whether to enable metrics collection.
+	/// </summary>
+	/// <value><see langword="true"/> if metrics collection is enabled; otherwise, <c>false</c>. Defaults to <c>true</c>.</value>
+	public bool EnableMetrics { get; set; } = true;
 }

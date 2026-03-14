@@ -12,8 +12,8 @@ internal readonly record struct GooglePubSubDeliveryOptions(
 	{
 		ArgumentNullException.ThrowIfNull(providerOptions);
 
-		var enableExactlyOnce = providerOptions.EnableExactlyOnceDelivery;
-		var enableOrdering = providerOptions.EnableMessageOrdering;
+		var enableExactlyOnce = providerOptions.Subscription.EnableExactlyOnceDelivery;
+		var enableOrdering = providerOptions.Subscription.EnableMessageOrdering;
 
 		if (cloudEventOptions is not null)
 		{

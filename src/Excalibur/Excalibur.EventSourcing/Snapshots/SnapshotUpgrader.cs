@@ -26,13 +26,13 @@ public abstract class SnapshotUpgrader<TFrom, TTo> : ISnapshotUpgrader
 	where TFrom : class
 	where TTo : class
 {
-	private readonly ISnapshotDataSerializer _serializer;
+	private readonly ISnapshotSerializer _serializer;
 
 	/// <summary>
 	/// Initializes a new instance of the <see cref="SnapshotUpgrader{TFrom, TTo}"/> class.
 	/// </summary>
 	/// <param name="serializer">The serializer for snapshot data conversion.</param>
-	protected SnapshotUpgrader(ISnapshotDataSerializer serializer)
+	protected SnapshotUpgrader(ISnapshotSerializer serializer)
 	{
 		_serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
 	}

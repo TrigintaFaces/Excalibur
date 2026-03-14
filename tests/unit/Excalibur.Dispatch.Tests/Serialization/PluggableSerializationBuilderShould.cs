@@ -81,7 +81,7 @@ public sealed class PluggableSerializationBuilderShould
 		// Add SystemTextJson and disable MemoryPack auto-registration
 		_ = services.AddPluggableSerializer(
 			SerializerIds.SystemTextJson,
-			new SystemTextJsonPluggableSerializer(),
+			new SystemTextJsonSerializer(),
 			setAsCurrent: true);
 
 		_ = services.Configure<PluggableSerializationOptions>(options =>
@@ -111,7 +111,7 @@ public sealed class PluggableSerializationBuilderShould
 		// Arrange
 		var services = new ServiceCollection();
 		_ = services.AddPluggableSerialization();
-		_ = services.AddPluggableSerializer(SerializerIds.SystemTextJson, new SystemTextJsonPluggableSerializer());
+		_ = services.AddPluggableSerializer(SerializerIds.SystemTextJson, new SystemTextJsonSerializer());
 
 		// Act
 		using var provider = services.BuildServiceProvider();
@@ -130,7 +130,7 @@ public sealed class PluggableSerializationBuilderShould
 		_ = services.AddPluggableSerialization();
 		_ = services.AddPluggableSerializer(
 			SerializerIds.SystemTextJson,
-			new SystemTextJsonPluggableSerializer(),
+			new SystemTextJsonSerializer(),
 			setAsCurrent: true);
 
 		// Act
@@ -145,25 +145,8 @@ public sealed class PluggableSerializationBuilderShould
 
 	#endregion Serializer Registration Tests
 
-	#region IHttpSerializer Registration Tests
-
-	[Fact]
-	public void RegisterHttpSerializer_Automatically()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddPluggableSerialization();
-
-		// Act
-		using var provider = services.BuildServiceProvider();
-		var httpSerializer = provider.GetService<IHttpSerializer>();
-
-		// Assert
-		_ = httpSerializer.ShouldNotBeNull();
-		_ = httpSerializer.ShouldBeOfType<HttpJsonSerializer>();
-	}
-
-	#endregion IHttpSerializer Registration Tests
+	// IHttpSerializer registration test removed: HttpJsonSerializer was deleted in Sprint 586
+	// serialization consolidation. AddPluggableSerialization() no longer registers IHttpSerializer.
 
 	#region Options Tests
 

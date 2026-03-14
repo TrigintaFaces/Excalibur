@@ -32,6 +32,7 @@
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Kafka.Tests.Integration" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Kafka.Tests.Functional" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
   <ItemGroup>
     <AdditionalFiles Include="PublicAPI.Shipped.txt" />

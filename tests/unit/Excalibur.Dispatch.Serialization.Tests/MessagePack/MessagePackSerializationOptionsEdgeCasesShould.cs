@@ -136,7 +136,7 @@ public sealed class MessagePackSerializationOptionsEdgeCasesShould : UnitTestBas
 		var serializerOptions = options.MessagePackSerializerOptions;
 		var message = new TestMessage { Id = 42, Name = "CompressedOptions" };
 
-		// Act
+		// Act - use native MessagePack static class (Serialize, not SerializeToBytes)
 		var bytes = global::MessagePack.MessagePackSerializer.Serialize(message, serializerOptions);
 		var result = global::MessagePack.MessagePackSerializer.Deserialize<TestMessage>(bytes, serializerOptions);
 
@@ -153,7 +153,7 @@ public sealed class MessagePackSerializationOptionsEdgeCasesShould : UnitTestBas
 		var serializerOptions = options.MessagePackSerializerOptions;
 		var message = new TestMessage { Id = 77, Name = "NoCompressOptions" };
 
-		// Act
+		// Act - use native MessagePack static class (Serialize, not SerializeToBytes)
 		var bytes = global::MessagePack.MessagePackSerializer.Serialize(message, serializerOptions);
 		var result = global::MessagePack.MessagePackSerializer.Deserialize<TestMessage>(bytes, serializerOptions);
 

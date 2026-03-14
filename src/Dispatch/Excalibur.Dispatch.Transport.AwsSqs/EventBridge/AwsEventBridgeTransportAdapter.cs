@@ -31,7 +31,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// ASP.NET Core health checks and the <c>MultiTransportHealthCheck</c>.
 /// </para>
 /// </remarks>
-public sealed partial class AwsEventBridgeTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
+internal sealed partial class AwsEventBridgeTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
 {
 	/// <summary>
 	/// The default transport name for AWS EventBridge adapters.
@@ -130,9 +130,9 @@ public sealed partial class AwsEventBridgeTransportAdapter : ITransportAdapter, 
 			var context = new MessageContext(message, _serviceProvider)
 			{
 				MessageId = messageId,
-				MessageType = message.GetType().FullName,
-				ReceivedTimestampUtc = DateTimeOffset.UtcNow,
 			};
+			context.SetMessageType(message.GetType().FullName);
+			context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
 
 			var result = await dispatcher.DispatchAsync(message, context, cancellationToken).ConfigureAwait(false);
 			_ = Interlocked.Increment(ref _successfulMessages);
@@ -411,7 +411,7 @@ public sealed partial class AwsEventBridgeTransportAdapter : ITransportAdapter, 
 /// <summary>
 /// Configuration options for the AWS EventBridge transport adapter.
 /// </summary>
-public sealed class AwsEventBridgeTransportAdapterOptions
+internal sealed class AwsEventBridgeTransportAdapterOptions
 {
 	/// <summary>
 	/// Gets or sets the name of this transport adapter instance.
@@ -477,7 +477,7 @@ public sealed class AwsEventBridgeTransportAdapterOptions
 /// <summary>
 /// Extension methods for configuring <see cref="AwsEventBridgeTransportAdapterOptions"/>.
 /// </summary>
-public static class AwsEventBridgeTransportAdapterOptionsExtensions
+internal static class AwsEventBridgeTransportAdapterOptionsExtensions
 {
 	/// <summary>
 	/// Maps a message type to a specific detail type.

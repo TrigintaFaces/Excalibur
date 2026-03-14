@@ -10,8 +10,9 @@ namespace Excalibur.Data.ElasticSearch;
 /// Configures the settings for Elasticsearch client connections and operations.
 /// </summary>
 /// <remarks>
-/// This class provides comprehensive configuration options for connecting to Elasticsearch clusters, including authentication,
-/// connection pooling, SSL/TLS settings, resilience policies, monitoring, performance optimizations, and projection management.
+/// This class provides comprehensive configuration options for connecting to Elasticsearch clusters, including endpoint selection,
+/// connection pooling, resilience policies, monitoring, performance optimizations, and projection management.
+/// Connection-level settings (authentication, timeouts, SSL/TLS) are configured via the <see cref="Connection" /> sub-options.
 /// </remarks>
 public sealed class ElasticsearchConfigurationOptions
 {
@@ -47,62 +48,6 @@ public sealed class ElasticsearchConfigurationOptions
 	public ConnectionPoolType ConnectionPoolType { get; init; } = ConnectionPoolType.Static;
 
 	/// <summary>
-	/// Gets the certificate fingerprint for SSL/TLS verification.
-	/// </summary>
-	/// <value> A <see cref="string" /> representing the certificate fingerprint for secure connections, or <c> null </c> if not required. </value>
-	public string? CertificateFingerprint { get; init; }
-
-	/// <summary>
-	/// Gets the username for basic authentication.
-	/// </summary>
-	/// <value> A <see cref="string" /> representing the username, or <c> null </c> if basic authentication is not used. </value>
-	public string? Username { get; init; }
-
-	/// <summary>
-	/// Gets the password for basic authentication.
-	/// </summary>
-	/// <value> A <see cref="string" /> representing the password, or <c> null </c> if basic authentication is not used. </value>
-	public string? Password { get; init; }
-
-	/// <summary>
-	/// Gets the API key for Elasticsearch authentication.
-	/// </summary>
-	/// <value> A <see cref="string" /> representing the API key, or <c> null </c> if API key authentication is not used. </value>
-	public string? ApiKey { get; init; }
-
-	/// <summary>
-	/// Gets the Base64-encoded API key for Elasticsearch authentication.
-	/// </summary>
-	/// <value>
-	/// A <see cref="string" /> representing the Base64-encoded API key, or <c> null </c> if Base64 API key authentication is not used.
-	/// </value>
-	public string? Base64ApiKey { get; init; }
-
-	/// <summary>
-	/// Gets the request timeout for Elasticsearch operations.
-	/// </summary>
-	/// <value> A <see cref="TimeSpan" /> representing the request timeout. Defaults to 30 seconds. </value>
-	public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(30);
-
-	/// <summary>
-	/// Gets the ping timeout for node health checks.
-	/// </summary>
-	/// <value> A <see cref="TimeSpan" /> representing the ping timeout. Defaults to 5 seconds. </value>
-	public TimeSpan PingTimeout { get; init; } = TimeSpan.FromSeconds(5);
-
-	/// <summary>
-	/// Gets the maximum number of connections per node.
-	/// </summary>
-	/// <value> An <see cref="int" /> representing the maximum connections per node. Defaults to 80. </value>
-	public int MaximumConnectionsPerNode { get; init; } = 80;
-
-	/// <summary>
-	/// Gets a value indicating whether to disable SSL certificate validation.
-	/// </summary>
-	/// <value> A <see cref="bool" /> indicating whether to disable SSL certificate validation. Defaults to <c> false </c>. </value>
-	public bool DisableCertificateValidation { get; init; }
-
-	/// <summary>
 	/// Gets a value indicating whether to enable connection sniffing for dynamic node discovery.
 	/// </summary>
 	/// <value>
@@ -112,10 +57,10 @@ public sealed class ElasticsearchConfigurationOptions
 	public bool EnableSniffing { get; init; }
 
 	/// <summary>
-	/// Gets the interval for sniffing node information.
+	/// Gets the configuration for connection-level settings including authentication, timeouts, SSL/TLS, and pool tuning.
 	/// </summary>
-	/// <value> A <see cref="TimeSpan" /> representing the sniffing interval. Defaults to 1 hour. </value>
-	public TimeSpan SniffingInterval { get; init; } = TimeSpan.FromHours(1);
+	/// <value> The connection settings for the Elasticsearch client. </value>
+	public ElasticsearchConnectionOptions Connection { get; init; } = new();
 
 	/// <summary>
 	/// Gets the configuration for resilience policies.

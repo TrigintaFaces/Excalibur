@@ -22,27 +22,13 @@ public sealed class AggregateRootShould
 	internal sealed record SomethingHappened : DomainEvent
 	{
 		public string Value { get; init; } = string.Empty;
-
-		public SomethingHappened(string aggregateId, long version, string value)
-			: base(aggregateId, version, TimeProvider.System)
-		{
-			Value = value;
-		}
-
-		public SomethingHappened() : base("", 0, TimeProvider.System) { }
+		public override string AggregateId { get; init; } = string.Empty;
 	}
 
 	internal sealed record SomethingElseHappened : DomainEvent
 	{
 		public int Number { get; init; }
-
-		public SomethingElseHappened(string aggregateId, long version, int number)
-			: base(aggregateId, version, TimeProvider.System)
-		{
-			Number = number;
-		}
-
-		public SomethingElseHappened() : base("", 0, TimeProvider.System) { }
+		public override string AggregateId { get; init; } = string.Empty;
 	}
 
 	#endregion Test Domain Events
@@ -67,12 +53,12 @@ public sealed class AggregateRootShould
 
 		public void DoSomething(string value)
 		{
-			RaiseEvent(new SomethingHappened(Id, Version, value));
+			RaiseEvent(new SomethingHappened { AggregateId = Id, Version = Version, Value = value });
 		}
 
 		public void DoSomethingElse(int number)
 		{
-			RaiseEvent(new SomethingElseHappened(Id, Version, number));
+			RaiseEvent(new SomethingElseHappened { AggregateId = Id, Version = Version, Number = number });
 		}
 
 		protected override void ApplyEventInternal(IDomainEvent @event)
@@ -116,7 +102,7 @@ public sealed class AggregateRootShould
 
 		public void SetState(string state)
 		{
-			RaiseEvent(new SomethingHappened(Id, Version, state));
+			RaiseEvent(new SomethingHappened { AggregateId = Id, Version = Version, Value = state });
 		}
 
 		public override ISnapshot CreateSnapshot()
@@ -193,9 +179,9 @@ public sealed class AggregateRootShould
 		var aggregate = new TestAggregate("test-1");
 		var events = new List<IDomainEvent>
 		{
-			new SomethingHappened("test-1", 0, "first"),
-			new SomethingElseHappened("test-1", 1, 100),
-			new SomethingHappened("test-1", 2, "third")
+			new SomethingHappened { AggregateId = "test-1", Version = 0, Value = "first" },
+			new SomethingElseHappened { AggregateId = "test-1", Version = 1, Number = 100 },
+			new SomethingHappened { AggregateId = "test-1", Version = 2, Value = "third" }
 		};
 
 		// Act
@@ -240,7 +226,7 @@ public sealed class AggregateRootShould
 		var aggregate = new TestAggregate("test-1");
 		var events = new List<IDomainEvent>
 		{
-			new SomethingHappened("test-1", 0, "value")
+			new SomethingHappened { AggregateId = "test-1", Version = 0, Value = "value" }
 		};
 
 		// Act
@@ -311,9 +297,9 @@ public sealed class AggregateRootShould
 		var aggregate = new TestAggregate("test-1");
 		var events = new List<IDomainEvent>
 		{
-			new SomethingHappened("test-1", 0, "initial"),
-			new SomethingElseHappened("test-1", 1, 42),
-			new SomethingHappened("test-1", 2, "final")
+			new SomethingHappened { AggregateId = "test-1", Version = 0, Value = "initial" },
+			new SomethingElseHappened { AggregateId = "test-1", Version = 1, Number = 42 },
+			new SomethingHappened { AggregateId = "test-1", Version = 2, Value = "final" }
 		};
 
 		// Act
@@ -330,7 +316,7 @@ public sealed class AggregateRootShould
 	{
 		// Arrange
 		var aggregate = new TestAggregate("test-1");
-		var @event = new SomethingHappened("test-1", 0, "applied");
+		var @event = new SomethingHappened { AggregateId = "test-1", Version = 0, Value = "applied" };
 
 		// Act
 		aggregate.ApplyEvent(@event);

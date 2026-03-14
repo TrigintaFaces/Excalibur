@@ -37,10 +37,12 @@ public sealed partial class UserCreatedV1ToV2Upgrader : IMessageUpcaster<UserCre
 	{
 		return new UserCreatedV2(
 			oldMessage.AggregateId,
-			oldMessage.Version, // aggregate version
 			oldMessage.Name,
 			oldMessage.Email,
-			Address: null);  // V1 had no address
+			Address: null) // V1 had no address
+		{
+			Version = oldMessage.Version
+		};
 	}
 }
 
@@ -63,10 +65,12 @@ public sealed class UserEmailChangedV1ToV2Upgrader : IMessageUpcaster<UserEmailC
 		// This is simplified for demonstration purposes
 		return new UserCreatedV2(
 			oldMessage.AggregateId,
-			oldMessage.Version,
 			Name: "Unknown", // We don't have the name in email changed events
 			oldMessage.NewEmail,
-			Address: null);
+			Address: null)
+		{
+			Version = oldMessage.Version
+		};
 	}
 }
 
@@ -92,13 +96,15 @@ public sealed partial class UserCreatedV2ToV3Upgrader : IMessageUpcaster<UserCre
 
 		return new UserCreatedV3(
 			oldMessage.AggregateId,
-			oldMessage.Version,
 			oldMessage.Name,
 			oldMessage.Email,
 			Street: street,
 			City: city,
 			PostalCode: postalCode,
-			Country: country);
+			Country: country)
+		{
+			Version = oldMessage.Version
+		};
 	}
 
 	/// <summary>
@@ -170,7 +176,6 @@ public sealed partial class UserAddressChangedV2ToV3Upgrader : IMessageUpcaster<
 
 		return new UserAddressChangedV3(
 			oldMessage.AggregateId,
-			oldMessage.Version,
 			OldStreet: oldStreet,
 			OldCity: oldCity,
 			OldPostalCode: oldPostalCode,
@@ -178,7 +183,10 @@ public sealed partial class UserAddressChangedV2ToV3Upgrader : IMessageUpcaster<
 			NewStreet: newStreet,
 			NewCity: newCity,
 			NewPostalCode: newPostalCode,
-			NewCountry: newCountry);
+			NewCountry: newCountry)
+		{
+			Version = oldMessage.Version
+		};
 	}
 
 	private static (string? Street, string? City, string? PostalCode, string? Country) ParseAddress(string? address)
@@ -246,13 +254,15 @@ public sealed class UserCreatedV1ToV3DirectUpgrader : IMessageUpcaster<UserCreat
 		// Direct transformation - no address data in V1
 		return new UserCreatedV3(
 			oldMessage.AggregateId,
-			oldMessage.Version,
 			oldMessage.Name,
 			oldMessage.Email,
 			Street: null,
 			City: null,
 			PostalCode: null,
-			Country: null);
+			Country: null)
+		{
+			Version = oldMessage.Version
+		};
 	}
 }
 

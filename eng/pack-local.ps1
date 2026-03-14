@@ -42,6 +42,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $LocalFeed = Join-Path $RepoRoot "artifacts/_packages"
 $DispatchSrc = Join-Path $RepoRoot "src/Dispatch"
+$ShippingSolutionFilter = Join-Path $RepoRoot "eng/ci/shards/ShippingOnly.slnf"
 
 Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "Sprint 327 T2.2: Pack Local Feed (AD-327-2)" -ForegroundColor Cyan
@@ -60,16 +61,22 @@ if ($Clean -or !(Test-Path $LocalFeed)) {
 # Build Dispatch projects
 if (-not $NoBuild) {
     Write-Host "`n[1/2] Building Dispatch projects..." -ForegroundColor Yellow
+    if (-not (Test-Path $ShippingSolutionFilter)) {
+        throw "Shipping solution filter not found: $ShippingSolutionFilter"
+    }
+
     Push-Location $RepoRoot
     try {
-        # Build each Dispatch project individually
-        $DispatchProjects = Get-ChildItem -Path $DispatchSrc -Filter "*.csproj" -Recurse
-        foreach ($proj in $DispatchProjects) {
-            Write-Host "  Building $($proj.Name)..." -ForegroundColor Gray
-            dotnet build $proj.FullName -c Release --no-restore
-            if ($LASTEXITCODE -ne 0) {
-                throw "Build failed for $($proj.Name) with exit code $LASTEXITCODE"
-            }
+        Write-Host "  Restoring $ShippingSolutionFilter..." -ForegroundColor Gray
+        dotnet restore $ShippingSolutionFilter --verbosity quiet
+        if ($LASTEXITCODE -ne 0) {
+            throw "Restore failed for $ShippingSolutionFilter with exit code $LASTEXITCODE"
+        }
+
+        Write-Host "  Building $ShippingSolutionFilter..." -ForegroundColor Gray
+        dotnet build $ShippingSolutionFilter -c Release --no-restore --verbosity quiet
+        if ($LASTEXITCODE -ne 0) {
+            throw "Build failed for $ShippingSolutionFilter with exit code $LASTEXITCODE"
         }
     }
     finally {

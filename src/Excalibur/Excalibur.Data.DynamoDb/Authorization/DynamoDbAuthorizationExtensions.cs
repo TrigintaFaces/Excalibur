@@ -56,7 +56,7 @@ public static class DynamoDbAuthorizationExtensions
 
 		return services.AddDynamoDbAuthorization(options =>
 		{
-			options.ServiceUrl = serviceUrl;
+			options.Connection.ServiceUrl = serviceUrl;
 			options.GrantsTableName = grantsTableName;
 			options.ActivityGroupsTableName = activityGroupsTableName;
 		});

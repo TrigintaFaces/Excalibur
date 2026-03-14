@@ -16,7 +16,7 @@ builder.Services.AddExcalibur(excalibur =>
         es.UseSqlServer(builder.Configuration.GetConnectionString("EventStore")
             ?? throw new InvalidOperationException("ConnectionStrings:EventStore is required."));
 #elif (UsePostgreSql)
-        es.UsePostgreSql(builder.Configuration.GetConnectionString("EventStore")
+        es.UsePostgres(builder.Configuration.GetConnectionString("EventStore")
             ?? throw new InvalidOperationException("ConnectionStrings:EventStore is required."));
 #elif (UseInMemoryDatabase)
         es.UseInMemory();

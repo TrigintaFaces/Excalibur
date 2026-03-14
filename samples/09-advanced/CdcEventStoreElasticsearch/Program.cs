@@ -84,7 +84,7 @@ using CdcEventStoreElasticsearch.AntiCorruption;
 using CdcEventStoreElasticsearch.Infrastructure;
 using CdcEventStoreElasticsearch.Projections;
 
-using Excalibur.Data.SqlServer.Cdc;
+using Excalibur.Cdc.SqlServer;
 
 using Quartz;
 
@@ -153,7 +153,7 @@ builder.Services
 builder.Services.AddSqlServerEventSourcing(options =>
 {
 	options.ConnectionString = eventStoreConnectionString;
-	options.RegisterHealthChecks = true;
+	options.HealthChecks.RegisterHealthChecks = true;
 });
 
 // ============================================================================
@@ -189,10 +189,10 @@ builder.Services.AddCdcProcessor(cdc =>
 	// Note: Don't call EnableBackgroundProcessing() - we use custom service/Quartz toggle below
 });
 
-// Register IDataChangeHandler implementations from this assembly
+// Register CDC processor and SQL services
 builder.Services
 	.AddExcaliburSqlServices()
-	.AddCdcProcessor(typeof(Program).Assembly);
+	.AddCdcProcessor();
 
 // CDC polling options (bound from configuration with defaults)
 builder.Services.Configure<CdcPollingOptions>(builder.Configuration.GetSection(CdcPollingOptions.SectionName));

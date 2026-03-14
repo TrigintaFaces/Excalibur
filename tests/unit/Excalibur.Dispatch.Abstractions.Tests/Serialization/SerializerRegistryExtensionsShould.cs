@@ -17,7 +17,7 @@ public sealed class SerializerRegistryExtensionsShould
 	{
 		// Arrange
 		var registry = A.Fake<ISerializerRegistry>();
-		var serializer = A.Fake<IPluggableSerializer>();
+		var serializer = A.Fake<ISerializer>();
 		A.CallTo(() => serializer.Name).Returns("Json");
 		A.CallTo(() => registry.GetAll()).Returns(
 			[(1, "Json", serializer)]);
@@ -69,7 +69,7 @@ public sealed class SerializerRegistryExtensionsShould
 	{
 		// Arrange
 		var registry = A.Fake<ISerializerRegistry>();
-		A.CallTo(() => registry.GetById(1)).Returns(A.Fake<IPluggableSerializer>());
+		A.CallTo(() => registry.GetById(1)).Returns(A.Fake<ISerializer>());
 
 		// Act
 		var result = registry.IsRegistered((byte)1);
@@ -107,7 +107,7 @@ public sealed class SerializerRegistryExtensionsShould
 	{
 		// Arrange
 		var registry = A.Fake<ISerializerRegistry>();
-		var serializer = A.Fake<IPluggableSerializer>();
+		var serializer = A.Fake<ISerializer>();
 		A.CallTo(() => serializer.Name).Returns("Json");
 		A.CallTo(() => registry.GetAll()).Returns(
 			[(1, "Json", serializer)]);

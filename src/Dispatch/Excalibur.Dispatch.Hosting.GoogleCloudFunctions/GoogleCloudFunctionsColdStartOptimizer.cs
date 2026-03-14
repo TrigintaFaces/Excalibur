@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Hosting.GoogleCloud;
 /// </remarks>
 /// <param name="serviceProvider">The service provider for DI container access.</param>
 /// <param name="logger">The logger instance.</param>
-public partial class GoogleCloudFunctionsColdStartOptimizer(
+internal partial class GoogleCloudFunctionsColdStartOptimizer(
 	IServiceProvider serviceProvider,
 	ILogger<GoogleCloudFunctionsColdStartOptimizer> logger) : ColdStartOptimizerBase(serviceProvider, logger)
 {

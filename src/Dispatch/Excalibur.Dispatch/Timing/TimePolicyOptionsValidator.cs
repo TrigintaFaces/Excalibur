@@ -41,47 +41,47 @@ internal sealed class TimePolicyOptionsValidator : IValidateOptions<TimePolicyOp
 		}
 
 		// HandlerTimeout must not exceed MaxTimeout
-		if (options.HandlerTimeout > options.MaxTimeout)
+		if (options.OperationTimeouts.HandlerTimeout > options.MaxTimeout)
 		{
 			failures.Add(
-				$"{nameof(TimePolicyOptions.HandlerTimeout)} ({options.HandlerTimeout}) " +
+				$"{nameof(TimePolicyOperationTimeoutOptions)}.{nameof(TimePolicyOperationTimeoutOptions.HandlerTimeout)} ({options.OperationTimeouts.HandlerTimeout}) " +
 				$"must not exceed {nameof(TimePolicyOptions.MaxTimeout)} ({options.MaxTimeout}).");
 		}
 
 		// TransportTimeout must not exceed MaxTimeout
-		if (options.TransportTimeout > options.MaxTimeout)
+		if (options.OperationTimeouts.TransportTimeout > options.MaxTimeout)
 		{
 			failures.Add(
-				$"{nameof(TimePolicyOptions.TransportTimeout)} ({options.TransportTimeout}) " +
+				$"{nameof(TimePolicyOperationTimeoutOptions)}.{nameof(TimePolicyOperationTimeoutOptions.TransportTimeout)} ({options.OperationTimeouts.TransportTimeout}) " +
 				$"must not exceed {nameof(TimePolicyOptions.MaxTimeout)} ({options.MaxTimeout}).");
 		}
 
 		// SerializationTimeout must be less than HandlerTimeout
-		if (options.SerializationTimeout >= options.HandlerTimeout)
+		if (options.OperationTimeouts.SerializationTimeout >= options.OperationTimeouts.HandlerTimeout)
 		{
 			failures.Add(
-				$"{nameof(TimePolicyOptions.SerializationTimeout)} ({options.SerializationTimeout}) " +
-				$"must be less than {nameof(TimePolicyOptions.HandlerTimeout)} ({options.HandlerTimeout}).");
+				$"{nameof(TimePolicyOperationTimeoutOptions)}.{nameof(TimePolicyOperationTimeoutOptions.SerializationTimeout)} ({options.OperationTimeouts.SerializationTimeout}) " +
+				$"must be less than {nameof(TimePolicyOperationTimeoutOptions)}.{nameof(TimePolicyOperationTimeoutOptions.HandlerTimeout)} ({options.OperationTimeouts.HandlerTimeout}).");
 		}
 
 		// ValidationTimeout must be less than HandlerTimeout
-		if (options.ValidationTimeout >= options.HandlerTimeout)
+		if (options.OperationTimeouts.ValidationTimeout >= options.OperationTimeouts.HandlerTimeout)
 		{
 			failures.Add(
-				$"{nameof(TimePolicyOptions.ValidationTimeout)} ({options.ValidationTimeout}) " +
-				$"must be less than {nameof(TimePolicyOptions.HandlerTimeout)} ({options.HandlerTimeout}).");
+				$"{nameof(TimePolicyOperationTimeoutOptions)}.{nameof(TimePolicyOperationTimeoutOptions.ValidationTimeout)} ({options.OperationTimeouts.ValidationTimeout}) " +
+				$"must be less than {nameof(TimePolicyOperationTimeoutOptions)}.{nameof(TimePolicyOperationTimeoutOptions.HandlerTimeout)} ({options.OperationTimeouts.HandlerTimeout}).");
 		}
 
 		// ComplexityMultiplier should be <= HeavyOperationMultiplier
-		if (options.ComplexityMultiplier > options.HeavyOperationMultiplier)
+		if (options.OperationTimeouts.ComplexityMultiplier > options.OperationTimeouts.HeavyOperationMultiplier)
 		{
 			failures.Add(
-				$"{nameof(TimePolicyOptions.ComplexityMultiplier)} ({options.ComplexityMultiplier}) " +
-				$"must be less than or equal to {nameof(TimePolicyOptions.HeavyOperationMultiplier)} ({options.HeavyOperationMultiplier}).");
+				$"{nameof(TimePolicyOperationTimeoutOptions)}.{nameof(TimePolicyOperationTimeoutOptions.ComplexityMultiplier)} ({options.OperationTimeouts.ComplexityMultiplier}) " +
+				$"must be less than or equal to {nameof(TimePolicyOperationTimeoutOptions)}.{nameof(TimePolicyOperationTimeoutOptions.HeavyOperationMultiplier)} ({options.OperationTimeouts.HeavyOperationMultiplier}).");
 		}
 
 		// Custom timeouts must not exceed MaxTimeout
-		foreach (var customTimeout in options.CustomTimeouts)
+		foreach (var customTimeout in options.Overrides.CustomTimeouts)
 		{
 			if (customTimeout.Value > options.MaxTimeout)
 			{
@@ -91,7 +91,7 @@ internal sealed class TimePolicyOptionsValidator : IValidateOptions<TimePolicyOp
 			}
 		}
 
-		foreach (var messageTimeout in options.MessageTypeTimeouts)
+		foreach (var messageTimeout in options.Overrides.MessageTypeTimeouts)
 		{
 			if (messageTimeout.Value > options.MaxTimeout)
 			{
@@ -101,7 +101,7 @@ internal sealed class TimePolicyOptionsValidator : IValidateOptions<TimePolicyOp
 			}
 		}
 
-		foreach (var handlerTimeout in options.HandlerTypeTimeouts)
+		foreach (var handlerTimeout in options.Overrides.HandlerTypeTimeouts)
 		{
 			if (handlerTimeout.Value > options.MaxTimeout)
 			{

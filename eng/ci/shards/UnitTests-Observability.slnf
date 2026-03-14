@@ -6,8 +6,6 @@
       "tests\\Shared\\Excalibur.Dispatch.Testing\\Excalibur.Dispatch.Testing.csproj",
       "tests\\unit\\Excalibur.Dispatch.Observability.Tests\\Excalibur.Dispatch.Observability.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Hosting.Tests\\Excalibur.Dispatch.Hosting.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.Hosting.Serverless.Tests\\Excalibur.Dispatch.Hosting.Serverless.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.Patterns.Tests\\Excalibur.Dispatch.Patterns.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.ClaimCheck.AwsS3.Tests\\Excalibur.Dispatch.ClaimCheck.AwsS3.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Tests\\Excalibur.Dispatch.ClaimCheck.GoogleCloudStorage.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.AuditLogging.Tests\\Excalibur.Dispatch.AuditLogging.Tests.csproj",
@@ -19,7 +17,6 @@
       "tests\\unit\\Excalibur.Dispatch.AuditLogging.Postgres.Tests\\Excalibur.Dispatch.AuditLogging.Postgres.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.AuditLogging.Splunk.Tests\\Excalibur.Dispatch.AuditLogging.Splunk.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.AuditLogging.SqlServer.Tests\\Excalibur.Dispatch.AuditLogging.SqlServer.Tests.csproj",
-      "tests\\unit\\Excalibur.Dispatch.Compliance.Tests\\Excalibur.Dispatch.Compliance.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.Hosting.AspNetCore.Tests\\Excalibur.Dispatch.Hosting.AspNetCore.Tests.csproj",
       "tests\\unit\\Excalibur.Dispatch.LeaderElection.Abstractions.Tests\\Excalibur.Dispatch.LeaderElection.Abstractions.Tests.csproj"
     ]

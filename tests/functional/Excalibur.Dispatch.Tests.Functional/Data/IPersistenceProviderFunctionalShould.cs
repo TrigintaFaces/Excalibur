@@ -422,14 +422,20 @@ public sealed class IPersistenceProviderFunctionalShould : IAsyncLifetime
 	{
 		return Microsoft.Extensions.Options.Options.Create(new SqlServerProviderOptions
 		{
-			ConnectionString = connectionString,
+			Connection =
+			{
+				ConnectionString = connectionString,
+				ConnectTimeout = 15,
+				TrustServerCertificate = true,
+			},
 			Name = "test-provider",
 			CommandTimeout = 30,
-			ConnectTimeout = 15,
-			MaxPoolSize = 10,
-			MinPoolSize = 1,
-			EnablePooling = true,
-			TrustServerCertificate = true,
+			Pooling =
+			{
+				MaxPoolSize = 10,
+				MinPoolSize = 1,
+				EnablePooling = true,
+			},
 			RetryCount = retryCount
 		});
 	}

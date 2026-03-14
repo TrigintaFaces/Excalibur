@@ -42,6 +42,7 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox\Excalibur.Outbox.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.SqlServer\Excalibur.Outbox.SqlServer.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.InMemory\Excalibur.Inbox.InMemory.csproj" />
     <ProjectReference Include="..\..\Shared\Tests.Shared\Tests.Shared.csproj" />
     <ProjectReference Include="..\..\unit\Excalibur.Dispatch.Tests\Excalibur.Dispatch.Tests.csproj" />
   </ItemGroup>

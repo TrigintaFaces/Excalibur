@@ -234,11 +234,9 @@ public sealed class InboxServiceShould : UnitTestBase
 
 		// Act - Start the service and let ExecuteAsync run briefly
 		await service.StartAsync(cts.Token);
-		var dispatchObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-			() => dispatchStarted.Task.IsCompleted,
-			TimeSpan.FromSeconds(10),
-			TimeSpan.FromMilliseconds(20));
-		dispatchObserved.ShouldBeTrue("inbox dispatch should start");
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			dispatchStarted.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -275,11 +273,9 @@ public sealed class InboxServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		var dispatchObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-			() => dispatchStarted.Task.IsCompleted,
-			TimeSpan.FromSeconds(10),
-			TimeSpan.FromMilliseconds(20));
-		dispatchObserved.ShouldBeTrue("inbox dispatch should start");
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			dispatchStarted.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
 		await cts.CancelAsync();
 		await service.StopAsync(CancellationToken.None);
 
@@ -395,16 +391,12 @@ public sealed class InboxServiceShould : UnitTestBase
 		// Act
 		await service1.StartAsync(cts1.Token);
 		await service2.StartAsync(cts2.Token);
-		var service1DispatchObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-			() => service1DispatchStarted.Task.IsCompleted,
-			TimeSpan.FromSeconds(10),
-			TimeSpan.FromMilliseconds(20));
-		service1DispatchObserved.ShouldBeTrue("first service should start dispatching");
-		var service2DispatchObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-			() => service2DispatchStarted.Task.IsCompleted,
-			TimeSpan.FromSeconds(10),
-			TimeSpan.FromMilliseconds(20));
-		service2DispatchObserved.ShouldBeTrue("second service should start dispatching");
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			service1DispatchStarted.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			service2DispatchStarted.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
 
 		await cts1.CancelAsync();
 		await cts2.CancelAsync();
@@ -444,11 +436,9 @@ public sealed class InboxServiceShould : UnitTestBase
 
 		// Act
 		await service.StartAsync(cts.Token);
-		var dispatchObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-			() => dispatchStarted.Task.IsCompleted,
-			TimeSpan.FromSeconds(10),
-			TimeSpan.FromMilliseconds(20));
-		dispatchObserved.ShouldBeTrue("dispatch should start before cancellation");
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			dispatchStarted.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
 		await cts.CancelAsync();
 
 		// Assert - Should not throw, should stop gracefully

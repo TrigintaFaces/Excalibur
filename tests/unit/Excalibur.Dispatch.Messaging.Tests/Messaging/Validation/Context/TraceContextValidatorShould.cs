@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Validation.Context;
 
 using Microsoft.Extensions.Logging.Abstractions;
@@ -51,7 +52,10 @@ public sealed class TraceContextValidatorShould
 	{
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.TraceParent).Returns(null);
+		var items = new Dictionary<string, object>();
+		var features = new Dictionary<Type, object>();
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
 		A.CallTo(() => context.MessageId).Returns("msg-1");
 
 		var result = await _sut.ValidateAsync(message, context, CancellationToken.None).ConfigureAwait(false);
@@ -64,7 +68,11 @@ public sealed class TraceContextValidatorShould
 	{
 		var message = A.Fake<IDispatchMessage>();
 		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.TraceParent).Returns("00-traceid-spanid-01");
+		var items2 = new Dictionary<string, object>();
+		var features2 = new Dictionary<Type, object>();
+		A.CallTo(() => context.Items).Returns(items2);
+		A.CallTo(() => context.Features).Returns(features2);
+		context.GetOrCreateIdentityFeature().TraceParent = "00-traceid-spanid-01";
 		A.CallTo(() => context.MessageId).Returns(null);
 
 		var result = await _sut.ValidateAsync(message, context, CancellationToken.None).ConfigureAwait(false);

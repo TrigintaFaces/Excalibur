@@ -24,7 +24,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// <param name="cloudEventProcessor"> The CloudEvent processor. </param>
 /// <param name="logger"> The logger instance. </param>
 /// <param name="serviceProvider"> The service provider. </param>
-public sealed class MessageEnvelopeFactory(
+internal sealed class MessageEnvelopeFactory(
 	IPayloadSerializer serializer,
 	ICloudEventProcessor cloudEventProcessor,
 	ILogger<MessageEnvelopeFactory> logger,
@@ -184,7 +184,7 @@ public sealed class MessageEnvelopeFactory(
 		var context = MessageContext.CreateForDeserialization(_serviceProvider);
 		context.MessageId = queueMessage.MessageId;
 		context.CorrelationId = new CorrelationId(queueMessage.MessageId).ToString(); // Default fallback
-		context.ReceivedTimestampUtc = queueMessage.InsertedOn ?? DateTimeOffset.UtcNow;
+		context.SetReceivedTimestampUtc(queueMessage.InsertedOn ?? DateTimeOffset.UtcNow);
 
 		// Add queue-specific metadata
 		context.SetItem("Azure.MessageId", queueMessage.MessageId);
@@ -311,7 +311,7 @@ public sealed class MessageEnvelopeFactory(
 		if (messageType != null)
 		{
 			// Use reflection to call the generic Deserialize method
-			var deserializeMethod = typeof(IMessageSerializer).GetMethod(nameof(IMessageSerializer.Deserialize))!;
+			var deserializeMethod = typeof(IPayloadSerializer).GetMethod(nameof(IPayloadSerializer.Deserialize))!;
 			var genericDeserializeMethod = deserializeMethod.MakeGenericMethod(messageType);
 			message = genericDeserializeMethod.Invoke(_serializer, [envelope.Body])!;
 			context.SetItem("MessageType", messageType.Name);

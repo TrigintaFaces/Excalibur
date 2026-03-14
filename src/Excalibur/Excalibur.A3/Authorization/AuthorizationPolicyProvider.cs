@@ -7,7 +7,6 @@ using System.Diagnostics.CodeAnalysis;
 using Excalibur.A3.Authentication;
 using Excalibur.A3.Authorization.PolicyData;
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Options.Serialization;
 using Excalibur.Dispatch.Serialization;
 
@@ -135,7 +134,7 @@ internal sealed class AuthorizationPolicyProvider(
 		});
 		return item == null
 			? null
-			: await serializer.DeserializeAsync<IDictionary<string, object>>(item).ConfigureAwait(false);
+			: serializer.Deserialize<IDictionary<string, object>>(item);
 	}
 
 	/// <summary>
@@ -155,7 +154,7 @@ internal sealed class AuthorizationPolicyProvider(
 			options.WriteIndented = defaultOptions.WriteIndented;
 		});
 		var cacheOptions = new DistributedCacheEntryOptions { SlidingExpiration = slidingExpiration };
-		var serialized = await serializer.SerializeAsync(item).ConfigureAwait(false);
+		var serialized = await serializer.SerializeAsync(item, typeof(IDictionary<string, object>)).ConfigureAwait(false);
 
 		await cache.SetStringAsync(key, serialized, cacheOptions).ConfigureAwait(false);
 	}

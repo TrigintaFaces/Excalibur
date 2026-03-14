@@ -7,7 +7,6 @@ using System.Diagnostics.CodeAnalysis;
 using Dapper;
 
 using Excalibur.Data.Persistence;
-using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Configuration;
@@ -34,7 +33,7 @@ public static class ExcaliburDataServiceCollectionExtensions
 		ConfigureDapper();
 		ConfigureJsonSerialization();
 
-		services.TryAddSingleton<IJsonSerializer, DispatchJsonSerializer>();
+		services.TryAddSingleton<DispatchJsonSerializer, DispatchJsonSerializer>();
 
 		return services;
 	}

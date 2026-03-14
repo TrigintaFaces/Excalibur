@@ -1,0 +1,114 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "Excalibur Contributors",
+  "classifications": ["Web", "Serverless", "Dispatch"],
+  "identity": "Excalibur.Dispatch.Serverless",
+  "name": "Excalibur Dispatch Serverless",
+  "shortName": "dispatch-serverless",
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "sourceName": "Company.DispatchServerless",
+  "preferNameDirectory": true,
+  "symbols": {
+    "Framework": {
+      "type": "parameter",
+      "description": "The target framework for the project.",
+      "datatype": "choice",
+      "choices": [
+        { "choice": "net8.0", "description": "Target .NET 8.0" },
+        { "choice": "net9.0", "description": "Target .NET 9.0" },
+        { "choice": "net10.0", "description": "Target .NET 10.0" }
+      ],
+      "defaultValue": "net10.0",
+      "replaces": "net8.0"
+    },
+    "Platform": {
+      "type": "parameter",
+      "description": "The serverless platform to target.",
+      "datatype": "choice",
+      "choices": [
+        { "choice": "azure", "description": "Azure Functions (isolated worker)" },
+        { "choice": "aws", "description": "AWS Lambda" },
+        { "choice": "gcp", "description": "Google Cloud Functions" }
+      ],
+      "defaultValue": "azure"
+    },
+    "Transport": {
+      "type": "parameter",
+      "description": "The message transport to use.",
+      "datatype": "choice",
+      "choices": [
+        { "choice": "inmemory", "description": "In-memory transport (default)" },
+        { "choice": "kafka", "description": "Apache Kafka" },
+        { "choice": "rabbitmq", "description": "RabbitMQ" },
+        { "choice": "azureservicebus", "description": "Azure Service Bus" },
+        { "choice": "awssqs", "description": "Amazon SQS" },
+        { "choice": "googlepubsub", "description": "Google Cloud Pub/Sub" }
+      ],
+      "defaultValue": "inmemory"
+    },
+    "UseAzure": {
+      "type": "computed",
+      "value": "(Platform == \"azure\")"
+    },
+    "UseAws": {
+      "type": "computed",
+      "value": "(Platform == \"aws\")"
+    },
+    "UseGcp": {
+      "type": "computed",
+      "value": "(Platform == \"gcp\")"
+    },
+    "UseKafka": {
+      "type": "computed",
+      "value": "(Transport == \"kafka\")"
+    },
+    "UseRabbitMQ": {
+      "type": "computed",
+      "value": "(Transport == \"rabbitmq\")"
+    },
+    "UseAzureServiceBus": {
+      "type": "computed",
+      "value": "(Transport == \"azureservicebus\")"
+    },
+    "UseAwsSqs": {
+      "type": "computed",
+      "value": "(Transport == \"awssqs\")"
+    },
+    "UseGooglePubSub": {
+      "type": "computed",
+      "value": "(Transport == \"googlepubsub\")"
+    },
+    "FrameworkVersion": {
+      "type": "generated",
+      "generator": "switch",
+      "replaces": "8.0",
+      "parameters": {
+        "evaluator": "C++",
+        "datatype": "string",
+        "cases": [
+          { "condition": "(Framework == 'net10.0')", "value": "10.0" },
+          { "condition": "(Framework == 'net9.0')", "value": "9.0" },
+          { "condition": "", "value": "8.0" }
+        ]
+      }
+    },
+    "IncludeDocker": {
+      "type": "parameter",
+      "datatype": "bool",
+      "description": "Include Dockerfile.",
+      "defaultValue": "false"
+    }
+  },
+  "sources": [
+    {
+      "modifiers": [
+        { "condition": "(!IncludeDocker)", "exclude": ["Dockerfile", ".dockerignore"] },
+        { "condition": "(!UseAzure)", "exclude": ["host.json", "local.settings.json"] },
+        { "condition": "(!UseAws)", "exclude": ["aws-lambda-tools-defaults.json"] }
+      ]
+    }
+  ]
+}

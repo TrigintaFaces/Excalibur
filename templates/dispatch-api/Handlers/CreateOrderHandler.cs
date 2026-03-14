@@ -1,13 +1,13 @@
-﻿using Company.DispatchApi.Actions;
+using Company.DispatchApi.Actions;
 using Company.DispatchApi.Infrastructure;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Delivery;
 
 namespace Company.DispatchApi.Handlers;
 
 /// <summary>
 /// Handles <see cref="CreateOrderAction"/> requests.
 /// </summary>
-public sealed class CreateOrderHandler : IMessageHandler<CreateOrderAction>
+public sealed class CreateOrderHandler : IActionHandler<CreateOrderAction, Guid>
 {
     private readonly InMemoryOrderStore _orderStore;
     private readonly ILogger<CreateOrderHandler> _logger;
@@ -19,16 +19,15 @@ public sealed class CreateOrderHandler : IMessageHandler<CreateOrderAction>
     }
 
     /// <inheritdoc />
-    public Task HandleAsync(CreateOrderAction message, IMessageContext context, CancellationToken cancellationToken)
+    public Task<Guid> HandleAsync(CreateOrderAction action, CancellationToken cancellationToken)
     {
         var orderId = Guid.NewGuid();
 
-        _orderStore.Save(orderId, message.ProductId, message.Quantity, "Created");
+        _orderStore.Save(orderId, action.ProductId, action.Quantity, "Created");
 
         _logger.LogInformation("Order {OrderId} created for product {ProductId}, quantity {Quantity}",
-            orderId, message.ProductId, message.Quantity);
+            orderId, action.ProductId, action.Quantity);
 
-        context.SetResult(orderId);
-        return Task.CompletedTask;
+        return Task.FromResult(orderId);
     }
 }

@@ -59,13 +59,13 @@ public sealed class AggregateTestFixtureEdgeCasesShould
 		// Arrange
 		var paramsEvents = new IDomainEvent[]
 		{
-			new CounterIncremented("id", 1),
-			new CounterIncremented("id", 2)
+			new CounterIncremented { AggregateId = "id", Version = 1 },
+			new CounterIncremented { AggregateId = "id", Version = 2 }
 		};
 
 		var enumerableEvents = new List<IDomainEvent>
 		{
-			new CounterIncremented("id", 3)
+			new CounterIncremented { AggregateId = "id", Version = 3 }
 		};
 
 		// Act & Assert
@@ -83,7 +83,7 @@ public sealed class AggregateTestFixtureEdgeCasesShould
 	{
 		// Arrange
 		var events = Enumerable.Range(1, 100)
-			.Select(i => new CounterIncremented("id", i))
+			.Select(i => new CounterIncremented { AggregateId = "id", Version = i })
 			.ToList();
 
 		// Act & Assert
@@ -211,9 +211,9 @@ public sealed class AggregateTestFixtureEdgeCasesShould
 	{
 		// Arrange & Act & Assert
 		_ = new AggregateTestFixture<TestAggregate>()
-			.Given(new AggregateInitialized("test-id", 1, "TestName"))
-			.Given(new CounterIncremented("test-id", 2))
-			.Given(new CounterIncrementedBy("test-id", 3, 5) { Amount = 5 })
+			.Given(new AggregateInitialized { AggregateId = "test-id", Version = 1, Name = "TestName" })
+			.Given(new CounterIncremented { AggregateId = "test-id", Version = 2 })
+			.Given(new CounterIncrementedBy { AggregateId = "test-id", Version = 3, Amount = 5 })
 			.When(agg => agg.IncrementBy(10))
 			.Then()
 			.StateShould(agg => agg.Counter == 16)
@@ -290,7 +290,7 @@ public sealed class AggregateTestFixtureEdgeCasesShould
 	{
 		// Arrange & Act & Assert - Various chaining patterns
 		var result = new AggregateTestFixture<TestAggregate>()
-			.Given(new AggregateInitialized("id", 1, "Test"))
+			.Given(new AggregateInitialized { AggregateId = "id", Version = 1, Name = "Test" })
 			.When(agg => agg.IncrementBy(5))
 			.Then()
 			.StateShould(agg => agg.IsInitialized)
@@ -309,8 +309,8 @@ public sealed class AggregateTestFixtureEdgeCasesShould
 		var fixture = new AggregateTestFixture<TestAggregate>();
 
 		// Act
-		var result1 = fixture.Given(new CounterIncremented("id", 1));
-		var result2 = result1.Given(new CounterIncremented("id", 2));
+		var result1 = fixture.Given(new CounterIncremented { AggregateId = "id", Version = 1 });
+		var result2 = result1.Given(new CounterIncremented { AggregateId = "id", Version = 2 });
 
 		// Assert - Given should return the same fixture instance
 		result1.ShouldBe(fixture);
@@ -342,9 +342,9 @@ public sealed class AggregateTestFixtureEdgeCasesShould
 		// Success case
 		_ = new AggregateTestFixture<TestAggregate>()
 			.Given(
-				new AggregateInitialized("order-123", 1, "Order"),
-				new CounterIncremented("order-123", 2),
-				new CounterIncrementedBy("order-123", 3, 10) { Amount = 10 })
+				new AggregateInitialized { AggregateId = "order-123", Version = 1, Name = "Order" },
+				new CounterIncremented { AggregateId = "order-123", Version = 2 },
+				new CounterIncrementedBy { AggregateId = "order-123", Version = 3, Amount = 10 })
 			.When(agg => agg.IncrementBy(5))
 			.Then()
 			.ShouldNotThrow()
@@ -354,7 +354,7 @@ public sealed class AggregateTestFixtureEdgeCasesShould
 
 		// Failure case - same aggregate but trying to initialize again
 		new AggregateTestFixture<TestAggregate>()
-			.Given(new AggregateInitialized("order-123", 1, "Order"))
+			.Given(new AggregateInitialized { AggregateId = "order-123", Version = 1, Name = "Order" })
 			.When(agg => agg.Initialize("DuplicateName"))
 			.ShouldThrow<InvalidOperationException>("already initialized");
 	}
@@ -365,10 +365,10 @@ public sealed class AggregateTestFixtureEdgeCasesShould
 		// Verify that state changes through events are correctly reflected
 		_ = new AggregateTestFixture<TestAggregate>()
 			.Given(
-				new AggregateInitialized("agg-1", 1, "First"),
-				new CounterIncremented("agg-1", 2),
-				new CounterIncremented("agg-1", 3),
-				new CounterIncrementedBy("agg-1", 4, 7) { Amount = 7 })
+				new AggregateInitialized { AggregateId = "agg-1", Version = 1, Name = "First" },
+				new CounterIncremented { AggregateId = "agg-1", Version = 2 },
+				new CounterIncremented { AggregateId = "agg-1", Version = 3 },
+				new CounterIncrementedBy { AggregateId = "agg-1", Version = 4, Amount = 7 })
 			.When(agg => agg.IncrementBy(3))
 			.Then()
 			.AssertAggregate(agg =>

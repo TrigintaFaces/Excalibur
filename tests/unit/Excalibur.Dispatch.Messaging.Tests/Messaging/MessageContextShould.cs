@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Routing;
-using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Messaging;
 
@@ -15,6 +15,7 @@ namespace Excalibur.Dispatch.Tests.Messaging;
 /// <remarks>
 /// Sprint 411 - Core Pipeline Coverage (T411.1).
 /// Target: Increase MessageContext coverage from 37.8% to 70%.
+/// Updated for IMessageContext decomposition: properties moved to feature interfaces and Items-based extension methods.
 /// </remarks>
 [Trait("Category", "Unit")]
 [Trait("Component", "Core")]
@@ -91,10 +92,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.ExternalId = "external-123";
+		context.GetOrCreateIdentityFeature().ExternalId = "external-123";
 
 		// Assert
-		context.ExternalId.ShouldBe("external-123");
+		context.GetExternalId().ShouldBe("external-123");
 	}
 
 	[Fact]
@@ -104,10 +105,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.UserId = "user-abc";
+		context.GetOrCreateIdentityFeature().UserId = "user-abc";
 
 		// Assert
-		context.UserId.ShouldBe("user-abc");
+		context.GetUserId().ShouldBe("user-abc");
 	}
 
 	[Fact]
@@ -143,10 +144,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.TraceParent = "00-trace-parent-01";
+		context.GetOrCreateIdentityFeature().TraceParent = "00-trace-parent-01";
 
 		// Assert
-		context.TraceParent.ShouldBe("00-trace-parent-01");
+		context.GetTraceParent().ShouldBe("00-trace-parent-01");
 	}
 
 	[Fact]
@@ -156,10 +157,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.TenantId = "tenant-abc";
+		context.GetOrCreateIdentityFeature().TenantId = "tenant-abc";
 
 		// Assert
-		context.TenantId.ShouldBe("tenant-abc");
+		context.GetTenantId().ShouldBe("tenant-abc");
 	}
 
 	[Fact]
@@ -169,10 +170,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.SessionId = "session-xyz";
+		context.GetOrCreateIdentityFeature().SessionId = "session-xyz";
 
 		// Assert
-		context.SessionId.ShouldBe("session-xyz");
+		context.GetSessionId().ShouldBe("session-xyz");
 	}
 
 	[Fact]
@@ -182,10 +183,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.WorkflowId = "workflow-456";
+		context.GetOrCreateIdentityFeature().WorkflowId = "workflow-456";
 
 		// Assert
-		context.WorkflowId.ShouldBe("workflow-456");
+		context.GetWorkflowId().ShouldBe("workflow-456");
 	}
 
 	[Fact]
@@ -195,10 +196,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.Source = "TestService";
+		context.GetOrCreateRoutingFeature().Source = "TestService";
 
 		// Assert
-		context.Source.ShouldBe("TestService");
+		context.GetSource().ShouldBe("TestService");
 	}
 
 	[Fact]
@@ -208,10 +209,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.MessageType = "OrderCreated";
+		context.SetMessageType("OrderCreated");
 
 		// Assert
-		context.MessageType.ShouldBe("OrderCreated");
+		context.GetMessageType().ShouldBe("OrderCreated");
 	}
 
 	[Fact]
@@ -221,10 +222,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.ContentType = "application/json";
+		context.SetContentType("application/json");
 
 		// Assert
-		context.ContentType.ShouldBe("application/json");
+		context.GetContentType().ShouldBe("application/json");
 	}
 
 	[Fact]
@@ -234,10 +235,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.PartitionKey = "partition-1";
+		context.GetOrCreateRoutingFeature().PartitionKey = "partition-1";
 
 		// Assert
-		context.PartitionKey.ShouldBe("partition-1");
+		context.GetPartitionKey().ShouldBe("partition-1");
 	}
 
 	[Fact]
@@ -247,10 +248,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.ReplyTo = "reply-queue";
+		context.ReplyTo("reply-queue");
 
 		// Assert
-		context.ReplyTo.ShouldBe("reply-queue");
+		context.ReplyTo().ShouldBe("reply-queue");
 	}
 
 	[Fact]
@@ -260,10 +261,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.SerializerVersion = "1.0";
+		context.SerializerVersion("1.0");
 
 		// Assert
-		context.SerializerVersion.ShouldBe("1.0");
+		context.SerializerVersion().ShouldBe("1.0");
 	}
 
 	[Fact]
@@ -273,10 +274,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.MessageVersion = "2.0";
+		context.MessageVersion("2.0");
 
 		// Assert
-		context.MessageVersion.ShouldBe("2.0");
+		context.MessageVersion().ShouldBe("2.0");
 	}
 
 	[Fact]
@@ -286,10 +287,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.ContractVersion = "v3";
+		context.ContractVersion("v3");
 
 		// Assert
-		context.ContractVersion.ShouldBe("v3");
+		context.ContractVersion().ShouldBe("v3");
 	}
 
 	[Fact]
@@ -299,10 +300,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.TransactionId = "tx-123";
+		context.GetOrCreateTransactionFeature().TransactionId = "tx-123";
 
 		// Assert
-		context.TransactionId.ShouldBe("tx-123");
+		context.GetTransactionId().ShouldBe("tx-123");
 	}
 
 	#endregion
@@ -316,10 +317,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.DeliveryCount = 5;
+		context.GetOrCreateProcessingFeature().DeliveryCount = 5;
 
 		// Assert
-		context.DeliveryCount.ShouldBe(5);
+		context.GetDeliveryCount().ShouldBe(5);
 	}
 
 	[Fact]
@@ -329,10 +330,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.DesiredVersion = 3;
+		context.DesiredVersion("3");
 
 		// Assert
-		context.DesiredVersion.ShouldBe(3);
+		context.DesiredVersion().ShouldBe("3");
 	}
 
 	[Fact]
@@ -342,10 +343,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.ProcessingAttempts = 2;
+		context.GetOrCreateProcessingFeature().ProcessingAttempts = 2;
 
 		// Assert
-		context.ProcessingAttempts.ShouldBe(2);
+		context.GetProcessingAttempts().ShouldBe(2);
 	}
 
 	[Fact]
@@ -355,10 +356,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.IsRetry = true;
+		context.GetOrCreateProcessingFeature().IsRetry = true;
 
 		// Assert
-		context.IsRetry.ShouldBeTrue();
+		context.GetIsRetry().ShouldBeTrue();
 	}
 
 	[Fact]
@@ -368,10 +369,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.ValidationPassed = true;
+		context.GetOrCreateValidationFeature().ValidationPassed = true;
 
 		// Assert
-		context.ValidationPassed.ShouldBeTrue();
+		context.GetValidationPassed().ShouldBeTrue();
 	}
 
 	[Fact]
@@ -381,10 +382,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.TimeoutExceeded = true;
+		context.GetOrCreateTimeoutFeature().TimeoutExceeded = true;
 
 		// Assert
-		context.TimeoutExceeded.ShouldBeTrue();
+		context.GetTimeoutExceeded().ShouldBeTrue();
 	}
 
 	[Fact]
@@ -394,10 +395,10 @@ public sealed class MessageContextShould
 		var context = new MessageContext();
 
 		// Act
-		context.RateLimitExceeded = true;
+		context.GetOrCreateRateLimitFeature().RateLimitExceeded = true;
 
 		// Assert
-		context.RateLimitExceeded.ShouldBeTrue();
+		context.GetRateLimitExceeded().ShouldBeTrue();
 	}
 
 	#endregion
@@ -412,21 +413,21 @@ public sealed class MessageContextShould
 		var timestamp = new DateTimeOffset(2026, 1, 20, 12, 0, 0, TimeSpan.Zero);
 
 		// Act
-		context.ReceivedTimestampUtc = timestamp;
+		context.SetReceivedTimestampUtc(timestamp);
 
 		// Assert
-		context.ReceivedTimestampUtc.ShouldBe(timestamp);
+		context.GetReceivedTimestampUtc().ShouldBe(timestamp);
 	}
 
 	[Fact]
-	public void ReceivedTimestampUtc_Should_Be_Stable_Across_Repeated_Reads_When_Not_Explicitly_Set()
+	public void ReceivedTimestampUtc_Should_Be_Null_When_Not_Set()
 	{
 		// Arrange
 		var context = new MessageContext();
 
 		// Act
-		var first = context.ReceivedTimestampUtc;
-		var second = context.ReceivedTimestampUtc;
+		var first = context.GetReceivedTimestampUtc();
+		var second = context.GetReceivedTimestampUtc();
 
 		// Assert
 		second.ShouldBe(first);
@@ -440,10 +441,10 @@ public sealed class MessageContextShould
 		var timestamp = new DateTimeOffset(2026, 1, 20, 11, 0, 0, TimeSpan.Zero);
 
 		// Act
-		context.SentTimestampUtc = timestamp;
+		context.SetSentTimestampUtc(timestamp);
 
 		// Assert
-		context.SentTimestampUtc.ShouldBe(timestamp);
+		context.GetSentTimestampUtc().ShouldBe(timestamp);
 	}
 
 	[Fact]
@@ -454,10 +455,10 @@ public sealed class MessageContextShould
 		var timestamp = DateTimeOffset.UtcNow;
 
 		// Act
-		context.FirstAttemptTime = timestamp;
+		context.GetOrCreateProcessingFeature().FirstAttemptTime = timestamp;
 
 		// Assert
-		context.FirstAttemptTime.ShouldBe(timestamp);
+		context.GetFirstAttemptTime().ShouldBe(timestamp);
 	}
 
 	[Fact]
@@ -468,10 +469,10 @@ public sealed class MessageContextShould
 		var timestamp = DateTimeOffset.UtcNow;
 
 		// Act
-		context.ValidationTimestamp = timestamp;
+		context.GetOrCreateValidationFeature().ValidationTimestamp = timestamp;
 
 		// Assert
-		context.ValidationTimestamp.ShouldBe(timestamp);
+		context.GetValidationTimestamp().ShouldBe(timestamp);
 	}
 
 	[Fact]
@@ -482,10 +483,10 @@ public sealed class MessageContextShould
 		var elapsed = TimeSpan.FromSeconds(30);
 
 		// Act
-		context.TimeoutElapsed = elapsed;
+		context.GetOrCreateTimeoutFeature().TimeoutElapsed = elapsed;
 
 		// Assert
-		context.TimeoutElapsed.ShouldBe(elapsed);
+		context.GetTimeoutElapsed().ShouldBe(elapsed);
 	}
 
 	[Fact]
@@ -496,10 +497,10 @@ public sealed class MessageContextShould
 		var retryAfter = TimeSpan.FromMinutes(5);
 
 		// Act
-		context.RateLimitRetryAfter = retryAfter;
+		context.GetOrCreateRateLimitFeature().RateLimitRetryAfter = retryAfter;
 
 		// Assert
-		context.RateLimitRetryAfter.ShouldBe(retryAfter);
+		context.GetRateLimitRetryAfter().ShouldBe(retryAfter);
 	}
 
 	#endregion
@@ -589,11 +590,11 @@ public sealed class MessageContextShould
 		// Arrange
 		var context = new MessageContext();
 
-		// Act
-		context.RoutingDecision = null;
+		// Act -- routing feature starts with null RoutingDecision by default
+		var decision = context.GetRoutingDecision();
 
 		// Assert
-		context.RoutingDecision.ShouldBeNull();
+		decision.ShouldBeNull();
 	}
 
 	[Fact]
@@ -604,10 +605,10 @@ public sealed class MessageContextShould
 		var routingDecision = RoutingDecision.Success("local", []);
 
 		// Act
-		context.RoutingDecision = routingDecision;
+		context.GetOrCreateRoutingFeature().RoutingDecision = routingDecision;
 
 		// Assert
-		context.RoutingDecision.ShouldBe(routingDecision);
+		context.GetRoutingDecision().ShouldBe(routingDecision);
 	}
 
 	[Fact]
@@ -670,10 +671,10 @@ public sealed class MessageContextShould
 		var transaction = new object();
 
 		// Act
-		context.Transaction = transaction;
+		context.GetOrCreateTransactionFeature().Transaction = transaction;
 
 		// Assert
-		context.Transaction.ShouldBe(transaction);
+		context.GetTransaction().ShouldBe(transaction);
 	}
 
 	#endregion
@@ -727,28 +728,8 @@ public sealed class MessageContextShould
 		// Arrange
 		var context = new MessageContext();
 
-		// Act & Assert
-		_ = Should.Throw<ArgumentException>(() => context.ContainsItem(null!));
-	}
-
-	[Fact]
-	public void ContainsItem_Should_Throw_For_Empty_Key()
-	{
-		// Arrange
-		var context = new MessageContext();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentException>(() => context.ContainsItem(""));
-	}
-
-	[Fact]
-	public void ContainsItem_Should_Throw_For_Whitespace_Key()
-	{
-		// Arrange
-		var context = new MessageContext();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentException>(() => context.ContainsItem("   "));
+		// Act & Assert -- null key throws ArgumentNullException (subclass of ArgumentException) from dictionary
+		_ = Should.Throw<ArgumentNullException>(() => context.ContainsItem(null!));
 	}
 
 	[Fact]
@@ -784,8 +765,8 @@ public sealed class MessageContextShould
 		// Arrange
 		var context = new MessageContext();
 
-		// Act & Assert
-		_ = Should.Throw<ArgumentException>(() => context.GetItem<string>(null!));
+		// Act & Assert -- null key throws ArgumentNullException (subclass of ArgumentException) from dictionary
+		_ = Should.Throw<ArgumentNullException>(() => context.GetItem<string>(null!));
 	}
 
 	[Fact]
@@ -843,17 +824,17 @@ public sealed class MessageContextShould
 	}
 
 	[Fact]
-	public void SetItem_Should_Remove_Item_When_Value_Is_Null()
+	public void SetItem_Should_Overwrite_When_Value_Is_Null()
 	{
 		// Arrange
 		var context = new MessageContext();
 		context.SetItem("key", "value");
 
-		// Act
+		// Act -- SetItem stores the value (including null) in Items
 		context.SetItem<string?>("key", null);
 
-		// Assert
-		context.ContainsItem("key").ShouldBeFalse();
+		// Assert -- key still exists but value is null
+		context.Items.ContainsKey("key").ShouldBeTrue();
 	}
 
 	[Fact]
@@ -862,8 +843,8 @@ public sealed class MessageContextShould
 		// Arrange
 		var context = new MessageContext();
 
-		// Act & Assert
-		_ = Should.Throw<ArgumentException>(() => context.SetItem(null!, "value"));
+		// Act & Assert -- null key throws ArgumentNullException (subclass of ArgumentException) from dictionary
+		_ = Should.Throw<ArgumentNullException>(() => context.SetItem(null!, "value"));
 	}
 
 	[Fact]
@@ -896,29 +877,29 @@ public sealed class MessageContextShould
 		// Arrange
 		var context = new MessageContext();
 
-		// Act & Assert
-		_ = Should.Throw<ArgumentException>(() => context.RemoveItem(null!));
+		// Act & Assert -- null key throws ArgumentNullException (subclass of ArgumentException) from dictionary
+		_ = Should.Throw<ArgumentNullException>(() => context.RemoveItem(null!));
 	}
 
 	#endregion
 
-	#region Properties Dictionary Tests
+	#region Items As Properties Tests
 
 	[Fact]
-	public void Properties_Should_Return_Compatible_Dictionary()
+	public void Items_Should_Support_Direct_Dictionary_Access()
 	{
 		// Arrange
 		var context = new MessageContext();
 		context.SetItem("key1", "value1");
 		context.SetItem("key2", 42);
 
-		// Act
-		var properties = context.Properties;
+		// Act -- Items dictionary is the canonical property store
+		var items = context.Items;
 
 		// Assert
-		_ = properties.ShouldNotBeNull();
-		properties["key1"].ShouldBe("value1");
-		properties["key2"].ShouldBe(42);
+		_ = items.ShouldNotBeNull();
+		items["key1"].ShouldBe("value1");
+		items["key2"].ShouldBe(42);
 	}
 
 	#endregion
@@ -966,18 +947,6 @@ public sealed class MessageContextShould
 		context.Success.ShouldBeFalse();
 	}
 
-	[Fact]
-	public void Success_Should_Return_False_When_Routing_Fails()
-	{
-		// Arrange
-		var context = new MessageContext();
-		var routingDecision = RoutingDecision.Failure("No matching rules");
-		context.RoutingDecision = routingDecision;
-
-		// Assert
-		context.Success.ShouldBeFalse();
-	}
-
 	#endregion
 
 	#region Reset Tests
@@ -988,11 +957,11 @@ public sealed class MessageContextShould
 		// Arrange
 		var context = new MessageContext();
 		context.MessageId = "test-id";
-		context.ExternalId = "ext-id";
-		context.UserId = "user-id";
+		context.GetOrCreateIdentityFeature().ExternalId = "ext-id";
+		context.GetOrCreateIdentityFeature().UserId = "user-id";
 		context.CorrelationId = "corr-id";
 		context.CausationId = "cause-id";
-		context.TenantId = "tenant-id";
+		context.GetOrCreateIdentityFeature().TenantId = "tenant-id";
 
 		// Act
 		context.Reset();
@@ -1001,31 +970,25 @@ public sealed class MessageContextShould
 		// PERF-5: MessageId uses lazy generation - after reset it generates a fresh ID instead of null
 		_ = context.MessageId.ShouldNotBeNull();
 		context.MessageId.ShouldNotBe("test-id"); // Should be a new generated ID, not the original
-		context.ExternalId.ShouldBeNull();
-		context.UserId.ShouldBeNull();
+		context.GetExternalId().ShouldBeNull();
+		context.GetUserId().ShouldBeNull();
 		context.CorrelationId.ShouldBeNull();
 		context.CausationId.ShouldBeNull();
-		context.TenantId.ShouldBeNull();
+		context.GetTenantId().ShouldBeNull();
 	}
 
 	[Fact]
-	public void Reset_Should_Reinitialize_ReceivedTimestampUtc_On_Next_Access()
+	public void Reset_Should_Clear_ReceivedTimestampUtc()
 	{
 		// Arrange
-		var context = new MessageContext
-		{
-			ReceivedTimestampUtc = new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero),
-		};
-		var before = DateTimeOffset.UtcNow;
+		var context = new MessageContext();
+		context.SetReceivedTimestampUtc(new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero));
 
 		// Act
 		context.Reset();
-		var valueAfterReset = context.ReceivedTimestampUtc;
-		var after = DateTimeOffset.UtcNow;
 
-		// Assert
-		valueAfterReset.ShouldBeGreaterThanOrEqualTo(before);
-		valueAfterReset.ShouldBeLessThanOrEqualTo(after);
+		// Assert -- Items are cleared, so ReceivedTimestampUtc should be null
+		context.GetReceivedTimestampUtc().ShouldBeNull();
 	}
 
 	[Fact]
@@ -1033,17 +996,17 @@ public sealed class MessageContextShould
 	{
 		// Arrange
 		var context = new MessageContext();
-		context.DeliveryCount = 5;
-		context.ProcessingAttempts = 3;
-		context.DesiredVersion = 2;
+		context.GetOrCreateProcessingFeature().DeliveryCount = 5;
+		context.GetOrCreateProcessingFeature().ProcessingAttempts = 3;
+		context.DesiredVersion("2");
 
 		// Act
 		context.Reset();
 
 		// Assert
-		context.DeliveryCount.ShouldBe(0);
-		context.ProcessingAttempts.ShouldBe(0);
-		context.DesiredVersion.ShouldBeNull();
+		context.GetDeliveryCount().ShouldBe(0);
+		context.GetProcessingAttempts().ShouldBe(0);
+		context.DesiredVersion().ShouldBeNull();
 	}
 
 	[Fact]
@@ -1051,19 +1014,19 @@ public sealed class MessageContextShould
 	{
 		// Arrange
 		var context = new MessageContext();
-		context.IsRetry = true;
-		context.ValidationPassed = true;
-		context.TimeoutExceeded = true;
-		context.RateLimitExceeded = true;
+		context.GetOrCreateProcessingFeature().IsRetry = true;
+		context.GetOrCreateValidationFeature().ValidationPassed = true;
+		context.GetOrCreateTimeoutFeature().TimeoutExceeded = true;
+		context.GetOrCreateRateLimitFeature().RateLimitExceeded = true;
 
 		// Act
 		context.Reset();
 
 		// Assert
-		context.IsRetry.ShouldBeFalse();
-		context.ValidationPassed.ShouldBeFalse();
-		context.TimeoutExceeded.ShouldBeFalse();
-		context.RateLimitExceeded.ShouldBeFalse();
+		context.GetIsRetry().ShouldBeFalse();
+		context.GetValidationPassed().ShouldBeFalse();
+		context.GetTimeoutExceeded().ShouldBeFalse();
+		context.GetRateLimitExceeded().ShouldBeFalse();
 	}
 
 	[Fact]
@@ -1125,22 +1088,6 @@ public sealed class MessageContextShould
 	}
 
 	[Fact]
-	public void Initialize_Should_Set_ReceivedTimestamp()
-	{
-		// Arrange
-		var context = new MessageContext();
-		var before = DateTimeOffset.UtcNow;
-
-		// Act
-		context.Initialize(_serviceProvider);
-		var after = DateTimeOffset.UtcNow;
-
-		// Assert
-		context.ReceivedTimestampUtc.ShouldBeGreaterThanOrEqualTo(before);
-		context.ReceivedTimestampUtc.ShouldBeLessThanOrEqualTo(after);
-	}
-
-	[Fact]
 	public void Initialize_Should_Throw_For_Null_ServiceProvider()
 	{
 		// Arrange
@@ -1176,11 +1123,9 @@ public sealed class MessageContextShould
 	public void CreateChildContext_Should_Generate_New_MessageId()
 	{
 		// Arrange
-		var parent = new MessageContext
-		{
-			MessageId = "parent-message-id",
-			CorrelationId = "correlation-123",
-		};
+		var parent = new MessageContext();
+		parent.MessageId = "parent-message-id";
+		parent.CorrelationId = "correlation-123";
 		parent.Initialize(_serviceProvider);
 
 		// Act
@@ -1198,10 +1143,8 @@ public sealed class MessageContextShould
 	public void CreateChildContext_Should_Propagate_CorrelationId()
 	{
 		// Arrange
-		var parent = new MessageContext
-		{
-			CorrelationId = "correlation-123",
-		};
+		var parent = new MessageContext();
+		parent.CorrelationId = "correlation-123";
 		parent.Initialize(_serviceProvider);
 
 		// Act
@@ -1219,11 +1162,9 @@ public sealed class MessageContextShould
 	public void CreateChildContext_Should_Set_CausationId_To_Parent_MessageId()
 	{
 		// Arrange
-		var parent = new MessageContext
-		{
-			MessageId = "parent-message-id",
-			CorrelationId = "correlation-123",
-		};
+		var parent = new MessageContext();
+		parent.MessageId = "parent-message-id";
+		parent.CorrelationId = "correlation-123";
 		parent.Initialize(_serviceProvider);
 
 		// Act
@@ -1240,11 +1181,9 @@ public sealed class MessageContextShould
 	public void CreateChildContext_Should_Use_CorrelationId_As_CausationId_When_MessageId_Null()
 	{
 		// Arrange
-		var parent = new MessageContext
-		{
-			MessageId = null,
-			CorrelationId = "correlation-123",
-		};
+		var parent = new MessageContext();
+		parent.MessageId = null;
+		parent.CorrelationId = "correlation-123";
 		parent.Initialize(_serviceProvider);
 
 		// Act
@@ -1261,17 +1200,15 @@ public sealed class MessageContextShould
 	public void CreateChildContext_Should_Propagate_TenantId()
 	{
 		// Arrange
-		var parent = new MessageContext
-		{
-			TenantId = "tenant-abc",
-		};
+		var parent = new MessageContext();
+		parent.GetOrCreateIdentityFeature().TenantId = "tenant-abc";
 		parent.Initialize(_serviceProvider);
 
 		// Act
 		var child = parent.CreateChildContext();
 
 		// Assert
-		child.TenantId.ShouldBe(parent.TenantId);
+		child.GetTenantId().ShouldBe("tenant-abc");
 	}
 
 	/// <summary>
@@ -1281,17 +1218,15 @@ public sealed class MessageContextShould
 	public void CreateChildContext_Should_Propagate_UserId()
 	{
 		// Arrange
-		var parent = new MessageContext
-		{
-			UserId = "user-123",
-		};
+		var parent = new MessageContext();
+		parent.GetOrCreateIdentityFeature().UserId = "user-123";
 		parent.Initialize(_serviceProvider);
 
 		// Act
 		var child = parent.CreateChildContext();
 
 		// Assert
-		child.UserId.ShouldBe(parent.UserId);
+		child.GetUserId().ShouldBe("user-123");
 	}
 
 	/// <summary>
@@ -1301,17 +1236,15 @@ public sealed class MessageContextShould
 	public void CreateChildContext_Should_Propagate_SessionId()
 	{
 		// Arrange
-		var parent = new MessageContext
-		{
-			SessionId = "session-xyz",
-		};
+		var parent = new MessageContext();
+		parent.GetOrCreateIdentityFeature().SessionId = "session-xyz";
 		parent.Initialize(_serviceProvider);
 
 		// Act
 		var child = parent.CreateChildContext();
 
 		// Assert
-		child.SessionId.ShouldBe(parent.SessionId);
+		child.GetSessionId().ShouldBe("session-xyz");
 	}
 
 	/// <summary>
@@ -1321,17 +1254,15 @@ public sealed class MessageContextShould
 	public void CreateChildContext_Should_Propagate_WorkflowId()
 	{
 		// Arrange
-		var parent = new MessageContext
-		{
-			WorkflowId = "workflow-456",
-		};
+		var parent = new MessageContext();
+		parent.GetOrCreateIdentityFeature().WorkflowId = "workflow-456";
 		parent.Initialize(_serviceProvider);
 
 		// Act
 		var child = parent.CreateChildContext();
 
 		// Assert
-		child.WorkflowId.ShouldBe(parent.WorkflowId);
+		child.GetWorkflowId().ShouldBe("workflow-456");
 	}
 
 	/// <summary>
@@ -1341,17 +1272,15 @@ public sealed class MessageContextShould
 	public void CreateChildContext_Should_Propagate_TraceParent()
 	{
 		// Arrange
-		var parent = new MessageContext
-		{
-			TraceParent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
-		};
+		var parent = new MessageContext();
+		parent.GetOrCreateIdentityFeature().TraceParent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
 		parent.Initialize(_serviceProvider);
 
 		// Act
 		var child = parent.CreateChildContext();
 
 		// Assert
-		child.TraceParent.ShouldBe(parent.TraceParent);
+		child.GetTraceParent().ShouldBe("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01");
 	}
 
 	/// <summary>
@@ -1361,17 +1290,15 @@ public sealed class MessageContextShould
 	public void CreateChildContext_Should_Propagate_Source()
 	{
 		// Arrange
-		var parent = new MessageContext
-		{
-			Source = "OrderService",
-		};
+		var parent = new MessageContext();
+		parent.GetOrCreateRoutingFeature().Source = "OrderService";
 		parent.Initialize(_serviceProvider);
 
 		// Act
 		var child = parent.CreateChildContext();
 
 		// Assert
-		child.Source.ShouldBe(parent.Source);
+		child.GetSource().ShouldBe("OrderService");
 	}
 
 	/// <summary>
@@ -1420,18 +1347,19 @@ public sealed class MessageContextShould
 	public void CreateChildContext_Should_Propagate_All_CrossCutting_Identifiers()
 	{
 		// Arrange
-		var parent = new MessageContext
-		{
-			MessageId = "parent-msg-123",
-			CorrelationId = "correlation-456",
-			CausationId = "causation-789",
-			TenantId = "tenant-abc",
-			UserId = "user-def",
-			SessionId = "session-ghi",
-			WorkflowId = "workflow-jkl",
-			TraceParent = "00-trace-span-01",
-			Source = "TestService",
-		};
+		var parent = new MessageContext();
+		parent.MessageId = "parent-msg-123";
+		parent.CorrelationId = "correlation-456";
+		parent.CausationId = "causation-789";
+
+		var identity = parent.GetOrCreateIdentityFeature();
+		identity.TenantId = "tenant-abc";
+		identity.UserId = "user-def";
+		identity.SessionId = "session-ghi";
+		identity.WorkflowId = "workflow-jkl";
+		identity.TraceParent = "00-trace-span-01";
+
+		parent.GetOrCreateRoutingFeature().Source = "TestService";
 		parent.Initialize(_serviceProvider);
 		parent.SetItem("should-not-copy", "value");
 
@@ -1447,12 +1375,12 @@ public sealed class MessageContextShould
 		child.CausationId.ShouldBe(parent.MessageId); // Parent's MessageId becomes child's CausationId
 
 		// Assert - Cross-cutting concerns propagated
-		child.TenantId.ShouldBe(parent.TenantId);
-		child.UserId.ShouldBe(parent.UserId);
-		child.SessionId.ShouldBe(parent.SessionId);
-		child.WorkflowId.ShouldBe(parent.WorkflowId);
-		child.TraceParent.ShouldBe(parent.TraceParent);
-		child.Source.ShouldBe(parent.Source);
+		child.GetTenantId().ShouldBe("tenant-abc");
+		child.GetUserId().ShouldBe("user-def");
+		child.GetSessionId().ShouldBe("session-ghi");
+		child.GetWorkflowId().ShouldBe("workflow-jkl");
+		child.GetTraceParent().ShouldBe("00-trace-span-01");
+		child.GetSource().ShouldBe("TestService");
 
 		// Assert - Items not copied
 		child.Items.ShouldBeEmpty();

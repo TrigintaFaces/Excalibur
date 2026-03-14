@@ -28,7 +28,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Provides comprehensive telemetry for Google Pub/Sub operations with OpenTelemetry and Cloud Monitoring integration.
 /// </summary>
-public sealed class PubSubTelemetryProvider : IDisposable
+internal sealed class PubSubTelemetryProvider : IDisposable
 {
 	private readonly ILogger<PubSubTelemetryProvider> _logger;
 	private readonly GooglePubSubOptions _options;
@@ -145,7 +145,7 @@ public sealed class PubSubTelemetryProvider : IDisposable
 			"Current message processing throughput");
 
 		// Initialize OpenTelemetry if enabled
-		if (_options.EnableOpenTelemetry)
+		if (_options.Telemetry.EnableOpenTelemetry)
 		{
 			InitializeOpenTelemetry();
 		}
@@ -240,7 +240,7 @@ public sealed class PubSubTelemetryProvider : IDisposable
 	/// <returns> A task representing the export operation. </returns>
 	public async Task ExportToCloudMonitoringAsync(CancellationToken cancellationToken)
 	{
-		if (!_options.ExportToCloudMonitoring)
+		if (!_options.Telemetry.ExportToCloudMonitoring)
 		{
 			return;
 		}
@@ -332,19 +332,19 @@ public sealed class PubSubTelemetryProvider : IDisposable
 		_meterProvider = Sdk.CreateMeterProviderBuilder()
 			.SetResourceBuilder(resourceBuilder)
 			.AddMeter(GooglePubSubTelemetryConstants.ActivitySourceName)
-			.AddOtlpExporter(options => options.Endpoint = new Uri(_options.OtlpEndpoint ?? "http://localhost:4317"))
+			.AddOtlpExporter(options => options.Endpoint = new Uri(_options.Telemetry.OtlpEndpoint ?? "http://localhost:4317"))
 			.Build();
 
 		// Configure tracing
 		_tracerProvider = Sdk.CreateTracerProviderBuilder()
 			.SetResourceBuilder(resourceBuilder)
 			.AddSource(GooglePubSubTelemetryConstants.ActivitySourceName)
-			.AddOtlpExporter(options => options.Endpoint = new Uri(_options.OtlpEndpoint ?? "http://localhost:4317"))
+			.AddOtlpExporter(options => options.Endpoint = new Uri(_options.Telemetry.OtlpEndpoint ?? "http://localhost:4317"))
 			.Build();
 
 		_logger.LogInformation(
 			"OpenTelemetry initialized for Google Pub/Sub with endpoint {Endpoint}",
-			_options.OtlpEndpoint);
+			_options.Telemetry.OtlpEndpoint);
 	}
 
 	private static ActivityContext ExtractParentContext(PubsubMessage message)

@@ -3,17 +3,14 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.Reflection;
 
 using Dapper;
 
 using Excalibur.Data;
 using Excalibur.Data.SqlServer;
-using Excalibur.Data.SqlServer.Cdc;
 using Excalibur.Data.SqlServer.TypeHandlers;
 
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -42,36 +39,6 @@ public static class ExcaliburDataSqlServerServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Registers the CDC processor and associated data change handlers in the service collection.
-	/// </summary>
-	/// <param name="services"> The service collection to register the CDC processor with. </param>
-	/// <param name="handlerAssemblies"> A collection of assemblies to scan for implementations of <see cref="IDataChangeHandler" />. </param>
-	/// <returns> The modified <see cref="IServiceCollection" />. </returns>
-	/// <exception cref="ArgumentNullException"> Thrown if <paramref name="handlerAssemblies" /> is null. </exception>
-	/// <remarks>
-	/// This method registers the following components:
-	/// <list type="bullet">
-	/// <item> <see cref="IDataChangeEventProcessorFactory" /> as a transient service. </item>
-	/// <item> All implementations of <see cref="IDataChangeHandler" /> from the provided assemblies. </item>
-	/// </list>
-	/// </remarks>
-	public static IServiceCollection AddCdcProcessor(this IServiceCollection services, params Assembly[] handlerAssemblies)
-	{
-		ArgumentNullException.ThrowIfNull(handlerAssemblies);
-
-		RegisterCdcStateStoreOptions(services);
-
-		services.TryAddTransient<IDataChangeEventProcessorFactory, DataChangeEventProcessorFactory>();
-
-		foreach (var assembly in handlerAssemblies)
-		{
-			_ = services.AddImplementations<IDataChangeHandler>(assembly, ServiceLifetime.Scoped);
-		}
-
-		return services;
-	}
-
-	/// <summary>
 	/// Configures Dapper with predefined and custom type handlers.
 	/// </summary>
 	/// <param name="additionalTypeHandlers"> The additional type handlers to register with Dapper. Handlers must inherit from <see cref="SqlMapper.TypeHandler{T}" />. </param>
@@ -88,14 +55,6 @@ public static class ExcaliburDataSqlServerServiceCollectionExtensions
 		{
 			RegisterTypeHandler(typeHandler);
 		}
-	}
-
-	private static void RegisterCdcStateStoreOptions(IServiceCollection services)
-	{
-		_ = services.AddOptions<SqlServerCdcStateStoreOptions>()
-			.ValidateDataAnnotations()
-			.ValidateOnStart();
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<SqlServerCdcStateStoreOptions>, SqlServerCdcStateStoreOptionsValidator>());
 	}
 
 	/// <summary>

@@ -45,7 +45,7 @@ public sealed partial class ConfluentSchemaRegistryClient : ISchemaRegistryClien
 			Url = options.Url,
 			MaxCachedSchemas = options.MaxCachedSchemas,
 			RequestTimeoutMs = (int)options.RequestTimeout.TotalMilliseconds,
-			EnableSslCertificateVerification = options.EnableSslCertificateVerification
+			EnableSslCertificateVerification = options.Ssl.EnableSslCertificateVerification
 		};
 
 		if (!string.IsNullOrEmpty(options.BasicAuthUserInfo))
@@ -53,9 +53,9 @@ public sealed partial class ConfluentSchemaRegistryClient : ISchemaRegistryClien
 			config.BasicAuthUserInfo = options.BasicAuthUserInfo;
 		}
 
-		if (!string.IsNullOrEmpty(options.SslCaLocation))
+		if (!string.IsNullOrEmpty(options.Ssl.SslCaLocation))
 		{
-			config.SslCaLocation = options.SslCaLocation;
+			config.SslCaLocation = options.Ssl.SslCaLocation;
 		}
 
 		_innerClient = new CachedSchemaRegistryClient(config);

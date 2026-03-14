@@ -64,19 +64,19 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 			.Or<DbException>()
 			.Or<TimeoutException>()
 			.WaitAndRetryAsync(
-				_options.MaxRetryAttempts,
-				retryAttempt => TimeSpan.FromMilliseconds(_options.RetryDelayMilliseconds * Math.Pow(2, retryAttempt - 1)),
+				_options.Resilience.MaxRetryAttempts,
+				retryAttempt => TimeSpan.FromMilliseconds(_options.Resilience.RetryDelayMilliseconds * Math.Pow(2, retryAttempt - 1)),
 				onRetry: (exception, timespan, retryCount, context) => _logger.LogWarning(
 					exception,
 					"Transient failure during database operation. Retry {RetryCount}/{MaxRetries} after {Delay}ms",
-					retryCount, _options.MaxRetryAttempts, timespan.TotalMilliseconds));
+					retryCount, _options.Resilience.MaxRetryAttempts, timespan.TotalMilliseconds));
 
 		// Create or use provided DataRequest retry policy
 		RetryPolicy = retryPolicy ?? new PostgresDataRequestRetryPolicy(_options, _logger);
 
 		_logger.LogInformation(
 			"Postgres persistence provider initialized with connection pooling={PoolingEnabled}, max pool size={MaxPoolSize}",
-			_options.EnableConnectionPooling, _options.MaxPoolSize);
+			_options.Pooling.EnableConnectionPooling, _options.Pooling.MaxPoolSize);
 	}
 
 	/// <inheritdoc />
@@ -353,11 +353,11 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 			}
 
 			// Note: NpgsqlConnection.GetPoolStatistics() was removed in Npgsql 7+ Pool statistics are now available through different mechanisms
-			if (_options.EnableConnectionPooling)
+			if (_options.Pooling.EnableConnectionPooling)
 			{
 				stats["pool_enabled"] = true;
-				stats["pool_max_size"] = _options.MaxPoolSize;
-				stats["pool_min_size"] = _options.MinPoolSize;
+				stats["pool_max_size"] = _options.Pooling.MaxPoolSize;
+				stats["pool_min_size"] = _options.Pooling.MinPoolSize;
 			}
 		}
 		catch (Exception ex)
@@ -684,7 +684,7 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 	{
 		ThrowIfDisposed();
 
-		if (!_options.EnableConnectionPooling)
+		if (!_options.Pooling.EnableConnectionPooling)
 		{
 			return null;
 		}
@@ -693,8 +693,8 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 			(StringComparer.Ordinal)
 		{
 			["pool_enabled"] = true,
-			["pool_max_size"] = _options.MaxPoolSize,
-			["pool_min_size"] = _options.MinPoolSize,
+			["pool_max_size"] = _options.Pooling.MaxPoolSize,
+			["pool_min_size"] = _options.Pooling.MinPoolSize,
 			["connection_idle_lifetime"] = _options.Connection.ConnectionIdleLifetime,
 			["connection_pruning_interval"] = _options.Connection.ConnectionPruningInterval,
 		};
@@ -879,7 +879,7 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 			_metrics?.Dispose();
 
 			// Clear connection pools if pooling is enabled
-			if (_options.EnableConnectionPooling)
+			if (_options.Pooling.EnableConnectionPooling)
 			{
 				try
 				{
@@ -909,7 +909,7 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 		_metrics?.Dispose();
 
 			// Clear connection pools if pooling is enabled
-			if (_options.EnableConnectionPooling)
+			if (_options.Pooling.EnableConnectionPooling)
 			{
 				try
 				{
@@ -977,11 +977,11 @@ public class PostgresPersistenceProvider : ISqlPersistenceProvider
 		target.ConnectionString = source.ConnectionString;
 		target.ConnectionTimeout = source.ConnectionTimeout;
 		target.CommandTimeout = source.CommandTimeout;
-		target.MaxRetryAttempts = source.MaxRetryAttempts;
-		target.RetryDelayMilliseconds = source.RetryDelayMilliseconds;
-		target.EnableConnectionPooling = source.EnableConnectionPooling;
-		target.MaxPoolSize = source.MaxPoolSize;
-		target.MinPoolSize = source.MinPoolSize;
+		target.Resilience.MaxRetryAttempts = source.Resilience.MaxRetryAttempts;
+		target.Resilience.RetryDelayMilliseconds = source.Resilience.RetryDelayMilliseconds;
+		target.Pooling.EnableConnectionPooling = source.Pooling.EnableConnectionPooling;
+		target.Pooling.MaxPoolSize = source.Pooling.MaxPoolSize;
+		target.Pooling.MinPoolSize = source.Pooling.MinPoolSize;
 		target.EnableDetailedLogging = source.EnableDetailedLogging;
 		target.EnableMetrics = source.EnableMetrics;
 		target.ProviderSpecificOptions = new Dictionary<string, object>(source.ProviderSpecificOptions, StringComparer.Ordinal);

@@ -22,14 +22,14 @@ namespace Excalibur.Dispatch.Patterns.Tests.Hosting.Json;
 public sealed class DispatchPatternsJsonServiceCollectionExtensionsShould : UnitTestBase
 {
 	[Fact]
-	public void AddJsonSerialization_RegistersIJsonSerializer()
+	public void AddJsonSerialization_RegistersDispatchJsonSerializer()
 	{
 		// Arrange & Act
 		_ = Services.AddJsonSerialization();
 		BuildServiceProvider();
 
 		// Assert
-		var serializer = GetService<IJsonSerializer>();
+		var serializer = GetService<DispatchJsonSerializer>();
 		serializer.ShouldNotBeNull();
 	}
 
@@ -41,8 +41,8 @@ public sealed class DispatchPatternsJsonServiceCollectionExtensionsShould : Unit
 		BuildServiceProvider();
 
 		// Assert — same instance returned each time
-		var first = GetRequiredService<IJsonSerializer>();
-		var second = GetRequiredService<IJsonSerializer>();
+		var first = GetRequiredService<DispatchJsonSerializer>();
+		var second = GetRequiredService<DispatchJsonSerializer>();
 		first.ShouldBeSameAs(second);
 	}
 
@@ -64,7 +64,7 @@ public sealed class DispatchPatternsJsonServiceCollectionExtensionsShould : Unit
 		// Act & Assert — null configure delegate should be fine
 		_ = Services.AddJsonSerialization(null);
 		BuildServiceProvider();
-		var serializer = GetService<IJsonSerializer>();
+		var serializer = GetService<DispatchJsonSerializer>();
 		serializer.ShouldNotBeNull();
 	}
 
@@ -80,7 +80,7 @@ public sealed class DispatchPatternsJsonServiceCollectionExtensionsShould : Unit
 	public void AddJsonSerialization_DoesNotReplaceExistingRegistration()
 	{
 		// Arrange — register a fake first
-		var fake = FakeItEasy.A.Fake<IJsonSerializer>();
+		var fake = new DispatchJsonSerializer();
 		_ = Services.AddSingleton(fake);
 
 		// Act
@@ -88,7 +88,7 @@ public sealed class DispatchPatternsJsonServiceCollectionExtensionsShould : Unit
 		BuildServiceProvider();
 
 		// Assert — TryAdd should not replace
-		var resolved = GetRequiredService<IJsonSerializer>();
+		var resolved = GetRequiredService<DispatchJsonSerializer>();
 		resolved.ShouldBeSameAs(fake);
 	}
 

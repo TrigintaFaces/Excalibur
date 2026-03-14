@@ -82,8 +82,8 @@ public partial class OutboxBackgroundService : BackgroundService
 		// Initial delay to allow application to fully start
 		await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken).ConfigureAwait(false);
 
-		var currentInterval = _options.EnableAdaptivePolling
-			? _options.MinPollingInterval
+		var currentInterval = _options.AdaptivePolling.EnableAdaptivePolling
+			? _options.AdaptivePolling.MinPollingInterval
 			: _options.PublishPollingInterval;
 
 		while (!stoppingToken.IsCancellationRequested)
@@ -126,16 +126,16 @@ public partial class OutboxBackgroundService : BackgroundService
 			}
 
 			// Adaptive polling: reset to min when messages found, back off when idle
-			if (_options.EnableAdaptivePolling)
+			if (_options.AdaptivePolling.EnableAdaptivePolling)
 			{
 				if (hadMessages)
 				{
-					currentInterval = _options.MinPollingInterval;
+					currentInterval = _options.AdaptivePolling.MinPollingInterval;
 				}
 				else
 				{
 					var nextInterval = TimeSpan.FromMilliseconds(
-						currentInterval.TotalMilliseconds * _options.AdaptivePollingBackoffMultiplier);
+						currentInterval.TotalMilliseconds * _options.AdaptivePolling.AdaptivePollingBackoffMultiplier);
 					currentInterval = nextInterval < _options.PublishPollingInterval
 						? nextInterval
 						: _options.PublishPollingInterval;
@@ -269,10 +269,10 @@ public partial class OutboxBackgroundService : BackgroundService
 					// Check if failed message is eligible for retry
 					if (message.Status == OutboxStatus.Failed &&
 						!message.IsEligibleForRetry(
-							_options.MaxRetries,
-							(int)_options.RetryDelay.TotalMinutes,
-							_options.EnableExponentialRetryBackoff,
-							(int)_options.MaxRetryDelay.TotalMinutes))
+							_options.Retry.MaxRetries,
+							(int)_options.Retry.RetryDelay.TotalMinutes,
+							_options.Retry.EnableExponentialRetryBackoff,
+							(int)_options.Retry.MaxRetryDelay.TotalMinutes))
 					{
 						LogMessageNotEligibleForRetry(message.Id);
 						continue;

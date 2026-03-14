@@ -196,10 +196,10 @@ public static class AzureEventHubsTransportServiceCollectionExtensions
 				options.FullyQualifiedNamespace = transportOptions.FullyQualifiedNamespace;
 				options.EventHubName = transportOptions.EventHubName ?? string.Empty;
 				options.ConsumerGroup = transportOptions.ConsumerGroup ?? "$Default";
-				options.PrefetchCount = transportOptions.PrefetchCount;
-				options.MaxBatchSize = transportOptions.MaxBatchSize;
+				options.Consumer.PrefetchCount = transportOptions.PrefetchCount;
+				options.Consumer.MaxBatchSize = transportOptions.MaxBatchSize;
 				options.EnableEncryption = transportOptions.EnableEncryption;
-				options.StartingPosition = transportOptions.StartingPosition;
+				options.Consumer.StartingPosition = transportOptions.StartingPosition;
 			})
 			.ValidateDataAnnotations()
 			.ValidateOnStart();

@@ -83,7 +83,7 @@ public class BankAccountAggregate : AggregateRoot<Guid>
 		}
 
 		var account = new BankAccountAggregate(id);
-		account.RaiseEvent(new AccountOpened(id, holderName, initialDeposit, account.Version));
+		account.RaiseEvent(new AccountOpened(id, holderName, initialDeposit));
 		return account;
 	}
 
@@ -101,7 +101,7 @@ public class BankAccountAggregate : AggregateRoot<Guid>
 				$"Single deposit cannot exceed {MaxDepositAmount:C}");
 		}
 
-		RaiseEvent(new MoneyDeposited(Id, amount, Balance + amount, description, Version));
+		RaiseEvent(new MoneyDeposited(Id, amount, Balance + amount, description));
 	}
 
 	/// <summary>
@@ -118,7 +118,7 @@ public class BankAccountAggregate : AggregateRoot<Guid>
 				$"Insufficient funds. Balance: {Balance:C}, Requested: {amount:C}");
 		}
 
-		RaiseEvent(new MoneyWithdrawn(Id, amount, Balance - amount, description, Version));
+		RaiseEvent(new MoneyWithdrawn(Id, amount, Balance - amount, description));
 	}
 
 	/// <summary>
@@ -134,7 +134,7 @@ public class BankAccountAggregate : AggregateRoot<Guid>
 				$"Cannot close account with non-zero balance: {Balance:C}");
 		}
 
-		RaiseEvent(new AccountClosed(Id, reason, Version));
+		RaiseEvent(new AccountClosed(Id, reason));
 	}
 
 	/// <inheritdoc/>
@@ -196,97 +196,45 @@ public class BankAccountAggregate : AggregateRoot<Guid>
 /// <summary>
 /// Event raised when a bank account is opened.
 /// </summary>
-public sealed record AccountOpened : DomainEvent
+public sealed record AccountOpened(Guid AccountId, string HolderName, decimal InitialDeposit) : DomainEvent
 {
-	public AccountOpened(Guid accountId, string holderName, decimal initialDeposit, long version)
-		: base(accountId.ToString(), version)
-	{
-		AccountId = accountId;
-		HolderName = holderName;
-		InitialDeposit = initialDeposit;
-	}
-
-	/// <summary>Gets the account identifier.</summary>
-	public Guid AccountId { get; init; }
-
-	/// <summary>Gets the account holder name.</summary>
-	public string HolderName { get; init; }
-
-	/// <summary>Gets the initial deposit amount.</summary>
-	public decimal InitialDeposit { get; init; }
+	/// <inheritdoc/>
+	public override string AggregateId => AccountId.ToString();
 }
 
 /// <summary>
 /// Event raised when money is deposited.
 /// </summary>
-public sealed record MoneyDeposited : DomainEvent
+public sealed record MoneyDeposited(
+	Guid AccountId,
+	decimal Amount,
+	decimal NewBalance,
+	string Description) : DomainEvent
 {
-	public MoneyDeposited(Guid accountId, decimal amount, decimal newBalance, string description, long version)
-		: base(accountId.ToString(), version)
-	{
-		AccountId = accountId;
-		Amount = amount;
-		NewBalance = newBalance;
-		Description = description;
-	}
-
-	/// <summary>Gets the account identifier.</summary>
-	public Guid AccountId { get; init; }
-
-	/// <summary>Gets the deposit amount.</summary>
-	public decimal Amount { get; init; }
-
-	/// <summary>Gets the balance after deposit.</summary>
-	public decimal NewBalance { get; init; }
-
-	/// <summary>Gets the transaction description.</summary>
-	public string Description { get; init; }
+	/// <inheritdoc/>
+	public override string AggregateId => AccountId.ToString();
 }
 
 /// <summary>
 /// Event raised when money is withdrawn.
 /// </summary>
-public sealed record MoneyWithdrawn : DomainEvent
+public sealed record MoneyWithdrawn(
+	Guid AccountId,
+	decimal Amount,
+	decimal NewBalance,
+	string Description) : DomainEvent
 {
-	public MoneyWithdrawn(Guid accountId, decimal amount, decimal newBalance, string description, long version)
-		: base(accountId.ToString(), version)
-	{
-		AccountId = accountId;
-		Amount = amount;
-		NewBalance = newBalance;
-		Description = description;
-	}
-
-	/// <summary>Gets the account identifier.</summary>
-	public Guid AccountId { get; init; }
-
-	/// <summary>Gets the withdrawal amount.</summary>
-	public decimal Amount { get; init; }
-
-	/// <summary>Gets the balance after withdrawal.</summary>
-	public decimal NewBalance { get; init; }
-
-	/// <summary>Gets the transaction description.</summary>
-	public string Description { get; init; }
+	/// <inheritdoc/>
+	public override string AggregateId => AccountId.ToString();
 }
 
 /// <summary>
 /// Event raised when an account is closed.
 /// </summary>
-public sealed record AccountClosed : DomainEvent
+public sealed record AccountClosed(Guid AccountId, string Reason) : DomainEvent
 {
-	public AccountClosed(Guid accountId, string reason, long version)
-		: base(accountId.ToString(), version)
-	{
-		AccountId = accountId;
-		Reason = reason;
-	}
-
-	/// <summary>Gets the account identifier.</summary>
-	public Guid AccountId { get; init; }
-
-	/// <summary>Gets the closure reason.</summary>
-	public string Reason { get; init; }
+	/// <inheritdoc/>
+	public override string AggregateId => AccountId.ToString();
 }
 
 #endregion

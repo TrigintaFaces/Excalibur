@@ -301,11 +301,9 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 		var publishResult = await _adapter.PublishAsync(message, context, CancellationToken.None);
 		publishResult.Succeeded.ShouldBeTrue();
 
-		var deliveryObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-			() => dispatched.Task.IsCompleted,
-			TimeSpan.FromSeconds(10),
-			TimeSpan.FromMilliseconds(20));
-		deliveryObserved.ShouldBeTrue("message should be delivered to subscribed handler");
+		await global::Tests.Shared.Infrastructure.WaitHelpers
+			.AwaitSignalAsync(dispatched.Task, TimeSpan.FromSeconds(10))
+			.ConfigureAwait(false);
 		var delivered = await dispatched.Task;
 		delivered.Message.ShouldBeSameAs(message);
 		delivered.Context.MessageId.ShouldBe("msg-1001");
@@ -318,12 +316,15 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 
 		var throwingHandlerCalls = 0;
 		var successHandlerCalls = 0;
+		var throwingHandlerInvoked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var successfulHandlerInvoked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		await _adapter.SubscribeAsync(
 			"throwing-handler",
 			(_, _, _) =>
 			{
 				Interlocked.Increment(ref throwingHandlerCalls);
+				throwingHandlerInvoked.TrySetResult();
 				throw new InvalidOperationException("handler failure");
 			},
 			null,
@@ -334,6 +335,7 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 			(_, _, _) =>
 			{
 				Interlocked.Increment(ref successHandlerCalls);
+				successfulHandlerInvoked.TrySetResult();
 				return Task.FromResult<IMessageResult>(MessageResult.Success());
 			},
 			null,
@@ -345,11 +347,10 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 		var publishResult = await _adapter.PublishAsync(message, context, CancellationToken.None);
 		publishResult.Succeeded.ShouldBeTrue();
 
-		var handlersInvoked = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-			() => Volatile.Read(ref throwingHandlerCalls) >= 1 && Volatile.Read(ref successHandlerCalls) >= 1,
-			TimeSpan.FromSeconds(10),
-			TimeSpan.FromMilliseconds(20)).ConfigureAwait(false);
-		handlersInvoked.ShouldBeTrue("both handlers should be invoked even when one throws");
+		await Task.WhenAll(
+				global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(throwingHandlerInvoked.Task, TimeSpan.FromSeconds(10)),
+				global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(successfulHandlerInvoked.Task, TimeSpan.FromSeconds(10)))
+			.ConfigureAwait(false);
 
 		throwingHandlerCalls.ShouldBe(1);
 		successHandlerCalls.ShouldBe(1);
@@ -376,22 +377,19 @@ public sealed class InMemoryMessageBusAdapterShould : IAsyncDisposable
 		var context = new Excalibur.Dispatch.Messaging.MessageContext(message, A.Fake<IServiceProvider>())
 		{
 			MessageId = null,
-			MessageType = null
 		};
 
 		var publishResult = await _adapter.PublishAsync(message, context, CancellationToken.None);
 		publishResult.Succeeded.ShouldBeTrue();
 
-		var dispatchObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-			() => dispatched.Task.IsCompleted,
-			TimeSpan.FromSeconds(10),
-			TimeSpan.FromMilliseconds(20));
-		dispatchObserved.ShouldBeTrue("context-check handler should run");
+		await global::Tests.Shared.Infrastructure.WaitHelpers
+			.AwaitSignalAsync(dispatched.Task, TimeSpan.FromSeconds(10))
+			.ConfigureAwait(false);
 		var dispatchedContext = await dispatched.Task;
 		dispatchedContext.Message.ShouldBeSameAs(message);
 		dispatchedContext.MessageId.ShouldNotBeNullOrWhiteSpace();
-		dispatchedContext.MessageType.ShouldBe(typeof(TestDispatchMessage).FullName);
-		dispatchedContext.ReceivedTimestampUtc.ShouldNotBe(default);
+		dispatchedContext.GetMessageType().ShouldBe(typeof(TestDispatchMessage).FullName);
+		dispatchedContext.GetReceivedTimestampUtc().ShouldNotBe(default);
 	}
 
 	[Fact]

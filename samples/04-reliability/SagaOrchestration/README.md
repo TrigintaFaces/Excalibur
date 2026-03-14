@@ -91,7 +91,7 @@ var stuckSagas = await dashboardService.GetStuckSagasAsync(
 ## Project Structure
 
 ```
-examples/SagaOrchestration/
+SagaOrchestration/
 ├── SagaOrchestration.csproj
 ├── README.md
 ├── Program.cs                           # Demo entry point
@@ -114,7 +114,7 @@ examples/SagaOrchestration/
 ## Running the Example
 
 ```bash
-cd examples/SagaOrchestration
+cd samples/04-reliability/SagaOrchestration
 dotnet run
 ```
 

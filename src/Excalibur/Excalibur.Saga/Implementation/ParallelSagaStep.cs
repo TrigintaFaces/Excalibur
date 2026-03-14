@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR
 // AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
 using System.Threading.Tasks.Dataflow;
@@ -65,10 +66,7 @@ public partial class ParallelSagaStep<TData>(
 	public int MaxDegreeOfParallelism { get; set; } = Environment.ProcessorCount;
 
 	/// <inheritdoc />
-	public bool RequireAllSuccess { get; set; } = true;
-
-	/// <inheritdoc />
-	public bool ContinueOnFailure { get; set; }
+	public ParallelFailurePolicy FailurePolicy { get; set; } = ParallelFailurePolicy.RequireAll;
 
 	/// <inheritdoc />
 	public async Task<StepResult> ExecuteAsync(
@@ -76,8 +74,6 @@ public partial class ParallelSagaStep<TData>(
 		CancellationToken cancellationToken)
 	{
 		LogParallelStepExecutionStarted(Name, _parallelSteps.Count);
-
-		_ = new List<StepResult>();
 
 		var results = Strategy switch
 		{
@@ -116,19 +112,25 @@ public partial class ParallelSagaStep<TData>(
 			return StepResult.Success();
 		}
 
-		var allSucceeded = results.All(static r => r.IsSuccess);
 		var anyFailed = results.Any(static r => !r.IsSuccess);
 
-		if (RequireAllSuccess && !allSucceeded)
+		if (anyFailed)
 		{
-			var failedSteps = results.Where(static r => !r.IsSuccess).Select(static r => r.ErrorMessage);
-			return StepResult.Failure($"Parallel execution failed: {string.Join("; ", failedSteps)}");
-		}
-
-		if (!RequireAllSuccess && anyFailed && !ContinueOnFailure)
-		{
-			var firstFailure = results.First(static r => !r.IsSuccess);
-			return StepResult.Failure($"Parallel execution failed: {firstFailure.ErrorMessage}");
+			switch (FailurePolicy)
+			{
+				case ParallelFailurePolicy.RequireAll:
+				{
+					var failedSteps = results.Where(static r => !r.IsSuccess).Select(static r => r.ErrorMessage);
+					return StepResult.Failure($"Parallel execution failed: {string.Join("; ", failedSteps)}");
+				}
+				case ParallelFailurePolicy.FailFast:
+				{
+					var firstFailure = results.First(static r => !r.IsSuccess);
+					return StepResult.Failure($"Parallel execution failed: {firstFailure.ErrorMessage}");
+				}
+				case ParallelFailurePolicy.ContinueOnFailure:
+					break;
+			}
 		}
 
 		// Aggregate data from all successful results
@@ -211,7 +213,7 @@ public partial class ParallelSagaStep<TData>(
 			results.AddRange(batchResults);
 
 			// Check if we should continue based on results
-			if (!ContinueOnFailure && batchResults.Any(r => !r.IsSuccess))
+			if (FailurePolicy != ParallelFailurePolicy.ContinueOnFailure && batchResults.Any(r => !r.IsSuccess))
 			{
 				break;
 			}
@@ -224,9 +226,15 @@ public partial class ParallelSagaStep<TData>(
 		ISagaContext<TData> context,
 		CancellationToken cancellationToken)
 	{
-		// Use TPL Dataflow for adaptive parallelism
+		// Use TPL Dataflow for adaptive parallelism with result collection
+		var results = new ConcurrentBag<StepResult>();
+
 		var actionBlock = new ActionBlock<ISagaStep<TData>>(
-			async step => await ExecuteStepAsync(step, context, cancellationToken).ConfigureAwait(false),
+			async step =>
+			{
+				var result = await ExecuteStepAsync(step, context, cancellationToken).ConfigureAwait(false);
+				results.Add(result);
+			},
 			new ExecutionDataflowBlockOptions
 			{
 				MaxDegreeOfParallelism = DataflowBlockOptions.Unbounded,
@@ -241,8 +249,7 @@ public partial class ParallelSagaStep<TData>(
 		actionBlock.Complete();
 		await actionBlock.Completion.ConfigureAwait(false);
 
-		// For adaptive strategy, we'd collect results differently This is a simplified implementation
-		return await ExecuteLimitedAsync(context, cancellationToken).ConfigureAwait(false);
+		return [.. results];
 	}
 
 	private async Task<StepResult> ExecuteStepAsync(

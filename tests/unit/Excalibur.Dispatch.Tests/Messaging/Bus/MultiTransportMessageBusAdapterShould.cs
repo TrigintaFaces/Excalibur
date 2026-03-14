@@ -16,18 +16,18 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 
 	public MultiTransportMessageBusAdapterShould()
 	{
-		_adapter1 = A.Fake<IMessageBusAdapter>();
+		_adapter1 = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>().Implements<IMessageBusAdapterCapabilities>());
 		A.CallTo(() => _adapter1.Name).Returns("Adapter1");
-		A.CallTo(() => _adapter1.SupportsPublishing).Returns(true);
-		A.CallTo(() => _adapter1.SupportsSubscription).Returns(true);
-		A.CallTo(() => _adapter1.SupportsTransactions).Returns(false);
+		A.CallTo(() => ((IMessageBusAdapterCapabilities)_adapter1).SupportsPublishing).Returns(true);
+		A.CallTo(() => ((IMessageBusAdapterCapabilities)_adapter1).SupportsSubscription).Returns(true);
+		A.CallTo(() => ((IMessageBusAdapterCapabilities)_adapter1).SupportsTransactions).Returns(false);
 		A.CallTo(() => _adapter1.IsConnected).Returns(true);
 
-		_adapter2 = A.Fake<IMessageBusAdapter>();
+		_adapter2 = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>().Implements<IMessageBusAdapterCapabilities>());
 		A.CallTo(() => _adapter2.Name).Returns("Adapter2");
-		A.CallTo(() => _adapter2.SupportsPublishing).Returns(false);
-		A.CallTo(() => _adapter2.SupportsSubscription).Returns(false);
-		A.CallTo(() => _adapter2.SupportsTransactions).Returns(true);
+		A.CallTo(() => ((IMessageBusAdapterCapabilities)_adapter2).SupportsPublishing).Returns(false);
+		A.CallTo(() => ((IMessageBusAdapterCapabilities)_adapter2).SupportsSubscription).Returns(false);
+		A.CallTo(() => ((IMessageBusAdapterCapabilities)_adapter2).SupportsTransactions).Returns(true);
 		A.CallTo(() => _adapter2.IsConnected).Returns(false);
 	}
 
@@ -280,14 +280,14 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task CheckHealthAsync_ReturnsHealthyWhenAllHealthy()
 	{
 		// Arrange
-		A.CallTo(() => _adapter1.CheckHealthAsync(A<CancellationToken>._))
+		A.CallTo(() => ((IMessageBusAdapterLifecycle)_adapter1).CheckHealthAsync(A<CancellationToken>._))
 			.Returns(new HealthCheckResult(true, "OK", new Dictionary<string, object>()));
-		A.CallTo(() => _adapter2.CheckHealthAsync(A<CancellationToken>._))
+		A.CallTo(() => ((IMessageBusAdapterLifecycle)_adapter2).CheckHealthAsync(A<CancellationToken>._))
 			.Returns(new HealthCheckResult(true, "OK", new Dictionary<string, object>()));
 		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2]);
 
 		// Act
-		var result = await adapter.CheckHealthAsync(CancellationToken.None);
+		var result = await ((IMessageBusAdapterLifecycle)adapter).CheckHealthAsync(CancellationToken.None);
 
 		// Assert
 		result.IsHealthy.ShouldBeTrue();
@@ -298,14 +298,14 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task CheckHealthAsync_ReturnsUnhealthyWhenOneUnhealthy()
 	{
 		// Arrange
-		A.CallTo(() => _adapter1.CheckHealthAsync(A<CancellationToken>._))
+		A.CallTo(() => ((IMessageBusAdapterLifecycle)_adapter1).CheckHealthAsync(A<CancellationToken>._))
 			.Returns(new HealthCheckResult(true, "OK", new Dictionary<string, object>()));
-		A.CallTo(() => _adapter2.CheckHealthAsync(A<CancellationToken>._))
+		A.CallTo(() => ((IMessageBusAdapterLifecycle)_adapter2).CheckHealthAsync(A<CancellationToken>._))
 			.Returns(new HealthCheckResult(false, "Unhealthy", new Dictionary<string, object>()));
 		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2]);
 
 		// Act
-		var result = await adapter.CheckHealthAsync(CancellationToken.None);
+		var result = await ((IMessageBusAdapterLifecycle)adapter).CheckHealthAsync(CancellationToken.None);
 
 		// Assert
 		result.IsHealthy.ShouldBeFalse();
@@ -318,11 +318,11 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2]);
 
 		// Act
-		await adapter.StartAsync(CancellationToken.None);
+		await ((IMessageBusAdapterLifecycle)adapter).StartAsync(CancellationToken.None);
 
 		// Assert
-		A.CallTo(() => _adapter1.StartAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
-		A.CallTo(() => _adapter2.StartAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((IMessageBusAdapterLifecycle)_adapter1).StartAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((IMessageBusAdapterLifecycle)_adapter2).StartAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -332,20 +332,20 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 		using var adapter = new MultiTransportMessageBusAdapter([_adapter1, _adapter2]);
 
 		// Act
-		await adapter.StopAsync(CancellationToken.None);
+		await ((IMessageBusAdapterLifecycle)adapter).StopAsync(CancellationToken.None);
 
 		// Assert
-		A.CallTo(() => _adapter1.StopAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
-		A.CallTo(() => _adapter2.StopAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((IMessageBusAdapterLifecycle)_adapter1).StopAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
+		A.CallTo(() => ((IMessageBusAdapterLifecycle)_adapter2).StopAsync(A<CancellationToken>._)).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
 	public void Dispose_DisposesAllAdapters()
 	{
 		// Arrange
-		var a1 = A.Fake<IMessageBusAdapter>();
+		var a1 = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>());
 		A.CallTo(() => a1.Name).Returns("A1");
-		var a2 = A.Fake<IMessageBusAdapter>();
+		var a2 = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>());
 		A.CallTo(() => a2.Name).Returns("A2");
 		var adapter = new MultiTransportMessageBusAdapter([a1, a2]);
 

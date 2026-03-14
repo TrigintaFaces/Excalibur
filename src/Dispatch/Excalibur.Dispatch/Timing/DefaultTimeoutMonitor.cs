@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Timing;
 /// <summary>
 /// Default implementation of timeout monitoring with statistical tracking. R7.4: Timeout monitoring and adaptive timeout management.
 /// </summary>
-public sealed class DefaultTimeoutMonitor : ITimeoutMonitor
+internal sealed class DefaultTimeoutMonitor : ITimeoutMonitor
 {
 	private readonly ConcurrentDictionary<TimeoutOperationType, OperationStatistics> _statistics = new();
 #if NET9_0_OR_GREATER

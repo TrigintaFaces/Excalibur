@@ -28,7 +28,7 @@ services.AddDispatch(dispatch =>
     dispatch.UseRabbitMQ(rmq =>
     {
         rmq.ConnectionString("amqp://guest:guest@localhost:5672/")
-           .ConfigureExchange(exchange => exchange.Name("dispatch.events").Type(RabbitMqExchangeType.Topic))
+           .ConfigureExchange(exchange => exchange.Name("dispatch.events").Type(RabbitMQExchangeType.Topic))
            .ConfigureCloudEvents(ce => ce.EnablePublisherConfirms = true);
     });
 });
@@ -44,7 +44,7 @@ services.AddDispatch(dispatch =>
 services.AddRabbitMQTransport(rmq =>
 {
     rmq.ConnectionString("amqp://guest:guest@localhost:5672/")
-       .ConfigureExchange(exchange => exchange.Name("dispatch.events").Type(RabbitMqExchangeType.Topic))
+       .ConfigureExchange(exchange => exchange.Name("dispatch.events").Type(RabbitMQExchangeType.Topic))
        .ConfigureCloudEvents(ce => ce.EnablePublisherConfirms = true);
 });
 ```
@@ -66,7 +66,7 @@ services.AddRabbitMQTransport(rmq =>
        .ConfigureExchange(exchange =>
        {
            exchange.Name("dispatch.events")
-                   .Type(RabbitMqExchangeType.Topic)
+                   .Type(RabbitMQExchangeType.Topic)
                    .Durable(true)
                    .AutoDelete(false);
        })
@@ -84,7 +84,7 @@ services.AddRabbitMQTransport(rmq =>
        })
        .ConfigureCloudEvents(ce =>
        {
-           ce.ExchangeType = RabbitMqExchangeType.Topic;
+           ce.ExchangeType = RabbitMQExchangeType.Topic;
            ce.Persistence = RabbitMqPersistence.Persistent;
            ce.RoutingStrategy = RabbitMqRoutingStrategy.EventType;
        });
@@ -135,7 +135,7 @@ Use `RabbitMqCloudEventOptions` for CloudEvents-specific features:
 ```csharp
 services.UseCloudEventsForRabbitMq(options =>
 {
-    options.ExchangeType = RabbitMqExchangeType.Topic;
+    options.ExchangeType = RabbitMQExchangeType.Topic;
     options.RoutingStrategy = RabbitMqRoutingStrategy.EventType;
     options.Persistence = RabbitMqPersistence.Persistent;
 

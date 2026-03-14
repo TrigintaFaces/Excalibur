@@ -4,7 +4,7 @@
 using System.Reflection;
 using System.Text.Json.Serialization;
 
-using Excalibur.Data.CosmosDb.Saga;
+using Excalibur.Saga.CosmosDb;
 
 namespace Excalibur.Data.Tests.CosmosDb;
 
@@ -27,7 +27,7 @@ public sealed class CosmosDbSagaDocumentShould
 	{
 		// Get the internal type via reflection
 		var assembly = typeof(CosmosDbSagaOptions).Assembly;
-		_documentType = assembly.GetType("Excalibur.Data.CosmosDb.Saga.CosmosDbSagaDocument")!;
+		_documentType = assembly.GetType("Excalibur.Saga.CosmosDb.CosmosDbSagaDocument")!;
 	}
 
 	#region CreateId Tests

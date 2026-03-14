@@ -5,7 +5,7 @@ using CdcAntiCorruption.Commands;
 using CdcAntiCorruption.Configuration;
 using CdcAntiCorruption.Backfill;
 
-using Excalibur.Data.SqlServer.Cdc;
+using Excalibur.Cdc.SqlServer;
 using Excalibur.Data.DataProcessing;
 using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Configuration;

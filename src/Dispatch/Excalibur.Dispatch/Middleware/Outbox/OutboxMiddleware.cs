@@ -7,6 +7,7 @@ using System.Diagnostics;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -215,7 +216,7 @@ public sealed partial class OutboxMiddleware : IDispatchMiddleware
 
 				if (string.IsNullOrEmpty(outboundMessage.TenantId))
 				{
-					outboundMessage.TenantId = context.TenantId;
+					outboundMessage.TenantId = context.GetTenantId();
 				}
 
 				// Apply message priority from options

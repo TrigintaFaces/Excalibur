@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Outbox;
 using Excalibur.Dispatch.Tests.TestFakes;
@@ -409,8 +410,8 @@ public sealed class OutboxMiddlewareShould
 		var context = new FakeMessageContext
 		{
 			MessageId = "test-123",
-			TenantId = "tenant-789"
 		};
+		context.GetOrCreateIdentityFeature().TenantId = "tenant-789";
 
 		var outboundMessage = new OutboundMessage("EventType", [1, 2, 3], "target-queue");
 		var outboundMessages = new List<OutboundMessage> { outboundMessage };

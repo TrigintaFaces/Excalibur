@@ -3,6 +3,7 @@
 
 using System.Runtime.CompilerServices;
 
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.Messaging;
 

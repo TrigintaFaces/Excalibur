@@ -33,7 +33,7 @@ public interface ISagaDefinition<TSagaData>
 	/// Gets the retry policy for the saga.
 	/// </summary>
 	/// <value> The retry policy to apply when steps fail. </value>
-	IRetryPolicy? RetryPolicy { get; }
+	ISagaRetryPolicy? RetryPolicy { get; }
 
 	/// <summary>
 	/// Called when the saga completes successfully.

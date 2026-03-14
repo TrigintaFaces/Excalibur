@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization.MemoryPack;
 
 using Microsoft.Extensions.DependencyInjection;
 
-using Excalibur.Dispatch.Serialization.MemoryPack;
+using MpSerializer = Excalibur.Dispatch.Serialization.MemoryPack.MemoryPackSerializer;
 
 namespace Excalibur.Dispatch.Serialization.Tests.MemoryPack;
 
@@ -16,205 +17,6 @@ namespace Excalibur.Dispatch.Serialization.Tests.MemoryPack;
 [Trait("Category", "DependencyInjection")]
 public sealed class MemoryPackSerializationServiceCollectionExtensionsShould
 {
-	#region AddMemoryPackInternalSerialization Tests
-
-	[Fact]
-	public void AddMemoryPackInternalSerialization_RegistersSerializer()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddMemoryPackInternalSerialization();
-
-		// Assert
-		var provider = services.BuildServiceProvider();
-		var serializer = provider.GetService<IInternalSerializer>();
-		_ = serializer.ShouldNotBeNull();
-		_ = serializer.ShouldBeOfType<MemoryPackInternalSerializer>();
-	}
-
-	[Fact]
-	public void AddMemoryPackInternalSerialization_ReturnsSameServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		var result = services.AddMemoryPackInternalSerialization();
-
-		// Assert
-		result.ShouldBe(services);
-	}
-
-	[Fact]
-	public void AddMemoryPackInternalSerialization_WithNullServices_ThrowsArgumentNullException()
-	{
-		// Arrange
-		IServiceCollection services = null!;
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddMemoryPackInternalSerialization());
-	}
-
-	[Fact]
-	public void AddMemoryPackInternalSerialization_DoesNotReplaceExistingRegistration()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var customSerializer = new CustomInternalSerializer();
-		_ = services.AddSingleton<IInternalSerializer>(customSerializer);
-
-		// Act
-		_ = services.AddMemoryPackInternalSerialization();
-
-		// Assert - Original registration should remain
-		var provider = services.BuildServiceProvider();
-		var serializer = provider.GetService<IInternalSerializer>();
-		serializer.ShouldBe(customSerializer);
-	}
-
-	[Fact]
-	public void AddMemoryPackInternalSerialization_CanBeCalledMultipleTimes()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddMemoryPackInternalSerialization();
-		_ = services.AddMemoryPackInternalSerialization();
-		_ = services.AddMemoryPackInternalSerialization();
-
-		// Assert - Should only have one registration
-		var provider = services.BuildServiceProvider();
-		var serializers = provider.GetServices<IInternalSerializer>().ToList();
-		serializers.Count.ShouldBe(1);
-	}
-
-	#endregion AddMemoryPackInternalSerialization Tests
-
-	#region AddInternalSerialization<T> Tests
-
-	[Fact]
-	public void AddInternalSerialization_Generic_RegistersCustomSerializer()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddInternalSerialization<CustomInternalSerializer>();
-
-		// Assert
-		var provider = services.BuildServiceProvider();
-		var serializer = provider.GetService<IInternalSerializer>();
-		_ = serializer.ShouldNotBeNull();
-		_ = serializer.ShouldBeOfType<CustomInternalSerializer>();
-	}
-
-	[Fact]
-	public void AddInternalSerialization_Generic_ReturnsSameServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		var result = services.AddInternalSerialization<CustomInternalSerializer>();
-
-		// Assert
-		result.ShouldBe(services);
-	}
-
-	[Fact]
-	public void AddInternalSerialization_Generic_WithNullServices_ThrowsArgumentNullException()
-	{
-		// Arrange
-		IServiceCollection services = null!;
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddInternalSerialization<CustomInternalSerializer>());
-	}
-
-	[Fact]
-	public void AddInternalSerialization_Generic_ReplacesExistingRegistration()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddMemoryPackInternalSerialization();
-
-		// Act
-		_ = services.AddInternalSerialization<CustomInternalSerializer>();
-
-		// Assert - Should have both registrations but resolve to custom
-		var provider = services.BuildServiceProvider();
-		var serializers = provider.GetServices<IInternalSerializer>().ToList();
-		serializers.Count.ShouldBe(2);
-
-		// GetService returns the last registered
-		var serializer = provider.GetService<IInternalSerializer>();
-		_ = serializer.ShouldBeOfType<CustomInternalSerializer>();
-	}
-
-	#endregion AddInternalSerialization<T> Tests
-
-	#region AddInternalSerialization Instance Tests
-
-	[Fact]
-	public void AddInternalSerialization_Instance_RegistersSerializer()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var customSerializer = new CustomInternalSerializer();
-
-		// Act
-		_ = services.AddInternalSerialization(customSerializer);
-
-		// Assert
-		var provider = services.BuildServiceProvider();
-		var serializer = provider.GetService<IInternalSerializer>();
-		serializer.ShouldBe(customSerializer);
-	}
-
-	[Fact]
-	public void AddInternalSerialization_Instance_ReturnsSameServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		var customSerializer = new CustomInternalSerializer();
-
-		// Act
-		var result = services.AddInternalSerialization(customSerializer);
-
-		// Assert
-		result.ShouldBe(services);
-	}
-
-	[Fact]
-	public void AddInternalSerialization_Instance_WithNullServices_ThrowsArgumentNullException()
-	{
-		// Arrange
-		IServiceCollection services = null!;
-		var customSerializer = new CustomInternalSerializer();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddInternalSerialization(customSerializer));
-	}
-
-	[Fact]
-	public void AddInternalSerialization_Instance_WithNullSerializer_ThrowsArgumentNullException()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddInternalSerialization(null!));
-	}
-
-	#endregion AddInternalSerialization Instance Tests
-
 	#region GetPluggableSerializer Tests
 
 	[Fact]
@@ -225,7 +27,7 @@ public sealed class MemoryPackSerializationServiceCollectionExtensionsShould
 
 		// Assert
 		_ = serializer.ShouldNotBeNull();
-		_ = serializer.ShouldBeOfType<MemoryPackPluggableSerializer>();
+		_ = serializer.ShouldBeOfType<MpSerializer>();
 	}
 
 	[Fact]
@@ -242,12 +44,13 @@ public sealed class MemoryPackSerializationServiceCollectionExtensionsShould
 	[Fact]
 	public void GetPluggableSerializer_ReturnsWorkingSerializer()
 	{
-		// Arrange
-		var serializer = MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer();
+		// Arrange - Cast to ISerializer to use SerializeToBytes extension (avoids trimming warnings)
+		var pluggable = MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer();
+		var serializer = (ISerializer)pluggable;
 		var value = new TestPayload { Id = 42, Name = "Test" };
 
 		// Act
-		var bytes = serializer.Serialize(value);
+		var bytes = serializer.SerializeToBytes(value);
 		var result = serializer.Deserialize<TestPayload>(bytes);
 
 		// Assert
@@ -257,31 +60,31 @@ public sealed class MemoryPackSerializationServiceCollectionExtensionsShould
 	}
 
 	[Fact]
-	public void GetPluggableSerializer_ImplementsIPluggableSerializer()
+	public void GetPluggableSerializer_ImplementsISerializer()
 	{
 		// Act
 		var serializer = MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer();
 
 		// Assert
-		_ = serializer.ShouldBeAssignableTo<IPluggableSerializer>();
+		_ = serializer.ShouldBeAssignableTo<ISerializer>();
 	}
 
 	#endregion GetPluggableSerializer Tests
 
-	#region Integration Tests
+	#region DI Registration Tests
 
 	[Fact]
-	public void Serializer_CanSerializeAndDeserialize_ViaServiceProvider()
+	public void RegisteredSerializer_CanSerializeAndDeserialize_ViaServiceProvider()
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		_ = services.AddMemoryPackInternalSerialization();
+		_ = services.AddSingleton<ISerializer>(MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer());
 		var provider = services.BuildServiceProvider();
-		var serializer = provider.GetRequiredService<IInternalSerializer>();
+		var serializer = provider.GetRequiredService<ISerializer>();
 		var original = new TestPayload { Id = 999, Name = "Integration Test" };
 
 		// Act
-		var bytes = serializer.Serialize(original);
+		var bytes = serializer.SerializeToBytes(original);
 		var result = serializer.Deserialize<TestPayload>(bytes.AsSpan());
 
 		// Assert
@@ -290,23 +93,19 @@ public sealed class MemoryPackSerializationServiceCollectionExtensionsShould
 		result.Name.ShouldBe(original.Name);
 	}
 
-	#endregion Integration Tests
-
-	#region Test Helpers
-
-	/// <summary>
-	/// Custom internal serializer for testing registration behavior.
-	/// </summary>
-	private sealed class CustomInternalSerializer : IInternalSerializer
+	[Fact]
+	public void RegisteredSerializer_ResolvesAsMemoryPackSerializer()
 	{
-		public byte[] Serialize<T>(T value) => [];
+		// Arrange
+		var services = new ServiceCollection();
+		_ = services.AddSingleton<ISerializer>(MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer());
 
-		public void Serialize<T>(T value, System.Buffers.IBufferWriter<byte> bufferWriter) { }
-
-		public T Deserialize<T>(System.Buffers.ReadOnlySequence<byte> buffer) => default!;
-
-		public T Deserialize<T>(ReadOnlySpan<byte> buffer) => default!;
+		// Assert
+		var provider = services.BuildServiceProvider();
+		var serializer = provider.GetService<ISerializer>();
+		_ = serializer.ShouldNotBeNull();
+		_ = serializer.ShouldBeOfType<MpSerializer>();
 	}
 
-	#endregion Test Helpers
+	#endregion DI Registration Tests
 }

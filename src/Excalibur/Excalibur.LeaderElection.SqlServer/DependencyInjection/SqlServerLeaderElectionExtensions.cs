@@ -54,7 +54,13 @@ public static class SqlServerLeaderElectionExtensions
 		ArgumentException.ThrowIfNullOrWhiteSpace(lockResource);
 		ArgumentNullException.ThrowIfNull(configure);
 
-		_ = services.Configure(configure);
+		_ = services.AddOptions<LeaderElectionOptions>()
+			.Configure(configure)
+			.ValidateDataAnnotations()
+			.ValidateOnStart();
+
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<IValidateOptions<LeaderElectionOptions>, LeaderElectionOptionsValidator>());
 
 		services.TryAddSingleton(sp =>
 		{

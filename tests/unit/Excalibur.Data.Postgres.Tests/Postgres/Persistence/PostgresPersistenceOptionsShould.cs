@@ -11,7 +11,8 @@ namespace Excalibur.Data.Tests.Postgres.Persistence;
 
 /// <summary>
 /// Unit tests for <see cref="PostgresPersistenceOptions"/> and its sub-option classes
-/// (<see cref="PostgresConnectionOptions"/>, <see cref="PostgresStatementOptions"/>).
+/// (<see cref="PostgresConnectionOptions"/>, <see cref="PostgresStatementOptions"/>,
+/// <see cref="PostgresPersistencePoolingOptions"/>, <see cref="PostgresPersistenceResilienceOptions"/>).
 /// Validates default values, setters, ISP property count gates, sub-object initialization,
 /// and validation behavior.
 /// </summary>
@@ -43,19 +44,23 @@ public sealed class PostgresPersistenceOptionsShould : UnitTestBase
 		// Arrange & Act
 		var options = new PostgresPersistenceOptions();
 
-		// Assert — IPersistenceOptions-mandated properties
+		// Assert — root properties
 		options.ConnectionString.ShouldBe(string.Empty);
 		options.ConnectionTimeout.ShouldBe(30);
 		options.CommandTimeout.ShouldBe(30);
-		options.MaxRetryAttempts.ShouldBe(3);
-		options.RetryDelayMilliseconds.ShouldBe(1000);
-		options.EnableConnectionPooling.ShouldBeTrue();
-		options.MaxPoolSize.ShouldBe(100);
-		options.MinPoolSize.ShouldBe(0);
 		options.EnableDetailedLogging.ShouldBeFalse();
 		options.EnableMetrics.ShouldBeTrue();
 		options.ProviderSpecificOptions.ShouldNotBeNull();
 		options.ProviderSpecificOptions.ShouldBeEmpty();
+
+		// Assert — resilience sub-options
+		options.Resilience.MaxRetryAttempts.ShouldBe(3);
+		options.Resilience.RetryDelayMilliseconds.ShouldBe(1000);
+
+		// Assert — pooling sub-options
+		options.Pooling.EnableConnectionPooling.ShouldBeTrue();
+		options.Pooling.MaxPoolSize.ShouldBe(100);
+		options.Pooling.MinPoolSize.ShouldBe(0);
 	}
 
 	// ─────────────────────────────────────────────
@@ -80,6 +85,26 @@ public sealed class PostgresPersistenceOptionsShould : UnitTestBase
 
 		// Assert
 		options.Statements.ShouldNotBeNull();
+	}
+
+	[Fact]
+	public void HaveNonNullPoolingSubObject()
+	{
+		// Arrange & Act
+		var options = new PostgresPersistenceOptions();
+
+		// Assert
+		options.Pooling.ShouldNotBeNull();
+	}
+
+	[Fact]
+	public void HaveNonNullResilienceSubObject()
+	{
+		// Arrange & Act
+		var options = new PostgresPersistenceOptions();
+
+		// Assert
+		options.Resilience.ShouldNotBeNull();
 	}
 
 	// ─────────────────────────────────────────────
@@ -132,10 +157,10 @@ public sealed class PostgresPersistenceOptionsShould : UnitTestBase
 		var options = new PostgresPersistenceOptions();
 
 		// Act
-		options.MaxRetryAttempts = 5;
+		options.Resilience.MaxRetryAttempts = 5;
 
 		// Assert
-		options.MaxRetryAttempts.ShouldBe(5);
+		options.Resilience.MaxRetryAttempts.ShouldBe(5);
 	}
 
 	[Fact]
@@ -145,10 +170,10 @@ public sealed class PostgresPersistenceOptionsShould : UnitTestBase
 		var options = new PostgresPersistenceOptions();
 
 		// Act
-		options.RetryDelayMilliseconds = 2000;
+		options.Resilience.RetryDelayMilliseconds = 2000;
 
 		// Assert
-		options.RetryDelayMilliseconds.ShouldBe(2000);
+		options.Resilience.RetryDelayMilliseconds.ShouldBe(2000);
 	}
 
 	[Fact]
@@ -158,10 +183,10 @@ public sealed class PostgresPersistenceOptionsShould : UnitTestBase
 		var options = new PostgresPersistenceOptions();
 
 		// Act
-		options.EnableConnectionPooling = false;
+		options.Pooling.EnableConnectionPooling = false;
 
 		// Assert
-		options.EnableConnectionPooling.ShouldBeFalse();
+		options.Pooling.EnableConnectionPooling.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -171,12 +196,12 @@ public sealed class PostgresPersistenceOptionsShould : UnitTestBase
 		var options = new PostgresPersistenceOptions();
 
 		// Act
-		options.MaxPoolSize = 200;
-		options.MinPoolSize = 20;
+		options.Pooling.MaxPoolSize = 200;
+		options.Pooling.MinPoolSize = 20;
 
 		// Assert
-		options.MaxPoolSize.ShouldBe(200);
-		options.MinPoolSize.ShouldBe(20);
+		options.Pooling.MaxPoolSize.ShouldBe(200);
+		options.Pooling.MinPoolSize.ShouldBe(20);
 	}
 
 	[Fact]
@@ -231,9 +256,8 @@ public sealed class PostgresPersistenceOptionsShould : UnitTestBase
 	public void HaveRootPropertyCountWithinIspGate()
 	{
 		// The ISP gate allows at most 10 settable properties on the root.
-		// Root has 11 IPersistenceOptions-mandated settable properties + 2 read-only sub-object getters.
-		// Only the 11 settable properties count toward the options gate.
-		// The sub-object getters (Connection, Statements) are read-only navigation properties.
+		// Root has 6 settable properties + 4 read-only sub-object getters (Connection, Statements, Pooling, Resilience).
+		// The explicit interface implementations delegate to sub-options and don't appear as public instance properties.
 
 		// Arrange
 		var settableProperties = typeof(PostgresPersistenceOptions)
@@ -246,10 +270,10 @@ public sealed class PostgresPersistenceOptionsShould : UnitTestBase
 			.Where(p => !p.CanWrite && p.PropertyType.Name.StartsWith("Postgres", StringComparison.Ordinal))
 			.ToList();
 
-		// Assert — 11 settable properties (all from IPersistenceOptions)
-		settableProperties.Count.ShouldBe(11);
-		// 2 read-only sub-option navigation properties
-		readOnlySubObjects.Count.ShouldBe(2);
+		// Assert — 6 settable properties on root
+		settableProperties.Count.ShouldBe(6);
+		// 4 read-only sub-option navigation properties
+		readOnlySubObjects.Count.ShouldBe(4);
 	}
 
 	[Fact]
@@ -273,6 +297,30 @@ public sealed class PostgresPersistenceOptionsShould : UnitTestBase
 			.ToList();
 
 		// Assert — 4 properties (within ISP limit of 10)
+		properties.Count.ShouldBeLessThanOrEqualTo(10);
+	}
+
+	[Fact]
+	public void HavePoolingOptionsPropertyCountWithinIspGate()
+	{
+		// Arrange
+		var properties = typeof(PostgresPersistencePoolingOptions)
+			.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+			.ToList();
+
+		// Assert — 3 properties (within ISP limit of 10)
+		properties.Count.ShouldBeLessThanOrEqualTo(10);
+	}
+
+	[Fact]
+	public void HaveResilienceOptionsPropertyCountWithinIspGate()
+	{
+		// Arrange
+		var properties = typeof(PostgresPersistenceResilienceOptions)
+			.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+			.ToList();
+
+		// Assert — 2 properties (within ISP limit of 10)
 		properties.Count.ShouldBeLessThanOrEqualTo(10);
 	}
 
@@ -401,6 +449,16 @@ public sealed class PostgresPersistenceOptionsShould : UnitTestBase
 				MaxPreparedStatements = 500,
 				AutoPrepareMinUsages = 3,
 			},
+			Pooling =
+			{
+				MaxPoolSize = 200,
+				MinPoolSize = 10,
+			},
+			Resilience =
+			{
+				MaxRetryAttempts = 5,
+				RetryDelayMilliseconds = 2000,
+			},
 		};
 
 		// Assert — root properties
@@ -415,6 +473,14 @@ public sealed class PostgresPersistenceOptionsShould : UnitTestBase
 		// Assert — statement sub-options
 		options.Statements.MaxPreparedStatements.ShouldBe(500);
 		options.Statements.AutoPrepareMinUsages.ShouldBe(3);
+
+		// Assert — pooling sub-options
+		options.Pooling.MaxPoolSize.ShouldBe(200);
+		options.Pooling.MinPoolSize.ShouldBe(10);
+
+		// Assert — resilience sub-options
+		options.Resilience.MaxRetryAttempts.ShouldBe(5);
+		options.Resilience.RetryDelayMilliseconds.ShouldBe(2000);
 	}
 
 	// ─────────────────────────────────────────────
@@ -477,8 +543,11 @@ public sealed class PostgresPersistenceOptionsShould : UnitTestBase
 		var options = new PostgresPersistenceOptions
 		{
 			ConnectionString = "Host=localhost;Database=TestDb;",
-			MaxPoolSize = 10,
-			MinPoolSize = 20,
+			Pooling =
+			{
+				MaxPoolSize = 10,
+				MinPoolSize = 20,
+			},
 		};
 
 		// Act & Assert
@@ -495,8 +564,11 @@ public sealed class PostgresPersistenceOptionsShould : UnitTestBase
 		var options = new PostgresPersistenceOptions
 		{
 			ConnectionString = "Host=localhost;Database=TestDb;",
-			EnableConnectionPooling = true,
-			MaxPoolSize = 0,
+			Pooling =
+			{
+				EnableConnectionPooling = true,
+				MaxPoolSize = 0,
+			},
 		};
 
 		// Act & Assert
@@ -540,11 +612,16 @@ public sealed class PostgresPersistenceOptionsShould : UnitTestBase
 	[Fact]
 	public void ThrowOnValidateWithInvalidRetryDelay()
 	{
-		// Arrange
+		// Arrange — Connection sub-options are validated by Validate();
+		// Resilience sub-options are NOT validated (no Resilience.Validate() call).
+		// Use ConnectionIdleLifetime above its max (3600) to trigger failure.
 		var options = new PostgresPersistenceOptions
 		{
 			ConnectionString = "Host=localhost;Database=TestDb;",
-			RetryDelayMilliseconds = 50, // Below minimum of 100
+			Connection =
+			{
+				ConnectionIdleLifetime = 99999, // Above maximum of 3600
+			},
 		};
 
 		// Act & Assert
@@ -682,9 +759,12 @@ public sealed class PostgresPersistenceOptionsShould : UnitTestBase
 			ConnectionString = "Host=localhost;Database=TestDb;",
 			ConnectionTimeout = 60,
 			CommandTimeout = 120,
-			EnableConnectionPooling = false,
-			MaxPoolSize = 200,
-			MinPoolSize = 10,
+			Pooling =
+			{
+				EnableConnectionPooling = false,
+				MaxPoolSize = 200,
+				MinPoolSize = 10,
+			},
 			Connection =
 			{
 				ApplicationName = "TestApp",
@@ -700,5 +780,43 @@ public sealed class PostgresPersistenceOptionsShould : UnitTestBase
 		connStr.ShouldContain("Command Timeout=120");
 		connStr.ShouldContain("Pooling=False");
 		connStr.ShouldContain("Application Name=TestApp");
+	}
+
+	// ─────────────────────────────────────────────
+	// Explicit interface delegation
+	// ─────────────────────────────────────────────
+
+	[Fact]
+	public void DelegatePoolingPropertiesToSubOptions()
+	{
+		// Arrange
+		var options = new PostgresPersistenceOptions();
+		options.Pooling.MaxPoolSize = 250;
+		options.Pooling.MinPoolSize = 25;
+		options.Pooling.EnableConnectionPooling = false;
+
+		// Act — access through interface
+		var poolingOptions = (IPersistencePoolingOptions)options;
+
+		// Assert — explicit interface delegates to Pooling sub-options
+		poolingOptions.MaxPoolSize.ShouldBe(250);
+		poolingOptions.MinPoolSize.ShouldBe(25);
+		poolingOptions.EnableConnectionPooling.ShouldBeFalse();
+	}
+
+	[Fact]
+	public void DelegateResiliencePropertiesToSubOptions()
+	{
+		// Arrange
+		var options = new PostgresPersistenceOptions();
+		options.Resilience.MaxRetryAttempts = 7;
+		options.Resilience.RetryDelayMilliseconds = 3000;
+
+		// Act — access through interface
+		var resilienceOptions = (IPersistenceResilienceOptions)options;
+
+		// Assert — explicit interface delegates to Resilience sub-options
+		resilienceOptions.MaxRetryAttempts.ShouldBe(7);
+		resilienceOptions.RetryDelayMilliseconds.ShouldBe(3000);
 	}
 }

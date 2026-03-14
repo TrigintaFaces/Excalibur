@@ -3,6 +3,7 @@
 
 
 using Excalibur.Data.Abstractions.Persistence;
+using Excalibur.Dispatch.Abstractions.Validation;
 
 using Microsoft.Extensions.Configuration;
 

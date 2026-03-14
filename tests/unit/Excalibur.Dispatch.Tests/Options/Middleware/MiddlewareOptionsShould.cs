@@ -268,15 +268,15 @@ public sealed class MiddlewareOptionsShould
 		opts.BypassOutboxForTypes.ShouldBeNull();
 		opts.PublishBatchSize.ShouldBe(100);
 		opts.PublishPollingInterval.ShouldBe(TimeSpan.FromSeconds(5));
-		opts.MaxRetries.ShouldBe(3);
-		opts.RetryDelay.ShouldBe(TimeSpan.FromMinutes(5));
-		opts.EnableExponentialRetryBackoff.ShouldBeFalse();
-		opts.MaxRetryDelay.ShouldBe(TimeSpan.FromMinutes(30));
+		opts.Retry.MaxRetries.ShouldBe(3);
+		opts.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(5));
+		opts.Retry.EnableExponentialRetryBackoff.ShouldBeFalse();
+		opts.Retry.MaxRetryDelay.ShouldBe(TimeSpan.FromMinutes(30));
 		opts.CleanupAge.ShouldBe(TimeSpan.FromDays(7));
 		opts.CleanupInterval.ShouldBe(TimeSpan.FromHours(1));
-		opts.EnableAdaptivePolling.ShouldBeFalse();
-		opts.MinPollingInterval.ShouldBe(TimeSpan.FromMilliseconds(500));
-		opts.AdaptivePollingBackoffMultiplier.ShouldBe(2.0);
+		opts.AdaptivePolling.EnableAdaptivePolling.ShouldBeFalse();
+		opts.AdaptivePolling.MinPollingInterval.ShouldBe(TimeSpan.FromMilliseconds(500));
+		opts.AdaptivePolling.AdaptivePollingBackoffMultiplier.ShouldBe(2.0);
 	}
 
 	// --- OutboxOptionsValidator ---
@@ -320,7 +320,7 @@ public sealed class MiddlewareOptionsShould
 	public void OutboxOptionsValidator_RejectNegativeRetries()
 	{
 		var validator = new OutboxOptionsValidator();
-		var opts = new OutboxOptions { MaxRetries = -1 };
+		var opts = new OutboxOptions { Retry = { MaxRetries = -1 } };
 
 		var result = validator.Validate(null, opts);
 
@@ -334,9 +334,12 @@ public sealed class MiddlewareOptionsShould
 		var validator = new OutboxOptionsValidator();
 		var opts = new OutboxOptions
 		{
-			EnableExponentialRetryBackoff = true,
-			RetryDelay = TimeSpan.FromMinutes(10),
-			MaxRetryDelay = TimeSpan.FromMinutes(5),
+			Retry =
+			{
+				EnableExponentialRetryBackoff = true,
+				RetryDelay = TimeSpan.FromMinutes(10),
+				MaxRetryDelay = TimeSpan.FromMinutes(5),
+			},
 		};
 
 		var result = validator.Validate(null, opts);
@@ -351,8 +354,11 @@ public sealed class MiddlewareOptionsShould
 		var validator = new OutboxOptionsValidator();
 		var opts = new OutboxOptions
 		{
-			EnableAdaptivePolling = true,
-			MinPollingInterval = TimeSpan.FromSeconds(10),
+			AdaptivePolling =
+			{
+				EnableAdaptivePolling = true,
+				MinPollingInterval = TimeSpan.FromSeconds(10),
+			},
 			PublishPollingInterval = TimeSpan.FromSeconds(5),
 		};
 
@@ -368,8 +374,11 @@ public sealed class MiddlewareOptionsShould
 		var validator = new OutboxOptionsValidator();
 		var opts = new OutboxOptions
 		{
-			EnableAdaptivePolling = true,
-			AdaptivePollingBackoffMultiplier = 1.0,
+			AdaptivePolling =
+			{
+				EnableAdaptivePolling = true,
+				AdaptivePollingBackoffMultiplier = 1.0,
+			},
 		};
 
 		var result = validator.Validate(null, opts);

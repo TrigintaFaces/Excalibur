@@ -355,14 +355,14 @@ public sealed class HttpContextExtensionsShould : UnitTestBase
 	#region CreateDispatchMessageContext Tests
 
 	[Fact]
-	public void CreateDispatchMessageContext_ThrowWhenNotAuthenticated()
+	public void CreateDispatchMessageContext_ThrowWhenRequestServicesIsNull()
 	{
-		// Arrange
+		// Arrange -- DefaultHttpContext has null RequestServices by default
 		var httpContext = new DefaultHttpContext();
 		httpContext.User = new ClaimsPrincipal(new ClaimsIdentity()); // Not authenticated
 
-		// Act & Assert
-		Should.Throw<UnauthorizedAccessException>(() =>
+		// Act & Assert -- MessageContext.RequestServices setter rejects null
+		Should.Throw<ArgumentNullException>(() =>
 			httpContext.CreateDispatchMessageContext());
 	}
 

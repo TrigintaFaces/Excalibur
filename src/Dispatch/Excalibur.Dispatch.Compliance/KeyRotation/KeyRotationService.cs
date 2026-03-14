@@ -24,6 +24,7 @@ namespace Excalibur.Dispatch.Compliance;
 public partial class KeyRotationService : BackgroundService, IKeyRotationScheduler
 {
 	private readonly IKeyManagementProvider _keyProvider;
+	private readonly IKeyManagementAdmin _keyAdmin;
 	private readonly IOptions<KeyRotationOptions> _options;
 	private readonly ILogger<KeyRotationService> _logger;
 	private readonly SemaphoreSlim _rotationSemaphore;
@@ -32,15 +33,18 @@ public partial class KeyRotationService : BackgroundService, IKeyRotationSchedul
 	/// <summary>
 	/// Initializes a new instance of the <see cref="KeyRotationService"/> class.
 	/// </summary>
-	/// <param name="keyProvider">The key management provider.</param>
+	/// <param name="keyProvider">The key management provider for core operations.</param>
+	/// <param name="keyAdmin">The key management admin provider for listing keys.</param>
 	/// <param name="options">The rotation options.</param>
 	/// <param name="logger">The logger.</param>
 	public KeyRotationService(
 		IKeyManagementProvider keyProvider,
+		IKeyManagementAdmin keyAdmin,
 		IOptions<KeyRotationOptions> options,
 		ILogger<KeyRotationService> logger)
 	{
 		_keyProvider = keyProvider ?? throw new ArgumentNullException(nameof(keyProvider));
+		_keyAdmin = keyAdmin ?? throw new ArgumentNullException(nameof(keyAdmin));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_rotationSemaphore = new SemaphoreSlim(options.Value.MaxConcurrentRotations);
@@ -56,7 +60,7 @@ public partial class KeyRotationService : BackgroundService, IKeyRotationSchedul
 		var keysDueForRotation = 0;
 
 		// Get all active keys
-		var activeKeys = await _keyProvider
+		var activeKeys = await _keyAdmin
 			.ListKeysAsync(KeyStatus.Active, purpose: null, cancellationToken: cancellationToken)
 			.ConfigureAwait(false);
 
@@ -84,11 +88,11 @@ public partial class KeyRotationService : BackgroundService, IKeyRotationSchedul
 			// Check if this key recently failed and should be retried
 			if (_failedRotations.TryGetValue(key.KeyId, out var lastFailure))
 			{
-				if (DateTimeOffset.UtcNow - lastFailure < config.RetryDelay)
+				if (DateTimeOffset.UtcNow - lastFailure < config.Retry.RetryDelay)
 				{
 					LogKeyRotationRetryDelayed(
 						key.KeyId,
-						lastFailure.Add(config.RetryDelay));
+						lastFailure.Add(config.Retry.RetryDelay));
 					continue;
 				}
 			}
@@ -98,7 +102,7 @@ public partial class KeyRotationService : BackgroundService, IKeyRotationSchedul
 			try
 			{
 				using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-				cts.CancelAfter(config.RotationTimeout);
+				cts.CancelAfter(config.Lock.RotationTimeout);
 
 				LogKeyRotationStarted(
 					key.KeyId,

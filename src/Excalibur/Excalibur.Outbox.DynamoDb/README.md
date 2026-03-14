@@ -21,7 +21,7 @@ dotnet add package Excalibur.Outbox.DynamoDb
 ```csharp
 services.AddDynamoDbOutboxStore(options =>
 {
-    options.Region = "us-east-1";
+    options.Connection.Region = "us-east-1";
     options.TableName = "outbox";
     options.DefaultTimeToLiveSeconds = 604800; // 7 days
     options.CreateTableIfNotExists = true;
@@ -40,10 +40,10 @@ services.AddDynamoDbOutboxStore(configuration.GetSection("DynamoDbOutbox"));
 ```csharp
 services.AddDynamoDbOutboxStore(options =>
 {
-    options.ServiceUrl = "http://localhost:8000";
+    options.Connection.ServiceUrl = "http://localhost:8000";
     options.TableName = "outbox";
-    options.AccessKey = "local";
-    options.SecretKey = "local";
+    options.Connection.AccessKey = "local";
+    options.Connection.SecretKey = "local";
 });
 ```
 

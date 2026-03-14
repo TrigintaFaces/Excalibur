@@ -31,6 +31,7 @@
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.RabbitMQ.Tests.Integration" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.RabbitMQ.Tests.Functional" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Integration.Tests" />
   </ItemGroup>
   <ItemGroup>
     <AdditionalFiles Include="PublicAPI.Shipped.txt" />

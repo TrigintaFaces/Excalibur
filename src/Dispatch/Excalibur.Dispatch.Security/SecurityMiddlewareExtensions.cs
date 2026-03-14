@@ -9,7 +9,6 @@ using Excalibur.Dispatch.Abstractions;
 
 
 
-
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -64,45 +63,45 @@ public static class SecurityMiddlewareExtensions
 		configureOptions(options);
 
 		// Configure individual components based on options
-		if (options.EnableEncryption)
+		if (options.Encryption.EnableEncryption)
 		{
 			_ = services.AddMessageEncryption(opt =>
 			{
 				opt.Enabled = true;
-				opt.DefaultAlgorithm = options.EncryptionAlgorithm;
-				opt.AzureKeyVaultUrl = options.AzureKeyVaultUrl;
-				opt.AwsKmsKeyArn = options.AwsKmsKeyArn;
+				opt.DefaultAlgorithm = options.Encryption.EncryptionAlgorithm;
+				opt.AzureKeyVaultUrl = options.Encryption.AzureKeyVaultUrl;
+				opt.AwsKmsKeyArn = options.Encryption.AwsKmsKeyArn;
 			});
 		}
 
-		if (options.EnableSigning)
+		if (options.Signing.EnableSigning)
 		{
 			_ = services.AddMessageSigning(opt =>
 			{
 				opt.Enabled = true;
-				opt.DefaultAlgorithm = options.SigningAlgorithm;
+				opt.DefaultAlgorithm = options.Signing.SigningAlgorithm;
 			});
 		}
 
-		if (options.EnableRateLimiting)
+		if (options.RateLimiting.EnableRateLimiting)
 		{
 			_ = services.AddRateLimiting(opt =>
 			{
 				opt.Enabled = true;
-				opt.Algorithm = options.RateLimitAlgorithm;
-				opt.DefaultLimits = options.DefaultRateLimits;
+				opt.Algorithm = options.RateLimiting.RateLimitAlgorithm;
+				opt.DefaultLimits = options.RateLimiting.DefaultRateLimits;
 			});
 		}
 
-		if (options.EnableAuthentication)
+		if (options.Authentication.EnableAuthentication)
 		{
 			_ = services.AddJwtAuthentication(opt =>
 			{
 				opt.Enabled = true;
-				opt.RequireAuthentication = options.RequireAuthentication;
-				opt.Credentials.ValidIssuer = options.JwtIssuer;
-				opt.Credentials.ValidAudience = options.JwtAudience;
-				opt.Credentials.SigningKey = options.JwtSigningKey;
+				opt.RequireAuthentication = options.Authentication.RequireAuthentication;
+				opt.Credentials.ValidIssuer = options.Authentication.JwtIssuer;
+				opt.Credentials.ValidAudience = options.Authentication.JwtAudience;
+				opt.Credentials.SigningKey = options.Authentication.JwtSigningKey;
 			});
 		}
 
@@ -219,6 +218,56 @@ public static class SecurityMiddlewareExtensions
 		services.TryAddSingleton<IMessageSigningService, HmacMessageSigningService>();
 
 		// Register middleware
+		services.TryAddTransient<IDispatchMiddleware, MessageSigningMiddleware>();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds asymmetric message signing services with support for HMAC, ECDSA, and Ed25519 algorithms.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// This registers a <see cref="CompositeMessageSigningService"/> that delegates to algorithm-specific
+	/// <see cref="ISignatureAlgorithmProvider"/> instances. All standard providers (HMAC, ECDSA, Ed25519)
+	/// are registered via <see cref="ServiceCollectionDescriptorExtensions.TryAddEnumerable(IServiceCollection, ServiceDescriptor)"/>.
+	/// </para>
+	/// <para>
+	/// Use this instead of <see cref="AddMessageSigning(IServiceCollection, Action{SigningOptions}?)"/>
+	/// when asymmetric (non-repudiation) signing is required. The existing <c>AddMessageSigning</c> method
+	/// remains available for HMAC-only scenarios.
+	/// </para>
+	/// </remarks>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configureOptions">Optional configuration delegate for signing options.</param>
+	/// <returns>The service collection for chaining.</returns>
+	public static IServiceCollection AddAsymmetricSigning(
+		this IServiceCollection services,
+		Action<SigningOptions>? configureOptions = null)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		// Configure options if provided
+		var optionsBuilder = services.AddOptions<SigningOptions>();
+		if (configureOptions != null)
+		{
+			_ = optionsBuilder.Configure(configureOptions);
+		}
+
+		_ = optionsBuilder.ValidateDataAnnotations().ValidateOnStart();
+
+		// Register all algorithm providers via TryAddEnumerable (coexist, don't duplicate)
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<ISignatureAlgorithmProvider, HmacSignatureAlgorithmProvider>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<ISignatureAlgorithmProvider, EcdsaSignatureAlgorithmProvider>());
+		services.TryAddEnumerable(
+			ServiceDescriptor.Singleton<ISignatureAlgorithmProvider, Ed25519SignatureAlgorithmProvider>());
+
+		// Composite replaces HMAC-only service
+		services.AddSingleton<IMessageSigningService, CompositeMessageSigningService>();
+
+		// Register middleware (same as AddMessageSigning)
 		services.TryAddTransient<IDispatchMiddleware, MessageSigningMiddleware>();
 
 		return services;

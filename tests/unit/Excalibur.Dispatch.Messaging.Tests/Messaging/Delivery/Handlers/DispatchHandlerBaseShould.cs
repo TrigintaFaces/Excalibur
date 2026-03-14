@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Delivery.Handlers;
+using Excalibur.Dispatch.Routing;
 
 using FakeItEasy;
 
@@ -152,10 +154,8 @@ public sealed class DispatchHandlerBaseShould
 	public void IsRouted_WhenRoutingSucceeds_ReturnsTrue()
 	{
 		// Arrange
-		var context = new MessageContext
-		{
-			RoutingDecision = RoutingDecision.Success("local", [])
-		};
+		var context = new MessageContext();
+		RoutingDecisionAccessor.SetRoutingDecision(context, RoutingDecision.Success("local", []));
 		var handler = new TestHandler { Context = context };
 
 		// Act & Assert
@@ -166,10 +166,8 @@ public sealed class DispatchHandlerBaseShould
 	public void IsRouted_WhenRoutingFails_ReturnsFalse()
 	{
 		// Arrange
-		var context = new MessageContext
-		{
-			RoutingDecision = RoutingDecision.Failure("No route found")
-		};
+		var context = new MessageContext();
+		RoutingDecisionAccessor.SetRoutingDecision(context, RoutingDecision.Failure("No route found"));
 		var handler = new TestHandler { Context = context };
 
 		// Act & Assert
@@ -184,12 +182,10 @@ public sealed class DispatchHandlerBaseShould
 	public void Handler_WithAllSuccessfulResults_AllPropertiesReturnTrue()
 	{
 		// Arrange
-		var context = new MessageContext
-		{
-			ValidationResult = SerializableValidationResult.Success(),
-			AuthorizationResult = AuthorizationResult.Success(),
-			RoutingDecision = RoutingDecision.Success("local", [])
-		};
+		var context = new MessageContext();
+		context.ValidationResult = SerializableValidationResult.Success();
+		context.AuthorizationResult = AuthorizationResult.Success();
+		RoutingDecisionAccessor.SetRoutingDecision(context, RoutingDecision.Success("local", []));
 		var handler = new TestHandler { Context = context };
 
 		// Assert
@@ -202,12 +198,10 @@ public sealed class DispatchHandlerBaseShould
 	public void Handler_WithMixedResults_ReturnsCorrectValues()
 	{
 		// Arrange
-		var context = new MessageContext
-		{
-			ValidationResult = SerializableValidationResult.Success(),
-			AuthorizationResult = AuthorizationResult.Failed("Denied"),
-			RoutingDecision = RoutingDecision.Success("local", [])
-		};
+		var context = new MessageContext();
+		context.ValidationResult = SerializableValidationResult.Success();
+		context.AuthorizationResult = AuthorizationResult.Failed("Denied");
+		RoutingDecisionAccessor.SetRoutingDecision(context, RoutingDecision.Success("local", []));
 		var handler = new TestHandler { Context = context };
 
 		// Assert
@@ -220,12 +214,10 @@ public sealed class DispatchHandlerBaseShould
 	public void Handler_WithAllFailedResults_AllPropertiesReturnFalse()
 	{
 		// Arrange
-		var context = new MessageContext
-		{
-			ValidationResult = SerializableValidationResult.Failed("Invalid"),
-			AuthorizationResult = AuthorizationResult.Failed("Denied"),
-			RoutingDecision = RoutingDecision.Failure("Not found")
-		};
+		var context = new MessageContext();
+		context.ValidationResult = SerializableValidationResult.Failed("Invalid");
+		context.AuthorizationResult = AuthorizationResult.Failed("Denied");
+		RoutingDecisionAccessor.SetRoutingDecision(context, RoutingDecision.Failure("Not found"));
 		var handler = new TestHandler { Context = context };
 
 		// Assert

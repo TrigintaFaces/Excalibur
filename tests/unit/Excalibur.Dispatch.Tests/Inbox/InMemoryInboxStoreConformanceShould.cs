@@ -3,7 +3,7 @@
 
 using Excalibur.Dispatch.Abstractions;
 
-using Excalibur.Data.InMemory.Inbox;
+using Excalibur.Inbox.InMemory;
 
 using Microsoft.Extensions.Logging.Abstractions;
 

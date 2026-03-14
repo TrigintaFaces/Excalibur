@@ -74,6 +74,7 @@ public sealed partial class ErasureService : IErasureService
 	private readonly ILegalHoldService? _legalHoldService;
 	private readonly IDataInventoryService? _dataInventoryService;
 	private readonly IKeyManagementProvider _keyProvider;
+	private readonly IKeyManagementAdmin _keyAdmin;
 	private readonly IOptions<ErasureOptions> _options;
 	private readonly IOptions<ErasureSigningOptions> _signingOptions;
 	private readonly ILogger<ErasureService> _logger;
@@ -83,7 +84,8 @@ public sealed partial class ErasureService : IErasureService
 	/// Initializes a new instance of the <see cref="ErasureService"/> class.
 	/// </summary>
 	/// <param name="store">The erasure store for persistence.</param>
-	/// <param name="keyProvider">The key management provider for key deletion.</param>
+	/// <param name="keyProvider">The key management provider for core key operations.</param>
+	/// <param name="keyAdmin">The key management admin provider for key deletion.</param>
 	/// <param name="options">The erasure options.</param>
 	/// <param name="signingOptions">The HMAC signing options for certificate signatures.</param>
 	/// <param name="logger">The logger.</param>
@@ -93,6 +95,7 @@ public sealed partial class ErasureService : IErasureService
 	public ErasureService(
 		IErasureStore store,
 		IKeyManagementProvider keyProvider,
+		IKeyManagementAdmin keyAdmin,
 		IOptions<ErasureOptions> options,
 		IOptions<ErasureSigningOptions> signingOptions,
 		ILogger<ErasureService> logger,
@@ -102,6 +105,7 @@ public sealed partial class ErasureService : IErasureService
 	{
 		_store = store ?? throw new ArgumentNullException(nameof(store));
 		_keyProvider = keyProvider ?? throw new ArgumentNullException(nameof(keyProvider));
+		_keyAdmin = keyAdmin ?? throw new ArgumentNullException(nameof(keyAdmin));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_signingOptions = signingOptions ?? throw new ArgumentNullException(nameof(signingOptions));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -306,7 +310,7 @@ public sealed partial class ErasureService : IErasureService
 				},
 			LegalBasis = status.LegalBasis,
 			Signature = GenerateSignature(requestId, status),
-			RetainUntil = DateTimeOffset.UtcNow.Add(_options.Value.CertificateRetentionPeriod)
+			RetainUntil = DateTimeOffset.UtcNow.Add(_options.Value.Retention.CertificateRetentionPeriod)
 		};
 
 		await certStore.SaveCertificateAsync(certificate, cancellationToken).ConfigureAwait(false);
@@ -378,7 +382,7 @@ public sealed partial class ErasureService : IErasureService
 				LogErasureKeysDiscovered(requestId, keysToDelete.Count);
 			}
 
-			// Delete keys
+			// Delete keys via admin interface
 			var deletedCount = 0;
 			var errors = new List<string>();
 
@@ -386,7 +390,7 @@ public sealed partial class ErasureService : IErasureService
 			{
 				try
 				{
-					var deleted = await _keyProvider.DeleteKeyAsync(keyId, 0, cancellationToken)
+					var deleted = await _keyAdmin.DeleteKeyAsync(keyId, 0, cancellationToken)
 						.ConfigureAwait(false);
 					if (deleted)
 					{

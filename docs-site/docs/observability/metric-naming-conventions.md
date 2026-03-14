@@ -76,7 +76,7 @@ Google Pub/Sub components share a single consolidated meter name via `GooglePubS
 | `Excalibur.Data.Persistence` | `Excalibur.Data` | String literal in `DefaultPersistenceMetrics` |
 | `Excalibur.Data.SqlServer.Persistence` | `Excalibur.Data.SqlServer` | String literal in `SqlServerPersistenceMetrics` |
 | `Excalibur.Data.Postgres.Persistence` | `Excalibur.Data.Postgres` | String literal in `PostgresPersistenceMetrics` |
-| `Excalibur.Data.Postgres.Outbox` | `Excalibur.Data.Postgres` | String literal in `PostgresOutboxStoreMetrics` |
+| `Excalibur.Data.Postgres.Outbox` | `Excalibur.Outbox.Postgres` | String literal in `PostgresOutboxStoreMetrics` |
 
 ### Event Sourcing Domain
 

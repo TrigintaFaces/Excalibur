@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Data.MongoDB.Cdc;
+using Excalibur.Cdc.MongoDB;
 
 using MongoDB.Driver;
 
@@ -31,13 +31,14 @@ public sealed class MongoDbCdcProcessorConstructorShould : UnitTestBase
 		_client = A.Fake<IMongoClient>();
 		_logger = A.Fake<ILogger<MongoDbCdcProcessor>>();
 		_stateStore = A.Fake<IMongoDbCdcStateStore>();
-		_options = Options.Create(new MongoDbCdcOptions
+		var opts = new MongoDbCdcOptions
 		{
-			ConnectionString = "mongodb://localhost:27017/?replicaSet=rs0",
 			ProcessorId = "test-processor",
 			BatchSize = 100,
-			MaxAwaitTime = TimeSpan.FromSeconds(5)
-		});
+			ChangeStream = { MaxAwaitTime = TimeSpan.FromSeconds(5) },
+			Connection = { ConnectionString = "mongodb://localhost:27017/?replicaSet=rs0" }
+		};
+		_options = Options.Create(opts);
 	}
 
 	#region Constructor Tests
@@ -88,7 +89,7 @@ public sealed class MongoDbCdcProcessorConstructorShould : UnitTestBase
 		// Arrange
 		var invalidOptions = Options.Create(new MongoDbCdcOptions
 		{
-			ConnectionString = string.Empty,
+			Connection = { ConnectionString = string.Empty },
 			ProcessorId = "test-processor"
 		});
 
@@ -103,7 +104,7 @@ public sealed class MongoDbCdcProcessorConstructorShould : UnitTestBase
 		// Arrange
 		var invalidOptions = Options.Create(new MongoDbCdcOptions
 		{
-			ConnectionString = "mongodb://localhost:27017",
+			Connection = { ConnectionString = "mongodb://localhost:27017" },
 			ProcessorId = string.Empty
 		});
 
@@ -118,7 +119,7 @@ public sealed class MongoDbCdcProcessorConstructorShould : UnitTestBase
 		// Arrange
 		var invalidOptions = Options.Create(new MongoDbCdcOptions
 		{
-			ConnectionString = "mongodb://localhost:27017",
+			Connection = { ConnectionString = "mongodb://localhost:27017" },
 			ProcessorId = "test-processor",
 			BatchSize = 0
 		});
@@ -134,7 +135,7 @@ public sealed class MongoDbCdcProcessorConstructorShould : UnitTestBase
 		// Arrange
 		var invalidOptions = Options.Create(new MongoDbCdcOptions
 		{
-			ConnectionString = "mongodb://localhost:27017",
+			Connection = { ConnectionString = "mongodb://localhost:27017" },
 			ProcessorId = "test-processor",
 			BatchSize = -1
 		});
@@ -150,9 +151,9 @@ public sealed class MongoDbCdcProcessorConstructorShould : UnitTestBase
 		// Arrange
 		var invalidOptions = Options.Create(new MongoDbCdcOptions
 		{
-			ConnectionString = "mongodb://localhost:27017",
+			Connection = { ConnectionString = "mongodb://localhost:27017" },
 			ProcessorId = "test-processor",
-			MaxAwaitTime = TimeSpan.Zero
+			ChangeStream = { MaxAwaitTime = TimeSpan.Zero }
 		});
 
 		// Act & Assert
@@ -166,9 +167,9 @@ public sealed class MongoDbCdcProcessorConstructorShould : UnitTestBase
 		// Arrange
 		var invalidOptions = Options.Create(new MongoDbCdcOptions
 		{
-			ConnectionString = "mongodb://localhost:27017",
+			Connection = { ConnectionString = "mongodb://localhost:27017" },
 			ProcessorId = "test-processor",
-			MaxAwaitTime = TimeSpan.FromSeconds(-5)
+			ChangeStream = { MaxAwaitTime = TimeSpan.FromSeconds(-5) }
 		});
 
 		// Act & Assert
@@ -213,7 +214,7 @@ public sealed class MongoDbCdcProcessorConstructorShould : UnitTestBase
 		// Arrange
 		var dbOptions = Options.Create(new MongoDbCdcOptions
 		{
-			ConnectionString = "mongodb://localhost:27017",
+			Connection = { ConnectionString = "mongodb://localhost:27017" },
 			ProcessorId = "test-processor",
 			DatabaseName = "test_db"
 		});
@@ -231,7 +232,7 @@ public sealed class MongoDbCdcProcessorConstructorShould : UnitTestBase
 		// Arrange
 		var collectionOptions = Options.Create(new MongoDbCdcOptions
 		{
-			ConnectionString = "mongodb://localhost:27017",
+			Connection = { ConnectionString = "mongodb://localhost:27017" },
 			ProcessorId = "test-processor",
 			DatabaseName = "test_db",
 			CollectionNames = ["events", "projections"]
@@ -250,9 +251,9 @@ public sealed class MongoDbCdcProcessorConstructorShould : UnitTestBase
 		// Arrange
 		var fullDocOptions = Options.Create(new MongoDbCdcOptions
 		{
-			ConnectionString = "mongodb://localhost:27017",
+			Connection = { ConnectionString = "mongodb://localhost:27017" },
 			ProcessorId = "test-processor",
-			FullDocument = true
+			ChangeStream = { FullDocument = true }
 		});
 
 		// Act
@@ -268,9 +269,9 @@ public sealed class MongoDbCdcProcessorConstructorShould : UnitTestBase
 		// Arrange
 		var preImageOptions = Options.Create(new MongoDbCdcOptions
 		{
-			ConnectionString = "mongodb://localhost:27017",
+			Connection = { ConnectionString = "mongodb://localhost:27017" },
 			ProcessorId = "test-processor",
-			FullDocumentBeforeChange = true
+			ChangeStream = { FullDocumentBeforeChange = true }
 		});
 
 		// Act
@@ -286,9 +287,9 @@ public sealed class MongoDbCdcProcessorConstructorShould : UnitTestBase
 		// Arrange
 		var opTypeOptions = Options.Create(new MongoDbCdcOptions
 		{
-			ConnectionString = "mongodb://localhost:27017",
+			Connection = { ConnectionString = "mongodb://localhost:27017" },
 			ProcessorId = "test-processor",
-			OperationTypes = ["insert", "update", "delete"]
+			ChangeStream = { OperationTypes = ["insert", "update", "delete"] }
 		});
 
 		// Act
@@ -304,9 +305,12 @@ public sealed class MongoDbCdcProcessorConstructorShould : UnitTestBase
 		// Arrange
 		var sslOptions = Options.Create(new MongoDbCdcOptions
 		{
-			ConnectionString = "mongodb://localhost:27017",
-			ProcessorId = "test-processor",
-			UseSsl = true
+			Connection =
+			{
+				ConnectionString = "mongodb://localhost:27017",
+				UseSsl = true
+			},
+			ProcessorId = "test-processor"
 		});
 
 		// Act
@@ -322,7 +326,7 @@ public sealed class MongoDbCdcProcessorConstructorShould : UnitTestBase
 		// Arrange
 		var reconnectOptions = Options.Create(new MongoDbCdcOptions
 		{
-			ConnectionString = "mongodb://localhost:27017",
+			Connection = { ConnectionString = "mongodb://localhost:27017" },
 			ProcessorId = "test-processor",
 			ReconnectInterval = TimeSpan.FromSeconds(10)
 		});
@@ -340,9 +344,12 @@ public sealed class MongoDbCdcProcessorConstructorShould : UnitTestBase
 		// Arrange
 		var poolOptions = Options.Create(new MongoDbCdcOptions
 		{
-			ConnectionString = "mongodb://localhost:27017",
-			ProcessorId = "test-processor",
-			MaxPoolSize = 50
+			Connection =
+			{
+				ConnectionString = "mongodb://localhost:27017",
+				MaxPoolSize = 50
+			},
+			ProcessorId = "test-processor"
 		});
 
 		// Act

@@ -413,7 +413,7 @@ public sealed class EndpointRouteBuilderExtensionsShould : UnitTestBase
 
 	public sealed class TestEvent : IDispatchEvent;
 
-	private sealed class RecordingDispatcher : IDispatcher
+	private sealed class RecordingDispatcher : IDispatcher, IStreamingDispatcher, IProgressDispatcher
 	{
 		public IServiceProvider? ServiceProvider => null;
 

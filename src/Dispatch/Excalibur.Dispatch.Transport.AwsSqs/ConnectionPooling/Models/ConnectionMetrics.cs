@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="ConnectionMetrics" /> class. </remarks>
 /// <param name="metricsPrefix"> The prefix for metric names. </param>
-public class ConnectionMetrics(string metricsPrefix) : IDisposable
+internal class ConnectionMetrics(string metricsPrefix) : IDisposable
 {
 #if NET9_0_OR_GREATER
 

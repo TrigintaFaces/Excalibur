@@ -135,79 +135,19 @@ public sealed class ResilienceOptionsShould
 		// Assert
 		options.MaxRetryAttempts.ShouldBe(3);
 		options.RetryStrategy.ShouldBe(RetryStrategy.FixedDelay);
-		options.BaseDelay.ShouldBe(TimeSpan.FromSeconds(1));
-		options.MaxDelay.ShouldBe(TimeSpan.FromMinutes(30));
-		options.BackoffMultiplier.ShouldBe(2.0);
-		options.EnableJitter.ShouldBeFalse();
-		options.JitterFactor.ShouldBe(0.1);
+		options.Backoff.BaseDelay.ShouldBe(TimeSpan.FromSeconds(1));
+		options.Backoff.MaxDelay.ShouldBe(TimeSpan.FromMinutes(30));
+		options.Backoff.BackoffMultiplier.ShouldBe(2.0);
+		options.Backoff.EnableJitter.ShouldBeFalse();
+		options.Backoff.JitterFactor.ShouldBe(0.1);
 		options.Timeout.ShouldBe(TimeSpan.FromSeconds(30));
 		options.RetriableExceptions.ShouldNotBeNull();
 		options.RetriableExceptions.ShouldBeEmpty();
 		options.NonRetriableExceptions.ShouldNotBeNull();
 		options.NonRetriableExceptions.ShouldBeEmpty();
-		options.EnableCircuitBreaker.ShouldBeFalse();
-		options.CircuitBreakerThreshold.ShouldBe(5);
-		options.CircuitBreakerDuration.ShouldBe(TimeSpan.FromSeconds(30));
-	}
-
-	[Fact]
-	public void RetryPolicyOptions_MaxAttempts_IsAliasForMaxRetryAttempts()
-	{
-		// Arrange
-		var options = new RetryPolicyOptions();
-
-		// Act - set via alias
-		options.MaxAttempts = 7;
-
-		// Assert - both return same value
-		options.MaxRetryAttempts.ShouldBe(7);
-		options.MaxAttempts.ShouldBe(7);
-
-		// Act - set via canonical
-		options.MaxRetryAttempts = 10;
-
-		// Assert - alias reflects change
-		options.MaxAttempts.ShouldBe(10);
-	}
-
-	[Fact]
-	public void RetryPolicyOptions_CircuitBreakerFailureThreshold_IsAliasForCircuitBreakerThreshold()
-	{
-		// Arrange
-		var options = new RetryPolicyOptions();
-
-		// Act - set via alias
-		options.CircuitBreakerFailureThreshold = 10;
-
-		// Assert - both return same value
-		options.CircuitBreakerThreshold.ShouldBe(10);
-		options.CircuitBreakerFailureThreshold.ShouldBe(10);
-
-		// Act - set via canonical
-		options.CircuitBreakerThreshold = 20;
-
-		// Assert - alias reflects change
-		options.CircuitBreakerFailureThreshold.ShouldBe(20);
-	}
-
-	[Fact]
-	public void RetryPolicyOptions_CircuitBreakerRecoveryTimeout_IsAliasForCircuitBreakerDuration()
-	{
-		// Arrange
-		var options = new RetryPolicyOptions();
-
-		// Act - set via alias
-		options.CircuitBreakerRecoveryTimeout = TimeSpan.FromMinutes(2);
-
-		// Assert - both return same value
-		options.CircuitBreakerDuration.ShouldBe(TimeSpan.FromMinutes(2));
-		options.CircuitBreakerRecoveryTimeout.ShouldBe(TimeSpan.FromMinutes(2));
-
-		// Act - set via canonical
-		options.CircuitBreakerDuration = TimeSpan.FromMinutes(5);
-
-		// Assert - alias reflects change
-		options.CircuitBreakerRecoveryTimeout.ShouldBe(TimeSpan.FromMinutes(5));
+		options.CircuitBreaker.EnableCircuitBreaker.ShouldBeFalse();
+		options.CircuitBreaker.CircuitBreakerThreshold.ShouldBe(5);
+		options.CircuitBreaker.CircuitBreakerDuration.ShouldBe(TimeSpan.FromSeconds(30));
 	}
 
 	[Fact]
@@ -218,29 +158,35 @@ public sealed class ResilienceOptionsShould
 		{
 			MaxRetryAttempts = 5,
 			RetryStrategy = RetryStrategy.ExponentialBackoff,
-			BaseDelay = TimeSpan.FromSeconds(2),
-			MaxDelay = TimeSpan.FromMinutes(5),
-			BackoffMultiplier = 3.0,
-			EnableJitter = true,
-			JitterFactor = 0.3,
+			Backoff =
+			{
+				BaseDelay = TimeSpan.FromSeconds(2),
+				MaxDelay = TimeSpan.FromMinutes(5),
+				BackoffMultiplier = 3.0,
+				EnableJitter = true,
+				JitterFactor = 0.3,
+			},
 			Timeout = TimeSpan.FromMinutes(1),
-			EnableCircuitBreaker = true,
-			CircuitBreakerThreshold = 10,
-			CircuitBreakerDuration = TimeSpan.FromMinutes(2),
+			CircuitBreaker =
+			{
+				EnableCircuitBreaker = true,
+				CircuitBreakerThreshold = 10,
+				CircuitBreakerDuration = TimeSpan.FromMinutes(2),
+			},
 		};
 
 		// Assert
 		options.MaxRetryAttempts.ShouldBe(5);
 		options.RetryStrategy.ShouldBe(RetryStrategy.ExponentialBackoff);
-		options.BaseDelay.ShouldBe(TimeSpan.FromSeconds(2));
-		options.MaxDelay.ShouldBe(TimeSpan.FromMinutes(5));
-		options.BackoffMultiplier.ShouldBe(3.0);
-		options.EnableJitter.ShouldBeTrue();
-		options.JitterFactor.ShouldBe(0.3);
+		options.Backoff.BaseDelay.ShouldBe(TimeSpan.FromSeconds(2));
+		options.Backoff.MaxDelay.ShouldBe(TimeSpan.FromMinutes(5));
+		options.Backoff.BackoffMultiplier.ShouldBe(3.0);
+		options.Backoff.EnableJitter.ShouldBeTrue();
+		options.Backoff.JitterFactor.ShouldBe(0.3);
 		options.Timeout.ShouldBe(TimeSpan.FromMinutes(1));
-		options.EnableCircuitBreaker.ShouldBeTrue();
-		options.CircuitBreakerThreshold.ShouldBe(10);
-		options.CircuitBreakerDuration.ShouldBe(TimeSpan.FromMinutes(2));
+		options.CircuitBreaker.EnableCircuitBreaker.ShouldBeTrue();
+		options.CircuitBreaker.CircuitBreakerThreshold.ShouldBe(10);
+		options.CircuitBreaker.CircuitBreakerDuration.ShouldBe(TimeSpan.FromMinutes(2));
 	}
 
 	// --- BackoffStrategy ---

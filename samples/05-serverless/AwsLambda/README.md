@@ -162,7 +162,10 @@ This sample uses `Excalibur.Dispatch.Hosting.AwsLambda` with cold start optimiza
 services.AddExcaliburAwsLambdaServerless(opts =>
 {
     opts.EnableColdStartOptimization = true;
+    opts.Telemetry.EnableDistributedTracing = true;
+    opts.Telemetry.EnableStructuredLogging = true;
     opts.AwsLambda.Runtime = "dotnet8";
+    opts.AwsLambda.PackageType = "Zip";
 });
 ```
 

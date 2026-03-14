@@ -8,6 +8,12 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// <summary>
 /// Configuration options for the Confluent Schema Registry client.
 /// </summary>
+/// <remarks>
+/// <para>
+/// SSL/TLS settings are in <see cref="SchemaRegistrySslOptions"/> via the <see cref="Ssl"/> property.
+/// Schema management settings are in <see cref="SchemaRegistrySchemaOptions"/> via the <see cref="Schema"/> property.
+/// </para>
+/// </remarks>
 public sealed class ConfluentSchemaRegistryOptions
 {
 	/// <summary>
@@ -35,74 +41,22 @@ public sealed class ConfluentSchemaRegistryOptions
 	public TimeSpan RequestTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
 	/// <summary>
-	/// Gets or sets whether to enable SSL verification.
-	/// </summary>
-	/// <value><see langword="true"/> to verify SSL certificates; otherwise, <see langword="false"/>.</value>
-	public bool EnableSslCertificateVerification { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the SSL CA certificate location.
-	/// </summary>
-	/// <value>The path to the CA certificate file, or <see langword="null"/> to use system certificates.</value>
-	public string? SslCaLocation { get; set; }
-
-	/// <summary>
-	/// Gets or sets the SSL key location.
-	/// </summary>
-	/// <value>The path to the client key file, or <see langword="null"/> if not using mTLS.</value>
-	public string? SslKeyLocation { get; set; }
-
-	/// <summary>
-	/// Gets or sets the SSL certificate location.
-	/// </summary>
-	/// <value>The path to the client certificate file, or <see langword="null"/> if not using mTLS.</value>
-	public string? SslCertificateLocation { get; set; }
-
-	/// <summary>
-	/// Gets or sets the SSL key password.
-	/// </summary>
-	/// <value>The password for the client key, or <see langword="null"/> if unencrypted.</value>
-	public string? SslKeyPassword { get; set; }
-
-	/// <summary>
-	/// Gets or sets whether to auto-register schemas on first use.
-	/// </summary>
-	/// <value><see langword="true"/> to auto-register; otherwise, <see langword="false"/>. Default is true.</value>
-	public bool AutoRegisterSchemas { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the default compatibility mode for new subjects.
-	/// </summary>
-	/// <value>The compatibility mode. Default is <see cref="CompatibilityMode.Backward"/>.</value>
-	public CompatibilityMode DefaultCompatibility { get; set; } = CompatibilityMode.Backward;
-
-	/// <summary>
-	/// Gets or sets whether to validate schemas locally before registration.
-	/// </summary>
-	/// <value>
-	/// <see langword="true"/> to validate schema structure before sending to the registry;
-	/// otherwise, <see langword="false"/>. Default is <see langword="true"/>.
-	/// </value>
-	public bool ValidateBeforeRegister { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the subject naming strategy.
-	/// </summary>
-	/// <value>The subject name strategy. Default is <see cref="SubjectNameStrategy.TopicName"/>.</value>
-	public SubjectNameStrategy SubjectNameStrategy { get; set; } = SubjectNameStrategy.TopicName;
-
-	/// <summary>
-	/// Gets or sets the custom subject name strategy type, if using a custom implementation.
-	/// </summary>
-	/// <value>The custom strategy type, or <see langword="null"/> to use the enum-based strategy.</value>
-	[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)]
-	public Type? CustomSubjectNameStrategyType { get; set; }
-
-	/// <summary>
 	/// Gets or sets whether schema caching is enabled.
 	/// </summary>
 	/// <value><see langword="true"/> to cache schemas locally; otherwise, <see langword="false"/>. Default is true.</value>
 	public bool CacheSchemas { get; set; } = true;
+
+	/// <summary>
+	/// Gets or sets the SSL/TLS configuration options.
+	/// </summary>
+	/// <value>The SSL options. Never <see langword="null"/>.</value>
+	public SchemaRegistrySslOptions Ssl { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the schema management configuration options.
+	/// </summary>
+	/// <value>The schema options. Never <see langword="null"/>.</value>
+	public SchemaRegistrySchemaOptions Schema { get; set; } = new();
 
 	/// <summary>
 	/// Creates the configured subject name strategy instance.
@@ -112,21 +66,21 @@ public sealed class ConfluentSchemaRegistryOptions
 	[RequiresDynamicCode("CreateSubjectNameStrategy uses reflection to construct custom strategy types.")]
 	public ISubjectNameStrategy CreateSubjectNameStrategy()
 	{
-		if (CustomSubjectNameStrategyType is not null)
+		if (Schema.CustomSubjectNameStrategyType is not null)
 		{
-			if (!typeof(ISubjectNameStrategy).IsAssignableFrom(CustomSubjectNameStrategyType))
+			if (!typeof(ISubjectNameStrategy).IsAssignableFrom(Schema.CustomSubjectNameStrategyType))
 			{
 				throw new InvalidOperationException(
-					$"Custom subject name strategy type '{CustomSubjectNameStrategyType.FullName}' must implement {nameof(ISubjectNameStrategy)}.");
+					$"Custom subject name strategy type '{Schema.CustomSubjectNameStrategyType.FullName}' must implement {nameof(ISubjectNameStrategy)}.");
 			}
 
-			var constructor = CustomSubjectNameStrategyType.GetConstructor(Type.EmptyTypes)
+			var constructor = Schema.CustomSubjectNameStrategyType.GetConstructor(Type.EmptyTypes)
 				?? throw new InvalidOperationException(
-					$"Custom subject name strategy type '{CustomSubjectNameStrategyType.FullName}' must have a public parameterless constructor.");
+					$"Custom subject name strategy type '{Schema.CustomSubjectNameStrategyType.FullName}' must have a public parameterless constructor.");
 
 			return (ISubjectNameStrategy)constructor.Invoke([]);
 		}
 
-		return SubjectNameStrategy.ToStrategy();
+		return Schema.SubjectNameStrategy.ToStrategy();
 	}
 }

@@ -22,7 +22,7 @@ internal sealed class SchemaRegistrySslBuilder : ISchemaRegistrySslBuilder
 	/// <inheritdoc/>
 	public ISchemaRegistrySslBuilder EnableCertificateVerification(bool enable = true)
 	{
-		_options.EnableSslCertificateVerification = enable;
+		_options.Ssl.EnableSslCertificateVerification = enable;
 		return this;
 	}
 
@@ -30,7 +30,7 @@ internal sealed class SchemaRegistrySslBuilder : ISchemaRegistrySslBuilder
 	public ISchemaRegistrySslBuilder CaCertificateLocation(string path)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(path);
-		_options.SslCaLocation = path;
+		_options.Ssl.SslCaLocation = path;
 		return this;
 	}
 
@@ -38,7 +38,7 @@ internal sealed class SchemaRegistrySslBuilder : ISchemaRegistrySslBuilder
 	public ISchemaRegistrySslBuilder ClientCertificateLocation(string path)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(path);
-		_options.SslCertificateLocation = path;
+		_options.Ssl.SslCertificateLocation = path;
 		return this;
 	}
 
@@ -46,7 +46,7 @@ internal sealed class SchemaRegistrySslBuilder : ISchemaRegistrySslBuilder
 	public ISchemaRegistrySslBuilder ClientKeyLocation(string path)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(path);
-		_options.SslKeyLocation = path;
+		_options.Ssl.SslKeyLocation = path;
 		return this;
 	}
 
@@ -54,7 +54,7 @@ internal sealed class SchemaRegistrySslBuilder : ISchemaRegistrySslBuilder
 	public ISchemaRegistrySslBuilder ClientKeyPassword(string password)
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(password);
-		_options.SslKeyPassword = password;
+		_options.Ssl.SslKeyPassword = password;
 		return this;
 	}
 }

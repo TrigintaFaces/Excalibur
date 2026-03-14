@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Hosting.Serverless;
 /// <summary>
 /// Default serverless context implementation for local development and fallback scenarios.
 /// </summary>
-public sealed class DefaultServerlessContext : ServerlessContextBase
+internal sealed class DefaultServerlessContext : ServerlessContextBase
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DefaultServerlessContext" /> class.

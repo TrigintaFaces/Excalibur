@@ -125,7 +125,7 @@ Console.WriteLine("[Infrastructure] SQL Server #2 (Event Store): localhost:1434"
 builder.Services.AddSqlServerEventSourcing(options =>
 {
 	options.ConnectionString = eventStoreConnectionString;
-	options.RegisterHealthChecks = true;
+	options.HealthChecks.RegisterHealthChecks = true;
 });
 
 // ============================================================================
@@ -141,9 +141,9 @@ Console.WriteLine("[Infrastructure] SQL Server #1 (CDC Source): localhost:1433")
 // Register SQL Server services (IDataAccessPolicyFactory, Dapper type handlers)
 builder.Services.AddExcaliburSqlServices();
 
-// Register CDC processor factory and scan for IDataChangeHandler implementations
+// Register CDC processor factory
 // This makes IDataChangeEventProcessorFactory available for CdcJob
-builder.Services.AddCdcProcessor(typeof(Program).Assembly);
+builder.Services.AddCdcProcessor();
 
 // CdcJob resolves connections by identifier (DatabaseConnectionIdentifier, StateConnectionIdentifier)
 // These identifiers map to connection strings in appsettings.json's ConnectionStrings section

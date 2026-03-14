@@ -89,22 +89,9 @@ public sealed class DatadogExporterOptions
 	public int MaxBatchSize { get; set; } = 500;
 
 	/// <summary>
-	/// Gets or sets the maximum number of retry attempts for transient failures.
+	/// Retry and resilience configuration.
 	/// </summary>
-	public int MaxRetryAttempts { get; set; } = 3;
-
-	/// <summary>
-	/// Gets or sets the base delay between retries.
-	/// </summary>
-	/// <remarks>
-	/// Actual delay uses exponential backoff: baseDelay * 2^(attempt-1).
-	/// </remarks>
-	public TimeSpan RetryBaseDelay { get; set; } = TimeSpan.FromSeconds(1);
-
-	/// <summary>
-	/// Gets or sets the HTTP request timeout.
-	/// </summary>
-	public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+	public DatadogExporterRetryOptions Retry { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets whether to use gzip compression for requests.

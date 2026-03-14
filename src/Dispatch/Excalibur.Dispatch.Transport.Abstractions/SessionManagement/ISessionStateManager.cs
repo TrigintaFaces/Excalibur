@@ -58,7 +58,13 @@ public interface ISessionStateManager
 	Task<bool> DeleteStateAsync(
 		string sessionId,
 		CancellationToken cancellationToken);
+}
 
+/// <summary>
+/// Manages session checkpoint operations including creation, restoration, and listing.
+/// </summary>
+public interface ISessionCheckpointManager
+{
 	/// <summary>
 	/// Creates a checkpoint for the session state.
 	/// </summary>

@@ -24,14 +24,14 @@ public sealed class RedisProviderOptionsShould : UnitTestBase
 		options.ConnectionString.ShouldBe(string.Empty);
 		options.Password.ShouldBeNull();
 		options.DatabaseId.ShouldBe(0);
-		options.ConnectTimeout.ShouldBe(10);
-		options.SyncTimeout.ShouldBe(5);
-		options.AsyncTimeout.ShouldBe(5);
-		options.ConnectRetry.ShouldBe(3);
-		options.AbortOnConnectFail.ShouldBeFalse();
+		options.Pool.ConnectTimeout.ShouldBe(10);
+		options.Pool.SyncTimeout.ShouldBe(5);
+		options.Pool.AsyncTimeout.ShouldBe(5);
+		options.Pool.ConnectRetry.ShouldBe(3);
+		options.Pool.AbortOnConnectFail.ShouldBeFalse();
 		options.AllowAdmin.ShouldBeFalse();
 		options.UseSsl.ShouldBeFalse();
-		options.RetryCount.ShouldBe(3);
+		options.Pool.RetryCount.ShouldBe(3);
 		options.IsReadOnly.ShouldBeFalse();
 	}
 
@@ -84,15 +84,18 @@ public sealed class RedisProviderOptionsShould : UnitTestBase
 		// Arrange & Act
 		var options = new RedisProviderOptions
 		{
-			ConnectTimeout = 30,
-			SyncTimeout = 15,
-			AsyncTimeout = 20
+			Pool =
+			{
+				ConnectTimeout = 30,
+				SyncTimeout = 15,
+				AsyncTimeout = 20
+			}
 		};
 
 		// Assert
-		options.ConnectTimeout.ShouldBe(30);
-		options.SyncTimeout.ShouldBe(15);
-		options.AsyncTimeout.ShouldBe(20);
+		options.Pool.ConnectTimeout.ShouldBe(30);
+		options.Pool.SyncTimeout.ShouldBe(15);
+		options.Pool.AsyncTimeout.ShouldBe(20);
 	}
 
 	[Fact]
@@ -101,13 +104,16 @@ public sealed class RedisProviderOptionsShould : UnitTestBase
 		// Arrange & Act
 		var options = new RedisProviderOptions
 		{
-			ConnectRetry = 5,
-			RetryCount = 10
+			Pool =
+			{
+				ConnectRetry = 5,
+				RetryCount = 10
+			}
 		};
 
 		// Assert
-		options.ConnectRetry.ShouldBe(5);
-		options.RetryCount.ShouldBe(10);
+		options.Pool.ConnectRetry.ShouldBe(5);
+		options.Pool.RetryCount.ShouldBe(10);
 	}
 
 	[Fact]
@@ -142,11 +148,14 @@ public sealed class RedisProviderOptionsShould : UnitTestBase
 		// Arrange & Act
 		var options = new RedisProviderOptions
 		{
-			AbortOnConnectFail = true
+			Pool =
+			{
+				AbortOnConnectFail = true
+			}
 		};
 
 		// Assert
-		options.AbortOnConnectFail.ShouldBeTrue();
+		options.Pool.AbortOnConnectFail.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -190,12 +199,15 @@ public sealed class RedisProviderOptionsShould : UnitTestBase
 			Password = "prod-password",
 			DatabaseId = 1,
 			UseSsl = true,
-			ConnectTimeout = 30,
-			SyncTimeout = 10,
-			AsyncTimeout = 10,
-			ConnectRetry = 5,
-			RetryCount = 5,
-			AbortOnConnectFail = false,
+			Pool =
+			{
+				ConnectTimeout = 30,
+				SyncTimeout = 10,
+				AsyncTimeout = 10,
+				ConnectRetry = 5,
+				RetryCount = 5,
+				AbortOnConnectFail = false
+			},
 			IsReadOnly = false
 		};
 
@@ -205,12 +217,12 @@ public sealed class RedisProviderOptionsShould : UnitTestBase
 		options.Password.ShouldBe("prod-password");
 		options.DatabaseId.ShouldBe(1);
 		options.UseSsl.ShouldBeTrue();
-		options.ConnectTimeout.ShouldBe(30);
-		options.SyncTimeout.ShouldBe(10);
-		options.AsyncTimeout.ShouldBe(10);
-		options.ConnectRetry.ShouldBe(5);
-		options.RetryCount.ShouldBe(5);
-		options.AbortOnConnectFail.ShouldBeFalse();
+		options.Pool.ConnectTimeout.ShouldBe(30);
+		options.Pool.SyncTimeout.ShouldBe(10);
+		options.Pool.AsyncTimeout.ShouldBe(10);
+		options.Pool.ConnectRetry.ShouldBe(5);
+		options.Pool.RetryCount.ShouldBe(5);
+		options.Pool.AbortOnConnectFail.ShouldBeFalse();
 		options.IsReadOnly.ShouldBeFalse();
 	}
 

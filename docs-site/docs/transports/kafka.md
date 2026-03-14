@@ -431,10 +431,10 @@ When `UseConfluentSchemaRegistry()` is configured, the following services are au
 services.AddConfluentSchemaRegistry(opts =>
 {
     opts.Url = "http://localhost:8081";
-    opts.AutoRegisterSchemas = true;
     opts.MaxCachedSchemas = 1000;
-    opts.SubjectNameStrategy = SubjectNameStrategy.TopicName;
-    opts.DefaultCompatibility = CompatibilityMode.Backward;
+    opts.Schema.AutoRegisterSchemas = true;
+    opts.Schema.SubjectNameStrategy = SubjectNameStrategy.TopicName;
+    opts.Schema.DefaultCompatibility = CompatibilityMode.Backward;
 });
 
 // With custom caching options

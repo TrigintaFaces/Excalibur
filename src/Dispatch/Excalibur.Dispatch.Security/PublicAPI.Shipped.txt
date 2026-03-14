@@ -1,1 +1,793 @@
 #nullable enable
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AsymmetricKeyNotFound = 70241 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AsymmetricKeyRetrieved = 70240 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AuditEntryCreated = 70602 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AuthenticationFailed = 70005 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AuthenticationNoSigningKey = 70008 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AuthenticationSkippedAnonymous = 70006 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AuthenticationSucceeded = 70004 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AuthenticationTokenMissing = 70007 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AuthenticationValidationDebug = 70009 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AwsSecretsManagerCredentialStoreCreated = 70901 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AwsSecretsManagerRequestFailed = 70923 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AwsSecretsManagerRetrieved = 70922 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AwsSecretsManagerRetrieveFailed = 70924 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AwsSecretsManagerRetrieving = 70920 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AwsSecretsManagerSecretNotFound = 70921 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AwsSecretsManagerStored = 70926 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AwsSecretsManagerStoring = 70925 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AzureKeyVaultCredentialStoreCreated = 70900 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AzureKeyVaultRequestFailed = 70909 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AzureKeyVaultRetrieved = 70908 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AzureKeyVaultRetrieveFailed = 70910 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AzureKeyVaultRetrieving = 70906 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AzureKeyVaultSecretNotFound = 70907 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AzureKeyVaultStored = 70912 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.AzureKeyVaultStoring = 70911 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.BatchMigrationCancelled = 70410 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.BatchMigrationCompleted = 70409 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.BatchMigrationStarted = 70408 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.CloudCredentialAccessDenied = 70904 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.CloudCredentialRetrieved = 70903 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.CloudCredentialStoreError = 70905 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.CompositeMessageSigned = 70242 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.CompositeSigningFailed = 70243 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.CompositeSigningServiceCreated = 70238 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.CompositeVerificationError = 70246 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.CompositeVerificationFailed = 70245 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.CompositeVerificationSuccessful = 70244 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.CredentialCached = 70804 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.CredentialNotFound = 70803 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.CredentialProviderDisposing = 70811 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.CredentialProviderNotFoundInAny = 70807 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.CredentialProviderRetrievalFailed = 70810 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.CredentialProviderRetrievedFromStore = 70806 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.CredentialProviderRetrievedSuccess = 70809 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.CredentialProviderRetrieving = 70805 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.CredentialProviderStoreException = 70808 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.CredentialRetrieved = 70802 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.DangerousInputDetected = 70103 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.DataProtectionConfigurationValidated = 70313 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.DataProtectionConfigurationValidationFailed = 70315 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.DataProtectionCryptographicError = 70310 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.DataProtectionDecryptionFailed = 70308 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.DataProtectionEncryptionFailed = 70306 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.DataProtectionKeyRotationFailed = 70312 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.DataProtectionKeysRotated = 70311 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.DataProtectionMessageDecrypted = 70309 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.DataProtectionMessageEncrypted = 70307 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.DataProtectionServiceCreated = 70305 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.DataProtectionValidationFailed = 70314 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.DecryptionFailed = 70304 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.EcdsaMessageSigned = 70230 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.EcdsaSigningFailed = 70231 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.EcdsaVerificationFailed = 70233 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.EcdsaVerificationSuccessful = 70232 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.Ed25519MessageSigned = 70234 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.Ed25519SigningFailed = 70235 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.Ed25519VerificationFailed = 70237 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.Ed25519VerificationSuccessful = 70236 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.ElasticsearchClientInitFailed = 70716 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.ElasticsearchClientInitialized = 70715 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.ElasticsearchEventsStored = 70718 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.ElasticsearchQueryExecuted = 70721 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.ElasticsearchQueryFailed = 70722 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.ElasticsearchQueryingEvents = 70720 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.ElasticsearchSecurityEventStoreCreated = 70702 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.ElasticsearchStoreFailed = 70719 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.ElasticsearchStoringEvents = 70717 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.EncryptionFailed = 70303 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.EncryptionKeyVersionUpdated = 70405 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.EncryptionMiddlewareEncryptionFailed = 70316 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.EncryptionMiddlewareMessageDecrypted = 70318 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.EncryptionMiddlewareMessageEncrypted = 70317 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.EncryptionMigrationCompleted = 70402 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.EncryptionMigrationFailed = 70407 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.EncryptionMigrationServiceCreated = 70400 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.EncryptionMigrationStarted = 70401 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.EncryptionMigrationSucceeded = 70406 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.EnvironmentCredentialStoreCreated = 70801 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.EnvironmentVariableFound = 70830 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.EnvironmentVariableNotFound = 70831 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.ExpiredKeyRemoved = 70215 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.ExpiredKeysCleanedUp = 70216 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.FailedToStoreKeyInKeyVault = 70213 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.FileSecurityEventStoreCreated = 70701 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.FileStoreCleanupCompleted = 70744 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.FileStoreCleanupFailed = 70745 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.FileStoreDirectoryCreated = 70730 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.FileStoreEventsLoaded = 70736 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.FileStoreEventsStored = 70733 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.FileStoreInitFailed = 70731 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.FileStoreLoadFailed = 70737 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.FileStoreLoadingEvents = 70735 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.FileStoreQueryExecuted = 70739 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.FileStoreQueryFailed = 70740 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.FileStoreQueryingEvents = 70738 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.FileStoreRotationCompleted = 70742 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.FileStoreRotationFailed = 70743 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.FileStoreRotationStarted = 70741 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.FileStoreStoreFailed = 70734 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.FileStoreStoringEvents = 70732 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.HashiCorpVaultCredentialStoreCreated = 70902 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.HashiCorpVaultHttpRetrieveError = 70818 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.HashiCorpVaultHttpStoreError = 70822 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.HashiCorpVaultRetrieved = 70817 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.HashiCorpVaultRetrieveFailed = 70819 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.HashiCorpVaultRetrieving = 70815 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.HashiCorpVaultSecretNotFound = 70816 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.HashiCorpVaultStored = 70821 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.HashiCorpVaultStoreFailed = 70823 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.HashiCorpVaultStoring = 70820 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.HmacMessageSigned = 70218 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.HmacSigningFailed = 70219 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.HmacSigningServiceCreated = 70204 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.HmacVerificationError = 70222 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.HmacVerificationFailed = 70221 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.HmacVerificationSuccessful = 70220 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.InputSanitized = 70104 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.InputValidationDisabled = 70105 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.InputValidationExecuting = 70100 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.InputValidationFailed = 70102 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.InputValidationPassed = 70101 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.InputValidationUnexpectedError = 70107 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.InputValidatorFailed = 70106 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.InvalidKeyFormat = 70214 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.JwtAuthenticationExecuting = 70000 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.JwtTokenExpired = 70003 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.JwtTokenValidated = 70001 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.JwtTokenValidationError = 70010 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.JwtTokenValidationFailed = 70002 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.KeyNotFoundGeneratingNew = 70210 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.KeyNotFoundInKeyVault = 70212 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.KeyRetrievedFromCache = 70209 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.KeyVaultInitializationFailed = 70208 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.KeyVaultInitialized = 70207 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.LazyReEncryptionError = 70413 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.LazyReEncryptionExecuting = 70403 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.LazyReEncryptionFailed = 70412 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.LazyReEncryptionSucceeded = 70411 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.MessageDecrypted = 70302 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.MessageEncrypted = 70301 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.MessageEncryptionExecuting = 70300 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.MessageReEncrypted = 70404 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.MessageSigned = 70201 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.MessageSigningExecuting = 70200 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.NewKeyStored = 70211 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.RateLimitCheckPassed = 70501 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.RateLimitCleanupCompleted = 70506 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.RateLimitCleanupError = 70507 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.RateLimitExceeded = 70502 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.RateLimitInactiveLimiterRemoved = 70505 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.RateLimitPermitAcquired = 70504 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.RateLimitWindowReset = 70503 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SecureCredentialProviderCreated = 70800 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SecureKeyProviderCreated = 70205 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SecurityAlertRaised = 70604 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SecurityEventIndividualStoreFailed = 70612 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SecurityEventLogged = 70601 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SecurityEventLoggedWithDetails = 70614 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SecurityEventLoggerCreated = 70600 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SecurityEventLoggerStarted = 70606 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SecurityEventLoggerStopped = 70608 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SecurityEventLoggerStopping = 70607 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SecurityEventProcessingLoopFailed = 70613 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SecurityEventProcessingTimeout = 70609 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SecurityEventQueueFailed = 70605 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SecurityEventRetrieved = 70704 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SecurityEventsStored = 70610 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SecurityEventsStoreFailed = 70611 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SecurityEventStored = 70703 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SecurityIncidentDetected = 70603 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SecurityRateLimitingExecuting = 70500 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SignatureExpired = 70223 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SignatureVerificationFailed = 70203 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SignatureVerified = 70202 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SigningKeyRotated = 70206 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SigningMiddlewareInvalidSignature = 70224 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SigningMiddlewareMessageSigned = 70226 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SigningMiddlewareNoSignatureFound = 70227 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SigningMiddlewareOperationFailed = 70225 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SigningMiddlewareSignatureVerificationFailed = 70229 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SigningMiddlewareSignatureVerified = 70228 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SqlSecurityEventStoreCreated = 70700 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SqlStoreEventsStored = 70707 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SqlStoreInvalidEvent = 70706 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SqlStoreQueryExecuted = 70710 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SqlStoreQueryFailed = 70711 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SqlStoreQueryingEvents = 70709 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SqlStoreStoreFailed = 70708 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.SqlStoreStoringEvents = 70705 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.StoringKeyInMemoryOnly = 70217 -> int
+const Excalibur.Dispatch.Security.Diagnostics.SecurityEventId.UnsupportedAlgorithmRequested = 70239 -> int
+const Excalibur.Dispatch.Security.RateLimitKeyPrefixes.ApiKey = "api:" -> string!
+const Excalibur.Dispatch.Security.RateLimitKeyPrefixes.Global = "global" -> string!
+const Excalibur.Dispatch.Security.RateLimitKeyPrefixes.Ip = "ip:" -> string!
+const Excalibur.Dispatch.Security.RateLimitKeyPrefixes.MessageType = "type:" -> string!
+const Excalibur.Dispatch.Security.RateLimitKeyPrefixes.Tenant = "tenant:" -> string!
+const Excalibur.Dispatch.Security.RateLimitKeyPrefixes.Tier = "tier:" -> string!
+const Excalibur.Dispatch.Security.RateLimitKeyPrefixes.User = "user:" -> string!
+Excalibur.Dispatch.Security.AuthenticationFailedResult
+Excalibur.Dispatch.Security.AuthenticationFailedResult.AuthenticationFailedResult() -> void
+Excalibur.Dispatch.Security.AuthenticationFailedResult.AuthorizationResult.get -> object?
+Excalibur.Dispatch.Security.AuthenticationFailedResult.AuthorizationResult.set -> void
+Excalibur.Dispatch.Security.AuthenticationFailedResult.CacheHit.get -> bool
+Excalibur.Dispatch.Security.AuthenticationFailedResult.CacheHit.set -> void
+Excalibur.Dispatch.Security.AuthenticationFailedResult.ErrorMessage.get -> string?
+Excalibur.Dispatch.Security.AuthenticationFailedResult.ErrorMessage.set -> void
+Excalibur.Dispatch.Security.AuthenticationFailedResult.ProblemDetails.get -> Excalibur.Dispatch.Abstractions.IMessageProblemDetails?
+Excalibur.Dispatch.Security.AuthenticationFailedResult.ProblemDetails.set -> void
+Excalibur.Dispatch.Security.AuthenticationFailedResult.Reason.get -> Excalibur.Dispatch.Security.AuthenticationFailureReason
+Excalibur.Dispatch.Security.AuthenticationFailedResult.Reason.set -> void
+Excalibur.Dispatch.Security.AuthenticationFailedResult.RoutingDecision.get -> Excalibur.Dispatch.Abstractions.Routing.RoutingDecision?
+Excalibur.Dispatch.Security.AuthenticationFailedResult.RoutingDecision.set -> void
+Excalibur.Dispatch.Security.AuthenticationFailedResult.Succeeded.get -> bool
+Excalibur.Dispatch.Security.AuthenticationFailedResult.Succeeded.set -> void
+Excalibur.Dispatch.Security.AuthenticationFailedResult.ValidationResult.get -> object?
+Excalibur.Dispatch.Security.AuthenticationFailedResult.ValidationResult.set -> void
+Excalibur.Dispatch.Security.AuthenticationFailureReason
+Excalibur.Dispatch.Security.AuthenticationFailureReason.InvalidToken = 1 -> Excalibur.Dispatch.Security.AuthenticationFailureReason
+Excalibur.Dispatch.Security.AuthenticationFailureReason.MissingToken = 0 -> Excalibur.Dispatch.Security.AuthenticationFailureReason
+Excalibur.Dispatch.Security.AuthenticationFailureReason.TokenExpired = 2 -> Excalibur.Dispatch.Security.AuthenticationFailureReason
+Excalibur.Dispatch.Security.AuthenticationFailureReason.UnknownError = 4 -> Excalibur.Dispatch.Security.AuthenticationFailureReason
+Excalibur.Dispatch.Security.AuthenticationFailureReason.ValidationError = 3 -> Excalibur.Dispatch.Security.AuthenticationFailureReason
+Excalibur.Dispatch.Security.CompositeMessageSigningService
+Excalibur.Dispatch.Security.CompositeMessageSigningService.CompositeMessageSigningService(System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Security.ISignatureAlgorithmProvider!>! providers, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Security.SigningOptions!>! options, Excalibur.Dispatch.Security.IKeyProvider! keyProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Security.CompositeMessageSigningService!>! logger) -> void
+Excalibur.Dispatch.Security.CompositeMessageSigningService.CreateSignedMessageAsync(string! content, Excalibur.Dispatch.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Security.SignedMessage!>!
+Excalibur.Dispatch.Security.CompositeMessageSigningService.Dispose() -> void
+Excalibur.Dispatch.Security.CompositeMessageSigningService.SignMessageAsync(byte[]! content, Excalibur.Dispatch.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Dispatch.Security.CompositeMessageSigningService.SignMessageAsync(string! content, Excalibur.Dispatch.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Dispatch.Security.CompositeMessageSigningService.ValidateSignedMessageAsync(Excalibur.Dispatch.Security.SignedMessage! signedMessage, Excalibur.Dispatch.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
+Excalibur.Dispatch.Security.CompositeMessageSigningService.VerifySignatureAsync(byte[]! content, byte[]! signature, Excalibur.Dispatch.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Security.CompositeMessageSigningService.VerifySignatureAsync(string! content, string! signature, Excalibur.Dispatch.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Security.CredentialRequirements
+Excalibur.Dispatch.Security.CredentialRequirements.CredentialRequirements() -> void
+Excalibur.Dispatch.Security.CredentialRequirements.MinimumLength.get -> int
+Excalibur.Dispatch.Security.CredentialRequirements.MinimumLength.set -> void
+Excalibur.Dispatch.Security.CredentialRequirements.ProhibitedValues.get -> System.Collections.Generic.ISet<string!>?
+Excalibur.Dispatch.Security.CredentialRequirements.ProhibitedValues.init -> void
+Excalibur.Dispatch.Security.CredentialRequirements.RequireDigit.get -> bool
+Excalibur.Dispatch.Security.CredentialRequirements.RequireDigit.set -> void
+Excalibur.Dispatch.Security.CredentialRequirements.RequireLowercase.get -> bool
+Excalibur.Dispatch.Security.CredentialRequirements.RequireLowercase.set -> void
+Excalibur.Dispatch.Security.CredentialRequirements.RequireSpecialCharacter.get -> bool
+Excalibur.Dispatch.Security.CredentialRequirements.RequireSpecialCharacter.set -> void
+Excalibur.Dispatch.Security.CredentialRequirements.RequireUppercase.get -> bool
+Excalibur.Dispatch.Security.CredentialRequirements.RequireUppercase.set -> void
+Excalibur.Dispatch.Security.CredentialValidationResult
+Excalibur.Dispatch.Security.CredentialValidationResult.CredentialValidationResult(bool IsValid, string![]! Errors) -> void
+Excalibur.Dispatch.Security.CredentialValidationResult.Errors.get -> string![]!
+Excalibur.Dispatch.Security.CredentialValidationResult.Errors.init -> void
+Excalibur.Dispatch.Security.CredentialValidationResult.IsValid.get -> bool
+Excalibur.Dispatch.Security.CredentialValidationResult.IsValid.init -> void
+Excalibur.Dispatch.Security.DataProtectionMessageEncryptionService
+Excalibur.Dispatch.Security.DataProtectionMessageEncryptionService.DataProtectionMessageEncryptionService(Microsoft.AspNetCore.DataProtection.IDataProtectionProvider! dataProtectionProvider, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Security.EncryptionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Security.DataProtectionMessageEncryptionService!>! logger) -> void
+Excalibur.Dispatch.Security.DataProtectionMessageEncryptionService.DecryptMessageAsync(byte[]! encryptedContent, Excalibur.Dispatch.Compliance.EncryptionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Dispatch.Security.DataProtectionMessageEncryptionService.DecryptMessageAsync(string! encryptedContent, Excalibur.Dispatch.Compliance.EncryptionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Dispatch.Security.DataProtectionMessageEncryptionService.Dispose() -> void
+Excalibur.Dispatch.Security.DataProtectionMessageEncryptionService.EncryptMessageAsync(byte[]! content, Excalibur.Dispatch.Compliance.EncryptionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Dispatch.Security.DataProtectionMessageEncryptionService.EncryptMessageAsync(string! content, Excalibur.Dispatch.Compliance.EncryptionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Dispatch.Security.DataProtectionMessageEncryptionService.RotateKeysAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.KeyRotationResult!>!
+Excalibur.Dispatch.Security.DataProtectionMessageEncryptionService.ValidateConfigurationAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Security.Diagnostics.SecurityEventId
+Excalibur.Dispatch.Security.EcdsaSignatureAlgorithmProvider
+Excalibur.Dispatch.Security.EcdsaSignatureAlgorithmProvider.EcdsaSignatureAlgorithmProvider() -> void
+Excalibur.Dispatch.Security.EcdsaSignatureAlgorithmProvider.SignAsync(byte[]! data, byte[]! keyMaterial, Excalibur.Dispatch.Security.SigningAlgorithm algorithm, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Dispatch.Security.EcdsaSignatureAlgorithmProvider.SupportsAlgorithm(Excalibur.Dispatch.Security.SigningAlgorithm algorithm) -> bool
+Excalibur.Dispatch.Security.EcdsaSignatureAlgorithmProvider.VerifyAsync(byte[]! data, byte[]! signature, byte[]! keyMaterial, Excalibur.Dispatch.Security.SigningAlgorithm algorithm, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Security.Ed25519SignatureAlgorithmProvider
+Excalibur.Dispatch.Security.Ed25519SignatureAlgorithmProvider.Ed25519SignatureAlgorithmProvider() -> void
+Excalibur.Dispatch.Security.Ed25519SignatureAlgorithmProvider.SignAsync(byte[]! data, byte[]! keyMaterial, Excalibur.Dispatch.Security.SigningAlgorithm algorithm, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Dispatch.Security.Ed25519SignatureAlgorithmProvider.SupportsAlgorithm(Excalibur.Dispatch.Security.SigningAlgorithm algorithm) -> bool
+Excalibur.Dispatch.Security.Ed25519SignatureAlgorithmProvider.VerifyAsync(byte[]! data, byte[]! signature, byte[]! keyMaterial, Excalibur.Dispatch.Security.SigningAlgorithm algorithm, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Security.EncryptionMigrationService
+Excalibur.Dispatch.Security.EncryptionMigrationService.EncryptionMigrationService(Excalibur.Dispatch.Compliance.IEncryptionProvider! encryptionProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Security.EncryptionMigrationService!>! logger) -> void
+Excalibur.Dispatch.Security.EncryptionMigrationService.EstimateMigrationAsync(Excalibur.Dispatch.Compliance.MigrationPolicy! policy, int itemCount, long dataSizeBytes, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.MigrationEstimate!>!
+Excalibur.Dispatch.Security.EncryptionMigrationService.EstimateMigrationAsync(Excalibur.Dispatch.Compliance.MigrationPolicy! policy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.MigrationEstimate!>!
+Excalibur.Dispatch.Security.EncryptionMigrationService.GetMigrationStatusAsync(string! migrationId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.MigrationStatus?>!
+Excalibur.Dispatch.Security.EncryptionMigrationService.MigrateAsync(Excalibur.Dispatch.Compliance.EncryptedData! encryptedData, Excalibur.Dispatch.Compliance.EncryptionContext! sourceContext, Excalibur.Dispatch.Compliance.EncryptionContext! targetContext, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.EncryptionMigrationResult!>!
+Excalibur.Dispatch.Security.EncryptionMigrationService.MigrateBatchAsync(System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.EncryptionMigrationItem!>! items, Excalibur.Dispatch.Compliance.EncryptionContext! targetContext, Excalibur.Dispatch.Compliance.BatchMigrationOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.EncryptionBatchMigrationResult!>!
+Excalibur.Dispatch.Security.EncryptionMigrationService.RequiresMigrationAsync(Excalibur.Dispatch.Compliance.EncryptedData! encryptedData, Excalibur.Dispatch.Compliance.MigrationPolicy! policy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Security.EncryptionOptions
+Excalibur.Dispatch.Security.EncryptionOptions.AwsKmsKeyArn.get -> string?
+Excalibur.Dispatch.Security.EncryptionOptions.AwsKmsKeyArn.set -> void
+Excalibur.Dispatch.Security.EncryptionOptions.AzureKeyVaultUrl.get -> System.Uri?
+Excalibur.Dispatch.Security.EncryptionOptions.AzureKeyVaultUrl.set -> void
+Excalibur.Dispatch.Security.EncryptionOptions.CurrentKeyId.get -> string?
+Excalibur.Dispatch.Security.EncryptionOptions.CurrentKeyId.set -> void
+Excalibur.Dispatch.Security.EncryptionOptions.DefaultAlgorithm.get -> Excalibur.Dispatch.Compliance.EncryptionAlgorithm
+Excalibur.Dispatch.Security.EncryptionOptions.DefaultAlgorithm.set -> void
+Excalibur.Dispatch.Security.EncryptionOptions.EnableCompressionByDefault.get -> bool
+Excalibur.Dispatch.Security.EncryptionOptions.EnableCompressionByDefault.set -> void
+Excalibur.Dispatch.Security.EncryptionOptions.Enabled.get -> bool
+Excalibur.Dispatch.Security.EncryptionOptions.Enabled.set -> void
+Excalibur.Dispatch.Security.EncryptionOptions.EncryptByDefault.get -> bool
+Excalibur.Dispatch.Security.EncryptionOptions.EncryptByDefault.set -> void
+Excalibur.Dispatch.Security.EncryptionOptions.EncryptionOptions() -> void
+Excalibur.Dispatch.Security.EncryptionOptions.ExcludedMessageTypes.get -> System.Collections.Generic.ISet<string!>?
+Excalibur.Dispatch.Security.EncryptionOptions.ExcludedMessageTypes.init -> void
+Excalibur.Dispatch.Security.EncryptionOptions.IncludeMetadataHeader.get -> bool
+Excalibur.Dispatch.Security.EncryptionOptions.IncludeMetadataHeader.set -> void
+Excalibur.Dispatch.Security.EncryptionOptions.KeyRotationIntervalDays.get -> int
+Excalibur.Dispatch.Security.EncryptionOptions.KeyRotationIntervalDays.set -> void
+Excalibur.Dispatch.Security.EnvironmentVariableCredentialStore
+Excalibur.Dispatch.Security.EnvironmentVariableCredentialStore.EnvironmentVariableCredentialStore(Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Security.EnvironmentVariableCredentialStore!>! logger, string! prefix = "DISPATCH_") -> void
+Excalibur.Dispatch.Security.EnvironmentVariableCredentialStore.GetCredentialAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Security.SecureString?>!
+Excalibur.Dispatch.Security.HmacMessageSigningService
+Excalibur.Dispatch.Security.HmacMessageSigningService.CreateSignedMessageAsync(string! content, Excalibur.Dispatch.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Security.SignedMessage!>!
+Excalibur.Dispatch.Security.HmacMessageSigningService.Dispose() -> void
+Excalibur.Dispatch.Security.HmacMessageSigningService.HmacMessageSigningService(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Security.SigningOptions!>! options, Excalibur.Dispatch.Security.IKeyProvider! keyProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Security.HmacMessageSigningService!>! logger) -> void
+Excalibur.Dispatch.Security.HmacMessageSigningService.SignMessageAsync(byte[]! content, Excalibur.Dispatch.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Dispatch.Security.HmacMessageSigningService.SignMessageAsync(string! content, Excalibur.Dispatch.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Dispatch.Security.HmacMessageSigningService.ValidateSignedMessageAsync(Excalibur.Dispatch.Security.SignedMessage! signedMessage, Excalibur.Dispatch.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
+Excalibur.Dispatch.Security.HmacMessageSigningService.VerifySignatureAsync(byte[]! content, byte[]! signature, Excalibur.Dispatch.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Security.HmacMessageSigningService.VerifySignatureAsync(string! content, string! signature, Excalibur.Dispatch.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Security.HmacSignatureAlgorithmProvider
+Excalibur.Dispatch.Security.HmacSignatureAlgorithmProvider.HmacSignatureAlgorithmProvider() -> void
+Excalibur.Dispatch.Security.HmacSignatureAlgorithmProvider.SignAsync(byte[]! data, byte[]! keyMaterial, Excalibur.Dispatch.Security.SigningAlgorithm algorithm, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Dispatch.Security.HmacSignatureAlgorithmProvider.SupportsAlgorithm(Excalibur.Dispatch.Security.SigningAlgorithm algorithm) -> bool
+Excalibur.Dispatch.Security.HmacSignatureAlgorithmProvider.VerifyAsync(byte[]! data, byte[]! signature, byte[]! keyMaterial, Excalibur.Dispatch.Security.SigningAlgorithm algorithm, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Security.ICredentialStore
+Excalibur.Dispatch.Security.ICredentialStore.GetCredentialAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Security.SecureString?>!
+Excalibur.Dispatch.Security.IInputValidator
+Excalibur.Dispatch.Security.IInputValidator.ValidateAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Security.InputValidationResult!>!
+Excalibur.Dispatch.Security.IKeyProvider
+Excalibur.Dispatch.Security.IKeyProvider.GetKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Dispatch.Security.IKeyProvider.RotateKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Dispatch.Security.IKeyProvider.StoreKeyAsync(string! keyId, byte[]! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Security.IMessageEncryptionService
+Excalibur.Dispatch.Security.IMessageEncryptionService.DecryptMessageAsync(byte[]! encryptedContent, Excalibur.Dispatch.Compliance.EncryptionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Dispatch.Security.IMessageEncryptionService.DecryptMessageAsync(string! encryptedContent, Excalibur.Dispatch.Compliance.EncryptionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Dispatch.Security.IMessageEncryptionService.EncryptMessageAsync(byte[]! content, Excalibur.Dispatch.Compliance.EncryptionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Dispatch.Security.IMessageEncryptionService.EncryptMessageAsync(string! content, Excalibur.Dispatch.Compliance.EncryptionContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Dispatch.Security.IMessageEncryptionService.RotateKeysAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.KeyRotationResult!>!
+Excalibur.Dispatch.Security.IMessageEncryptionService.ValidateConfigurationAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Security.IMessageSigningService
+Excalibur.Dispatch.Security.IMessageSigningService.CreateSignedMessageAsync(string! content, Excalibur.Dispatch.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Security.SignedMessage!>!
+Excalibur.Dispatch.Security.IMessageSigningService.SignMessageAsync(byte[]! content, Excalibur.Dispatch.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Dispatch.Security.IMessageSigningService.SignMessageAsync(string! content, Excalibur.Dispatch.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Dispatch.Security.IMessageSigningService.ValidateSignedMessageAsync(Excalibur.Dispatch.Security.SignedMessage! signedMessage, Excalibur.Dispatch.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
+Excalibur.Dispatch.Security.IMessageSigningService.VerifySignatureAsync(byte[]! content, byte[]! signature, Excalibur.Dispatch.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Security.IMessageSigningService.VerifySignatureAsync(string! content, string! signature, Excalibur.Dispatch.Security.SigningContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Security.IMessageWithHeaders
+Excalibur.Dispatch.Security.IMessageWithHeaders.Headers.get -> System.Collections.Generic.IDictionary<string!, string!>!
+Excalibur.Dispatch.Security.InputInjectionPreventionOptions
+Excalibur.Dispatch.Security.InputInjectionPreventionOptions.BlockCommandInjection.get -> bool
+Excalibur.Dispatch.Security.InputInjectionPreventionOptions.BlockCommandInjection.set -> void
+Excalibur.Dispatch.Security.InputInjectionPreventionOptions.BlockControlCharacters.get -> bool
+Excalibur.Dispatch.Security.InputInjectionPreventionOptions.BlockControlCharacters.set -> void
+Excalibur.Dispatch.Security.InputInjectionPreventionOptions.BlockHtmlContent.get -> bool
+Excalibur.Dispatch.Security.InputInjectionPreventionOptions.BlockHtmlContent.set -> void
+Excalibur.Dispatch.Security.InputInjectionPreventionOptions.BlockLdapInjection.get -> bool
+Excalibur.Dispatch.Security.InputInjectionPreventionOptions.BlockLdapInjection.set -> void
+Excalibur.Dispatch.Security.InputInjectionPreventionOptions.BlockNoSqlInjection.get -> bool
+Excalibur.Dispatch.Security.InputInjectionPreventionOptions.BlockNoSqlInjection.set -> void
+Excalibur.Dispatch.Security.InputInjectionPreventionOptions.BlockPathTraversal.get -> bool
+Excalibur.Dispatch.Security.InputInjectionPreventionOptions.BlockPathTraversal.set -> void
+Excalibur.Dispatch.Security.InputInjectionPreventionOptions.BlockSqlInjection.get -> bool
+Excalibur.Dispatch.Security.InputInjectionPreventionOptions.BlockSqlInjection.set -> void
+Excalibur.Dispatch.Security.InputInjectionPreventionOptions.InputInjectionPreventionOptions() -> void
+Excalibur.Dispatch.Security.InputValidationException
+Excalibur.Dispatch.Security.InputValidationException.InputValidationException() -> void
+Excalibur.Dispatch.Security.InputValidationException.InputValidationException(string! message) -> void
+Excalibur.Dispatch.Security.InputValidationException.InputValidationException(string! message, System.Collections.Generic.IEnumerable<string!>! errors) -> void
+Excalibur.Dispatch.Security.InputValidationException.InputValidationException(string! message, System.Exception! innerException) -> void
+Excalibur.Dispatch.Security.InputValidationException.ValidationErrors.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Excalibur.Dispatch.Security.InputValidationMiddleware
+Excalibur.Dispatch.Security.InputValidationMiddleware.InputValidationMiddleware(Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Security.InputValidationMiddleware!>! logger, Excalibur.Dispatch.Security.InputValidationOptions! options, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Security.IInputValidator!>! validators, Excalibur.Dispatch.Security.ISecurityEventLogger! securityEventLogger) -> void
+Excalibur.Dispatch.Security.InputValidationMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
+Excalibur.Dispatch.Security.InputValidationMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
+Excalibur.Dispatch.Security.InputValidationOptions
+Excalibur.Dispatch.Security.InputValidationOptions.AllowEmptyStrings.get -> bool
+Excalibur.Dispatch.Security.InputValidationOptions.AllowEmptyStrings.set -> void
+Excalibur.Dispatch.Security.InputValidationOptions.AllowNullProperties.get -> bool
+Excalibur.Dispatch.Security.InputValidationOptions.AllowNullProperties.set -> void
+Excalibur.Dispatch.Security.InputValidationOptions.EnableValidation.get -> bool
+Excalibur.Dispatch.Security.InputValidationOptions.EnableValidation.set -> void
+Excalibur.Dispatch.Security.InputValidationOptions.FailOnValidatorException.get -> bool
+Excalibur.Dispatch.Security.InputValidationOptions.FailOnValidatorException.set -> void
+Excalibur.Dispatch.Security.InputValidationOptions.InjectionPrevention.get -> Excalibur.Dispatch.Security.InputInjectionPreventionOptions!
+Excalibur.Dispatch.Security.InputValidationOptions.InjectionPrevention.set -> void
+Excalibur.Dispatch.Security.InputValidationOptions.InputValidationOptions() -> void
+Excalibur.Dispatch.Security.InputValidationOptions.MaxMessageAgeDays.get -> int
+Excalibur.Dispatch.Security.InputValidationOptions.MaxMessageAgeDays.set -> void
+Excalibur.Dispatch.Security.InputValidationOptions.MaxMessageSizeBytes.get -> int
+Excalibur.Dispatch.Security.InputValidationOptions.MaxMessageSizeBytes.set -> void
+Excalibur.Dispatch.Security.InputValidationOptions.MaxObjectDepth.get -> int
+Excalibur.Dispatch.Security.InputValidationOptions.MaxObjectDepth.set -> void
+Excalibur.Dispatch.Security.InputValidationOptions.MaxStringLength.get -> int
+Excalibur.Dispatch.Security.InputValidationOptions.MaxStringLength.set -> void
+Excalibur.Dispatch.Security.InputValidationOptions.RequireCorrelationId.get -> bool
+Excalibur.Dispatch.Security.InputValidationOptions.RequireCorrelationId.set -> void
+Excalibur.Dispatch.Security.InputValidationResult
+Excalibur.Dispatch.Security.InputValidationResult.Errors.get -> string![]!
+Excalibur.Dispatch.Security.InputValidationResult.Errors.init -> void
+Excalibur.Dispatch.Security.InputValidationResult.InputValidationResult(bool IsValid, string![]! Errors) -> void
+Excalibur.Dispatch.Security.InputValidationResult.IsValid.get -> bool
+Excalibur.Dispatch.Security.InputValidationResult.IsValid.init -> void
+Excalibur.Dispatch.Security.ISecureCredentialProvider
+Excalibur.Dispatch.Security.ISecureCredentialProvider.GetCredentialAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Security.SecureString?>!
+Excalibur.Dispatch.Security.ISecureCredentialProvider.RotateCredentialAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Security.ISecureCredentialProvider.ValidateCredentialAsync(string! key, Excalibur.Dispatch.Security.CredentialRequirements! requirements, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Security.CredentialValidationResult!>!
+Excalibur.Dispatch.Security.ISecurityEventLogger
+Excalibur.Dispatch.Security.ISecurityEventLogger.LogSecurityEventAsync(Excalibur.Dispatch.Security.SecurityEventType eventType, string! description, Excalibur.Dispatch.Security.SecuritySeverity severity, System.Threading.CancellationToken cancellationToken, Excalibur.Dispatch.Abstractions.IMessageContext? context = null) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Security.ISecurityEventStore
+Excalibur.Dispatch.Security.ISecurityEventStore.QueryEventsAsync(Excalibur.Dispatch.Security.SecurityEventQuery! query, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Security.SecurityEvent!>!>!
+Excalibur.Dispatch.Security.ISecurityEventStore.StoreEventsAsync(System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Security.SecurityEvent!>! events, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Security.ISensitiveMessage
+Excalibur.Dispatch.Security.ISignatureAlgorithmProvider
+Excalibur.Dispatch.Security.ISignatureAlgorithmProvider.SignAsync(byte[]! data, byte[]! keyMaterial, Excalibur.Dispatch.Security.SigningAlgorithm algorithm, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Dispatch.Security.ISignatureAlgorithmProvider.SupportsAlgorithm(Excalibur.Dispatch.Security.SigningAlgorithm algorithm) -> bool
+Excalibur.Dispatch.Security.ISignatureAlgorithmProvider.VerifyAsync(byte[]! data, byte[]! signature, byte[]! keyMaterial, Excalibur.Dispatch.Security.SigningAlgorithm algorithm, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Security.IWritableCredentialStore
+Excalibur.Dispatch.Security.IWritableCredentialStore.StoreCredentialAsync(string! key, System.Security.SecureString! credential, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Security.JwtAuthenticationMiddleware
+Excalibur.Dispatch.Security.JwtAuthenticationMiddleware.ApplicableMessageKinds.get -> Excalibur.Dispatch.Abstractions.MessageKinds
+Excalibur.Dispatch.Security.JwtAuthenticationMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
+Excalibur.Dispatch.Security.JwtAuthenticationMiddleware.JwtAuthenticationMiddleware(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Security.JwtAuthenticationOptions!>! options, Excalibur.Dispatch.Abstractions.Telemetry.ITelemetrySanitizer! sanitizer, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Security.JwtAuthenticationMiddleware!>! logger, Excalibur.Dispatch.Security.ICredentialStore? credentialStore = null) -> void
+Excalibur.Dispatch.Security.JwtAuthenticationMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
+Excalibur.Dispatch.Security.JwtAuthenticationOptions
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.AllowAnonymousMessageTypes.get -> System.Collections.Generic.ISet<string!>!
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.AllowAnonymousMessageTypes.init -> void
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.ClockSkewSeconds.get -> int
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.ClockSkewSeconds.set -> void
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.Credentials.get -> Excalibur.Dispatch.Security.JwtTokenCredentialOptions!
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.Credentials.set -> void
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.Enabled.get -> bool
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.Enabled.set -> void
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.EnablePropertyExtraction.get -> bool
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.EnablePropertyExtraction.set -> void
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.JwtAuthenticationOptions() -> void
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.RequireAuthentication.get -> bool
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.RequireAuthentication.set -> void
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.TokenContextKey.get -> string!
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.TokenContextKey.set -> void
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.TokenHeaderName.get -> string!
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.TokenHeaderName.set -> void
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.TokenPropertyName.get -> string!
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.TokenPropertyName.set -> void
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.Validation.get -> Excalibur.Dispatch.Security.JwtTokenValidationOptions!
+Excalibur.Dispatch.Security.JwtAuthenticationOptions.Validation.set -> void
+Excalibur.Dispatch.Security.JwtTokenCredentialOptions
+Excalibur.Dispatch.Security.JwtTokenCredentialOptions.JwtTokenCredentialOptions() -> void
+Excalibur.Dispatch.Security.JwtTokenCredentialOptions.RsaPublicKey.get -> string?
+Excalibur.Dispatch.Security.JwtTokenCredentialOptions.RsaPublicKey.set -> void
+Excalibur.Dispatch.Security.JwtTokenCredentialOptions.SigningKey.get -> string?
+Excalibur.Dispatch.Security.JwtTokenCredentialOptions.SigningKey.set -> void
+Excalibur.Dispatch.Security.JwtTokenCredentialOptions.SigningKeyCredentialName.get -> string?
+Excalibur.Dispatch.Security.JwtTokenCredentialOptions.SigningKeyCredentialName.set -> void
+Excalibur.Dispatch.Security.JwtTokenCredentialOptions.UseAsyncKeyRetrieval.get -> bool
+Excalibur.Dispatch.Security.JwtTokenCredentialOptions.UseAsyncKeyRetrieval.set -> void
+Excalibur.Dispatch.Security.JwtTokenCredentialOptions.ValidAudience.get -> string?
+Excalibur.Dispatch.Security.JwtTokenCredentialOptions.ValidAudience.set -> void
+Excalibur.Dispatch.Security.JwtTokenCredentialOptions.ValidAudiences.get -> string![]?
+Excalibur.Dispatch.Security.JwtTokenCredentialOptions.ValidAudiences.set -> void
+Excalibur.Dispatch.Security.JwtTokenCredentialOptions.ValidIssuer.get -> string?
+Excalibur.Dispatch.Security.JwtTokenCredentialOptions.ValidIssuer.set -> void
+Excalibur.Dispatch.Security.JwtTokenCredentialOptions.ValidIssuers.get -> string![]?
+Excalibur.Dispatch.Security.JwtTokenCredentialOptions.ValidIssuers.set -> void
+Excalibur.Dispatch.Security.JwtTokenValidationOptions
+Excalibur.Dispatch.Security.JwtTokenValidationOptions.JwtTokenValidationOptions() -> void
+Excalibur.Dispatch.Security.JwtTokenValidationOptions.RequireExpirationTime.get -> bool
+Excalibur.Dispatch.Security.JwtTokenValidationOptions.RequireExpirationTime.set -> void
+Excalibur.Dispatch.Security.JwtTokenValidationOptions.RequireSignedTokens.get -> bool
+Excalibur.Dispatch.Security.JwtTokenValidationOptions.RequireSignedTokens.set -> void
+Excalibur.Dispatch.Security.JwtTokenValidationOptions.ValidateAudience.get -> bool
+Excalibur.Dispatch.Security.JwtTokenValidationOptions.ValidateAudience.set -> void
+Excalibur.Dispatch.Security.JwtTokenValidationOptions.ValidateIssuer.get -> bool
+Excalibur.Dispatch.Security.JwtTokenValidationOptions.ValidateIssuer.set -> void
+Excalibur.Dispatch.Security.JwtTokenValidationOptions.ValidateLifetime.get -> bool
+Excalibur.Dispatch.Security.JwtTokenValidationOptions.ValidateLifetime.set -> void
+Excalibur.Dispatch.Security.JwtTokenValidationOptions.ValidateSigningKey.get -> bool
+Excalibur.Dispatch.Security.JwtTokenValidationOptions.ValidateSigningKey.set -> void
+Excalibur.Dispatch.Security.KeyProviderExtensions
+Excalibur.Dispatch.Security.LazyReEncryptionMiddleware
+Excalibur.Dispatch.Security.LazyReEncryptionMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
+Excalibur.Dispatch.Security.LazyReEncryptionMiddleware.LazyReEncryptionMiddleware(Excalibur.Dispatch.Compliance.IEncryptionMigrationService! migrationService, Excalibur.Dispatch.Compliance.IEncryptionProvider! encryptionProvider, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Security.LazyReEncryptionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Security.LazyReEncryptionMiddleware!>! logger) -> void
+Excalibur.Dispatch.Security.LazyReEncryptionMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
+Excalibur.Dispatch.Security.LazyReEncryptionOptions
+Excalibur.Dispatch.Security.LazyReEncryptionOptions.ContinueOnFailure.get -> bool
+Excalibur.Dispatch.Security.LazyReEncryptionOptions.ContinueOnFailure.set -> void
+Excalibur.Dispatch.Security.LazyReEncryptionOptions.Enabled.get -> bool
+Excalibur.Dispatch.Security.LazyReEncryptionOptions.Enabled.set -> void
+Excalibur.Dispatch.Security.LazyReEncryptionOptions.LazyReEncryptionOptions() -> void
+Excalibur.Dispatch.Security.LazyReEncryptionOptions.MigrationPolicy.get -> Excalibur.Dispatch.Compliance.MigrationPolicy!
+Excalibur.Dispatch.Security.LazyReEncryptionOptions.MigrationPolicy.set -> void
+Excalibur.Dispatch.Security.LazyReEncryptionOptions.OnReEncrypted.get -> System.Func<Excalibur.Dispatch.Compliance.EncryptedData!, Excalibur.Dispatch.Compliance.EncryptedData!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>?
+Excalibur.Dispatch.Security.LazyReEncryptionOptions.OnReEncrypted.set -> void
+Excalibur.Dispatch.Security.LazyReEncryptionOptions.TargetAlgorithm.get -> Excalibur.Dispatch.Compliance.EncryptionAlgorithm?
+Excalibur.Dispatch.Security.LazyReEncryptionOptions.TargetAlgorithm.set -> void
+Excalibur.Dispatch.Security.LazyReEncryptionOptions.TargetKeyId.get -> string?
+Excalibur.Dispatch.Security.LazyReEncryptionOptions.TargetKeyId.set -> void
+Excalibur.Dispatch.Security.MessageEncryptionMiddleware
+Excalibur.Dispatch.Security.MessageEncryptionMiddleware.ApplicableMessageKinds.get -> Excalibur.Dispatch.Abstractions.MessageKinds
+Excalibur.Dispatch.Security.MessageEncryptionMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
+Excalibur.Dispatch.Security.MessageEncryptionMiddleware.MessageEncryptionMiddleware(Excalibur.Dispatch.Security.IMessageEncryptionService! encryptionService, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Security.EncryptionOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Security.MessageEncryptionMiddleware!>! logger) -> void
+Excalibur.Dispatch.Security.MessageEncryptionMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
+Excalibur.Dispatch.Security.MessageSigningMiddleware
+Excalibur.Dispatch.Security.MessageSigningMiddleware.ApplicableMessageKinds.get -> Excalibur.Dispatch.Abstractions.MessageKinds
+Excalibur.Dispatch.Security.MessageSigningMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
+Excalibur.Dispatch.Security.MessageSigningMiddleware.MessageSigningMiddleware(Excalibur.Dispatch.Security.IMessageSigningService! signingService, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Security.SigningOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Security.MessageSigningMiddleware!>! logger) -> void
+Excalibur.Dispatch.Security.MessageSigningMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
+Excalibur.Dispatch.Security.RateLimitAlgorithm
+Excalibur.Dispatch.Security.RateLimitAlgorithm.Concurrency = 4 -> Excalibur.Dispatch.Security.RateLimitAlgorithm
+Excalibur.Dispatch.Security.RateLimitAlgorithm.FixedWindow = 3 -> Excalibur.Dispatch.Security.RateLimitAlgorithm
+Excalibur.Dispatch.Security.RateLimitAlgorithm.SlidingWindow = 2 -> Excalibur.Dispatch.Security.RateLimitAlgorithm
+Excalibur.Dispatch.Security.RateLimitAlgorithm.TokenBucket = 1 -> Excalibur.Dispatch.Security.RateLimitAlgorithm
+Excalibur.Dispatch.Security.RateLimitAlgorithm.Unknown = 0 -> Excalibur.Dispatch.Security.RateLimitAlgorithm
+Excalibur.Dispatch.Security.RateLimitExceededResult
+Excalibur.Dispatch.Security.RateLimitExceededResult.AuthorizationResult.get -> object?
+Excalibur.Dispatch.Security.RateLimitExceededResult.AuthorizationResult.set -> void
+Excalibur.Dispatch.Security.RateLimitExceededResult.CacheHit.get -> bool
+Excalibur.Dispatch.Security.RateLimitExceededResult.CacheHit.set -> void
+Excalibur.Dispatch.Security.RateLimitExceededResult.ErrorMessage.get -> string?
+Excalibur.Dispatch.Security.RateLimitExceededResult.ErrorMessage.set -> void
+Excalibur.Dispatch.Security.RateLimitExceededResult.ProblemDetails.get -> Excalibur.Dispatch.Abstractions.IMessageProblemDetails?
+Excalibur.Dispatch.Security.RateLimitExceededResult.ProblemDetails.set -> void
+Excalibur.Dispatch.Security.RateLimitExceededResult.RateLimitExceededResult() -> void
+Excalibur.Dispatch.Security.RateLimitExceededResult.RateLimitKey.get -> string?
+Excalibur.Dispatch.Security.RateLimitExceededResult.RateLimitKey.set -> void
+Excalibur.Dispatch.Security.RateLimitExceededResult.RetryAfterMilliseconds.get -> int
+Excalibur.Dispatch.Security.RateLimitExceededResult.RetryAfterMilliseconds.set -> void
+Excalibur.Dispatch.Security.RateLimitExceededResult.RoutingDecision.get -> Excalibur.Dispatch.Abstractions.Routing.RoutingDecision?
+Excalibur.Dispatch.Security.RateLimitExceededResult.RoutingDecision.set -> void
+Excalibur.Dispatch.Security.RateLimitExceededResult.Succeeded.get -> bool
+Excalibur.Dispatch.Security.RateLimitExceededResult.Succeeded.set -> void
+Excalibur.Dispatch.Security.RateLimitExceededResult.ValidationResult.get -> object?
+Excalibur.Dispatch.Security.RateLimitExceededResult.ValidationResult.set -> void
+Excalibur.Dispatch.Security.RateLimitingMiddleware
+Excalibur.Dispatch.Security.RateLimitingMiddleware.ApplicableMessageKinds.get -> Excalibur.Dispatch.Abstractions.MessageKinds
+Excalibur.Dispatch.Security.RateLimitingMiddleware.Dispose() -> void
+Excalibur.Dispatch.Security.RateLimitingMiddleware.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Security.RateLimitingMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
+Excalibur.Dispatch.Security.RateLimitingMiddleware.RateLimitingMiddleware(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Security.RateLimitingOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Security.RateLimitingMiddleware!>! logger) -> void
+Excalibur.Dispatch.Security.RateLimitingMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
+Excalibur.Dispatch.Security.RateLimitingOptions
+Excalibur.Dispatch.Security.RateLimitingOptions.Algorithm.get -> Excalibur.Dispatch.Security.RateLimitAlgorithm
+Excalibur.Dispatch.Security.RateLimitingOptions.Algorithm.set -> void
+Excalibur.Dispatch.Security.RateLimitingOptions.CleanupIntervalMinutes.get -> int
+Excalibur.Dispatch.Security.RateLimitingOptions.CleanupIntervalMinutes.set -> void
+Excalibur.Dispatch.Security.RateLimitingOptions.DefaultLimits.get -> Excalibur.Dispatch.Security.RateLimits!
+Excalibur.Dispatch.Security.RateLimitingOptions.DefaultLimits.set -> void
+Excalibur.Dispatch.Security.RateLimitingOptions.DefaultRetryAfterMilliseconds.get -> int
+Excalibur.Dispatch.Security.RateLimitingOptions.DefaultRetryAfterMilliseconds.set -> void
+Excalibur.Dispatch.Security.RateLimitingOptions.Enabled.get -> bool
+Excalibur.Dispatch.Security.RateLimitingOptions.Enabled.set -> void
+Excalibur.Dispatch.Security.RateLimitingOptions.InactivityTimeoutMinutes.get -> int
+Excalibur.Dispatch.Security.RateLimitingOptions.InactivityTimeoutMinutes.set -> void
+Excalibur.Dispatch.Security.RateLimitingOptions.RateLimitingOptions() -> void
+Excalibur.Dispatch.Security.RateLimitingOptions.TenantLimits.get -> System.Collections.Generic.IDictionary<string!, Excalibur.Dispatch.Security.RateLimits!>!
+Excalibur.Dispatch.Security.RateLimitingOptions.TenantLimits.init -> void
+Excalibur.Dispatch.Security.RateLimitingOptions.TierLimits.get -> System.Collections.Generic.IDictionary<string!, Excalibur.Dispatch.Security.RateLimits!>!
+Excalibur.Dispatch.Security.RateLimitingOptions.TierLimits.init -> void
+Excalibur.Dispatch.Security.RateLimitKeyPrefixes
+Excalibur.Dispatch.Security.RateLimits
+Excalibur.Dispatch.Security.RateLimits.ConcurrencyLimit.get -> int
+Excalibur.Dispatch.Security.RateLimits.ConcurrencyLimit.set -> void
+Excalibur.Dispatch.Security.RateLimits.PermitLimit.get -> int
+Excalibur.Dispatch.Security.RateLimits.PermitLimit.set -> void
+Excalibur.Dispatch.Security.RateLimits.QueueLimit.get -> int
+Excalibur.Dispatch.Security.RateLimits.QueueLimit.set -> void
+Excalibur.Dispatch.Security.RateLimits.RateLimits() -> void
+Excalibur.Dispatch.Security.RateLimits.ReplenishmentPeriodSeconds.get -> int
+Excalibur.Dispatch.Security.RateLimits.ReplenishmentPeriodSeconds.set -> void
+Excalibur.Dispatch.Security.RateLimits.SegmentsPerWindow.get -> int
+Excalibur.Dispatch.Security.RateLimits.SegmentsPerWindow.set -> void
+Excalibur.Dispatch.Security.RateLimits.TokenLimit.get -> int
+Excalibur.Dispatch.Security.RateLimits.TokenLimit.set -> void
+Excalibur.Dispatch.Security.RateLimits.TokensPerPeriod.get -> int
+Excalibur.Dispatch.Security.RateLimits.TokensPerPeriod.set -> void
+Excalibur.Dispatch.Security.RateLimits.WindowSeconds.get -> int
+Excalibur.Dispatch.Security.RateLimits.WindowSeconds.set -> void
+Excalibur.Dispatch.Security.SecureCredentialProvider
+Excalibur.Dispatch.Security.SecureCredentialProvider.Dispose() -> void
+Excalibur.Dispatch.Security.SecureCredentialProvider.GetCredentialAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Security.SecureString?>!
+Excalibur.Dispatch.Security.SecureCredentialProvider.RotateCredentialAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Security.SecureCredentialProvider.SecureCredentialProvider(Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Security.SecureCredentialProvider!>! logger, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Security.ICredentialStore!>! credentialStores) -> void
+Excalibur.Dispatch.Security.SecureCredentialProvider.ValidateCredentialAsync(string! key, Excalibur.Dispatch.Security.CredentialRequirements! requirements, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Security.CredentialValidationResult!>!
+Excalibur.Dispatch.Security.SecurityAuthenticationOptions
+Excalibur.Dispatch.Security.SecurityAuthenticationOptions.EnableAuthentication.get -> bool
+Excalibur.Dispatch.Security.SecurityAuthenticationOptions.EnableAuthentication.set -> void
+Excalibur.Dispatch.Security.SecurityAuthenticationOptions.JwtAudience.get -> string?
+Excalibur.Dispatch.Security.SecurityAuthenticationOptions.JwtAudience.set -> void
+Excalibur.Dispatch.Security.SecurityAuthenticationOptions.JwtIssuer.get -> string?
+Excalibur.Dispatch.Security.SecurityAuthenticationOptions.JwtIssuer.set -> void
+Excalibur.Dispatch.Security.SecurityAuthenticationOptions.JwtSigningKey.get -> string?
+Excalibur.Dispatch.Security.SecurityAuthenticationOptions.JwtSigningKey.set -> void
+Excalibur.Dispatch.Security.SecurityAuthenticationOptions.RequireAuthentication.get -> bool
+Excalibur.Dispatch.Security.SecurityAuthenticationOptions.RequireAuthentication.set -> void
+Excalibur.Dispatch.Security.SecurityAuthenticationOptions.SecurityAuthenticationOptions() -> void
+Excalibur.Dispatch.Security.SecurityEncryptionOptions
+Excalibur.Dispatch.Security.SecurityEncryptionOptions.AwsKmsKeyArn.get -> string?
+Excalibur.Dispatch.Security.SecurityEncryptionOptions.AwsKmsKeyArn.set -> void
+Excalibur.Dispatch.Security.SecurityEncryptionOptions.AzureKeyVaultUrl.get -> System.Uri?
+Excalibur.Dispatch.Security.SecurityEncryptionOptions.AzureKeyVaultUrl.set -> void
+Excalibur.Dispatch.Security.SecurityEncryptionOptions.EnableEncryption.get -> bool
+Excalibur.Dispatch.Security.SecurityEncryptionOptions.EnableEncryption.set -> void
+Excalibur.Dispatch.Security.SecurityEncryptionOptions.EncryptionAlgorithm.get -> Excalibur.Dispatch.Compliance.EncryptionAlgorithm
+Excalibur.Dispatch.Security.SecurityEncryptionOptions.EncryptionAlgorithm.set -> void
+Excalibur.Dispatch.Security.SecurityEncryptionOptions.SecurityEncryptionOptions() -> void
+Excalibur.Dispatch.Security.SecurityEvent
+Excalibur.Dispatch.Security.SecurityEvent.AdditionalData.get -> System.Collections.Generic.IDictionary<string!, object?>!
+Excalibur.Dispatch.Security.SecurityEvent.AdditionalData.init -> void
+Excalibur.Dispatch.Security.SecurityEvent.CorrelationId.get -> System.Guid?
+Excalibur.Dispatch.Security.SecurityEvent.CorrelationId.init -> void
+Excalibur.Dispatch.Security.SecurityEvent.Description.get -> string!
+Excalibur.Dispatch.Security.SecurityEvent.Description.init -> void
+Excalibur.Dispatch.Security.SecurityEvent.EventType.get -> Excalibur.Dispatch.Security.SecurityEventType
+Excalibur.Dispatch.Security.SecurityEvent.EventType.init -> void
+Excalibur.Dispatch.Security.SecurityEvent.Id.get -> System.Guid
+Excalibur.Dispatch.Security.SecurityEvent.Id.init -> void
+Excalibur.Dispatch.Security.SecurityEvent.MessageType.get -> string?
+Excalibur.Dispatch.Security.SecurityEvent.MessageType.init -> void
+Excalibur.Dispatch.Security.SecurityEvent.SecurityEvent() -> void
+Excalibur.Dispatch.Security.SecurityEvent.Severity.get -> Excalibur.Dispatch.Security.SecuritySeverity
+Excalibur.Dispatch.Security.SecurityEvent.Severity.init -> void
+Excalibur.Dispatch.Security.SecurityEvent.SourceIp.get -> string?
+Excalibur.Dispatch.Security.SecurityEvent.SourceIp.init -> void
+Excalibur.Dispatch.Security.SecurityEvent.Timestamp.get -> System.DateTimeOffset
+Excalibur.Dispatch.Security.SecurityEvent.Timestamp.init -> void
+Excalibur.Dispatch.Security.SecurityEvent.UserAgent.get -> string?
+Excalibur.Dispatch.Security.SecurityEvent.UserAgent.init -> void
+Excalibur.Dispatch.Security.SecurityEvent.UserId.get -> string?
+Excalibur.Dispatch.Security.SecurityEvent.UserId.init -> void
+Excalibur.Dispatch.Security.SecurityEventQuery
+Excalibur.Dispatch.Security.SecurityEventQuery.CorrelationId.get -> System.Guid?
+Excalibur.Dispatch.Security.SecurityEventQuery.CorrelationId.set -> void
+Excalibur.Dispatch.Security.SecurityEventQuery.EndTime.get -> System.DateTimeOffset?
+Excalibur.Dispatch.Security.SecurityEventQuery.EndTime.set -> void
+Excalibur.Dispatch.Security.SecurityEventQuery.EventType.get -> Excalibur.Dispatch.Security.SecurityEventType?
+Excalibur.Dispatch.Security.SecurityEventQuery.EventType.set -> void
+Excalibur.Dispatch.Security.SecurityEventQuery.MaxResults.get -> int
+Excalibur.Dispatch.Security.SecurityEventQuery.MaxResults.set -> void
+Excalibur.Dispatch.Security.SecurityEventQuery.MinimumSeverity.get -> Excalibur.Dispatch.Security.SecuritySeverity?
+Excalibur.Dispatch.Security.SecurityEventQuery.MinimumSeverity.set -> void
+Excalibur.Dispatch.Security.SecurityEventQuery.SecurityEventQuery() -> void
+Excalibur.Dispatch.Security.SecurityEventQuery.SourceIp.get -> string?
+Excalibur.Dispatch.Security.SecurityEventQuery.SourceIp.set -> void
+Excalibur.Dispatch.Security.SecurityEventQuery.StartTime.get -> System.DateTimeOffset?
+Excalibur.Dispatch.Security.SecurityEventQuery.StartTime.set -> void
+Excalibur.Dispatch.Security.SecurityEventQuery.UserId.get -> string?
+Excalibur.Dispatch.Security.SecurityEventQuery.UserId.set -> void
+Excalibur.Dispatch.Security.SecurityEventType
+Excalibur.Dispatch.Security.SecurityEventType.AuditLogAccess = 12 -> Excalibur.Dispatch.Security.SecurityEventType
+Excalibur.Dispatch.Security.SecurityEventType.AuthenticationFailure = 1 -> Excalibur.Dispatch.Security.SecurityEventType
+Excalibur.Dispatch.Security.SecurityEventType.AuthenticationSuccess = 0 -> Excalibur.Dispatch.Security.SecurityEventType
+Excalibur.Dispatch.Security.SecurityEventType.AuthorizationFailure = 3 -> Excalibur.Dispatch.Security.SecurityEventType
+Excalibur.Dispatch.Security.SecurityEventType.AuthorizationSuccess = 2 -> Excalibur.Dispatch.Security.SecurityEventType
+Excalibur.Dispatch.Security.SecurityEventType.ConfigurationChange = 10 -> Excalibur.Dispatch.Security.SecurityEventType
+Excalibur.Dispatch.Security.SecurityEventType.CredentialRotation = 11 -> Excalibur.Dispatch.Security.SecurityEventType
+Excalibur.Dispatch.Security.SecurityEventType.DataExfiltrationAttempt = 9 -> Excalibur.Dispatch.Security.SecurityEventType
+Excalibur.Dispatch.Security.SecurityEventType.DecryptionFailure = 15 -> Excalibur.Dispatch.Security.SecurityEventType
+Excalibur.Dispatch.Security.SecurityEventType.EncryptionFailure = 14 -> Excalibur.Dispatch.Security.SecurityEventType
+Excalibur.Dispatch.Security.SecurityEventType.InjectionAttempt = 6 -> Excalibur.Dispatch.Security.SecurityEventType
+Excalibur.Dispatch.Security.SecurityEventType.RateLimitExceeded = 7 -> Excalibur.Dispatch.Security.SecurityEventType
+Excalibur.Dispatch.Security.SecurityEventType.SecurityPolicyViolation = 13 -> Excalibur.Dispatch.Security.SecurityEventType
+Excalibur.Dispatch.Security.SecurityEventType.SuspiciousActivity = 8 -> Excalibur.Dispatch.Security.SecurityEventType
+Excalibur.Dispatch.Security.SecurityEventType.ValidationError = 5 -> Excalibur.Dispatch.Security.SecurityEventType
+Excalibur.Dispatch.Security.SecurityEventType.ValidationFailure = 4 -> Excalibur.Dispatch.Security.SecurityEventType
+Excalibur.Dispatch.Security.SecurityMiddlewareExtensions
+Excalibur.Dispatch.Security.SecurityOptions
+Excalibur.Dispatch.Security.SecurityOptions.Authentication.get -> Excalibur.Dispatch.Security.SecurityAuthenticationOptions!
+Excalibur.Dispatch.Security.SecurityOptions.Authentication.set -> void
+Excalibur.Dispatch.Security.SecurityOptions.CustomHeaders.get -> System.Collections.Generic.IDictionary<string!, string!>!
+Excalibur.Dispatch.Security.SecurityOptions.CustomHeaders.init -> void
+Excalibur.Dispatch.Security.SecurityOptions.EnableSecurityHeaders.get -> bool
+Excalibur.Dispatch.Security.SecurityOptions.EnableSecurityHeaders.set -> void
+Excalibur.Dispatch.Security.SecurityOptions.Encryption.get -> Excalibur.Dispatch.Security.SecurityEncryptionOptions!
+Excalibur.Dispatch.Security.SecurityOptions.Encryption.set -> void
+Excalibur.Dispatch.Security.SecurityOptions.RateLimiting.get -> Excalibur.Dispatch.Security.SecurityRateLimitOptions!
+Excalibur.Dispatch.Security.SecurityOptions.RateLimiting.set -> void
+Excalibur.Dispatch.Security.SecurityOptions.SecurityOptions() -> void
+Excalibur.Dispatch.Security.SecurityOptions.Signing.get -> Excalibur.Dispatch.Security.SecuritySigningOptions!
+Excalibur.Dispatch.Security.SecurityOptions.Signing.set -> void
+Excalibur.Dispatch.Security.SecurityRateLimitOptions
+Excalibur.Dispatch.Security.SecurityRateLimitOptions.DefaultRateLimits.get -> Excalibur.Dispatch.Security.RateLimits!
+Excalibur.Dispatch.Security.SecurityRateLimitOptions.DefaultRateLimits.set -> void
+Excalibur.Dispatch.Security.SecurityRateLimitOptions.EnableRateLimiting.get -> bool
+Excalibur.Dispatch.Security.SecurityRateLimitOptions.EnableRateLimiting.set -> void
+Excalibur.Dispatch.Security.SecurityRateLimitOptions.RateLimitAlgorithm.get -> Excalibur.Dispatch.Security.RateLimitAlgorithm
+Excalibur.Dispatch.Security.SecurityRateLimitOptions.RateLimitAlgorithm.set -> void
+Excalibur.Dispatch.Security.SecurityRateLimitOptions.SecurityRateLimitOptions() -> void
+Excalibur.Dispatch.Security.SecuritySeverity
+Excalibur.Dispatch.Security.SecuritySeverity.Critical = 3 -> Excalibur.Dispatch.Security.SecuritySeverity
+Excalibur.Dispatch.Security.SecuritySeverity.High = 2 -> Excalibur.Dispatch.Security.SecuritySeverity
+Excalibur.Dispatch.Security.SecuritySeverity.Low = 0 -> Excalibur.Dispatch.Security.SecuritySeverity
+Excalibur.Dispatch.Security.SecuritySeverity.Medium = 1 -> Excalibur.Dispatch.Security.SecuritySeverity
+Excalibur.Dispatch.Security.SecuritySigningOptions
+Excalibur.Dispatch.Security.SecuritySigningOptions.EnableSigning.get -> bool
+Excalibur.Dispatch.Security.SecuritySigningOptions.EnableSigning.set -> void
+Excalibur.Dispatch.Security.SecuritySigningOptions.SecuritySigningOptions() -> void
+Excalibur.Dispatch.Security.SecuritySigningOptions.SigningAlgorithm.get -> Excalibur.Dispatch.Security.SigningAlgorithm
+Excalibur.Dispatch.Security.SecuritySigningOptions.SigningAlgorithm.set -> void
+Excalibur.Dispatch.Security.SignatureFormat
+Excalibur.Dispatch.Security.SignatureFormat.Base64 = 0 -> Excalibur.Dispatch.Security.SignatureFormat
+Excalibur.Dispatch.Security.SignatureFormat.Binary = 2 -> Excalibur.Dispatch.Security.SignatureFormat
+Excalibur.Dispatch.Security.SignatureFormat.Hex = 1 -> Excalibur.Dispatch.Security.SignatureFormat
+Excalibur.Dispatch.Security.SignedMessage
+Excalibur.Dispatch.Security.SignedMessage.Algorithm.get -> Excalibur.Dispatch.Security.SigningAlgorithm
+Excalibur.Dispatch.Security.SignedMessage.Algorithm.set -> void
+Excalibur.Dispatch.Security.SignedMessage.Content.get -> string!
+Excalibur.Dispatch.Security.SignedMessage.Content.set -> void
+Excalibur.Dispatch.Security.SignedMessage.KeyId.get -> string?
+Excalibur.Dispatch.Security.SignedMessage.KeyId.set -> void
+Excalibur.Dispatch.Security.SignedMessage.Metadata.get -> System.Collections.Generic.IDictionary<string!, string!>!
+Excalibur.Dispatch.Security.SignedMessage.Metadata.init -> void
+Excalibur.Dispatch.Security.SignedMessage.Signature.get -> string!
+Excalibur.Dispatch.Security.SignedMessage.Signature.set -> void
+Excalibur.Dispatch.Security.SignedMessage.SignedAt.get -> System.DateTimeOffset
+Excalibur.Dispatch.Security.SignedMessage.SignedAt.set -> void
+Excalibur.Dispatch.Security.SignedMessage.SignedMessage() -> void
+Excalibur.Dispatch.Security.SigningAlgorithm
+Excalibur.Dispatch.Security.SigningAlgorithm.ECDSASHA256 = 5 -> Excalibur.Dispatch.Security.SigningAlgorithm
+Excalibur.Dispatch.Security.SigningAlgorithm.Ed25519 = 6 -> Excalibur.Dispatch.Security.SigningAlgorithm
+Excalibur.Dispatch.Security.SigningAlgorithm.HMACSHA256 = 1 -> Excalibur.Dispatch.Security.SigningAlgorithm
+Excalibur.Dispatch.Security.SigningAlgorithm.HMACSHA512 = 2 -> Excalibur.Dispatch.Security.SigningAlgorithm
+Excalibur.Dispatch.Security.SigningAlgorithm.RSAPSSSHA256 = 4 -> Excalibur.Dispatch.Security.SigningAlgorithm
+Excalibur.Dispatch.Security.SigningAlgorithm.RSASHA256 = 3 -> Excalibur.Dispatch.Security.SigningAlgorithm
+Excalibur.Dispatch.Security.SigningAlgorithm.Unknown = 0 -> Excalibur.Dispatch.Security.SigningAlgorithm
+Excalibur.Dispatch.Security.SigningContext
+Excalibur.Dispatch.Security.SigningContext.Algorithm.get -> Excalibur.Dispatch.Security.SigningAlgorithm
+Excalibur.Dispatch.Security.SigningContext.Algorithm.set -> void
+Excalibur.Dispatch.Security.SigningContext.Format.get -> Excalibur.Dispatch.Security.SignatureFormat
+Excalibur.Dispatch.Security.SigningContext.Format.set -> void
+Excalibur.Dispatch.Security.SigningContext.IncludeTimestamp.get -> bool
+Excalibur.Dispatch.Security.SigningContext.IncludeTimestamp.set -> void
+Excalibur.Dispatch.Security.SigningContext.KeyId.get -> string?
+Excalibur.Dispatch.Security.SigningContext.KeyId.set -> void
+Excalibur.Dispatch.Security.SigningContext.Metadata.get -> System.Collections.Generic.IDictionary<string!, string!>!
+Excalibur.Dispatch.Security.SigningContext.Metadata.init -> void
+Excalibur.Dispatch.Security.SigningContext.Purpose.get -> string?
+Excalibur.Dispatch.Security.SigningContext.Purpose.set -> void
+Excalibur.Dispatch.Security.SigningContext.SigningContext() -> void
+Excalibur.Dispatch.Security.SigningContext.TenantId.get -> string?
+Excalibur.Dispatch.Security.SigningContext.TenantId.set -> void
+Excalibur.Dispatch.Security.SigningException
+Excalibur.Dispatch.Security.SigningException.SigningException() -> void
+Excalibur.Dispatch.Security.SigningException.SigningException(string! message) -> void
+Excalibur.Dispatch.Security.SigningException.SigningException(string! message, System.Exception! innerException) -> void
+Excalibur.Dispatch.Security.SigningOptions
+Excalibur.Dispatch.Security.SigningOptions.DefaultAlgorithm.get -> Excalibur.Dispatch.Security.SigningAlgorithm
+Excalibur.Dispatch.Security.SigningOptions.DefaultAlgorithm.set -> void
+Excalibur.Dispatch.Security.SigningOptions.DefaultKeyId.get -> string?
+Excalibur.Dispatch.Security.SigningOptions.DefaultKeyId.set -> void
+Excalibur.Dispatch.Security.SigningOptions.Enabled.get -> bool
+Excalibur.Dispatch.Security.SigningOptions.Enabled.set -> void
+Excalibur.Dispatch.Security.SigningOptions.IncludeTimestampByDefault.get -> bool
+Excalibur.Dispatch.Security.SigningOptions.IncludeTimestampByDefault.set -> void
+Excalibur.Dispatch.Security.SigningOptions.KeyRotationIntervalDays.get -> int
+Excalibur.Dispatch.Security.SigningOptions.KeyRotationIntervalDays.set -> void
+Excalibur.Dispatch.Security.SigningOptions.MaxSignatureAgeMinutes.get -> int
+Excalibur.Dispatch.Security.SigningOptions.MaxSignatureAgeMinutes.set -> void
+Excalibur.Dispatch.Security.SigningOptions.RequireValidSignature.get -> bool
+Excalibur.Dispatch.Security.SigningOptions.RequireValidSignature.set -> void
+Excalibur.Dispatch.Security.SigningOptions.SigningOptions() -> void
+Excalibur.Dispatch.Security.SigningOptions.TenantAlgorithms.get -> System.Collections.Generic.Dictionary<string!, Excalibur.Dispatch.Security.SigningAlgorithm>!
+Excalibur.Dispatch.Security.VerificationException
+Excalibur.Dispatch.Security.VerificationException.VerificationException() -> void
+Excalibur.Dispatch.Security.VerificationException.VerificationException(string! message) -> void
+Excalibur.Dispatch.Security.VerificationException.VerificationException(string! message, System.Exception! innerException) -> void
+Microsoft.Extensions.DependencyInjection.DispatchBuilderSecurityExtensions
+Microsoft.Extensions.DependencyInjection.DispatchSecurityServiceCollectionExtensions
+static Excalibur.Dispatch.Security.CredentialValidationResult.Failure(params string![]! errors) -> Excalibur.Dispatch.Security.CredentialValidationResult!
+static Excalibur.Dispatch.Security.CredentialValidationResult.Success() -> Excalibur.Dispatch.Security.CredentialValidationResult!
+static Excalibur.Dispatch.Security.InputValidationResult.Failure(params string![]! errors) -> Excalibur.Dispatch.Security.InputValidationResult!
+static Excalibur.Dispatch.Security.InputValidationResult.Success() -> Excalibur.Dispatch.Security.InputValidationResult!
+static Excalibur.Dispatch.Security.KeyProviderExtensions.StoreKeyPairAsync(this Excalibur.Dispatch.Security.IKeyProvider! provider, string! keyId, byte[]! privateKey, byte[]! publicKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+static Excalibur.Dispatch.Security.SecurityMiddlewareExtensions.AddAsymmetricSigning(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Security.SigningOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Excalibur.Dispatch.Security.SecurityMiddlewareExtensions.AddDispatchSecurity(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Excalibur.Dispatch.Security.SecurityMiddlewareExtensions.AddDispatchSecurity(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Security.SecurityOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Excalibur.Dispatch.Security.SecurityMiddlewareExtensions.AddJwtAuthentication(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Excalibur.Dispatch.Security.SecurityMiddlewareExtensions.AddJwtAuthentication(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Security.JwtAuthenticationOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Excalibur.Dispatch.Security.SecurityMiddlewareExtensions.AddMessageEncryption(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Excalibur.Dispatch.Security.SecurityMiddlewareExtensions.AddMessageEncryption(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Security.EncryptionOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Excalibur.Dispatch.Security.SecurityMiddlewareExtensions.AddMessageSigning(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Excalibur.Dispatch.Security.SecurityMiddlewareExtensions.AddMessageSigning(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Security.SigningOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Excalibur.Dispatch.Security.SecurityMiddlewareExtensions.AddRateLimiting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Excalibur.Dispatch.Security.SecurityMiddlewareExtensions.AddRateLimiting(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Security.RateLimitingOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DispatchBuilderSecurityExtensions.AddSecurity(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.DispatchSecurityServiceCollectionExtensions.AddDispatchSecurity(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DispatchSecurityServiceCollectionExtensions.AddInputValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DispatchSecurityServiceCollectionExtensions.AddSecureCredentialManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DispatchSecurityServiceCollectionExtensions.AddSecurityAuditing(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DispatchSecurityServiceCollectionExtensions.UseSecurityMiddleware(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!

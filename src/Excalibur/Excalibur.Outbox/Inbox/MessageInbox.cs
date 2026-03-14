@@ -8,6 +8,7 @@ using System.Text;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Options.Delivery;
+using Excalibur.Dispatch.Serialization;
 
 using Excalibur.Outbox.Diagnostics;
 
@@ -26,7 +27,7 @@ public sealed partial class MessageInbox : IInbox
 
 	private readonly IInboxStore _inboxStore;
 	private readonly IInboxProcessor _processor;
-	private readonly IJsonSerializer _serializer;
+	private readonly DispatchJsonSerializer _serializer;
 	private readonly IPayloadSerializer? _payloadSerializer;
 	private readonly ILogger<MessageInbox> _logger;
 	private int _disposed;
@@ -42,7 +43,7 @@ public sealed partial class MessageInbox : IInbox
 	public MessageInbox(
 		IInboxStore inboxStore,
 		IInboxProcessor processor,
-		IJsonSerializer serializer,
+		DispatchJsonSerializer serializer,
 		IOptions<InboxOptions> options,
 		ILogger<MessageInbox> logger)
 		: this(inboxStore, processor, serializer, payloadSerializer: null, options, logger)
@@ -61,7 +62,7 @@ public sealed partial class MessageInbox : IInbox
 	public MessageInbox(
 		IInboxStore inboxStore,
 		IInboxProcessor processor,
-		IJsonSerializer serializer,
+		DispatchJsonSerializer serializer,
 		IPayloadSerializer? payloadSerializer,
 		IOptions<InboxOptions> options,
 		ILogger<MessageInbox> logger)
@@ -152,13 +153,13 @@ public sealed partial class MessageInbox : IInbox
 			{
 				["CorrelationId"] = metadata.CorrelationId,
 				["CausationId"] = metadata.CausationId ?? string.Empty,
-				["TraceParent"] = metadata.TraceParent ?? string.Empty,
-				["TenantId"] = metadata.TenantId ?? string.Empty,
-				["UserId"] = metadata.UserId ?? string.Empty,
+				["TraceParent"] = metadata.GetTraceParent() ?? string.Empty,
+				["TenantId"] = metadata.GetTenantId() ?? string.Empty,
+				["UserId"] = metadata.GetUserId() ?? string.Empty,
 				["ContentType"] = metadata.ContentType,
-				["SerializerVersion"] = metadata.SerializerVersion,
-				["MessageVersion"] = metadata.MessageVersion,
-				["ContractVersion"] = metadata.ContractVersion,
+				["SerializerVersion"] = metadata.GetSerializerVersion(),
+				["MessageVersion"] = metadata.GetMessageVersion(),
+				["ContractVersion"] = metadata.GetContractVersion(),
 			};
 
 	private async ValueTask DisposeStoreAsync()
@@ -181,7 +182,7 @@ public sealed partial class MessageInbox : IInbox
 	/// <summary>
 	/// Serializes a message payload using the configured serializer.
 	/// Uses <see cref="IPayloadSerializer"/> when available for pluggable serialization,
-	/// otherwise falls back to <see cref="IJsonSerializer"/> for backward compatibility.
+	/// otherwise falls back to <see cref="DispatchJsonSerializer"/> for backward compatibility.
 	/// </summary>
 	/// <typeparam name="T">The message type.</typeparam>
 	/// <param name="message">The message to serialize.</param>
@@ -197,8 +198,8 @@ public sealed partial class MessageInbox : IInbox
 			return _payloadSerializer.Serialize(message);
 		}
 
-		// Fallback to IJsonSerializer for backward compatibility
-		var payloadJson = await _serializer.SerializeAsync(message).ConfigureAwait(false);
+		// Fallback to DispatchJsonSerializer for backward compatibility
+		var payloadJson = await _serializer.SerializeAsync(message, typeof(T)).ConfigureAwait(false);
 		return PayloadEncoding.GetBytes(payloadJson);
 	}
 }

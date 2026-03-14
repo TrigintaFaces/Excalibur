@@ -20,17 +20,6 @@
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
     <PackageReference Include="System.Threading.Channels" />
-    <PackageReference Include="OpenTelemetry.Api" />
-    <!-- Kubernetes (for Infrastructure components) -->
-    <PackageReference Include="KubernetesClient" />
-    <!-- Resilience patterns -->
-    <PackageReference Include="Polly" />
-    <!-- HTTP client extensions -->
-    <PackageReference Include="Microsoft.Extensions.Http" />
-    <!-- gRPC (for gRPC abstractions) -->
-    <PackageReference Include="Grpc.Net.Client" />
-    <!-- Consul (for service discovery) -->
-    <PackageReference Include="Consul" />
     <PackageReference Include="System.Text.Json" />
   </ItemGroup>
   <ItemGroup>
@@ -42,6 +31,16 @@
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests.Unit" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests.Integration" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Abstractions.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Observability.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Messaging.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Conformance" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Testing.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Contract.Tests" />
+    <InternalsVisibleTo Include="Tests.Shared" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Testing" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
   <ItemGroup>
     <AdditionalFiles Include="PublicAPI.Shipped.txt" />

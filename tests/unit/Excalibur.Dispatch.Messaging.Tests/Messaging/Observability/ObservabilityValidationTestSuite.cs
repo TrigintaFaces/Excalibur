@@ -12,7 +12,7 @@ using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Options.Performance;
 using Excalibur.Dispatch.Tests.TestFakes;
 
-using Excalibur.Data.InMemory.Inbox;
+using Excalibur.Inbox.InMemory;
 
 using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 
@@ -115,16 +115,17 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 	public async Task BatchProcessor_EmitsMetricsForBatchingOperations()
 	{
 		// Arrange
-		var processedBatches = new ConcurrentBag<IReadOnlyList<string>>();
-		var batchProcessedTcs = new TaskCompletionSource<bool>();
+		var processedBatches = new ConcurrentQueue<IReadOnlyList<string>>();
+		var batchProcessedTcs = new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		var options = new MicroBatchOptions { MaxBatchSize = 3, MaxBatchDelay = TimeSpan.FromMilliseconds(100) };
 
 		var processor = new BatchProcessor<string>(
 			batch =>
 			{
-				processedBatches.Add(batch);
-				_ = batchProcessedTcs.TrySetResult(true);
+				var processedBatch = batch.ToArray();
+				processedBatches.Enqueue(processedBatch);
+				_ = batchProcessedTcs.TrySetResult(processedBatch);
 				return ValueTask.CompletedTask;
 			},
 			_testLogger,
@@ -142,18 +143,18 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 			await processor.AddAsync("item2", CancellationToken.None).ConfigureAwait(false);
 			await processor.AddAsync("item3", CancellationToken.None).ConfigureAwait(false);
 
-			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-
+			var processedBatch = await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 				batchProcessedTcs.Task,
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 
-				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
-			// Wait a bit more for metrics to be emitted
-			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(200).ConfigureAwait(false);
+			processedBatch.Count.ShouldBe(3);
 		}
 
 		// Assert - Verify batch was processed
 		processedBatches.Count.ShouldBe(1);
-		processedBatches.First().Count.ShouldBe(3);
+		processedBatches.TryPeek(out var recordedBatch).ShouldBeTrue();
+		recordedBatch.ShouldNotBeNull();
+		recordedBatch.Count.ShouldBe(3);
 
 		// Assert - Verify activity context (activities are now stopped and recorded)
 		var activities = _otelFixture.GetRecordedActivities().Where(a => a.Source.Name == "Test.ActivitySource").ToList();
@@ -188,7 +189,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 			}
 
 			// Verify correlation context is available
-			if (ctx.Properties.TryGetValue("CorrelationId", out var corrId))
+			if (ctx.Items.TryGetValue("CorrelationId", out var corrId))
 			{
 				processedMessages.Add($"CorrelationId:{corrId}");
 			}
@@ -208,13 +209,11 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 
 			var message = new FakeDispatchMessage();
 			var context = new FakeMessageContext();
-			context.Properties["CorrelationId"] = correlationId;
-			context.Properties["TraceId"] = traceId;
+			context.Items["CorrelationId"] = correlationId;
+			context.Items["TraceId"] = traceId;
 
 			result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
 
-			// Wait for any async processing to complete
-			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(100).ConfigureAwait(false);
 		}
 
 		// Assert - Verify successful processing
@@ -248,7 +247,7 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 
 		var processedItems = new ConcurrentBag<string>();
 		var totalProcessed = 0;
-		var allProcessed = new TaskCompletionSource<bool>();
+		var allProcessed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		var batchProcessor = new BatchProcessor<string>(
 			batch =>
@@ -324,9 +323,9 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 
 				var message = new FakeDispatchMessage();
 				var context = new FakeMessageContext();
-				context.Properties["CorrelationId"] = $"corr-{i}";
-				context.Properties["MessageIndex"] = i;
-				context.Properties["StartTime"] = operationStartTime.ToString("O");
+				context.Items["CorrelationId"] = $"corr-{i}";
+				context.Items["MessageIndex"] = i;
+				context.Items["StartTime"] = operationStartTime.ToString("O");
 
 				_ = await middleware.InvokeAsync(message, context, (msg, ctx, ct) => new ValueTask<IMessageResult>(MessageResult.Success()), CancellationToken.None).ConfigureAwait(false);
 			});
@@ -339,12 +338,8 @@ public sealed class ObservabilityValidationTestSuite : IDisposable
 			);
 
 			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-
 				allProcessed.Task,
-
-				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
-			// Wait for final telemetry to be emitted
-			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(500).ConfigureAwait(false);
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10))).ConfigureAwait(false);
 		}
 
 		// Assert - Verify all operations completed successfully
@@ -540,4 +535,3 @@ internal sealed class ObsTestSuiteLogEntry
 
 	public DateTimeOffset Timestamp { get; init; }
 }
-

@@ -8,7 +8,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Data.Abstractions;
 
 using OutboxMessage = Excalibur.Dispatch.Delivery.OutboxMessage;
-using Excalibur.Data.Postgres.Outbox;
+using Excalibur.Outbox.Postgres;
 
 using FakeItEasy;
 

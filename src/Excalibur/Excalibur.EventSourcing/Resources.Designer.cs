@@ -133,24 +133,6 @@ namespace Excalibur.EventSourcing {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Find operation requires a query executor implementation. Override FindAsync in a derived repository class or inject an IQueryExecutor&lt;{0}&gt;..
-        /// </summary>
-        internal static string EventSourcedRepository_FindRequiresExecutorFormat {
-            get {
-                return ResourceManager.GetString("EventSourcedRepository_FindRequiresExecutorFormat", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Query operation requires a query executor implementation. Override QueryAsync in a derived repository class or inject an IQueryExecutor&lt;{0}&gt;..
-        /// </summary>
-        internal static string EventSourcedRepository_QueryRequiresExecutorFormat {
-            get {
-                return ResourceManager.GetString("EventSourcedRepository_QueryRequiresExecutorFormat", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Failed to save aggregate {0}: {1}.
         /// </summary>
         internal static string EventSourcedRepository_SaveFailedFormat {

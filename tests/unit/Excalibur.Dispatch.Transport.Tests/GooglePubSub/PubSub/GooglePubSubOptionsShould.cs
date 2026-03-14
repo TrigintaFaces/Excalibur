@@ -55,17 +55,20 @@ public sealed class GooglePubSubOptionsShould
 	}
 
 	[Fact]
-	public void DelegateSubscriberPropertiesToSubOptions()
+	public void AllowSettingSubscriberSubOptions()
 	{
 		// Arrange & Act
 		var options = new GooglePubSubOptions
 		{
-			MaxPullMessages = 200,
-			AckDeadlineSeconds = 120,
-			EnableAutoAckExtension = false,
-			MaxConcurrentAcks = 50,
-			EnableDeadLetterTopic = true,
-			DeadLetterTopicId = "dlq-topic",
+			Subscriber =
+			{
+				MaxPullMessages = 200,
+				AckDeadlineSeconds = 120,
+				EnableAutoAckExtension = false,
+				MaxConcurrentAcks = 50,
+				EnableDeadLetterTopic = true,
+				DeadLetterTopicId = "dlq-topic",
+			},
 		};
 
 		// Assert
@@ -78,18 +81,21 @@ public sealed class GooglePubSubOptionsShould
 	}
 
 	[Fact]
-	public void DelegateTelemetryPropertiesToSubOptions()
+	public void AllowSettingTelemetrySubOptions()
 	{
 		// Arrange & Act
 		var options = new GooglePubSubOptions
 		{
-			EnableOpenTelemetry = false,
-			ExportToCloudMonitoring = true,
-			OtlpEndpoint = "http://otel:4317",
-			TelemetryExportIntervalSeconds = 30,
-			EnableTracePropagation = false,
-			IncludeMessageAttributesInTraces = true,
-			TracingSamplingRatio = 0.5,
+			Telemetry =
+			{
+				EnableOpenTelemetry = false,
+				ExportToCloudMonitoring = true,
+				OtlpEndpoint = "http://otel:4317",
+				TelemetryExportIntervalSeconds = 30,
+				EnableTracePropagation = false,
+				IncludeMessageAttributesInTraces = true,
+				TracingSamplingRatio = 0.5,
+			},
 		};
 
 		// Assert
@@ -114,11 +120,14 @@ public sealed class GooglePubSubOptionsShould
 
 		var options = new GooglePubSubOptions
 		{
-			TelemetryResourceLabels = labels,
+			Telemetry =
+			{
+				TelemetryResourceLabels = labels,
+			},
 		};
 
 		// Assert
-		options.TelemetryResourceLabels.Count.ShouldBe(2);
-		options.TelemetryResourceLabels["env"].ShouldBe("prod");
+		options.Telemetry.TelemetryResourceLabels.Count.ShouldBe(2);
+		options.Telemetry.TelemetryResourceLabels["env"].ShouldBe("prod");
 	}
 }

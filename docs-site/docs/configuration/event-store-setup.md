@@ -21,15 +21,13 @@ This guide covers configuring event stores and registering aggregate repositorie
 ## Basic Setup
 
 ```csharp
-// Configure event sourcing with repositories
-services.AddExcaliburEventSourcing(builder =>
+// Configure event sourcing with provider and repositories in one builder
+services.AddExcaliburEventSourcing(es =>
 {
-    builder.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate());
-    builder.UseIntervalSnapshots(100);
+    es.UseSqlServer(connectionString)
+      .AddRepository<OrderAggregate, Guid>(id => new OrderAggregate())
+      .UseIntervalSnapshots(100);
 });
-
-// Add the event store provider
-services.AddSqlServerEventStore(connectionString);
 ```
 
 ## Event Store Providers
@@ -41,14 +39,22 @@ dotnet add package Excalibur.EventSourcing.SqlServer
 ```
 
 ```csharp
-// Option 1: Simple registration with connection string
-services.AddSqlServerEventStore(connectionString);
-
-// Option 2: Full event sourcing setup with all stores
-services.AddSqlServerEventSourcing(options =>
+// Recommended: Builder-integrated registration
+services.AddExcaliburEventSourcing(es =>
 {
-    options.ConnectionString = connectionString;
-    options.RegisterHealthChecks = true;
+    es.UseSqlServer(connectionString)
+      .AddRepository<OrderAggregate, Guid>();
+});
+
+// Or with detailed options
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UseSqlServer(options =>
+    {
+        options.ConnectionString = connectionString;
+        options.RegisterHealthChecks = true;
+    })
+    .AddRepository<OrderAggregate, Guid>();
 });
 
 // This registers:
@@ -57,6 +63,16 @@ services.AddSqlServerEventSourcing(options =>
 // - IEventSourcedOutboxStore (SqlServerEventSourcedOutboxStore)
 ```
 
+:::tip Alternative: Direct registration
+You can also register providers directly on `IServiceCollection` if you prefer separating provider setup from builder configuration:
+
+```csharp
+services.AddSqlServerEventSourcing(connectionString);
+// or
+services.AddSqlServerEventStore(connectionString);
+```
+:::
+
 ### Postgres
 
 ```bash
@@ -64,13 +80,21 @@ dotnet add package Excalibur.Data.Postgres
 ```
 
 ```csharp
-// With connection string
-services.AddPostgresEventStore(connectionString);
+// Builder-integrated registration
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UsePostgres(connectionString)
+      .AddRepository<OrderAggregate, Guid>();
+});
 
 // Or with options
-services.AddPostgresEventStore(connectionString, options =>
+services.AddExcaliburEventSourcing(es =>
 {
-    options.SchemaName = "events";
+    es.UsePostgres(options =>
+    {
+        options.ConnectionString = connectionString;
+        options.RegisterHealthChecks = true;
+    });
 });
 ```
 
@@ -81,8 +105,12 @@ dotnet add package Excalibur.EventSourcing.InMemory
 ```
 
 ```csharp
-// In-memory event store for tests only
-services.AddInMemoryEventStore();
+// Builder-integrated registration
+services.AddExcaliburEventSourcing(es =>
+{
+    es.UseInMemory()
+      .AddRepository<OrderAggregate, Guid>();
+});
 ```
 
 ## Repository Registration

@@ -70,16 +70,25 @@ public static class SerializerIds
 	/// </remarks>
 	public const byte Protobuf = 4;
 
+	/// <summary>
+	/// Avro - Apache Avro (schema-based, streaming/Kafka optimized).
+	/// </summary>
+	/// <remarks>
+	/// Avro provides schema-based serialization optimized for streaming and Kafka scenarios
+	/// with excellent schema evolution support via Confluent Schema Registry.
+	/// </remarks>
+	public const byte Avro = 5;
+
 	// ===== Reserved Range =====
 
 	/// <summary>
 	/// Start of framework-reserved ID range.
 	/// </summary>
 	/// <remarks>
-	/// IDs 5-199 are reserved for future framework-assigned serializers.
+	/// IDs 6-199 are reserved for future framework-assigned serializers.
 	/// Do not use these IDs for custom serializers.
 	/// </remarks>
-	public const byte FrameworkReservedStart = 5;
+	public const byte FrameworkReservedStart = 6;
 
 	/// <summary>
 	/// End of framework-reserved ID range.

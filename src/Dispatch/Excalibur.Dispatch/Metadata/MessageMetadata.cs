@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 
 namespace Excalibur.Dispatch.Metadata;
 
@@ -13,8 +14,15 @@ namespace Excalibur.Dispatch.Metadata;
 /// Default implementation of the unified message metadata interface.
 /// </summary>
 /// <remarks>
+/// <para>
 /// This class provides an immutable, thread-safe implementation of message metadata that consolidates all metadata requirements across the
 /// Excalibur framework. Use the builder pattern via <see cref="ToBuilder" /> or <see cref="MessageMetadataBuilder" /> to create or modify instances.
+/// </para>
+/// <para>
+/// The record retains strongly-typed properties for all metadata fields for backward compatibility
+/// and efficient direct access. When accessed through the <see cref="IMessageMetadata"/> interface,
+/// non-core properties are available via extension methods that read from the <see cref="Properties"/> dictionary.
+/// </para>
 /// </remarks>
 [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)]
 public sealed record MessageMetadata : IMessageMetadata
@@ -49,7 +57,7 @@ public sealed record MessageMetadata : IMessageMetadata
 		Items = EmptyObjectDictionary;
 	}
 
-	// Core Identity Fields
+	// ===== Core Identity Fields (on IMessageMetadata interface) =====
 
 	/// <summary>
 	/// Gets the unique identifier for this message.
@@ -70,12 +78,50 @@ public sealed record MessageMetadata : IMessageMetadata
 	public string? CausationId { get; init; }
 
 	/// <summary>
+	/// Gets the type identifier for the message.
+	/// </summary>
+	/// <value> The current <see cref="MessageType" /> value. </value>
+	public required string MessageType { get; init; }
+
+	/// <summary>
+	/// Gets the MIME type of the message content.
+	/// </summary>
+	/// <value> The current <see cref="ContentType" /> value. </value>
+	public required string ContentType { get; init; }
+
+	/// <summary>
+	/// Gets the source of the message.
+	/// </summary>
+	/// <value> The current <see cref="Source" /> value. </value>
+	public string? Source { get; init; }
+
+	/// <summary>
+	/// Gets the UTC timestamp when the message was created.
+	/// </summary>
+	/// <value> The current <see cref="CreatedTimestampUtc" /> value. </value>
+	public required DateTimeOffset CreatedTimestampUtc { get; init; }
+
+	// ===== Collections (on IMessageMetadata interface) =====
+
+	/// <summary>
+	/// Gets the dictionary of message properties, including moved metadata fields.
+	/// </summary>
+	/// <value> The current <see cref="Properties" /> value. </value>
+	public IReadOnlyDictionary<string, object> Properties { get; init; }
+
+	/// <summary>
+	/// Gets the dictionary of message headers.
+	/// </summary>
+	/// <value> The current <see cref="Headers" /> value. </value>
+	public IReadOnlyDictionary<string, string> Headers { get; init; }
+
+	// ===== Identity/Security (record-only, accessed via MetadataIdentityExtensions on interface) =====
+
+	/// <summary>
 	/// Gets an external system identifier for the message.
 	/// </summary>
 	/// <value> The current <see cref="ExternalId" /> value. </value>
 	public string? ExternalId { get; init; }
-
-	// Tracing and Observability
 
 	/// <summary>
 	/// Gets the W3C trace parent identifier for distributed tracing.
@@ -94,8 +140,6 @@ public sealed record MessageMetadata : IMessageMetadata
 	/// </summary>
 	/// <value> The current <see cref="Baggage" /> value. </value>
 	public string? Baggage { get; init; }
-
-	// User Identity and Security Context
 
 	/// <summary>
 	/// Gets the identifier of the user associated with the message.
@@ -121,19 +165,7 @@ public sealed record MessageMetadata : IMessageMetadata
 	/// <value> The current <see cref="TenantId" /> value. </value>
 	public string? TenantId { get; init; }
 
-	// Message Type and Versioning
-
-	/// <summary>
-	/// Gets the type identifier for the message.
-	/// </summary>
-	/// <value> The current <see cref="MessageType" /> value. </value>
-	public required string MessageType { get; init; }
-
-	/// <summary>
-	/// Gets the MIME type of the message content.
-	/// </summary>
-	/// <value> The current <see cref="ContentType" /> value. </value>
-	public required string ContentType { get; init; }
+	// ===== Versioning (record-only, accessed via MetadataVersioningExtensions on interface) =====
 
 	/// <summary>
 	/// Gets the encoding used for the message content.
@@ -159,13 +191,7 @@ public sealed record MessageMetadata : IMessageMetadata
 	/// <value> The current <see cref="ContractVersion" /> value. </value>
 	public required string ContractVersion { get; init; }
 
-	// Routing and Transport
-
-	/// <summary>
-	/// Gets the source of the message.
-	/// </summary>
-	/// <value> The current <see cref="Source" /> value. </value>
-	public string? Source { get; init; }
+	// ===== Routing (record-only, accessed via MetadataRoutingExtensions on interface) =====
 
 	/// <summary>
 	/// Gets the destination for the message.
@@ -209,13 +235,7 @@ public sealed record MessageMetadata : IMessageMetadata
 	/// <value> The current <see cref="GroupSequence" /> value. </value>
 	public long? GroupSequence { get; init; }
 
-	// Timing and Scheduling
-
-	/// <summary>
-	/// Gets the UTC timestamp when the message was created.
-	/// </summary>
-	/// <value> The current <see cref="CreatedTimestampUtc" /> value. </value>
-	public required DateTimeOffset CreatedTimestampUtc { get; init; }
+	// ===== Temporal (record-only, accessed via MetadataTemporalExtensions on interface) =====
 
 	/// <summary>
 	/// Gets the UTC timestamp when the message was sent.
@@ -247,7 +267,7 @@ public sealed record MessageMetadata : IMessageMetadata
 	/// <value> The current <see cref="ExpiresAtUtc" /> value. </value>
 	public DateTimeOffset? ExpiresAtUtc { get; init; }
 
-	// Delivery and Processing State
+	// ===== Delivery/Transport (record-only, accessed via MetadataTransportExtensions on interface) =====
 
 	/// <summary>
 	/// Gets the number of delivery attempts for the message.
@@ -285,7 +305,31 @@ public sealed record MessageMetadata : IMessageMetadata
 	/// <value> The current <see cref="DeadLetterErrorDescription" /> value. </value>
 	public string? DeadLetterErrorDescription { get; init; }
 
-	// Event Sourcing Specific
+	/// <summary>
+	/// Gets the priority level of the message.
+	/// </summary>
+	/// <value> The current <see cref="Priority" /> value. </value>
+	public int? Priority { get; init; }
+
+	/// <summary>
+	/// Gets a value indicating whether the message is durable and should survive broker restarts.
+	/// </summary>
+	/// <value> The current <see cref="Durable" /> value. </value>
+	public bool? Durable { get; init; }
+
+	/// <summary>
+	/// Gets a value indicating whether the message requires duplicate detection.
+	/// </summary>
+	/// <value> The current <see cref="RequiresDuplicateDetection" /> value. </value>
+	public bool? RequiresDuplicateDetection { get; init; }
+
+	/// <summary>
+	/// Gets the time window for duplicate detection.
+	/// </summary>
+	/// <value> The current <see cref="DuplicateDetectionWindow" /> value. </value>
+	public TimeSpan? DuplicateDetectionWindow { get; init; }
+
+	// ===== Event Sourcing (record-only, accessed via MetadataEventSourcingExtensions on interface) =====
 
 	/// <summary>
 	/// Gets the identifier of the aggregate for event sourcing.
@@ -335,39 +379,7 @@ public sealed record MessageMetadata : IMessageMetadata
 	/// <value> The current <see cref="EventVersion" /> value. </value>
 	public int? EventVersion { get; init; }
 
-	// Priority and Quality of Service
-
-	/// <summary>
-	/// Gets the priority level of the message.
-	/// </summary>
-	/// <value> The current <see cref="Priority" /> value. </value>
-	public int? Priority { get; init; }
-
-	/// <summary>
-	/// Gets a value indicating whether the message is durable and should survive broker restarts.
-	/// </summary>
-	/// <value> The current <see cref="Durable" /> value. </value>
-	public bool? Durable { get; init; }
-
-	/// <summary>
-	/// Gets a value indicating whether the message requires duplicate detection.
-	/// </summary>
-	/// <value> The current <see cref="RequiresDuplicateDetection" /> value. </value>
-	public bool? RequiresDuplicateDetection { get; init; }
-
-	/// <summary>
-	/// Gets the time window for duplicate detection.
-	/// </summary>
-	/// <value> The current <see cref="DuplicateDetectionWindow" /> value. </value>
-	public TimeSpan? DuplicateDetectionWindow { get; init; }
-
-	// Extensible Collections
-
-	/// <summary>
-	/// Gets the dictionary of message headers.
-	/// </summary>
-	/// <value> The current <see cref="Headers" /> value. </value>
-	public IReadOnlyDictionary<string, string> Headers { get; init; }
+	// ===== Removed collections (record-only, accessed via MetadataCollectionExtensions on interface) =====
 
 	/// <summary>
 	/// Gets the dictionary of message attributes.
@@ -376,16 +388,12 @@ public sealed record MessageMetadata : IMessageMetadata
 	public IReadOnlyDictionary<string, object> Attributes { get; init; }
 
 	/// <summary>
-	/// Gets the dictionary of message properties.
-	/// </summary>
-	/// <value> The current <see cref="Properties" /> value. </value>
-	public IReadOnlyDictionary<string, object> Properties { get; init; }
-
-	/// <summary>
 	/// Gets the dictionary of message items.
 	/// </summary>
 	/// <value> The current <see cref="Items" /> value. </value>
 	public IReadOnlyDictionary<string, object> Items { get; init; }
+
+	// ===== Interface methods =====
 
 	/// <inheritdoc />
 	public IMessageMetadataBuilder ToBuilder()
@@ -459,22 +467,36 @@ public sealed record MessageMetadata : IMessageMetadata
 		// Add extensible collections
 		_ = builder.AddHeaders(Headers);
 		_ = builder.AddAttributes(Attributes);
-		_ = builder.AddProperties(Properties);
 		_ = builder.AddItems(Items);
+
+		// Add explicit properties (excluding well-known keys that are already handled via typed fields)
+		var customProperties = Properties.Where(p => !IsWellKnownPropertyKey(p.Key));
+		_ = builder.AddProperties(customProperties);
 
 		return builder;
 	}
 
-	/// <inheritdoc />
+	// ===== Record-only utility methods (not on interface) =====
+
+	/// <summary>
+	/// Creates a deep copy of this metadata instance.
+	/// </summary>
+	/// <returns> A new instance with the same values as this instance. </returns>
 	public IMessageMetadata CloneMetadata() =>
 
 		// Records provide value-based equality and cloning
 		this with { };
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Validates that all required fields are present and valid.
+	/// </summary>
+	/// <returns> True if the metadata is valid; otherwise, false. </returns>
 	public bool Validate() => GetValidationErrors().Count == 0;
 
-	/// <inheritdoc />
+	/// <summary>
+	/// Gets validation errors if the metadata is invalid.
+	/// </summary>
+	/// <returns> A collection of validation error messages, or empty if valid. </returns>
 	public IReadOnlyCollection<string> GetValidationErrors()
 	{
 		var errors = new List<string>();
@@ -608,34 +630,36 @@ public sealed record MessageMetadata : IMessageMetadata
 		var builder = new MessageMetadataBuilder()
 			.WithCorrelationId(legacy.CorrelationId)
 			.WithCausationId(legacy.CausationId)
-			.WithTraceParent(legacy.TraceParent)
-			.WithTenantId(legacy.TenantId)
-			.WithUserId(legacy.UserId)
+			.WithTraceParent(legacy.GetTraceParent())
+			.WithTenantId(legacy.GetTenantId())
+			.WithUserId(legacy.GetUserId())
 			.WithContentType(legacy.ContentType)
-			.WithSerializerVersion(legacy.SerializerVersion)
-			.WithMessageVersion(legacy.MessageVersion)
-			.WithContractVersion(legacy.ContractVersion);
+			.WithSerializerVersion(legacy.GetSerializerVersion())
+			.WithMessageVersion(legacy.GetMessageVersion())
+			.WithContractVersion(legacy.GetContractVersion());
 
 		// If we have a context, pull additional metadata from it
 		if (context != null)
 		{
 			_ = builder
 				.WithMessageId(context.MessageId ?? Guid.NewGuid().ToString())
-				.WithExternalId(context.ExternalId)
-				.WithSource(context.Source)
-				.WithMessageType(context.MessageType ?? "Unknown")
-				.WithDeliveryCount(context.DeliveryCount)
+				.WithExternalId(context.GetExternalId())
+				.WithSource(context.GetSource())
+				.WithMessageType(context.GetMessageType() ?? "Unknown")
+				.WithDeliveryCount(context.GetDeliveryCount())
 				.WithPartitionKey(context.PartitionKey())
 				.WithReplyTo(context.ReplyTo());
 
-			if (context.ReceivedTimestampUtc != default)
+			var receivedTimestamp = context.GetReceivedTimestampUtc();
+			if (receivedTimestamp.HasValue && receivedTimestamp.Value != default)
 			{
-				_ = builder.WithReceivedTimestampUtc(context.ReceivedTimestampUtc);
+				_ = builder.WithReceivedTimestampUtc(receivedTimestamp.Value);
 			}
 
-			if (context.SentTimestampUtc.HasValue)
+			var sentTimestamp = context.GetSentTimestampUtc();
+			if (sentTimestamp.HasValue)
 			{
-				_ = builder.WithSentTimestampUtc(context.SentTimestampUtc.Value);
+				_ = builder.WithSentTimestampUtc(sentTimestamp.Value);
 			}
 
 			// Copy items collection
@@ -654,4 +678,57 @@ public sealed record MessageMetadata : IMessageMetadata
 
 		return (MessageMetadata)builder.Build();
 	}
+
+	/// <summary>
+	/// Checks whether a property key is a well-known key managed by the builder's typed fields.
+	/// </summary>
+	private static bool IsWellKnownPropertyKey(string key)
+		=> key is MetadataPropertyKeys.Source
+			or MetadataPropertyKeys.MessageType
+			or MetadataPropertyKeys.ContentType
+			or MetadataPropertyKeys.CreatedTimestampUtc
+			or MetadataPropertyKeys.ExternalId
+			or MetadataPropertyKeys.TraceParent
+			or MetadataPropertyKeys.TraceState
+			or MetadataPropertyKeys.Baggage
+			or MetadataPropertyKeys.UserId
+			or MetadataPropertyKeys.Roles
+			or MetadataPropertyKeys.Claims
+			or MetadataPropertyKeys.TenantId
+			or MetadataPropertyKeys.ContentEncoding
+			or MetadataPropertyKeys.MessageVersion
+			or MetadataPropertyKeys.SerializerVersion
+			or MetadataPropertyKeys.ContractVersion
+			or MetadataPropertyKeys.Destination
+			or MetadataPropertyKeys.ReplyTo
+			or MetadataPropertyKeys.SessionId
+			or MetadataPropertyKeys.PartitionKey
+			or MetadataPropertyKeys.RoutingKey
+			or MetadataPropertyKeys.GroupId
+			or MetadataPropertyKeys.GroupSequence
+			or MetadataPropertyKeys.SentTimestampUtc
+			or MetadataPropertyKeys.ReceivedTimestampUtc
+			or MetadataPropertyKeys.ScheduledEnqueueTimeUtc
+			or MetadataPropertyKeys.TimeToLive
+			or MetadataPropertyKeys.ExpiresAtUtc
+			or MetadataPropertyKeys.DeliveryCount
+			or MetadataPropertyKeys.MaxDeliveryCount
+			or MetadataPropertyKeys.LastDeliveryError
+			or MetadataPropertyKeys.DeadLetterQueue
+			or MetadataPropertyKeys.DeadLetterReason
+			or MetadataPropertyKeys.DeadLetterErrorDescription
+			or MetadataPropertyKeys.Priority
+			or MetadataPropertyKeys.Durable
+			or MetadataPropertyKeys.RequiresDuplicateDetection
+			or MetadataPropertyKeys.DuplicateDetectionWindow
+			or MetadataPropertyKeys.AggregateId
+			or MetadataPropertyKeys.AggregateType
+			or MetadataPropertyKeys.AggregateVersion
+			or MetadataPropertyKeys.StreamName
+			or MetadataPropertyKeys.StreamPosition
+			or MetadataPropertyKeys.GlobalPosition
+			or MetadataPropertyKeys.EventType
+			or MetadataPropertyKeys.EventVersion
+			or MetadataPropertyKeys.Attributes
+			or MetadataPropertyKeys.Items;
 }

@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Hosting.AwsLambda;
 /// </remarks>
 /// <param name="serviceProvider">The service provider for DI container access.</param>
 /// <param name="logger">The logger instance.</param>
-public partial class AwsLambdaColdStartOptimizer(
+internal partial class AwsLambdaColdStartOptimizer(
 	IServiceProvider serviceProvider,
 	ILogger<AwsLambdaColdStartOptimizer> logger) : ColdStartOptimizerBase(serviceProvider, logger)
 {

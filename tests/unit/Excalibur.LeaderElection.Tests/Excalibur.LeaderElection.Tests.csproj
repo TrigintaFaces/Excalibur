@@ -28,6 +28,8 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.Kubernetes\Excalibur.LeaderElection.Kubernetes.csproj" />
     <!-- From Excalibur.LeaderElection.InMemory.Tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.InMemory\Excalibur.LeaderElection.InMemory.csproj" />
+    <!-- Sprint 637 B.7: MongoDB LE builder extension tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.MongoDB\Excalibur.LeaderElection.MongoDB.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />

@@ -20,11 +20,11 @@ public sealed class AzureEventHubOptionsShould
 		options.FullyQualifiedNamespace.ShouldBeNull();
 		options.EventHubName.ShouldBe(string.Empty);
 		options.ConsumerGroup.ShouldBe("$Default");
-		options.PrefetchCount.ShouldBe(300);
-		options.MaxBatchSize.ShouldBe(100);
+		options.Consumer.PrefetchCount.ShouldBe(300);
+		options.Consumer.MaxBatchSize.ShouldBe(100);
 		options.EnableEncryption.ShouldBeFalse();
 		options.EncryptionProviderName.ShouldBeNull();
-		options.StartingPosition.ShouldBe(EventHubStartingPosition.Latest);
+		options.Consumer.StartingPosition.ShouldBe(EventHubStartingPosition.Latest);
 		options.EnableVerboseLogging.ShouldBeFalse();
 		options.CustomProperties.ShouldBeEmpty();
 	}
@@ -39,23 +39,23 @@ public sealed class AzureEventHubOptionsShould
 			FullyQualifiedNamespace = "test.servicebus.windows.net",
 			EventHubName = "my-hub",
 			ConsumerGroup = "my-group",
-			PrefetchCount = 500,
-			MaxBatchSize = 200,
 			EnableEncryption = true,
 			EncryptionProviderName = "aes-provider",
-			StartingPosition = EventHubStartingPosition.Earliest,
 			EnableVerboseLogging = true,
 		};
+		options.Consumer.PrefetchCount = 500;
+		options.Consumer.MaxBatchSize = 200;
+		options.Consumer.StartingPosition = EventHubStartingPosition.Earliest;
 		options.CustomProperties["env"] = "test";
 
 		// Assert
 		options.ConnectionString.ShouldNotBeNull();
 		options.EventHubName.ShouldBe("my-hub");
 		options.ConsumerGroup.ShouldBe("my-group");
-		options.PrefetchCount.ShouldBe(500);
-		options.MaxBatchSize.ShouldBe(200);
+		options.Consumer.PrefetchCount.ShouldBe(500);
+		options.Consumer.MaxBatchSize.ShouldBe(200);
 		options.EnableEncryption.ShouldBeTrue();
-		options.StartingPosition.ShouldBe(EventHubStartingPosition.Earliest);
+		options.Consumer.StartingPosition.ShouldBe(EventHubStartingPosition.Earliest);
 		options.CustomProperties.Count.ShouldBe(1);
 	}
 
@@ -89,8 +89,8 @@ public sealed class AzureEventHubOptionsShould
 		{
 			ConnectionString = "conn",
 			EventHubName = "hub",
-			PrefetchCount = -1,
 		};
+		options.Consumer.PrefetchCount = -1;
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(() => options.Validate())
@@ -105,8 +105,8 @@ public sealed class AzureEventHubOptionsShould
 		{
 			ConnectionString = "conn",
 			EventHubName = "hub",
-			MaxBatchSize = 0,
 		};
+		options.Consumer.MaxBatchSize = 0;
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(() => options.Validate())

@@ -2,95 +2,16 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics.CodeAnalysis;
-
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Serialization.MemoryPack;
-
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
-/// Extension methods for configuring MemoryPack-based internal serialization.
+/// Extension methods for configuring MemoryPack serialization.
 /// </summary>
 public static class MemoryPackSerializationServiceCollectionExtensions
 {
-	/// <summary>
-	/// Adds the MemoryPack-based internal serializer to the service collection.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <returns>The service collection for chaining.</returns>
-	/// <remarks>
-	/// <para>
-	/// This registers <see cref="MemoryPackInternalSerializer"/> as the implementation
-	/// of <see cref="IInternalSerializer"/> using TryAddSingleton pattern.
-	/// </para>
-	/// <para>
-	/// If a different <see cref="IInternalSerializer"/> is already registered,
-	/// this method will not replace it.
-	/// </para>
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// services.AddMemoryPackInternalSerialization();
-	/// </code>
-	/// </example>
-	public static IServiceCollection AddMemoryPackInternalSerialization(this IServiceCollection services)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		services.TryAddSingleton<IInternalSerializer, MemoryPackInternalSerializer>();
-		return services;
-	}
-
-	/// <summary>
-	/// Adds a custom internal serializer implementation to the service collection.
-	/// </summary>
-	/// <typeparam name="TSerializer">The serializer implementation type.</typeparam>
-	/// <param name="services">The service collection.</param>
-	/// <returns>The service collection for chaining.</returns>
-	/// <remarks>
-	/// This replaces any previously registered <see cref="IInternalSerializer"/>.
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// services.AddInternalSerialization&lt;CustomSerializer&gt;();
-	/// </code>
-	/// </example>
-	public static IServiceCollection AddInternalSerialization<
-		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TSerializer>(this IServiceCollection services)
-		where TSerializer : class, IInternalSerializer
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		_ = services.AddSingleton<IInternalSerializer, TSerializer>();
-		return services;
-	}
-
-	/// <summary>
-	/// Adds a custom internal serializer instance to the service collection.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <param name="serializer">The serializer instance.</param>
-	/// <returns>The service collection for chaining.</returns>
-	/// <remarks>
-	/// This replaces any previously registered <see cref="IInternalSerializer"/>.
-	/// </remarks>
-	/// <example>
-	/// <code>
-	/// var customSerializer = new CustomSerializer(options);
-	/// services.AddInternalSerialization(customSerializer);
-	/// </code>
-	/// </example>
-	public static IServiceCollection AddInternalSerialization(
-		this IServiceCollection services,
-		IInternalSerializer serializer)
-	{
-		ArgumentNullException.ThrowIfNull(services);
-		ArgumentNullException.ThrowIfNull(serializer);
-		_ = services.AddSingleton(serializer);
-		return services;
-	}
-
 	/// <summary>
 	/// Gets the MemoryPack pluggable serializer singleton instance for use with <see cref="ISerializerRegistry"/>.
 	/// </summary>
@@ -128,5 +49,5 @@ public static class MemoryPackSerializationServiceCollectionExtensions
 	/// See the pluggable serialization architecture documentation.
 	/// </para>
 	/// </remarks>
-	public static IPluggableSerializer GetPluggableSerializer() => new MemoryPackPluggableSerializer();
+	public static ISerializer GetPluggableSerializer() => new MemoryPackSerializer();
 }

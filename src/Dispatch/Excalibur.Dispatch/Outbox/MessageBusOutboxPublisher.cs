@@ -5,6 +5,7 @@ using System.Globalization;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Messaging;
@@ -28,6 +29,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	private readonly IOutboxStore _outboxStore;
 	private readonly IOutboxStoreAdmin? _outboxStoreAdmin;
 	private readonly IMultiTransportOutboxStore? _multiTransportStore;
+	private readonly IMultiTransportOutboxStoreAdmin? _multiTransportStoreAdmin;
 	private readonly IPayloadSerializer _serializer;
 	private readonly IMessageBusAdapter? _messageBus;
 	private readonly TransportRegistry? _transportRegistry;
@@ -58,6 +60,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		_outboxStore = outboxStore ?? throw new ArgumentNullException(nameof(outboxStore));
 		_outboxStoreAdmin = outboxStore as IOutboxStoreAdmin;
 		_multiTransportStore = outboxStore as IMultiTransportOutboxStore;
+		_multiTransportStoreAdmin = outboxStore as IMultiTransportOutboxStoreAdmin;
 		_serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
 		_messageBus = messageBus ?? throw new ArgumentNullException(nameof(messageBus));
 		_serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
@@ -82,6 +85,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		_outboxStore = outboxStore ?? throw new ArgumentNullException(nameof(outboxStore));
 		_outboxStoreAdmin = outboxStore as IOutboxStoreAdmin;
 		_multiTransportStore = outboxStore as IMultiTransportOutboxStore;
+		_multiTransportStoreAdmin = outboxStore as IMultiTransportOutboxStoreAdmin;
 		_serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
 		_transportRegistry = transportRegistry ?? throw new ArgumentNullException(nameof(transportRegistry));
 		_serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
@@ -244,7 +248,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 	{
 		ArgumentException.ThrowIfNullOrWhiteSpace(transportName);
 
-		if (_multiTransportStore is null)
+		if (_multiTransportStoreAdmin is null)
 		{
 			throw new InvalidOperationException(
 				Resources.MessageBusOutboxPublisher_PerTransportRequiresStore);
@@ -267,7 +271,7 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		_totalOperations++;
 		_lastOperationAt = DateTimeOffset.UtcNow;
 
-		var deliveries = await _multiTransportStore.GetPendingTransportDeliveriesAsync(transportName, batchSize, cancellationToken)
+		var deliveries = await _multiTransportStoreAdmin.GetPendingTransportDeliveriesAsync(transportName, batchSize, cancellationToken)
 			.ConfigureAwait(false);
 
 		var tasks = deliveries switch
@@ -526,8 +530,12 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		{
 			MessageId = message.Id,
 			CorrelationId = message.CorrelationId,
-			PartitionKey = message.PartitionKey
 		};
+
+		if (message.PartitionKey is not null)
+		{
+			context.GetOrCreateRoutingFeature().PartitionKey = message.PartitionKey;
+		}
 
 		_ = await _messageBus.PublishAsync(wrappedMessage, context, cancellationToken).ConfigureAwait(false);
 		await _outboxStore.MarkSentAsync(message.Id, cancellationToken).ConfigureAwait(false);
@@ -605,7 +613,10 @@ public sealed partial class MessageBusOutboxPublisher : IOutboxPublisher
 		}
 
 		// Update aggregate message status
-		await _multiTransportStore.UpdateAggregateStatusAsync(message.Id, cancellationToken).ConfigureAwait(false);
+		if (_multiTransportStoreAdmin is not null)
+		{
+			await _multiTransportStoreAdmin.UpdateAggregateStatusAsync(message.Id, cancellationToken).ConfigureAwait(false);
+		}
 
 		if (failureCount == 0)
 		{

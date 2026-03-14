@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Decorators;
 /// The transport implementation reads <see cref="TransportTelemetryConstants.PropertyKeys.DeduplicationId"/>
 /// and maps it to the native deduplication concept (AWS MessageDeduplicationId, Azure dedup, etc.).
 /// </summary>
-public sealed class DeduplicationTransportSender : DelegatingTransportSender
+internal sealed class DeduplicationTransportSender : DelegatingTransportSender
 {
 	private readonly Func<TransportMessage, string?> _idSelector;
 

@@ -90,7 +90,7 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Assert
-		options.ValidateIssuer.ShouldBeTrue();
+		options.Validation.ValidateIssuer.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -100,7 +100,7 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Assert
-		options.ValidateAudience.ShouldBeTrue();
+		options.Validation.ValidateAudience.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -110,7 +110,7 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Assert
-		options.ValidateLifetime.ShouldBeTrue();
+		options.Validation.ValidateLifetime.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -120,7 +120,7 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Assert
-		options.ValidateSigningKey.ShouldBeTrue();
+		options.Validation.ValidateSigningKey.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -130,7 +130,7 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Assert
-		options.RequireExpirationTime.ShouldBeTrue();
+		options.Validation.RequireExpirationTime.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -140,7 +140,7 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Assert
-		options.RequireSignedTokens.ShouldBeTrue();
+		options.Validation.RequireSignedTokens.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -150,7 +150,7 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Assert
-		options.ValidIssuer.ShouldBeNull();
+		options.Credentials.ValidIssuer.ShouldBeNull();
 	}
 
 	[Fact]
@@ -160,7 +160,7 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Assert
-		options.ValidIssuers.ShouldBeNull();
+		options.Credentials.ValidIssuers.ShouldBeNull();
 	}
 
 	[Fact]
@@ -170,7 +170,7 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Assert
-		options.ValidAudience.ShouldBeNull();
+		options.Credentials.ValidAudience.ShouldBeNull();
 	}
 
 	[Fact]
@@ -180,7 +180,7 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Assert
-		options.ValidAudiences.ShouldBeNull();
+		options.Credentials.ValidAudiences.ShouldBeNull();
 	}
 
 	[Fact]
@@ -190,7 +190,7 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Assert
-		options.SigningKey.ShouldBeNull();
+		options.Credentials.SigningKey.ShouldBeNull();
 	}
 
 	[Fact]
@@ -200,7 +200,7 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Assert
-		options.RsaPublicKey.ShouldBeNull();
+		options.Credentials.RsaPublicKey.ShouldBeNull();
 	}
 
 	[Fact]
@@ -220,7 +220,7 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Assert
-		options.UseAsyncKeyRetrieval.ShouldBeFalse();
+		options.Credentials.UseAsyncKeyRetrieval.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -324,10 +324,10 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Act
-		options.ValidateIssuer = false;
+		options.Validation.ValidateIssuer = false;
 
 		// Assert
-		options.ValidateIssuer.ShouldBeFalse();
+		options.Validation.ValidateIssuer.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -337,10 +337,10 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Act
-		options.ValidateAudience = false;
+		options.Validation.ValidateAudience = false;
 
 		// Assert
-		options.ValidateAudience.ShouldBeFalse();
+		options.Validation.ValidateAudience.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -350,10 +350,10 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Act
-		options.ValidateLifetime = false;
+		options.Validation.ValidateLifetime = false;
 
 		// Assert
-		options.ValidateLifetime.ShouldBeFalse();
+		options.Validation.ValidateLifetime.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -363,10 +363,10 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Act
-		options.ValidateSigningKey = false;
+		options.Validation.ValidateSigningKey = false;
 
 		// Assert
-		options.ValidateSigningKey.ShouldBeFalse();
+		options.Validation.ValidateSigningKey.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -376,10 +376,10 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Act
-		options.RequireExpirationTime = false;
+		options.Validation.RequireExpirationTime = false;
 
 		// Assert
-		options.RequireExpirationTime.ShouldBeFalse();
+		options.Validation.RequireExpirationTime.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -389,10 +389,10 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Act
-		options.RequireSignedTokens = false;
+		options.Validation.RequireSignedTokens = false;
 
 		// Assert
-		options.RequireSignedTokens.ShouldBeFalse();
+		options.Validation.RequireSignedTokens.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -402,10 +402,10 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Act
-		options.ValidIssuer = "https://auth.example.com";
+		options.Credentials.ValidIssuer = "https://auth.example.com";
 
 		// Assert
-		options.ValidIssuer.ShouldBe("https://auth.example.com");
+		options.Credentials.ValidIssuer.ShouldBe("https://auth.example.com");
 	}
 
 	[Fact]
@@ -415,12 +415,12 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Act
-		options.ValidIssuers = ["https://auth1.example.com", "https://auth2.example.com"];
+		options.Credentials.ValidIssuers = ["https://auth1.example.com", "https://auth2.example.com"];
 
 		// Assert
-		options.ValidIssuers.ShouldNotBeNull();
-		options.ValidIssuers.Length.ShouldBe(2);
-		options.ValidIssuers.ShouldContain("https://auth1.example.com");
+		options.Credentials.ValidIssuers.ShouldNotBeNull();
+		options.Credentials.ValidIssuers.Length.ShouldBe(2);
+		options.Credentials.ValidIssuers.ShouldContain("https://auth1.example.com");
 	}
 
 	[Fact]
@@ -430,10 +430,10 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Act
-		options.ValidAudience = "api://my-app";
+		options.Credentials.ValidAudience = "api://my-app";
 
 		// Assert
-		options.ValidAudience.ShouldBe("api://my-app");
+		options.Credentials.ValidAudience.ShouldBe("api://my-app");
 	}
 
 	[Fact]
@@ -443,11 +443,11 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Act
-		options.ValidAudiences = ["api://app1", "api://app2", "api://app3"];
+		options.Credentials.ValidAudiences = ["api://app1", "api://app2", "api://app3"];
 
 		// Assert
-		options.ValidAudiences.ShouldNotBeNull();
-		options.ValidAudiences.Length.ShouldBe(3);
+		options.Credentials.ValidAudiences.ShouldNotBeNull();
+		options.Credentials.ValidAudiences.Length.ShouldBe(3);
 	}
 
 	[Fact]
@@ -457,10 +457,10 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Act
-		options.SigningKey = "super-secret-signing-key-for-symmetric-algorithm";
+		options.Credentials.SigningKey = "super-secret-signing-key-for-symmetric-algorithm";
 
 		// Assert
-		options.SigningKey.ShouldBe("super-secret-signing-key-for-symmetric-algorithm");
+		options.Credentials.SigningKey.ShouldBe("super-secret-signing-key-for-symmetric-algorithm");
 	}
 
 	[Fact]
@@ -470,10 +470,10 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Act
-		options.RsaPublicKey = "-----BEGIN PUBLIC KEY-----...-----END PUBLIC KEY-----";
+		options.Credentials.RsaPublicKey = "-----BEGIN PUBLIC KEY-----...-----END PUBLIC KEY-----";
 
 		// Assert
-		options.RsaPublicKey.ShouldBe("-----BEGIN PUBLIC KEY-----...-----END PUBLIC KEY-----");
+		options.Credentials.RsaPublicKey.ShouldBe("-----BEGIN PUBLIC KEY-----...-----END PUBLIC KEY-----");
 	}
 
 	[Fact]
@@ -496,10 +496,10 @@ public sealed class JwtAuthenticationOptionsShould
 		var options = new JwtAuthenticationOptions();
 
 		// Act
-		options.UseAsyncKeyRetrieval = true;
+		options.Credentials.UseAsyncKeyRetrieval = true;
 
 		// Assert
-		options.UseAsyncKeyRetrieval.ShouldBeTrue();
+		options.Credentials.UseAsyncKeyRetrieval.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -514,20 +514,26 @@ public sealed class JwtAuthenticationOptionsShould
 			TokenHeaderName = "X-Custom-Auth",
 			TokenPropertyName = "CustomProp",
 			EnablePropertyExtraction = true,
-			ValidateIssuer = true,
-			ValidateAudience = true,
-			ValidateLifetime = true,
-			ValidateSigningKey = true,
-			RequireExpirationTime = true,
-			RequireSignedTokens = true,
-			ValidIssuer = "https://issuer.example.com",
-			ValidIssuers = ["https://issuer1.example.com"],
-			ValidAudience = "api://audience",
-			ValidAudiences = ["api://aud1", "api://aud2"],
-			SigningKey = "my-secret-key",
-			RsaPublicKey = "-----BEGIN PUBLIC KEY-----...",
+			Validation = new JwtTokenValidationOptions
+			{
+				ValidateIssuer = true,
+				ValidateAudience = true,
+				ValidateLifetime = true,
+				ValidateSigningKey = true,
+				RequireExpirationTime = true,
+				RequireSignedTokens = true,
+			},
+			Credentials = new JwtTokenCredentialOptions
+			{
+				ValidIssuer = "https://issuer.example.com",
+				ValidIssuers = ["https://issuer1.example.com"],
+				ValidAudience = "api://audience",
+				ValidAudiences = ["api://aud1", "api://aud2"],
+				SigningKey = "my-secret-key",
+				RsaPublicKey = "-----BEGIN PUBLIC KEY-----...",
+				UseAsyncKeyRetrieval = true,
+			},
 			ClockSkewSeconds = 120,
-			UseAsyncKeyRetrieval = true,
 		};
 
 		// Assert
@@ -537,20 +543,20 @@ public sealed class JwtAuthenticationOptionsShould
 		options.TokenHeaderName.ShouldBe("X-Custom-Auth");
 		options.TokenPropertyName.ShouldBe("CustomProp");
 		options.EnablePropertyExtraction.ShouldBeTrue();
-		options.ValidateIssuer.ShouldBeTrue();
-		options.ValidateAudience.ShouldBeTrue();
-		options.ValidateLifetime.ShouldBeTrue();
-		options.ValidateSigningKey.ShouldBeTrue();
-		options.RequireExpirationTime.ShouldBeTrue();
-		options.RequireSignedTokens.ShouldBeTrue();
-		options.ValidIssuer.ShouldBe("https://issuer.example.com");
-		options.ValidIssuers.ShouldNotBeNull();
-		options.ValidAudience.ShouldBe("api://audience");
-		options.ValidAudiences.ShouldNotBeNull();
-		options.SigningKey.ShouldBe("my-secret-key");
-		options.RsaPublicKey.ShouldBe("-----BEGIN PUBLIC KEY-----...");
+		options.Validation.ValidateIssuer.ShouldBeTrue();
+		options.Validation.ValidateAudience.ShouldBeTrue();
+		options.Validation.ValidateLifetime.ShouldBeTrue();
+		options.Validation.ValidateSigningKey.ShouldBeTrue();
+		options.Validation.RequireExpirationTime.ShouldBeTrue();
+		options.Validation.RequireSignedTokens.ShouldBeTrue();
+		options.Credentials.ValidIssuer.ShouldBe("https://issuer.example.com");
+		options.Credentials.ValidIssuers.ShouldNotBeNull();
+		options.Credentials.ValidAudience.ShouldBe("api://audience");
+		options.Credentials.ValidAudiences.ShouldNotBeNull();
+		options.Credentials.SigningKey.ShouldBe("my-secret-key");
+		options.Credentials.RsaPublicKey.ShouldBe("-----BEGIN PUBLIC KEY-----...");
 		options.ClockSkewSeconds.ShouldBe(120);
-		options.UseAsyncKeyRetrieval.ShouldBeTrue();
+		options.Credentials.UseAsyncKeyRetrieval.ShouldBeTrue();
 	}
 
 	[Fact]

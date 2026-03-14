@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Channels;
 /// <remarks> Initializes a new instance of the <see cref="PooledChannelReader" /> class. </remarks>
 /// <param name="innerReader"> The underlying channel reader. </param>
 /// <param name="messagePool"> The message pool to use for pooling. </param>
-public sealed class PooledChannelReader(
+internal sealed class PooledChannelReader(
 	ChannelReader<MessageEnvelope> innerReader,
 	ObjectPool<IDispatchMessage> messagePool) : ChannelReader<MessageEnvelope>
 {

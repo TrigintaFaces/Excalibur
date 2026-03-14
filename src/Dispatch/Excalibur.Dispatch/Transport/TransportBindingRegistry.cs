@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Transport;
 /// <summary>
 /// Registry for managing transport bindings.
 /// </summary>
-public sealed class TransportBindingRegistry : IDisposable
+internal sealed class TransportBindingRegistry : IDisposable
 {
 	private readonly ConcurrentDictionary<string, ITransportBinding> _bindings = new(StringComparer.Ordinal);
 	private readonly List<ITransportBinding> _orderedBindings = [];

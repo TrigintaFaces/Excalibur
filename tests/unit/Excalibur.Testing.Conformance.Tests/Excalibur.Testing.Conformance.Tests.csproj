@@ -34,6 +34,8 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Domain\Excalibur.Domain.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.InMemory\Excalibur.Outbox.InMemory.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.InMemory\Excalibur.Inbox.InMemory.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.InMemory\Excalibur.LeaderElection.InMemory.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga\Excalibur.Saga.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />

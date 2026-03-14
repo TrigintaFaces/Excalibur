@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed class KafkaOtelMetrics : IDisposable
+internal sealed class KafkaOtelMetrics : IDisposable
 {
 	/// <summary>
 	/// The meter name for Kafka transport metrics.

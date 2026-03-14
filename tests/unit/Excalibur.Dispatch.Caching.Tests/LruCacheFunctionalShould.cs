@@ -216,7 +216,9 @@ public sealed class LruCacheFunctionalShould
 		// This item uses the default (60s) TTL
 		cache.Set("long-lived", 2);
 
-		WaitForAtLeast(TimeSpan.FromMilliseconds(100));
+		SpinWait.SpinUntil(
+			() => !cache.TryGetValue("short-lived", out _),
+			TimeSpan.FromSeconds(5)).ShouldBeTrue();
 
 		cache.TryGetValue("short-lived", out _).ShouldBeFalse();
 		cache.TryGetValue("long-lived", out _).ShouldBeTrue();

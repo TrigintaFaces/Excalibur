@@ -13,7 +13,6 @@ Domain events represent facts that have happened in your domain. They are immuta
 - **.NET 8.0+** (or .NET 9/10 for latest features)
 - Install the required packages:
   ```bash
-  dotnet add package Excalibur.Domain
   dotnet add package Excalibur.Dispatch.Abstractions
   ```
 - Familiarity with [event sourcing concepts](./index.md) and [domain modeling](../domain-modeling/index.md)
@@ -22,14 +21,14 @@ Domain events represent facts that have happened in your domain. They are immuta
 
 ### Using the Base Record
 
-The `DomainEventBase` abstract record provides auto-generated defaults for `EventId`, `Version`, `OccurredAt`, `EventType`, and `Metadata`. Override `AggregateId` in derived records:
+The `DomainEvent` abstract record provides auto-generated defaults for `EventId` (UUID v7), `Version`, `OccurredAt`, `EventType`, and `Metadata`. Override `AggregateId` in derived records:
 
 ```csharp
 public sealed record OrderCreated(
     Guid OrderId,
     string CustomerId,
     decimal TotalAmount,
-    IReadOnlyList<OrderLineItem> Items) : DomainEventBase
+    IReadOnlyList<OrderLineItem> Items) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
@@ -60,7 +59,7 @@ public sealed record OrderShipped(
     string Carrier,
     Address ShippingAddress,
     DateTime EstimatedDelivery,
-    IReadOnlyList<ShippedItem> Items) : DomainEventBase
+    IReadOnlyList<ShippedItem> Items) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
@@ -68,7 +67,7 @@ public sealed record OrderShipped(
 // Bad - lacks context
 public sealed record OrderShipped(
     Guid OrderId,
-    string TrackingNumber) : DomainEventBase
+    string TrackingNumber) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
@@ -109,7 +108,7 @@ Add cross-cutting concerns without polluting event data:
 
 ```csharp
 // When raising events, add metadata using fluent API
-var @event = new OrderCreated(aggregateId, version, orderId, customerId, amount, items)
+var @event = new OrderCreated(orderId, customerId, amount, items)
     .WithMetadata("UserId", currentUserId)
     .WithMetadata("TenantId", tenantId)
     .WithCorrelationId(correlationId)
@@ -156,13 +155,13 @@ var paymentReceived = new PaymentReceived(...)
 
 ```csharp
 // Domain Event - internal to bounded context
-// Contains rich domain data, extends DomainEventBase
+// Contains rich domain data, extends DomainEvent
 public sealed record OrderCreated(
     Guid OrderId,
     string CustomerId,
     decimal TotalAmount,
     IReadOnlyList<OrderLineItem> Items,
-    DiscountApplied? Discount = null) : DomainEventBase
+    DiscountApplied? Discount = null) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
@@ -228,7 +227,7 @@ public class OrderCreatedPublisher : IEventHandler<OrderCreated>
 Events should be valid at construction:
 
 ```csharp
-public sealed record OrderCreated : DomainEventBase
+public sealed record OrderCreated : DomainEvent
 {
     public Guid OrderId { get; }
     public string CustomerId { get; }
@@ -257,7 +256,7 @@ public sealed record OrderCreated : DomainEventBase
 Combine init-only properties with the required base constructor:
 
 ```csharp
-public sealed record OrderCreated : DomainEventBase
+public sealed record OrderCreated : DomainEvent
 {
     public required Guid OrderId { get; init; }
     public required string CustomerId { get; init; }
@@ -299,7 +298,7 @@ services.AddJsonSerialization();
 The default `EventType` returns the class name (e.g., `"OrderCreated"`). To customize the type name for serialization, hide the base property with `new`:
 
 ```csharp
-public sealed record OrderCreated(Guid OrderId, string CustomerId) : DomainEventBase
+public sealed record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 

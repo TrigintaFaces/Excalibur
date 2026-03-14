@@ -8,10 +8,12 @@ using Excalibur.Dispatch.Serialization.MessagePack;
 
 using MessagePack;
 
+using MpkSerializer = Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializer;
+
 namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 
 /// <summary>
-/// Additional edge-case and coverage tests for <see cref="MessagePackPluggableSerializer"/>.
+/// Additional edge-case and coverage tests for <see cref="MpkSerializer"/>.
 /// Targets: SerializeObject/DeserializeObject additional branches, error wrapping details,
 /// ReadOnlySpan overloads, and Version property edge cases.
 /// </summary>
@@ -26,7 +28,7 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 	{
 		// Arrange
 		var opts = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4Block);
-		var serializer = new MessagePackPluggableSerializer(opts);
+		var serializer = new MpkSerializer(opts);
 
 		// Assert
 		serializer.Name.ShouldBe("MessagePack");
@@ -37,7 +39,7 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 	{
 		// Arrange
 		var opts = MessagePackSerializerOptions.Standard;
-		var serializer = new MessagePackPluggableSerializer(opts);
+		var serializer = new MpkSerializer(opts);
 
 		// Assert
 		serializer.Version.ShouldNotBeNullOrWhiteSpace();
@@ -47,7 +49,7 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 	public void Version_ReturnsAssemblyVersion()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var expectedVersion = typeof(MessagePackSerializerOptions).Assembly
 			.GetName().Version?.ToString() ?? "Unknown";
 
@@ -63,11 +65,11 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 	public void Serialize_WithDefaultConstructor_RoundTrips()
 	{
 		// Arrange - uses the parameterless constructor which chains to null
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var message = new TestPluggableMessage { Value = 1, Text = "Default" };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestPluggableMessage>(bytes);
 
 		// Assert
@@ -79,12 +81,12 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 	public void Serialize_WithLargePayload_RoundTrips()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var largeText = new string('Q', 50_000);
 		var message = new TestPluggableMessage { Value = 42, Text = largeText };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestPluggableMessage>(bytes);
 
 		// Assert
@@ -96,11 +98,11 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 	public void Serialize_WithEmptyText_RoundTrips()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var message = new TestPluggableMessage { Value = 0, Text = string.Empty };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestPluggableMessage>(bytes);
 
 		// Assert
@@ -112,11 +114,11 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 	public void Serialize_WithNegativeValue_RoundTrips()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var message = new TestPluggableMessage { Value = -999, Text = "Negative" };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestPluggableMessage>(bytes);
 
 		// Assert
@@ -127,11 +129,11 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 	public void Serialize_WithUnicodeText_RoundTrips()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var message = new TestPluggableMessage { Value = 7, Text = "\u00e9\u4e2d\u6587\U0001f600" };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestPluggableMessage>(bytes);
 
 		// Assert
@@ -146,7 +148,7 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 	public void SerializeObject_WithZeroValue_RoundTrips()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var message = new TestPluggableMessage { Value = 0, Text = "Zero" };
 
 		// Act
@@ -162,7 +164,7 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 	public void SerializeObject_WithNegativeValue_RoundTrips()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var message = new TestPluggableMessage { Value = -500, Text = "NegObj" };
 
 		// Act
@@ -177,7 +179,7 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 	public void SerializeObject_WithLargePayload_RoundTrips()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var largeText = new string('W', 30_000);
 		var message = new TestPluggableMessage { Value = 88, Text = largeText };
 
@@ -195,7 +197,7 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 	{
 		// Arrange
 		var opts = MessagePackSerializerOptions.Standard.WithCompression(MessagePackCompression.Lz4Block);
-		var serializer = new MessagePackPluggableSerializer(opts);
+		var serializer = new MpkSerializer(opts);
 		var message = new TestPluggableMessage { Value = 33, Text = "CustomOpts" };
 
 		// Act
@@ -217,7 +219,7 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 	public void DeserializeObject_WhenNullResult_ExceptionMessageContainsTypeName()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var nilData = new byte[] { 0xC0 };
 
 		// Act
@@ -238,7 +240,7 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 	public void SerializeObject_WithBadType_ExceptionContainsTypeInfo()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var badObj = new NonSerializableClass { Data = "bad" };
 
 		// Act
@@ -256,7 +258,7 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 	public void DeserializeObject_WithCorruptData_ExceptionContainsTypeInfo()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var corrupt = new byte[] { 0xFF, 0xAA, 0xBB, 0xCC };
 
 		// Act
@@ -279,12 +281,12 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 	{
 		// Arrange - nil data causes NullResult SerializationException via the ?? throw,
 		// which is then caught by the first catch (SerializationException) and rethrown.
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var nilData = new byte[] { 0xC0 };
 
 		// Act
 		var ex = Should.Throw<SerializationException>(() =>
-			serializer.Deserialize<TestPluggableMessage>(nilData));
+			serializer.Deserialize<TestPluggableMessage>(nilData.AsSpan()));
 
 		// Assert - the exception should be a SerializationException (not double-wrapped)
 		ex.ShouldBeOfType<SerializationException>();
@@ -307,7 +309,7 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 	{
 		// Arrange - nil data causes NullResultForType SerializationException,
 		// which hits the catch(SerializationException) { throw; } branch.
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var nilData = new byte[] { 0xC0 };
 
 		// Act
@@ -324,24 +326,24 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 	#region Interface Conformance
 
 	[Fact]
-	public void ImplementsIPluggableSerializer()
+	public void ImplementsISerializer()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 
 		// Assert
-		serializer.ShouldBeAssignableTo<IPluggableSerializer>();
+		serializer.ShouldBeAssignableTo<ISerializer>();
 	}
 
 	[Fact]
 	public void Serialize_ReturnsNonEmptyBytes()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 		var message = new TestPluggableMessage { Value = 5, Text = "ByteCheck" };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 
 		// Assert
 		bytes.ShouldNotBeNull();
@@ -356,13 +358,13 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 	public void SerializeAndDeserialize_MultipleCalls_AreIdempotent()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 
 		// Act & Assert
 		for (var i = 0; i < 10; i++)
 		{
 			var msg = new TestPluggableMessage { Value = i * 10, Text = $"Iter{i}" };
-			var bytes = serializer.Serialize(msg);
+			var bytes = serializer.SerializeToBytes(msg);
 			var result = serializer.Deserialize<TestPluggableMessage>(bytes);
 			result.Value.ShouldBe(i * 10);
 			result.Text.ShouldBe($"Iter{i}");
@@ -373,7 +375,7 @@ public sealed class MessagePackPluggableSerializerEdgeCasesShould : UnitTestBase
 	public void SerializeObjectAndDeserializeObject_MultipleCalls_AreIdempotent()
 	{
 		// Arrange
-		var serializer = new MessagePackPluggableSerializer();
+		var serializer = new MpkSerializer();
 
 		// Act & Assert
 		for (var i = 0; i < 10; i++)

@@ -57,23 +57,25 @@ public sealed class AdaptationStateShould
 	}
 
 	[Theory]
-	[InlineData(AdaptationState.Stable)]
-	[InlineData(AdaptationState.Adapting)]
-	[InlineData(AdaptationState.Monitoring)]
-	public void BeDefinedForAllValues(AdaptationState state)
+	[InlineData(0)]
+	[InlineData(1)]
+	[InlineData(2)]
+	public void BeDefinedForAllValues(int stateValue)
 	{
 		// Assert
+		var state = (AdaptationState)stateValue;
 		Enum.IsDefined(state).ShouldBeTrue();
 	}
 
 	[Theory]
-	[InlineData(0, AdaptationState.Stable)]
-	[InlineData(1, AdaptationState.Adapting)]
-	[InlineData(2, AdaptationState.Monitoring)]
-	public void CastFromInt_ReturnsCorrectValue(int value, AdaptationState expected)
+	[InlineData(0, 0)]
+	[InlineData(1, 1)]
+	[InlineData(2, 2)]
+	public void CastFromInt_ReturnsCorrectValue(int value, int expectedValue)
 	{
 		// Act
 		var state = (AdaptationState)value;
+		var expected = (AdaptationState)expectedValue;
 
 		// Assert
 		state.ShouldBe(expected);

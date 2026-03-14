@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// <summary>
 /// Represents routing information.
 /// </summary>
-public sealed record RoutingInfo(
+internal sealed record RoutingInfo(
 	string Exchange,
 	string RoutingKey,
 	bool Mandatory,

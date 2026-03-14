@@ -16,13 +16,15 @@ namespace Excalibur.Dispatch.Patterns.ClaimCheck;
 /// <remarks> Initializes a new instance of the <see cref="ClaimCheckMessageSerializer" /> class. </remarks>
 /// <param name="claimCheckProvider"> The claim check provider for storing large payloads. </param>
 /// <param name="baseSerializer">
-/// The base serializer for normal serialization. Must not be null; use the IJsonSerializer overload for JSON scenarios.
+/// The base serializer for normal serialization.
 /// </param>
 /// <param name="options"> The claim check options. If null, uses default options. </param>
+[RequiresUnreferencedCode("Claim check serialization may require types that cannot be statically analyzed.")]
+[RequiresDynamicCode("Claim check serialization may require runtime code generation.")]
 public sealed class ClaimCheckMessageSerializer(
 	IClaimCheckProvider claimCheckProvider,
-	IBinaryMessageSerializer baseSerializer,
-	ClaimCheckOptions? options = null) : IBinaryMessageSerializer
+	ISerializer baseSerializer,
+	ClaimCheckOptions? options = null) : ISerializer
 {
 	/// <summary>
 	/// Magic byte prefix for claim check envelope data: ASCII "CC01" (0x43, 0x43, 0x30, 0x31).
@@ -33,7 +35,7 @@ public sealed class ClaimCheckMessageSerializer(
 	private readonly IClaimCheckProvider _claimCheckProvider =
 		claimCheckProvider ?? throw new ArgumentNullException(nameof(claimCheckProvider));
 
-	private readonly IBinaryMessageSerializer _baseSerializer =
+	private readonly ISerializer _baseSerializer =
 		baseSerializer ?? throw new ArgumentNullException(nameof(baseSerializer));
 
 	private readonly ClaimCheckOptions _options = options ?? new ClaimCheckOptions();
@@ -52,27 +54,21 @@ public sealed class ClaimCheckMessageSerializer(
 	}
 
 	/// <inheritdoc />
-	public string SerializerName => $"ClaimCheck-{_baseSerializer.SerializerName}";
+	public string Name => $"ClaimCheck-{_baseSerializer.Name}";
 
 	/// <inheritdoc />
-	public string SerializerVersion => "1.0.0";
+	public string Version => "1.0.0";
 
 	/// <inheritdoc />
 	public string ContentType => _baseSerializer.ContentType;
 
 	/// <inheritdoc />
-	public bool SupportsCompression => _baseSerializer.SupportsCompression;
-
-	/// <inheritdoc />
-	public string Format => $"ClaimCheck({_baseSerializer.Format})";
-
-	/// <inheritdoc />
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	public byte[] Serialize<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T message)
+	public void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
 	{
-		ArgumentNullException.ThrowIfNull(message);
+		ArgumentNullException.ThrowIfNull(value);
+		ArgumentNullException.ThrowIfNull(bufferWriter);
 
-		var payload = _baseSerializer.Serialize(message);
+		var payload = _baseSerializer.SerializeToBytes(value);
 
 		if (payload.Length > _options.PayloadThreshold)
 		{
@@ -81,16 +77,17 @@ public sealed class ClaimCheckMessageSerializer(
 				"Use SerializeAsync to enable the claim check pattern for large messages.");
 		}
 
-		return payload;
+		var span = bufferWriter.GetSpan(payload.Length);
+		payload.CopyTo(span);
+		bufferWriter.Advance(payload.Length);
 	}
 
 	/// <inheritdoc />
-	public T Deserialize<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(byte[] data)
+	public T Deserialize<T>(ReadOnlySpan<byte> data)
 	{
-		ArgumentNullException.ThrowIfNull(data);
-
 		// Check for claim check magic prefix to detect envelope format without exceptions
-		if (IsClaimCheckEnvelope(data))
+		if (data.Length >= ClaimCheckMagicPrefix.Length &&
+			data.Slice(0, ClaimCheckMagicPrefix.Length).SequenceEqual(ClaimCheckMagicPrefix))
 		{
 			throw new NotSupportedException(
 				"Data contains a claim check envelope reference. Use DeserializeAsync to retrieve the payload from external storage.");
@@ -99,23 +96,32 @@ public sealed class ClaimCheckMessageSerializer(
 		return _baseSerializer.Deserialize<T>(data);
 	}
 
+	/// <inheritdoc />
+	public byte[] SerializeObject(object value, Type type)
+	{
+		ArgumentNullException.ThrowIfNull(value);
+		ArgumentNullException.ThrowIfNull(type);
+		return _baseSerializer.SerializeObject(value, type);
+	}
+
+	/// <inheritdoc />
+	public object DeserializeObject(ReadOnlySpan<byte> data, Type type)
+	{
+		ArgumentNullException.ThrowIfNull(type);
+		return _baseSerializer.DeserializeObject(data, type);
+	}
+
 	/// <summary>
 	/// Serializes a message to bytes asynchronously, using claim check for large payloads.
 	/// </summary>
-	/// <remarks>
-	/// This instance method shadows the extension method to enable the claim check pattern for large payloads.
-	/// Small messages are serialized directly. Large messages (exceeding <see cref="ClaimCheckOptions.PayloadThreshold"/>)
-	/// are stored in the claim check provider and replaced with a compact envelope.
-	/// </remarks>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	public async ValueTask<byte[]> SerializeAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
+	public async ValueTask<byte[]> SerializeAsync<T>(
 		T message,
 		CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(message);
 		cancellationToken.ThrowIfCancellationRequested();
 
-		var payload = _baseSerializer.Serialize(message);
+		var payload = _baseSerializer.SerializeToBytes(message);
 
 		if (payload.Length <= _options.PayloadThreshold)
 		{
@@ -130,11 +136,11 @@ public sealed class ClaimCheckMessageSerializer(
 
 		var reference = await _claimCheckProvider.StoreAsync(payload, cancellationToken, metadata).ConfigureAwait(false);
 
-		var envelopeBytes = _baseSerializer.Serialize(new ClaimCheckEnvelope
+		var envelopeBytes = _baseSerializer.SerializeToBytes(new ClaimCheckEnvelope
 		{
 			Reference = reference,
 			MessageType = typeof(T).Name,
-			SerializerName = _baseSerializer.SerializerName,
+			SerializerName = _baseSerializer.Name,
 			OriginalSize = payload.Length,
 		});
 
@@ -145,13 +151,7 @@ public sealed class ClaimCheckMessageSerializer(
 	/// <summary>
 	/// Deserializes bytes to a message asynchronously, resolving claim check references.
 	/// </summary>
-	/// <remarks>
-	/// This instance method shadows the extension method to enable resolving claim check references
-	/// from external storage. If the data represents a claim check envelope, the original payload is
-	/// retrieved from the provider before deserialization.
-	/// </remarks>
-	[RequiresUnreferencedCode("JSON serialization and deserialization might require types that cannot be statically analyzed.")]
-	public async ValueTask<T> DeserializeAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(
+	public async ValueTask<T> DeserializeAsync<T>(
 		byte[] data,
 		CancellationToken cancellationToken)
 	{
@@ -170,12 +170,6 @@ public sealed class ClaimCheckMessageSerializer(
 		var storedPayload = await _claimCheckProvider.RetrieveAsync(envelope.Reference, cancellationToken).ConfigureAwait(false);
 		return _baseSerializer.Deserialize<T>(storedPayload);
 	}
-
-	/// <inheritdoc />
-	public void Serialize<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(T message, IBufferWriter<byte> bufferWriter) => _baseSerializer.Serialize(message, bufferWriter);
-
-	/// <inheritdoc />
-	public T Deserialize<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(ReadOnlySpan<byte> data) => _baseSerializer.Deserialize<T>(data);
 
 	/// <summary>
 	/// Checks whether the data starts with the claim check magic prefix.

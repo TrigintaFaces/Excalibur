@@ -1,1 +1,81 @@
 #nullable enable
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ConnectionTestFailed = 107002 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ConnectionTestSuccessful = 107001 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.DisposeError = 107004 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.Disposing = 107003 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.DocumentRetryWarning = 107201 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ExecutingRequest = 107100 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ExecutingRequestInTransaction = 107102 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ExecutionFailed = 107101 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxCleanedUp = 107405 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxEntryCreated = 107400 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxEntryFailed = 107404 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxEntryProcessed = 107401 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxTryMarkProcessedDuplicate = 107403 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.InboxTryMarkProcessedSuccess = 107402 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.Initializing = 107000 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.MetadataRetrievalFailed = 107005 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.OutboxCleanedUp = 107304 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.OutboxMessageEnqueued = 107301 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.OutboxMessageFailed = 107303 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.OutboxMessageSent = 107302 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.OutboxMessageStaged = 107300 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.PoolStatsFailed = 107006 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.ProviderRetryWarning = 107202 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.RetryWarning = 107200 -> int
+const Excalibur.Data.Redis.Diagnostics.DataRedisEventId.TransactionExecutionFailed = 107103 -> int
+Excalibur.Data.Redis.Diagnostics.DataRedisEventId
+Excalibur.Data.Redis.RedisConnectionPoolOptions
+Excalibur.Data.Redis.RedisConnectionPoolOptions.AbortOnConnectFail.get -> bool
+Excalibur.Data.Redis.RedisConnectionPoolOptions.AbortOnConnectFail.set -> void
+Excalibur.Data.Redis.RedisConnectionPoolOptions.AsyncTimeout.get -> int
+Excalibur.Data.Redis.RedisConnectionPoolOptions.AsyncTimeout.set -> void
+Excalibur.Data.Redis.RedisConnectionPoolOptions.ConnectRetry.get -> int
+Excalibur.Data.Redis.RedisConnectionPoolOptions.ConnectRetry.set -> void
+Excalibur.Data.Redis.RedisConnectionPoolOptions.ConnectTimeout.get -> int
+Excalibur.Data.Redis.RedisConnectionPoolOptions.ConnectTimeout.set -> void
+Excalibur.Data.Redis.RedisConnectionPoolOptions.RedisConnectionPoolOptions() -> void
+Excalibur.Data.Redis.RedisConnectionPoolOptions.RetryCount.get -> int
+Excalibur.Data.Redis.RedisConnectionPoolOptions.RetryCount.set -> void
+Excalibur.Data.Redis.RedisConnectionPoolOptions.SyncTimeout.get -> int
+Excalibur.Data.Redis.RedisConnectionPoolOptions.SyncTimeout.set -> void
+Excalibur.Data.Redis.RedisPersistenceProvider
+Excalibur.Data.Redis.RedisPersistenceProvider.ConnectionString.get -> string!
+Excalibur.Data.Redis.RedisPersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Abstractions.Persistence.ITransactionScope!
+Excalibur.Data.Redis.RedisPersistenceProvider.Dispose() -> void
+Excalibur.Data.Redis.RedisPersistenceProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.Redis.RedisPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.Redis.RedisPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, Excalibur.Data.Abstractions.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.Redis.RedisPersistenceProvider.GetConnectionPoolStatsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>?>!
+Excalibur.Data.Redis.RedisPersistenceProvider.GetDatabase(int? databaseId = null) -> StackExchange.Redis.IDatabase!
+Excalibur.Data.Redis.RedisPersistenceProvider.GetMetricsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
+Excalibur.Data.Redis.RedisPersistenceProvider.GetServer(System.Net.EndPoint? endPoint = null) -> StackExchange.Redis.IServer!
+Excalibur.Data.Redis.RedisPersistenceProvider.GetService(System.Type! serviceType) -> object?
+Excalibur.Data.Redis.RedisPersistenceProvider.GetSubscriber() -> StackExchange.Redis.ISubscriber!
+Excalibur.Data.Redis.RedisPersistenceProvider.InitializeAsync(Excalibur.Data.Abstractions.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.Redis.RedisPersistenceProvider.IsAvailable.get -> bool
+Excalibur.Data.Redis.RedisPersistenceProvider.Name.get -> string!
+Excalibur.Data.Redis.RedisPersistenceProvider.ProviderType.get -> string!
+Excalibur.Data.Redis.RedisPersistenceProvider.RedisPersistenceProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Data.Redis.RedisProviderOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.Redis.RedisPersistenceProvider!>! logger) -> void
+Excalibur.Data.Redis.RedisPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Abstractions.Resilience.IDataRequestRetryPolicy!
+Excalibur.Data.Redis.RedisPersistenceProvider.TestConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.Redis.RedisProviderOptions
+Excalibur.Data.Redis.RedisProviderOptions.AllowAdmin.get -> bool
+Excalibur.Data.Redis.RedisProviderOptions.AllowAdmin.set -> void
+Excalibur.Data.Redis.RedisProviderOptions.ConnectionString.get -> string!
+Excalibur.Data.Redis.RedisProviderOptions.ConnectionString.set -> void
+Excalibur.Data.Redis.RedisProviderOptions.DatabaseId.get -> int
+Excalibur.Data.Redis.RedisProviderOptions.DatabaseId.set -> void
+Excalibur.Data.Redis.RedisProviderOptions.IsReadOnly.get -> bool
+Excalibur.Data.Redis.RedisProviderOptions.IsReadOnly.set -> void
+Excalibur.Data.Redis.RedisProviderOptions.Name.get -> string?
+Excalibur.Data.Redis.RedisProviderOptions.Name.set -> void
+Excalibur.Data.Redis.RedisProviderOptions.Password.get -> string?
+Excalibur.Data.Redis.RedisProviderOptions.Password.set -> void
+Excalibur.Data.Redis.RedisProviderOptions.Pool.get -> Excalibur.Data.Redis.RedisConnectionPoolOptions!
+Excalibur.Data.Redis.RedisProviderOptions.Pool.set -> void
+Excalibur.Data.Redis.RedisProviderOptions.RedisProviderOptions() -> void
+Excalibur.Data.Redis.RedisProviderOptions.UseSsl.get -> bool
+Excalibur.Data.Redis.RedisProviderOptions.UseSsl.set -> void
+Microsoft.Extensions.DependencyInjection.RedisProviderServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.RedisProviderServiceCollectionExtensions.AddRedisProvider(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Redis.RedisProviderOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

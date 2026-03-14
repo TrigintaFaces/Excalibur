@@ -152,33 +152,7 @@ internal sealed class PoolableMessageContext(IServiceProvider serviceProvider)
 	/// </summary>
 	public new void Reset()
 	{
-		Message = null;
-		Result = null;
-		CorrelationId = null;
-		CausationId = null;
-		TenantId = null;
-		SessionId = null;
-		WorkflowId = null;
-		PartitionKey = null;
-		ExternalId = null;
-		UserId = null;
-		Source = null;
-		MessageType = null;
-		ContentType = null;
-		TraceParent = null;
-		DeliveryCount = 0;
-		ProcessingAttempts = 0;
-		IsRetry = false;
-		ValidationPassed = false;
-		ValidationTimestamp = null;
-		Transaction = null;
-		TransactionId = null;
-		TimeoutExceeded = false;
-		TimeoutElapsed = null;
-		RateLimitExceeded = false;
-		RateLimitRetryAfter = null;
-		FirstAttemptTime = null;
-		RoutingDecision = null;
-		Items.Clear();
+		// base.Reset() clears Items, Features, lazy IDs, Message, Result, Metadata, and defaults
+		base.Reset();
 	}
 }

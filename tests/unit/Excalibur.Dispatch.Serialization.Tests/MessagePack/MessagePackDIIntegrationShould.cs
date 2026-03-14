@@ -6,13 +6,15 @@ using Excalibur.Dispatch.Serialization.MessagePack;
 
 using MessagePack;
 
-using Microsoft.Extensions.DependencyInjection.Extensions;
+using MpkSerializer = Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializer;
 
 namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 
 /// <summary>
 /// Integration tests for MessagePack DI registration and resolution.
 /// Tests the complete dependency injection pipeline.
+/// Updated for consolidated serializer: AddMessagePackSerialization now registers
+/// ISerializer (not the old IMessageSerializer which has been deleted).
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Serialization")]
@@ -29,16 +31,16 @@ public sealed class MessagePackDIIntegrationShould : UnitTestBase
 		var provider = services.BuildServiceProvider();
 
 		// Act
-		var messageSerializer = provider.GetRequiredService<IMessageSerializer>();
-		var zeroCopySerializer = provider.GetRequiredService<IZeroCopySerializer>();
+		var serializer = provider.GetRequiredService<ISerializer>();
+		var pluggable = provider.GetRequiredService<ISerializer>();
 
 		// Assert - serializers should be functional
 		var msg = new TestMessage { Id = 1, Name = "DI" };
-		var bytes = messageSerializer.Serialize(msg);
-		var result = messageSerializer.Deserialize<TestMessage>(bytes);
+		var bytes = serializer.SerializeToBytes(msg);
+		var result = serializer.Deserialize<TestMessage>(bytes);
 		result.Id.ShouldBe(1);
 
-		zeroCopySerializer.ShouldNotBeNull();
+		pluggable.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -60,34 +62,20 @@ public sealed class MessagePackDIIntegrationShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AddMessagePackSerialization_Generic_WithMessagePackMessageSerializer()
+	public void AddMessagePackSerialization_ResolvesConsolidatedSerializer()
 	{
-		// Arrange - use MessagePackMessageSerializer which requires IOptions
+		// Arrange
 		var services = new ServiceCollection();
-
-		// First add options
-		services.Configure<MessagePackSerializationOptions>(opts =>
-		{
-			opts.UseLz4Compression = true;
-		});
-
-		// Then add with generic - but note MessagePackMessageSerializer needs IOptions<>
-		services.AddSingleton<IMessageSerializer>(sp =>
-		{
-			var opts = sp.GetRequiredService<IOptions<MessagePackSerializationOptions>>();
-			return new MessagePackMessageSerializer(opts);
-		});
-		services.TryAddSingleton<IZeroCopySerializer, MessagePackZeroCopySerializer>();
-
+		services.AddMessagePackSerialization();
 		var provider = services.BuildServiceProvider();
 
 		// Act
-		var serializer = provider.GetRequiredService<IMessageSerializer>();
+		var serializer = provider.GetRequiredService<ISerializer>();
 
 		// Assert
-		serializer.ShouldBeOfType<MessagePackMessageSerializer>();
-		var msg = new TestMessage { Id = 99, Name = "Generic" };
-		var bytes = serializer.Serialize(msg);
+		serializer.ShouldBeOfType<MpkSerializer>();
+		var msg = new TestMessage { Id = 99, Name = "Consolidated" };
+		var bytes = serializer.SerializeToBytes(msg);
 		var result = serializer.Deserialize<TestMessage>(bytes);
 		result.Id.ShouldBe(99);
 	}
@@ -97,7 +85,7 @@ public sealed class MessagePackDIIntegrationShould : UnitTestBase
 	#region Singleton Behavior Tests
 
 	[Fact]
-	public void AddMessagePackSerialization_ReturnsSameInstanceForMultipleResolves()
+	public void AddMessagePackSerialization_ISerializerIsSingleton()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -105,27 +93,11 @@ public sealed class MessagePackDIIntegrationShould : UnitTestBase
 		var provider = services.BuildServiceProvider();
 
 		// Act
-		var serializer1 = provider.GetRequiredService<IMessageSerializer>();
-		var serializer2 = provider.GetRequiredService<IMessageSerializer>();
+		var serializer1 = provider.GetRequiredService<ISerializer>();
+		var serializer2 = provider.GetRequiredService<ISerializer>();
 
 		// Assert - should be same singleton instance
 		ReferenceEquals(serializer1, serializer2).ShouldBeTrue();
-	}
-
-	[Fact]
-	public void AddMessagePackSerialization_ZeroCopyIsSingleton()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		services.AddMessagePackSerialization();
-		var provider = services.BuildServiceProvider();
-
-		// Act
-		var zeroCopy1 = provider.GetRequiredService<IZeroCopySerializer>();
-		var zeroCopy2 = provider.GetRequiredService<IZeroCopySerializer>();
-
-		// Assert
-		ReferenceEquals(zeroCopy1, zeroCopy2).ShouldBeTrue();
 	}
 
 	#endregion
@@ -249,12 +221,12 @@ public sealed class MessagePackDIIntegrationShould : UnitTestBase
 
 		// Act - create scope and resolve
 		using var scope = provider.CreateScope();
-		var serializer = scope.ServiceProvider.GetRequiredService<IMessageSerializer>();
+		var serializer = scope.ServiceProvider.GetRequiredService<ISerializer>();
 
 		// Assert
 		serializer.ShouldNotBeNull();
 		var msg = new TestMessage { Id = 5, Name = "Scoped" };
-		var bytes = serializer.Serialize(msg);
+		var bytes = serializer.SerializeToBytes(msg);
 		var result = serializer.Deserialize<TestMessage>(bytes);
 		result.Id.ShouldBe(5);
 	}
@@ -268,14 +240,14 @@ public sealed class MessagePackDIIntegrationShould : UnitTestBase
 		var provider = services.BuildServiceProvider();
 
 		// Act
-		IMessageSerializer serializer1, serializer2;
+		ISerializer serializer1, serializer2;
 		using (var scope1 = provider.CreateScope())
 		{
-			serializer1 = scope1.ServiceProvider.GetRequiredService<IMessageSerializer>();
+			serializer1 = scope1.ServiceProvider.GetRequiredService<ISerializer>();
 		}
 		using (var scope2 = provider.CreateScope())
 		{
-			serializer2 = scope2.ServiceProvider.GetRequiredService<IMessageSerializer>();
+			serializer2 = scope2.ServiceProvider.GetRequiredService<ISerializer>();
 		}
 
 		// Assert - singleton so same instance

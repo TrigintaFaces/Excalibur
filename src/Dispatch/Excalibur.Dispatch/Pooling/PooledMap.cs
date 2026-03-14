@@ -28,7 +28,7 @@ namespace Excalibur.Dispatch.Pooling;
 /// </remarks>
 /// <typeparam name="TKey">The type of keys in the dictionary.</typeparam>
 /// <typeparam name="TValue">The type of values in the dictionary.</typeparam>
-public readonly struct PooledMap<TKey, TValue> : IDisposable, IEquatable<PooledMap<TKey, TValue>>
+internal readonly struct PooledMap<TKey, TValue> : IDisposable, IEquatable<PooledMap<TKey, TValue>>
 	where TKey : notnull
 {
 	private readonly DictionaryPool<TKey, TValue> _pool;

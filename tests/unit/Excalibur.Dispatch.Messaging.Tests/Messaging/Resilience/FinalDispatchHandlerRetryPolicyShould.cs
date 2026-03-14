@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Delivery.Handlers;
@@ -48,7 +49,7 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 	private FakeMessageContext CreateContext(string busName = "Local")
 	{
 		var context = new FakeMessageContext();
-		context.RoutingDecision = RoutingDecision.Success(busName, [busName]);
+		context.GetOrCreateRoutingFeature().RoutingDecision = RoutingDecision.Success(busName, [busName]);
 		return context;
 	}
 
@@ -147,7 +148,7 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 			new RetryPolicyOptions
 			{
 				MaxRetryAttempts = 3,
-				BaseDelay = TimeSpan.FromMilliseconds(10),
+				Backoff = { BaseDelay = TimeSpan.FromMilliseconds(10) },
 			});
 		var handler = CreateHandler(retryPolicy);
 		var action = A.Fake<IDispatchAction>();
@@ -184,7 +185,7 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 			new RetryPolicyOptions
 			{
 				MaxRetryAttempts = 3,
-				BaseDelay = TimeSpan.FromMilliseconds(5),
+				Backoff = { BaseDelay = TimeSpan.FromMilliseconds(5) },
 			});
 		var handler = CreateHandler(retryPolicy);
 		var action = A.Fake<IDispatchAction>();
@@ -222,7 +223,7 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 			new RetryPolicyOptions
 			{
 				MaxRetryAttempts = 2,
-				BaseDelay = TimeSpan.FromMilliseconds(5),
+				Backoff = { BaseDelay = TimeSpan.FromMilliseconds(5) },
 			});
 		var handler = CreateHandler(retryPolicy);
 		var integrationEvent = A.Fake<IIntegrationEvent>();
@@ -263,7 +264,7 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 			new RetryPolicyOptions
 			{
 				MaxRetryAttempts = 2,
-				BaseDelay = TimeSpan.FromMilliseconds(5),
+				Backoff = { BaseDelay = TimeSpan.FromMilliseconds(5) },
 			});
 		var handler = CreateHandler(retryPolicy);
 		var document = A.Fake<IDispatchDocument>();
@@ -329,7 +330,7 @@ public sealed class FinalDispatchHandlerRetryPolicyShould
 			new RetryPolicyOptions
 			{
 				MaxRetryAttempts = 5,
-				BaseDelay = TimeSpan.FromSeconds(10), // Long delay
+				Backoff = { BaseDelay = TimeSpan.FromSeconds(10) }, // Long delay
 			});
 		var handler = CreateHandler(retryPolicy);
 		var action = A.Fake<IDispatchAction>();

@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
-using System.Diagnostics.CodeAnalysis;
-
 using Excalibur.Dispatch.Abstractions.Serialization;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -35,41 +33,9 @@ public static class MessagePackSerializationExtensions
 			_ = services.Configure(configure);
 		}
 
-		// Register the fastest MessagePack serializer implementations
-		// Zero-copy serializer for pipeline-based serialization
-		services.TryAddSingleton<IZeroCopySerializer, MessagePackZeroCopySerializer>();
-
-		// Standard MessagePack serializer for IMessageSerializer consumers
-		services.TryAddSingleton<IMessageSerializer, DispatchMessagePackSerializer>();
-
-		return services;
-	}
-
-	/// <summary>
-	/// Adds MessagePack serialization support with a specific serializer implementation.
-	/// </summary>
-	/// <typeparam name="TSerializer">The MessagePack serializer implementation type.</typeparam>
-	/// <param name="services">The service collection.</param>
-	/// <param name="configure">Optional configuration delegate.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddMessagePackSerialization<
-			[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TSerializer>(
-	this IServiceCollection services,
-	Action<MessagePackSerializationOptions>? configure = null)
-	where TSerializer : class, IMessageSerializer
-	{
-		ArgumentNullException.ThrowIfNull(services);
-
-		if (configure != null)
-		{
-			_ = services.Configure(configure);
-		}
-
-		// Register zero-copy serializer if available
-		services.TryAddSingleton<IZeroCopySerializer, MessagePackZeroCopySerializer>();
-
-		// Register the specified IMessageSerializer implementation
-		services.TryAddSingleton<IMessageSerializer, TSerializer>();
+		// Register the consolidated MessagePack serializer
+		services.TryAddSingleton<MessagePackSerializer>();
+		services.TryAddSingleton<ISerializer>(sp => sp.GetRequiredService<MessagePackSerializer>());
 
 		return services;
 	}
@@ -105,17 +71,56 @@ public static class MessagePackSerializationExtensions
 	/// See the pluggable serialization architecture documentation.
 	/// </para>
 	/// </remarks>
-	public static IPluggableSerializer GetPluggableSerializer() => new MessagePackPluggableSerializer();
+	public static ISerializer GetPluggableSerializer() => new MessagePackSerializer();
 
 	/// <summary>
 	/// Gets the MessagePack pluggable serializer with custom options for use with <see cref="ISerializerRegistry"/>.
 	/// </summary>
 	/// <param name="options">Custom MessagePack serializer options.</param>
 	/// <returns>The MessagePack pluggable serializer instance with custom options.</returns>
-	public static IPluggableSerializer GetPluggableSerializer(global::MessagePack.MessagePackSerializerOptions options)
+	public static ISerializer GetPluggableSerializer(global::MessagePack.MessagePackSerializerOptions options)
 	{
 		ArgumentNullException.ThrowIfNull(options);
-		return new MessagePackPluggableSerializer(options);
+		return new MessagePackSerializer(options);
+	}
+
+	/// <summary>
+	/// Registers the MessagePack serializer with the serialization builder (framework-assigned ID: 3).
+	/// </summary>
+	/// <param name="builder">The serialization builder.</param>
+	/// <returns>The builder for method chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// This extension enables the builder pattern:
+	/// </para>
+	/// <code>
+	/// services.AddDispatch()
+	///     .ConfigureSerialization(config =>
+	///     {
+	///         config.RegisterMessagePack();
+	///         config.UseMessagePack();
+	///     });
+	/// </code>
+	/// </remarks>
+	public static ISerializationBuilder RegisterMessagePack(this ISerializationBuilder builder)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		return builder.Register(new MessagePackSerializer(), SerializerIds.MessagePack);
+	}
+
+	/// <summary>
+	/// Registers the MessagePack serializer with custom options (framework-assigned ID: 3).
+	/// </summary>
+	/// <param name="builder">The serialization builder.</param>
+	/// <param name="options">Custom MessagePack serializer options.</param>
+	/// <returns>The builder for method chaining.</returns>
+	public static ISerializationBuilder RegisterMessagePack(
+		this ISerializationBuilder builder,
+		global::MessagePack.MessagePackSerializerOptions options)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(options);
+		return builder.Register(new MessagePackSerializer(options), SerializerIds.MessagePack);
 	}
 
 	/// <summary>
@@ -161,7 +166,7 @@ public static class MessagePackSerializationExtensions
 			.AddPluggableSerializer(
 				services,
 				SerializerIds.MessagePack,
-				new MessagePackPluggableSerializer(),
+				new MessagePackSerializer(),
 				setAsCurrent);
 	}
 
@@ -187,7 +192,7 @@ public static class MessagePackSerializationExtensions
 			.AddPluggableSerializer(
 				services,
 				SerializerIds.MessagePack,
-				new MessagePackPluggableSerializer(options),
+				new MessagePackSerializer(options),
 				setAsCurrent);
 	}
 }

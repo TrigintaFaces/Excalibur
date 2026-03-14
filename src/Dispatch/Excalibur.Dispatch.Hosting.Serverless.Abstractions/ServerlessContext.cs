@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Hosting.Serverless;
 /// <summary>
 /// Serverless context implementation for scenarios where we need to construct from an envelope.
 /// </summary>
-public sealed class ServerlessContext : ServerlessContextBase
+internal sealed class ServerlessContext : ServerlessContextBase
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="ServerlessContext" /> class.

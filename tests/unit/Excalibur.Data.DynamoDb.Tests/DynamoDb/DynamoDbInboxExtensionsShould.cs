@@ -3,7 +3,7 @@
 
 using Amazon.DynamoDBv2;
 
-using Excalibur.Data.DynamoDb.Inbox;
+using Excalibur.Inbox.DynamoDb;
 using Excalibur.Dispatch.Abstractions;
 
 using FakeItEasy;
@@ -57,7 +57,7 @@ public sealed class DynamoDbInboxExtensionsShould
 		// Act
 		var result = services.AddDynamoDbInboxStore(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 			options.TableName = "inbox";
 		});
 
@@ -74,7 +74,7 @@ public sealed class DynamoDbInboxExtensionsShould
 		// Act
 		services.AddDynamoDbInboxStore(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 			options.TableName = "inbox";
 		});
 
@@ -91,7 +91,7 @@ public sealed class DynamoDbInboxExtensionsShould
 		// Act
 		services.AddDynamoDbInboxStore(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 			options.TableName = "inbox";
 		});
 

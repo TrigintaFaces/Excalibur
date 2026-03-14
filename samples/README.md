@@ -2,15 +2,46 @@
 
 This directory contains working samples demonstrating the Dispatch and Excalibur frameworks.
 
+## Which Sample Should I Start With?
+
+```
+What are you building?
+├── Console app / hello world     → HelloDispatch
+├── Web API                       → WebApiQuickStart
+├── MediatR replacement           → DispatchOnly
+├── Event sourcing                → EventSourcingIntro
+├── Transport messaging
+│   ├── RabbitMQ                  → 02-messaging-transports/RabbitMQ
+│   ├── Kafka                     → 02-messaging-transports/Kafka
+│   ├── Azure Service Bus         → 02-messaging-transports/AzureServiceBus
+│   ├── AWS SQS                   → 02-messaging-transports/AwsSqs
+│   └── Multiple brokers          → 02-messaging-transports/MultiBusSample
+├── Serverless
+│   ├── Azure Functions           → 05-serverless/AzureFunctions
+│   ├── AWS Lambda                → 05-serverless/AwsLambda
+│   └── Google Cloud Functions    → 05-serverless/GoogleCloudFunctions
+├── Reliability patterns
+│   ├── Outbox                    → 04-reliability/OutboxPattern
+│   ├── Retry + circuit breaker   → 04-reliability/RetryAndCircuitBreaker
+│   └── Saga orchestration        → 04-reliability/SagaOrchestration
+├── Security
+│   ├── Message encryption        → 06-security/MessageEncryption
+│   └── Audit logging             → 06-security/AuditLogging
+├── Observability
+│   ├── OpenTelemetry             → 07-observability/OpenTelemetry
+│   └── Health checks             → 07-observability/HealthChecks
+└── Production reference          → 10-real-world/EnterpriseOrderProcessing
+```
+
 ## Getting Started
 
 **New to Dispatch?** Start with these foundational samples:
 
 | Sample | Description |
 |--------|-------------|
-| [GettingStarted](01-getting-started/GettingStarted/) | ASP.NET Core API with commands, queries, and events |
-| [DispatchMinimal](01-getting-started/DispatchMinimal/) | Console app showing pure Dispatch messaging patterns |
-| [ExcaliburCqrs](01-getting-started/ExcaliburCqrs/) | Full CQRS with aggregate roots and event sourcing |
+| [WebApiQuickStart](01-getting-started/WebApiQuickStart/) | ASP.NET Core API with commands, queries, and events |
+| [DispatchOnly](01-getting-started/DispatchOnly/) | Console app showing pure Dispatch messaging patterns |
+| [EventSourcingIntro](01-getting-started/EventSourcingIntro/) | Full CQRS with aggregate roots and event sourcing |
 
 ## Sample Categories
 
@@ -22,11 +53,11 @@ Foundational samples for learning Dispatch and Excalibur basics.
 
 | Sample | Description |
 |--------|-------------|
-| [GettingStarted](01-getting-started/GettingStarted/) | ASP.NET Core API demonstrating commands, queries, events, and `[AutoRegister]` |
-| [DispatchMinimal](01-getting-started/DispatchMinimal/) | Lightweight Dispatch-only console app with custom middleware |
-| [ExcaliburCqrs](01-getting-started/ExcaliburCqrs/) | CQRS pattern with Excalibur domain modeling |
-| [MinimalSample](01-getting-started/MinimalSample/) | Simplest possible Dispatch setup |
-| [QuickDemo](01-getting-started/QuickDemo/) | Rapid demonstration of core concepts |
+| [WebApiQuickStart](01-getting-started/WebApiQuickStart/) | ASP.NET Core API demonstrating commands, queries, events, and `[AutoRegister]` |
+| [DispatchOnly](01-getting-started/DispatchOnly/) | Lightweight Dispatch-only console app with custom middleware |
+| [EventSourcingIntro](01-getting-started/EventSourcingIntro/) | CQRS pattern with Excalibur domain modeling |
+| [HelloDispatch](01-getting-started/HelloDispatch/) | Simplest possible Dispatch setup |
+| [InteractiveDemo](01-getting-started/InteractiveDemo/) | Interactive walkthrough of core concepts |
 
 ### [02-messaging-transports/](02-messaging-transports/)
 
@@ -144,7 +175,6 @@ Advanced patterns including distributed coordination, validation, projections, s
 | [CdcEventStoreElasticsearch](09-advanced/CdcEventStoreElasticsearch/) | CDC with Elasticsearch event store |
 | [JobWorkerSample](09-advanced/JobWorkerSample/) | Job worker pattern with multiple job types |
 | [MinimalJobSample](09-advanced/MinimalJobSample/) | Minimal job worker setup |
-| [WebWorkerSample](09-advanced/WebWorkerSample/WebHost/) | Worker APIs with hosted processing |
 | [SessionManagement](09-advanced/SessionManagement/) | Session management and state tracking |
 | [Versioning.Examples](09-advanced/Versioning.Examples/) | Event versioning and upcasting patterns |
 
@@ -190,10 +220,10 @@ All samples build with `dotnet build` and run with `dotnet run`:
 
 ```bash
 # Build a specific sample
-dotnet build samples/01-getting-started/GettingStarted
+dotnet build samples/01-getting-started/WebApiQuickStart
 
 # Run a specific sample
-dotnet run --project samples/01-getting-started/GettingStarted
+dotnet run --project samples/01-getting-started/WebApiQuickStart
 ```
 
 ### Prerequisites

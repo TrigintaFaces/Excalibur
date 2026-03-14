@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using Excalibur.Dispatch.Abstractions;
 
 using Excalibur.Saga.Abstractions;
+using Excalibur.Saga.Idempotency;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -24,6 +25,7 @@ public sealed partial class AdvancedSagaMiddleware : IDispatchMiddleware
 {
 	private readonly ISagaOrchestrator _orchestrator;
 	private readonly ISagaStateStore _stateStore;
+	private readonly ISagaIdempotencyProvider? _idempotencyProvider;
 	private readonly AdvancedSagaOptions _options;
 	private readonly ILogger<AdvancedSagaMiddleware> _logger;
 
@@ -34,16 +36,19 @@ public sealed partial class AdvancedSagaMiddleware : IDispatchMiddleware
 	/// <param name="stateStore">The saga state store.</param>
 	/// <param name="options">The saga options.</param>
 	/// <param name="logger">The logger.</param>
+	/// <param name="idempotencyProvider">Optional idempotency provider for compensation deduplication.</param>
 	public AdvancedSagaMiddleware(
 		ISagaOrchestrator orchestrator,
 		ISagaStateStore stateStore,
 		IOptions<AdvancedSagaOptions> options,
-		ILogger<AdvancedSagaMiddleware> logger)
+		ILogger<AdvancedSagaMiddleware> logger,
+		ISagaIdempotencyProvider? idempotencyProvider = null)
 	{
 		_orchestrator = orchestrator ?? throw new ArgumentNullException(nameof(orchestrator));
 		_stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
+		_idempotencyProvider = idempotencyProvider;
 	}
 
 	/// <inheritdoc/>
@@ -188,6 +193,12 @@ public sealed partial class AdvancedSagaMiddleware : IDispatchMiddleware
 		ILogger logger,
 		string sagaId);
 
+	[LoggerMessage(LogLevel.Information,
+		"Saga {SagaId} compensation already processed -- skipping duplicate")]
+	private static partial void LogSagaCompensationAlreadyProcessed(
+		ILogger logger,
+		string sagaId);
+
 	[LoggerMessage(LogLevel.Error, "Failed to compensate saga {SagaId}")]
 	private static partial void LogSagaCompensationFailed(
 		ILogger logger,
@@ -217,11 +228,29 @@ public sealed partial class AdvancedSagaMiddleware : IDispatchMiddleware
 			return;
 		}
 
+		// Check idempotency -- skip if this compensation was already processed
+		var compensationKey = $"{sagaId}:compensate";
+		if (_idempotencyProvider != null)
+		{
+			var alreadyProcessed = await _idempotencyProvider.IsProcessedAsync(sagaId, compensationKey, cancellationToken).ConfigureAwait(false);
+			if (alreadyProcessed)
+			{
+				LogSagaCompensationAlreadyProcessed(_logger, sagaId);
+				return;
+			}
+		}
+
 		LogSagaCompensationStarting(_logger, sagaId);
 
 		try
 		{
 			await _orchestrator.CancelSagaAsync(sagaId, "Automatic compensation due to failure", cancellationToken).ConfigureAwait(false);
+
+			// Mark compensation as processed after success
+			if (_idempotencyProvider != null)
+			{
+				await _idempotencyProvider.MarkProcessedAsync(sagaId, compensationKey, cancellationToken).ConfigureAwait(false);
+			}
 		}
 		catch (Exception ex)
 		{

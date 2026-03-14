@@ -10,14 +10,21 @@ namespace Excalibur.Dispatch.Compliance.Tests.KeyRotation;
 public sealed class KeyRotationServiceShould : IDisposable
 {
 	private readonly IKeyManagementProvider _keyProvider = A.Fake<IKeyManagementProvider>();
+	private readonly IKeyManagementAdmin _keyAdmin = A.Fake<IKeyManagementAdmin>();
 	private readonly KeyRotationOptions _options = new()
 	{
 		Enabled = true,
 		CheckInterval = TimeSpan.FromMinutes(1),
 		MaxConcurrentRotations = 2,
 		ContinueOnError = true,
-		RetryDelay = TimeSpan.FromSeconds(1),
-		RotationTimeout = TimeSpan.FromMinutes(1)
+		Retry = new KeyRotationRetryOptions
+		{
+			RetryDelay = TimeSpan.FromSeconds(1),
+		},
+		Lock = new KeyRotationLockOptions
+		{
+			RotationTimeout = TimeSpan.FromMinutes(1),
+		},
 	};
 
 	private readonly NullLogger<KeyRotationService> _logger = NullLogger<KeyRotationService>.Instance;
@@ -26,7 +33,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 	public async Task Check_and_rotate_keys_that_are_due()
 	{
 		var key = CreateKeyMetadata("key-1", createdDaysAgo: 100);
-		A.CallTo(() => _keyProvider.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
+		A.CallTo(() => _keyAdmin.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
 			.Returns(new List<KeyMetadata> { key });
 		A.CallTo(() => _keyProvider.RotateKeyAsync("key-1", A<EncryptionAlgorithm>._, A<string?>._, A<DateTimeOffset?>._, A<CancellationToken>._))
 			.Returns(KeyRotationResult.Succeeded(CreateKeyMetadata("key-1", version: 2, createdDaysAgo: 0)));
@@ -45,7 +52,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 	public async Task Skip_keys_not_due_for_rotation()
 	{
 		var key = CreateKeyMetadata("key-1", createdDaysAgo: 10);
-		A.CallTo(() => _keyProvider.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
+		A.CallTo(() => _keyAdmin.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
 			.Returns(new List<KeyMetadata> { key });
 
 		var sut = CreateService();
@@ -64,7 +71,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 	{
 		var key1 = CreateKeyMetadata("key-1", createdDaysAgo: 100);
 		var key2 = CreateKeyMetadata("key-2", createdDaysAgo: 100);
-		A.CallTo(() => _keyProvider.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
+		A.CallTo(() => _keyAdmin.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
 			.Returns(new List<KeyMetadata> { key1, key2 });
 		A.CallTo(() => _keyProvider.RotateKeyAsync("key-1", A<EncryptionAlgorithm>._, A<string?>._, A<DateTimeOffset?>._, A<CancellationToken>._))
 			.Returns(KeyRotationResult.Failed("Provider error"));
@@ -87,7 +94,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 		_options.ContinueOnError = false;
 		var key1 = CreateKeyMetadata("key-1", createdDaysAgo: 100);
 		var key2 = CreateKeyMetadata("key-2", createdDaysAgo: 100);
-		A.CallTo(() => _keyProvider.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
+		A.CallTo(() => _keyAdmin.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
 			.Returns(new List<KeyMetadata> { key1, key2 });
 		A.CallTo(() => _keyProvider.RotateKeyAsync("key-1", A<EncryptionAlgorithm>._, A<string?>._, A<DateTimeOffset?>._, A<CancellationToken>._))
 			.Returns(KeyRotationResult.Failed("Provider error"));
@@ -262,7 +269,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 	public async Task Handle_exception_during_rotation_with_continue_on_error()
 	{
 		var key = CreateKeyMetadata("key-1", createdDaysAgo: 100);
-		A.CallTo(() => _keyProvider.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
+		A.CallTo(() => _keyAdmin.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
 			.Returns(new List<KeyMetadata> { key });
 		A.CallTo(() => _keyProvider.RotateKeyAsync("key-1", A<EncryptionAlgorithm>._, A<string?>._, A<DateTimeOffset?>._, A<CancellationToken>._))
 			.ThrowsAsync(new InvalidOperationException("Provider crashed"));
@@ -281,7 +288,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 	{
 		_options.AddHighSecurityPolicy("payment-keys");
 		var key = CreateKeyMetadata("key-1", createdDaysAgo: 35, purpose: "payment-keys");
-		A.CallTo(() => _keyProvider.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
+		A.CallTo(() => _keyAdmin.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
 			.Returns(new List<KeyMetadata> { key });
 		A.CallTo(() => _keyProvider.RotateKeyAsync("key-1", A<EncryptionAlgorithm>._, "payment-keys", A<DateTimeOffset?>._, A<CancellationToken>._))
 			.Returns(KeyRotationResult.Succeeded(CreateKeyMetadata("key-1", version: 2, createdDaysAgo: 0, purpose: "payment-keys")));
@@ -297,7 +304,7 @@ public sealed class KeyRotationServiceShould : IDisposable
 	[Fact]
 	public async Task Return_completed_at_timestamps()
 	{
-		A.CallTo(() => _keyProvider.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
+		A.CallTo(() => _keyAdmin.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
 			.Returns(new List<KeyMetadata>());
 
 		var sut = CreateService();
@@ -326,9 +333,9 @@ public sealed class KeyRotationServiceShould : IDisposable
 			Status = KeyStatus.Active,
 			Algorithm = EncryptionAlgorithm.Aes256Gcm,
 			CreatedAt = DateTimeOffset.UtcNow.AddDays(-createdDaysAgo),
-			Purpose = purpose
+			Purpose = purpose,
 		};
 
 	private KeyRotationService CreateService() =>
-		new(_keyProvider, Microsoft.Extensions.Options.Options.Create(_options), _logger);
+		new(_keyProvider, _keyAdmin, Microsoft.Extensions.Options.Options.Create(_options), _logger);
 }

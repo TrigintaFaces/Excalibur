@@ -44,24 +44,24 @@ public sealed partial class SqlServerPersistenceProvider : ISqlPersistenceProvid
 		_options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-		if (string.IsNullOrWhiteSpace(_options.ConnectionString))
+		if (string.IsNullOrWhiteSpace(_options.Connection.ConnectionString))
 		{
 			throw new ArgumentException("Connection string is required.", nameof(options));
 		}
 
 		// Build connection string with additional options
-		var builder = new SqlConnectionStringBuilder(_options.ConnectionString)
+		var builder = new SqlConnectionStringBuilder(_options.Connection.ConnectionString)
 		{
-			ConnectTimeout = _options.ConnectTimeout,
+			ConnectTimeout = _options.Connection.ConnectTimeout,
 			CommandTimeout = _options.CommandTimeout,
 			MultipleActiveResultSets = _options.EnableMars,
-			Encrypt = _options.Encrypt,
-			TrustServerCertificate = _options.TrustServerCertificate,
-			ApplicationName = _options.ApplicationName ?? "Excalibur.Data",
-			MinPoolSize = _options.MinPoolSize,
-			MaxPoolSize = _options.MaxPoolSize,
-			Pooling = _options.EnablePooling,
-			LoadBalanceTimeout = _options.LoadBalanceTimeout,
+			Encrypt = _options.Connection.Encrypt,
+			TrustServerCertificate = _options.Connection.TrustServerCertificate,
+			ApplicationName = _options.Connection.ApplicationName ?? "Excalibur.Data",
+			MinPoolSize = _options.Pooling.MinPoolSize,
+			MaxPoolSize = _options.Pooling.MaxPoolSize,
+			Pooling = _options.Pooling.EnablePooling,
+			LoadBalanceTimeout = _options.Pooling.LoadBalanceTimeout,
 		};
 
 		ConnectionString = builder.ConnectionString;
@@ -209,12 +209,12 @@ public sealed partial class SqlServerPersistenceProvider : ISqlPersistenceProvid
 			["Name"] = Name,
 			["IsAvailable"] = IsAvailable,
 			["EnableMars"] = _options.EnableMars,
-			["Encrypt"] = _options.Encrypt,
-			["MinPoolSize"] = _options.MinPoolSize,
-			["MaxPoolSize"] = _options.MaxPoolSize,
-			["EnablePooling"] = _options.EnablePooling,
+			["Encrypt"] = _options.Connection.Encrypt,
+			["MinPoolSize"] = _options.Pooling.MinPoolSize,
+			["MaxPoolSize"] = _options.Pooling.MaxPoolSize,
+			["EnablePooling"] = _options.Pooling.EnablePooling,
 			["CommandTimeout"] = _options.CommandTimeout,
-			["ConnectTimeout"] = _options.ConnectTimeout,
+			["ConnectTimeout"] = _options.Connection.ConnectTimeout,
 		};
 
 		try
@@ -510,9 +510,9 @@ public sealed partial class SqlServerPersistenceProvider : ISqlPersistenceProvid
 					}
 
 					// Add configuration stats
-					stats["MinPoolSize"] = _options.MinPoolSize;
-					stats["MaxPoolSize"] = _options.MaxPoolSize;
-					stats["PoolingEnabled"] = _options.EnablePooling;
+					stats["MinPoolSize"] = _options.Pooling.MinPoolSize;
+					stats["MaxPoolSize"] = _options.Pooling.MaxPoolSize;
+					stats["PoolingEnabled"] = _options.Pooling.EnablePooling;
 
 					return stats;
 				}
@@ -604,7 +604,7 @@ public sealed partial class SqlServerPersistenceProvider : ISqlPersistenceProvid
 		LogDisposingProvider(Name);
 
 		// Clear connection pool if configured
-		if (_options.ClearPoolOnDispose)
+		if (_options.Pooling.ClearPoolOnDispose)
 		{
 			try
 			{

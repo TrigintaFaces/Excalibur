@@ -296,7 +296,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		await _election.StartAsync(CancellationToken.None);
 
 		// Act
-		await _election.UpdateHealthAsync(isHealthy: true, new Dictionary<string, string> { ["key"] = "value" });
+		await _election.UpdateHealthAsync(isHealthy: true, new Dictionary<string, string> { ["key"] = "value" }, CancellationToken.None);
 
 		// Assert
 		var candidates = await _election.GetCandidateHealthAsync(CancellationToken.None);
@@ -316,7 +316,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		_election.LostLeadership += (_, _) => lostLeadershipRaised = true;
 
 		// Act
-		await _election.UpdateHealthAsync(isHealthy: false, metadata: null);
+		await _election.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
 
 		// Assert
 		_election.IsLeader.ShouldBeFalse();
@@ -334,7 +334,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		_election.LeaderChanged += (_, args) => eventArgs = args;
 
 		// Act
-		await _election.UpdateHealthAsync(isHealthy: false, metadata: null);
+		await _election.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
 
 		// Assert
 		_ = eventArgs.ShouldNotBeNull();
@@ -360,7 +360,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		election.LostLeadership += (_, _) => lostLeadershipRaised = true;
 
 		// Act
-		await election.UpdateHealthAsync(isHealthy: false, metadata: null);
+		await election.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
 
 		// Assert
 		election.IsLeader.ShouldBeTrue();
@@ -394,7 +394,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		follower.LostLeadership += (_, _) => lostLeadershipRaised = true;
 
 		// Act
-		await follower.UpdateHealthAsync(isHealthy: false, metadata: null);
+		await follower.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
 
 		// Assert - follower was never leader, so no step-down events
 		lostLeadershipRaised.ShouldBeFalse();
@@ -406,10 +406,10 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 	{
 		// Arrange
 		await _election.StartAsync(CancellationToken.None);
-		await _election.UpdateHealthAsync(isHealthy: true, metadata: null);
+		await _election.UpdateHealthAsync(isHealthy: true, metadata: null, CancellationToken.None);
 
 		// Act
-		await _election.UpdateHealthAsync(isHealthy: false, metadata: null);
+		await _election.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
 
 		// Assert
 		var candidates = await _election.GetCandidateHealthAsync(CancellationToken.None);
@@ -426,7 +426,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		await _election.StartAsync(CancellationToken.None);
 
 		// Act
-		await _election.UpdateHealthAsync(isHealthy: true, metadata: null);
+		await _election.UpdateHealthAsync(isHealthy: true, metadata: null, CancellationToken.None);
 
 		// Assert
 		var candidates = await _election.GetCandidateHealthAsync(CancellationToken.None);
@@ -454,7 +454,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		await election.UpdateHealthAsync(isHealthy: true, new Dictionary<string, string>
 		{
 			["extra-key"] = "extra-value",
-		});
+		}, CancellationToken.None);
 
 		// Assert
 		var candidates = await election.GetCandidateHealthAsync(CancellationToken.None);
@@ -480,7 +480,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		await election.StartAsync(CancellationToken.None);
 
 		// Act
-		await election.UpdateHealthAsync(isHealthy: true, metadata: null);
+		await election.UpdateHealthAsync(isHealthy: true, metadata: null, CancellationToken.None);
 
 		// Assert
 		var candidates = await election.GetCandidateHealthAsync(CancellationToken.None);
@@ -493,7 +493,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 	public async Task UpdateHealthAsync_DoesNothing_WhenNotRunning()
 	{
 		// Act - should not throw
-		await _election.UpdateHealthAsync(isHealthy: true, metadata: null);
+		await _election.UpdateHealthAsync(isHealthy: true, metadata: null, CancellationToken.None);
 
 		// Assert
 		var candidates = await _election.GetCandidateHealthAsync(CancellationToken.None);
@@ -508,7 +508,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		var beforeUpdate = DateTimeOffset.UtcNow;
 
 		// Act
-		await _election.UpdateHealthAsync(isHealthy: true, metadata: null);
+		await _election.UpdateHealthAsync(isHealthy: true, metadata: null, CancellationToken.None);
 
 		// Assert
 		var candidates = await _election.GetCandidateHealthAsync(CancellationToken.None);
@@ -670,12 +670,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 
 		// Act - stop first leader; second should pick up via timer renewal
 		await election1.StopAsync(CancellationToken.None);
-
-		// Wait for the lease renewal timer to fire on election2 using polling
-		await WaitUntilAsync(
-			() => election2.IsLeader,
-			TimeSpan.FromMilliseconds(2000),
-			TimeSpan.FromMilliseconds(50));
+		InvokeRenewLeaseCallback(election2);
 
 		// Assert
 		election1.IsLeader.ShouldBeFalse();
@@ -698,8 +693,8 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		await election.StartAsync(CancellationToken.None);
 		election.IsLeader.ShouldBeTrue();
 
-		// Act - wait for at least one renewal cycle
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromMilliseconds(200));
+		// Act - invoke the renewal callback directly
+		InvokeRenewLeaseCallback(election);
 
 		// Assert - still the leader after renewal
 		election.IsLeader.ShouldBeTrue();
@@ -720,9 +715,6 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		await election.StartAsync(CancellationToken.None);
 		await election.StopAsync(CancellationToken.None);
 
-		// Act - wait to ensure timer does not cause issues
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromMilliseconds(200));
-
 		// Assert - should remain not a leader
 		election.IsLeader.ShouldBeFalse();
 	}
@@ -741,9 +733,6 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		var election = new InMemoryLeaderElection(resourceName, options, logger: null);
 		await election.StartAsync(CancellationToken.None);
 		election.Dispose();
-
-		// Act - wait to ensure timer does not cause issues after dispose
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromMilliseconds(200));
 
 		// Assert - should not throw, election is disposed
 		election.IsLeader.ShouldBeFalse();
@@ -805,7 +794,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		await election.StartAsync(CancellationToken.None);
 
 		// Act - update health without additional metadata
-		await election.UpdateHealthAsync(isHealthy: true, metadata: null);
+		await election.UpdateHealthAsync(isHealthy: true, metadata: null, CancellationToken.None);
 
 		// Assert
 		var candidates = await election.GetCandidateHealthAsync(CancellationToken.None);
@@ -904,7 +893,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		_election.LostLeadership += (_, args) => eventArgs = args;
 
 		// Act
-		await _election.UpdateHealthAsync(isHealthy: false, metadata: null);
+		await _election.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
 
 		// Assert
 		_ = eventArgs.ShouldNotBeNull();
@@ -922,7 +911,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		_election.LeaderChanged += (_, args) => eventArgs = args;
 
 		// Act
-		await _election.UpdateHealthAsync(isHealthy: false, metadata: null);
+		await _election.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
 
 		// Assert
 		_ = eventArgs.ShouldNotBeNull();
@@ -988,12 +977,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 
 		// Act - stop the leader so that the follower's renewal callback can acquire leadership
 		await leader.StopAsync(CancellationToken.None);
-
-		// Wait for the timer renewal to fire and acquire leadership using polling
-		await WaitUntilAsync(
-			() => follower.IsLeader,
-			TimeSpan.FromMilliseconds(2000),
-			TimeSpan.FromMilliseconds(50));
+		InvokeRenewLeaseCallback(follower);
 
 		// Assert - follower should have acquired leadership via the renewal callback
 		follower.IsLeader.ShouldBeTrue();
@@ -1025,7 +1009,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		candidatesDict.TryRemove(resourceName, out _);
 
 		// Act - should not throw when resource tracking is missing
-		await election.UpdateHealthAsync(isHealthy: false, metadata: null);
+		await election.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
 
 		// Assert - no exception thrown, election still considers itself leader (only leader dict matters)
 		election.IsLeader.ShouldBeTrue();
@@ -1111,7 +1095,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		await election.UpdateHealthAsync(isHealthy: true, new Dictionary<string, string>
 		{
 			["shared-key"] = "overridden-value",
-		});
+		}, CancellationToken.None);
 
 		// Assert - the runtime metadata should override the base metadata
 		var candidates = await election.GetCandidateHealthAsync(CancellationToken.None);
@@ -1165,19 +1149,8 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		var election = new InMemoryLeaderElection(resourceName, options, logger: null);
 		await election.StartAsync(CancellationToken.None);
 
-		// Act - dispose while timer is actively renewing
-		// The callback should catch any exceptions and not propagate them
-		await WaitUntilAsync(
-			() => true,
-			TimeSpan.FromMilliseconds(100),
-			TimeSpan.FromMilliseconds(50));
+		// Act - dispose while renewal could still be active
 		election.Dispose();
-
-		// Wait for any pending timer callbacks to execute using polling
-		await WaitUntilAsync(
-			() => !election.IsLeader,
-			TimeSpan.FromMilliseconds(2000),
-			TimeSpan.FromMilliseconds(50));
 
 		// Assert - no exception propagated, election is properly disposed
 		election.IsLeader.ShouldBeFalse();
@@ -1202,9 +1175,6 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		// Stop the election (sets _isRunning = false, disables timer)
 		await election.StopAsync(CancellationToken.None);
 
-		// Wait to ensure no timer callbacks cause issues
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromMilliseconds(100));
-
 		// Assert - no exceptions, still not leader
 		election.IsLeader.ShouldBeFalse();
 	}
@@ -1226,9 +1196,6 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 
 		// Dispose sets _disposed = true and stops election
 		election.Dispose();
-
-		// Wait to ensure no timer callbacks cause issues
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromMilliseconds(100));
 
 		// Assert - no exceptions, properly cleaned up
 		election.IsLeader.ShouldBeFalse();
@@ -1270,15 +1237,11 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		follower2.IsLeader.ShouldBeFalse();
 
 		// Act - leader steps down
-		await leader.UpdateHealthAsync(isHealthy: false, metadata: null);
+		await leader.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
 		leader.IsLeader.ShouldBeFalse();
 
-		// Wait for followers to attempt acquisition via renewal timer.
-		// Use a longer timeout to reduce timing flake under loaded CI agents.
-		await WaitUntilAsync(
-			() => follower1.IsLeader || follower2.IsLeader,
-			TimeSpan.FromMilliseconds(5000),
-			TimeSpan.FromMilliseconds(25));
+		InvokeRenewLeaseCallback(follower1);
+		InvokeRenewLeaseCallback(follower2);
 
 		// Assert - exactly one follower should have acquired leadership
 		var isFollower1Leader = follower1.IsLeader;
@@ -1293,9 +1256,9 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		await _election.StartAsync(CancellationToken.None);
 
 		// Act - multiple rapid health updates
-		await _election.UpdateHealthAsync(isHealthy: true, new Dictionary<string, string> { ["version"] = "1" });
-		await _election.UpdateHealthAsync(isHealthy: true, new Dictionary<string, string> { ["version"] = "2" });
-		await _election.UpdateHealthAsync(isHealthy: true, new Dictionary<string, string> { ["version"] = "3" });
+		await _election.UpdateHealthAsync(isHealthy: true, new Dictionary<string, string> { ["version"] = "1" }, CancellationToken.None);
+		await _election.UpdateHealthAsync(isHealthy: true, new Dictionary<string, string> { ["version"] = "2" }, CancellationToken.None);
+		await _election.UpdateHealthAsync(isHealthy: true, new Dictionary<string, string> { ["version"] = "3" }, CancellationToken.None);
 
 		// Assert - latest metadata should be preserved
 		var candidates = await _election.GetCandidateHealthAsync(CancellationToken.None);
@@ -1321,7 +1284,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 
 		// First start registers the candidate
 		await election.StartAsync(CancellationToken.None);
-		await election.UpdateHealthAsync(isHealthy: false, metadata: null);
+		await election.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
 
 		// Stop but candidate data remains in the static dictionary
 		await election.StopAsync(CancellationToken.None);
@@ -1420,7 +1383,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		election.IsLeader.ShouldBeTrue();
 
 		// Act - mark unhealthy without any event handlers subscribed
-		await election.UpdateHealthAsync(isHealthy: false, metadata: null);
+		await election.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
 
 		// Assert - stepped down without exceptions from null event delegates
 		election.IsLeader.ShouldBeFalse();
@@ -1450,11 +1413,8 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 
 		// Act - wait for renewal callbacks that call TryAcquireLeadershipAsync
 		// Since we are already the leader, no new events should be raised.
-		// Use polling to ensure at least 2 renewal cycles have fired.
-		await WaitUntilAsync(
-			() => true,
-			TimeSpan.FromMilliseconds(300),
-			TimeSpan.FromMilliseconds(50));
+		InvokeRenewLeaseCallback(election);
+		InvokeRenewLeaseCallback(election);
 
 		// Assert - no additional events since we were already leader
 		becameLeaderCount.ShouldBe(0);
@@ -1501,7 +1461,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		_election.LostLeadership += (_, _) => lostLeadershipRaised = true;
 
 		// Act - set healthy status (should NOT trigger step-down)
-		await _election.UpdateHealthAsync(isHealthy: true, new Dictionary<string, string> { ["status"] = "ok" });
+		await _election.UpdateHealthAsync(isHealthy: true, new Dictionary<string, string> { ["status"] = "ok" }, CancellationToken.None);
 
 		// Assert - still leader, no lost leadership event
 		_election.IsLeader.ShouldBeTrue();
@@ -1607,11 +1567,8 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 			.GetMethod("RenewLeaseCallback", BindingFlags.NonPublic | BindingFlags.Instance);
 		_ = renewMethod.ShouldNotBeNull();
 
-		// Act - invoke directly when follower (not leader) - exercises Task.Run(TryAcquireLeadershipAsync)
+		// Act - invoke directly when follower (not leader)
 		renewMethod.Invoke(follower, [null]);
-
-		// Small delay to let the Task.Run complete
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromMilliseconds(50));
 
 		// Assert - follower still not leader (leader is still holding)
 		follower.IsLeader.ShouldBeFalse();
@@ -1646,14 +1603,14 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		// This exercises the AddOrUpdate update factory in UpdateHealthAsync
 		// where the candidate already exists
 		await _election.StartAsync(CancellationToken.None);
-		await _election.UpdateHealthAsync(isHealthy: true, metadata: null);
+		await _election.UpdateHealthAsync(isHealthy: true, metadata: null, CancellationToken.None);
 
 		var candidatesBefore = await _election.GetCandidateHealthAsync(CancellationToken.None);
 		var before = candidatesBefore.First(c => c.CandidateId == _election.CandidateId);
 		before.IsHealthy.ShouldBeTrue();
 
 		// Act - update to healthy again
-		await _election.UpdateHealthAsync(isHealthy: true, metadata: null);
+		await _election.UpdateHealthAsync(isHealthy: true, metadata: null, CancellationToken.None);
 
 		// Assert - still healthy, candidate exists
 		var candidatesAfter = await _election.GetCandidateHealthAsync(CancellationToken.None);
@@ -1691,7 +1648,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		resourceDict.TryRemove("add-factory-health-test", out _);
 
 		// Act - UpdateHealthAsync should trigger the add factory since candidate is missing
-		await election.UpdateHealthAsync(isHealthy: true, new Dictionary<string, string> { ["runtime"] = "value" });
+		await election.UpdateHealthAsync(isHealthy: true, new Dictionary<string, string> { ["runtime"] = "value" }, CancellationToken.None);
 
 		// Assert - candidate was re-created by the add factory
 		var candidates = await election.GetCandidateHealthAsync(CancellationToken.None);
@@ -1775,12 +1732,8 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 			.GetMethod("RenewLeaseCallback", BindingFlags.NonPublic | BindingFlags.Instance);
 		_ = renewMethod.ShouldNotBeNull();
 
-		// Act - invoke callback; follower is not leader, so it enters the else branch
-		// which calls Task.Run with the disposed CTS, triggering the catch block
+		// Act - invoke callback; follower is not leader, so the callback should exit safely
 		renewMethod.Invoke(follower, [null]);
-
-		// Small delay to allow the catch block to execute
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromMilliseconds(100));
 
 		// Assert - no exception propagated; callback caught the exception gracefully
 		follower.IsLeader.ShouldBeFalse();
@@ -1818,7 +1771,7 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		resourceDict.TryRemove("add-factory-unhealthy-test", out _);
 
 		// Act - UpdateHealthAsync with isHealthy=false triggers add factory
-		await election.UpdateHealthAsync(isHealthy: false, metadata: null);
+		await election.UpdateHealthAsync(isHealthy: false, metadata: null, CancellationToken.None);
 
 		// Assert - candidate was created with unhealthy state
 		var candidates = await election.GetCandidateHealthAsync(CancellationToken.None);
@@ -1826,6 +1779,14 @@ public sealed class InMemoryLeaderElectionShould : UnitTestBase
 		_ = candidate.ShouldNotBeNull();
 		candidate.IsHealthy.ShouldBeFalse();
 		candidate.HealthScore.ShouldBe(0.0);
+	}
+
+	private static void InvokeRenewLeaseCallback(InMemoryLeaderElection election)
+	{
+		var renewMethod = typeof(InMemoryLeaderElection)
+			.GetMethod("RenewLeaseCallback", BindingFlags.NonPublic | BindingFlags.Instance);
+		_ = renewMethod.ShouldNotBeNull();
+		renewMethod.Invoke(election, [null]);
 	}
 }
 

@@ -9,7 +9,7 @@ using System.Text;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.BatchProcessing;
 
-using Excalibur.Data.InMemory.Inbox;
+using Excalibur.Inbox.InMemory;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;

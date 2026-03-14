@@ -119,12 +119,13 @@ public class BufferManagerShould
 		// Act
 		for (var i = 0; i < 100; i++)
 		{
+			var pauseMilliseconds = (i % 4) + 1;
 			tasks.Add(Task.Run(async () =>
 			{
 				try
 				{
 					var buffer = BufferManager.Rent(256);
-					await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(Random.Shared.Next(1, 5));
+					await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(pauseMilliseconds);
 					BufferManager.Return(buffer);
 				}
 				catch (Exception ex)

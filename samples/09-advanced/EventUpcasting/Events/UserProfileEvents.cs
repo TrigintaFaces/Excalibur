@@ -31,11 +31,11 @@ namespace EventUpcasting.Events;
 /// Still exists in the event store from older users.
 /// </remarks>
 public sealed record UserCreatedV1(
-	string AggregateId,
-	long AggregateVersion,
+	string UserId,
 	string Name,
-	string Email) : DomainEvent(AggregateId, AggregateVersion), IVersionedMessage
+	string Email) : DomainEvent, IVersionedMessage
 {
+	public override string AggregateId => UserId;
 	int IVersionedMessage.Version => 1;
 	string IVersionedMessage.MessageType => "UserCreated";
 }
@@ -44,11 +44,11 @@ public sealed record UserCreatedV1(
 /// V1: Original email changed event.
 /// </summary>
 public sealed record UserEmailChangedV1(
-	string AggregateId,
-	long AggregateVersion,
+	string UserId,
 	string OldEmail,
-	string NewEmail) : DomainEvent(AggregateId, AggregateVersion), IVersionedMessage
+	string NewEmail) : DomainEvent, IVersionedMessage
 {
+	public override string AggregateId => UserId;
 	int IVersionedMessage.Version => 1;
 	string IVersionedMessage.MessageType => "UserEmailChanged";
 }
@@ -65,12 +65,12 @@ public sealed record UserEmailChangedV1(
 /// Decision: Add a single "Address" string field.
 /// </remarks>
 public sealed record UserCreatedV2(
-	string AggregateId,
-	long AggregateVersion,
+	string UserId,
 	string Name,
 	string Email,
-	string? Address) : DomainEvent(AggregateId, AggregateVersion), IVersionedMessage
+	string? Address) : DomainEvent, IVersionedMessage
 {
+	public override string AggregateId => UserId;
 	int IVersionedMessage.Version => 2;
 	string IVersionedMessage.MessageType => "UserCreated";
 }
@@ -79,11 +79,11 @@ public sealed record UserCreatedV2(
 /// V2: User address changed event.
 /// </summary>
 public sealed record UserAddressChangedV2(
-	string AggregateId,
-	long AggregateVersion,
+	string UserId,
 	string? OldAddress,
-	string NewAddress) : DomainEvent(AggregateId, AggregateVersion), IVersionedMessage
+	string NewAddress) : DomainEvent, IVersionedMessage
 {
+	public override string AggregateId => UserId;
 	int IVersionedMessage.Version => 2;
 	string IVersionedMessage.MessageType => "UserAddressChanged";
 }
@@ -100,15 +100,15 @@ public sealed record UserAddressChangedV2(
 /// Decision: Split Address into Street, City, PostalCode, Country.
 /// </remarks>
 public sealed record UserCreatedV3(
-	string AggregateId,
-	long AggregateVersion,
+	string UserId,
 	string Name,
 	string Email,
 	string? Street,
 	string? City,
 	string? PostalCode,
-	string? Country) : DomainEvent(AggregateId, AggregateVersion), IVersionedMessage
+	string? Country) : DomainEvent, IVersionedMessage
 {
+	public override string AggregateId => UserId;
 	int IVersionedMessage.Version => 3;
 	string IVersionedMessage.MessageType => "UserCreated";
 }
@@ -117,8 +117,7 @@ public sealed record UserCreatedV3(
 /// V3: User address changed with structured address (current version).
 /// </summary>
 public sealed record UserAddressChangedV3(
-	string AggregateId,
-	long AggregateVersion,
+	string UserId,
 	string? OldStreet,
 	string? OldCity,
 	string? OldPostalCode,
@@ -126,8 +125,9 @@ public sealed record UserAddressChangedV3(
 	string? NewStreet,
 	string? NewCity,
 	string? NewPostalCode,
-	string? NewCountry) : DomainEvent(AggregateId, AggregateVersion), IVersionedMessage
+	string? NewCountry) : DomainEvent, IVersionedMessage
 {
+	public override string AggregateId => UserId;
 	int IVersionedMessage.Version => 3;
 	string IVersionedMessage.MessageType => "UserAddressChanged";
 }
@@ -136,11 +136,11 @@ public sealed record UserAddressChangedV3(
 /// V3: User name changed event (unchanged from V1, but explicitly versioned).
 /// </summary>
 public sealed record UserNameChangedV3(
-	string AggregateId,
-	long AggregateVersion,
+	string UserId,
 	string OldName,
-	string NewName) : DomainEvent(AggregateId, AggregateVersion), IVersionedMessage
+	string NewName) : DomainEvent, IVersionedMessage
 {
+	public override string AggregateId => UserId;
 	int IVersionedMessage.Version => 3;
 	string IVersionedMessage.MessageType => "UserNameChanged";
 }

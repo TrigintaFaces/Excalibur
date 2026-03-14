@@ -24,7 +24,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// <param name="mainQueueClient"> The main queue client. </param>
 /// <param name="logger"> The logger instance. </param>
 /// <param name="options"> The dead letter queue options. </param>
-public sealed class DeadLetterQueueHandler(
+internal sealed class DeadLetterQueueHandler(
 	QueueClient deadLetterQueueClient,
 	QueueClient mainQueueClient,
 	ILogger<DeadLetterQueueHandler> logger,

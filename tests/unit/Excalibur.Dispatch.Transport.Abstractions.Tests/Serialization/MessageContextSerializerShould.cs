@@ -1,4 +1,5 @@
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Transport;
 
 namespace Excalibur.Dispatch.Transport.Abstractions.Tests.Serialization;
@@ -21,21 +22,38 @@ public sealed class MessageContextSerializerShould
         var context = new MessageEnvelope
         {
             MessageId = "msg-123",
-            ExternalId = null,
-            UserId = "user-1",
             CorrelationId = "corr-1",
             CausationId = "cause-1",
+        };
+
+        // Set identity via Features (decomposed model)
+        context.SetFeature<IMessageIdentityFeature>(new MessageIdentityFeature
+        {
+            ExternalId = null,
+            UserId = "user-1",
             TenantId = "tenant-1",
             SessionId = "session-1",
             WorkflowId = "workflow-1",
+            TraceParent = "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+        });
+
+        // Set routing via Features
+        context.SetFeature<IMessageRoutingFeature>(new MessageRoutingFeature
+        {
             PartitionKey = "pk-1",
             Source = "orders",
-            MessageType = "OrderCreated",
-            ContentType = "application/json",
-            TraceParent = "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+        });
+
+        // Set processing via Features
+        context.SetFeature<IMessageProcessingFeature>(new MessageProcessingFeature
+        {
             DeliveryCount = 4,
-            SentTimestampUtc = DateTimeOffset.FromUnixTimeMilliseconds(123456789)
-        };
+        });
+
+        // Set Items-based properties
+        context.SetMessageType("OrderCreated");
+        context.SetContentType("application/json");
+        context.SetSentTimestampUtc(DateTimeOffset.FromUnixTimeMilliseconds(123456789));
 
         var attributes = MessageContextSerializer.SerializeToDictionary(context);
 
@@ -118,20 +136,21 @@ public sealed class MessageContextSerializerShould
         var context = MessageContextSerializer.DeserializeFromDictionary(attributes, NullServiceProvider);
 
         context.MessageId.ShouldBe("msg-123");
-        context.UserId.ShouldBe("user-1");
+        context.GetUserId().ShouldBe("user-1");
         context.CorrelationId.ShouldBe("corr-1");
         context.CausationId.ShouldBe("cause-1");
-        context.TenantId.ShouldBe("tenant-1");
-        context.SessionId.ShouldBe("session-1");
-        context.WorkflowId.ShouldBe("workflow-1");
-        context.PartitionKey.ShouldBe("partition-1");
-        context.Source.ShouldBe("orders");
-        context.MessageType.ShouldBe("OrderCreated");
-        context.ContentType.ShouldBe("application/json");
-        context.TraceParent.ShouldBe("00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01");
-        context.DeliveryCount.ShouldBe(7);
-        context.SentTimestampUtc.ShouldBe(DateTimeOffset.FromUnixTimeMilliseconds(sentAt));
-        context.ReceivedTimestampUtc.ShouldBeGreaterThan(before.AddSeconds(-1));
+        context.GetTenantId().ShouldBe("tenant-1");
+        context.GetSessionId().ShouldBe("session-1");
+        context.GetWorkflowId().ShouldBe("workflow-1");
+        context.GetPartitionKey().ShouldBe("partition-1");
+        context.GetSource().ShouldBe("orders");
+        context.GetMessageType().ShouldBe("OrderCreated");
+        context.GetContentType().ShouldBe("application/json");
+        context.GetTraceParent().ShouldBe("00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01");
+        context.GetDeliveryCount().ShouldBe(7);
+        context.GetSentTimestampUtc().ShouldBe(DateTimeOffset.FromUnixTimeMilliseconds(sentAt));
+        context.GetReceivedTimestampUtc().ShouldNotBeNull();
+        context.GetReceivedTimestampUtc()!.Value.ShouldBeGreaterThan(before.AddSeconds(-1));
     }
 
     [Fact]
@@ -147,8 +166,8 @@ public sealed class MessageContextSerializerShould
 
         var context = MessageContextSerializer.DeserializeFromDictionary(attributes, NullServiceProvider);
 
-        context.DeliveryCount.ShouldBe(0);
-        context.SentTimestampUtc.ShouldBeNull();
+        context.GetDeliveryCount().ShouldBe(0);
+        context.GetSentTimestampUtc().ShouldBeNull();
     }
 
     private sealed class NullProvider : IServiceProvider

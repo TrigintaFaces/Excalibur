@@ -3,6 +3,7 @@
 
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Middleware.Auth;
 using Excalibur.Dispatch.Middleware.Logging;

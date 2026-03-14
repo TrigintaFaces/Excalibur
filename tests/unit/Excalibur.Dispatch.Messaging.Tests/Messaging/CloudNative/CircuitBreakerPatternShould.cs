@@ -86,17 +86,27 @@ public sealed class CircuitBreakerPatternShould : IAsyncDisposable
 	[Fact]
 	public async Task ExecuteFallbackWhenOpen()
 	{
-		// Trip the breaker
-		for (var i = 0; i < _options.FailureThreshold; i++)
+		var options = new CircuitBreakerOptions
 		{
-			await _sut.ExecuteAsync<int>(
+			FailureThreshold = _options.FailureThreshold,
+			SuccessThreshold = _options.SuccessThreshold,
+			OpenDuration = TimeSpan.FromSeconds(5),
+			OperationTimeout = _options.OperationTimeout,
+			MaxHalfOpenTests = _options.MaxHalfOpenTests,
+		};
+		await using var breaker = new CircuitBreakerPattern("test-breaker-open", options);
+
+		// Trip the breaker
+		for (var i = 0; i < options.FailureThreshold; i++)
+		{
+			await breaker.ExecuteAsync<int>(
 				() => throw new InvalidOperationException("fail"),
 				() => Task.FromResult(-1),
 				CancellationToken.None).ConfigureAwait(false);
 		}
 
 		// Next call should use fallback
-		var result = await _sut.ExecuteAsync(
+		var result = await breaker.ExecuteAsync(
 			() => Task.FromResult(42),
 			() => Task.FromResult(-999),
 			CancellationToken.None).ConfigureAwait(false);

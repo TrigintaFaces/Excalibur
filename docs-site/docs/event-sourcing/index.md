@@ -14,7 +14,6 @@ Excalibur provides a complete event sourcing implementation with aggregates, eve
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
-  dotnet add package Excalibur.Dispatch.Abstractions
   dotnet add package Excalibur.EventSourcing
   ```
 - Familiarity with [handlers](../handlers.md) and [domain modeling](../domain-modeling/aggregates.md)
@@ -53,20 +52,20 @@ flowchart LR
 
 ### 1. Define Domain Events
 
-Events extend the `DomainEventBase` abstract record which provides `EventId`, `AggregateId`, `Version`, `OccurredAt`, and `Metadata`:
+Events extend the `DomainEvent` abstract record which provides `EventId`, `AggregateId`, `Version`, `OccurredAt`, and `Metadata`:
 
 ```csharp
-public record OrderCreated(Guid OrderId, string CustomerId, decimal TotalAmount) : DomainEventBase
+public record OrderCreated(Guid OrderId, string CustomerId, decimal TotalAmount) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
 
-public record OrderShipped(Guid OrderId, string TrackingNumber, DateTime ShippedAt) : DomainEventBase
+public record OrderShipped(Guid OrderId, string TrackingNumber, DateTime ShippedAt) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
 
-public record OrderCancelled(Guid OrderId, string Reason) : DomainEventBase
+public record OrderCancelled(Guid OrderId, string Reason) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
@@ -257,7 +256,7 @@ public interface IDomainEvent : IDispatchEvent
 }
 
 // Convenient base record with auto-generated defaults
-public abstract record DomainEventBase : IDomainEvent
+public abstract record DomainEvent : IDomainEvent
 {
     public virtual string EventId { get; init; } = Guid.NewGuid().ToString();
     public virtual string AggregateId { get; init; } = string.Empty;

@@ -17,7 +17,7 @@ using DispatchEncryptionAlgorithm = Excalibur.Dispatch.Compliance.EncryptionAlgo
 namespace Excalibur.Dispatch.Compliance.Azure;
 
 /// <summary>
-/// Azure Key Vault implementation of <see cref="IKeyManagementProvider" />.
+/// Azure Key Vault implementation of <see cref="IKeyManagementProvider" /> and <see cref="IKeyManagementAdmin" />.
 /// </summary>
 /// <remarks>
 /// <para> This provider integrates with Azure Key Vault for enterprise-grade key management:
@@ -33,7 +33,7 @@ namespace Excalibur.Dispatch.Compliance.Azure;
 /// providing maximum security.
 /// </para>
 /// </remarks>
-public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IDisposable
+public sealed partial class AzureKeyVaultProvider : IKeyManagementProvider, IKeyManagementAdmin, IDisposable
 {
 	private readonly KeyClient _keyClient;
 	private readonly ConcurrentDictionary<string, CryptographyClient> _cryptoClients = new();

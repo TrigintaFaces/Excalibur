@@ -28,6 +28,14 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.DynamoDb\Excalibur.Outbox.DynamoDb.csproj" />
     <!-- From Excalibur.Outbox.Firestore.Tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.Firestore\Excalibur.Outbox.Firestore.csproj" />
+    <!-- Sprint 628: Outbox.MongoDB bridge package (provides UseMongoDB extension, transitively references Data.MongoDB) -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.MongoDB\Excalibur.Outbox.MongoDB.csproj" />
+    <!-- Inbox.SqlServer (SqlServerInboxOptions, InboxEntry used in SqlServerOutboxStoreShould tests) -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.SqlServer\Excalibur.Inbox.SqlServer.csproj" />
+    <!-- Sprint 637 B.2/B.6: Outbox ElasticSearch + Redis builder extension tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.ElasticSearch\Excalibur.Outbox.ElasticSearch.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.Redis\Excalibur.Outbox.Redis.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.InMemory\Excalibur.Outbox.InMemory.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />

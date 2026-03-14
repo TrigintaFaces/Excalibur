@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // Sprint 37: bd-0ad7 - Verification tests for serialization wiring
 
+using System.Buffers;
+
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Serialization.MemoryPack;
 
@@ -8,7 +10,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Serialization;
 
 /// <summary>
 /// Verification tests for Sprint 37 serialization wiring (bd-0ad7).
-/// These tests verify that IInternalSerializer is actually used in processing paths
+/// These tests verify that ISerializer is actually used in processing paths
 /// when configured, and that fallback to JSON works when serializer is null.
 /// </summary>
 [Trait("Category", "Unit")]
@@ -265,13 +267,19 @@ public class SerializationWiringVerificationShould
 	#region Mock Serializer Verification Tests
 
 	[Fact]
-	public void MockSerializer_Serialize_Returns_ByteArray()
+	public void MockSerializer_Serialize_WritesToBufferWriter()
 	{
-		// Arrange
-		var serializer = A.Fake<IInternalSerializer>();
+		// Arrange - Intercept the actual ISerializer.Serialize<T> interface method,
+		// NOT the SerializeToBytes extension method which FakeItEasy cannot intercept.
+		var serializer = A.Fake<ISerializer>();
 		var expectedBytes = new byte[] { EnvelopeFormatMarker, 0x10, 0x20, 0x30 };
-		_ = A.CallTo(() => serializer.Serialize(A<OutboxEnvelope>.Ignored))
-			.Returns(expectedBytes);
+		_ = A.CallTo(() => serializer.Serialize(A<OutboxEnvelope>.Ignored, A<IBufferWriter<byte>>.Ignored))
+			.Invokes((OutboxEnvelope _, IBufferWriter<byte> writer) =>
+			{
+				var span = writer.GetSpan(expectedBytes.Length);
+				expectedBytes.CopyTo(span);
+				writer.Advance(expectedBytes.Length);
+			});
 
 		var envelope = new OutboxEnvelope
 		{
@@ -281,24 +289,32 @@ public class SerializationWiringVerificationShould
 			CreatedAt = DateTimeOffset.UtcNow
 		};
 
-		// Act
-		var result = serializer.Serialize(envelope);
+		// Act - Use the extension method which delegates to the interface method
+		var result = serializer.SerializeToBytes(envelope);
 
 		// Assert
 		result.ShouldBe(expectedBytes);
-		_ = A.CallTo(() => serializer.Serialize(A<OutboxEnvelope>.Ignored)).MustHaveHappenedOnceExactly();
+		_ = A.CallTo(() => serializer.Serialize(A<OutboxEnvelope>.Ignored, A<IBufferWriter<byte>>.Ignored))
+			.MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
 	public void Verify_Serializer_Called_When_Configured()
 	{
-		// Arrange
-		var serializer = A.Fake<IInternalSerializer>();
+		// Arrange - Intercept the actual ISerializer.Serialize<T> interface method,
+		// NOT the SerializeToBytes extension method which FakeItEasy cannot intercept.
+		var serializer = A.Fake<ISerializer>();
 		var callCount = 0;
 
-		_ = A.CallTo(() => serializer.Serialize(A<OutboxEnvelope>.Ignored))
-			.Invokes(() => callCount++)
-			.Returns(new byte[] { EnvelopeFormatMarker, 0x01 });
+		_ = A.CallTo(() => serializer.Serialize(A<OutboxEnvelope>.Ignored, A<IBufferWriter<byte>>.Ignored))
+			.Invokes((OutboxEnvelope _, IBufferWriter<byte> writer) =>
+			{
+				callCount++;
+				var data = new byte[] { EnvelopeFormatMarker, 0x01 };
+				var span = writer.GetSpan(data.Length);
+				data.CopyTo(span);
+				writer.Advance(data.Length);
+			});
 
 		// Act - Simulate what the processor would do
 		var envelope = new OutboxEnvelope
@@ -312,7 +328,7 @@ public class SerializationWiringVerificationShould
 		// When serializer is not null, it should be used
 		if (serializer is not null)
 		{
-			_ = serializer.Serialize(envelope);
+			_ = serializer.SerializeToBytes(envelope);
 		}
 
 		// Assert
@@ -323,7 +339,7 @@ public class SerializationWiringVerificationShould
 	public void Verify_Serializer_Not_Called_When_Null()
 	{
 		// Arrange
-		IInternalSerializer? serializer = null;
+		ISerializer? serializer = null;
 		var serializerCalled = false;
 
 		// Act - Simulate what the processor would do

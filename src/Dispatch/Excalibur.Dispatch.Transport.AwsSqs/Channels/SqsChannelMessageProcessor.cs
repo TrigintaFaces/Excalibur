@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// High-throughput message processor using channels for AWS SQS. Optimized for 50K+ msgs/sec with zero-allocation processing.
 /// </summary>
-public sealed partial class SqsChannelMessageProcessor : IAsyncDisposable
+internal sealed partial class SqsChannelMessageProcessor : IAsyncDisposable
 {
 	private readonly SqsChannelAdapter _channelAdapter;
 	private readonly IMessageProcessor<Message> _messageProcessor;

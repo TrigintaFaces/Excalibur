@@ -4,7 +4,7 @@
 using CdcAntiCorruption.Handlers;
 using CdcAntiCorruption.SchemaAdapters;
 
-using Excalibur.Data.SqlServer.Cdc;
+using Excalibur.Cdc.SqlServer;
 
 using Microsoft.Extensions.DependencyInjection;
 

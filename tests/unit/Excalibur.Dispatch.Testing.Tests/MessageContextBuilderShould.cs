@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Testing;
 
 namespace Excalibur.Dispatch.Testing.Tests;
@@ -33,8 +34,10 @@ public sealed class MessageContextBuilderShould
 		var context = new MessageContextBuilder().Build();
 		var after = DateTimeOffset.UtcNow;
 
-		context.ReceivedTimestampUtc.ShouldBeGreaterThanOrEqualTo(before);
-		context.ReceivedTimestampUtc.ShouldBeLessThanOrEqualTo(after);
+		var receivedTimestamp = context.GetReceivedTimestampUtc();
+		receivedTimestamp.ShouldNotBeNull();
+		receivedTimestamp.Value.ShouldBeGreaterThanOrEqualTo(before);
+		receivedTimestamp.Value.ShouldBeLessThanOrEqualTo(after);
 	}
 
 	[Fact]
@@ -74,7 +77,7 @@ public sealed class MessageContextBuilderShould
 			.WithTenantId("tenant-A")
 			.Build();
 
-		context.TenantId.ShouldBe("tenant-A");
+		context.GetTenantId().ShouldBe("tenant-A");
 	}
 
 	[Fact]
@@ -84,7 +87,7 @@ public sealed class MessageContextBuilderShould
 			.WithUserId("user-1")
 			.Build();
 
-		context.UserId.ShouldBe("user-1");
+		context.GetUserId().ShouldBe("user-1");
 	}
 
 	[Fact]
@@ -94,7 +97,7 @@ public sealed class MessageContextBuilderShould
 			.WithSessionId("sess-abc")
 			.Build();
 
-		context.SessionId.ShouldBe("sess-abc");
+		context.GetSessionId().ShouldBe("sess-abc");
 	}
 
 	[Fact]
@@ -104,7 +107,7 @@ public sealed class MessageContextBuilderShould
 			.WithWorkflowId("wf-789")
 			.Build();
 
-		context.WorkflowId.ShouldBe("wf-789");
+		context.GetWorkflowId().ShouldBe("wf-789");
 	}
 
 	[Fact]
@@ -114,7 +117,7 @@ public sealed class MessageContextBuilderShould
 			.WithPartitionKey("pk-1")
 			.Build();
 
-		context.PartitionKey.ShouldBe("pk-1");
+		context.GetPartitionKey().ShouldBe("pk-1");
 	}
 
 	[Fact]
@@ -124,7 +127,7 @@ public sealed class MessageContextBuilderShould
 			.WithSource("my-service")
 			.Build();
 
-		context.Source.ShouldBe("my-service");
+		context.GetSource().ShouldBe("my-service");
 	}
 
 	[Fact]
@@ -134,7 +137,7 @@ public sealed class MessageContextBuilderShould
 			.WithMessageType("OrderCreated")
 			.Build();
 
-		context.MessageType.ShouldBe("OrderCreated");
+		context.GetMessageType().ShouldBe("OrderCreated");
 	}
 
 	[Fact]
@@ -144,7 +147,7 @@ public sealed class MessageContextBuilderShould
 			.WithContentType("application/json")
 			.Build();
 
-		context.ContentType.ShouldBe("application/json");
+		context.GetContentType().ShouldBe("application/json");
 	}
 
 	[Fact]
@@ -154,7 +157,7 @@ public sealed class MessageContextBuilderShould
 			.WithTraceParent("00-trace-span-01")
 			.Build();
 
-		context.TraceParent.ShouldBe("00-trace-span-01");
+		context.GetTraceParent().ShouldBe("00-trace-span-01");
 	}
 
 	[Fact]
@@ -164,7 +167,7 @@ public sealed class MessageContextBuilderShould
 			.WithExternalId("ext-999")
 			.Build();
 
-		context.ExternalId.ShouldBe("ext-999");
+		context.GetExternalId().ShouldBe("ext-999");
 	}
 
 	[Fact]
@@ -174,7 +177,7 @@ public sealed class MessageContextBuilderShould
 			.WithDeliveryCount(3)
 			.Build();
 
-		context.DeliveryCount.ShouldBe(3);
+		context.GetDeliveryCount().ShouldBe(3);
 	}
 
 	[Fact]

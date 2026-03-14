@@ -24,6 +24,14 @@
     <PackageReference Include="Google.Events.Protobuf" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Hosting.Serverless.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Hosting.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Hosting.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Functional" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Smoke" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
+  <ItemGroup>
     <AdditionalFiles Include="PublicAPI.Shipped.txt" />
     <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
   </ItemGroup>

@@ -1,13 +1,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Data.MongoDB.Cdc;
-using Excalibur.Data.MongoDB.EventSourcing;
-using Excalibur.Data.MongoDB.Inbox;
-using Excalibur.Data.MongoDB.Outbox;
+using Excalibur.Cdc.MongoDB;
 using Excalibur.Data.MongoDB.Projections;
-using Excalibur.Data.MongoDB.Saga;
 using Excalibur.Data.MongoDB.Snapshots;
+using Excalibur.EventSourcing.MongoDB;
+using Excalibur.Inbox.MongoDB;
+using Excalibur.Outbox.MongoDB;
+using Excalibur.Saga.MongoDB;
 
 namespace Excalibur.Data.Tests.Configuration;
 

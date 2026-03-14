@@ -5,9 +5,17 @@ using StreamsAttributeValue = Amazon.DynamoDBStreams.Model.AttributeValue;
 
 namespace Excalibur.Data.DynamoDb;
 
-internal static class DynamoDbAttributeValueConverter
+/// <summary>
+/// Converts between DynamoDB Streams attribute values and DynamoDB v2 attribute values.
+/// </summary>
+public static class DynamoDbAttributeValueConverter
 {
-	internal static Dictionary<string, DynamoDbAttributeValue>? ToAttributeValueMap(
+	/// <summary>
+	/// Converts a DynamoDB Streams attribute value map to a DynamoDB v2 attribute value map.
+	/// </summary>
+	/// <param name="streamValues">The streams attribute value map to convert.</param>
+	/// <returns>The converted attribute value map, or <see langword="null"/> if the input is null.</returns>
+	public static Dictionary<string, DynamoDbAttributeValue>? ToAttributeValueMap(
 			Dictionary<string, StreamsAttributeValue>? streamValues)
 	{
 		if (streamValues is null)

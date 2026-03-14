@@ -9,6 +9,7 @@ using System.Security.Claims;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Middleware;
@@ -187,13 +188,17 @@ public sealed partial class AuthorizationMiddleware : IDispatchMiddleware
 		IMessageContext context,
 		Type messageType)
 	{
+		var contextUserId = context.GetUserId();
+
 		// Extract subject/user identity
-		var subjectId = (string.IsNullOrEmpty(context.UserId) ? GetPropertyValue(context, "UserId") : context.UserId) ??
+		var subjectId = (string.IsNullOrEmpty(contextUserId) ? GetPropertyValue(context, "UserId") : contextUserId) ??
 						GetPropertyValue(context, "SubjectId") ??
 						GetPropertyValue(context, "ServiceId");
 
+		var contextTenantId = context.GetTenantId();
+
 		// Extract tenant context if available
-		var tenantId = string.IsNullOrEmpty(context.TenantId) ? GetPropertyValue(context, "TenantId") : context.TenantId;
+		var tenantId = string.IsNullOrEmpty(contextTenantId) ? GetPropertyValue(context, "TenantId") : contextTenantId;
 
 		// Extract roles if available
 		var roles = GetPropertyValue(context, "Roles")?.Split(',', StringSplitOptions.RemoveEmptyEntries) ?? [];
@@ -233,13 +238,15 @@ public sealed partial class AuthorizationMiddleware : IDispatchMiddleware
 		}
 
 		// Also check for direct UserId and TenantId
-		var userId = string.IsNullOrEmpty(context.UserId) ? context.GetItem<object>("UserId") : context.UserId;
+		var contextUserId = context.GetUserId();
+		var userId = string.IsNullOrEmpty(contextUserId) ? context.GetItem<object>("UserId") : contextUserId;
 		if (userId != null)
 		{
 			claims.Add(new Claim(ClaimTypes.NameIdentifier, userId.ToString() ?? string.Empty));
 		}
 
-		var tenantId = string.IsNullOrEmpty(context.TenantId) ? context.GetItem<object>("TenantId") : context.TenantId;
+		var contextTenantId = context.GetTenantId();
+		var tenantId = string.IsNullOrEmpty(contextTenantId) ? context.GetItem<object>("TenantId") : contextTenantId;
 		if (tenantId != null)
 		{
 			claims.Add(new Claim("TenantId", tenantId.ToString() ?? string.Empty));

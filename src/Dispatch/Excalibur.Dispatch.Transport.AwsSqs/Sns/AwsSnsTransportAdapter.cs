@@ -31,7 +31,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// ASP.NET Core health checks and the <c>MultiTransportHealthCheck</c>.
 /// </para>
 /// </remarks>
-public sealed partial class AwsSnsTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
+internal sealed partial class AwsSnsTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
 {
 	/// <summary>
 	/// The default transport name for AWS SNS adapters.
@@ -130,9 +130,9 @@ public sealed partial class AwsSnsTransportAdapter : ITransportAdapter, ITranspo
 			var context = new MessageContext(message, _serviceProvider)
 			{
 				MessageId = messageId,
-				MessageType = message.GetType().FullName,
-				ReceivedTimestampUtc = DateTimeOffset.UtcNow,
 			};
+			context.SetMessageType(message.GetType().FullName);
+			context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
 
 			var result = await dispatcher.DispatchAsync(message, context, cancellationToken).ConfigureAwait(false);
 			_ = Interlocked.Increment(ref _successfulMessages);
@@ -411,7 +411,7 @@ public sealed partial class AwsSnsTransportAdapter : ITransportAdapter, ITranspo
 /// <summary>
 /// Configuration options for the AWS SNS transport adapter.
 /// </summary>
-public sealed class AwsSnsTransportAdapterOptions
+internal sealed class AwsSnsTransportAdapterOptions
 {
 	/// <summary>
 	/// Gets or sets the name of this transport adapter instance.
@@ -471,7 +471,7 @@ public sealed class AwsSnsTransportAdapterOptions
 /// <summary>
 /// Extension methods for configuring <see cref="AwsSnsTransportAdapterOptions"/>.
 /// </summary>
-public static class AwsSnsTransportAdapterOptionsExtensions
+internal static class AwsSnsTransportAdapterOptionsExtensions
 {
 	/// <summary>
 	/// Maps a message type to a specific topic ARN.

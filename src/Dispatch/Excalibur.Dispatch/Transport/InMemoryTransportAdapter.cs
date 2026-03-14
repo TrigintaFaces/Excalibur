@@ -150,9 +150,9 @@ public sealed partial class InMemoryTransportAdapter : ITransportAdapter, ITrans
 			var context = new MessageContext(message, dispatcher is IServiceProvider sp ? sp : new EmptyServiceProvider())
 			{
 				MessageId = messageId,
-				MessageType = message.GetType().FullName,
-				ReceivedTimestampUtc = DateTimeOffset.UtcNow,
 			};
+			context.SetMessageType(message.GetType().FullName);
+			context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
 
 			var result = await dispatcher.DispatchAsync(message, context, cancellationToken).ConfigureAwait(false);
 

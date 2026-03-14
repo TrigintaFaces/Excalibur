@@ -5,7 +5,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
-using Excalibur.Data.SqlServer.Cdc;
+using Excalibur.Cdc.SqlServer;
 
 namespace Excalibur.Data.Tests.SqlServer.Cdc;
 

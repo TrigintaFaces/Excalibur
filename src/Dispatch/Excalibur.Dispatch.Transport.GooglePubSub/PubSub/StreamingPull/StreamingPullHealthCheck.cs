@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <item><description>Unhealthy — no streams exist or all streams are down.</description></item>
 /// </list>
 /// </remarks>
-public sealed class StreamingPullHealthCheck : IHealthCheck
+internal sealed class StreamingPullHealthCheck : IHealthCheck
 {
 	private readonly StreamHealthMonitor _monitor;
 

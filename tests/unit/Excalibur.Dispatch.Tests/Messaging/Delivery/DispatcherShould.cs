@@ -121,7 +121,7 @@ public sealed class DispatcherShould
         var sut = CreateSut();
         await sut.DispatchAsync(message, context, CancellationToken.None);
 
-        context.MessageType.ShouldNotBeNullOrWhiteSpace();
+        context.GetMessageType().ShouldNotBeNullOrWhiteSpace();
     }
 
     [Fact]

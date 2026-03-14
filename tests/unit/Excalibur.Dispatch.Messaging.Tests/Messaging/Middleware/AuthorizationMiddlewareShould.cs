@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Tests.Messaging.Middleware;
 /// Unit tests for the <see cref="AuthorizationMiddleware"/> class.
 /// </summary>
 /// <remarks>
-/// Sprint 414 - Task T414.6: AuthorizationMiddleware tests (0% → 50%+).
+/// Sprint 414 - Task T414.6: AuthorizationMiddleware tests (0% -> 50%+).
 /// Tests authorization middleware implementation including role-based and policy-based authorization.
 /// </remarks>
 [Trait("Category", "Unit")]
@@ -32,6 +32,7 @@ public sealed class AuthorizationMiddlewareShould
 	private readonly ILogger<AuthorizationMiddleware> _logger;
 	private readonly IAuthorizationService _authorizationService;
 	private readonly IMessageContext _context;
+	private readonly Dictionary<string, object> _items;
 	private readonly DispatchRequestDelegate _successDelegate;
 
 	public AuthorizationMiddlewareShould()
@@ -39,8 +40,11 @@ public sealed class AuthorizationMiddlewareShould
 		_logger = A.Fake<ILogger<AuthorizationMiddleware>>();
 		_authorizationService = A.Fake<IAuthorizationService>();
 		_context = A.Fake<IMessageContext>();
+		_items = new Dictionary<string, object>(StringComparer.Ordinal);
 
 		_ = A.CallTo(() => _context.MessageId).Returns("test-message-id");
+		_ = A.CallTo(() => _context.Items).Returns(_items);
+		_ = A.CallTo(() => _context.Features).Returns(new Dictionary<Type, object>());
 
 		// Configure logger to return a disposable scope (required by middleware)
 		_ = A.CallTo(() => _logger.BeginScope(A<Dictionary<string, object>>._))
@@ -48,8 +52,8 @@ public sealed class AuthorizationMiddlewareShould
 		_ = A.CallTo(() => _logger.BeginScope(A<object>._))
 			.Returns(A.Fake<IDisposable>());
 
-		// Configure context.GetItem to return null by default (prevents FakeItEasy from creating fake objects)
-		_ = A.CallTo(() => _context.GetItem<object>(A<string>._)).Returns(null);
+		// GetItem<T> is now an extension method that reads from context.Items.
+		// No FakeItEasy setup needed -- tests populate _items directly.
 
 		_successDelegate = (msg, ctx, ct) => new ValueTask<IMessageResult>(MessageResult.Success());
 	}
@@ -195,7 +199,7 @@ public sealed class AuthorizationMiddlewareShould
 		var message = A.Fake<IDispatchMessage>();
 
 		// Setup a subject to avoid anonymous check
-		_ = A.CallTo(() => _context.GetItem<object>("UserId")).Returns("user-123");
+		_items["UserId"] = "user-123";
 
 		_ = A.CallTo(() => _authorizationService.AuthorizeAsync(
 			A<IDispatchMessage>._,
@@ -228,7 +232,7 @@ public sealed class AuthorizationMiddlewareShould
 		var middleware = new AuthorizationMiddleware(options, _authorizationService, NullTelemetrySanitizer.Instance, _logger);
 		var message = A.Fake<IDispatchMessage>();
 
-		_ = A.CallTo(() => _context.GetItem<object>("UserId")).Returns("user-123");
+		_items["UserId"] = "user-123";
 
 		_ = A.CallTo(() => _authorizationService.AuthorizeAsync(
 			A<IDispatchMessage>._,
@@ -259,7 +263,7 @@ public sealed class AuthorizationMiddlewareShould
 		// Use concrete message type instead of fake - fakes can have unexpected behavior with GetType()
 		var message = new TestActionMessage();
 
-		// No user/subject set - GetItem returns null by default (configured in constructor)
+		// No user/subject set - Items dictionary is empty, GetItem extension returns null by default
 
 		// Act
 		var result = await middleware.InvokeAsync(message, _context, _successDelegate, CancellationToken.None);
@@ -287,7 +291,7 @@ public sealed class AuthorizationMiddlewareShould
 		// Use concrete message type instead of fake
 		var message = new TestActionMessage();
 
-		// No user/subject set - all GetItem calls return null
+		// No user/subject set - Items dictionary is empty
 
 		// Act & Assert
 		_ = await Should.ThrowAsync<UnauthorizedAccessException>(
@@ -367,13 +371,10 @@ public sealed class AuthorizationMiddlewareShould
 
 		// Assert
 		result.IsSuccess.ShouldBeTrue();
-		A.CallTo(() => _context.GetItem<object>("UserId")).MustNotHaveHappened();
-		A.CallTo(() => _context.GetItem<object>("SubjectId")).MustNotHaveHappened();
-		A.CallTo(() => _context.GetItem<object>("ServiceId")).MustNotHaveHappened();
-		A.CallTo(() => _context.GetItem<object>("TenantId")).MustNotHaveHappened();
-		A.CallTo(() => _context.GetItem<object>("Roles")).MustNotHaveHappened();
-		A.CallTo(() => _context.GetItem<object>("claim:UserId")).MustNotHaveHappened();
-		A.CallTo(() => _context.GetItem<object>("claim:TenantId")).MustNotHaveHappened();
+		// GetItem is now an extension method reading from Items dictionary -- cannot intercept with FakeItEasy.
+		// The bypass behavior is verified by confirming the auth service was never called
+		// and the result is successful despite no subject being present.
+		_items.ShouldBeEmpty("No items should have been added by the middleware during bypass");
 		A.CallTo(() => _authorizationService.AuthorizeAsync(
 			A<IDispatchMessage>._,
 			A<IMessageContext>._,
@@ -396,7 +397,7 @@ public sealed class AuthorizationMiddlewareShould
 		var middleware = new AuthorizationMiddleware(options, _authorizationService, NullTelemetrySanitizer.Instance, _logger);
 		var message = A.Fake<IDispatchMessage>();
 
-		_ = A.CallTo(() => _context.GetItem<object>("UserId")).Returns("user-from-userid");
+		_items["UserId"] = "user-from-userid";
 
 		_ = A.CallTo(() => _authorizationService.AuthorizeAsync(
 			A<IDispatchMessage>._,
@@ -427,8 +428,8 @@ public sealed class AuthorizationMiddlewareShould
 		var middleware = new AuthorizationMiddleware(options, _authorizationService, NullTelemetrySanitizer.Instance, _logger);
 		var message = A.Fake<IDispatchMessage>();
 
-		_ = A.CallTo(() => _context.GetItem<object>("UserId")).Returns(null);
-		_ = A.CallTo(() => _context.GetItem<object>("SubjectId")).Returns("subject-id-value");
+		// UserId not present -- GetItem will return null from empty Items dictionary
+		_items["SubjectId"] = "subject-id-value";
 
 		_ = A.CallTo(() => _authorizationService.AuthorizeAsync(
 			A<IDispatchMessage>._,
@@ -459,9 +460,8 @@ public sealed class AuthorizationMiddlewareShould
 		var middleware = new AuthorizationMiddleware(options, _authorizationService, NullTelemetrySanitizer.Instance, _logger);
 		var message = A.Fake<IDispatchMessage>();
 
-		_ = A.CallTo(() => _context.GetItem<object>("UserId")).Returns(null);
-		_ = A.CallTo(() => _context.GetItem<object>("SubjectId")).Returns(null);
-		_ = A.CallTo(() => _context.GetItem<object>("ServiceId")).Returns("service-id-value");
+		// UserId and SubjectId not present -- GetItem will return null from Items dictionary
+		_items["ServiceId"] = "service-id-value";
 
 		_ = A.CallTo(() => _authorizationService.AuthorizeAsync(
 			A<IDispatchMessage>._,
@@ -496,7 +496,7 @@ public sealed class AuthorizationMiddlewareShould
 		var middleware = new AuthorizationMiddleware(options, _authorizationService, NullTelemetrySanitizer.Instance, _logger);
 		var message = A.Fake<IDispatchMessage>();
 
-		_ = A.CallTo(() => _context.GetItem<object>("UserId")).Returns("user-123");
+		_items["UserId"] = "user-123";
 
 		_ = A.CallTo(() => _authorizationService.AuthorizeAsync(
 			A<IDispatchMessage>._,

@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Messaging;
 /// Provides centralized management and registration of message buses, including both local and remote bus instances. This class maintains
 /// separate collections for local and remote message buses and provides methods to retrieve, register, and enumerate them.
 /// </summary>
-public sealed class MessageBusProvider : IMessageBusProvider
+internal sealed class MessageBusProvider : IMessageBusProvider
 {
 	private readonly ConcurrentDictionary<string, Lazy<IMessageBus>> _buses =
 			new(StringComparer.OrdinalIgnoreCase);

@@ -82,46 +82,6 @@ public sealed class GrantRepositoryShould
 	}
 
 	[Fact]
-	public async Task QueryAsync_ThrowsOnNullQuery()
-	{
-		await Should.ThrowAsync<ArgumentNullException>(() =>
-			_repository.QueryAsync<GrantQuery>(null!, CancellationToken.None));
-	}
-
-	[Fact]
-	public async Task QueryAsync_ReturnsEmptyCollection()
-	{
-		// Arrange
-		var query = new GrantQuery();
-
-		// Act
-		var result = await _repository.QueryAsync(query, CancellationToken.None);
-
-		// Assert
-		result.ShouldBeEmpty();
-	}
-
-	[Fact]
-	public async Task FindAsync_ThrowsOnNullQuery()
-	{
-		await Should.ThrowAsync<ArgumentNullException>(() =>
-			_repository.FindAsync<GrantQuery>(null!, CancellationToken.None));
-	}
-
-	[Fact]
-	public async Task FindAsync_ReturnsNull()
-	{
-		// Arrange
-		var query = new GrantQuery();
-
-		// Act
-		var result = await _repository.FindAsync(query, CancellationToken.None);
-
-		// Assert
-		result.ShouldBeNull();
-	}
-
-	[Fact]
 	public async Task MatchingAsync_ThrowsOnNullScope()
 	{
 		await Should.ThrowAsync<ArgumentNullException>(() =>

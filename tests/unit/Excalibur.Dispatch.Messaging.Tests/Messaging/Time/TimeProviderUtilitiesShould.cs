@@ -86,7 +86,8 @@ public sealed class TimeProviderUtilitiesShould
 
 		await cts.CancelAsync().ConfigureAwait(false);
 
-		await Should.ThrowAsync<TaskCanceledException>(async () =>
+		await Should.ThrowAsync<OperationCanceledException>(async () =>
 			await task.ConfigureAwait(false)).ConfigureAwait(false);
+		task.IsCanceled.ShouldBeTrue();
 	}
 }

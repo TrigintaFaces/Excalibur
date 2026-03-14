@@ -21,9 +21,9 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 		sut.NumberOfReplicas.ShouldBe(0);
 		sut.CreateIndexOnInitialize.ShouldBeTrue();
 		sut.RefreshInterval.ShouldBe("1s");
-		sut.Username.ShouldBeNull();
-		sut.Password.ShouldBeNull();
-		sut.ApiKey.ShouldBeNull();
+		sut.Auth.Username.ShouldBeNull();
+		sut.Auth.Password.ShouldBeNull();
+		sut.Auth.ApiKey.ShouldBeNull();
 		sut.EnableDebugMode.ShouldBeFalse();
 	}
 
@@ -39,9 +39,12 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 			NumberOfReplicas = 2,
 			CreateIndexOnInitialize = false,
 			RefreshInterval = "5s",
-			Username = "admin",
-			Password = "secret",
-			ApiKey = "key123",
+			Auth =
+			{
+				Username = "admin",
+				Password = "secret",
+				ApiKey = "key123"
+			},
 			EnableDebugMode = true,
 		};
 
@@ -52,9 +55,9 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 		sut.NumberOfReplicas.ShouldBe(2);
 		sut.CreateIndexOnInitialize.ShouldBeFalse();
 		sut.RefreshInterval.ShouldBe("5s");
-		sut.Username.ShouldBe("admin");
-		sut.Password.ShouldBe("secret");
-		sut.ApiKey.ShouldBe("key123");
+		sut.Auth.Username.ShouldBe("admin");
+		sut.Auth.Password.ShouldBe("secret");
+		sut.Auth.ApiKey.ShouldBe("key123");
 		sut.EnableDebugMode.ShouldBeTrue();
 	}
 

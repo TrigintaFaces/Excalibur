@@ -35,7 +35,7 @@ Shows how to migrate from:
 
 ## Prerequisites
 
-1. **.NET 8.0 or later**
+1. **.NET 9.0 or later**
 2. **Azure Storage Emulator (Azurite)** for local development
 3. **Azure Storage Account** for production scenarios
 
@@ -76,7 +76,7 @@ Shows how to migrate from:
 Messages exceeding the configured threshold (default 64KB) are automatically stored in blob storage:
 
 ```csharp
-services.AddClaimCheck(options =>
+services.AddClaimCheck<InMemoryClaimCheckProvider>(options =>
 {
     options.PayloadThreshold = 64 * 1024; // 64KB
 });
@@ -86,8 +86,8 @@ services.AddClaimCheck(options =>
 Very large messages (>1MB) are automatically chunked for parallel upload/download:
 
 ```csharp
-options.ChunkSize = 1024 * 1024; // 1MB chunks
-options.MaxConcurrency = 4; // Parallel chunks
+options.Storage.ChunkSize = 1024 * 1024; // 1MB chunks
+options.Storage.Operations.MaxConcurrency = 4; // Parallel chunks
 ```
 
 ### 3. Smart Compression
@@ -146,22 +146,23 @@ View metrics in the console output or configure OpenTelemetry exporters for prod
 
 1. **For High Throughput**
    ```csharp
-   options.MaxConcurrency = Environment.ProcessorCount;
-   options.BufferPoolSize = 100;
-   options.ChunkSize = 4 * 1024 * 1024; // 4MB chunks
+   options.Storage.Operations.MaxConcurrency = Environment.ProcessorCount;
+   options.Storage.Operations.BufferPoolSize = 100;
+   options.Storage.ChunkSize = 4 * 1024 * 1024; // 4MB chunks
    ```
 
 2. **For Low Memory**
    ```csharp
-   options.MaxConcurrency = 2;
-   options.BufferPoolSize = 10;
-   options.ChunkSize = 512 * 1024; // 512KB chunks
+   options.Storage.Operations.MaxConcurrency = 2;
+   options.Storage.Operations.BufferPoolSize = 10;
+   options.Storage.ChunkSize = 512 * 1024; // 512KB chunks
    ```
 
 3. **For Slow Networks**
    ```csharp
-   options.OperationTimeout = TimeSpan.FromMinutes(10);
-   options.RetryPolicy = new ExponentialBackoffRetry(3);
+   options.Storage.Operations.OperationTimeout = TimeSpan.FromMinutes(10);
+   options.Storage.Operations.MaxRetries = 5;
+   options.Storage.Operations.RetryDelay = TimeSpan.FromSeconds(2);
    ```
 
 ## Next Steps

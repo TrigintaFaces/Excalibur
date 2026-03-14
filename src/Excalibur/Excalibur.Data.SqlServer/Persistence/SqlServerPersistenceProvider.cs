@@ -83,13 +83,13 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 		SqlMapper.AddTypeHandler(new TimeOnlyTypeHandler());
 		SqlMapper.AddTypeHandler(new NullableTimeOnlyTypeHandler());
 
-		if (_options.EnableDetailedLogging)
+		if (_options.Observability.EnableDetailedLogging)
 		{
-			LogProviderInitialized(_options.MaxPoolSize, _options.CommandTimeout,
-				_options.Security.EnableAlwaysEncrypted, _options.Connection.EnableMars, _options.MaxRetryAttempts);
+			LogProviderInitialized(_options.Pooling.MaxPoolSize, _options.CommandTimeout,
+				_options.Security.EnableAlwaysEncrypted, _options.Connection.EnableMars, _options.Resiliency.MaxRetryAttempts);
 		}
 
-		_connectionSemaphore = new SemaphoreSlim(_options.MaxPoolSize, _options.MaxPoolSize);
+		_connectionSemaphore = new SemaphoreSlim(_options.Pooling.MaxPoolSize, _options.Pooling.MaxPoolSize);
 	}
 
 	/// <inheritdoc />
@@ -132,7 +132,7 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 		var connectionStringBuilder = BuildConnectionString();
 		var connection = new SqlConnection(connectionStringBuilder.ConnectionString);
 
-		if (_options.EnableDetailedLogging)
+		if (_options.Observability.EnableDetailedLogging)
 		{
 			LogConnectionCreated();
 		}
@@ -159,7 +159,7 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-			if (_options.EnableDetailedLogging)
+			if (_options.Observability.EnableDetailedLogging)
 			{
 				LogConnectionOpened();
 			}
@@ -238,7 +238,7 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 
 			_metrics.RecordDataRequestExecution((long)stopwatch.Elapsed.TotalMilliseconds, success: true);
 
-			if (_options.EnableDetailedLogging)
+			if (_options.Observability.EnableDetailedLogging)
 			{
 				LogDataRequestExecuted(request.GetType().Name, transactionScope.TransactionId,
 					(long)stopwatch.Elapsed.TotalMilliseconds);
@@ -266,7 +266,7 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 			actualTimeout,
 			_loggerFactory.CreateLogger<SqlServerTransactionScope>());
 
-		if (_options.EnableDetailedLogging)
+		if (_options.Observability.EnableDetailedLogging)
 		{
 			LogTransactionScopeCreated(transactionScope.TransactionId, isolationLevel);
 		}
@@ -314,7 +314,7 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 
 				_metrics.RecordBatchExecution((long)stopwatch.Elapsed.TotalMilliseconds, success: true, requestList.Count, results.Count);
 
-				if (_options.EnableDetailedLogging)
+				if (_options.Observability.EnableDetailedLogging)
 				{
 					LogBatchExecuted(requestList.Count, (long)stopwatch.Elapsed.TotalMilliseconds);
 				}
@@ -371,7 +371,7 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 
 			_metrics.RecordBatchExecution((long)stopwatch.Elapsed.TotalMilliseconds, success: true, requestList.Count, results.Count);
 
-			if (_options.EnableDetailedLogging)
+			if (_options.Observability.EnableDetailedLogging)
 			{
 				LogBatchInTransactionExecuted(requestList.Count, transactionScope.TransactionId,
 					(long)stopwatch.Elapsed.TotalMilliseconds);
@@ -458,12 +458,12 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 		var metrics = await _metrics.GetMetricsAsync().ConfigureAwait(false);
 
 		// Add SQL Server-specific metrics
-		metrics["ConnectionPoolSize"] = _options.MaxPoolSize;
-		metrics["ConnectionPoolMinSize"] = _options.MinPoolSize;
-		metrics["ConnectionTimeoutSeconds"] = _options.ConnectionTimeout;
+		metrics["ConnectionPoolSize"] = _options.Pooling.MaxPoolSize;
+		metrics["ConnectionPoolMinSize"] = _options.Pooling.MinPoolSize;
+		metrics["ConnectionTimeoutSeconds"] = _options.Connection.ConnectionTimeout;
 		metrics["CommandTimeoutSeconds"] = _options.CommandTimeout;
-		metrics["RetryPolicyEnabled"] = _options.MaxRetryAttempts > 0;
-		metrics["MaxRetryAttempts"] = _options.MaxRetryAttempts;
+		metrics["RetryPolicyEnabled"] = _options.Resiliency.MaxRetryAttempts > 0;
+		metrics["MaxRetryAttempts"] = _options.Resiliency.MaxRetryAttempts;
 		metrics["AlwaysEncryptedEnabled"] = _options.Security.EnableAlwaysEncrypted;
 		metrics["MarsEnabled"] = _options.Connection.EnableMars;
 
@@ -497,9 +497,9 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 			}
 
 			// Add configured pool settings
-			result["ConfiguredMaxPoolSize"] = _options.MaxPoolSize;
-			result["ConfiguredMinPoolSize"] = _options.MinPoolSize;
-			result["ConnectionPoolingEnabled"] = _options.EnableConnectionPooling;
+			result["ConfiguredMaxPoolSize"] = _options.Pooling.MaxPoolSize;
+			result["ConfiguredMinPoolSize"] = _options.Pooling.MinPoolSize;
+			result["ConnectionPoolingEnabled"] = _options.Pooling.EnableConnectionPooling;
 
 			return result;
 		}
@@ -676,9 +676,9 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 			// Update options if provided
 			_options.ConnectionString = sqlOptions.ConnectionString;
 			_options.CommandTimeout = sqlOptions.CommandTimeout;
-			_options.ConnectionTimeout = sqlOptions.ConnectionTimeout;
-			_options.MaxRetryAttempts = sqlOptions.MaxRetryAttempts;
-			_options.RetryDelayMilliseconds = sqlOptions.RetryDelayMilliseconds;
+			_options.Connection.ConnectionTimeout = sqlOptions.Connection.ConnectionTimeout;
+			_options.Resiliency.MaxRetryAttempts = sqlOptions.Resiliency.MaxRetryAttempts;
+			_options.Resiliency.RetryDelayMilliseconds = sqlOptions.Resiliency.RetryDelayMilliseconds;
 		}
 
 		_options.Validate();
@@ -805,7 +805,7 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 		var builder = new SqlConnectionStringBuilder(_options.ConnectionString)
 		{
 			ApplicationName = _options.Connection.ApplicationName,
-			ConnectTimeout = _options.ConnectionTimeout,
+			ConnectTimeout = _options.Connection.ConnectionTimeout,
 			CommandTimeout = _options.CommandTimeout,
 			MultiSubnetFailover = _options.Connection.MultiSubnetFailover,
 			TrustServerCertificate = _options.Security.TrustServerCertificate,
@@ -817,11 +817,11 @@ public partial class SqlServerPersistenceProvider : ISqlPersistenceProvider, IPe
 			ConnectRetryInterval = _options.Resiliency.ConnectRetryInterval,
 		};
 
-		if (_options.EnableConnectionPooling)
+		if (_options.Pooling.EnableConnectionPooling)
 		{
 			builder.Pooling = true;
-			builder.MaxPoolSize = _options.MaxPoolSize;
-			builder.MinPoolSize = _options.MinPoolSize;
+			builder.MaxPoolSize = _options.Pooling.MaxPoolSize;
+			builder.MinPoolSize = _options.Pooling.MinPoolSize;
 		}
 		else
 		{

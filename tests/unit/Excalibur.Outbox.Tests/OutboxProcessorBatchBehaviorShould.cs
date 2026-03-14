@@ -3,6 +3,7 @@
 
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Serialization;
@@ -168,7 +169,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			ConsumerBatchSize = 1,
 			PerRunTotal = 1,
 			MaxAttempts = maxAttempts,
-			ParallelProcessingDegree = 2,
+			BatchProcessing = { ParallelProcessingDegree = 2 },
 			EnableBatchDatabaseOperations = true,
 		});
 	}
@@ -176,7 +177,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 	private static OutboxProcessor CreateProcessor(
 		IOptions<DeliveryOutboxOptions>? options = null,
 		IOutboxStore? outboxStore = null,
-		IJsonSerializer? serializer = null,
+		DispatchJsonSerializer? serializer = null,
 		IServiceProvider? serviceProvider = null,
 		ILogger<OutboxProcessor>? logger = null,
 		IDeadLetterQueue? deadLetterQueue = null,
@@ -185,7 +186,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 		return new OutboxProcessor(
 			options ?? CreateParallelOptions(maxAttempts: 3),
 			outboxStore ?? A.Fake<IOutboxStore>(),
-			serializer ?? A.Fake<IJsonSerializer>(),
+			serializer ?? new DispatchJsonSerializer(),
 			serviceProvider ?? A.Fake<IServiceProvider>(),
 			logger ?? A.Fake<ILogger<OutboxProcessor>>(),
 			telemetryClient: null,
@@ -210,18 +211,20 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 		return outboxStore;
 	}
 
-	private static IJsonSerializer CreateSerializerForSingleMessage(
+	private static readonly JsonSerializerOptions s_testJsonOptions = new()
+	{
+		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+		PropertyNameCaseInsensitive = true,
+		WriteIndented = false,
+		DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+	};
+
+	private static OutboundMessage CreateOutboundMessageWithEnvelope(
 		string messageId,
 		string messageType,
 		TestCircuitIntegrationEvent integrationEvent)
 	{
-		var serializer = A.Fake<IJsonSerializer>();
-		var outboxMessage = new DeliveryOutboxMessage(
-			messageId,
-			messageType,
-			messageMetadata: "{\"CorrelationId\":\"corr\"}",
-			messageBody: "{\"Value\":\"payload\"}",
-			createdAt: DateTimeOffset.UtcNow);
+		var eventJson = JsonSerializer.Serialize(integrationEvent, s_testJsonOptions);
 		var metadata = new DeliveryMessageMetadata(
 			MessageId: messageId,
 			CorrelationId: "corr",
@@ -232,18 +235,25 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 			ContentType: "application/json",
 			SerializerVersion: "1.0.0",
 			MessageVersion: "1.0.0");
+		var metadataJson = JsonSerializer.Serialize(metadata, s_testJsonOptions);
 
-		_ = A.CallTo(() => serializer.DeserializeAsync(A<string>._, typeof(DeliveryOutboxMessage)))
-			.Returns(Task.FromResult<object?>(outboxMessage));
-		_ = A.CallTo(() => serializer.DeserializeAsync(
-				A<string>._,
-				A<Type>.That.Matches(t => t == typeof(TestCircuitIntegrationEvent))))
-			.Returns(Task.FromResult<object?>(integrationEvent));
-		_ = A.CallTo(() => serializer.DeserializeAsync(
-				A<string>._,
-				A<Type>.That.Matches(t => t == typeof(DeliveryMessageMetadata))))
-			.Returns(Task.FromResult<object?>(metadata));
-		return serializer;
+		var envelope = new DeliveryOutboxMessage(
+			messageId,
+			messageType,
+			messageMetadata: metadataJson,
+			messageBody: eventJson,
+			createdAt: DateTimeOffset.UtcNow);
+
+		var envelopeJson = JsonSerializer.Serialize(envelope, s_testJsonOptions);
+
+		return new OutboundMessage
+		{
+			Id = messageId,
+			MessageType = messageType,
+			Payload = Encoding.UTF8.GetBytes(envelopeJson),
+			CreatedAt = DateTimeOffset.UtcNow,
+			RetryCount = 0
+		};
 	}
 
 	private static Task<CircuitOpenScenario> CreateCircuitOpenDuringExecutionScenarioAsync()
@@ -273,18 +283,12 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 	{
 		var messageType = typeof(TestCircuitIntegrationEvent).Name;
 		MessageTypeRegistry.RegisterType<TestCircuitIntegrationEvent>();
-		var outboxStore = CreateOutboxStore(new OutboundMessage
-		{
-			Id = "message-open-during-execution",
-			MessageType = messageType,
-			Payload = Encoding.UTF8.GetBytes("payload"),
-			CreatedAt = DateTimeOffset.UtcNow,
-			RetryCount = 0,
-		});
-		var serializer = CreateSerializerForSingleMessage(
-			messageId: "message-open-during-execution",
-			messageType: messageType,
-			integrationEvent: new TestCircuitIntegrationEvent("value"));
+		var outboundMessage = CreateOutboundMessageWithEnvelope(
+			"message-open-during-execution",
+			messageType,
+			new TestCircuitIntegrationEvent("value"));
+		var outboxStore = CreateOutboxStore(outboundMessage);
+		var serializer = new DispatchJsonSerializer();
 		return new CircuitOpenMessageSetup(outboxStore, serializer);
 	}
 
@@ -384,7 +388,7 @@ public sealed class OutboxProcessorBatchBehaviorShould : UnitTestBase
 
 	private sealed record CircuitOpenMessageSetup(
 		IOutboxStore OutboxStore,
-		IJsonSerializer Serializer);
+		DispatchJsonSerializer Serializer);
 
 	private sealed record CircuitOpenRuntimeSetup(
 		IDispatcher Dispatcher,

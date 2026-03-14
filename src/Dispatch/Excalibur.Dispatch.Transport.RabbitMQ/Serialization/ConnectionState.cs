@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// <summary>
 /// Represents connection state.
 /// </summary>
-public sealed record ConnectionState(
+internal sealed record ConnectionState(
 	string Endpoint,
 	bool IsOpen,
 	string ClientProvidedName,

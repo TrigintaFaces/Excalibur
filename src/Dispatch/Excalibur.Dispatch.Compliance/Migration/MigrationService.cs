@@ -24,7 +24,7 @@ namespace Excalibur.Dispatch.Compliance;
 /// for monitoring and reporting purposes.
 /// </para>
 /// </remarks>
-public sealed partial class MigrationService : IMigrationService
+public sealed partial class MigrationService : IMigrationService, IMigrationInfo
 {
 	private const int MinCiphertextSize = 28; // 12-byte nonce + 16-byte tag minimum
 	private const int V11HeaderSize = 7; // Includes version prefix + key version

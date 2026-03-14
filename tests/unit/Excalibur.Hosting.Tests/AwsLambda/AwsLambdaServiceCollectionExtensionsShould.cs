@@ -68,7 +68,7 @@ public sealed class AwsLambdaServiceCollectionExtensionsShould : UnitTestBase
 		_ = services.AddExcaliburAwsLambdaServerless(options =>
 		{
 			options.EnableColdStartOptimization = true;
-			options.EnableDistributedTracing = false;
+			options.Telemetry.EnableDistributedTracing = false;
 		});
 
 		// Assert

@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// AWS EventBridge implementation of <see cref="ICloudEventMapper{TTransportMessage}" />.
 /// </summary>
-public sealed class AwsEventBridgeCloudEventAdapter : ICloudEventMapper<PutEventsRequestEntry>
+internal sealed class AwsEventBridgeCloudEventAdapter : ICloudEventMapper<PutEventsRequestEntry>
 {
 	private const string SpecVersionProperty = "specversion";
 	private const string TypeProperty = "type";

@@ -7,6 +7,18 @@ param(
     "eng/ci/shards/UnitTests-Observability.slnf",
     "eng/ci/shards/UnitTests-Excalibur.slnf"
   ),
+  [string[]]$BlockingTierShards = @(
+    "eng/ci/shards/UnitTests-Core.slnf",
+    "eng/ci/shards/UnitTests-Transport.slnf",
+    "eng/ci/shards/UnitTests-Middleware.slnf",
+    "eng/ci/shards/UnitTests-Excalibur.slnf"
+  ),
+  [string[]]$AdvisoryTierShards = @(
+    "eng/ci/shards/UnitTests-Messaging.slnf",
+    "eng/ci/shards/UnitTests-Observability.slnf"
+  ),
+  [string]$DeterministicSlnf = "eng/ci/shards/UnitTests-Deterministic.slnf",
+  [string]$AsyncRiskSlnf = "eng/ci/shards/UnitTests-AsyncRisk.slnf",
   [string]$UnitTestsRoot = "tests/unit",
   [string]$OutDir = "UnitShardReport",
   [bool]$Enforce = $true
@@ -51,6 +63,77 @@ $projectCount = $unitProjects.Count
 $missingCount = $missing.Count
 $duplicateCount = $duplicateAssignments.Count
 
+# --- Tier validation: verify Deterministic and AsyncRisk slnf files ---
+$tierIssues = @()
+
+function Get-UnitProjectsFromSlnf([string]$slnfPath) {
+  if (-not (Test-Path $slnfPath)) {
+    return @()
+  }
+  $content = Get-Content $slnfPath -Raw | ConvertFrom-Json
+  $projects = @($content.solution.projects)
+  return @($projects | Where-Object { $_ -like "tests\unit\*" })
+}
+
+function Get-RelativeRepoPath([string]$fullPath) {
+  $relative = [IO.Path]::GetRelativePath($repoRoot, $fullPath)
+  return $relative.Replace('/', '\')
+}
+
+$detProjects = Get-UnitProjectsFromSlnf $DeterministicSlnf
+$arProjects = Get-UnitProjectsFromSlnf $AsyncRiskSlnf
+
+# Verify tier shard files exist
+if (-not (Test-Path $DeterministicSlnf)) {
+  $tierIssues += "Missing tier shard file: $DeterministicSlnf"
+}
+if (-not (Test-Path $AsyncRiskSlnf)) {
+  $tierIssues += "Missing tier shard file: $AsyncRiskSlnf"
+}
+
+# Verify no overlap between tiers
+$tierOverlap = @($detProjects | Where-Object { $arProjects -contains $_ })
+if ($tierOverlap.Count -gt 0) {
+  foreach ($proj in $tierOverlap) {
+    $tierIssues += "Project in BOTH tiers: $proj"
+  }
+}
+
+# Verify Deterministic tier contains all blocking shard unit projects
+foreach ($blockingShard in $BlockingTierShards) {
+  if (-not (Test-Path $blockingShard)) { continue }
+  $blockingProjects = Get-UnitProjectsFromSlnf $blockingShard
+  foreach ($proj in $blockingProjects) {
+    if (-not ($detProjects -contains $proj)) {
+      $tierIssues += "Blocking shard project missing from Deterministic tier: $proj (from $blockingShard)"
+    }
+  }
+}
+
+# Verify AsyncRisk tier contains all advisory shard unit projects
+foreach ($advisoryShard in $AdvisoryTierShards) {
+  if (-not (Test-Path $advisoryShard)) { continue }
+  $advisoryProjects = Get-UnitProjectsFromSlnf $advisoryShard
+  foreach ($proj in $advisoryProjects) {
+    if (-not ($arProjects -contains $proj)) {
+      $tierIssues += "Advisory shard project missing from AsyncRisk tier: $proj (from $advisoryShard)"
+    }
+  }
+}
+
+# Verify all unit projects are in exactly one tier
+$allTierProjects = @($detProjects) + @($arProjects)
+foreach ($project in $unitProjects) {
+  $slnfRelative = Get-RelativeRepoPath $project.FullName
+  $inTier = $allTierProjects | Where-Object { $_ -eq $slnfRelative }
+  if (-not $inTier) {
+    $tierIssues += "Unit project not in any tier: $slnfRelative"
+  }
+}
+
+$tierIssueCount = $tierIssues.Count
+
+# --- Write report ---
 $summaryPath = Join-Path $OutDir "summary.md"
 "# Unit Test Shard Coverage Audit" | Out-File -FilePath $summaryPath -Encoding UTF8
 "" | Out-File -FilePath $summaryPath -Append -Encoding UTF8
@@ -58,6 +141,13 @@ $summaryPath = Join-Path $OutDir "summary.md"
 "- Shard filters scanned: $($ShardFilters.Count)" | Out-File -FilePath $summaryPath -Append -Encoding UTF8
 "- Missing assignments: $missingCount" | Out-File -FilePath $summaryPath -Append -Encoding UTF8
 "- Multi-shard assignments: $duplicateCount" | Out-File -FilePath $summaryPath -Append -Encoding UTF8
+"" | Out-File -FilePath $summaryPath -Append -Encoding UTF8
+"## Tier Summary" | Out-File -FilePath $summaryPath -Append -Encoding UTF8
+"" | Out-File -FilePath $summaryPath -Append -Encoding UTF8
+"- Deterministic (blocking) unit projects: $($detProjects.Count)" | Out-File -FilePath $summaryPath -Append -Encoding UTF8
+"- AsyncRisk (advisory) unit projects: $($arProjects.Count)" | Out-File -FilePath $summaryPath -Append -Encoding UTF8
+"- Tier overlap: $($tierOverlap.Count)" | Out-File -FilePath $summaryPath -Append -Encoding UTF8
+"- Tier issues: $tierIssueCount" | Out-File -FilePath $summaryPath -Append -Encoding UTF8
 "" | Out-File -FilePath $summaryPath -Append -Encoding UTF8
 
 if ($missingCount -gt 0) {
@@ -81,19 +171,34 @@ if ($duplicateCount -gt 0) {
   }
 }
 
-if ($missingCount -eq 0 -and $duplicateCount -eq 0) {
+if ($tierIssueCount -gt 0) {
+  "" | Out-File -FilePath $summaryPath -Append -Encoding UTF8
+  "## Tier Issues" | Out-File -FilePath $summaryPath -Append -Encoding UTF8
+  "" | Out-File -FilePath $summaryPath -Append -Encoding UTF8
+  foreach ($issue in $tierIssues) {
+    "- $issue" | Out-File -FilePath $summaryPath -Append -Encoding UTF8
+  }
+}
+
+if ($missingCount -eq 0 -and $duplicateCount -eq 0 -and $tierIssueCount -eq 0) {
   "## Result" | Out-File -FilePath $summaryPath -Append -Encoding UTF8
   "" | Out-File -FilePath $summaryPath -Append -Encoding UTF8
-  "All unit test projects are assigned to exactly one shard." | Out-File -FilePath $summaryPath -Append -Encoding UTF8
+  "All unit test projects are assigned to exactly one shard and one tier." | Out-File -FilePath $summaryPath -Append -Encoding UTF8
 }
 
 $jsonPath = Join-Path $OutDir "unit-shard-map.json"
 $coverageMap.GetEnumerator() |
   Sort-Object Key |
   ForEach-Object {
+    $relPath = Get-RelativeRepoPath $_.Key
+    $slnfRelative = $relPath
+    $tier = if ($detProjects -contains $slnfRelative) { "blocking" }
+            elseif ($arProjects -contains $slnfRelative) { "advisory" }
+            else { "unassigned" }
     [pscustomobject]@{
-      Project = $_.Key.Replace("$repoRoot\", "")
+      Project = $relPath
       Shards = $_.Value
+      Tier = $tier
     }
   } |
   ConvertTo-Json -Depth 4 |
@@ -107,7 +212,11 @@ if ($duplicateCount -gt 0) {
   Write-Warning "Projects assigned to multiple shards: $duplicateCount"
 }
 
-if ($Enforce -and ($missingCount -gt 0 -or $duplicateCount -gt 0)) {
+if ($tierIssueCount -gt 0) {
+  Write-Warning "Tier validation issues detected: $tierIssueCount"
+}
+
+if ($Enforce -and ($missingCount -gt 0 -or $duplicateCount -gt 0 -or $tierIssueCount -gt 0)) {
   throw "Unit shard coverage audit failed."
 }
 

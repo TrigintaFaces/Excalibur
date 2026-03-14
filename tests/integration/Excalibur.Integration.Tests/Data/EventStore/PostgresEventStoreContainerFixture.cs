@@ -44,7 +44,7 @@ public sealed class PostgresEventStoreContainerFixture : ContainerFixtureBase
 	/// <summary>
 	/// Gets the table name for events.
 	/// </summary>
-	public string TableName { get; } = "event_store_events";
+	public string TableName { get; } = "events";
 
 	protected override TimeSpan ContainerStartTimeout => TimeSpan.FromMinutes(4);
 
@@ -77,9 +77,10 @@ public sealed class PostgresEventStoreContainerFixture : ContainerFixtureBase
 		await connection.OpenAsync().ConfigureAwait(false);
 
 		// Create event store table with required schema
+		// Must match PostgresEventStore SQL: position BIGSERIAL, event_id UUID, RETURNING position
 		var createTableSql = $"""
 			CREATE TABLE IF NOT EXISTS public.{TableName} (
-				global_sequence BIGSERIAL PRIMARY KEY,
+				position BIGSERIAL PRIMARY KEY,
 				event_id VARCHAR(255) NOT NULL UNIQUE,
 				aggregate_id VARCHAR(255) NOT NULL,
 				aggregate_type VARCHAR(255) NOT NULL,
@@ -96,7 +97,7 @@ public sealed class PostgresEventStoreContainerFixture : ContainerFixtureBase
 				ON public.{TableName}(aggregate_id, aggregate_type, version);
 
 			CREATE INDEX IF NOT EXISTS idx_events_undispatched
-				ON public.{TableName}(is_dispatched, global_sequence) WHERE is_dispatched = false;
+				ON public.{TableName}(is_dispatched, position) WHERE is_dispatched = false;
 
 			CREATE INDEX IF NOT EXISTS idx_events_type
 				ON public.{TableName}(event_type);

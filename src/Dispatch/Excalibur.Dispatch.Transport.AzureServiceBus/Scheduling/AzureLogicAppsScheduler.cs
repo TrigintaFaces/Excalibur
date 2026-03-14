@@ -25,7 +25,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// <param name="logger"> The logger. </param>
 /// <param name="httpClient"> Optional HTTP client override. </param>
 /// <param name="credential"> Optional credential override. </param>
-public sealed class AzureLogicAppsScheduler(
+internal sealed class AzureLogicAppsScheduler(
 	IOptions<AzureLogicAppsSchedulerOptions> options,
 	ILogger<AzureLogicAppsScheduler> logger,
 	HttpClient? httpClient = null,

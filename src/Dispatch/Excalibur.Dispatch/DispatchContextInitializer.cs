@@ -4,6 +4,8 @@
 
 using System.Diagnostics;
 
+using Excalibur.Dispatch.Abstractions.Features;
+
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Dispatch.Messaging;
@@ -32,7 +34,7 @@ public static class DispatchContextInitializer
 	{
 		var context = MessageContext.CreateForDeserialization(serviceProvider);
 		context.CorrelationId = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString();
-		context.TraceParent = Activity.Current?.Id;
+		context.GetOrCreateIdentityFeature().TraceParent = Activity.Current?.Id;
 
 		if (Activity.Current?.Baggage != null)
 		{

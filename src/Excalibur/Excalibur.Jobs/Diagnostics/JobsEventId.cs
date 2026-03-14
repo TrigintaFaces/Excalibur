@@ -22,48 +22,12 @@ namespace Excalibur.Jobs.Diagnostics;
 /// <item>147520-147529: Outbox Job</item>
 /// <item>147600-147609: Quartz Generic Job Adapter</item>
 /// <item>147700-147709: Workflow Job</item>
+/// <item>147800-147809: Snapshot Creation Job</item>
+/// <item>147810-147819: Projection Rebuild Job</item>
 /// </list>
 /// </remarks>
 public static class JobsEventId
 {
-	// ========================================
-	// 146100-146199: Azure Logic Apps Job Provider
-	// ========================================
-
-	/// <summary>Azure Logic Apps workflow created successfully.</summary>
-	public const int AzureLogicAppsWorkflowCreated = 146100;
-
-	/// <summary>Azure Logic Apps workflow creation failed.</summary>
-	public const int AzureLogicAppsWorkflowCreationFailed = 146101;
-
-	/// <summary>Azure Logic Apps workflow deleted successfully.</summary>
-	public const int AzureLogicAppsWorkflowDeleted = 146102;
-
-	/// <summary>Azure Logic Apps workflow not found for deletion.</summary>
-	public const int AzureLogicAppsWorkflowNotFound = 146103;
-
-	/// <summary>Azure Logic Apps workflow deletion failed.</summary>
-	public const int AzureLogicAppsWorkflowDeletionFailed = 146104;
-
-	// ========================================
-	// 146200-146299: AWS EventBridge Scheduler Job Provider
-	// ========================================
-
-	/// <summary>AWS EventBridge schedule created successfully.</summary>
-	public const int AwsSchedulerScheduleCreated = 146200;
-
-	/// <summary>AWS EventBridge schedule creation failed.</summary>
-	public const int AwsSchedulerScheduleCreationFailed = 146201;
-
-	/// <summary>AWS EventBridge schedule deleted successfully.</summary>
-	public const int AwsSchedulerScheduleDeleted = 146202;
-
-	/// <summary>AWS EventBridge schedule not found for deletion.</summary>
-	public const int AwsSchedulerScheduleNotFound = 146203;
-
-	/// <summary>AWS EventBridge schedule deletion failed.</summary>
-	public const int AwsSchedulerScheduleDeletionFailed = 146204;
-
 	// ========================================
 	// 147100-147199: Job Config Watcher
 	// ========================================
@@ -263,18 +227,38 @@ public static class JobsEventId
 	public const int GenericJobExecutionFailed = 147604;
 
 	// ========================================
-	// 147700-147709: Workflow Job
+	// 147800-147809: Snapshot Creation Job
 	// ========================================
 
-	/// <summary>Workflow job starting.</summary>
-	public const int WorkflowJobStarting = 147700;
+	/// <summary>Starting snapshot creation job.</summary>
+	public const int SnapshotCreationJobStarting = 147800;
 
-	/// <summary>Workflow job completed successfully.</summary>
-	public const int WorkflowJobCompleted = 147701;
+	/// <summary>Required dependencies not found for snapshot creation.</summary>
+	public const int SnapshotCreationDependenciesMissing = 147801;
 
-	/// <summary>Workflow job failed.</summary>
-	public const int WorkflowJobFailed = 147702;
+	/// <summary>Snapshot creation job completed.</summary>
+	public const int SnapshotCreationJobCompleted = 147802;
 
-	/// <summary>Unhandled exception in workflow job.</summary>
-	public const int WorkflowJobUnhandledException = 147703;
+	/// <summary>Snapshot creation job cancelled.</summary>
+	public const int SnapshotCreationJobCancelled = 147803;
+
+	/// <summary>Unexpected error in snapshot creation job.</summary>
+	public const int SnapshotCreationJobFailed = 147804;
+
+	// ========================================
+	// 147810-147819: Projection Rebuild Job
+	// ========================================
+
+	/// <summary>Starting projection rebuild job.</summary>
+	public const int ProjectionRebuildJobStarting = 147810;
+
+	/// <summary>No IMaterializedViewProcessor found.</summary>
+	public const int ProjectionRebuildProcessorMissing = 147811;
+
+	/// <summary>Projection rebuild job completed.</summary>
+	public const int ProjectionRebuildJobCompleted = 147812;
+
+	/// <summary>Unexpected error in projection rebuild job.</summary>
+	public const int ProjectionRebuildJobFailed = 147813;
+
 }

@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Serialization;
 /// <summary>
 /// Represents a context that manages both a pooled JSON writer and its buffer.
 /// </summary>
-public sealed class PooledJsonWriterContext : IDisposable
+internal sealed class PooledJsonWriterContext : IDisposable
 {
 	private readonly IUtf8JsonWriterPool _pool;
 	private readonly ArrayBufferWriter<byte> _bufferWriter;

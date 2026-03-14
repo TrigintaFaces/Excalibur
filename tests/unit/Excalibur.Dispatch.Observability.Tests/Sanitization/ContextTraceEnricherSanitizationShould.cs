@@ -6,9 +6,11 @@ using System.Security.Cryptography;
 using System.Text;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Observability.Context;
 using Excalibur.Dispatch.Observability.Sanitization;
+using Excalibur.Dispatch.Testing;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -64,25 +66,37 @@ public sealed class ContextTraceEnricherSanitizationShould : IDisposable
 				MsOptions.Create(new TelemetrySanitizerOptions())));
 	}
 
-	private static IMessageContext CreateFakeContext(
+	private static IMessageContext CreateTestContext(
 		string? userId = "alice",
 		string? tenantId = "tenant-1",
 		string? correlationId = "corr-123",
 		string? messageId = "msg-001")
 	{
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.UserId).Returns(userId);
-		A.CallTo(() => context.TenantId).Returns(tenantId);
-		A.CallTo(() => context.CorrelationId).Returns(correlationId);
-		A.CallTo(() => context.MessageId).Returns(messageId);
-		A.CallTo(() => context.CausationId).Returns("cause-001");
-		A.CallTo(() => context.ExternalId).Returns("ext-001");
-		A.CallTo(() => context.Source).Returns("test-source");
-		A.CallTo(() => context.MessageType).Returns("TestMessage");
-		A.CallTo(() => context.DeliveryCount).Returns(1);
-		A.CallTo(() => context.ReceivedTimestampUtc).Returns(DateTimeOffset.UtcNow);
-		A.CallTo(() => context.SentTimestampUtc).Returns(DateTimeOffset.UtcNow);
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		var builder = new MessageContextBuilder()
+			.WithMessageId(messageId ?? Guid.NewGuid().ToString())
+			.WithCorrelationId(correlationId ?? Guid.NewGuid().ToString());
+
+		if (userId is not null)
+		{
+			builder.WithUserId(userId);
+		}
+
+		if (tenantId is not null)
+		{
+			builder.WithTenantId(tenantId);
+		}
+
+		var context = builder.Build();
+
+		// Set additional properties that the enricher reads
+		context.CausationId = "cause-001";
+		context.GetOrCreateIdentityFeature().ExternalId = "ext-001";
+		context.GetOrCreateRoutingFeature().Source = "test-source";
+		context.SetMessageType("TestMessage");
+		context.GetOrCreateProcessingFeature().DeliveryCount = 1;
+		context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
+		context.SetSentTimestampUtc(DateTimeOffset.UtcNow);
+
 		return context;
 	}
 
@@ -96,7 +110,7 @@ public sealed class ContextTraceEnricherSanitizationShould : IDisposable
 		using var activity = _testSource.StartActivity("test-op");
 		activity.ShouldNotBeNull();
 
-		var context = CreateFakeContext(userId: "alice@example.com");
+		var context = CreateTestContext(userId: "alice@example.com");
 
 		// Act
 		enricher.EnrichActivity(activity, context);
@@ -116,7 +130,7 @@ public sealed class ContextTraceEnricherSanitizationShould : IDisposable
 		using var activity = _testSource.StartActivity("test-op");
 		activity.ShouldNotBeNull();
 
-		var context = CreateFakeContext(tenantId: "tenant-acme");
+		var context = CreateTestContext(tenantId: "tenant-acme");
 
 		// Act
 		enricher.EnrichActivity(activity, context);
@@ -136,12 +150,12 @@ public sealed class ContextTraceEnricherSanitizationShould : IDisposable
 		using var activity = _testSource.StartActivity("test-op");
 		activity.ShouldNotBeNull();
 
-		var context = CreateFakeContext();
+		var context = CreateTestContext();
 
 		// Act
 		enricher.EnrichActivity(activity, context);
 
-		// Assert — message.id and correlation.id should be raw
+		// Assert -- message.id and correlation.id should be raw
 		activity.GetTagItem("message.id").ShouldBe("msg-001");
 		activity.GetTagItem("correlation.id").ShouldBe("corr-123");
 	}
@@ -149,7 +163,7 @@ public sealed class ContextTraceEnricherSanitizationShould : IDisposable
 	[Fact]
 	public void NotSetUserIdTagWhenSanitizerReturnsNull()
 	{
-		// Arrange — use a sanitizer where user.id is suppressed
+		// Arrange -- use a sanitizer where user.id is suppressed
 		var sanitizer = new HashingTelemetrySanitizer(
 			MsOptions.Create(new TelemetrySanitizerOptions
 			{
@@ -160,12 +174,12 @@ public sealed class ContextTraceEnricherSanitizationShould : IDisposable
 		using var activity = _testSource.StartActivity("test-op");
 		activity.ShouldNotBeNull();
 
-		var context = CreateFakeContext(userId: "should-be-suppressed");
+		var context = CreateTestContext(userId: "should-be-suppressed");
 
 		// Act
 		enricher.EnrichActivity(activity, context);
 
-		// Assert — user.id tag should not be set
+		// Assert -- user.id tag should not be set
 		activity.GetTagItem("user.id").ShouldBeNull();
 	}
 
@@ -184,12 +198,12 @@ public sealed class ContextTraceEnricherSanitizationShould : IDisposable
 		using var activity = _testSource.StartActivity("test-op");
 		activity.ShouldNotBeNull();
 
-		var context = CreateFakeContext(userId: "alice@example.com");
+		var context = CreateTestContext(userId: "alice@example.com");
 
 		// Act
 		enricher.EnrichActivity(activity, context);
 
-		// Assert — raw value, not hashed
+		// Assert -- raw value, not hashed
 		activity.GetTagItem("user.id").ShouldBe("alice@example.com");
 	}
 
@@ -204,7 +218,7 @@ public sealed class ContextTraceEnricherSanitizationShould : IDisposable
 		using var activity = _testSource.StartActivity("test-op");
 		activity.ShouldNotBeNull();
 
-		var context = CreateFakeContext(tenantId: "tenant-acme");
+		var context = CreateTestContext(tenantId: "tenant-acme");
 
 		// Act
 		enricher.EnrichActivity(activity, context);
@@ -225,12 +239,12 @@ public sealed class ContextTraceEnricherSanitizationShould : IDisposable
 		using var activity = _testSource.StartActivity("test-op");
 		activity.ShouldNotBeNull();
 
-		var context = CreateFakeContext(userId: "alice", tenantId: "acme");
+		var context = CreateTestContext(userId: "alice", tenantId: "acme");
 
 		// Act
 		enricher.EnrichActivity(activity, context);
 
-		// Assert — NullTelemetrySanitizer passes all values through
+		// Assert -- NullTelemetrySanitizer passes all values through
 		activity.GetTagItem("user.id").ShouldBe("alice");
 		activity.GetTagItem("tenant.id").ShouldBe("acme");
 	}
@@ -247,12 +261,12 @@ public sealed class ContextTraceEnricherSanitizationShould : IDisposable
 		using var activity = _testSource.StartActivity("test-op");
 		activity.ShouldNotBeNull();
 
-		var context = CreateFakeContext(userId: null);
+		var context = CreateTestContext(userId: null);
 
 		// Act
 		enricher.EnrichActivity(activity, context);
 
-		// Assert — null userId returns null from sanitizer, tag should not be set
+		// Assert -- null userId returns null from sanitizer, tag should not be set
 		activity.GetTagItem("user.id").ShouldBeNull();
 	}
 
@@ -264,7 +278,7 @@ public sealed class ContextTraceEnricherSanitizationShould : IDisposable
 		using var activity = _testSource.StartActivity("test-op");
 		activity.ShouldNotBeNull();
 
-		var context = CreateFakeContext(tenantId: null);
+		var context = CreateTestContext(tenantId: null);
 
 		// Act
 		enricher.EnrichActivity(activity, context);
@@ -282,9 +296,9 @@ public sealed class ContextTraceEnricherSanitizationShould : IDisposable
 	{
 		// Arrange
 		using var enricher = CreateEnricher();
-		var context = CreateFakeContext();
+		var context = CreateTestContext();
 
-		// Act — should not throw
+		// Act -- should not throw
 		enricher.EnrichActivity(null, context);
 	}
 
@@ -295,7 +309,7 @@ public sealed class ContextTraceEnricherSanitizationShould : IDisposable
 		using var enricher = CreateEnricher();
 		using var activity = _testSource.StartActivity("test-op");
 
-		// Act — should not throw
+		// Act -- should not throw
 		enricher.EnrichActivity(activity, null!);
 	}
 

@@ -4,7 +4,7 @@
 
 using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Dispatch.Abstractions.Messaging;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Saga.Abstractions;
 using Excalibur.Saga.SqlServer;
 
@@ -41,7 +41,7 @@ public static class SqlServerSagaExtensions
 		{
 			var options = sp.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<SqlServerSagaStore>>();
-			var serializer = sp.GetRequiredService<IJsonSerializer>();
+			var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
 			return new SqlServerSagaStore(connectionString, options, logger, serializer);
 		});
 		services.TryAddSingleton<ISagaStore>(sp => sp.GetRequiredService<SqlServerSagaStore>());
@@ -82,7 +82,7 @@ public static class SqlServerSagaExtensions
 			var connectionFactory = connectionFactoryProvider(sp);
 			var options = sp.GetRequiredService<IOptions<SqlServerSagaStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<SqlServerSagaStore>>();
-			var serializer = sp.GetRequiredService<IJsonSerializer>();
+			var serializer = sp.GetRequiredService<DispatchJsonSerializer>();
 			return new SqlServerSagaStore(connectionFactory, options, logger, serializer);
 		});
 		services.TryAddSingleton<ISagaStore>(sp => sp.GetRequiredService<SqlServerSagaStore>());
@@ -272,7 +272,7 @@ public static class SqlServerSagaExtensions
 	/// </para>
 	/// <para>
 	/// Ensure the monitoring columns have been added using the schema script at:
-	/// <c>Schema/02-SagaMonitoringSchema.sql</c>
+	/// <c>Scripts/02-SagaMonitoringSchema.sql</c>
 	/// </para>
 	/// </remarks>
 	public static IServiceCollection AddSqlServerSagaMonitoringService(

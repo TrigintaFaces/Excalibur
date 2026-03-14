@@ -130,7 +130,7 @@ public sealed class AuthorizationMiddleware(
 					Detail = result.FailureMessage ?? "Authorization failed",
 					Instance = string.Empty,
 				},
-				routingDecision: Dispatch.Abstractions.Routing.RoutingDecision.Success("local", []),
+				routingDecision: Dispatch.Abstractions.Routing.RoutingDecision.Local,
 				validationResult: Dispatch.Abstractions.Serialization.SerializableValidationResult.Success(),
 				authorizationResult: Dispatch.Abstractions.AuthorizationResult.Failed(
 					result.FailureMessage ?? "Authorization failed"));

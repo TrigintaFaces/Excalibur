@@ -21,7 +21,7 @@ public static class SerializerRegistryExtensions
 	/// <returns>The serializer, or null if not registered.</returns>
 	/// <exception cref="ArgumentNullException">Thrown when registry is null.</exception>
 	/// <exception cref="ArgumentException">Thrown when name is null or whitespace.</exception>
-	public static IPluggableSerializer? GetByName(this ISerializerRegistry registry, string name)
+	public static ISerializer? GetByName(this ISerializerRegistry registry, string name)
 	{
 		ArgumentNullException.ThrowIfNull(registry);
 		ArgumentException.ThrowIfNullOrWhiteSpace(name);

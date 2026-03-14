@@ -19,20 +19,12 @@ public sealed class GoogleProviderOptions : ProviderOptions
 	public string ProjectId { get; set; } = string.Empty;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to use the Pub/Sub emulator.
+	/// Gets or sets the emulator configuration for local development.
 	/// </summary>
 	/// <value>
-	/// A value indicating whether to use the Pub/Sub emulator.
+	/// The emulator configuration.
 	/// </value>
-	public bool UseEmulator { get; set; }
-
-	/// <summary>
-	/// Gets or sets the emulator host address.
-	/// </summary>
-	/// <value>
-	/// The emulator host address.
-	/// </value>
-	public string? EmulatorHost { get; set; } = "localhost:8085";
+	public GoogleEmulatorOptions Emulator { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets the request timeout.
@@ -50,6 +42,58 @@ public sealed class GoogleProviderOptions : ProviderOptions
 	/// </value>
 	public bool ValidateOnStartup { get; set; } = true;
 
+	/// <summary>
+	/// Gets or sets the subscription and delivery configuration.
+	/// </summary>
+	/// <value>
+	/// The subscription and delivery configuration.
+	/// </value>
+	public GoogleSubscriptionOptions Subscription { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the flow control settings.
+	/// </summary>
+	/// <value>
+	/// The flow control settings.
+	/// </value>
+	public FlowControlOptions FlowControl { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the retry settings.
+	/// </summary>
+	/// <value>
+	/// The retry settings.
+	/// </value>
+	public PubSubRetryOptions PubSubRetryOptions { get; set; } = new();
+}
+
+/// <summary>
+/// Configuration options for the Google Pub/Sub emulator used in local development.
+/// </summary>
+public sealed class GoogleEmulatorOptions
+{
+	/// <summary>
+	/// Gets or sets a value indicating whether to use the Pub/Sub emulator.
+	/// </summary>
+	/// <value>
+	/// A value indicating whether to use the Pub/Sub emulator.
+	/// </value>
+	public bool UseEmulator { get; set; }
+
+	/// <summary>
+	/// Gets or sets the emulator host address.
+	/// </summary>
+	/// <value>
+	/// The emulator host address.
+	/// </value>
+	public string? EmulatorHost { get; set; } = "localhost:8085";
+}
+
+/// <summary>
+/// Configuration options for Google Pub/Sub subscription and message delivery.
+/// </summary>
+public sealed class GoogleSubscriptionOptions
+{
 	/// <summary>
 	/// Gets or sets the maximum number of messages to pull in a batch.
 	/// </summary>
@@ -94,20 +138,4 @@ public sealed class GoogleProviderOptions : ProviderOptions
 	/// A value indicating whether to auto-create topics and subscriptions.
 	/// </value>
 	public bool AutoCreateResources { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the flow control settings.
-	/// </summary>
-	/// <value>
-	/// The flow control settings.
-	/// </value>
-	public FlowControlOptions FlowControl { get; set; } = new();
-
-	/// <summary>
-	/// Gets or sets the retry settings.
-	/// </summary>
-	/// <value>
-	/// The retry settings.
-	/// </value>
-	public PubSubRetryOptions PubSubRetryOptions { get; set; } = new();
 }

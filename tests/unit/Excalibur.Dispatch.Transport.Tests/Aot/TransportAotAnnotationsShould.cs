@@ -91,9 +91,9 @@ public sealed class TransportAotAnnotationsShould
 	}
 
 	[Fact]
-	public void SchemaRegistryOptions_CustomSubjectNameStrategyType_HaveDynamicallyAccessedMembers()
+	public void SchemaRegistrySchemaOptions_CustomSubjectNameStrategyType_HaveDynamicallyAccessedMembers()
 	{
-		var prop = typeof(ConfluentSchemaRegistryOptions).GetProperty("CustomSubjectNameStrategyType");
+		var prop = typeof(SchemaRegistrySchemaOptions).GetProperty("CustomSubjectNameStrategyType");
 		prop.ShouldNotBeNull();
 
 		var attr = prop.GetCustomAttribute<DynamicallyAccessedMembersAttribute>();

@@ -4,7 +4,10 @@
     "projects": [
       "tests\\Shared\\Tests.Shared\\Tests.Shared.csproj",
       "tests\\Shared\\Excalibur.Dispatch.Testing\\Excalibur.Dispatch.Testing.csproj",
-      "tests\\unit\\Excalibur.Dispatch.Messaging.Tests\\Excalibur.Dispatch.Messaging.Tests.csproj"
+      "tests\\unit\\Excalibur.Dispatch.Messaging.Tests\\Excalibur.Dispatch.Messaging.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Compliance.Tests\\Excalibur.Dispatch.Compliance.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Hosting.Serverless.Tests\\Excalibur.Dispatch.Hosting.Serverless.Tests.csproj",
+      "tests\\unit\\Excalibur.Dispatch.Patterns.Tests\\Excalibur.Dispatch.Patterns.Tests.csproj"
     ]
   }
 }

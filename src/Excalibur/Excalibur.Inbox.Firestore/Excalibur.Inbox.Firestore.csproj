@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Inbox.Firestore</PackageId>
+    <Description>Google Cloud Firestore implementation of the inbox pattern for Excalibur, providing idempotent message processing.</Description>
+    <PackageTags>excalibur;inbox;idempotent;messaging;firestore;gcp</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Data.Firestore\Excalibur.Data.Firestore.csproj" />
+      <ProjectReference Include="..\Excalibur.Inbox\Excalibur.Inbox.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Google.Cloud.Firestore" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+  <!-- Development mode: Dispatch ProjectReferences -->
+  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+  </ItemGroup>
+  <!-- CI mode: PackageReference for Dispatch packages -->
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

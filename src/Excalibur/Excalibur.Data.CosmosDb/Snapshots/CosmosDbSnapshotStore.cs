@@ -198,7 +198,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 				new ItemRequestOptions
 				{
 					IfMatchEtag = readResponse.ETag,
-					EnableContentResponseOnWrite = _options.EnableContentResponseOnWrite
+					EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite
 				},
 				cancellationToken).ConfigureAwait(false);
 
@@ -212,7 +212,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 				_ = await _container.CreateItemAsync(
 					document,
 					partitionKey,
-					new ItemRequestOptions { EnableContentResponseOnWrite = _options.EnableContentResponseOnWrite },
+					new ItemRequestOptions { EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite },
 					cancellationToken).ConfigureAwait(false);
 
 				LogSnapshotSaved(snapshot.AggregateType, snapshot.AggregateId, snapshot.Version);
@@ -242,7 +242,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 					new ItemRequestOptions
 					{
 						IfMatchEtag = conflictReadResponse.ETag,
-						EnableContentResponseOnWrite = _options.EnableContentResponseOnWrite
+						EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite
 					},
 					cancellationToken).ConfigureAwait(false);
 
@@ -276,7 +276,7 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 					new ItemRequestOptions
 					{
 						IfMatchEtag = rereadResponse.ETag,
-						EnableContentResponseOnWrite = _options.EnableContentResponseOnWrite
+						EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite
 					},
 					cancellationToken).ConfigureAwait(false);
 
@@ -447,11 +447,11 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 	{
 		var options = new CosmosClientOptions
 		{
-			MaxRetryAttemptsOnRateLimitedRequests = _options.MaxRetryAttempts,
-			MaxRetryWaitTimeOnRateLimitedRequests = TimeSpan.FromSeconds(_options.MaxRetryWaitTimeInSeconds),
-			EnableContentResponseOnWrite = _options.EnableContentResponseOnWrite,
-			RequestTimeout = TimeSpan.FromSeconds(_options.RequestTimeoutInSeconds),
-			ConnectionMode = _options.UseDirectMode ? ConnectionMode.Direct : ConnectionMode.Gateway,
+			MaxRetryAttemptsOnRateLimitedRequests = _options.Client.Resilience.MaxRetryAttempts,
+			MaxRetryWaitTimeOnRateLimitedRequests = TimeSpan.FromSeconds(_options.Client.Resilience.MaxRetryWaitTimeInSeconds),
+			EnableContentResponseOnWrite = _options.Client.Resilience.EnableContentResponseOnWrite,
+			RequestTimeout = TimeSpan.FromSeconds(_options.Client.Resilience.RequestTimeoutInSeconds),
+			ConnectionMode = _options.Client.UseDirectMode ? ConnectionMode.Direct : ConnectionMode.Gateway,
 			// Use System.Text.Json serializer to respect [JsonPropertyName] attributes
 			UseSystemTextJsonSerializerWithOptions = new System.Text.Json.JsonSerializerOptions
 			{
@@ -459,19 +459,19 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 			}
 		};
 
-		if (_options.ConsistencyLevel.HasValue)
+		if (_options.Client.ConsistencyLevel.HasValue)
 		{
-			options.ConsistencyLevel = _options.ConsistencyLevel.Value;
+			options.ConsistencyLevel = _options.Client.ConsistencyLevel.Value;
 		}
 
-		if (_options.PreferredRegions is { Count: > 0 })
+		if (_options.Client.PreferredRegions is { Count: > 0 })
 		{
-			options.ApplicationPreferredRegions = _options.PreferredRegions.ToList();
+			options.ApplicationPreferredRegions = _options.Client.PreferredRegions.ToList();
 		}
 
-		if (_options.HttpClientFactory != null)
+		if (_options.Client.HttpClientFactory != null)
 		{
-			options.HttpClientFactory = _options.HttpClientFactory;
+			options.HttpClientFactory = _options.Client.HttpClientFactory;
 		}
 
 		return options;
@@ -479,12 +479,12 @@ public sealed partial class CosmosDbSnapshotStore : ISnapshotStore, IAsyncDispos
 
 	private CosmosClient CreateClient(CosmosClientOptions options)
 	{
-		if (!string.IsNullOrWhiteSpace(_options.ConnectionString))
+		if (!string.IsNullOrWhiteSpace(_options.Client.ConnectionString))
 		{
-			return new CosmosClient(_options.ConnectionString, options);
+			return new CosmosClient(_options.Client.ConnectionString, options);
 		}
 
-		return new CosmosClient(_options.AccountEndpoint, _options.AccountKey, options);
+		return new CosmosClient(_options.Client.AccountEndpoint, _options.Client.AccountKey, options);
 	}
 
 	private async Task EnsureInitializedAsync(CancellationToken cancellationToken)

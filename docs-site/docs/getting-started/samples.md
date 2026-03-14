@@ -19,23 +19,58 @@ Everything under [`/samples`](https://github.com/TrigintaFaces/Excalibur/tree/ma
 
 - Familiarity with [getting started](./index.md) and [actions and handlers](../core-concepts/actions-and-handlers.md)
 
+## Which Sample Should I Start With?
+
+```
+What are you building?
+├── Console app / hello world     → HelloDispatch
+├── Web API                       → WebApiQuickStart
+├── MediatR replacement           → DispatchOnly
+├── Event sourcing                → EventSourcingIntro
+├── Transport messaging
+│   ├── RabbitMQ                  → 02-messaging-transports/RabbitMQ
+│   ├── Kafka                     → 02-messaging-transports/Kafka
+│   ├── Azure Service Bus         → 02-messaging-transports/AzureServiceBus
+│   ├── AWS SQS                   → 02-messaging-transports/AwsSqs
+│   └── Multiple brokers          → 02-messaging-transports/MultiBusSample
+├── Serverless
+│   ├── Azure Functions           → 05-serverless/AzureFunctions
+│   ├── AWS Lambda                → 05-serverless/AwsLambda
+│   └── Google Cloud Functions    → 05-serverless/GoogleCloudFunctions
+├── Reliability patterns
+│   ├── Outbox                    → 04-reliability/OutboxPattern
+│   ├── Retry + circuit breaker   → 04-reliability/RetryAndCircuitBreaker
+│   └── Saga orchestration        → 04-reliability/SagaOrchestration
+├── Security
+│   ├── Message encryption        → 06-security/MessageEncryption
+│   └── Audit logging             → 06-security/AuditLogging
+├── Observability
+│   ├── OpenTelemetry             → 07-observability/OpenTelemetry
+│   └── Health checks             → 07-observability/HealthChecks
+└── Production reference          → 10-real-world/EnterpriseOrderProcessing
+```
+
+All samples are in the `samples/` directory.
+
+**Recommended progression:** HelloDispatch → WebApiQuickStart → DispatchOnly → then explore by use case above.
+
 ## Core Samples
 
 | Sample | Where | Highlights | Quality Badge |
 |--------|-------|------------|---------------|
-| **DispatchMinimal** | `samples/01-getting-started/DispatchMinimal/` | Pure Dispatch usage (no Excalibur dependencies). Shows `IDispatchAction/Event/Document`, middleware, and the ASP.NET Core bridge. | `basic` |
-| **ExcaliburCqrs** | `samples/01-getting-started/ExcaliburCqrs/` | Builds on DispatchMinimal with Excalibur aggregates, event sourcing, repositories, and hosting defaults. | `production-pattern` |
+| **DispatchOnly** | `samples/01-getting-started/DispatchOnly/` | Pure Dispatch usage (no Excalibur dependencies). Shows `IDispatchAction/Event/Document`, middleware, and the ASP.NET Core bridge. | `basic` |
+| **EventSourcingIntro** | `samples/01-getting-started/EventSourcingIntro/` | Builds on DispatchOnly with Excalibur aggregates, event sourcing, repositories, and hosting defaults. | `production-pattern` |
 | **Migration Guide** | `samples/MIGRATION.md` | Step-by-step instructions for moving from MediatR → Dispatch → Excalibur. | `intermediate` |
 
 Clone the repository, restore packages once, then run any sample:
 
 ```bash
 # Dispatch-only sample
-cd samples/01-getting-started/DispatchMinimal
+cd samples/01-getting-started/DispatchOnly
 dotnet run
 
-# Excalibur CQRS sample
-cd samples/01-getting-started/ExcaliburCqrs
+# Event Sourcing intro sample
+cd samples/01-getting-started/EventSourcingIntro
 dotnet run
 ```
 
@@ -57,10 +92,10 @@ Current governance status:
 
 | Status | Count | Source |
 |--------|-------|--------|
-| Certified samples | 17 | `sampleFitness.certified` |
-| Quarantined samples | 40 | `sampleFitness.quarantined` |
+| Certified samples | 55 | `sampleFitness.certified` |
+| Quarantined samples | 0 | `sampleFitness.quarantined` |
 
-Quarantined samples stay in the repository but are excluded from certified catalog claims until they pass smoke/build criteria.
+All samples are certified and build in CI. The quarantine list was cleared across sprints 608-611 (Docs-Site Overhaul epic).
 
 ## Architecture Samples
 

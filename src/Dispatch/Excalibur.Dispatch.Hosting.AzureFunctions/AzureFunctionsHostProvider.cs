@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Hosting.AzureFunctions;
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="AzureFunctionsHostProvider" /> class. </remarks>
 /// <param name="logger"> The logger instance. </param>
-public partial class AzureFunctionsHostProvider(ILogger logger) : IServerlessHostProvider, IServerlessHostConfigurator
+internal partial class AzureFunctionsHostProvider(ILogger logger) : IServerlessHostProvider, IServerlessHostConfigurator
 {
 	private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
@@ -105,13 +105,13 @@ public partial class AzureFunctionsHostProvider(ILogger logger) : IServerlessHos
 		}
 
 		// Configure Application Insights if enabled
-		if (options.EnableDistributedTracing)
+		if (options.Telemetry.EnableDistributedTracing)
 		{
 			ConfigureApplicationInsights(services, options);
 		}
 
 		// Configure metrics if enabled
-		if (options.EnableMetrics)
+		if (options.Telemetry.EnableMetrics)
 		{
 			ConfigureAzureMetrics(services, options);
 		}

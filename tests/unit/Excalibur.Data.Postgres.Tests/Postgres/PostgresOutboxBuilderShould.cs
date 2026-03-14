@@ -3,13 +3,12 @@
 
 using Excalibur.Dispatch.Abstractions;
 
-using Excalibur.Data.Postgres.Outbox;
+using Excalibur.Outbox.Postgres;
 using Excalibur.Outbox;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-using Excalibur.Data.Postgres;
 namespace Excalibur.Data.Tests.Postgres.Builders;
 
 /// <summary>
@@ -240,7 +239,7 @@ public sealed class PostgresOutboxBuilderShould : UnitTestBase
 		options.Value.SchemaName.ShouldBe("messaging");
 		options.Value.OutboxTableName.ShouldBe("outbox");
 		options.Value.DeadLetterTableName.ShouldBe("dead_letters");
-		options.Value.BatchProcessingTimeout.ShouldBe(TimeSpan.FromSeconds(45));
+		options.Value.BatchProcessing.BatchProcessingTimeout.ShouldBe(TimeSpan.FromSeconds(45));
 		options.Value.ReservationTimeout.ShouldBe((int)TimeSpan.FromMinutes(5).TotalSeconds);
 		options.Value.MaxAttempts.ShouldBe(3);
 	}
@@ -273,8 +272,8 @@ public sealed class PostgresOutboxBuilderShould : UnitTestBase
 		var outboxOptions = provider.GetRequiredService<OutboxOptions>();
 		outboxOptions.BatchSize.ShouldBe(150);
 		outboxOptions.PollingInterval.ShouldBe(TimeSpan.FromSeconds(10));
-		outboxOptions.EnableAutomaticCleanup.ShouldBeTrue();
-		outboxOptions.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
+		outboxOptions.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
+		outboxOptions.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
 		outboxOptions.EnableBackgroundProcessing.ShouldBeTrue();
 	}
 }

@@ -17,28 +17,9 @@ public sealed class Soc2Options
 		[TrustServicesCategory.Security];
 
 	/// <summary>
-	/// Whether to enable continuous compliance monitoring.
-	/// Default: true.
+	/// Monitoring and alerting configuration.
 	/// </summary>
-	public bool EnableContinuousMonitoring { get; set; } = true;
-
-	/// <summary>
-	/// Monitoring interval for control validation.
-	/// Default: 1 hour.
-	/// </summary>
-	public TimeSpan MonitoringInterval { get; set; } = TimeSpan.FromHours(1);
-
-	/// <summary>
-	/// Whether to generate alerts for compliance gaps.
-	/// Default: true.
-	/// </summary>
-	public bool EnableAlerts { get; set; } = true;
-
-	/// <summary>
-	/// Alert severity threshold.
-	/// Default: Medium.
-	/// </summary>
-	public GapSeverity AlertThreshold { get; set; } = GapSeverity.Medium;
+	public Soc2MonitoringOptions Monitoring { get; set; } = new();
 
 	/// <summary>
 	/// Evidence retention period.

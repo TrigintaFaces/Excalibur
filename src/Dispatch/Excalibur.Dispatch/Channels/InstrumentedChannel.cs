@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Channels;
 /// Channel wrapper that adds instrumentation for performance monitoring.
 /// </summary>
 /// <typeparam name="T"> The type of items in the channel. </typeparam>
-public sealed class InstrumentedChannel<T>
+internal sealed class InstrumentedChannel<T>
 {
 	// R0.8: Remove unread private members - field is kept for future use
 #pragma warning disable IDE0052

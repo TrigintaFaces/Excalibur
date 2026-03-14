@@ -1,0 +1,234 @@
+#nullable enable
+const Excalibur.Cdc.MongoDB.MongoDbStalePositionDetector.ChangeStreamFatalError = 286 -> int
+const Excalibur.Cdc.MongoDB.MongoDbStalePositionDetector.ChangeStreamHistoryLost = 136 -> int
+const Excalibur.Cdc.MongoDB.MongoDbStalePositionDetector.InvalidNamespace = 73 -> int
+const Excalibur.Cdc.MongoDB.MongoDbStalePositionDetector.NamespaceNotFound = 26 -> int
+const Excalibur.Cdc.MongoDB.MongoDbStalePositionDetector.StaleShardVersion = 133 -> int
+const Excalibur.Cdc.MongoDB.MongoDbStalePositionReasonCodes.CollectionDropped = "MONGODB_COLLECTION_DROPPED" -> string!
+const Excalibur.Cdc.MongoDB.MongoDbStalePositionReasonCodes.CollectionRenamed = "MONGODB_COLLECTION_RENAMED" -> string!
+const Excalibur.Cdc.MongoDB.MongoDbStalePositionReasonCodes.InvalidResumeToken = "MONGODB_INVALID_RESUME_TOKEN" -> string!
+const Excalibur.Cdc.MongoDB.MongoDbStalePositionReasonCodes.ResumeTokenNotFound = "MONGODB_RESUME_TOKEN_NOT_FOUND" -> string!
+const Excalibur.Cdc.MongoDB.MongoDbStalePositionReasonCodes.ShardMigration = "MONGODB_SHARD_MIGRATION" -> string!
+const Excalibur.Cdc.MongoDB.MongoDbStalePositionReasonCodes.StreamInvalidated = "MONGODB_STREAM_INVALIDATED" -> string!
+const Excalibur.Cdc.MongoDB.MongoDbStalePositionReasonCodes.Unknown = "MONGODB_UNKNOWN" -> string!
+Excalibur.Cdc.MongoDB.CdcBuilderMongoDbExtensions
+Excalibur.Cdc.MongoDB.IMongoDbCdcProcessor
+Excalibur.Cdc.MongoDB.IMongoDbCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.MongoDB.MongoDbCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.MongoDB.IMongoDbCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.MongoDB.MongoDbCdcPosition>!
+Excalibur.Cdc.MongoDB.IMongoDbCdcProcessor.ProcessBatchAsync(System.Func<Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Cdc.MongoDB.IMongoDbCdcProcessor.StartAsync(System.Func<Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.MongoDB.IMongoDbCdcStateStore
+Excalibur.Cdc.MongoDB.IMongoDbCdcStateStore.ClearStateAsync(string! processorId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.MongoDB.IMongoDbCdcStateStore.GetAllStatesAsync(string! processorId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry!>!>!
+Excalibur.Cdc.MongoDB.IMongoDbCdcStateStore.GetLastPositionAsync(string! processorId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.MongoDB.MongoDbCdcPosition>!
+Excalibur.Cdc.MongoDB.IMongoDbCdcStateStore.SavePositionAsync(string! processorId, Excalibur.Cdc.MongoDB.MongoDbCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.MongoDB.IMongoDbCdcStateStore.SaveStateAsync(Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry! entry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.MongoDB.InMemoryMongoDbCdcStateStore
+Excalibur.Cdc.MongoDB.InMemoryMongoDbCdcStateStore.Clear() -> void
+Excalibur.Cdc.MongoDB.InMemoryMongoDbCdcStateStore.ClearStateAsync(string! processorId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.MongoDB.InMemoryMongoDbCdcStateStore.Dispose() -> void
+Excalibur.Cdc.MongoDB.InMemoryMongoDbCdcStateStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Cdc.MongoDB.InMemoryMongoDbCdcStateStore.GetAllStatesAsync(string! processorId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry!>!>!
+Excalibur.Cdc.MongoDB.InMemoryMongoDbCdcStateStore.GetLastPositionAsync(string! processorId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.MongoDB.MongoDbCdcPosition>!
+Excalibur.Cdc.MongoDB.InMemoryMongoDbCdcStateStore.InMemoryMongoDbCdcStateStore() -> void
+Excalibur.Cdc.MongoDB.InMemoryMongoDbCdcStateStore.SavePositionAsync(string! processorId, Excalibur.Cdc.MongoDB.MongoDbCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.MongoDB.InMemoryMongoDbCdcStateStore.SaveStateAsync(Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry! entry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.MongoDB.MongoDbArrayTruncation
+Excalibur.Cdc.MongoDB.MongoDbArrayTruncation.Field.get -> string!
+Excalibur.Cdc.MongoDB.MongoDbArrayTruncation.Field.init -> void
+Excalibur.Cdc.MongoDB.MongoDbArrayTruncation.MongoDbArrayTruncation() -> void
+Excalibur.Cdc.MongoDB.MongoDbArrayTruncation.NewSize.get -> int
+Excalibur.Cdc.MongoDB.MongoDbArrayTruncation.NewSize.init -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcOptions
+Excalibur.Cdc.MongoDB.MongoDbCdcOptions.BatchSize.get -> int
+Excalibur.Cdc.MongoDB.MongoDbCdcOptions.BatchSize.set -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcOptions.ChangeStream.get -> Excalibur.Cdc.MongoDB.MongoDbChangeStreamOptions!
+Excalibur.Cdc.MongoDB.MongoDbCdcOptions.ChangeStream.set -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcOptions.CollectionNames.get -> string![]!
+Excalibur.Cdc.MongoDB.MongoDbCdcOptions.CollectionNames.set -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcOptions.Connection.get -> Excalibur.Cdc.MongoDB.MongoDbConnectionOptions!
+Excalibur.Cdc.MongoDB.MongoDbCdcOptions.Connection.set -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcOptions.DatabaseName.get -> string?
+Excalibur.Cdc.MongoDB.MongoDbCdcOptions.DatabaseName.set -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcOptions.MongoDbCdcOptions() -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcOptions.ProcessorId.get -> string!
+Excalibur.Cdc.MongoDB.MongoDbCdcOptions.ProcessorId.set -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcOptions.ReconnectInterval.get -> System.TimeSpan
+Excalibur.Cdc.MongoDB.MongoDbCdcOptions.ReconnectInterval.set -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcOptions.Validate() -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcPosition
+Excalibur.Cdc.MongoDB.MongoDbCdcPosition.Equals(Excalibur.Cdc.MongoDB.MongoDbCdcPosition other) -> bool
+Excalibur.Cdc.MongoDB.MongoDbCdcPosition.IsValid.get -> bool
+Excalibur.Cdc.MongoDB.MongoDbCdcPosition.MongoDbCdcPosition() -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcPosition.MongoDbCdcPosition(MongoDB.Bson.BsonDocument? resumeToken) -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcPosition.ResumeToken.get -> MongoDB.Bson.BsonDocument?
+Excalibur.Cdc.MongoDB.MongoDbCdcPosition.ToChangePosition() -> Excalibur.Dispatch.Abstractions.ChangePosition!
+Excalibur.Cdc.MongoDB.MongoDbCdcPosition.TokenString.get -> string?
+Excalibur.Cdc.MongoDB.MongoDbCdcProcessor
+Excalibur.Cdc.MongoDB.MongoDbCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.MongoDB.MongoDbCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.MongoDB.MongoDbCdcProcessor.Dispose() -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Cdc.MongoDB.MongoDbCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.MongoDB.MongoDbCdcPosition>!
+Excalibur.Cdc.MongoDB.MongoDbCdcProcessor.MongoDbCdcProcessor(MongoDB.Driver.IMongoClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.MongoDB.MongoDbCdcOptions!>! options, Excalibur.Cdc.MongoDB.IMongoDbCdcStateStore! stateStore, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.MongoDB.MongoDbCdcProcessor!>! logger) -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcProcessor.ProcessBatchAsync(System.Func<Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Cdc.MongoDB.MongoDbCdcProcessor.StartAsync(System.Func<Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.MongoDB.MongoDbCdcRecoveryOptions
+Excalibur.Cdc.MongoDB.MongoDbCdcRecoveryOptions.AlwaysInvokeCallbackOnReset.get -> bool
+Excalibur.Cdc.MongoDB.MongoDbCdcRecoveryOptions.AlwaysInvokeCallbackOnReset.init -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcRecoveryOptions.AutoRecreateStreamOnInvalidToken.get -> bool
+Excalibur.Cdc.MongoDB.MongoDbCdcRecoveryOptions.AutoRecreateStreamOnInvalidToken.init -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcRecoveryOptions.MaxRecoveryAttempts.get -> int
+Excalibur.Cdc.MongoDB.MongoDbCdcRecoveryOptions.MaxRecoveryAttempts.init -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcRecoveryOptions.OnPositionReset.get -> Excalibur.Cdc.CdcPositionResetHandler?
+Excalibur.Cdc.MongoDB.MongoDbCdcRecoveryOptions.OnPositionReset.init -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcRecoveryOptions.RecoveryAttemptDelay.get -> System.TimeSpan
+Excalibur.Cdc.MongoDB.MongoDbCdcRecoveryOptions.RecoveryAttemptDelay.init -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcRecoveryOptions.RecoveryStrategy.get -> Excalibur.Cdc.StalePositionRecoveryStrategy
+Excalibur.Cdc.MongoDB.MongoDbCdcRecoveryOptions.RecoveryStrategy.init -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcRecoveryOptions.UseClusterTimeOnResumeFailure.get -> bool
+Excalibur.Cdc.MongoDB.MongoDbCdcRecoveryOptions.UseClusterTimeOnResumeFailure.init -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcRecoveryOptions.Validate() -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry
+Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry.EventCount.get -> long
+Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry.EventCount.set -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry.LastEventTime.get -> System.DateTimeOffset?
+Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry.LastEventTime.set -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry.MongoDbCdcStateEntry() -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry.Namespace.get -> string?
+Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry.Namespace.set -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry.ProcessorId.get -> string!
+Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry.ProcessorId.set -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry.ResumeToken.get -> string!
+Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry.ResumeToken.set -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry.UpdatedAt.get -> System.DateTimeOffset
+Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry.UpdatedAt.set -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcStateStore
+Excalibur.Cdc.MongoDB.MongoDbCdcStateStore.ClearStateAsync(string! processorId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.MongoDB.MongoDbCdcStateStore.Dispose() -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcStateStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Cdc.MongoDB.MongoDbCdcStateStore.GetAllStatesAsync(string! processorId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry!>!>!
+Excalibur.Cdc.MongoDB.MongoDbCdcStateStore.GetLastPositionAsync(string! processorId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.MongoDB.MongoDbCdcPosition>!
+Excalibur.Cdc.MongoDB.MongoDbCdcStateStore.MongoDbCdcStateStore(MongoDB.Driver.IMongoClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptions!>! options) -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcStateStore.SavePositionAsync(string! processorId, Excalibur.Cdc.MongoDB.MongoDbCdcPosition position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.MongoDB.MongoDbCdcStateStore.SaveStateAsync(Excalibur.Cdc.MongoDB.MongoDbCdcStateEntry! entry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptions
+Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptions.CollectionName.get -> string!
+Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptions.CollectionName.set -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptions.DatabaseName.get -> string!
+Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptions.DatabaseName.set -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptions.MongoDbCdcStateStoreOptions() -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptions.Validate() -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptionsValidator
+Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptionsValidator.MongoDbCdcStateStoreOptionsValidator() -> void
+Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptionsValidator.Validate(string? name, Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
+Excalibur.Cdc.MongoDB.MongoDbChangeStreamOptions
+Excalibur.Cdc.MongoDB.MongoDbChangeStreamOptions.FullDocument.get -> bool
+Excalibur.Cdc.MongoDB.MongoDbChangeStreamOptions.FullDocument.set -> void
+Excalibur.Cdc.MongoDB.MongoDbChangeStreamOptions.FullDocumentBeforeChange.get -> bool
+Excalibur.Cdc.MongoDB.MongoDbChangeStreamOptions.FullDocumentBeforeChange.set -> void
+Excalibur.Cdc.MongoDB.MongoDbChangeStreamOptions.MaxAwaitTime.get -> System.TimeSpan
+Excalibur.Cdc.MongoDB.MongoDbChangeStreamOptions.MaxAwaitTime.set -> void
+Excalibur.Cdc.MongoDB.MongoDbChangeStreamOptions.MongoDbChangeStreamOptions() -> void
+Excalibur.Cdc.MongoDB.MongoDbChangeStreamOptions.OperationTypes.get -> string![]!
+Excalibur.Cdc.MongoDB.MongoDbChangeStreamOptions.OperationTypes.set -> void
+Excalibur.Cdc.MongoDB.MongoDbConnectionOptions
+Excalibur.Cdc.MongoDB.MongoDbConnectionOptions.ConnectionString.get -> string!
+Excalibur.Cdc.MongoDB.MongoDbConnectionOptions.ConnectionString.set -> void
+Excalibur.Cdc.MongoDB.MongoDbConnectionOptions.ConnectTimeout.get -> System.TimeSpan
+Excalibur.Cdc.MongoDB.MongoDbConnectionOptions.ConnectTimeout.set -> void
+Excalibur.Cdc.MongoDB.MongoDbConnectionOptions.MaxPoolSize.get -> int
+Excalibur.Cdc.MongoDB.MongoDbConnectionOptions.MaxPoolSize.set -> void
+Excalibur.Cdc.MongoDB.MongoDbConnectionOptions.MongoDbConnectionOptions() -> void
+Excalibur.Cdc.MongoDB.MongoDbConnectionOptions.ServerSelectionTimeout.get -> System.TimeSpan
+Excalibur.Cdc.MongoDB.MongoDbConnectionOptions.ServerSelectionTimeout.set -> void
+Excalibur.Cdc.MongoDB.MongoDbConnectionOptions.UseSsl.get -> bool
+Excalibur.Cdc.MongoDB.MongoDbConnectionOptions.UseSsl.set -> void
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.ChangeType.get -> Excalibur.Cdc.MongoDB.MongoDbDataChangeType
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.ChangeType.init -> void
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.ClusterTime.get -> MongoDB.Bson.BsonTimestamp?
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.ClusterTime.init -> void
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.CollectionName.get -> string!
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.CollectionName.init -> void
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.DatabaseName.get -> string!
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.DatabaseName.init -> void
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.DocumentKey.get -> MongoDB.Bson.BsonDocument?
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.DocumentKey.init -> void
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.FullDocument.get -> MongoDB.Bson.BsonDocument?
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.FullDocument.init -> void
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.FullDocumentBeforeChange.get -> MongoDB.Bson.BsonDocument?
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.FullDocumentBeforeChange.init -> void
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.FullNamespace.get -> string!
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.MongoDbDataChangeEvent() -> void
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.Position.get -> Excalibur.Cdc.MongoDB.MongoDbCdcPosition
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.Position.init -> void
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.UpdateDescription.get -> Excalibur.Cdc.MongoDB.MongoDbUpdateDescription?
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.UpdateDescription.init -> void
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.WallTime.get -> System.DateTimeOffset?
+Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.WallTime.init -> void
+Excalibur.Cdc.MongoDB.MongoDbDataChangeType
+Excalibur.Cdc.MongoDB.MongoDbDataChangeType.Delete = 4 -> Excalibur.Cdc.MongoDB.MongoDbDataChangeType
+Excalibur.Cdc.MongoDB.MongoDbDataChangeType.Drop = 6 -> Excalibur.Cdc.MongoDB.MongoDbDataChangeType
+Excalibur.Cdc.MongoDB.MongoDbDataChangeType.DropDatabase = 7 -> Excalibur.Cdc.MongoDB.MongoDbDataChangeType
+Excalibur.Cdc.MongoDB.MongoDbDataChangeType.Insert = 1 -> Excalibur.Cdc.MongoDB.MongoDbDataChangeType
+Excalibur.Cdc.MongoDB.MongoDbDataChangeType.Invalidate = 5 -> Excalibur.Cdc.MongoDB.MongoDbDataChangeType
+Excalibur.Cdc.MongoDB.MongoDbDataChangeType.Rename = 8 -> Excalibur.Cdc.MongoDB.MongoDbDataChangeType
+Excalibur.Cdc.MongoDB.MongoDbDataChangeType.Replace = 3 -> Excalibur.Cdc.MongoDB.MongoDbDataChangeType
+Excalibur.Cdc.MongoDB.MongoDbDataChangeType.Unknown = 0 -> Excalibur.Cdc.MongoDB.MongoDbDataChangeType
+Excalibur.Cdc.MongoDB.MongoDbDataChangeType.Update = 2 -> Excalibur.Cdc.MongoDB.MongoDbDataChangeType
+Excalibur.Cdc.MongoDB.MongoDbDataChangeTypeExtensions
+Excalibur.Cdc.MongoDB.MongoDbStalePositionDetector
+Excalibur.Cdc.MongoDB.MongoDbStalePositionException
+Excalibur.Cdc.MongoDB.MongoDbStalePositionException.CollectionName.get -> string?
+Excalibur.Cdc.MongoDB.MongoDbStalePositionException.DatabaseName.get -> string?
+Excalibur.Cdc.MongoDB.MongoDbStalePositionException.EventArgs.get -> Excalibur.Cdc.CdcPositionResetEventArgs?
+Excalibur.Cdc.MongoDB.MongoDbStalePositionException.MongoDbStalePositionException() -> void
+Excalibur.Cdc.MongoDB.MongoDbStalePositionException.MongoDbStalePositionException(Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs) -> void
+Excalibur.Cdc.MongoDB.MongoDbStalePositionException.MongoDbStalePositionException(string! message) -> void
+Excalibur.Cdc.MongoDB.MongoDbStalePositionException.MongoDbStalePositionException(string! message, Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs) -> void
+Excalibur.Cdc.MongoDB.MongoDbStalePositionException.MongoDbStalePositionException(string! message, System.Exception! innerException) -> void
+Excalibur.Cdc.MongoDB.MongoDbStalePositionException.ProcessorId.get -> string?
+Excalibur.Cdc.MongoDB.MongoDbStalePositionException.ReasonCode.get -> string?
+Excalibur.Cdc.MongoDB.MongoDbStalePositionException.StalePosition.get -> byte[]?
+Excalibur.Cdc.MongoDB.MongoDbStalePositionReasonCodes
+Excalibur.Cdc.MongoDB.MongoDbUpdateDescription
+Excalibur.Cdc.MongoDB.MongoDbUpdateDescription.MongoDbUpdateDescription() -> void
+Excalibur.Cdc.MongoDB.MongoDbUpdateDescription.RemovedFields.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Excalibur.Cdc.MongoDB.MongoDbUpdateDescription.RemovedFields.init -> void
+Excalibur.Cdc.MongoDB.MongoDbUpdateDescription.TruncatedArrays.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.MongoDB.MongoDbArrayTruncation!>!
+Excalibur.Cdc.MongoDB.MongoDbUpdateDescription.TruncatedArrays.init -> void
+Excalibur.Cdc.MongoDB.MongoDbUpdateDescription.UpdatedFields.get -> MongoDB.Bson.BsonDocument?
+Excalibur.Cdc.MongoDB.MongoDbUpdateDescription.UpdatedFields.init -> void
+Microsoft.Extensions.DependencyInjection.MongoDbCdcExtensions
+override Excalibur.Cdc.MongoDB.MongoDbCdcPosition.Equals(object? obj) -> bool
+override Excalibur.Cdc.MongoDB.MongoDbCdcPosition.GetHashCode() -> int
+override Excalibur.Cdc.MongoDB.MongoDbCdcPosition.ToString() -> string!
+static Excalibur.Cdc.MongoDB.CdcBuilderMongoDbExtensions.UseMongoDB(this Excalibur.Cdc.ICdcBuilder! builder, string! connectionString, string! processorId, System.Action<Excalibur.Cdc.MongoDB.MongoDbCdcOptions!>? configure = null) -> Excalibur.Cdc.ICdcBuilder!
+static Excalibur.Cdc.MongoDB.CdcBuilderMongoDbExtensions.UseMongoDB(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.MongoDB.MongoDbCdcOptions!>! configure) -> Excalibur.Cdc.ICdcBuilder!
+static Excalibur.Cdc.MongoDB.CdcBuilderMongoDbExtensions.UseMongoDB(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.MongoDB.MongoDbCdcOptions!>! configureCdc, System.Action<Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptions!>! configureStateStore) -> Excalibur.Cdc.ICdcBuilder!
+static Excalibur.Cdc.MongoDB.MongoDbCdcPosition.FromChangePosition(Excalibur.Dispatch.Abstractions.ChangePosition? position) -> Excalibur.Cdc.MongoDB.MongoDbCdcPosition
+static Excalibur.Cdc.MongoDB.MongoDbCdcPosition.FromString(string? tokenString) -> Excalibur.Cdc.MongoDB.MongoDbCdcPosition
+static Excalibur.Cdc.MongoDB.MongoDbCdcPosition.operator !=(Excalibur.Cdc.MongoDB.MongoDbCdcPosition left, Excalibur.Cdc.MongoDB.MongoDbCdcPosition right) -> bool
+static Excalibur.Cdc.MongoDB.MongoDbCdcPosition.operator ==(Excalibur.Cdc.MongoDB.MongoDbCdcPosition left, Excalibur.Cdc.MongoDB.MongoDbCdcPosition right) -> bool
+static Excalibur.Cdc.MongoDB.MongoDbCdcPosition.TryParse(string? tokenString, out Excalibur.Cdc.MongoDB.MongoDbCdcPosition result) -> bool
+static Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.CreateDelete(Excalibur.Cdc.MongoDB.MongoDbCdcPosition position, string! databaseName, string! collectionName, MongoDB.Bson.BsonDocument? documentKey, MongoDB.Bson.BsonDocument? fullDocumentBeforeChange, MongoDB.Bson.BsonTimestamp? clusterTime, System.DateTimeOffset? wallTime) -> Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent!
+static Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.CreateDrop(Excalibur.Cdc.MongoDB.MongoDbCdcPosition position, string! databaseName, string! collectionName, MongoDB.Bson.BsonTimestamp? clusterTime, System.DateTimeOffset? wallTime) -> Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent!
+static Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.CreateInsert(Excalibur.Cdc.MongoDB.MongoDbCdcPosition position, string! databaseName, string! collectionName, MongoDB.Bson.BsonDocument? documentKey, MongoDB.Bson.BsonDocument? fullDocument, MongoDB.Bson.BsonTimestamp? clusterTime, System.DateTimeOffset? wallTime) -> Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent!
+static Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.CreateInvalidate(Excalibur.Cdc.MongoDB.MongoDbCdcPosition position, MongoDB.Bson.BsonTimestamp? clusterTime, System.DateTimeOffset? wallTime) -> Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent!
+static Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.CreateReplace(Excalibur.Cdc.MongoDB.MongoDbCdcPosition position, string! databaseName, string! collectionName, MongoDB.Bson.BsonDocument? documentKey, MongoDB.Bson.BsonDocument? fullDocument, MongoDB.Bson.BsonDocument? fullDocumentBeforeChange, MongoDB.Bson.BsonTimestamp? clusterTime, System.DateTimeOffset? wallTime) -> Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent!
+static Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent.CreateUpdate(Excalibur.Cdc.MongoDB.MongoDbCdcPosition position, string! databaseName, string! collectionName, MongoDB.Bson.BsonDocument? documentKey, MongoDB.Bson.BsonDocument? fullDocument, MongoDB.Bson.BsonDocument? fullDocumentBeforeChange, Excalibur.Cdc.MongoDB.MongoDbUpdateDescription? updateDescription, MongoDB.Bson.BsonTimestamp? clusterTime, System.DateTimeOffset? wallTime) -> Excalibur.Cdc.MongoDB.MongoDbDataChangeEvent!
+static Excalibur.Cdc.MongoDB.MongoDbDataChangeTypeExtensions.ToCdcChangeType(this Excalibur.Cdc.MongoDB.MongoDbDataChangeType changeType) -> Excalibur.Cdc.CdcChangeType
+static Excalibur.Cdc.MongoDB.MongoDbStalePositionDetector.CreateEventArgs(System.Exception! exception, string! processorId, Excalibur.Cdc.MongoDB.MongoDbCdcPosition? stalePosition = null, Excalibur.Cdc.MongoDB.MongoDbCdcPosition? newPosition = null, string? databaseName = null, string? collectionName = null) -> Excalibur.Cdc.CdcPositionResetEventArgs!
+static Excalibur.Cdc.MongoDB.MongoDbStalePositionDetector.GetReasonCode(MongoDB.Driver.MongoException? exception) -> string!
+static Excalibur.Cdc.MongoDB.MongoDbStalePositionDetector.GetStalePositionErrorCode(System.Exception? exception) -> int?
+static Excalibur.Cdc.MongoDB.MongoDbStalePositionDetector.IsStalePositionErrorCode(int errorCode) -> bool
+static Excalibur.Cdc.MongoDB.MongoDbStalePositionDetector.IsStalePositionException(System.Exception? exception) -> bool
+static Excalibur.Cdc.MongoDB.MongoDbStalePositionDetector.StalePositionErrorCodes.get -> System.Collections.Generic.IReadOnlySet<int>!
+static Excalibur.Cdc.MongoDB.MongoDbStalePositionReasonCodes.FromErrorCode(int errorCode) -> string!
+static Excalibur.Cdc.MongoDB.MongoDbStalePositionReasonCodes.FromErrorMessage(string? errorMessage) -> string!
+static Microsoft.Extensions.DependencyInjection.MongoDbCdcExtensions.AddInMemoryMongoDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MongoDbCdcExtensions.AddMongoDbCdc(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! processorId, System.Action<Excalibur.Cdc.MongoDB.MongoDbCdcOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MongoDbCdcExtensions.AddMongoDbCdc(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.MongoDB.MongoDbCdcOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MongoDbCdcExtensions.AddMongoDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Action<Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MongoDbCdcExtensions.AddMongoDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static readonly Excalibur.Cdc.MongoDB.MongoDbCdcPosition.Start -> Excalibur.Cdc.MongoDB.MongoDbCdcPosition

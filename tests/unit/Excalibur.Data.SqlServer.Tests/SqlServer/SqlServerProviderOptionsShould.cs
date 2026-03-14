@@ -18,8 +18,8 @@ public sealed class SqlServerProviderOptionsShould : UnitTestBase
 		// Arrange & Act
 		var options = new SqlServerProviderOptions();
 
-		// Assert
-		options.ConnectionString.ShouldNotBeEmpty();
+		// Assert - ConnectionString defaults to empty (must be configured by consumer)
+		options.Connection.ConnectionString.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -29,10 +29,10 @@ public sealed class SqlServerProviderOptionsShould : UnitTestBase
 		var options = new SqlServerProviderOptions();
 
 		// Act
-		options.ConnectionString = "Server=localhost;Database=TestDb;";
+		options.Connection.ConnectionString = "Server=localhost;Database=TestDb;";
 
 		// Assert
-		options.ConnectionString.ShouldBe("Server=localhost;Database=TestDb;");
+		options.Connection.ConnectionString.ShouldBe("Server=localhost;Database=TestDb;");
 	}
 
 	[Fact]
@@ -68,10 +68,10 @@ public sealed class SqlServerProviderOptionsShould : UnitTestBase
 		var options = new SqlServerProviderOptions();
 
 		// Act
-		options.MaxPoolSize = 200;
+		options.Pooling.MaxPoolSize = 200;
 
 		// Assert
-		options.MaxPoolSize.ShouldBe(200);
+		options.Pooling.MaxPoolSize.ShouldBe(200);
 	}
 
 	[Fact]
@@ -81,10 +81,10 @@ public sealed class SqlServerProviderOptionsShould : UnitTestBase
 		var options = new SqlServerProviderOptions();
 
 		// Act
-		options.ApplicationName = "MyApplication";
+		options.Connection.ApplicationName = "MyApplication";
 
 		// Assert
-		options.ApplicationName.ShouldBe("MyApplication");
+		options.Connection.ApplicationName.ShouldBe("MyApplication");
 	}
 
 	[Fact]
@@ -94,35 +94,22 @@ public sealed class SqlServerProviderOptionsShould : UnitTestBase
 		var options = new SqlServerProviderOptions();
 
 		// Act
-		options.EnablePooling = false;
+		options.Pooling.EnablePooling = false;
 
 		// Assert
-		options.EnablePooling.ShouldBeFalse();
+		options.Pooling.EnablePooling.ShouldBeFalse();
 	}
 
 	[Fact]
-	public void MaxRetryCountCanBeCustomized()
+	public void RetryCountCanBeCustomized()
 	{
 		// Arrange
 		var options = new SqlServerProviderOptions();
 
 		// Act
-		options.MaxRetryCount = 5;
+		options.RetryCount = 5;
 
 		// Assert
-		options.MaxRetryCount.ShouldBe(5);
-	}
-
-	[Fact]
-	public void RetryDelayCanBeCustomized()
-	{
-		// Arrange
-		var options = new SqlServerProviderOptions();
-
-		// Act
-		options.RetryDelay = TimeSpan.FromSeconds(5);
-
-		// Assert
-		options.RetryDelay.ShouldBe(TimeSpan.FromSeconds(5));
+		options.RetryCount.ShouldBe(5);
 	}
 }

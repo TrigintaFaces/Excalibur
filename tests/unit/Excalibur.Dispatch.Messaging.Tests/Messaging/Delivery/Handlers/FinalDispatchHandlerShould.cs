@@ -4,11 +4,13 @@
 #pragma warning disable CA2012 // Use ValueTasks correctly - test assertions call HandleAsync inside lambdas
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Delivery.Handlers;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Resilience;
+using Excalibur.Dispatch.Routing;
 using Excalibur.Dispatch.Tests.TestFakes;
 
 using Microsoft.Extensions.Logging;
@@ -143,7 +145,7 @@ public sealed class FinalDispatchHandlerShould
 		// Arrange
 		var handler = CreateHandler();
 		var message = new FakeIntegrationEvent();
-		var context = new FakeMessageContext { RoutingDecision = null };
+		var context = new FakeMessageContext();
 		var bus = A.Fake<IMessageBus>();
 
 		IMessageBus? outBus = bus;
@@ -283,7 +285,7 @@ public sealed class FinalDispatchHandlerShould
 		// Arrange
 		var handler = CreateHandler();
 		var message = new FakeDispatchAction();
-		var context = new FakeMessageContext { RoutingDecision = null };
+		var context = new FakeMessageContext();
 		var bus = A.Fake<IMessageBus>();
 
 		IMessageBus? outBus = bus;
@@ -330,10 +332,8 @@ public sealed class FinalDispatchHandlerShould
 		// Arrange
 		var handler = CreateHandler();
 		var message = new FakeDispatchActionWithResponse();
-		var context = new MessageContext
-		{
-			RoutingDecision = RoutingDecision.Success("TestBus", ["TestBus"]),
-		};
+		var context = new MessageContext();
+		RoutingDecisionAccessor.SetRoutingDecision(context, RoutingDecision.Success("TestBus", ["TestBus"]));
 		var validation = new object();
 		var authorization = new object();
 		context.ValidationResult(validation);
@@ -399,7 +399,7 @@ public sealed class FinalDispatchHandlerShould
 		// Arrange — exercises the document local fast path (HandleLocalDocumentFastPathAsync)
 		var handler = CreateHandler();
 		var message = new FakeDispatchDocument();
-		var context = new FakeMessageContext { RoutingDecision = null };
+		var context = new FakeMessageContext();
 		var bus = A.Fake<IMessageBus>();
 
 		IMessageBus? outBus = bus;
@@ -422,7 +422,7 @@ public sealed class FinalDispatchHandlerShould
 		// Arrange — exercises the event local fast path (HandleLocalEventFastPathAsync)
 		var handler = CreateHandler();
 		var message = new FakeIntegrationEvent();
-		var context = new FakeMessageContext { RoutingDecision = null };
+		var context = new FakeMessageContext();
 		var bus = A.Fake<IMessageBus>();
 
 		IMessageBus? outBus = bus;
@@ -449,8 +449,8 @@ public sealed class FinalDispatchHandlerShould
 		var context = new FakeMessageContext
 		{
 			MessageId = Guid.NewGuid().ToString(),
-			RoutingDecision = routingDecision,
 		};
+		context.GetOrCreateRoutingFeature().RoutingDecision = routingDecision;
 		var bus = A.Fake<IMessageBus>();
 
 		IMessageBus? outBus = bus;
@@ -477,8 +477,8 @@ public sealed class FinalDispatchHandlerShould
 		var context = new FakeMessageContext
 		{
 			MessageId = Guid.NewGuid().ToString(),
-			RoutingDecision = routingDecision,
 		};
+		context.GetOrCreateRoutingFeature().RoutingDecision = routingDecision;
 		var bus = A.Fake<IMessageBus>();
 
 		IMessageBus? outBus = bus;
@@ -505,8 +505,8 @@ public sealed class FinalDispatchHandlerShould
 		var context = new FakeMessageContext
 		{
 			MessageId = Guid.NewGuid().ToString(),
-			RoutingDecision = routingDecision,
 		};
+		context.GetOrCreateRoutingFeature().RoutingDecision = routingDecision;
 		var bus = A.Fake<IMessageBus>();
 
 		IMessageBus? outBus = bus;
@@ -707,12 +707,13 @@ public sealed class FinalDispatchHandlerShould
 			busNames.Length > 0 ? busNames[0] : "local",
 			busNames.ToList());
 
-		return new FakeMessageContext
+		var context = new FakeMessageContext
 		{
 			MessageId = Guid.NewGuid().ToString(),
 			CorrelationId = Guid.NewGuid().ToString(),
-			RoutingDecision = routingDecision,
 		};
+		context.GetOrCreateRoutingFeature().RoutingDecision = routingDecision;
+		return context;
 	}
 
 	#endregion

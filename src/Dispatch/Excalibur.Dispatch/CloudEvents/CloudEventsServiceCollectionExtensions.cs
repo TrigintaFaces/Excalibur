@@ -95,8 +95,8 @@ public static class CloudEventsServiceCollectionExtensions
 		// Enable schema features
 		_ = builder.Services.Configure<CloudEventOptions>(static options =>
 		{
-			options.ValidateSchema = true;
-			options.IncludeSchemaVersion = true;
+			options.Schema.ValidateSchema = true;
+			options.Schema.IncludeSchemaVersion = true;
 		});
 
 		return builder;
@@ -121,9 +121,9 @@ public static class CloudEventsServiceCollectionExtensions
 
 		_ = builder.Services.Configure<CloudEventOptions>(options =>
 		{
-			options.AutoRegisterSchemas = true;
-			options.SchemaProvider = schemaProvider;
-			options.SchemaVersionProvider = versionProvider ?? (type => "1.0");
+			options.Schema.AutoRegisterSchemas = true;
+			options.Schema.SchemaProvider = schemaProvider;
+			options.Schema.SchemaVersionProvider = versionProvider ?? (type => "1.0");
 		});
 
 		return builder;
@@ -159,7 +159,7 @@ public static class CloudEventsServiceCollectionExtensions
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(validator);
 
-		_ = builder.Services.Configure<CloudEventOptions>(options => options.CustomValidator = validator);
+		_ = builder.Services.Configure<CloudEventOptions>(options => options.Schema.CustomValidator = validator);
 
 		return builder;
 	}
@@ -176,8 +176,8 @@ public static class CloudEventsServiceCollectionExtensions
 
 		_ = builder.Services.Configure<CloudEventOptions>(options =>
 		{
-			var existingTransformer = options.OutgoingTransformer;
-			options.OutgoingTransformer = async (ce, evt, ctx, ct) =>
+			var existingTransformer = options.Schema.OutgoingTransformer;
+			options.Schema.OutgoingTransformer = async (ce, evt, ctx, ct) =>
 			{
 				// Call existing transformer first
 				if (existingTransformer != null)

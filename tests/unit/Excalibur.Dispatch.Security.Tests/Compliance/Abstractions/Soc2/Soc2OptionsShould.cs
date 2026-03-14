@@ -21,10 +21,10 @@ public sealed class Soc2OptionsShould : UnitTestBase
 		_ = options.EnabledCategories.ShouldNotBeNull();
 		options.EnabledCategories.ShouldContain(TrustServicesCategory.Security);
 		options.EnabledCategories.Length.ShouldBe(1);
-		options.EnableContinuousMonitoring.ShouldBeTrue();
-		options.MonitoringInterval.ShouldBe(TimeSpan.FromHours(1));
-		options.EnableAlerts.ShouldBeTrue();
-		options.AlertThreshold.ShouldBe(GapSeverity.Medium);
+		options.Monitoring.EnableContinuousMonitoring.ShouldBeTrue();
+		options.Monitoring.MonitoringInterval.ShouldBe(TimeSpan.FromHours(1));
+		options.Monitoring.EnableAlerts.ShouldBeTrue();
+		options.Monitoring.AlertThreshold.ShouldBe(GapSeverity.Medium);
 		options.EvidenceRetentionPeriod.ShouldBe(TimeSpan.FromDays(365 * 7));
 		options.SystemDescription.ShouldBeNull();
 		options.CustomControls.ShouldBeEmpty();
@@ -59,11 +59,11 @@ public sealed class Soc2OptionsShould : UnitTestBase
 		// Act
 		var options = new Soc2Options
 		{
-			EnableContinuousMonitoring = false
+			Monitoring = new Soc2MonitoringOptions { EnableContinuousMonitoring = false }
 		};
 
 		// Assert
-		options.EnableContinuousMonitoring.ShouldBeFalse();
+		options.Monitoring.EnableContinuousMonitoring.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -72,11 +72,11 @@ public sealed class Soc2OptionsShould : UnitTestBase
 		// Act
 		var options = new Soc2Options
 		{
-			MonitoringInterval = TimeSpan.FromMinutes(30)
+			Monitoring = new Soc2MonitoringOptions { MonitoringInterval = TimeSpan.FromMinutes(30) }
 		};
 
 		// Assert
-		options.MonitoringInterval.ShouldBe(TimeSpan.FromMinutes(30));
+		options.Monitoring.MonitoringInterval.ShouldBe(TimeSpan.FromMinutes(30));
 	}
 
 	[Theory]
@@ -89,11 +89,11 @@ public sealed class Soc2OptionsShould : UnitTestBase
 		// Act
 		var options = new Soc2Options
 		{
-			AlertThreshold = threshold
+			Monitoring = new Soc2MonitoringOptions { AlertThreshold = threshold }
 		};
 
 		// Assert
-		options.AlertThreshold.ShouldBe(threshold);
+		options.Monitoring.AlertThreshold.ShouldBe(threshold);
 	}
 
 	[Fact]

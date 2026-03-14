@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.CloudNative;
 /// <summary>
 /// Event representing an adaptation that occurred.
 /// </summary>
-public sealed class AdaptationEvent
+internal sealed class AdaptationEvent
 {
 	/// <summary>
 	/// Gets or sets when the adaptation occurred.

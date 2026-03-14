@@ -17,6 +17,10 @@
     <Content Include="dispatch-worker\**\*" Exclude="dispatch-worker\**\bin\**;dispatch-worker\**\obj\**" />
     <Content Include="excalibur-ddd\**\*" Exclude="excalibur-ddd\**\bin\**;excalibur-ddd\**\obj\**" />
     <Content Include="excalibur-cqrs\**\*" Exclude="excalibur-cqrs\**\bin\**;excalibur-cqrs\**\obj\**" />
+    <Content Include="dispatch-serverless\**\*" Exclude="dispatch-serverless\**\bin\**;dispatch-serverless\**\obj\**" />
+    <Content Include="dispatch-minimal-api\**\*" Exclude="dispatch-minimal-api\**\bin\**;dispatch-minimal-api\**\obj\**" />
+    <Content Include="excalibur-saga\**\*" Exclude="excalibur-saga\**\bin\**;excalibur-saga\**\obj\**" />
+    <Content Include="excalibur-outbox\**\*" Exclude="excalibur-outbox\**\bin\**;excalibur-outbox\**\obj\**" />
     <Compile Remove="**\*" />
   </ItemGroup>
 </Project>

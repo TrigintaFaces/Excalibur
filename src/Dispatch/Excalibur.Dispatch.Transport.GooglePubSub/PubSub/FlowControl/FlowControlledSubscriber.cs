@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Represents a Pub/Sub subscriber with integrated flow control.
 /// </summary>
-public sealed class FlowControlledSubscriber : IAsyncDisposable
+internal sealed class FlowControlledSubscriber : IAsyncDisposable
 {
 	private readonly Func<PubsubMessage, CancellationToken, Task<SubscriberClient.Reply>> _messageHandler;
 	private readonly Func<PubsubMessage, AckError, Task>? _errorHandler;

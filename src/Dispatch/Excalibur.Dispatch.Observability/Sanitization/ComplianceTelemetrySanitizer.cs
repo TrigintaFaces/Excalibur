@@ -146,12 +146,20 @@ public sealed partial class ComplianceTelemetrySanitizer : ITelemetrySanitizer
 
 	private string ReplacePattern(Regex pattern, string input)
 	{
-		if (_hashDetectedPii)
+		try
 		{
-			return pattern.Replace(input, match => HashValue(match.Value));
-		}
+			if (_hashDetectedPii)
+			{
+				return pattern.Replace(input, match => HashValue(match.Value));
+			}
 
-		return pattern.Replace(input, _redactedPlaceholder);
+			return pattern.Replace(input, _redactedPlaceholder);
+		}
+		catch (RegexMatchTimeoutException)
+		{
+			// Fail closed on regex timeout so telemetry sanitization never leaks raw values.
+			return _hashDetectedPii ? HashValue(input) : _redactedPlaceholder;
+		}
 	}
 
 	private string HashValue(string value)

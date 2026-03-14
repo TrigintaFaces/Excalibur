@@ -472,10 +472,9 @@ public sealed class MySqlPersistenceProviderShould
 	{
 		var provider = CreateProvider(options =>
 		{
-			options.ClearPoolOnDispose = true;
+			options.Pooling.ClearPoolOnDispose = true;
 		});
 
 		await Should.NotThrowAsync(() => provider.DisposeAsync().AsTask());
 	}
 }
-

@@ -51,7 +51,10 @@ public sealed class CosmosDbGrantStoreShould
 	{
 		var options = Microsoft.Extensions.Options.Options.Create(new CosmosDbAuthorizationOptions
 		{
-			ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;",
+			Client =
+			{
+				ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;"
+			},
 			DatabaseName = "testdb",
 			GrantsContainerName = "grants"
 		});

@@ -144,8 +144,8 @@ public static class TimePolicyServiceCollectionExtensions
 		_ = services.AddOptions<TimePolicyOptions>()
 			.Configure(options =>
 			{
-				options.UseAdaptiveTimeouts = true;
-				options.IncludeTimeoutMetrics = true;
+				options.Adaptive.UseAdaptiveTimeouts = true;
+				options.Observability.IncludeTimeoutMetrics = true;
 				configureOptions?.Invoke(options);
 			})
 			.ValidateOnStart();

@@ -112,11 +112,11 @@ public sealed class DeliveryOptionsShould
 		opts.MaxAttempts.ShouldBe(5);
 		opts.DefaultMessageTimeToLive.ShouldBeNull();
 		opts.Deduplication.ShouldNotBeNull();
-		opts.ParallelProcessingDegree.ShouldBe(1);
-		opts.EnableDynamicBatchSizing.ShouldBeFalse();
-		opts.MinBatchSize.ShouldBe(10);
-		opts.MaxBatchSize.ShouldBe(1000);
-		opts.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(5));
+		opts.BatchProcessing.ParallelProcessingDegree.ShouldBe(1);
+		opts.BatchProcessing.EnableDynamicBatchSizing.ShouldBeFalse();
+		opts.BatchProcessing.MinBatchSize.ShouldBe(10);
+		opts.BatchProcessing.MaxBatchSize.ShouldBe(1000);
+		opts.BatchProcessing.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(5));
 		opts.EnableBatchDatabaseOperations.ShouldBeTrue();
 	}
 
@@ -149,9 +149,12 @@ public sealed class DeliveryOptionsShould
 	{
 		var opts = new DeliveryInboxOptions
 		{
-			EnableDynamicBatchSizing = true,
-			MinBatchSize = 500,
-			MaxBatchSize = 100,
+			BatchProcessing =
+			{
+				EnableDynamicBatchSizing = true,
+				MinBatchSize = 500,
+				MaxBatchSize = 100,
+			},
 		};
 
 		DeliveryInboxOptions.Validate(opts).ShouldNotBeNull();
@@ -160,7 +163,7 @@ public sealed class DeliveryOptionsShould
 	[Fact]
 	public void InboxOptions_Validate_ReturnsErrorForZeroBatchProcessingTimeout()
 	{
-		var opts = new DeliveryInboxOptions { BatchProcessingTimeout = TimeSpan.Zero };
+		var opts = new DeliveryInboxOptions { BatchProcessing = { BatchProcessingTimeout = TimeSpan.Zero } };
 
 		DeliveryInboxOptions.Validate(opts).ShouldNotBeNull();
 	}
@@ -231,8 +234,8 @@ public sealed class DeliveryOptionsShould
 		opts.QueueCapacity.ShouldBe(10000);
 		opts.ProducerBatchSize.ShouldBe(1000);
 		opts.ConsumerBatchSize.ShouldBe(1000);
-		opts.ParallelProcessingDegree.ShouldBe(8);
-		opts.EnableDynamicBatchSizing.ShouldBeTrue();
+		opts.BatchProcessing.ParallelProcessingDegree.ShouldBe(8);
+		opts.BatchProcessing.EnableDynamicBatchSizing.ShouldBeTrue();
 		opts.DeliveryGuarantee.ShouldBe(OutboxDeliveryGuarantee.AtLeastOnce);
 	}
 }

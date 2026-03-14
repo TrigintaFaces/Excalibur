@@ -1,1 +1,19 @@
 #nullable enable
+Excalibur.Security.Abstractions.IPasswordHasher
+Excalibur.Security.Abstractions.IPasswordHasher.HashPasswordAsync(string! password, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Security.Abstractions.PasswordHashResult!>!
+Excalibur.Security.Abstractions.IPasswordHasher.VerifyPasswordAsync(string! password, Excalibur.Security.Abstractions.PasswordHashResult! storedHash, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Security.Abstractions.PasswordVerificationResult>!
+Excalibur.Security.Abstractions.PasswordHashResult
+Excalibur.Security.Abstractions.PasswordHashResult.Algorithm.get -> string!
+Excalibur.Security.Abstractions.PasswordHashResult.Algorithm.init -> void
+Excalibur.Security.Abstractions.PasswordHashResult.Hash.get -> string!
+Excalibur.Security.Abstractions.PasswordHashResult.Hash.init -> void
+Excalibur.Security.Abstractions.PasswordHashResult.Parameters.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object!>!
+Excalibur.Security.Abstractions.PasswordHashResult.Parameters.init -> void
+Excalibur.Security.Abstractions.PasswordHashResult.Salt.get -> string!
+Excalibur.Security.Abstractions.PasswordHashResult.Salt.init -> void
+Excalibur.Security.Abstractions.PasswordHashResult.Version.get -> int
+Excalibur.Security.Abstractions.PasswordHashResult.Version.init -> void
+Excalibur.Security.Abstractions.PasswordVerificationResult
+Excalibur.Security.Abstractions.PasswordVerificationResult.Failed = 0 -> Excalibur.Security.Abstractions.PasswordVerificationResult
+Excalibur.Security.Abstractions.PasswordVerificationResult.Success = 1 -> Excalibur.Security.Abstractions.PasswordVerificationResult
+Excalibur.Security.Abstractions.PasswordVerificationResult.SuccessRehashNeeded = 2 -> Excalibur.Security.Abstractions.PasswordVerificationResult

@@ -37,7 +37,7 @@ namespace Excalibur.Testing.Conformance;
 /// <item><description>EncryptAsync requires Active key status</description></item>
 /// <item><description>DecryptAsync allows Active and DecryptOnly key status</description></item>
 /// <item><description>Suspended/Destroyed keys throw EncryptionException with appropriate error codes</description></item>
-/// <item><description>Round-trip: Encrypt → Decrypt must return original plaintext</description></item>
+/// <item><description>Round-trip: Encrypt -> Decrypt must return original plaintext</description></item>
 /// </list>
 /// </para>
 /// </remarks>
@@ -79,6 +79,8 @@ public abstract class EncryptionProviderConformanceTestKit
 	/// </para>
 	/// <para>
 	/// You MUST create at least one key via RotateKeyAsync before encryption tests can work.
+	/// The returned IKeyManagementProvider should also implement <see cref="IKeyManagementAdmin"/>
+	/// for tests that require key suspension (e.g., DecryptAsync_SuspendedKey).
 	/// </para>
 	/// </remarks>
 	protected abstract Task<(IEncryptionProvider Provider, IKeyManagementProvider KeyManagement)> CreateProviderAsync();
@@ -428,8 +430,9 @@ public abstract class EncryptionProviderConformanceTestKit
 			var plaintext = GeneratePlaintext();
 			var encrypted = await provider.EncryptAsync(plaintext, EncryptionContext.Default, CancellationToken.None).ConfigureAwait(false);
 
-			// Suspend the key
-			_ = await keyManagement.SuspendKeyAsync(keyId, "test-suspension", CancellationToken.None).ConfigureAwait(false);
+			// Suspend the key via admin interface
+			var admin = (IKeyManagementAdmin)keyManagement;
+			_ = await admin.SuspendKeyAsync(keyId, "test-suspension", CancellationToken.None).ConfigureAwait(false);
 
 			// Act & Assert
 			var caughtException = false;

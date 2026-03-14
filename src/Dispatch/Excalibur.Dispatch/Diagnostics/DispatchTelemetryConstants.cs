@@ -128,6 +128,11 @@ public static class DispatchTelemetryConstants
 		/// Channel transport common metrics.
 		/// </summary>
 		public const string ChannelTransport = "Excalibur.Dispatch.Transport.Common";
+
+		/// <summary>
+		/// Serialization pool metrics (Utf8JsonWriterPool).
+		/// </summary>
+		public const string Serialization = "Excalibur.Dispatch.Serialization";
 	}
 
 	/// <summary>

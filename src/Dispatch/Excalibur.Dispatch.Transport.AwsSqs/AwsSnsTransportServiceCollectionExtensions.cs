@@ -192,9 +192,9 @@ public static class AwsSnsTransportServiceCollectionExtensions
 				options.KmsMasterKeyId = transportOptions.KmsMasterKeyId;
 				options.ContentBasedDeduplication = transportOptions.ContentBasedDeduplication;
 				options.RawMessageDelivery = transportOptions.RawMessageDelivery;
-				options.RegionEndpoint = transportOptions.Region;
-				options.MaxErrorRetry = transportOptions.MaxErrorRetry;
-				options.Timeout = transportOptions.Timeout;
+				options.Connection.RegionEndpoint = transportOptions.Region;
+				options.Connection.MaxErrorRetry = transportOptions.MaxErrorRetry;
+				options.Connection.Timeout = transportOptions.Timeout;
 			})
 			.ValidateDataAnnotations()
 			.ValidateOnStart();

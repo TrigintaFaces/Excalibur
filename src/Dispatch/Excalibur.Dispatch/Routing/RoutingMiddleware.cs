@@ -68,7 +68,7 @@ public sealed partial class RoutingMiddleware : IDispatchMiddleware
 		{
 			decision = await _router.RouteAsync(message, context, cancellationToken)
 				.ConfigureAwait(false);
-			context.RoutingDecision = decision;
+			RoutingDecisionAccessor.SetRoutingDecision(context, decision);
 		}
 
 		if (!decision.IsSuccess)
@@ -85,7 +85,7 @@ public sealed partial class RoutingMiddleware : IDispatchMiddleware
 
 	private static bool TryGetUsableRoutingDecision(IMessageContext context, out RoutingDecision decision)
 	{
-		decision = context.RoutingDecision!;
+		decision = RoutingDecisionAccessor.GetRoutingDecisionFast(context)!;
 		if (decision is null)
 		{
 			return false;
@@ -108,7 +108,7 @@ public sealed partial class RoutingMiddleware : IDispatchMiddleware
 		return new Excalibur.Dispatch.Messaging.MessageResult(
 			succeeded: false,
 			problemDetails: problemDetails,
-			routingDecision: context.RoutingDecision,
+			routingDecision: RoutingDecisionAccessor.GetRoutingDecisionFast(context),
 			validationResult: context.ValidationResult() as IValidationResult,
 			authorizationResult: context.AuthorizationResult() as IAuthorizationResult);
 	}

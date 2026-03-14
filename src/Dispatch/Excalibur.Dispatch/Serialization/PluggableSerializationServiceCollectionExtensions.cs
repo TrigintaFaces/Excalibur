@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Serialization;
@@ -29,11 +30,10 @@ public static class PluggableSerializationServiceCollectionExtensions
 	/// <list type="bullet">
 	///   <item><see cref="ISerializerRegistry"/> - Singleton registry for serializers</item>
 	///   <item><see cref="IPayloadSerializer"/> - Singleton facade for internal serialization</item>
-	///   <item><see cref="IHttpSerializer"/> - Singleton JSON serializer for HTTP interoperability</item>
 	/// </list>
 	/// <para>
 	/// By default, MemoryPack is auto-registered and set as the current serializer.
-	/// Use <see cref="ConfigurePluggableSerialization"/> to customize this behavior.
+	/// Use <see cref="ConfigureSerialization"/> to customize this behavior.
 	/// </para>
 	/// </remarks>
 	public static IServiceCollection AddPluggableSerialization(this IServiceCollection services)
@@ -86,42 +86,25 @@ public static class PluggableSerializationServiceCollectionExtensions
 			return new PayloadSerializer(registry, logger);
 		});
 
-		// Register the HTTP serializer (always JSON for HTTP interoperability)
-		services.TryAddSingleton<IHttpSerializer, HttpJsonSerializer>();
-
 		return services;
 	}
 
 	/// <summary>
-	/// Configures pluggable serialization for internal persistence.
+	/// Configures serialization for internal persistence using <see cref="ISerializationBuilder"/>.
 	/// </summary>
 	/// <param name="builder">The dispatch builder.</param>
 	/// <param name="configure">Configuration action for the serialization builder.</param>
 	/// <returns>The dispatch builder for method chaining.</returns>
 	/// <remarks>
 	/// <para>
-	/// This method configures serializers for internal persistence stores (Outbox, Inbox, Event Store).
-	/// It is separate from transport serialization which handles message wire formats.
-	/// </para>
-	/// <para>
-	/// <b>Usage:</b>
-	/// </para>
-	/// <code>
-	/// services.AddDispatch()
-	///     .ConfigurePluggableSerialization(config =>
-	///     {
-	///         // MemoryPack is already registered by default
-	///         config.RegisterSystemTextJson();
-	///         config.UseSystemTextJson();
-	///     });
-	/// </code>
-	/// <para>
-	/// See the pluggable serialization architecture documentation.
+	/// This is the preferred API over <see cref="ConfigurePluggableSerialization"/>.
+	/// The <see cref="ISerializationBuilder"/> has 3 core methods; format-specific convenience
+	/// methods are available as extension methods in <see cref="SerializationBuilderExtensions"/>.
 	/// </para>
 	/// </remarks>
-	public static IDispatchBuilder ConfigurePluggableSerialization(
+	public static IDispatchBuilder ConfigureSerialization(
 		this IDispatchBuilder builder,
-		Action<IPluggableSerializationBuilder> configure)
+		Action<ISerializationBuilder> configure)
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 		ArgumentNullException.ThrowIfNull(configure);
@@ -158,7 +141,7 @@ public static class PluggableSerializationServiceCollectionExtensions
 	public static IServiceCollection AddPluggableSerializer(
 		this IServiceCollection services,
 		byte id,
-		IPluggableSerializer serializer)
+		ISerializer serializer)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(serializer);
@@ -186,7 +169,7 @@ public static class PluggableSerializationServiceCollectionExtensions
 	public static IServiceCollection AddPluggableSerializer(
 		this IServiceCollection services,
 		byte id,
-		IPluggableSerializer serializer,
+		ISerializer serializer,
 		bool setAsCurrent)
 	{
 		_ = services.AddPluggableSerializer(id, serializer);
@@ -203,47 +186,23 @@ public static class PluggableSerializationServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds the zero-allocation event serializer to the service collection.
+	/// Adds the event serializer to the service collection.
 	/// </summary>
 	/// <param name="services">The service collection.</param>
 	/// <returns>The service collection for method chaining.</returns>
 	/// <remarks>
-	/// <para>
-	/// This method registers <see cref="SpanEventSerializer"/> as the implementation of
-	/// <see cref="IZeroAllocEventSerializer"/> for high-performance, zero-allocation serialization.
-	/// </para>
-	/// <para>
-	/// <b>Usage Pattern:</b>
-	/// </para>
-	/// <code>
-	/// var size = serializer.GetEventSize(evt);
-	/// var buffer = ArrayPool&lt;byte&gt;.Shared.Rent(size);
-	/// try
-	/// {
-	///     var written = serializer.SerializeEvent(evt, buffer);
-	///     await StoreAsync(buffer.AsSpan(0, written), ct);
-	/// }
-	/// finally
-	/// {
-	///     ArrayPool&lt;byte&gt;.Shared.Return(buffer);
-	/// }
-	/// </code>
-	/// <para>
-	/// <b>Note:</b> This method ensures that <see cref="AddPluggableSerialization"/> is called first
-	/// since <see cref="SpanEventSerializer"/> depends on <see cref="ISerializerRegistry"/>.
-	/// The existing <see cref="IEventSerializer"/> implementations remain available for backward compatibility.
-	/// </para>
+	/// Registers <see cref="SpanEventSerializer"/> as <see cref="IEventSerializer"/>.
+	/// Requires <see cref="AddPluggableSerialization"/> to be called first.
 	/// </remarks>
-	public static IServiceCollection AddZeroAllocEventSerializer(this IServiceCollection services)
+	public static IServiceCollection AddEventSerializer(this IServiceCollection services)
 	{
 		ArgumentNullException.ThrowIfNull(services);
 
 		// Ensure pluggable serialization is registered (provides ISerializerRegistry)
 		_ = services.AddPluggableSerialization();
 
-		// Register SpanEventSerializer as IZeroAllocEventSerializer
-		// Uses TryAddSingleton to allow consumers to override with custom implementations
-		services.TryAddSingleton<IZeroAllocEventSerializer>(sp =>
+		// Register SpanEventSerializer as IEventSerializer
+		services.TryAddSingleton<IEventSerializer>(sp =>
 		{
 			var registry = sp.GetRequiredService<ISerializerRegistry>();
 			return new SpanEventSerializer(registry);

@@ -47,7 +47,10 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsShould
 			VaultUri = new Uri("https://instance.vault.azure.net/"),
 			KeyNamePrefix = "instance-",
 			UseSoftwareKeys = true,
-			MaxRetryAttempts = 9
+			Retry = new AzureKeyVaultRetryOptions
+			{
+				MaxRetryAttempts = 9,
+			},
 		};
 
 		_ = services.AddAzureKeyVaultKeyManagement(source);
@@ -57,7 +60,7 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsShould
 		options.VaultUri.ShouldBe(source.VaultUri);
 		options.KeyNamePrefix.ShouldBe(source.KeyNamePrefix);
 		options.UseSoftwareKeys.ShouldBeTrue();
-		options.MaxRetryAttempts.ShouldBe(9);
+		options.Retry.MaxRetryAttempts.ShouldBe(9);
 	}
 
 	[Fact]
@@ -70,7 +73,7 @@ public sealed class AzureKeyVaultServiceCollectionExtensionsShould
 			{
 				["AzureKeyVault:VaultUri"] = "https://config.vault.azure.net/",
 				["AzureKeyVault:KeyNamePrefix"] = "cfg-",
-				["AzureKeyVault:UseSoftwareKeys"] = "true"
+				["AzureKeyVault:UseSoftwareKeys"] = "true",
 			})
 			.Build();
 

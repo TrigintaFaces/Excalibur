@@ -356,7 +356,7 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 			_dispatcher ?? throw new InvalidOperationException(Resources.DispatchBuilder_DispatcherNotInitialized);
 	}
 
-	private sealed class DeferredDispatcher(DispatcherHolder holder) : IDispatcher
+	private sealed class DeferredDispatcher(DispatcherHolder holder) : IDispatcher, IStreamingDispatcher, IProgressDispatcher
 	{
 		/// <inheritdoc />
 		public IServiceProvider? ServiceProvider => holder.GetOrThrow().ServiceProvider;
@@ -380,21 +380,21 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 			IMessageContext context,
 			CancellationToken cancellationToken)
 			where TDocument : IDispatchDocument =>
-			holder.GetOrThrow().DispatchStreamingAsync<TDocument, TOutput>(document, context, cancellationToken);
+			((IStreamingDispatcher)holder.GetOrThrow()).DispatchStreamingAsync<TDocument, TOutput>(document, context, cancellationToken);
 
 		public Task DispatchStreamAsync<TDocument>(
 			IAsyncEnumerable<TDocument> documents,
 			IMessageContext context,
 			CancellationToken cancellationToken)
 			where TDocument : IDispatchDocument =>
-			holder.GetOrThrow().DispatchStreamAsync(documents, context, cancellationToken);
+			((IStreamingDispatcher)holder.GetOrThrow()).DispatchStreamAsync(documents, context, cancellationToken);
 
 		public IAsyncEnumerable<TOutput> DispatchTransformStreamAsync<TInput, TOutput>(
 			IAsyncEnumerable<TInput> input,
 			IMessageContext context,
 			CancellationToken cancellationToken)
 			where TInput : IDispatchDocument =>
-			holder.GetOrThrow().DispatchTransformStreamAsync<TInput, TOutput>(input, context, cancellationToken);
+			((IStreamingDispatcher)holder.GetOrThrow()).DispatchTransformStreamAsync<TInput, TOutput>(input, context, cancellationToken);
 
 		public Task DispatchWithProgressAsync<TDocument>(
 			TDocument document,
@@ -402,7 +402,7 @@ public sealed partial class DispatchBuilder : IDispatchBuilder, IDisposable
 			IProgress<DocumentProgress> progress,
 			CancellationToken cancellationToken)
 			where TDocument : IDispatchDocument =>
-			holder.GetOrThrow().DispatchWithProgressAsync(document, context, progress, cancellationToken);
+			((IProgressDispatcher)holder.GetOrThrow()).DispatchWithProgressAsync(document, context, progress, cancellationToken);
 	}
 
 	private sealed class DispatchRuntimeState(

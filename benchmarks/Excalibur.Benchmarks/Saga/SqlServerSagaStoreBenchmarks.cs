@@ -4,7 +4,7 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 
 using Excalibur.Dispatch.Abstractions.Messaging;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 using Excalibur.Saga.SqlServer;
 
 using Microsoft.Data.SqlClient;
@@ -44,7 +44,7 @@ public class SqlServerSagaStoreBenchmarks
 		_sagaStore = new SqlServerSagaStore(
 			ConnectionString!,
 			NullLogger<SqlServerSagaStore>.Instance,
-			new BenchmarkJsonSerializer());
+			new DispatchJsonSerializer());
 
 		// Ensure schema exists
 		EnsureSchemaAsync().GetAwaiter().GetResult();
@@ -223,14 +223,3 @@ public sealed class BenchmarkSagaState : SagaState
 	public string CurrentStep { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// Minimal JSON serializer for benchmark scenarios using System.Text.Json.
-/// </summary>
-internal sealed class BenchmarkJsonSerializer : IJsonSerializer
-{
-	public string Serialize(object value, Type type) =>
-		System.Text.Json.JsonSerializer.Serialize(value, type);
-
-	public object? Deserialize(string json, Type type) =>
-		System.Text.Json.JsonSerializer.Deserialize(json, type);
-}

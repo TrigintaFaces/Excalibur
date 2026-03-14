@@ -99,7 +99,7 @@ services.AddDispatch(dispatch =>
     dispatch.UseRabbitMQ(rmq =>
     {
         rmq.ConnectionString("amqp://guest:guest@localhost:5672/")
-           .ConfigureExchange(ex => ex.Name("dispatch.events").Type(RabbitMqExchangeType.Topic));
+           .ConfigureExchange(ex => ex.Name("dispatch.events").Type(RabbitMQExchangeType.Topic));
     });
 });
 ```

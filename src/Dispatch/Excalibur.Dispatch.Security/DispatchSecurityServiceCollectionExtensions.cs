@@ -9,7 +9,6 @@ using Excalibur.Dispatch.Abstractions.Configuration;
 using Excalibur.Dispatch.Security;
 
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -42,9 +41,6 @@ public static class DispatchSecurityServiceCollectionExtensions
 
 		// Add security auditing
 		_ = services.AddSecurityAuditing(configuration);
-
-		// Add security validators for cloud providers
-		_ = services.AddCloudProviderSecurityValidators();
 
 		return services;
 	}
@@ -150,23 +146,6 @@ public static class DispatchSecurityServiceCollectionExtensions
 	}
 
 	/// <summary>
-	/// Adds security validators for cloud provider configurations.
-	/// </summary>
-	/// <param name="services">The service collection.</param>
-	/// <returns>The service collection for chaining.</returns>
-	public static IServiceCollection AddCloudProviderSecurityValidators(this IServiceCollection services)
-	{
-		// Add validators for cloud provider options (TryAddEnumerable prevents duplicates)
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<RabbitMqOptions>, RabbitMqOptionsValidator>());
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<AwsSqsOptions>, AwsSqsOptionsValidator>());
-		// Note: AzureServiceBusOptionsValidator has been moved to Excalibur.Dispatch.Security.Azure.AddAzureServiceBusSecurityValidation()
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<KafkaOptions>, KafkaOptionsValidator>());
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<GooglePubSubOptions>, GooglePubSubOptionsValidator>());
-
-		return services;
-	}
-
-	/// <summary>
 	/// Adds the security middleware to the dispatch pipeline.
 	/// </summary>
 	/// <param name="builder">The dispatch builder instance.</param>
@@ -179,9 +158,3 @@ public static class DispatchSecurityServiceCollectionExtensions
 		return builder;
 	}
 }
-
-// Additional validator implementations would go in separate files
-
-// Enterprise credential store implementations
-
-// Placeholder types - these would be defined in their respective projects

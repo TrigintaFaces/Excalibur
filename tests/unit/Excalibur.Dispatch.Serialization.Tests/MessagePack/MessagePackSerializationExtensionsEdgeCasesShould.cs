@@ -6,12 +6,13 @@ using Excalibur.Dispatch.Serialization.MessagePack;
 
 using MessagePack;
 
+using MpkSerializer = Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializer;
+
 namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 
 /// <summary>
 /// Additional edge-case and coverage tests for <see cref="MessagePackSerializationExtensions"/>.
-/// Targets: DI resolution paths, generic overload with AotMessagePackSerializer,
-/// pluggable serialization registration, and configuration delegate branches.
+/// Targets: DI resolution paths, pluggable serialization registration, and configuration delegate branches.
 /// </summary>
 [Trait("Category", "Unit")]
 [Trait("Component", "Serialization")]
@@ -20,34 +21,18 @@ public sealed class MessagePackSerializationExtensionsEdgeCasesShould : UnitTest
 	#region AddMessagePackSerialization - DI Resolution
 
 	[Fact]
-	public void AddMessagePackSerialization_TryAddSingleton_DoesNotOverrideExisting()
+	public void AddMessagePackSerialization_TryAddSingleton_DoesNotOverrideExistingISerializer()
 	{
-		// Arrange - register a custom IMessageSerializer first
+		// Arrange - register a custom ISerializer first
 		var services = new ServiceCollection();
-		services.AddSingleton<IMessageSerializer, AotMessagePackSerializer>();
-
-		// Act - this should NOT override existing registration (TryAdd)
-		services.AddMessagePackSerialization();
-		var provider = services.BuildServiceProvider();
-
-		// Assert - original registration should be preserved
-		var serializer = provider.GetRequiredService<IMessageSerializer>();
-		serializer.ShouldBeOfType<AotMessagePackSerializer>();
-	}
-
-	[Fact]
-	public void AddMessagePackSerialization_TryAddSingleton_DoesNotOverrideExistingZeroCopy()
-	{
-		// Arrange - register a custom IZeroCopySerializer first
-		var services = new ServiceCollection();
-		services.AddSingleton<IZeroCopySerializer, MessagePackZeroCopySerializer>();
+		services.AddSingleton<ISerializer, MpkSerializer>();
 
 		// Act - this should NOT override existing registration (TryAdd)
 		services.AddMessagePackSerialization();
 		var provider = services.BuildServiceProvider();
 
 		// Assert - only one registration should exist
-		var serializers = provider.GetServices<IZeroCopySerializer>().ToList();
+		var serializers = provider.GetServices<ISerializer>().ToList();
 		serializers.Count.ShouldBe(1);
 	}
 
@@ -63,7 +48,7 @@ public sealed class MessagePackSerializationExtensionsEdgeCasesShould : UnitTest
 		var provider = services.BuildServiceProvider();
 
 		// Assert
-		var serializer = provider.GetRequiredService<IMessageSerializer>();
+		var serializer = provider.GetRequiredService<ISerializer>();
 		serializer.ShouldNotBeNull();
 	}
 
@@ -87,76 +72,6 @@ public sealed class MessagePackSerializationExtensionsEdgeCasesShould : UnitTest
 
 	#endregion
 
-	#region AddMessagePackSerialization<T> - Generic Overload
-
-	[Fact]
-	public void AddMessagePackSerialization_Generic_WithAotSerializer_RegistersCorrectType()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddMessagePackSerialization<AotMessagePackSerializer>();
-		var provider = services.BuildServiceProvider();
-
-		// Assert
-		var serializer = provider.GetRequiredService<IMessageSerializer>();
-		serializer.ShouldBeOfType<AotMessagePackSerializer>();
-	}
-
-	[Fact]
-	public void AddMessagePackSerialization_Generic_CalledTwice_DoesNotDuplicate()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddMessagePackSerialization<DispatchMessagePackSerializer>();
-		services.AddMessagePackSerialization<AotMessagePackSerializer>(); // TryAdd - should not replace
-
-		var provider = services.BuildServiceProvider();
-
-		// Assert - first registration wins (TryAdd semantics)
-		var serializer = provider.GetRequiredService<IMessageSerializer>();
-		serializer.ShouldBeOfType<DispatchMessagePackSerializer>();
-	}
-
-	[Fact]
-	public void AddMessagePackSerialization_Generic_WithConfigure_AppliesAllOptions()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddMessagePackSerialization<DispatchMessagePackSerializer>(opts =>
-		{
-			opts.UseLz4Compression = true;
-		});
-		var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<MessagePackSerializationOptions>>().Value;
-
-		// Assert
-		options.UseLz4Compression.ShouldBeTrue();
-	}
-
-	[Fact]
-	public void AddMessagePackSerialization_Generic_ResolvesIZeroCopySerializer()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		services.AddMessagePackSerialization<DispatchMessagePackSerializer>();
-		var provider = services.BuildServiceProvider();
-
-		// Act
-		var zeroCopy = provider.GetService<IZeroCopySerializer>();
-
-		// Assert
-		zeroCopy.ShouldNotBeNull();
-		zeroCopy.ShouldBeOfType<MessagePackZeroCopySerializer>();
-	}
-
-	#endregion
-
 	#region GetPluggableSerializer - Additional Paths
 
 	[Fact]
@@ -168,7 +83,7 @@ public sealed class MessagePackSerializationExtensionsEdgeCasesShould : UnitTest
 		// Act
 		var serializer = MessagePackSerializationExtensions.GetPluggableSerializer(options);
 		var message = new TestPluggableMessage { Value = 42, Text = "Lz4Test" };
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var result = serializer.Deserialize<TestPluggableMessage>(bytes);
 
 		// Assert

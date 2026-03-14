@@ -21,35 +21,35 @@ internal static class KafkaProducerConfigBuilder
 		};
 
 		var ackLevel = messageBusOptions?.AckLevel
-					   ?? cloudEventOptions?.AcknowledgmentLevel
+					   ?? cloudEventOptions?.Producer.AcknowledgmentLevel
 					   ?? KafkaAckLevel.All;
 		config.Acks = MapAcks(ackLevel);
 
 		var compressionType = messageBusOptions?.CompressionType
-							  ?? cloudEventOptions?.CompressionType
+							  ?? cloudEventOptions?.Producer.CompressionType
 							  ?? KafkaCompressionType.None;
-		var enableCompression = cloudEventOptions?.EnableCompression ?? false;
+		var enableCompression = cloudEventOptions?.Producer.EnableCompression ?? false;
 		config.CompressionType = enableCompression
 				? MapCompressionType(compressionType)
 				: CompressionType.None;
 
 		if (cloudEventOptions is not null)
 		{
-			config.MessageMaxBytes = cloudEventOptions.MaxMessageSizeBytes;
-			config.MessageSendMaxRetries = cloudEventOptions.RetrySettings.MaxRetries;
+			config.MessageMaxBytes = cloudEventOptions.Producer.MaxMessageSizeBytes;
+			config.MessageSendMaxRetries = cloudEventOptions.Producer.RetrySettings.MaxRetries;
 			config.Set(
 					"retry.backoff.ms",
-					((int)cloudEventOptions.RetrySettings.RetryDelay.TotalMilliseconds)
+					((int)cloudEventOptions.Producer.RetrySettings.RetryDelay.TotalMilliseconds)
 							.ToString());
 			config.Set(
 					"retry.backoff.max.ms",
-					((int)cloudEventOptions.RetrySettings.MaxRetryDelay.TotalMilliseconds)
+					((int)cloudEventOptions.Producer.RetrySettings.MaxRetryDelay.TotalMilliseconds)
 							.ToString());
 		}
 
-		var enableTransactions = cloudEventOptions?.EnableTransactions == true
+		var enableTransactions = cloudEventOptions?.Producer.EnableTransactions == true
 								 || messageBusOptions?.EnableTransactions == true;
-		var enableIdempotence = cloudEventOptions?.EnableIdempotentProducer == true || enableTransactions;
+		var enableIdempotence = cloudEventOptions?.Producer.EnableIdempotentProducer == true || enableTransactions;
 
 		if (enableIdempotence)
 		{
@@ -62,7 +62,7 @@ internal static class KafkaProducerConfigBuilder
 			var transactionalId = messageBusOptions?.TransactionalId;
 			if (string.IsNullOrWhiteSpace(transactionalId))
 			{
-				transactionalId = cloudEventOptions?.TransactionalId;
+				transactionalId = cloudEventOptions?.Producer.TransactionalId;
 			}
 
 			config.TransactionalId = string.IsNullOrWhiteSpace(transactionalId)

@@ -4,7 +4,7 @@
 using System.Data;
 
 using Excalibur.Data.Abstractions;
-using Excalibur.Data.Postgres.Outbox;
+using Excalibur.Outbox.Postgres;
 
 namespace Excalibur.Tests.Data.Postgres;
 

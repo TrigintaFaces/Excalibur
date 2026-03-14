@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Configuration;
 
 namespace Excalibur.Dispatch.Tests.Configuration;
@@ -48,22 +49,22 @@ public sealed class PipelineConfigTypesShould
 	public void ConfigValidationSeverity_HaveExpectedValues()
 	{
 		// Assert
-		Excalibur.Dispatch.Configuration.ValidationSeverity.Info
-			.ShouldBe((Excalibur.Dispatch.Configuration.ValidationSeverity)0);
-		Excalibur.Dispatch.Configuration.ValidationSeverity.Warning
-			.ShouldBe((Excalibur.Dispatch.Configuration.ValidationSeverity)1);
-		Excalibur.Dispatch.Configuration.ValidationSeverity.Error
-			.ShouldBe((Excalibur.Dispatch.Configuration.ValidationSeverity)2);
+		ValidationSeverity.Info
+			.ShouldBe((ValidationSeverity)0);
+		ValidationSeverity.Warning
+			.ShouldBe((ValidationSeverity)1);
+		ValidationSeverity.Error
+			.ShouldBe((ValidationSeverity)2);
 	}
 
 	[Fact]
-	public void ConfigValidationSeverity_HaveThreeValues()
+	public void ConfigValidationSeverity_HaveFourValues()
 	{
 		// Act
-		var values = Enum.GetValues<Excalibur.Dispatch.Configuration.ValidationSeverity>();
+		var values = Enum.GetValues<ValidationSeverity>();
 
 		// Assert
-		values.Length.ShouldBe(3);
+		values.Length.ShouldBe(4);
 	}
 
 	// --- ValidationIssue ---
@@ -73,11 +74,11 @@ public sealed class PipelineConfigTypesShould
 	{
 		// Act
 		var issue = new ValidationIssue(
-			Excalibur.Dispatch.Configuration.ValidationSeverity.Error,
+			ValidationSeverity.Error,
 			"Missing required middleware");
 
 		// Assert
-		issue.Severity.ShouldBe(Excalibur.Dispatch.Configuration.ValidationSeverity.Error);
+		issue.Severity.ShouldBe(ValidationSeverity.Error);
 		issue.Message.ShouldBe("Missing required middleware");
 	}
 
@@ -86,10 +87,10 @@ public sealed class PipelineConfigTypesShould
 	{
 		// Arrange
 		var issue1 = new ValidationIssue(
-			Excalibur.Dispatch.Configuration.ValidationSeverity.Warning,
+			ValidationSeverity.Warning,
 			"test");
 		var issue2 = new ValidationIssue(
-			Excalibur.Dispatch.Configuration.ValidationSeverity.Warning,
+			ValidationSeverity.Warning,
 			"test");
 
 		// Assert
@@ -102,10 +103,10 @@ public sealed class PipelineConfigTypesShould
 	{
 		// Arrange
 		var issue1 = new ValidationIssue(
-			Excalibur.Dispatch.Configuration.ValidationSeverity.Warning,
+			ValidationSeverity.Warning,
 			"test");
 		var issue2 = new ValidationIssue(
-			Excalibur.Dispatch.Configuration.ValidationSeverity.Error,
+			ValidationSeverity.Error,
 			"test");
 
 		// Assert
@@ -207,7 +208,7 @@ public sealed class PipelineConfigTypesShould
 		var issues = new[]
 		{
 			new ValidationIssue(
-				Excalibur.Dispatch.Configuration.ValidationSeverity.Error,
+				ValidationSeverity.Error,
 				"Critical error"),
 		};
 
@@ -229,7 +230,7 @@ public sealed class PipelineConfigTypesShould
 		var issues = new[]
 		{
 			new ValidationIssue(
-				Excalibur.Dispatch.Configuration.ValidationSeverity.Warning,
+				ValidationSeverity.Warning,
 				"Non-critical warning"),
 		};
 
@@ -252,13 +253,13 @@ public sealed class PipelineConfigTypesShould
 		var issues = new[]
 		{
 			new ValidationIssue(
-				Excalibur.Dispatch.Configuration.ValidationSeverity.Info, "Info"),
+				ValidationSeverity.Info, "Info"),
 			new ValidationIssue(
-				Excalibur.Dispatch.Configuration.ValidationSeverity.Warning, "Warn1"),
+				ValidationSeverity.Warning, "Warn1"),
 			new ValidationIssue(
-				Excalibur.Dispatch.Configuration.ValidationSeverity.Warning, "Warn2"),
+				ValidationSeverity.Warning, "Warn2"),
 			new ValidationIssue(
-				Excalibur.Dispatch.Configuration.ValidationSeverity.Error, "Err"),
+				ValidationSeverity.Error, "Err"),
 		};
 
 		// Act

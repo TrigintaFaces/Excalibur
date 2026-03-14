@@ -26,20 +26,9 @@ public sealed class HighThroughputSqsOptions
 	public int MaxConcurrency { get; set; } = 10;
 
 	/// <summary>
-	/// Gets or sets the number of concurrent pollers.
+	/// Polling configuration.
 	/// </summary>
-	/// <value>
-	/// The number of concurrent pollers.
-	/// </value>
-	public int ConcurrentPollers { get; set; } = 5;
-
-	/// <summary>
-	/// Gets or sets the maximum number of concurrent pollers.
-	/// </summary>
-	/// <value>
-	/// The maximum number of concurrent pollers.
-	/// </value>
-	public int MaxConcurrentPollers { get; set; } = 10;
+	public HighThroughputSqsPollingOptions Polling { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets the channel capacity for buffering messages.
@@ -80,14 +69,6 @@ public sealed class HighThroughputSqsOptions
 	/// The visibility timeout in seconds.
 	/// </value>
 	public int VisibilityTimeout { get; set; } = 30;
-
-	/// <summary>
-	/// Gets or sets the wait time for long polling in seconds.
-	/// </summary>
-	/// <value>
-	/// The wait time for long polling in seconds.
-	/// </value>
-	public int WaitTimeSeconds { get; set; } = 20;
 
 	/// <summary>
 	/// Gets or sets a value indicating whether batching is enabled.

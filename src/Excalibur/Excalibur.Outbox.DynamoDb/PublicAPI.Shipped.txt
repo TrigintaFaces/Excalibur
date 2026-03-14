@@ -1,1 +1,70 @@
 #nullable enable
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxConnectionOptions
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxConnectionOptions.AccessKey.get -> string?
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxConnectionOptions.AccessKey.set -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxConnectionOptions.DynamoDbOutboxConnectionOptions() -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxConnectionOptions.Region.get -> string?
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxConnectionOptions.Region.set -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxConnectionOptions.SecretKey.get -> string?
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxConnectionOptions.SecretKey.set -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxConnectionOptions.ServiceUrl.get -> string?
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxConnectionOptions.ServiceUrl.set -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.Connection.get -> Excalibur.Outbox.DynamoDb.DynamoDbOutboxConnectionOptions!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.Connection.set -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.CreateTableIfNotExists.get -> bool
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.CreateTableIfNotExists.set -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.DefaultTimeToLiveSeconds.get -> int
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.DefaultTimeToLiveSeconds.set -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.DynamoDbOutboxOptions() -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.EnableStreams.get -> bool
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.EnableStreams.set -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.GetRegionEndpoint() -> Amazon.RegionEndpoint?
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.MaxRetryAttempts.get -> int
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.MaxRetryAttempts.set -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.PartitionKeyAttribute.get -> string!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.PartitionKeyAttribute.set -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.SortKeyAttribute.get -> string!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.SortKeyAttribute.set -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.TableName.get -> string!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.TableName.set -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.TtlAttribute.get -> string!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.TtlAttribute.set -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions.Validate() -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore.AddAsync(Excalibur.Data.Abstractions.CloudNative.CloudOutboxMessage! message, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudOperationResult<Excalibur.Data.Abstractions.CloudNative.CloudOutboxMessage!>!>!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore.AddBatchAsync(System.Collections.Generic.IEnumerable<Excalibur.Data.Abstractions.CloudNative.CloudOutboxMessage!>! messages, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudBatchResult!>!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore.CleanupOldMessagesAsync(Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudCleanupResult!>!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore.DynamoDbOutboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore!>! logger) -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore.GetPendingAsync(Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudQueryResult<Excalibur.Data.Abstractions.CloudNative.CloudOutboxMessage!>!>!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore.IncrementRetryCountAsync(string! messageId, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, string? errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudOperationResult!>!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore.InitializeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore.MarkAsPublishedAsync(string! messageId, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudOperationResult!>!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore.MarkBatchAsPublishedAsync(System.Collections.Generic.IEnumerable<string!>! messageIds, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudBatchResult!>!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore.ProviderType.get -> Excalibur.Data.Abstractions.CloudNative.CloudProviderType
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStore.SubscribeToNewMessagesAsync(Excalibur.Data.Abstractions.CloudNative.IChangeFeedOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.IChangeFeedSubscription<Excalibur.Data.Abstractions.CloudNative.CloudOutboxMessage!>!>!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamEvent
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamEvent.ContinuationToken.get -> string!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamEvent.Document.get -> Excalibur.Data.Abstractions.CloudNative.CloudOutboxMessage?
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamEvent.DocumentId.get -> string!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamEvent.DynamoDbOutboxStreamEvent(Excalibur.Data.Abstractions.CloudNative.ChangeFeedEventType eventType, Excalibur.Data.Abstractions.CloudNative.CloudOutboxMessage? document, string! documentId, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.DateTimeOffset timestamp, string! continuationToken, long sequenceNumber) -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamEvent.EventType.get -> Excalibur.Data.Abstractions.CloudNative.ChangeFeedEventType
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamEvent.PartitionKey.get -> Excalibur.Data.Abstractions.CloudNative.IPartitionKey!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamEvent.SequenceNumber.get -> long
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamEvent.Timestamp.get -> System.DateTimeOffset
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.CurrentContinuationToken.get -> string?
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.DynamoDbOutboxStreamsSubscription(Amazon.DynamoDBv2.IAmazonDynamoDB! client, Amazon.DynamoDBStreams.IAmazonDynamoDBStreams! streamsClient, string! tableName, Excalibur.Data.Abstractions.CloudNative.IChangeFeedOptions! options, Microsoft.Extensions.Logging.ILogger! logger) -> void
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.IsActive.get -> bool
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.ReadChangesAsync(System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.Data.Abstractions.CloudNative.IChangeFeedEvent<Excalibur.Data.Abstractions.CloudNative.CloudOutboxMessage!>!>!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Outbox.DynamoDb.DynamoDbOutboxStreamsSubscription.SubscriptionId.get -> string!
+Microsoft.Extensions.DependencyInjection.DynamoDbOutboxServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.OutboxBuilderDynamoDbExtensions
+static Microsoft.Extensions.DependencyInjection.DynamoDbOutboxServiceCollectionExtensions.AddDynamoDbOutboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions! options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DynamoDbOutboxServiceCollectionExtensions.AddDynamoDbOutboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DynamoDbOutboxServiceCollectionExtensions.AddDynamoDbOutboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OutboxBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.DynamoDb.DynamoDbOutboxOptions!>? configure = null) -> Excalibur.Outbox.IOutboxBuilder!

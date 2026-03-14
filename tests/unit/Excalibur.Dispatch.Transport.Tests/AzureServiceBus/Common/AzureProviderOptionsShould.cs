@@ -18,16 +18,16 @@ public sealed class AzureProviderOptionsShould
 		// Assert
 		options.Provider.ShouldBe(CloudProviderType.Azure);
 		options.SubscriptionId.ShouldBe(string.Empty);
-		options.TenantId.ShouldBe(string.Empty);
-		options.ClientId.ShouldBe(string.Empty);
-		options.ClientSecret.ShouldBe(string.Empty);
-		options.UseManagedIdentity.ShouldBeFalse();
+		options.Authentication.TenantId.ShouldBe(string.Empty);
+		options.Authentication.ClientId.ShouldBe(string.Empty);
+		options.Authentication.ClientSecret.ShouldBe(string.Empty);
+		options.Authentication.UseManagedIdentity.ShouldBeFalse();
 		options.ResourceGroup.ShouldBe(string.Empty);
 		options.KeyVaultUrl.ShouldBeNull();
-		options.StorageAccountName.ShouldBe(string.Empty);
-		options.StorageAccountKey.ShouldBe(string.Empty);
+		options.Storage.StorageAccountName.ShouldBe(string.Empty);
+		options.Storage.StorageAccountKey.ShouldBe(string.Empty);
 		options.FullyQualifiedNamespace.ShouldBeNull();
-		options.StorageAccountUri.ShouldBeNull();
+		options.Storage.StorageAccountUri.ShouldBeNull();
 		options.MaxMessageSizeBytes.ShouldBe(256 * 1024);
 		options.EnableSessions.ShouldBeFalse();
 		options.PrefetchCount.ShouldBe(10);
@@ -40,18 +40,18 @@ public sealed class AzureProviderOptionsShould
 		// Arrange & Act
 		var options = new AzureProviderOptions
 		{
-			TenantId = "tenant-123",
-			ClientId = "client-456",
-			ClientSecret = "secret-789",
-			UseManagedIdentity = true,
 			FullyQualifiedNamespace = "myns.servicebus.windows.net",
 		};
+		options.Authentication.TenantId = "tenant-123";
+		options.Authentication.ClientId = "client-456";
+		options.Authentication.ClientSecret = "secret-789";
+		options.Authentication.UseManagedIdentity = true;
 
 		// Assert
-		options.TenantId.ShouldBe("tenant-123");
-		options.ClientId.ShouldBe("client-456");
-		options.ClientSecret.ShouldBe("secret-789");
-		options.UseManagedIdentity.ShouldBeTrue();
+		options.Authentication.TenantId.ShouldBe("tenant-123");
+		options.Authentication.ClientId.ShouldBe("client-456");
+		options.Authentication.ClientSecret.ShouldBe("secret-789");
+		options.Authentication.UseManagedIdentity.ShouldBeTrue();
 		options.FullyQualifiedNamespace.ShouldBe("myns.servicebus.windows.net");
 	}
 
@@ -59,17 +59,15 @@ public sealed class AzureProviderOptionsShould
 	public void AllowSettingStorageProperties()
 	{
 		// Arrange & Act
-		var options = new AzureProviderOptions
-		{
-			StorageAccountName = "mystorage",
-			StorageAccountKey = "mykey",
-			StorageAccountUri = new Uri("https://mystorage.blob.core.windows.net"),
-		};
+		var options = new AzureProviderOptions();
+		options.Storage.StorageAccountName = "mystorage";
+		options.Storage.StorageAccountKey = "mykey";
+		options.Storage.StorageAccountUri = new Uri("https://mystorage.blob.core.windows.net");
 
 		// Assert
-		options.StorageAccountName.ShouldBe("mystorage");
-		options.StorageAccountKey.ShouldBe("mykey");
-		options.StorageAccountUri.ShouldNotBeNull();
+		options.Storage.StorageAccountName.ShouldBe("mystorage");
+		options.Storage.StorageAccountKey.ShouldBe("mykey");
+		options.Storage.StorageAccountUri.ShouldNotBeNull();
 	}
 
 	[Fact]

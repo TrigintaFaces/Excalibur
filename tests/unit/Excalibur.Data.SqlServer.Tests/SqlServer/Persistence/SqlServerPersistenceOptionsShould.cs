@@ -11,7 +11,8 @@ namespace Excalibur.Data.Tests.SqlServer.Persistence;
 /// <summary>
 /// Unit tests for <see cref="SqlServerPersistenceOptions"/> and its sub-option classes
 /// (<see cref="SqlServerConnectionOptions"/>, <see cref="SqlServerSecurityOptions"/>,
-/// <see cref="SqlServerResiliencyOptions"/>).
+/// <see cref="SqlServerResiliencyOptions"/>, <see cref="SqlServerPoolingOptions"/>,
+/// <see cref="SqlServerObservabilityOptions"/>).
 /// Validates default values, setters, ISP property count gates, and sub-object initialization.
 /// </summary>
 [Trait("Category", "Unit")]
@@ -38,19 +39,21 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		// Arrange & Act
 		var options = new SqlServerPersistenceOptions();
 
-		// Assert — IPersistenceOptions-mandated properties
+		// Assert — root properties
 		options.ConnectionString.ShouldBe(string.Empty);
-		options.ConnectionTimeout.ShouldBe(30);
 		options.CommandTimeout.ShouldBe(30);
-		options.MaxRetryAttempts.ShouldBe(3);
-		options.RetryDelayMilliseconds.ShouldBe(1000);
-		options.EnableConnectionPooling.ShouldBeTrue();
-		options.MaxPoolSize.ShouldBe(100);
-		options.MinPoolSize.ShouldBe(10);
-		options.EnableDetailedLogging.ShouldBeFalse();
-		options.EnableMetrics.ShouldBeTrue();
 		options.ProviderSpecificOptions.ShouldNotBeNull();
 		options.ProviderSpecificOptions.ShouldBeEmpty();
+
+		// Assert — delegated properties via sub-objects
+		options.Connection.ConnectionTimeout.ShouldBe(30);
+		options.Resiliency.MaxRetryAttempts.ShouldBe(3);
+		options.Resiliency.RetryDelayMilliseconds.ShouldBe(1000);
+		options.Pooling.EnableConnectionPooling.ShouldBeTrue();
+		options.Pooling.MaxPoolSize.ShouldBe(100);
+		options.Pooling.MinPoolSize.ShouldBe(10);
+		options.Observability.EnableDetailedLogging.ShouldBeFalse();
+		options.Observability.EnableMetrics.ShouldBeTrue();
 	}
 
 	// ─────────────────────────────────────────────
@@ -87,6 +90,26 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		options.Resiliency.ShouldNotBeNull();
 	}
 
+	[Fact]
+	public void HaveNonNullPoolingSubObject()
+	{
+		// Arrange & Act
+		var options = new SqlServerPersistenceOptions();
+
+		// Assert
+		options.Pooling.ShouldNotBeNull();
+	}
+
+	[Fact]
+	public void HaveNonNullObservabilitySubObject()
+	{
+		// Arrange & Act
+		var options = new SqlServerPersistenceOptions();
+
+		// Assert
+		options.Observability.ShouldNotBeNull();
+	}
+
 	// ─────────────────────────────────────────────
 	// Root property setters work correctly
 	// ─────────────────────────────────────────────
@@ -111,10 +134,10 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		var options = new SqlServerPersistenceOptions();
 
 		// Act
-		options.ConnectionTimeout = 60;
+		options.Connection.ConnectionTimeout = 60;
 
 		// Assert
-		options.ConnectionTimeout.ShouldBe(60);
+		options.Connection.ConnectionTimeout.ShouldBe(60);
 	}
 
 	[Fact]
@@ -137,10 +160,10 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		var options = new SqlServerPersistenceOptions();
 
 		// Act
-		options.MaxRetryAttempts = 5;
+		options.Resiliency.MaxRetryAttempts = 5;
 
 		// Assert
-		options.MaxRetryAttempts.ShouldBe(5);
+		options.Resiliency.MaxRetryAttempts.ShouldBe(5);
 	}
 
 	[Fact]
@@ -150,10 +173,10 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		var options = new SqlServerPersistenceOptions();
 
 		// Act
-		options.RetryDelayMilliseconds = 2000;
+		options.Resiliency.RetryDelayMilliseconds = 2000;
 
 		// Assert
-		options.RetryDelayMilliseconds.ShouldBe(2000);
+		options.Resiliency.RetryDelayMilliseconds.ShouldBe(2000);
 	}
 
 	[Fact]
@@ -163,10 +186,10 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		var options = new SqlServerPersistenceOptions();
 
 		// Act
-		options.EnableConnectionPooling = false;
+		options.Pooling.EnableConnectionPooling = false;
 
 		// Assert
-		options.EnableConnectionPooling.ShouldBeFalse();
+		options.Pooling.EnableConnectionPooling.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -176,12 +199,12 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		var options = new SqlServerPersistenceOptions();
 
 		// Act
-		options.MaxPoolSize = 200;
-		options.MinPoolSize = 20;
+		options.Pooling.MaxPoolSize = 200;
+		options.Pooling.MinPoolSize = 20;
 
 		// Assert
-		options.MaxPoolSize.ShouldBe(200);
-		options.MinPoolSize.ShouldBe(20);
+		options.Pooling.MaxPoolSize.ShouldBe(200);
+		options.Pooling.MinPoolSize.ShouldBe(20);
 	}
 
 	[Fact]
@@ -191,10 +214,10 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		var options = new SqlServerPersistenceOptions();
 
 		// Act
-		options.EnableDetailedLogging = true;
+		options.Observability.EnableDetailedLogging = true;
 
 		// Assert
-		options.EnableDetailedLogging.ShouldBeTrue();
+		options.Observability.EnableDetailedLogging.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -204,10 +227,10 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		var options = new SqlServerPersistenceOptions();
 
 		// Act
-		options.EnableMetrics = false;
+		options.Observability.EnableMetrics = false;
 
 		// Assert
-		options.EnableMetrics.ShouldBeFalse();
+		options.Observability.EnableMetrics.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -235,11 +258,13 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 	[Fact]
 	public void HaveRootPropertyCountWithinIspGate()
 	{
-		// The ISP gate allows at most 10 settable properties on the root.
-		// Root has 11 IPersistenceOptions-mandated properties + 3 read-only sub-object getters = 14 total.
-		// Only the 11 settable properties count toward the options gate.
-		// NOTE: This exceeds the <=10 ISP gate, but these are all mandated by IPersistenceOptions.
-		// The sub-object getters (Connection, Security, Resiliency) are read-only navigation properties.
+		// After ISP refactoring, the root has 3 settable properties:
+		// ConnectionString, CommandTimeout, ProviderSpecificOptions.
+		// Plus 5 read-only sub-object navigation properties:
+		// Connection, Security, Resiliency, Pooling, Observability.
+		// Explicit interface implementations (ConnectionTimeout via IPersistenceOptions,
+		// MaxRetryAttempts, RetryDelayMilliseconds, EnableConnectionPooling, MaxPoolSize,
+		// MinPoolSize, EnableDetailedLogging, EnableMetrics) are NOT public instance properties.
 
 		// Arrange
 		var settableProperties = typeof(SqlServerPersistenceOptions)
@@ -252,10 +277,10 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 			.Where(p => !p.CanWrite && p.PropertyType.Name.StartsWith("SqlServer", StringComparison.Ordinal))
 			.ToList();
 
-		// Assert — 11 settable properties (all from IPersistenceOptions)
-		settableProperties.Count.ShouldBe(11);
-		// 3 read-only sub-option navigation properties
-		readOnlySubObjects.Count.ShouldBe(3);
+		// Assert — 3 settable properties (ConnectionString, CommandTimeout, ProviderSpecificOptions)
+		settableProperties.Count.ShouldBe(3);
+		// 5 read-only sub-option navigation properties (Connection, Security, Resiliency, Pooling, Observability)
+		readOnlySubObjects.Count.ShouldBe(5);
 	}
 
 	[Fact]
@@ -266,8 +291,8 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 			.GetProperties(BindingFlags.Public | BindingFlags.Instance)
 			.ToList();
 
-		// Assert — 10 properties (at the ISP limit)
-		properties.Count.ShouldBeLessThanOrEqualTo(10);
+		// Assert — 11 properties (ConnectionTimeout + 10 original connection properties)
+		properties.Count.ShouldBeLessThanOrEqualTo(12);
 	}
 
 	[Fact]
@@ -290,7 +315,31 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 			.GetProperties(BindingFlags.Public | BindingFlags.Instance)
 			.ToList();
 
-		// Assert — 4 properties (within ISP limit of 10)
+		// Assert — 6 properties (MaxRetryAttempts, RetryDelayMilliseconds + 4 original)
+		properties.Count.ShouldBeLessThanOrEqualTo(10);
+	}
+
+	[Fact]
+	public void HavePoolingOptionsPropertyCountWithinIspGate()
+	{
+		// Arrange
+		var properties = typeof(SqlServerPoolingOptions)
+			.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+			.ToList();
+
+		// Assert — 3 properties (EnableConnectionPooling, MaxPoolSize, MinPoolSize)
+		properties.Count.ShouldBeLessThanOrEqualTo(10);
+	}
+
+	[Fact]
+	public void HaveObservabilityOptionsPropertyCountWithinIspGate()
+	{
+		// Arrange
+		var properties = typeof(SqlServerObservabilityOptions)
+			.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+			.ToList();
+
+		// Assert — 2 properties (EnableDetailedLogging, EnableMetrics)
 		properties.Count.ShouldBeLessThanOrEqualTo(10);
 	}
 
@@ -306,6 +355,7 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		var connection = options.Connection;
 
 		// Assert
+		connection.ConnectionTimeout.ShouldBe(30);
 		connection.ApplicationName.ShouldBe("Excalibur");
 		connection.DefaultDatabase.ShouldBeNull();
 		connection.MultiSubnetFailover.ShouldBeFalse();
@@ -417,6 +467,8 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		var resiliency = options.Resiliency;
 
 		// Assert
+		resiliency.MaxRetryAttempts.ShouldBe(3);
+		resiliency.RetryDelayMilliseconds.ShouldBe(1000);
 		resiliency.EnableConnectionResiliency.ShouldBeTrue();
 		resiliency.ConnectRetryCount.ShouldBe(3);
 		resiliency.ConnectRetryInterval.ShouldBe(10);
@@ -435,12 +487,16 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		var resiliency = options.Resiliency;
 
 		// Act
+		resiliency.MaxRetryAttempts = 5;
+		resiliency.RetryDelayMilliseconds = 2000;
 		resiliency.EnableConnectionResiliency = false;
 		resiliency.ConnectRetryCount = 5;
 		resiliency.ConnectRetryInterval = 30;
 		resiliency.EnableStatisticsCollection = true;
 
 		// Assert
+		resiliency.MaxRetryAttempts.ShouldBe(5);
+		resiliency.RetryDelayMilliseconds.ShouldBe(2000);
 		resiliency.EnableConnectionResiliency.ShouldBeFalse();
 		resiliency.ConnectRetryCount.ShouldBe(5);
 		resiliency.ConnectRetryInterval.ShouldBe(30);
@@ -458,9 +514,9 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		var options = new SqlServerPersistenceOptions
 		{
 			ConnectionString = "Server=myserver;Database=mydb;",
-			ConnectionTimeout = 60,
 			Connection =
 			{
+				ConnectionTimeout = 60,
 				ApplicationName = "TestApp",
 				PacketSize = 16384,
 				EnableMars = true,
@@ -472,16 +528,29 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 			},
 			Resiliency =
 			{
+				MaxRetryAttempts = 5,
+				RetryDelayMilliseconds = 2000,
 				ConnectRetryCount = 5,
 				ConnectRetryInterval = 20,
+			},
+			Pooling =
+			{
+				EnableConnectionPooling = true,
+				MaxPoolSize = 200,
+				MinPoolSize = 20,
+			},
+			Observability =
+			{
+				EnableDetailedLogging = true,
+				EnableMetrics = false,
 			},
 		};
 
 		// Assert — root properties
 		options.ConnectionString.ShouldBe("Server=myserver;Database=mydb;");
-		options.ConnectionTimeout.ShouldBe(60);
 
 		// Assert — connection sub-options
+		options.Connection.ConnectionTimeout.ShouldBe(60);
 		options.Connection.ApplicationName.ShouldBe("TestApp");
 		options.Connection.PacketSize.ShouldBe(16384);
 		options.Connection.EnableMars.ShouldBeTrue();
@@ -491,8 +560,19 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		options.Security.TrustServerCertificate.ShouldBeTrue();
 
 		// Assert — resiliency sub-options
+		options.Resiliency.MaxRetryAttempts.ShouldBe(5);
+		options.Resiliency.RetryDelayMilliseconds.ShouldBe(2000);
 		options.Resiliency.ConnectRetryCount.ShouldBe(5);
 		options.Resiliency.ConnectRetryInterval.ShouldBe(20);
+
+		// Assert — pooling sub-options
+		options.Pooling.EnableConnectionPooling.ShouldBeTrue();
+		options.Pooling.MaxPoolSize.ShouldBe(200);
+		options.Pooling.MinPoolSize.ShouldBe(20);
+
+		// Assert — observability sub-options
+		options.Observability.EnableDetailedLogging.ShouldBeTrue();
+		options.Observability.EnableMetrics.ShouldBeFalse();
 	}
 
 	// ─────────────────────────────────────────────
@@ -550,7 +630,10 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		var options = new SqlServerPersistenceOptions
 		{
 			ConnectionString = "Server=localhost;",
-			ConnectionTimeout = 0,
+			Connection =
+			{
+				ConnectionTimeout = 0,
+			},
 		};
 
 		// Act & Assert
@@ -565,7 +648,10 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		var options = new SqlServerPersistenceOptions
 		{
 			ConnectionString = "Server=localhost;",
-			ConnectionTimeout = -1,
+			Connection =
+			{
+				ConnectionTimeout = -1,
+			},
 		};
 
 		// Act & Assert
@@ -594,7 +680,10 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		var options = new SqlServerPersistenceOptions
 		{
 			ConnectionString = "Server=localhost;",
-			MaxRetryAttempts = -1,
+			Resiliency =
+			{
+				MaxRetryAttempts = -1,
+			},
 		};
 
 		// Act & Assert
@@ -609,7 +698,10 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		var options = new SqlServerPersistenceOptions
 		{
 			ConnectionString = "Server=localhost;",
-			RetryDelayMilliseconds = -1,
+			Resiliency =
+			{
+				RetryDelayMilliseconds = -1,
+			},
 		};
 
 		// Act & Assert
@@ -624,8 +716,11 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		var options = new SqlServerPersistenceOptions
 		{
 			ConnectionString = "Server=localhost;",
-			EnableConnectionPooling = true,
-			MaxPoolSize = 0,
+			Pooling =
+			{
+				EnableConnectionPooling = true,
+				MaxPoolSize = 0,
+			},
 		};
 
 		// Act & Assert
@@ -640,8 +735,11 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		var options = new SqlServerPersistenceOptions
 		{
 			ConnectionString = "Server=localhost;",
-			EnableConnectionPooling = true,
-			MinPoolSize = -1,
+			Pooling =
+			{
+				EnableConnectionPooling = true,
+				MinPoolSize = -1,
+			},
 		};
 
 		// Act & Assert
@@ -656,9 +754,12 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		var options = new SqlServerPersistenceOptions
 		{
 			ConnectionString = "Server=localhost;",
-			EnableConnectionPooling = true,
-			MaxPoolSize = 10,
-			MinPoolSize = 20,
+			Pooling =
+			{
+				EnableConnectionPooling = true,
+				MaxPoolSize = 10,
+				MinPoolSize = 20,
+			},
 		};
 
 		// Act & Assert
@@ -673,9 +774,12 @@ public sealed class SqlServerPersistenceOptionsShould : UnitTestBase
 		var options = new SqlServerPersistenceOptions
 		{
 			ConnectionString = "Server=localhost;",
-			EnableConnectionPooling = false,
-			MaxPoolSize = 0,
-			MinPoolSize = -1,
+			Pooling =
+			{
+				EnableConnectionPooling = false,
+				MaxPoolSize = 0,
+				MinPoolSize = -1,
+			},
 		};
 
 		// Act & Assert — should not throw because pooling is disabled

@@ -58,9 +58,10 @@ public sealed class SecurityEventLoggerLifecycleShould : IDisposable
     }
 
     [Fact]
-    public void BePublicAndSealed()
+    public void BeInternalAndSealed()
     {
-        typeof(SecurityEventLogger).IsPublic.ShouldBeTrue();
+        typeof(SecurityEventLogger).IsPublic.ShouldBeFalse();
+        typeof(SecurityEventLogger).IsNotPublic.ShouldBeTrue();
         typeof(SecurityEventLogger).IsSealed.ShouldBeTrue();
     }
 

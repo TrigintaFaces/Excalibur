@@ -33,7 +33,7 @@ public sealed class StreamConsumerHandlerShould
 		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var documents = CreateTestDocumentStream(5);
 		var context = CreateTestContext(provider);
@@ -61,7 +61,7 @@ public sealed class StreamConsumerHandlerShould
 		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var documents = CreateIndexedDocumentStream(10);
 		var context = CreateTestContext(provider);
@@ -85,7 +85,7 @@ public sealed class StreamConsumerHandlerShould
 		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var documents = CreateTestDocumentStream(3);
 		var context = CreateTestContext(provider);
@@ -113,7 +113,7 @@ public sealed class StreamConsumerHandlerShould
 		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 		var context = CreateTestContext(provider);
 
 		// Act & Assert
@@ -139,7 +139,7 @@ public sealed class StreamConsumerHandlerShould
 		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 		var documents = CreateTestDocumentStream(3);
 
 		// Act & Assert
@@ -165,7 +165,7 @@ public sealed class StreamConsumerHandlerShould
 		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var documents = CreateTestDocumentStream(1);
 		var context = CreateTestContext(provider);
@@ -192,7 +192,7 @@ public sealed class StreamConsumerHandlerShould
 		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var documents = CreateTestDocumentStream(0);
 		var context = CreateTestContext(provider);
@@ -218,7 +218,7 @@ public sealed class StreamConsumerHandlerShould
 		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var documents = CreateTestDocumentStream(10000);
 		var context = CreateTestContext(provider);
@@ -244,7 +244,7 @@ public sealed class StreamConsumerHandlerShould
 		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var documents = CreateTestDocumentStream(100);
 		var context = CreateTestContext(provider);

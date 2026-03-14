@@ -22,7 +22,7 @@ Choose AtLeastOnce when:
 services.Configure<OutboxOptions>(options =>
 {
     options.DeliveryGuarantee = OutboxDeliveryGuarantee.AtLeastOnce;
-    options.BatchSize = 100;
+    options.ConsumerBatchSize = 100;
     options.PollingInterval = TimeSpan.FromSeconds(5);
 });
 ```

@@ -1,1 +1,40 @@
 #nullable enable
+Excalibur.Testing.AggregateTestFixture<TAggregate>
+Excalibur.Testing.AggregateTestFixture<TAggregate>.AggregateTestFixture() -> void
+Excalibur.Testing.AggregateTestFixture<TAggregate>.Given(params Excalibur.Dispatch.Abstractions.IDomainEvent![]! events) -> Excalibur.Testing.AggregateTestFixture<TAggregate>!
+Excalibur.Testing.AggregateTestFixture<TAggregate>.Given(System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events) -> Excalibur.Testing.AggregateTestFixture<TAggregate>!
+Excalibur.Testing.AggregateTestFixture<TAggregate>.ShouldThrow<TException>() -> void
+Excalibur.Testing.AggregateTestFixture<TAggregate>.ShouldThrow<TException>(string! messageContains) -> void
+Excalibur.Testing.AggregateTestFixture<TAggregate>.Then() -> Excalibur.Testing.AggregateTestFixtureResult<TAggregate>!
+Excalibur.Testing.AggregateTestFixture<TAggregate>.When(System.Action<TAggregate>! action) -> Excalibur.Testing.AggregateTestFixture<TAggregate>!
+Excalibur.Testing.AggregateTestFixture<TAggregate>.WhenAsync(System.Func<TAggregate, System.Threading.Tasks.Task!>! action) -> System.Threading.Tasks.Task<Excalibur.Testing.AggregateTestFixture<TAggregate>!>!
+Excalibur.Testing.AggregateTestFixtureResult<TAggregate>
+Excalibur.Testing.AggregateTestFixtureResult<TAggregate>.AssertAggregate(System.Action<TAggregate>! assertion) -> Excalibur.Testing.AggregateTestFixtureResult<TAggregate>!
+Excalibur.Testing.AggregateTestFixtureResult<TAggregate>.ShouldNotThrow() -> Excalibur.Testing.AggregateTestFixtureResult<TAggregate>!
+Excalibur.Testing.AggregateTestFixtureResult<TAggregate>.ShouldRaise<TEvent>() -> Excalibur.Testing.AggregateTestFixtureResult<TAggregate>!
+Excalibur.Testing.AggregateTestFixtureResult<TAggregate>.ShouldRaise<TEvent>(System.Func<TEvent, bool>! predicate) -> Excalibur.Testing.AggregateTestFixtureResult<TAggregate>!
+Excalibur.Testing.AggregateTestFixtureResult<TAggregate>.ShouldRaiseNoEvents() -> Excalibur.Testing.AggregateTestFixtureResult<TAggregate>!
+Excalibur.Testing.AggregateTestFixtureResult<TAggregate>.ShouldThrow<TException>() -> void
+Excalibur.Testing.AggregateTestFixtureResult<TAggregate>.ShouldThrow<TException>(string! messageContains) -> void
+Excalibur.Testing.AggregateTestFixtureResult<TAggregate>.StateShould(System.Func<TAggregate, bool>! predicate, string? message = null) -> Excalibur.Testing.AggregateTestFixtureResult<TAggregate>!
+Excalibur.Testing.SagaTestFixture<TSaga, TSagaState>
+Excalibur.Testing.SagaTestFixture<TSaga, TSagaState>.Given(params object![]! events) -> Excalibur.Testing.SagaTestFixture<TSaga, TSagaState!>!
+Excalibur.Testing.SagaTestFixture<TSaga, TSagaState>.Given(System.Action<TSagaState!>! setupState) -> Excalibur.Testing.SagaTestFixture<TSaga, TSagaState!>!
+Excalibur.Testing.SagaTestFixture<TSaga, TSagaState>.SagaTestFixture() -> void
+Excalibur.Testing.SagaTestFixture<TSaga, TSagaState>.ShouldThrowAsync<TException>(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Excalibur.Testing.SagaTestFixture<TSaga, TSagaState>.ThenAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Excalibur.Testing.SagaTestFixtureResult<TSaga, TSagaState!>!>!
+Excalibur.Testing.SagaTestFixture<TSaga, TSagaState>.When(object! event) -> Excalibur.Testing.SagaTestFixture<TSaga, TSagaState!>!
+Excalibur.Testing.SagaTestFixtureResult<TSaga, TSagaState>
+Excalibur.Testing.SagaTestFixtureResult<TSaga, TSagaState>.AssertState(System.Action<TSagaState!>! assertion) -> Excalibur.Testing.SagaTestFixtureResult<TSaga, TSagaState!>!
+Excalibur.Testing.SagaTestFixtureResult<TSaga, TSagaState>.ShouldBeCompleted() -> Excalibur.Testing.SagaTestFixtureResult<TSaga, TSagaState!>!
+Excalibur.Testing.SagaTestFixtureResult<TSaga, TSagaState>.ShouldHandleEvent(object! eventMessage) -> Excalibur.Testing.SagaTestFixtureResult<TSaga, TSagaState!>!
+Excalibur.Testing.SagaTestFixtureResult<TSaga, TSagaState>.ShouldNotBeCompleted() -> Excalibur.Testing.SagaTestFixtureResult<TSaga, TSagaState!>!
+Excalibur.Testing.SagaTestFixtureResult<TSaga, TSagaState>.ShouldNotThrow() -> Excalibur.Testing.SagaTestFixtureResult<TSaga, TSagaState!>!
+Excalibur.Testing.SagaTestFixtureResult<TSaga, TSagaState>.ShouldThrow<TException>() -> void
+Excalibur.Testing.SagaTestFixtureResult<TSaga, TSagaState>.ShouldThrow<TException>(string! messageContains) -> void
+Excalibur.Testing.SagaTestFixtureResult<TSaga, TSagaState>.ThenState(System.Func<TSagaState!, bool>! predicate, string? message = null) -> Excalibur.Testing.SagaTestFixtureResult<TSaga, TSagaState!>!
+Excalibur.Testing.TestFixtureAssertionException
+Excalibur.Testing.TestFixtureAssertionException.TestFixtureAssertionException(string! message) -> void
+Excalibur.Testing.TestFixtureAssertionException.TestFixtureAssertionException(string! message, System.Exception! innerException) -> void
+Microsoft.Extensions.DependencyInjection.ExcaliburTestingServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.ExcaliburTestingServiceCollectionExtensions.AddExcaliburTestingStores(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

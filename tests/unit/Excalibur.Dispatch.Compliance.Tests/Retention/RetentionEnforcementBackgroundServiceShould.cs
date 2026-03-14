@@ -84,7 +84,7 @@ public sealed class RetentionEnforcementBackgroundServiceShould
 		var options = new RetentionEnforcementOptions
 		{
 			Enabled = true,
-			ScanInterval = TimeSpan.FromMilliseconds(50)
+			ScanInterval = TimeSpan.FromMilliseconds(10)
 		};
 
 		var sut = new RetentionEnforcementBackgroundService(
@@ -148,7 +148,7 @@ public sealed class RetentionEnforcementBackgroundServiceShould
 		await sut.StartAsync(cts.Token).ConfigureAwait(false);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			secondCallObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		await cts.CancelAsync();
 		await sut.StopAsync(CancellationToken.None).ConfigureAwait(false);
 

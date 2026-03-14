@@ -1,1 +1,158 @@
 #nullable enable
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.AccessDeniedReadingPersistenceFile = 105307 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.AccessDeniedWritingPersistenceFile = 105403 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.ClearedAllData = 105004 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.ConnectionTestFailed = 105001 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.ConnectionTestSuccessful = 105000 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.CreatedDirectoryForPersistenceFile = 105401 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.DirectoryNotFoundForPersistenceFile = 105404 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.DisposingProvider = 105003 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.ExecuteDataRequestFailed = 105101 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.ExecuteDataRequestInTransactionFailed = 105103 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.ExecutingDataRequest = 105100 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.ExecutingDataRequestInTransaction = 105102 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.FailedToDeserializePersistenceData = 105305 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.FailedToPersistOnAsyncDispose = 105409 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.FailedToPersistOnDispose = 105408 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.FailedToSerializeData = 105406 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.InitializingProvider = 105002 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.InvalidPersistenceDataFormat = 105303 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.IOErrorReadingPersistenceFile = 105308 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.IOErrorWritingPersistenceFile = 105405 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.ItemNotFound = 105202 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.LoadingDataFromDisk = 105301 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.LoadingPersistedData = 105300 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.OutboxCleanedUp = 105704 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.OutboxMessageEnqueued = 105701 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.OutboxMessageFailed = 105703 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.OutboxMessageSent = 105702 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.OutboxMessageStaged = 105700 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.PersistenceFileEmpty = 105302 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.PersistenceFileNotFound = 105306 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.PersistingDataToDisk = 105400 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.RemovedItem = 105203 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.RetrievedItem = 105201 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.SnapshotDeleted = 105603 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.SnapshotEvicted = 105605 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.SnapshotNotFound = 105601 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.SnapshotOlderDeleted = 105604 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.SnapshotRetrieved = 105600 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.SnapshotSaved = 105602 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.StoredItem = 105200 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.SuccessfullyLoadedData = 105304 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.SuccessfullyPersistedData = 105402 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.TransactionCommitted = 105500 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.TransactionDisposedWithoutCommit = 105502 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.TransactionRolledBack = 105501 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.UnexpectedErrorLoadingData = 105309 -> int
+const Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId.UnexpectedErrorPersistingData = 105407 -> int
+Excalibur.Data.InMemory.Diagnostics.DataInMemoryEventId
+Excalibur.Data.InMemory.InMemoryPersistenceProvider
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.BeginTransaction(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted) -> System.Data.IDbTransaction!
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.BeginTransactionAsync(System.Data.IsolationLevel isolationLevel, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Data.IDbTransaction!>
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.Clear() -> void
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.ConnectionString.get -> string!
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.CreateConnection() -> System.Data.IDbConnection!
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.CreateConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Data.IDbConnection!>
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Abstractions.Persistence.ITransactionScope!
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.Dispose() -> void
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, Excalibur.Data.Abstractions.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.GetCollection(string! collectionName) -> System.Collections.Concurrent.ConcurrentDictionary<string!, object!>!
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.GetConnectionPoolStatsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>?>!
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.GetMetadata() -> System.Collections.Generic.IDictionary<string!, object!>!
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.GetMetricsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.GetService(System.Type! serviceType) -> object?
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.InitializeAsync(Excalibur.Data.Abstractions.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.InMemoryPersistenceProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Data.InMemory.InMemoryProviderOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.InMemory.InMemoryPersistenceProvider!>! logger) -> void
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.IsAvailable.get -> bool
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.IsReadOnly.get -> bool
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.Name.get -> string!
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.ProviderType.get -> string!
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.Remove(string! collectionName, string! key) -> bool
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.Retrieve<T>(string! collectionName, string! key) -> T?
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Abstractions.Resilience.IDataRequestRetryPolicy!
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.Store<T>(string! collectionName, string! key, T item) -> void
+Excalibur.Data.InMemory.InMemoryPersistenceProvider.TestConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.InMemory.InMemoryPoolingOptions
+Excalibur.Data.InMemory.InMemoryPoolingOptions.CommandTimeout.get -> int
+Excalibur.Data.InMemory.InMemoryPoolingOptions.CommandTimeout.set -> void
+Excalibur.Data.InMemory.InMemoryPoolingOptions.ConnectionTimeout.get -> int
+Excalibur.Data.InMemory.InMemoryPoolingOptions.ConnectionTimeout.set -> void
+Excalibur.Data.InMemory.InMemoryPoolingOptions.EnableConnectionPooling.get -> bool
+Excalibur.Data.InMemory.InMemoryPoolingOptions.EnableConnectionPooling.set -> void
+Excalibur.Data.InMemory.InMemoryPoolingOptions.InMemoryPoolingOptions() -> void
+Excalibur.Data.InMemory.InMemoryPoolingOptions.MaxPoolSize.get -> int
+Excalibur.Data.InMemory.InMemoryPoolingOptions.MaxPoolSize.set -> void
+Excalibur.Data.InMemory.InMemoryPoolingOptions.MinPoolSize.get -> int
+Excalibur.Data.InMemory.InMemoryPoolingOptions.MinPoolSize.set -> void
+Excalibur.Data.InMemory.InMemoryProviderOptions
+Excalibur.Data.InMemory.InMemoryProviderOptions.CommandTimeout.get -> int
+Excalibur.Data.InMemory.InMemoryProviderOptions.CommandTimeout.set -> void
+Excalibur.Data.InMemory.InMemoryProviderOptions.ConnectionString.get -> string!
+Excalibur.Data.InMemory.InMemoryProviderOptions.ConnectionString.set -> void
+Excalibur.Data.InMemory.InMemoryProviderOptions.ConnectionTimeout.get -> int
+Excalibur.Data.InMemory.InMemoryProviderOptions.ConnectionTimeout.set -> void
+Excalibur.Data.InMemory.InMemoryProviderOptions.EnableConnectionPooling.get -> bool
+Excalibur.Data.InMemory.InMemoryProviderOptions.EnableConnectionPooling.set -> void
+Excalibur.Data.InMemory.InMemoryProviderOptions.EnableDetailedLogging.get -> bool
+Excalibur.Data.InMemory.InMemoryProviderOptions.EnableDetailedLogging.set -> void
+Excalibur.Data.InMemory.InMemoryProviderOptions.EnableMetrics.get -> bool
+Excalibur.Data.InMemory.InMemoryProviderOptions.EnableMetrics.set -> void
+Excalibur.Data.InMemory.InMemoryProviderOptions.InMemoryProviderOptions() -> void
+Excalibur.Data.InMemory.InMemoryProviderOptions.IsReadOnly.get -> bool
+Excalibur.Data.InMemory.InMemoryProviderOptions.IsReadOnly.set -> void
+Excalibur.Data.InMemory.InMemoryProviderOptions.MaxItemsPerCollection.get -> int
+Excalibur.Data.InMemory.InMemoryProviderOptions.MaxItemsPerCollection.set -> void
+Excalibur.Data.InMemory.InMemoryProviderOptions.MaxPoolSize.get -> int
+Excalibur.Data.InMemory.InMemoryProviderOptions.MaxPoolSize.set -> void
+Excalibur.Data.InMemory.InMemoryProviderOptions.MaxRetryAttempts.get -> int
+Excalibur.Data.InMemory.InMemoryProviderOptions.MaxRetryAttempts.set -> void
+Excalibur.Data.InMemory.InMemoryProviderOptions.MinPoolSize.get -> int
+Excalibur.Data.InMemory.InMemoryProviderOptions.MinPoolSize.set -> void
+Excalibur.Data.InMemory.InMemoryProviderOptions.Name.get -> string?
+Excalibur.Data.InMemory.InMemoryProviderOptions.Name.set -> void
+Excalibur.Data.InMemory.InMemoryProviderOptions.PersistenceFilePath.get -> string?
+Excalibur.Data.InMemory.InMemoryProviderOptions.PersistenceFilePath.set -> void
+Excalibur.Data.InMemory.InMemoryProviderOptions.PersistToDisk.get -> bool
+Excalibur.Data.InMemory.InMemoryProviderOptions.PersistToDisk.set -> void
+Excalibur.Data.InMemory.InMemoryProviderOptions.Pool.get -> Excalibur.Data.InMemory.InMemoryPoolingOptions!
+Excalibur.Data.InMemory.InMemoryProviderOptions.Pool.set -> void
+Excalibur.Data.InMemory.InMemoryProviderOptions.ProviderSpecificOptions.get -> System.Collections.Generic.IDictionary<string!, object!>!
+Excalibur.Data.InMemory.InMemoryProviderOptions.ProviderSpecificOptions.set -> void
+Excalibur.Data.InMemory.InMemoryProviderOptions.RetryDelayMilliseconds.get -> int
+Excalibur.Data.InMemory.InMemoryProviderOptions.RetryDelayMilliseconds.set -> void
+Excalibur.Data.InMemory.InMemoryProviderOptions.Storage.get -> Excalibur.Data.InMemory.InMemoryStorageOptions!
+Excalibur.Data.InMemory.InMemoryProviderOptions.Storage.set -> void
+Excalibur.Data.InMemory.InMemoryProviderOptions.Validate() -> void
+Excalibur.Data.InMemory.InMemoryStorageOptions
+Excalibur.Data.InMemory.InMemoryStorageOptions.EnableMetrics.get -> bool
+Excalibur.Data.InMemory.InMemoryStorageOptions.EnableMetrics.set -> void
+Excalibur.Data.InMemory.InMemoryStorageOptions.InMemoryStorageOptions() -> void
+Excalibur.Data.InMemory.InMemoryStorageOptions.MaxRetryAttempts.get -> int
+Excalibur.Data.InMemory.InMemoryStorageOptions.MaxRetryAttempts.set -> void
+Excalibur.Data.InMemory.InMemoryStorageOptions.PersistenceFilePath.get -> string?
+Excalibur.Data.InMemory.InMemoryStorageOptions.PersistenceFilePath.set -> void
+Excalibur.Data.InMemory.InMemoryStorageOptions.PersistToDisk.get -> bool
+Excalibur.Data.InMemory.InMemoryStorageOptions.PersistToDisk.set -> void
+Excalibur.Data.InMemory.InMemoryStorageOptions.RetryDelayMilliseconds.get -> int
+Excalibur.Data.InMemory.InMemoryStorageOptions.RetryDelayMilliseconds.set -> void
+Excalibur.Data.InMemory.InMemoryStorageOptions.Validate() -> void
+Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions
+Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions.InMemorySnapshotOptions() -> void
+Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions.MaxSnapshots.get -> int
+Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions.MaxSnapshots.set -> void
+Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions.MaxSnapshotsPerAggregate.get -> int
+Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions.MaxSnapshotsPerAggregate.set -> void
+Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore
+Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore.DeleteSnapshotsAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore.DeleteSnapshotsOlderThanAsync(string! aggregateId, string! aggregateType, long olderThanVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore.Dispose() -> void
+Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore.GetLatestSnapshotAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot?>
+Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore.InMemorySnapshotStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore!>! logger) -> void
+Excalibur.Data.InMemory.Snapshots.InMemorySnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Microsoft.Extensions.DependencyInjection.InMemorySnapshotExtensions
+static Microsoft.Extensions.DependencyInjection.InMemorySnapshotExtensions.AddInMemorySnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.InMemorySnapshotExtensions.UseInMemorySnapshotStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Data.InMemory.Snapshots.InMemorySnapshotOptions!>? configure = null) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!

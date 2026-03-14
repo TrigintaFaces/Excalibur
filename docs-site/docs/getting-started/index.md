@@ -15,7 +15,6 @@ This guide gets you up and running with Excalibur.Dispatch in under 5 minutes. B
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
-  dotnet add package Excalibur.Dispatch.Abstractions
   ```
 
 ## Step 1: Define an Action
@@ -202,6 +201,19 @@ public class GreetHandler : IActionHandler<GreetAction, string>
 public record GreetRequest(string Name);
 ```
 
+:::tip You Have a Working App — Stop Here Unless You Need More
+The example above is a complete, production-ready Dispatch application. **You don't need anything else to start building.**
+
+| If you need... | Next step |
+|----------------|-----------|
+| Just dispatching? | **You're done.** See [Dispatch Only](./dispatch-only.md) for a focused reference. |
+| Input validation? | Add [FluentValidation middleware](../middleware/validation.md) |
+| Event sourcing? | Continue to [Event Sourcing](../event-sourcing/index.md) |
+| Domain aggregates? | Continue to [Domain Modeling](../domain-modeling/index.md) |
+| Multi-step workflows? | Continue to [Sagas](../sagas/index.md) |
+| Message broker? | Continue to [Transports](../transports/index.md) |
+:::
+
 ## Key Concepts
 
 | Concept | Description |
@@ -375,9 +387,21 @@ services.AddDispatch(dispatch =>
 
 Your handlers don't change — only the registration code changes. See [Choosing a Transport](../transports/choosing-a-transport.md) to pick the right broker and [Message Routing](../patterns/routing.md) for the full routing API.
 
+## Recommended Learning Path
+
+| Step | Page | What You'll Learn |
+|------|------|-------------------|
+| 1 | **You are here** | Install Dispatch and create your first handler |
+| 2 | [Your First Event](./first-event.md) | Events with multiple handlers |
+| 3 | [Samples](./samples.md) | Browse working examples for your use case |
+| 4 | [Core Concepts](../core-concepts/index.md) | Pipelines, middleware, and context |
+
+Looking for a focused reference? See [Dispatch Only](./dispatch-only.md) for Dispatch without event sourcing or sagas.
+
 ## What's Next
 
 - [Your First Event](./first-event.md) - Create and handle domain events
+- [Dispatch Only](./dispatch-only.md) - Focused reference for using Dispatch as a standalone MediatR replacement
 - [Choosing a Transport](../transports/choosing-a-transport.md) - Pick a broker and configure destinations
 - [Message Routing](../patterns/routing.md) - Understand the three-layer routing model
 - [Project Templates](./project-templates.md) - Scaffold new projects

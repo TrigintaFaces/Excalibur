@@ -94,6 +94,7 @@ public static class OutboxBuilderSqlServerExtensions
 		builder.Services.TryAddSingleton<SqlServerOutboxStore>();
 		builder.Services.TryAddSingleton<IOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
 		builder.Services.TryAddSingleton<IMultiTransportOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
+		builder.Services.TryAddSingleton<IMultiTransportOutboxStoreAdmin>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
 
 		return builder;
 	}
@@ -167,6 +168,7 @@ public static class OutboxBuilderSqlServerExtensions
 		});
 		builder.Services.TryAddSingleton<IOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
 		builder.Services.TryAddSingleton<IMultiTransportOutboxStore>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
+		builder.Services.TryAddSingleton<IMultiTransportOutboxStoreAdmin>(sp => sp.GetRequiredService<SqlServerOutboxStore>());
 
 		return builder;
 	}

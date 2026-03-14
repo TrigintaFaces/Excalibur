@@ -5,6 +5,7 @@
 using System.Security.Claims;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Messaging;
 
 using Microsoft.AspNetCore.Http;
@@ -19,30 +20,31 @@ public static class HttpContextExtensions
 {
 	/// <summary>
 	/// Create a <see cref="MessageContext" /> populated with common request metadata.
+	/// Works for both authenticated and anonymous requests.
 	/// </summary>
 	/// <param name="httpContext"> The HTTP context. </param>
-	/// <exception cref="UnauthorizedAccessException"></exception>
 	public static MessageContext CreateDispatchMessageContext(this HttpContext httpContext)
 	{
 		ArgumentNullException.ThrowIfNull(httpContext);
 
 		var user = httpContext.User;
 
-		if (user.Identity is not { IsAuthenticated: true })
-		{
-			throw new UnauthorizedAccessException(
-					Resources.HttpContextExtensions_UserNotAuthenticated);
-		}
-
 		var context = new MessageContext
 		{
-			Source = "WebRequest",
 			CorrelationId = httpContext.CorrelationId().Value.ToString(),
 			CausationId = httpContext.CausationId()?.Value.ToString(),
-			UserId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "anonymous",
-			TenantId = httpContext.TenantId()?.Value,
 			RequestServices = httpContext.RequestServices,
 		};
+
+		// Set identity feature properties
+		var identity = context.GetOrCreateIdentityFeature();
+		identity.UserId = user.Identity is { IsAuthenticated: true }
+			? user.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "anonymous"
+			: "anonymous";
+		identity.TenantId = httpContext.TenantId()?.Value;
+
+		// Set routing feature properties
+		context.GetOrCreateRoutingFeature().Source = "WebRequest";
 
 		foreach (var header in httpContext.Request.Headers)
 		{

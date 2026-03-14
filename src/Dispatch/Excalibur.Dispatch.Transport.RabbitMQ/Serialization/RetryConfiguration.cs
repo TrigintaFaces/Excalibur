@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// <summary>
 /// Represents retry configuration.
 /// </summary>
-public sealed record RetryConfiguration(
+internal sealed record RetryConfiguration(
 	int MaxAttempts,
 	TimeSpan InitialInterval,
 	TimeSpan MaxInterval,

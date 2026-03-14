@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Observability.Context;
 
@@ -111,11 +112,7 @@ public sealed class ContextFlowDiagnosticsDepthCoverageShould : IDisposable
 	public void AnalyzeContextHealth_DetectMissingRequiredFields()
 	{
 		// Arrange
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns(null);
-		A.CallTo(() => context.CorrelationId).Returns(null);
-		A.CallTo(() => context.SentTimestampUtc).Returns(null);
-		A.CallTo(() => context.DeliveryCount).Returns(0);
+		var context = CreateFakeContext(messageId: null, correlationId: null);
 
 		// Act
 		var issues = _sut.AnalyzeContextHealth(context).ToList();
@@ -129,11 +126,8 @@ public sealed class ContextFlowDiagnosticsDepthCoverageShould : IDisposable
 	public void AnalyzeContextHealth_DetectStaleTimestamps()
 	{
 		// Arrange
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.CorrelationId).Returns("corr-1");
-		A.CallTo(() => context.SentTimestampUtc).Returns(DateTimeOffset.UtcNow.AddHours(-2));
-		A.CallTo(() => context.DeliveryCount).Returns(0);
+		var context = CreateFakeContext(messageId: "msg-1", correlationId: "corr-1");
+		context.SetSentTimestampUtc(DateTimeOffset.UtcNow.AddHours(-2));
 
 		// Act
 		var issues = _sut.AnalyzeContextHealth(context).ToList();
@@ -146,11 +140,7 @@ public sealed class ContextFlowDiagnosticsDepthCoverageShould : IDisposable
 	public void AnalyzeContextHealth_DetectHighDeliveryCount()
 	{
 		// Arrange
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.CorrelationId).Returns("corr-1");
-		A.CallTo(() => context.SentTimestampUtc).Returns(null);
-		A.CallTo(() => context.DeliveryCount).Returns(10);
+		var context = CreateFakeContext(messageId: "msg-1", correlationId: "corr-1", deliveryCount: 10);
 
 		// Act
 		var issues = _sut.AnalyzeContextHealth(context).ToList();
@@ -163,19 +153,11 @@ public sealed class ContextFlowDiagnosticsDepthCoverageShould : IDisposable
 	public void AnalyzeContextHealth_DetectValidationFailures()
 	{
 		// Arrange
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.CorrelationId).Returns("corr-1");
-		A.CallTo(() => context.SentTimestampUtc).Returns(null);
-		A.CallTo(() => context.DeliveryCount).Returns(0);
+		var context = CreateFakeContext(messageId: "msg-1", correlationId: "corr-1");
 
 		// Set up validation result via context Items (extension method uses GetProperty with __ValidationResult key)
 		var failedResult = new TestValidationResult(false);
-		var items = new Dictionary<string, object>(StringComparer.Ordinal)
-		{
-			["__ValidationResult"] = failedResult,
-		};
-		A.CallTo(() => context.Items).Returns(items);
+		context.Items["__ValidationResult"] = failedResult;
 
 		// Act
 		var issues = _sut.AnalyzeContextHealth(context).ToList();
@@ -188,20 +170,12 @@ public sealed class ContextFlowDiagnosticsDepthCoverageShould : IDisposable
 	public void AnalyzeContextHealth_DetectAuthorizationFailures()
 	{
 		// Arrange
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.CorrelationId).Returns("corr-1");
-		A.CallTo(() => context.SentTimestampUtc).Returns(null);
-		A.CallTo(() => context.DeliveryCount).Returns(0);
+		var context = CreateFakeContext(messageId: "msg-1", correlationId: "corr-1");
 
 		// Set up authorization result via context Items (extension method uses GetProperty with __AuthorizationResult key)
 		var authResult = A.Fake<IAuthorizationResult>();
 		A.CallTo(() => authResult.IsAuthorized).Returns(false);
-		var items = new Dictionary<string, object>(StringComparer.Ordinal)
-		{
-			["__AuthorizationResult"] = authResult,
-		};
-		A.CallTo(() => context.Items).Returns(items);
+		context.Items["__AuthorizationResult"] = authResult;
 
 		// Act
 		var issues = _sut.AnalyzeContextHealth(context).ToList();
@@ -220,12 +194,7 @@ public sealed class ContextFlowDiagnosticsDepthCoverageShould : IDisposable
 	public void DetectAnomalies_DetectMissingCorrelationOnRedelivery()
 	{
 		// Arrange
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.CorrelationId).Returns(null);
-		A.CallTo(() => context.CausationId).Returns(null);
-		A.CallTo(() => context.DeliveryCount).Returns(3);
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		var context = CreateFakeContext(messageId: "msg-1", correlationId: null, deliveryCount: 3);
 
 		// Act
 		var anomalies = _sut.DetectAnomalies(context).ToList();
@@ -238,12 +207,7 @@ public sealed class ContextFlowDiagnosticsDepthCoverageShould : IDisposable
 	public void DetectAnomalies_DetectCircularCausation()
 	{
 		// Arrange
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.CausationId).Returns("msg-1"); // circular
-		A.CallTo(() => context.CorrelationId).Returns("corr-1");
-		A.CallTo(() => context.DeliveryCount).Returns(0);
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		var context = CreateFakeContext(messageId: "msg-1", correlationId: "corr-1", causationId: "msg-1");
 
 		// Act
 		var anomalies = _sut.DetectAnomalies(context).ToList();
@@ -256,12 +220,9 @@ public sealed class ContextFlowDiagnosticsDepthCoverageShould : IDisposable
 	public void DetectAnomalies_DetectPotentialPII()
 	{
 		// Arrange
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-1");
-		A.CallTo(() => context.CausationId).Returns(null);
-		A.CallTo(() => context.CorrelationId).Returns("corr-1");
-		A.CallTo(() => context.DeliveryCount).Returns(0);
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal)
+		var context = CreateFakeContext(messageId: "msg-1", correlationId: "corr-1");
+		// Replace Items with PII-containing items
+		var items = new Dictionary<string, object>(StringComparer.Ordinal)
 		{
 			["UserEmail"] = "user@example.com",
 			["SSN_Data"] = "123-45-6789",
@@ -271,7 +232,8 @@ public sealed class ContextFlowDiagnosticsDepthCoverageShould : IDisposable
 			["safe_field_3"] = "3",
 			["safe_field_4"] = "4",
 			["safe_field_5"] = "5",
-		});
+		};
+		A.CallTo(() => context.Items).Returns(items);
 
 		// Act
 		var anomalies = _sut.DetectAnomalies(context).ToList();
@@ -290,10 +252,7 @@ public sealed class ContextFlowDiagnosticsDepthCoverageShould : IDisposable
 	public void TrackContextHistory_RecordAndRetrieveHistory()
 	{
 		// Arrange
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-track-1");
-		A.CallTo(() => context.CorrelationId).Returns("corr-1");
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		var context = CreateFakeContext(messageId: "msg-track-1", correlationId: "corr-1");
 
 		// Act
 		_sut.TrackContextHistory(context, "Created", "Message created");
@@ -312,10 +271,7 @@ public sealed class ContextFlowDiagnosticsDepthCoverageShould : IDisposable
 	public void TrackContextHistory_TrimHistoryWhenExceedsLimit()
 	{
 		// Arrange
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-limit");
-		A.CallTo(() => context.CorrelationId).Returns("corr-1");
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		var context = CreateFakeContext(messageId: "msg-limit", correlationId: "corr-1");
 
 		// Act - add more than MaxHistoryEventsPerContext (5)
 		for (var i = 0; i < 8; i++)
@@ -346,12 +302,7 @@ public sealed class ContextFlowDiagnosticsDepthCoverageShould : IDisposable
 	public void GetRecentAnomalies_ReturnLimitedResults()
 	{
 		// Arrange - push some anomalies via DetectAnomalies
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-a");
-		A.CallTo(() => context.CausationId).Returns("msg-a"); // circular
-		A.CallTo(() => context.CorrelationId).Returns("corr-1");
-		A.CallTo(() => context.DeliveryCount).Returns(0);
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		var context = CreateFakeContext(messageId: "msg-a", correlationId: "corr-1", causationId: "msg-a");
 
 		_sut.DetectAnomalies(context);
 
@@ -451,10 +402,7 @@ public sealed class ContextFlowDiagnosticsDepthCoverageShould : IDisposable
 	public void ExportDiagnosticData_ReturnJsonWithAllSections()
 	{
 		// Arrange - add history and anomalies
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-export");
-		A.CallTo(() => context.CorrelationId).Returns("corr-export");
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		var context = CreateFakeContext(messageId: "msg-export", correlationId: "corr-export");
 
 		_sut.TrackContextHistory(context, "Created", "For export");
 
@@ -490,29 +438,49 @@ public sealed class ContextFlowDiagnosticsDepthCoverageShould : IDisposable
 	public void DetectAnomalies_DetectInsufficientContext()
 	{
 		// Arrange - context with very few fields (less than 5 items)
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.MessageId).Returns("msg-few");
-		A.CallTo(() => context.CausationId).Returns(null);
-		A.CallTo(() => context.CorrelationId).Returns("corr-1");
-		A.CallTo(() => context.DeliveryCount).Returns(0);
+		var context = CreateFakeContext(messageId: "msg-few", correlationId: "corr-1");
+		// Override Items to be empty (no identity/routing/processing features set beyond defaults)
 		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
-
-		// Arrange - mock minimal fields so CountContextFields < 5
-		A.CallTo(() => context.ExternalId).Returns(null);
-		A.CallTo(() => context.UserId).Returns(null);
-		A.CallTo(() => context.TraceParent).Returns(null);
-		A.CallTo(() => context.TenantId).Returns(null);
-		A.CallTo(() => context.Source).Returns(null);
-		A.CallTo(() => context.MessageType).Returns(null);
-		A.CallTo(() => context.ContentType).Returns(null);
-		A.CallTo(() => context.SentTimestampUtc).Returns(null);
-		A.CallTo(() => context.ReceivedTimestampUtc).Returns(default(DateTimeOffset));
+		// Ensure Features dict is also empty so extension methods return null/0
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
 
 		// Act
 		var anomalies = _sut.DetectAnomalies(context).ToList();
 
 		// Assert
 		anomalies.ShouldContain(a => a.Type == AnomalyType.InsufficientContext);
+	}
+
+	/// <summary>
+	/// Creates a fake <see cref="IMessageContext"/> with real Items and Features dictionaries
+	/// so that extension methods work correctly.
+	/// </summary>
+	private static IMessageContext CreateFakeContext(
+		string? messageId = "msg-default",
+		string? correlationId = "corr-default",
+		string? causationId = null,
+		int deliveryCount = 0)
+	{
+		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		var features = new Dictionary<Type, object>();
+
+		A.CallTo(() => context.MessageId).Returns(messageId);
+		A.CallTo(() => context.CorrelationId).Returns(correlationId);
+		A.CallTo(() => context.CausationId).Returns(causationId);
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
+
+		// Set up processing feature for DeliveryCount
+		if (deliveryCount > 0)
+		{
+			features[typeof(IMessageProcessingFeature)] = new MessageProcessingFeature
+			{
+				DeliveryCount = deliveryCount,
+			};
+		}
+
+		return context;
 	}
 
 	/// <summary>

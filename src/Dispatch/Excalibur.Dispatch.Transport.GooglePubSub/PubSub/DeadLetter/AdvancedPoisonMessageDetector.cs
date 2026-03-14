@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Advanced poison message detector with pattern matching and intelligent detection rules.
 /// </summary>
-public sealed partial class AdvancedPoisonMessageDetector : IPoisonMessageDetector, IDisposable
+internal sealed partial class AdvancedPoisonMessageDetector : IPoisonMessageDetector, IDisposable
 {
 	private readonly ILogger<AdvancedPoisonMessageDetector> _logger;
 	private readonly IOptions<PoisonDetectionOptions> _options;

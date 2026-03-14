@@ -7,6 +7,7 @@
     <PackageTags>excalibur;leaderelection;distributed;coordination;sqlserver;sp_getapplock</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
   </PropertyGroup>
   <PropertyGroup>
     <SuppressTrimAnalysisWarnings>false</SuppressTrimAnalysisWarnings>
@@ -33,6 +34,13 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.LeaderElection\Excalibur.LeaderElection.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.LeaderElection.Abstractions\Excalibur.Dispatch.LeaderElection.Abstractions.csproj" />
+  </ItemGroup>
+  <!-- CI mode: PackageReference for Dispatch packages -->
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.Dispatch.LeaderElection.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
   </ItemGroup>
   <ItemGroup>
     <AdditionalFiles Include="PublicAPI.Shipped.txt" />

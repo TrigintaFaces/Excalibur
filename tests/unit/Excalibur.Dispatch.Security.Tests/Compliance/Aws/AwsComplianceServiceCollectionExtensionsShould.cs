@@ -97,9 +97,9 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		var options = provider.GetRequiredService<IOptions<AwsKmsOptions>>().Value;
 
 		options.KeyAliasPrefix.ShouldBe("excalibur-dispatch");
-		options.DefaultKeySpec.ShouldBe("SYMMETRIC_DEFAULT");
-		options.MetadataCacheDurationSeconds.ShouldBe(300);
-		options.EnableAutoRotation.ShouldBeTrue();
+		options.KeyPolicy.DefaultKeySpec.ShouldBe("SYMMETRIC_DEFAULT");
+		options.Cache.MetadataCacheDurationSeconds.ShouldBe(300);
+		options.KeyPolicy.EnableAutoRotation.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -495,9 +495,9 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		var options = provider.GetRequiredService<IOptions<AwsKmsOptions>>().Value;
 
 		options.Region.ShouldBe(RegionEndpoint.USEast1);
-		options.CreateMultiRegionKeys.ShouldBeTrue();
-		options.ReplicaRegions.ShouldContain(RegionEndpoint.EUWest1);
-		options.ReplicaRegions.ShouldContain(RegionEndpoint.APNortheast1);
+		options.KeyPolicy.CreateMultiRegionKeys.ShouldBeTrue();
+		options.KeyPolicy.ReplicaRegions.ShouldContain(RegionEndpoint.EUWest1);
+		options.KeyPolicy.ReplicaRegions.ShouldContain(RegionEndpoint.APNortheast1);
 	}
 
 	[Fact]
@@ -519,7 +519,7 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		var options = provider.GetRequiredService<IOptions<AwsKmsOptions>>().Value;
 
 		options.Environment.ShouldBe("dr-enabled");
-		options.CreateMultiRegionKeys.ShouldBeTrue();
+		options.KeyPolicy.CreateMultiRegionKeys.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -578,8 +578,8 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<AwsKmsOptions>>().Value;
 
-		options.CreateMultiRegionKeys.ShouldBeTrue();
-		options.ReplicaRegions.ShouldBeEmpty();
+		options.KeyPolicy.CreateMultiRegionKeys.ShouldBeTrue();
+		options.KeyPolicy.ReplicaRegions.ShouldBeEmpty();
 	}
 
 	[Fact]
@@ -617,8 +617,8 @@ public sealed class AwsComplianceServiceCollectionExtensionsShould
 		var provider = services.BuildServiceProvider();
 		var options = provider.GetRequiredService<IOptions<AwsKmsOptions>>().Value;
 
-		options.CreateMultiRegionKeys.ShouldBeTrue();
-		options.ReplicaRegions.ShouldContain(RegionEndpoint.EUWest1);
+		options.KeyPolicy.CreateMultiRegionKeys.ShouldBeTrue();
+		options.KeyPolicy.ReplicaRegions.ShouldContain(RegionEndpoint.EUWest1);
 	}
 
 	#endregion

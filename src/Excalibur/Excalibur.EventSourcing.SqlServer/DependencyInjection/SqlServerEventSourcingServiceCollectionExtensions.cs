@@ -48,7 +48,7 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 			new SqlServerEventStore(
 				connectionString,
 				sp.GetRequiredService<ILogger<SqlServerEventStore>>(),
-				sp.GetService<IInternalSerializer>(),
+				sp.GetService<ISerializer>(),
 				sp.GetService<IPayloadSerializer>()));
 
 		RegisterEventStoreTelemetryWrapper(services);
@@ -78,7 +78,7 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 			new SqlServerEventStore(
 				connectionFactory,
 				sp.GetRequiredService<ILogger<SqlServerEventStore>>(),
-				sp.GetService<IInternalSerializer>(),
+				sp.GetService<ISerializer>(),
 				sp.GetService<IPayloadSerializer>()));
 
 		RegisterEventStoreTelemetryWrapper(services);
@@ -201,7 +201,7 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 	/// services.AddSqlServerEventSourcing(options =>
 	/// {
 	///     options.ConnectionString = configuration.GetConnectionString("EventStore");
-	///     options.RegisterHealthChecks = true;
+	///     options.HealthChecks.RegisterHealthChecks = true;
 	/// });
 	/// </code>
 	/// </para>
@@ -231,20 +231,20 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		_ = services.AddSqlServerOutboxStore(options.ConnectionString);
 
 		// Register health checks if enabled
-		if (options.RegisterHealthChecks)
+		if (options.HealthChecks.RegisterHealthChecks)
 		{
 			_ = services.AddHealthChecks()
 				.AddSqlServer(
 					options.ConnectionString,
-					name: options.EventStoreHealthCheckName,
+					name: options.HealthChecks.EventStoreHealthCheckName,
 					tags: ["eventstore", "sqlserver", "eventsourcing"])
 				.AddSqlServer(
 					options.ConnectionString,
-					name: options.SnapshotStoreHealthCheckName,
+					name: options.HealthChecks.SnapshotStoreHealthCheckName,
 					tags: ["snapshotstore", "sqlserver", "eventsourcing"])
 				.AddSqlServer(
 					options.ConnectionString,
-					name: options.OutboxStoreHealthCheckName,
+					name: options.HealthChecks.OutboxStoreHealthCheckName,
 					tags: ["outbox", "sqlserver", "eventsourcing"]);
 		}
 
@@ -272,7 +272,7 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		return services.AddSqlServerEventSourcing(options =>
 		{
 			options.ConnectionString = connectionString;
-			options.RegisterHealthChecks = registerHealthChecks;
+			options.HealthChecks.RegisterHealthChecks = registerHealthChecks;
 		});
 	}
 

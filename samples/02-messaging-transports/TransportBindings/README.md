@@ -39,19 +39,18 @@ Press any key to exit...
 
 ### Transport Registration
 
-Register transport providers that can receive or send messages:
+Register transport providers using the ADR-098 single entry point pattern:
 
 ```csharp
-builder.Services.AddEventTransports(t =>
-{
-    // Simple in-memory transport for testing
-    t.AddInMemory("test");
+// Simple in-memory transport for testing
+builder.Services.AddInMemoryTransport("test");
 
-    // Production transports (when infrastructure is available):
-    // t.AddKafka("kafka", "localhost:9092");
-    // t.AddRabbitMQ("rabbitmq", "amqp://localhost");
-    // t.AddAzureServiceBus("servicebus", "Endpoint=sb://...");
-});
+// Production transports (when infrastructure is available):
+// builder.Services.AddKafkaTransport("kafka", k => k.BootstrapServers("localhost:9092"));
+// builder.Services.AddRabbitMQTransport("rabbitmq", r => r.ConnectionString("amqp://localhost"));
+// builder.Services.AddAzureServiceBusTransport("servicebus", sb => sb.ConnectionString("Endpoint=sb://..."));
+// builder.Services.AddAzureStorageQueueTransport("orders", sq => sq.ConnectionString("..."));
+// builder.Services.AddAzureEventHubsTransport("eventhubs", eh => eh.ConnectionString("Endpoint=sb://..."));
 ```
 
 ### Binding Configuration
@@ -77,13 +76,12 @@ builder.Services.AddEventBindings(b =>
 
 | Transport | Method | Connection |
 |-----------|--------|------------|
-| InMemory | `AddInMemory(name)` | No external deps |
-| Kafka | `AddKafka(name, servers)` | Kafka cluster |
-| RabbitMQ | `AddRabbitMQ(name, uri)` | RabbitMQ server |
-| Azure Service Bus | `AddAzureServiceBus(name)` | Azure connection |
-| Azure Storage Queue | `AddAzureStorageQueue(name)` | Storage account |
-| Azure Event Hubs | `AddAzureEventHubs(name)` | Event Hubs |
-| Cron Timer | `AddCronTimer(name, cron)` | ICronScheduler |
+| InMemory | `AddInMemoryTransport(name)` | No external deps |
+| Kafka | `AddKafkaTransport(name, configure)` | Kafka cluster |
+| RabbitMQ | `AddRabbitMQTransport(name, configure)` | RabbitMQ server |
+| Azure Service Bus | `AddAzureServiceBusTransport(name, configure)` | Azure connection |
+| Azure Storage Queue | `AddAzureStorageQueueTransport(name, configure)` | Storage account |
+| Azure Event Hubs | `AddAzureEventHubsTransport(name, configure)` | Event Hubs |
 
 ## Project Structure
 
@@ -106,7 +104,6 @@ TransportBindings/
 ## Next Steps
 
 - [MultiBusSample](../MultiBusSample/) - Full multi-transport example
-- [MultiBusSample](../MultiBusSample/) - Multi-bus with RabbitMQ + Kafka
 
 ---
 

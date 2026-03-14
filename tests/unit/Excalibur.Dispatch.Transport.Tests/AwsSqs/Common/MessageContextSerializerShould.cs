@@ -4,6 +4,7 @@
 using Amazon.SQS.Model;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 
 using AwsMessageContextSerializer = Excalibur.Dispatch.Transport.Aws.MessageContextSerializer;
 
@@ -70,17 +71,11 @@ public sealed class MessageContextSerializerShould
 	public void SerializeContextToMessageAttributes()
 	{
 		// Arrange
-		var context = A.Fake<IMessageContext>();
-		var items = new Dictionary<string, object>(StringComparer.Ordinal)
-		{
-			["CorrelationId"] = Guid.NewGuid().ToString(),
-		};
-		A.CallTo(() => context.Items).Returns(items);
+		var context = CreateFakeContext();
 		A.CallTo(() => context.CorrelationId).Returns(Guid.NewGuid().ToString());
 		A.CallTo(() => context.CausationId).Returns(Guid.NewGuid().ToString());
 		A.CallTo(() => context.MessageId).Returns(Guid.NewGuid().ToString());
-		A.CallTo(() => context.MessageType).Returns("TestMessage");
-		A.CallTo(() => context.DeliveryCount).Returns(0);
+		context.SetMessageType("TestMessage");
 
 		var attrs = new Dictionary<string, MessageAttributeValue>();
 
@@ -95,13 +90,12 @@ public sealed class MessageContextSerializerShould
 	public void UseNumberDataTypeForNumericKeys()
 	{
 		// Arrange
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		var context = CreateFakeContext();
 		A.CallTo(() => context.CorrelationId).Returns(Guid.NewGuid().ToString());
 		A.CallTo(() => context.CausationId).Returns(Guid.NewGuid().ToString());
 		A.CallTo(() => context.MessageId).Returns(Guid.NewGuid().ToString());
-		A.CallTo(() => context.MessageType).Returns("TestMessage");
-		A.CallTo(() => context.DeliveryCount).Returns(3);
+		context.SetMessageType("TestMessage");
+		context.GetOrCreateProcessingFeature().DeliveryCount = 3;
 
 		var attrs = new Dictionary<string, MessageAttributeValue>();
 
@@ -119,16 +113,14 @@ public sealed class MessageContextSerializerShould
 	public void RoundTripSerializeDeserialize()
 	{
 		// Arrange
-		var context = A.Fake<IMessageContext>();
+		var context = CreateFakeContext();
 		var correlationId = Guid.NewGuid().ToString();
 		var messageId = Guid.NewGuid().ToString();
 
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
 		A.CallTo(() => context.CorrelationId).Returns(correlationId);
 		A.CallTo(() => context.CausationId).Returns((string?)null);
 		A.CallTo(() => context.MessageId).Returns(messageId);
-		A.CallTo(() => context.MessageType).Returns("TestType");
-		A.CallTo(() => context.DeliveryCount).Returns(0);
+		context.SetMessageType("TestType");
 
 		var attrs = new Dictionary<string, MessageAttributeValue>();
 		AwsMessageContextSerializer.SerializeToMessageAttributes(context, attrs);
@@ -142,5 +134,19 @@ public sealed class MessageContextSerializerShould
 		deserialized.ShouldNotBeNull();
 		deserialized.CorrelationId.ShouldBe(correlationId);
 		deserialized.MessageId.ShouldBe(messageId);
+	}
+
+	/// <summary>
+	/// Creates a fake IMessageContext with real Items and Features dictionaries
+	/// so that extension methods (GetMessageType, GetDeliveryCount, etc.) work correctly.
+	/// </summary>
+	private static IMessageContext CreateFakeContext()
+	{
+		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		var features = new Dictionary<Type, object>();
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
+		return context;
 	}
 }

@@ -68,7 +68,7 @@ public sealed class AzureFunctionsServiceCollectionExtensionsShould : UnitTestBa
 		_ = services.AddExcaliburAzureFunctionsServerless(options =>
 		{
 			options.EnableColdStartOptimization = true;
-			options.EnableDistributedTracing = false;
+			options.Telemetry.EnableDistributedTracing = false;
 		});
 
 		// Assert

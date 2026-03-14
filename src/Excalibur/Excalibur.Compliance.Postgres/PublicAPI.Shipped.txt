@@ -1,1 +1,96 @@
 #nullable enable
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStore
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStore.FindRegistrationsForDataSubjectAsync(string! dataSubjectId, Excalibur.Dispatch.Compliance.DataSubjectIdType idType, string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.DataLocationRegistration!>!>!
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStore.GetAllRegistrationsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.DataLocationRegistration!>!>!
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStore.GetDataMapEntriesAsync(string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.DataMapEntry!>!>!
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStore.GetDiscoveredLocationsAsync(string! dataSubjectId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.DataLocation!>!>!
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStore.GetService(System.Type! serviceType) -> object?
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStore.PostgresDataInventoryStore(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStore!>! logger) -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStore.RecordDiscoveredLocationAsync(Excalibur.Dispatch.Compliance.DataLocation! location, string! dataSubjectId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStore.RemoveRegistrationAsync(string! tableName, string! fieldName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStore.SaveRegistrationAsync(Excalibur.Dispatch.Compliance.DataLocationRegistration! registration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions.AutoCreateSchema.get -> bool
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions.AutoCreateSchema.set -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions.CommandTimeoutSeconds.get -> int
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions.CommandTimeoutSeconds.set -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions.ConnectionString.get -> string!
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions.ConnectionString.set -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions.DiscoveredLocationsTableName.get -> string!
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions.DiscoveredLocationsTableName.set -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions.FullDiscoveredLocationsTableName.get -> string!
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions.FullRegistrationsTableName.get -> string!
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions.PostgresDataInventoryStoreOptions() -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions.RegistrationsTableName.get -> string!
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions.RegistrationsTableName.set -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions.SchemaName.get -> string!
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions.SchemaName.set -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions.Validate() -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.CleanupExpiredCertificatesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.GetCertificateAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.ErasureCertificate?>!
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.GetCertificateByIdAsync(System.Guid certificateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.ErasureCertificate?>!
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.GetScheduledRequestsAsync(int maxResults, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.ErasureStatus!>!>!
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.GetService(System.Type! serviceType) -> object?
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.GetStatusAsync(System.Guid requestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.ErasureStatus?>!
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.ListRequestsAsync(Excalibur.Dispatch.Compliance.ErasureRequestStatus? status, string? tenantId, System.DateTimeOffset? fromDate, System.DateTimeOffset? toDate, int pageNumber, int pageSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.ErasureStatus!>!>!
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.PostgresErasureStore(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore!>! logger) -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.RecordCancellationAsync(System.Guid requestId, string! reason, string! cancelledBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.RecordCompletionAsync(System.Guid requestId, int keysDeleted, int recordsAffected, System.Guid certificateId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.SaveCertificateAsync(Excalibur.Dispatch.Compliance.ErasureCertificate! certificate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.SaveRequestAsync(Excalibur.Dispatch.Compliance.ErasureRequest! request, System.DateTimeOffset scheduledExecutionTime, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStore.UpdateStatusAsync(System.Guid requestId, Excalibur.Dispatch.Compliance.ErasureRequestStatus status, string? errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.AutoCreateSchema.get -> bool
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.AutoCreateSchema.set -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.CertificatesTableName.get -> string!
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.CertificatesTableName.set -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.CommandTimeoutSeconds.get -> int
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.CommandTimeoutSeconds.set -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.ConnectionString.get -> string!
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.ConnectionString.set -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.FullCertificatesTableName.get -> string!
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.FullRequestsTableName.get -> string!
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.PostgresErasureStoreOptions() -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.RequestsTableName.get -> string!
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.RequestsTableName.set -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.SchemaName.get -> string!
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.SchemaName.set -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions.Validate() -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStore
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStore.GetActiveHoldsForDataSubjectAsync(string! dataSubjectIdHash, string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.LegalHold!>!>!
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStore.GetActiveHoldsForTenantAsync(string! tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.LegalHold!>!>!
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStore.GetExpiredHoldsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.LegalHold!>!>!
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStore.GetHoldAsync(System.Guid holdId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.LegalHold?>!
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStore.GetService(System.Type! serviceType) -> object?
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStore.ListActiveHoldsAsync(string? tenantId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.LegalHold!>!>!
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStore.ListAllHoldsAsync(string? tenantId, System.DateTimeOffset? fromDate, System.DateTimeOffset? toDate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.LegalHold!>!>!
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStore.PostgresLegalHoldStore(Microsoft.Extensions.Options.IOptions<Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStore!>! logger) -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStore.SaveHoldAsync(Excalibur.Dispatch.Compliance.LegalHold! hold, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStore.UpdateHoldAsync(Excalibur.Dispatch.Compliance.LegalHold! hold, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStoreOptions
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStoreOptions.AutoCreateSchema.get -> bool
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStoreOptions.AutoCreateSchema.set -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStoreOptions.CommandTimeoutSeconds.get -> int
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStoreOptions.CommandTimeoutSeconds.set -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStoreOptions.ConnectionString.get -> string!
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStoreOptions.ConnectionString.set -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStoreOptions.FullTableName.get -> string!
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStoreOptions.PostgresLegalHoldStoreOptions() -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStoreOptions.SchemaName.get -> string!
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStoreOptions.SchemaName.set -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStoreOptions.TableName.get -> string!
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStoreOptions.TableName.set -> void
+Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStoreOptions.Validate() -> void
+Microsoft.Extensions.DependencyInjection.PostgresDataInventoryStoreServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.PostgresErasureStoreServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.PostgresLegalHoldStoreServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.PostgresDataInventoryStoreServiceCollectionExtensions.AddPostgresDataInventoryStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PostgresDataInventoryStoreServiceCollectionExtensions.AddPostgresDataInventoryStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PostgresDataInventoryStoreServiceCollectionExtensions.AddPostgresDataInventoryStoreFromConfiguration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionStringName, System.Action<Excalibur.Compliance.Postgres.Erasure.PostgresDataInventoryStoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PostgresErasureStoreServiceCollectionExtensions.AddPostgresErasureStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PostgresErasureStoreServiceCollectionExtensions.AddPostgresErasureStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PostgresErasureStoreServiceCollectionExtensions.AddPostgresErasureStoreFromConfiguration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionStringName, System.Action<Excalibur.Compliance.Postgres.Erasure.PostgresErasureStoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PostgresLegalHoldStoreServiceCollectionExtensions.AddPostgresLegalHoldStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PostgresLegalHoldStoreServiceCollectionExtensions.AddPostgresLegalHoldStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PostgresLegalHoldStoreServiceCollectionExtensions.AddPostgresLegalHoldStoreFromConfiguration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionStringName, System.Action<Excalibur.Compliance.Postgres.Erasure.PostgresLegalHoldStoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -7,6 +7,7 @@ using BenchmarkDotNet.Attributes;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.Delivery;
@@ -289,7 +290,7 @@ public class TransportQueueParityComparisonBenchmarks
 		var dispatcher = _dispatcher!;
 		var contextFactory = _contextFactory!;
 		var context = contextFactory.CreateContext();
-		context.RoutingDecision = routingDecision;
+		context.GetOrCreateRoutingFeature().RoutingDecision = routingDecision;
 
 		try
 		{

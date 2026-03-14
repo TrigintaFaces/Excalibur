@@ -1,1 +1,59 @@
 #nullable enable
+const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.ConcurrencyConflict = 115200 -> int
+const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.EventMarkedDispatched = 115003 -> int
+const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.EventsAppended = 115001 -> int
+const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.EventsLoaded = 115000 -> int
+const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.EventStoreOperationFailed = 115004 -> int
+const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.LuaScriptExecuted = 115201 -> int
+const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.SnapshotLoaded = 115100 -> int
+const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.SnapshotNotFound = 115103 -> int
+const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.SnapshotSaved = 115101 -> int
+const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.SnapshotsDeleted = 115102 -> int
+const Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId.UndispatchedEventsRetrieved = 115002 -> int
+Excalibur.EventSourcing.Redis.Diagnostics.RedisEventSourcingEventId
+Excalibur.EventSourcing.Redis.EventSourcingBuilderRedisExtensions
+Excalibur.EventSourcing.Redis.RedisEventStore
+Excalibur.EventSourcing.Redis.RedisEventStore.AppendAsync(string! aggregateId, string! aggregateType, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.Abstractions.AppendResult!>
+Excalibur.EventSourcing.Redis.RedisEventStore.GetUndispatchedEventsAsync(int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+Excalibur.EventSourcing.Redis.RedisEventStore.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+Excalibur.EventSourcing.Redis.RedisEventStore.LoadAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+Excalibur.EventSourcing.Redis.RedisEventStore.MarkEventAsDispatchedAsync(string! eventId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.Redis.RedisEventStore.RedisEventStore(StackExchange.Redis.ConnectionMultiplexer! connection, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Redis.RedisEventStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Redis.RedisEventStore!>! logger) -> void
+Excalibur.EventSourcing.Redis.RedisEventStoreOptions
+Excalibur.EventSourcing.Redis.RedisEventStoreOptions.ConnectionString.get -> string!
+Excalibur.EventSourcing.Redis.RedisEventStoreOptions.ConnectionString.set -> void
+Excalibur.EventSourcing.Redis.RedisEventStoreOptions.DatabaseIndex.get -> int
+Excalibur.EventSourcing.Redis.RedisEventStoreOptions.DatabaseIndex.set -> void
+Excalibur.EventSourcing.Redis.RedisEventStoreOptions.DefaultBatchSize.get -> int
+Excalibur.EventSourcing.Redis.RedisEventStoreOptions.DefaultBatchSize.set -> void
+Excalibur.EventSourcing.Redis.RedisEventStoreOptions.RedisEventStoreOptions() -> void
+Excalibur.EventSourcing.Redis.RedisEventStoreOptions.StreamKeyPrefix.get -> string!
+Excalibur.EventSourcing.Redis.RedisEventStoreOptions.StreamKeyPrefix.set -> void
+Excalibur.EventSourcing.Redis.RedisEventStoreOptions.UndispatchedSetKey.get -> string!
+Excalibur.EventSourcing.Redis.RedisEventStoreOptions.UndispatchedSetKey.set -> void
+Excalibur.EventSourcing.Redis.RedisSnapshotStore
+Excalibur.EventSourcing.Redis.RedisSnapshotStore.DeleteSnapshotsAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.Redis.RedisSnapshotStore.DeleteSnapshotsOlderThanAsync(string! aggregateId, string! aggregateType, long olderThanVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.Redis.RedisSnapshotStore.GetLatestSnapshotAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot?>
+Excalibur.EventSourcing.Redis.RedisSnapshotStore.RedisSnapshotStore(StackExchange.Redis.ConnectionMultiplexer! connection, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.Redis.RedisSnapshotStore!>! logger) -> void
+Excalibur.EventSourcing.Redis.RedisSnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions
+Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions.ConnectionString.get -> string!
+Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions.ConnectionString.set -> void
+Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions.DatabaseIndex.get -> int
+Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions.DatabaseIndex.set -> void
+Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions.KeyPrefix.get -> string!
+Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions.KeyPrefix.set -> void
+Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions.RedisSnapshotStoreOptions() -> void
+Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions.SnapshotTtlSeconds.get -> int
+Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions.SnapshotTtlSeconds.set -> void
+Microsoft.Extensions.DependencyInjection.RedisEventSourcingExtensions
+static Excalibur.EventSourcing.Redis.EventSourcingBuilderRedisExtensions.UseRedis(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, string! connectionString) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Excalibur.EventSourcing.Redis.EventSourcingBuilderRedisExtensions.UseRedis(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.Redis.RedisEventStoreOptions!>! configureEventStore, System.Action<Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions!>! configureSnapshotStore) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.RedisEventSourcingExtensions.AddRedisEventSourcing(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.RedisEventSourcingExtensions.AddRedisEventSourcing(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.Redis.RedisEventStoreOptions!>! configureEventStore, System.Action<Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions!>! configureSnapshotStore) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.RedisEventSourcingExtensions.AddRedisEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, StackExchange.Redis.ConnectionMultiplexer! connection, System.Action<Excalibur.EventSourcing.Redis.RedisEventStoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.RedisEventSourcingExtensions.AddRedisEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.RedisEventSourcingExtensions.AddRedisEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.Redis.RedisEventStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.RedisEventSourcingExtensions.AddRedisSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.RedisEventSourcingExtensions.AddRedisSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.Redis.RedisSnapshotStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

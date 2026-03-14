@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// <param name="LastOffset"> The last offset in the batch. </param>
 /// <param name="MessageCount"> The number of messages in the batch. </param>
 /// <param name="ReceivedAt"> The timestamp when the batch was received. </param>
-public sealed record BatchMetadata(
+internal sealed record BatchMetadata(
 	string Topic,
 	int Partition,
 	long FirstOffset,

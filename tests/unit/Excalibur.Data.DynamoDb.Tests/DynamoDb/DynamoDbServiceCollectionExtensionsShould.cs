@@ -53,7 +53,7 @@ public sealed class DynamoDbServiceCollectionExtensionsShould
 		// Act
 		var result = services.AddDynamoDb(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 		});
 
 		// Assert
@@ -69,7 +69,7 @@ public sealed class DynamoDbServiceCollectionExtensionsShould
 		// Act
 		services.AddDynamoDb(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 		});
 
 		// Assert
@@ -85,7 +85,7 @@ public sealed class DynamoDbServiceCollectionExtensionsShould
 		// Act
 		services.AddDynamoDb(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 		});
 
 		// Assert
@@ -127,7 +127,7 @@ public sealed class DynamoDbServiceCollectionExtensionsShould
 		var configuration = new ConfigurationBuilder()
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
-				["Region"] = "us-west-2"
+				["Connection:Region"] = "us-west-2"
 			})
 			.Build();
 
@@ -197,7 +197,7 @@ public sealed class DynamoDbServiceCollectionExtensionsShould
 		var configuration = new ConfigurationBuilder()
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
-				["DynamoDB:Region"] = "eu-west-1"
+				["DynamoDB:Connection:Region"] = "eu-west-1"
 			})
 			.Build();
 
@@ -243,7 +243,7 @@ public sealed class DynamoDbServiceCollectionExtensionsShould
 		// Act
 		var result = services.AddDynamoDbWithClient(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 		});
 
 		// Assert
@@ -259,7 +259,7 @@ public sealed class DynamoDbServiceCollectionExtensionsShould
 		// Act
 		services.AddDynamoDbWithClient(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 		});
 
 		// Assert

@@ -82,7 +82,7 @@ public sealed class MiddlewareOutboxOptionsShould
 		var options = new OutboxOptions();
 
 		// Assert
-		options.MaxRetries.ShouldBe(3);
+		options.Retry.MaxRetries.ShouldBe(3);
 	}
 
 	[Fact]
@@ -92,7 +92,7 @@ public sealed class MiddlewareOutboxOptionsShould
 		var options = new OutboxOptions();
 
 		// Assert
-		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(5));
+		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(5));
 	}
 
 	[Fact]
@@ -206,10 +206,10 @@ public sealed class MiddlewareOutboxOptionsShould
 		var options = new OutboxOptions();
 
 		// Act
-		options.MaxRetries = 5;
+		options.Retry.MaxRetries = 5;
 
 		// Assert
-		options.MaxRetries.ShouldBe(5);
+		options.Retry.MaxRetries.ShouldBe(5);
 	}
 
 	[Fact]
@@ -219,10 +219,10 @@ public sealed class MiddlewareOutboxOptionsShould
 		var options = new OutboxOptions();
 
 		// Act
-		options.RetryDelay = TimeSpan.FromMinutes(10);
+		options.Retry.RetryDelay = TimeSpan.FromMinutes(10);
 
 		// Assert
-		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(10));
+		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(10));
 	}
 
 	[Fact]
@@ -267,8 +267,11 @@ public sealed class MiddlewareOutboxOptionsShould
 			BypassOutboxForTypes = ["Type1", "Type2"],
 			PublishBatchSize = 200,
 			PublishPollingInterval = TimeSpan.FromSeconds(2),
-			MaxRetries = 5,
-			RetryDelay = TimeSpan.FromMinutes(10),
+			Retry =
+			{
+				MaxRetries = 5,
+				RetryDelay = TimeSpan.FromMinutes(10),
+			},
 			CleanupAge = TimeSpan.FromDays(14),
 			CleanupInterval = TimeSpan.FromHours(4),
 		};
@@ -281,8 +284,8 @@ public sealed class MiddlewareOutboxOptionsShould
 		options.BypassOutboxForTypes.Length.ShouldBe(2);
 		options.PublishBatchSize.ShouldBe(200);
 		options.PublishPollingInterval.ShouldBe(TimeSpan.FromSeconds(2));
-		options.MaxRetries.ShouldBe(5);
-		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(10));
+		options.Retry.MaxRetries.ShouldBe(5);
+		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(10));
 		options.CleanupAge.ShouldBe(TimeSpan.FromDays(14));
 		options.CleanupInterval.ShouldBe(TimeSpan.FromHours(4));
 	}
@@ -314,13 +317,12 @@ public sealed class MiddlewareOutboxOptionsShould
 		var options = new OutboxOptions
 		{
 			Enabled = true,
-			MaxRetries = 10,
-			RetryDelay = TimeSpan.FromMinutes(1),
+			Retry = { MaxRetries = 10, RetryDelay = TimeSpan.FromMinutes(1) },
 			ContinueOnStagingError = false,
 		};
 
 		// Assert
-		options.MaxRetries.ShouldBeGreaterThan(3);
+		options.Retry.MaxRetries.ShouldBeGreaterThan(3);
 		options.ContinueOnStagingError.ShouldBeFalse();
 	}
 

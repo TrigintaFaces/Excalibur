@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using System.Buffers;
+
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Serialization;
 using Excalibur.Dispatch.Serialization.MemoryPack;
@@ -393,7 +395,7 @@ public sealed partial class PayloadSerializerSerializeObjectShould
 	{
 		// Arrange
 		var registry = new SerializerRegistry();
-		var faultySerializer = new FaultyPluggableSerializer();
+		var faultySerializer = new FaultySerializer();
 		registry.Register(100, faultySerializer);
 		registry.SetCurrent("Faulty");
 		var sut = new PayloadSerializer(registry, _logger);
@@ -414,7 +416,7 @@ public sealed partial class PayloadSerializerSerializeObjectShould
 	private static SerializerRegistry CreateRegistryWithMemoryPack()
 	{
 		var registry = new SerializerRegistry();
-		var serializer = new MemoryPackPluggableSerializer();
+		var serializer = new MemoryPackSerializer();
 		registry.Register(SerializerIds.MemoryPack, serializer);
 		registry.SetCurrent("MemoryPack");
 		return registry;
@@ -423,7 +425,7 @@ public sealed partial class PayloadSerializerSerializeObjectShould
 	private static SerializerRegistry CreateRegistryWithSystemTextJson()
 	{
 		var registry = new SerializerRegistry();
-		var serializer = new SystemTextJsonPluggableSerializer();
+		var serializer = new SystemTextJsonSerializer();
 		registry.Register(SerializerIds.SystemTextJson, serializer);
 		registry.SetCurrent("System.Text.Json");
 		return registry;
@@ -432,8 +434,8 @@ public sealed partial class PayloadSerializerSerializeObjectShould
 	private static SerializerRegistry CreateRegistryWithBothSerializers()
 	{
 		var registry = new SerializerRegistry();
-		registry.Register(SerializerIds.MemoryPack, new MemoryPackPluggableSerializer());
-		registry.Register(SerializerIds.SystemTextJson, new SystemTextJsonPluggableSerializer());
+		registry.Register(SerializerIds.MemoryPack, new MemoryPackSerializer());
+		registry.Register(SerializerIds.SystemTextJson, new SystemTextJsonSerializer());
 		registry.SetCurrent("MemoryPack");
 		return registry;
 	}
@@ -445,12 +447,13 @@ public sealed partial class PayloadSerializerSerializeObjectShould
 	/// <summary>
 	/// Faulty serializer for testing exception handling.
 	/// </summary>
-	private sealed class FaultyPluggableSerializer : IPluggableSerializer
+	private sealed class FaultySerializer : ISerializer
 	{
 		public string Name => "Faulty";
 		public string Version => "1.0.0";
+		public string ContentType => "application/octet-stream";
 
-		public byte[] Serialize<T>(T value)
+		public void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
 			=> throw new InvalidOperationException("Intentional serialization failure");
 
 		public T Deserialize<T>(ReadOnlySpan<byte> data)

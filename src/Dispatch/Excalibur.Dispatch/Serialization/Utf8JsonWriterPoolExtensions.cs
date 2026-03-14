@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Serialization;
 /// <summary>
 /// Extension methods for <see cref="IUtf8JsonWriterPool" />.
 /// </summary>
-public static class Utf8JsonWriterPoolExtensions
+internal static class Utf8JsonWriterPoolExtensions
 {
 	/// <summary>
 	/// Rents a <see cref="Utf8JsonWriter" /> from the pool wrapped in a <see cref="PooledUtf8JsonWriter" /> that automatically returns to

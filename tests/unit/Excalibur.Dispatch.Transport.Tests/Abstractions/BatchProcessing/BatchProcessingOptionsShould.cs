@@ -15,7 +15,7 @@ public class BatchProcessingOptionsShould
     {
         var options = new BatchProcessingOptions();
 
-        options.MaxBatchSize.ShouldBe(100);
+        options.Collection.MaxBatchSize.ShouldBe(100);
         options.BatchTimeout.ShouldBe(TimeSpan.FromSeconds(30));
         options.ProcessInParallel.ShouldBeTrue();
         options.MaxDegreeOfParallelism.ShouldBe(Environment.ProcessorCount);
@@ -23,9 +23,9 @@ public class BatchProcessingOptionsShould
         options.RetryPolicy.ShouldNotBeNull();
         options.EnableMetrics.ShouldBeTrue();
         options.EnableDeadLetter.ShouldBeTrue();
-        options.CompletionStrategy.ShouldBe(BatchCompletionStrategy.Size);
-        options.MinBatchSize.ShouldBe(1);
-        options.CollectionTimeout.ShouldBe(TimeSpan.FromSeconds(5));
+        options.Collection.CompletionStrategy.ShouldBe(BatchCompletionStrategy.Size);
+        options.Collection.MinBatchSize.ShouldBe(1);
+        options.Collection.CollectionTimeout.ShouldBe(TimeSpan.FromSeconds(5));
         options.PreserveOrder.ShouldBeFalse();
         options.DefaultPriority.ShouldBe(BatchPriority.Normal);
     }
@@ -37,9 +37,10 @@ public class BatchProcessingOptionsShould
     [InlineData(1000)]
     public void AllowSettingMaxBatchSize(int maxBatchSize)
     {
-        var options = new BatchProcessingOptions { MaxBatchSize = maxBatchSize };
+        var options = new BatchProcessingOptions();
+        options.Collection.MaxBatchSize = maxBatchSize;
 
-        options.MaxBatchSize.ShouldBe(maxBatchSize);
+        options.Collection.MaxBatchSize.ShouldBe(maxBatchSize);
     }
 
     [Fact]
@@ -119,9 +120,10 @@ public class BatchProcessingOptionsShould
     [InlineData(BatchCompletionStrategy.SizeOrTime)]
     public void AllowSettingCompletionStrategy(BatchCompletionStrategy strategy)
     {
-        var options = new BatchProcessingOptions { CompletionStrategy = strategy };
+        var options = new BatchProcessingOptions();
+        options.Collection.CompletionStrategy = strategy;
 
-        options.CompletionStrategy.ShouldBe(strategy);
+        options.Collection.CompletionStrategy.ShouldBe(strategy);
     }
 
     [Theory]
@@ -130,18 +132,20 @@ public class BatchProcessingOptionsShould
     [InlineData(50)]
     public void AllowSettingMinBatchSize(int minBatchSize)
     {
-        var options = new BatchProcessingOptions { MinBatchSize = minBatchSize };
+        var options = new BatchProcessingOptions();
+        options.Collection.MinBatchSize = minBatchSize;
 
-        options.MinBatchSize.ShouldBe(minBatchSize);
+        options.Collection.MinBatchSize.ShouldBe(minBatchSize);
     }
 
     [Fact]
     public void AllowSettingCollectionTimeout()
     {
         var timeout = TimeSpan.FromSeconds(10);
-        var options = new BatchProcessingOptions { CollectionTimeout = timeout };
+        var options = new BatchProcessingOptions();
+        options.Collection.CollectionTimeout = timeout;
 
-        options.CollectionTimeout.ShouldBe(timeout);
+        options.Collection.CollectionTimeout.ShouldBe(timeout);
     }
 
     [Theory]
@@ -171,30 +175,30 @@ public class BatchProcessingOptionsShould
     {
         var options = new BatchProcessingOptions
         {
-            MaxBatchSize = 200,
             BatchTimeout = TimeSpan.FromMinutes(2),
             ProcessInParallel = false,
             MaxDegreeOfParallelism = 8,
             ContinueOnError = false,
             EnableMetrics = false,
             EnableDeadLetter = false,
-            CompletionStrategy = BatchCompletionStrategy.Time,
-            MinBatchSize = 5,
-            CollectionTimeout = TimeSpan.FromSeconds(15),
             PreserveOrder = true,
             DefaultPriority = BatchPriority.High
         };
+        options.Collection.MaxBatchSize = 200;
+        options.Collection.CompletionStrategy = BatchCompletionStrategy.Time;
+        options.Collection.MinBatchSize = 5;
+        options.Collection.CollectionTimeout = TimeSpan.FromSeconds(15);
 
-        options.MaxBatchSize.ShouldBe(200);
+        options.Collection.MaxBatchSize.ShouldBe(200);
         options.BatchTimeout.ShouldBe(TimeSpan.FromMinutes(2));
         options.ProcessInParallel.ShouldBeFalse();
         options.MaxDegreeOfParallelism.ShouldBe(8);
         options.ContinueOnError.ShouldBeFalse();
         options.EnableMetrics.ShouldBeFalse();
         options.EnableDeadLetter.ShouldBeFalse();
-        options.CompletionStrategy.ShouldBe(BatchCompletionStrategy.Time);
-        options.MinBatchSize.ShouldBe(5);
-        options.CollectionTimeout.ShouldBe(TimeSpan.FromSeconds(15));
+        options.Collection.CompletionStrategy.ShouldBe(BatchCompletionStrategy.Time);
+        options.Collection.MinBatchSize.ShouldBe(5);
+        options.Collection.CollectionTimeout.ShouldBe(TimeSpan.FromSeconds(15));
         options.PreserveOrder.ShouldBeTrue();
         options.DefaultPriority.ShouldBe(BatchPriority.High);
     }

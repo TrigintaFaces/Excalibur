@@ -3,6 +3,7 @@
 
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Validation;
 
 namespace Excalibur.Dispatch.Configuration;
 

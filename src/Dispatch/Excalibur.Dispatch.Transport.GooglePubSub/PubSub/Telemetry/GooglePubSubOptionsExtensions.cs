@@ -22,9 +22,9 @@ public static class GooglePubSubOptionsExtensions
 		var telemetryOptions = new TelemetryOptions();
 		configure(telemetryOptions);
 
-		options.EnableOpenTelemetry = telemetryOptions.EnableOpenTelemetry;
-		options.ExportToCloudMonitoring = telemetryOptions.ExportToCloudMonitoring;
-		options.OtlpEndpoint = telemetryOptions.OtlpEndpoint;
+		options.Telemetry.EnableOpenTelemetry = telemetryOptions.EnableOpenTelemetry;
+		options.Telemetry.ExportToCloudMonitoring = telemetryOptions.ExportToCloudMonitoring;
+		options.Telemetry.OtlpEndpoint = telemetryOptions.OtlpEndpoint;
 
 		return options;
 	}

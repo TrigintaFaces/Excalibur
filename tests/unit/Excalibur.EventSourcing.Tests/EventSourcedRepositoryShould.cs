@@ -38,17 +38,10 @@ public sealed class EventSourcedRepositoryShould
 	internal sealed record TestCreatedEventV1 : DomainEvent, IVersionedMessage
 	{
 		public string Name { get; init; } = string.Empty;
+		public override string AggregateId { get; init; } = string.Empty;
 
 		int IVersionedMessage.Version => 1;
-		public new string MessageType => "TestCreatedEvent";
-
-		public TestCreatedEventV1(string aggregateId, long version, string name, TimeProvider? timeProvider = null)
-			: base(aggregateId, version, timeProvider ?? TimeProvider.System)
-		{
-			Name = name;
-		}
-
-		public TestCreatedEventV1() : base("", 0, TimeProvider.System) { }
+		string IVersionedMessage.MessageType => "TestCreatedEvent";
 	}
 
 	/// <summary>
@@ -58,18 +51,10 @@ public sealed class EventSourcedRepositoryShould
 	{
 		public string FirstName { get; init; } = string.Empty;
 		public string LastName { get; init; } = string.Empty;
+		public override string AggregateId { get; init; } = string.Empty;
 
 		int IVersionedMessage.Version => 2;
-		public new string MessageType => "TestCreatedEvent";
-
-		public TestCreatedEventV2(string aggregateId, long version, string firstName, string lastName, TimeProvider? timeProvider = null)
-			: base(aggregateId, version, timeProvider ?? TimeProvider.System)
-		{
-			FirstName = firstName;
-			LastName = lastName;
-		}
-
-		public TestCreatedEventV2() : base("", 0, TimeProvider.System) { }
+		string IVersionedMessage.MessageType => "TestCreatedEvent";
 	}
 
 	/// <summary>
@@ -78,14 +63,7 @@ public sealed class EventSourcedRepositoryShould
 	internal sealed record TestUpdatedEvent : DomainEvent
 	{
 		public string NewValue { get; init; } = string.Empty;
-
-		public TestUpdatedEvent(string aggregateId, long version, string newValue, TimeProvider? timeProvider = null)
-			: base(aggregateId, version, timeProvider ?? TimeProvider.System)
-		{
-			NewValue = newValue;
-		}
-
-		public TestUpdatedEvent() : base("", 0, TimeProvider.System) { }
+		public override string AggregateId { get; init; } = string.Empty;
 	}
 
 	#endregion Test Domain Events
@@ -108,12 +86,12 @@ public sealed class EventSourcedRepositoryShould
 
 		public void Create(string name)
 		{
-			RaiseEvent(new TestCreatedEventV1(Id, Version, name));
+			RaiseEvent(new TestCreatedEventV1 { AggregateId = Id, Version = Version, Name = name });
 		}
 
 		public void Update(string newValue)
 		{
-			RaiseEvent(new TestUpdatedEvent(Id, Version, newValue));
+			RaiseEvent(new TestUpdatedEvent { AggregateId = Id, Version = Version, NewValue = newValue });
 		}
 
 		protected override void ApplyEventInternal(IDomainEvent @event)
@@ -225,8 +203,8 @@ public sealed class EventSourcedRepositoryShould
 	{
 		// Arrange
 		var aggregateId = "agg-1";
-		var v1Event = new TestCreatedEventV1(aggregateId, 0, "John Doe");
-		var updateEvent = new TestUpdatedEvent(aggregateId, 1, "Updated Value");
+		var v1Event = new TestCreatedEventV1 { AggregateId = aggregateId, Version = 0, Name = "John Doe" };
+		var updateEvent = new TestUpdatedEvent { AggregateId = aggregateId, Version = 1, NewValue = "Updated Value" };
 
 		var storedEvents = new List<StoredEvent>
 		{
@@ -260,7 +238,7 @@ public sealed class EventSourcedRepositoryShould
 	{
 		// Arrange
 		var aggregateId = "agg-1";
-		var v1Event = new TestCreatedEventV1(aggregateId, 0, "Jane Smith");
+		var v1Event = new TestCreatedEventV1 { AggregateId = aggregateId, Version = 0, Name = "Jane Smith" };
 
 		var storedEvents = new List<StoredEvent>
 		{
@@ -278,7 +256,7 @@ public sealed class EventSourcedRepositoryShould
 				if (msg is TestCreatedEventV1 v1)
 				{
 					var parts = v1.Name.Split(' ', 2);
-					return new TestCreatedEventV2(v1.AggregateId, v1.Version, parts[0], parts.Length > 1 ? parts[1] : "");
+					return new TestCreatedEventV2 { AggregateId = v1.AggregateId, Version = v1.Version, FirstName = parts[0], LastName = parts.Length > 1 ? parts[1] : "" };
 				}
 				return msg;
 			});
@@ -309,7 +287,7 @@ public sealed class EventSourcedRepositoryShould
 	{
 		// Arrange
 		var aggregateId = "agg-1";
-		var v1Event = new TestCreatedEventV1(aggregateId, 0, "John Doe");
+		var v1Event = new TestCreatedEventV1 { AggregateId = aggregateId, Version = 0, Name = "John Doe" };
 
 		var storedEvents = new List<StoredEvent>
 		{
@@ -346,7 +324,7 @@ public sealed class EventSourcedRepositoryShould
 	{
 		// Arrange
 		var aggregateId = "agg-1";
-		var updateEvent = new TestUpdatedEvent(aggregateId, 0, "Some Value");
+		var updateEvent = new TestUpdatedEvent { AggregateId = aggregateId, Version = 0, NewValue = "Some Value" };
 
 		var storedEvents = new List<StoredEvent>
 		{
@@ -383,7 +361,7 @@ public sealed class EventSourcedRepositoryShould
 	{
 		// Arrange
 		var aggregateId = "agg-1";
-		var v1Event = new TestCreatedEventV1(aggregateId, 0, "John Doe");
+		var v1Event = new TestCreatedEventV1 { AggregateId = aggregateId, Version = 0, Name = "John Doe" };
 
 		var storedEvents = new List<StoredEvent>
 		{
@@ -705,47 +683,25 @@ public sealed class EventSourcedRepositoryShould
 
 	#endregion DeleteAsync Tests
 
-	#region QueryAsync and FindAsync Tests
-
-	internal sealed record TestQuery : IAggregateQuery<TestAggregate>;
+	#region CQRS Write-Side Only Tests
 
 	[Fact]
-	public async Task QueryAsync_ShouldThrowNotSupported()
+	public void ShouldNotExposeQueryAsyncOnConcreteClass()
 	{
-		// Arrange
-		var eventStore = A.Fake<IEventStore>();
-
-		var repository = new EventSourcedRepository<TestAggregate>(
-			eventStore,
-			CreateMockSerializer(),
-			id => new TestAggregate(id));
-
-		// Act & Assert
-		var exception = await Should.ThrowAsync<NotSupportedException>(async () =>
-			await repository.QueryAsync(new TestQuery(), CancellationToken.None));
-
-		exception.Message.ShouldContain("query executor");
+		// QueryAsync was removed in C.1 (CQRS write-side only)
+		var method = typeof(EventSourcedRepository<TestAggregate>).GetMethod("QueryAsync");
+		method.ShouldBeNull("QueryAsync was removed — CQRS write-side only");
 	}
 
 	[Fact]
-	public async Task FindAsync_ShouldThrowNotSupported()
+	public void ShouldNotExposeFindAsyncOnConcreteClass()
 	{
-		// Arrange
-		var eventStore = A.Fake<IEventStore>();
-
-		var repository = new EventSourcedRepository<TestAggregate>(
-			eventStore,
-			CreateMockSerializer(),
-			id => new TestAggregate(id));
-
-		// Act & Assert
-		var exception = await Should.ThrowAsync<NotSupportedException>(async () =>
-			await repository.FindAsync(new TestQuery(), CancellationToken.None));
-
-		exception.Message.ShouldContain("query executor");
+		// FindAsync was removed in C.1 (CQRS write-side only)
+		var method = typeof(EventSourcedRepository<TestAggregate>).GetMethod("FindAsync");
+		method.ShouldBeNull("FindAsync was removed — CQRS write-side only");
 	}
 
-	#endregion QueryAsync and FindAsync Tests
+	#endregion CQRS Write-Side Only Tests
 
 	#region Constructor Validation Tests
 

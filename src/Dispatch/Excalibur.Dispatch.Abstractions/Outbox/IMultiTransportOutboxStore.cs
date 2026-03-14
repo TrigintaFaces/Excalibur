@@ -9,13 +9,19 @@ namespace Excalibur.Dispatch.Abstractions;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This interface provides additional methods for tracking message delivery to multiple transports independently.
+/// This interface provides core methods for tracking message delivery to multiple transports independently.
 /// When a message needs to be published to multiple transports (e.g., RabbitMQ and Kafka), each transport
 /// delivery can be tracked and retried independently.
 /// </para>
 /// <para>
 /// Implementations should maintain both the aggregate message status and individual transport delivery records.
 /// The aggregate status should be updated based on the combined state of all transport deliveries.
+/// </para>
+/// <para>
+/// This interface contains 5 core methods following the ISP pattern.
+/// For administrative and query operations (pending/failed retrieval, statistics, aggregate status),
+/// implement <see cref="IMultiTransportOutboxStoreAdmin"/>.
+/// This mirrors the <see cref="IOutboxStoreAdmin"/> ISP pattern established for <see cref="IOutboxStore"/>.
 /// </para>
 /// </remarks>
 public interface IMultiTransportOutboxStore : IOutboxStore
@@ -100,7 +106,25 @@ public interface IMultiTransportOutboxStore : IOutboxStore
 		string transportName,
 		string? reason,
 		CancellationToken cancellationToken);
+}
 
+/// <summary>
+/// Provides administrative and query operations for multi-transport outbox store management.
+/// </summary>
+/// <remarks>
+/// <para>
+/// These operations are used by background services, health checks, and administrative tooling
+/// for managing multi-transport delivery tracking. They are NOT needed for normal message flow
+/// (stage/send/fail/skip).
+/// </para>
+/// <para>
+/// This follows the same ISP pattern as <see cref="IOutboxStoreAdmin"/> for the base
+/// <see cref="IOutboxStore"/>. Implementations should access this sub-interface via
+/// <c>GetService(typeof(IMultiTransportOutboxStoreAdmin))</c> or direct DI registration.
+/// </para>
+/// </remarks>
+public interface IMultiTransportOutboxStoreAdmin
+{
 	/// <summary>
 	/// Gets pending transport deliveries for a specific transport.
 	/// </summary>

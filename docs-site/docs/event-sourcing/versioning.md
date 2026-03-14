@@ -34,13 +34,13 @@ Use flexible serialization that ignores unknown properties:
 
 ```csharp
 // V1 - Original event
-public record OrderCreated(Guid OrderId, string CustomerId, decimal TotalAmount) : DomainEventBase
+public record OrderCreated(Guid OrderId, string CustomerId, decimal TotalAmount) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
 
 // V2 - Added field (backward compatible)
-public record OrderCreatedV2(Guid OrderId, string CustomerId, decimal TotalAmount, string Currency = "USD") : DomainEventBase
+public record OrderCreatedV2(Guid OrderId, string CustomerId, decimal TotalAmount, string Currency = "USD") : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
@@ -59,7 +59,7 @@ Transform old events to new schema during loading using the upcasting pipeline:
 
 ```csharp
 // V1 event (stored in database)
-public record OrderCreatedV1 : DomainEventBase, IVersionedMessage
+public record OrderCreatedV1 : DomainEvent, IVersionedMessage
 {
     public Guid OrderId { get; init; }
     public string CustomerId { get; init; } = string.Empty;
@@ -72,7 +72,7 @@ public record OrderCreatedV1 : DomainEventBase, IVersionedMessage
 }
 
 // V2 event (current schema)
-public record OrderCreated : DomainEventBase, IVersionedMessage
+public record OrderCreated : DomainEvent, IVersionedMessage
 {
     public Guid OrderId { get; init; }
     public string CustomerId { get; init; } = string.Empty;
@@ -129,10 +129,10 @@ services.AddExcaliburEventSourcing(builder =>
 });
 ```
 
-Event types use the `EventType` property for serialization, which defaults to the class name. Override it in `DomainEventBase`-derived records for custom type names:
+Event types use the `EventType` property for serialization, which defaults to the class name. Override it in `DomainEvent`-derived records for custom type names:
 
 ```csharp
-public record OrderCreated : DomainEventBase, IVersionedMessage
+public record OrderCreated : DomainEvent, IVersionedMessage
 {
     // Override the virtual EventType property for custom serialization name
     public override string EventType => "order.created.v2";
@@ -193,7 +193,7 @@ public record OrderCreated(
     decimal TotalAmount,
     string? Currency = "USD",           // New optional field
     DateTime? EstimatedDelivery = null  // New optional field
-) : DomainEventBase;
+) : DomainEvent;
 ```
 
 ### Renaming Fields
@@ -205,14 +205,14 @@ public record OrderCreated(
     [property: JsonPropertyName("customerId")]
     string BuyerId,  // Renamed from CustomerId
     decimal TotalAmount
-) : DomainEventBase;
+) : DomainEvent;
 ```
 
 ### Changing Types
 
 ```csharp
 // V1: decimal
-public record OrderCreatedV1 : DomainEventBase, IVersionedMessage
+public record OrderCreatedV1 : DomainEvent, IVersionedMessage
 {
     public Guid OrderId { get; init; }
     public string CustomerId { get; init; } = string.Empty;
@@ -224,7 +224,7 @@ public record OrderCreatedV1 : DomainEventBase, IVersionedMessage
 }
 
 // V2: Money value object
-public record OrderCreated : DomainEventBase, IVersionedMessage
+public record OrderCreated : DomainEvent, IVersionedMessage
 {
     public Guid OrderId { get; init; }
     public string CustomerId { get; init; } = string.Empty;
@@ -263,7 +263,7 @@ When a single event needs to become multiple events, handle this in your aggrega
 
 ```csharp
 // V1: Single event with multiple concerns
-public record OrderProcessedV1 : DomainEventBase, IVersionedMessage
+public record OrderProcessedV1 : DomainEvent, IVersionedMessage
 {
     public Guid OrderId { get; init; }
     public string Status { get; init; } = string.Empty;
@@ -276,12 +276,12 @@ public record OrderProcessedV1 : DomainEventBase, IVersionedMessage
 }
 
 // V2: Split into focused events
-public record OrderStatusChanged(Guid OrderId, string Status) : DomainEventBase
+public record OrderStatusChanged(Guid OrderId, string Status) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
 
-public record OrderShipped(Guid OrderId, string TrackingNumber, DateTime ShippedAt) : DomainEventBase
+public record OrderShipped(Guid OrderId, string TrackingNumber, DateTime ShippedAt) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
@@ -318,12 +318,12 @@ When separate events should become a single event, the aggregate handles both ol
 
 ```csharp
 // V1: Separate events
-public record AddressChangedV1(Guid OrderId, Address NewAddress) : DomainEventBase
+public record AddressChangedV1(Guid OrderId, Address NewAddress) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
 
-public record ContactChangedV1(Guid OrderId, string Email, string Phone) : DomainEventBase
+public record ContactChangedV1(Guid OrderId, string Email, string Phone) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
@@ -333,7 +333,7 @@ public record CustomerDetailsUpdated(
     Guid OrderId,
     Address? NewAddress = null,
     string? Email = null,
-    string? Phone = null) : DomainEventBase
+    string? Phone = null) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }

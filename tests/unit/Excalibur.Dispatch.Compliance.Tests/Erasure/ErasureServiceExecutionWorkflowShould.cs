@@ -12,6 +12,7 @@ public sealed class ErasureServiceExecutionWorkflowShould
 {
 	private readonly IErasureStore _store = A.Fake<IErasureStore>();
 	private readonly IKeyManagementProvider _keyProvider = A.Fake<IKeyManagementProvider>();
+	private readonly IKeyManagementAdmin _keyAdmin = A.Fake<IKeyManagementAdmin>();
 	private readonly ILegalHoldService _legalHoldService = A.Fake<ILegalHoldService>();
 	private readonly IDataInventoryService _dataInventoryService = A.Fake<IDataInventoryService>();
 
@@ -30,6 +31,7 @@ public sealed class ErasureServiceExecutionWorkflowShould
 		return new ErasureService(
 			_store,
 			_keyProvider,
+			_keyAdmin,
 			options,
 			signingOptions,
 			NullLogger<ErasureService>.Instance,
@@ -176,7 +178,7 @@ public sealed class ErasureServiceExecutionWorkflowShould
 		A.CallTo(() => _dataInventoryService.DiscoverAsync(
 				A<string>._, DataSubjectIdType.Hash, A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(inventory));
-		A.CallTo(() => _keyProvider.DeleteKeyAsync(A<string>._, A<int>._, A<CancellationToken>._))
+		A.CallTo(() => _keyAdmin.DeleteKeyAsync(A<string>._, A<int>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
 		SetupNoLegalHolds();
 
@@ -188,11 +190,11 @@ public sealed class ErasureServiceExecutionWorkflowShould
 		// Assert
 		result.Success.ShouldBeTrue();
 		result.KeysDeleted.ShouldBe(3);
-		A.CallTo(() => _keyProvider.DeleteKeyAsync("key-a", A<int>._, A<CancellationToken>._))
+		A.CallTo(() => _keyAdmin.DeleteKeyAsync("key-a", A<int>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
-		A.CallTo(() => _keyProvider.DeleteKeyAsync("key-b", A<int>._, A<CancellationToken>._))
+		A.CallTo(() => _keyAdmin.DeleteKeyAsync("key-b", A<int>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
-		A.CallTo(() => _keyProvider.DeleteKeyAsync("key-c", A<int>._, A<CancellationToken>._))
+		A.CallTo(() => _keyAdmin.DeleteKeyAsync("key-c", A<int>._, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -218,9 +220,9 @@ public sealed class ErasureServiceExecutionWorkflowShould
 		A.CallTo(() => _dataInventoryService.DiscoverAsync(
 				A<string>._, DataSubjectIdType.Hash, A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(inventory));
-		A.CallTo(() => _keyProvider.DeleteKeyAsync("key-ok", A<int>._, A<CancellationToken>._))
+		A.CallTo(() => _keyAdmin.DeleteKeyAsync("key-ok", A<int>._, A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
-		A.CallTo(() => _keyProvider.DeleteKeyAsync("key-fail", A<int>._, A<CancellationToken>._))
+		A.CallTo(() => _keyAdmin.DeleteKeyAsync("key-fail", A<int>._, A<CancellationToken>._))
 			.Throws(new InvalidOperationException("KMS timeout"));
 		SetupNoLegalHolds();
 

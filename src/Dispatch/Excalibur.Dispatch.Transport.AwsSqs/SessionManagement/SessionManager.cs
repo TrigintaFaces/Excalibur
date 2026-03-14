@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <remarks> Initializes a new instance of the <see cref="SessionManager" /> class. </remarks>
 /// <param name="sessionStore"> The session store. </param>
 /// <param name="logger"> The logger. </param>
-public sealed class SessionManager(ISessionStore sessionStore, ILogger<SessionManager> logger) : ISessionManager
+internal sealed class SessionManager(ISessionStore sessionStore, ILogger<SessionManager> logger) : ISessionManager
 {
 	private readonly ISessionStore _sessionStore = sessionStore ?? throw new ArgumentNullException(nameof(sessionStore));
 	private readonly ILogger<SessionManager> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -155,7 +155,7 @@ public sealed class SessionManager(ISessionStore sessionStore, ILogger<SessionMa
 		Task.FromResult(true);
 
 	/// <inheritdoc />
-	Task<int> ISessionLifecycleManager.CleanupExpiredSessionsAsync(CancellationToken cancellationToken) => Task.FromResult(0);
+	Task<int> ISessionCleanup.CleanupExpiredSessionsAsync(CancellationToken cancellationToken) => Task.FromResult(0);
 
 	/// <inheritdoc />
 	Task<TState?> ISessionStateManager.GetStateAsync<TState>(string sessionId, CancellationToken cancellationToken)
@@ -179,15 +179,15 @@ public sealed class SessionManager(ISessionStore sessionStore, ILogger<SessionMa
 	Task<bool> ISessionStateManager.DeleteStateAsync(string sessionId, CancellationToken cancellationToken) => Task.FromResult(true);
 
 	/// <inheritdoc />
-	Task<bool> ISessionStateManager.CreateCheckpointAsync(string sessionId, string checkpointId, CancellationToken cancellationToken) =>
+	Task<bool> ISessionCheckpointManager.CreateCheckpointAsync(string sessionId, string checkpointId, CancellationToken cancellationToken) =>
 		Task.FromResult(true);
 
 	/// <inheritdoc />
-	Task<bool> ISessionStateManager.RestoreCheckpointAsync(string sessionId, string checkpointId, CancellationToken cancellationToken) =>
+	Task<bool> ISessionCheckpointManager.RestoreCheckpointAsync(string sessionId, string checkpointId, CancellationToken cancellationToken) =>
 		Task.FromResult(true);
 
 	/// <inheritdoc />
-	Task<IReadOnlyList<CheckpointInfo>> ISessionStateManager.ListCheckpointsAsync(string sessionId, CancellationToken cancellationToken) =>
+	Task<IReadOnlyList<CheckpointInfo>> ISessionCheckpointManager.ListCheckpointsAsync(string sessionId, CancellationToken cancellationToken) =>
 		Task.FromResult<IReadOnlyList<CheckpointInfo>>(new List<CheckpointInfo>());
 
 	/// <inheritdoc />

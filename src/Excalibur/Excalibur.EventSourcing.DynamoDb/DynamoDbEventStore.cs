@@ -28,7 +28,8 @@ namespace Excalibur.EventSourcing.DynamoDb;
 	"CA1506:Avoid excessive class coupling",
 	Justification =
 		"Event store implementations orchestrate AWS SDK types, serialization, and domain abstractions - high coupling is inherent to the coordinator pattern.")]
-public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, IEventStore, IAsyncDisposable
+public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, ICloudNativeProviderInfo,
+	ICloudNativeEventStoreChangeFeed, ICloudNativeEventStoreInfo, IEventStore, IAsyncDisposable
 {
 	private readonly IAmazonDynamoDB _client;
 	private readonly IAmazonDynamoDBStreams _streamsClient;
@@ -59,7 +60,30 @@ public sealed partial class DynamoDbEventStore : ICloudNativeEventStore, IEventS
 	}
 
 	/// <inheritdoc />
-	public CloudProviderType ProviderType => CloudProviderType.DynamoDb;
+	public CloudProviderType CloudProvider => CloudProviderType.DynamoDb;
+
+	/// <inheritdoc />
+	public object? GetService(Type serviceType)
+	{
+		ArgumentNullException.ThrowIfNull(serviceType);
+
+		if (serviceType == typeof(ICloudNativeProviderInfo))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(ICloudNativeEventStoreChangeFeed))
+		{
+			return this;
+		}
+
+		if (serviceType == typeof(ICloudNativeEventStoreInfo))
+		{
+			return this;
+		}
+
+		return null;
+	}
 
 	/// <inheritdoc />
 	public async Task<CloudEventLoadResult> LoadAsync(

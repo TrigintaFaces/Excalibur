@@ -22,7 +22,7 @@ Choose MinimizedWindow when:
 services.Configure<OutboxOptions>(options =>
 {
     options.DeliveryGuarantee = OutboxDeliveryGuarantee.MinimizedWindow;
-    options.BatchSize = 50;
+    options.ConsumerBatchSize = 50;
     options.PollingInterval = TimeSpan.FromSeconds(5);
 });
 ```

@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// <summary>
 /// Maps CloudEvents to <see cref="EventData" /> instances for Azure Event Hubs and vice versa./.
 /// </summary>
-public sealed class AzureEventHubsCloudEventAdapter : IAzureEventHubsCloudEventAdapter
+internal sealed class AzureEventHubsCloudEventAdapter : IAzureEventHubsCloudEventAdapter
 {
 	private const string CloudEventsStructuredContentType = "application/cloudevents+json";
 

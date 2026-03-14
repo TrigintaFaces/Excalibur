@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Resilience.Polly;
 /// the Dispatch resilience framework without reconfiguration.
 /// </para>
 /// </remarks>
-public sealed class DispatchResilienceAdapter
+internal sealed class DispatchResilienceAdapter
 {
 	private readonly ResiliencePipeline _pipeline;
 

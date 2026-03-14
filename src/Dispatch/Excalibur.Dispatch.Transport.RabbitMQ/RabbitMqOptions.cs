@@ -14,16 +14,16 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// For configuring RabbitMQ transport, use the fluent builder API via
 /// <see cref="Microsoft.Extensions.DependencyInjection.RabbitMQTransportServiceCollectionExtensions.AddRabbitMQTransport(Microsoft.Extensions.DependencyInjection.IServiceCollection, string, Action{IRabbitMQTransportBuilder})"/>.
 /// </para>
+/// <para>
+/// Properties are organized into sub-option groups for clarity:
+/// <see cref="Connection"/> for connection settings,
+/// <see cref="Queue"/> for queue declaration settings,
+/// <see cref="DeadLetter"/> for dead letter exchange settings,
+/// and <see cref="Consumption"/> for consumer behavior settings.
+/// </para>
 /// </remarks>
 public sealed class RabbitMqOptions
 {
-	/// <summary>
-	/// Gets or sets the RabbitMQ connection string.
-	/// </summary>
-	/// <value>The RabbitMQ connection string.</value>
-	[Required]
-	public string ConnectionString { get; set; } = string.Empty;
-
 	/// <summary>
 	/// Gets or sets the exchange name.
 	/// </summary>
@@ -37,29 +37,79 @@ public sealed class RabbitMqOptions
 	public string RoutingKey { get; set; } = string.Empty;
 
 	/// <summary>
-	/// Gets or sets the queue name for consuming.
-	/// </summary>
-	/// <value>The queue name for consuming.</value>
-	public string QueueName { get; set; } = string.Empty;
-
-	/// <summary>
 	/// Gets or sets a value indicating whether encryption is enabled when sending/receiving messages.
 	/// </summary>
 	/// <value><see langword="true"/> if encryption is enabled; otherwise, <see langword="false"/>.</value>
 	public bool EnableEncryption { get; set; }
 
 	/// <summary>
-	/// Gets or sets the prefetch count for message consumption.
+	/// Gets or sets the connection options.
 	/// </summary>
-	/// <value>The prefetch count. Default is 100.</value>
-	[Range(1, ushort.MaxValue)]
-	public ushort PrefetchCount { get; set; } = 100;
+	/// <value>The connection configuration options.</value>
+	public RabbitMqConnectionOptions Connection { get; set; } = new();
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to use global prefetch count.
+	/// Gets or sets the queue declaration options.
 	/// </summary>
-	/// <value><see langword="true"/> for global prefetch; otherwise, <see langword="false"/>.</value>
-	public bool PrefetchGlobal { get; set; }
+	/// <value>The queue configuration options.</value>
+	public RabbitMqQueueOptions Queue { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the dead letter exchange options.
+	/// </summary>
+	/// <value>The dead letter configuration options.</value>
+	public RabbitMqDeadLetterExchangeOptions DeadLetter { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the consumption options.
+	/// </summary>
+	/// <value>The consumption configuration options.</value>
+	public RabbitMqConsumptionOptions Consumption { get; set; } = new();
+}
+
+/// <summary>
+/// Connection-related options for RabbitMQ.
+/// </summary>
+public sealed class RabbitMqConnectionOptions
+{
+	/// <summary>
+	/// Gets or sets the RabbitMQ connection string.
+	/// </summary>
+	/// <value>The RabbitMQ connection string.</value>
+	[Required]
+	public string ConnectionString { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the connection timeout in seconds.
+	/// </summary>
+	/// <value>The connection timeout. Default is 30 seconds.</value>
+	[Range(1, 300)]
+	public int ConnectionTimeoutSeconds { get; set; } = 30;
+
+	/// <summary>
+	/// Gets or sets a value indicating whether to enable automatic connection recovery.
+	/// </summary>
+	/// <value><see langword="true"/> for automatic recovery; otherwise, <see langword="false"/>. Default is <see langword="true"/>.</value>
+	public bool AutomaticRecoveryEnabled { get; set; } = true;
+
+	/// <summary>
+	/// Gets or sets the network recovery interval in seconds.
+	/// </summary>
+	/// <value>The recovery interval. Default is 10 seconds.</value>
+	[Range(1, 300)]
+	public int NetworkRecoveryIntervalSeconds { get; set; } = 10;
+}
+
+/// <summary>
+/// Queue declaration options for RabbitMQ.
+/// </summary>
+public sealed class RabbitMqQueueOptions
+{
+	/// <summary>
+	/// Gets or sets the queue name for consuming.
+	/// </summary>
+	/// <value>The queue name for consuming.</value>
+	public string QueueName { get; set; } = string.Empty;
 
 	/// <summary>
 	/// Gets or sets a value indicating whether the queue should be durable.
@@ -84,6 +134,55 @@ public sealed class RabbitMqOptions
 	/// </summary>
 	/// <value>Additional queue arguments.</value>
 	public Dictionary<string, object?> QueueArguments { get; } = [];
+}
+
+/// <summary>
+/// Dead letter exchange options for RabbitMQ.
+/// </summary>
+public sealed class RabbitMqDeadLetterExchangeOptions
+{
+	/// <summary>
+	/// Gets or sets a value indicating whether to enable dead letter exchange for rejected messages.
+	/// </summary>
+	/// <value><see langword="true"/> to enable DLX; otherwise, <see langword="false"/>.</value>
+	public bool EnableDeadLetterExchange { get; set; }
+
+	/// <summary>
+	/// Gets or sets the dead letter exchange name.
+	/// </summary>
+	/// <value>The DLX name.</value>
+	public string? DeadLetterExchange { get; set; }
+
+	/// <summary>
+	/// Gets or sets the dead letter routing key.
+	/// </summary>
+	/// <value>The dead letter routing key.</value>
+	public string? DeadLetterRoutingKey { get; set; }
+
+	/// <summary>
+	/// Gets or sets a value indicating whether to requeue messages on rejection.
+	/// </summary>
+	/// <value><see langword="true"/> to requeue; otherwise, <see langword="false"/>.</value>
+	public bool RequeueOnReject { get; set; }
+}
+
+/// <summary>
+/// Consumption behavior options for RabbitMQ.
+/// </summary>
+public sealed class RabbitMqConsumptionOptions
+{
+	/// <summary>
+	/// Gets or sets the prefetch count for message consumption.
+	/// </summary>
+	/// <value>The prefetch count. Default is 100.</value>
+	[Range(1, ushort.MaxValue)]
+	public ushort PrefetchCount { get; set; } = 100;
+
+	/// <summary>
+	/// Gets or sets a value indicating whether to use global prefetch count.
+	/// </summary>
+	/// <value><see langword="true"/> for global prefetch; otherwise, <see langword="false"/>.</value>
+	public bool PrefetchGlobal { get; set; }
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to automatically acknowledge messages.
@@ -110,48 +209,4 @@ public sealed class RabbitMqOptions
 	/// </summary>
 	/// <value>The consumer tag. Default is "dispatch-consumer".</value>
 	public string ConsumerTag { get; set; } = "dispatch-consumer";
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable dead letter exchange for rejected messages.
-	/// </summary>
-	/// <value><see langword="true"/> to enable DLX; otherwise, <see langword="false"/>.</value>
-	public bool EnableDeadLetterExchange { get; set; }
-
-	/// <summary>
-	/// Gets or sets the dead letter exchange name.
-	/// </summary>
-	/// <value>The DLX name.</value>
-	public string? DeadLetterExchange { get; set; }
-
-	/// <summary>
-	/// Gets or sets the dead letter routing key.
-	/// </summary>
-	/// <value>The dead letter routing key.</value>
-	public string? DeadLetterRoutingKey { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to requeue messages on rejection.
-	/// </summary>
-	/// <value><see langword="true"/> to requeue; otherwise, <see langword="false"/>.</value>
-	public bool RequeueOnReject { get; set; }
-
-	/// <summary>
-	/// Gets or sets the connection timeout in seconds.
-	/// </summary>
-	/// <value>The connection timeout. Default is 30 seconds.</value>
-	[Range(1, 300)]
-	public int ConnectionTimeoutSeconds { get; set; } = 30;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable automatic connection recovery.
-	/// </summary>
-	/// <value><see langword="true"/> for automatic recovery; otherwise, <see langword="false"/>. Default is <see langword="true"/>.</value>
-	public bool AutomaticRecoveryEnabled { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the network recovery interval in seconds.
-	/// </summary>
-	/// <value>The recovery interval. Default is 10 seconds.</value>
-	[Range(1, 300)]
-	public int NetworkRecoveryIntervalSeconds { get; set; } = 10;
 }

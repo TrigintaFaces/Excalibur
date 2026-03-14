@@ -1,1 +1,172 @@
 #nullable enable
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingHealthCheckOptions
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingHealthCheckOptions.EventStoreHealthCheckName.get -> string!
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingHealthCheckOptions.EventStoreHealthCheckName.set -> void
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingHealthCheckOptions.OutboxStoreHealthCheckName.get -> string!
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingHealthCheckOptions.OutboxStoreHealthCheckName.set -> void
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingHealthCheckOptions.RegisterHealthChecks.get -> bool
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingHealthCheckOptions.RegisterHealthChecks.set -> void
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingHealthCheckOptions.SnapshotStoreHealthCheckName.get -> string!
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingHealthCheckOptions.SnapshotStoreHealthCheckName.set -> void
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingHealthCheckOptions.SqlServerEventSourcingHealthCheckOptions() -> void
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions.ConnectionString.get -> string?
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions.ConnectionString.set -> void
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions.EventStoreSchema.get -> string!
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions.EventStoreSchema.set -> void
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions.EventStoreTable.get -> string!
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions.EventStoreTable.set -> void
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions.HealthChecks.get -> Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingHealthCheckOptions!
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions.HealthChecks.set -> void
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions.OutboxSchema.get -> string!
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions.OutboxSchema.set -> void
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions.OutboxTable.get -> string!
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions.OutboxTable.set -> void
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions.SnapshotStoreSchema.get -> string!
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions.SnapshotStoreSchema.set -> void
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions.SnapshotStoreTable.get -> string!
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions.SnapshotStoreTable.set -> void
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions.SqlServerEventSourcingOptions() -> void
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerMigrationHostedService
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerMigrationHostedService.SqlServerMigrationHostedService(Excalibur.EventSourcing.Abstractions.IMigrator! migrator, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerMigrationHostedService!>! logger) -> void
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerMigrationHostedService.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerMigrationHostedService.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerMigratorOptions
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerMigratorOptions.AutoMigrateOnStartup.get -> bool
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerMigratorOptions.AutoMigrateOnStartup.set -> void
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerMigratorOptions.ConnectionString.get -> string?
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerMigratorOptions.ConnectionString.set -> void
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerMigratorOptions.MigrationAssembly.get -> System.Reflection.Assembly?
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerMigratorOptions.MigrationAssembly.set -> void
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerMigratorOptions.MigrationNamespace.get -> string?
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerMigratorOptions.MigrationNamespace.set -> void
+Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerMigratorOptions.SqlServerMigratorOptions() -> void
+Excalibur.EventSourcing.SqlServer.EventSourcingBuilderSqlServerExtensions
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionBasedOutboxPoller
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionBasedOutboxPoller.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionBasedOutboxPoller.PollAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Outbox.OutboxMessage!>!>!
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionBasedOutboxPoller.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionBasedOutboxPoller.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionBasedOutboxPoller.SubscriptionBasedOutboxPoller(Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionPollingOptions!>! options, Excalibur.EventSourcing.Outbox.IEventSourcedOutboxStore! outboxStore, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionBasedOutboxPoller!>! logger, System.Func<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Outbox.OutboxMessage!>!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>? onMessagesReceived = null) -> void
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionPollingOptions
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionPollingOptions.BatchSize.get -> int
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionPollingOptions.BatchSize.set -> void
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionPollingOptions.ConnectionString.get -> string?
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionPollingOptions.ConnectionString.set -> void
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionPollingOptions.NotificationTimeout.get -> System.TimeSpan
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionPollingOptions.NotificationTimeout.set -> void
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionPollingOptions.PollInterval.get -> System.TimeSpan
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionPollingOptions.PollInterval.set -> void
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionPollingOptions.SchemaName.get -> string!
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionPollingOptions.SchemaName.set -> void
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionPollingOptions.SubscriptionPollingOptions() -> void
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionPollingOptions.TableName.get -> string!
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionPollingOptions.TableName.set -> void
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionPollingOptions.UseQueryNotifications.get -> bool
+Excalibur.EventSourcing.SqlServer.Outbox.SubscriptionPollingOptions.UseQueryNotifications.set -> void
+Excalibur.EventSourcing.SqlServer.Requests.AddOutboxMessageRequest
+Excalibur.EventSourcing.SqlServer.Requests.AddOutboxMessageRequest.AddOutboxMessageRequest(Excalibur.EventSourcing.Outbox.OutboxMessage! message, System.Data.IDbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.SqlServer.Requests.DeletePublishedOutboxMessagesRequest
+Excalibur.EventSourcing.SqlServer.Requests.DeletePublishedOutboxMessagesRequest.DeletePublishedOutboxMessagesRequest(System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.SqlServer.Requests.DeleteSnapshotsOlderThanRequest
+Excalibur.EventSourcing.SqlServer.Requests.DeleteSnapshotsOlderThanRequest.DeleteSnapshotsOlderThanRequest(string! aggregateId, string! aggregateType, long olderThanVersion, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.SqlServer.Requests.DeleteSnapshotsRequest
+Excalibur.EventSourcing.SqlServer.Requests.DeleteSnapshotsRequest.DeleteSnapshotsRequest(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.SqlServer.Requests.GetCurrentVersionRequest
+Excalibur.EventSourcing.SqlServer.Requests.GetCurrentVersionRequest.GetCurrentVersionRequest(string! aggregateId, string! aggregateType, System.Data.IDbTransaction? transaction, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.SqlServer.Requests.GetLatestSnapshotRequest
+Excalibur.EventSourcing.SqlServer.Requests.GetLatestSnapshotRequest.GetLatestSnapshotRequest(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.SqlServer.Requests.GetPendingOutboxMessagesRequest
+Excalibur.EventSourcing.SqlServer.Requests.GetPendingOutboxMessagesRequest.GetPendingOutboxMessagesRequest(int batchSize, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.SqlServer.Requests.GetUndispatchedEventsRequest
+Excalibur.EventSourcing.SqlServer.Requests.GetUndispatchedEventsRequest.GetUndispatchedEventsRequest(int batchSize, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.SqlServer.Requests.IncrementOutboxRetryCountRequest
+Excalibur.EventSourcing.SqlServer.Requests.IncrementOutboxRetryCountRequest.IncrementOutboxRetryCountRequest(System.Guid messageId, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.SqlServer.Requests.InsertEventRequest
+Excalibur.EventSourcing.SqlServer.Requests.InsertEventRequest.InsertEventRequest(string! eventId, string! aggregateId, string! aggregateType, string! eventType, byte[]! eventData, byte[]? metadata, long version, System.DateTimeOffset timestamp, System.Data.IDbTransaction? transaction, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.SqlServer.Requests.LoadEventsRequest
+Excalibur.EventSourcing.SqlServer.Requests.LoadEventsRequest.LoadEventsRequest(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.SqlServer.Requests.MarkEventDispatchedRequest
+Excalibur.EventSourcing.SqlServer.Requests.MarkEventDispatchedRequest.MarkEventDispatchedRequest(string! eventId, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.SqlServer.Requests.MarkOutboxMessagePublishedRequest
+Excalibur.EventSourcing.SqlServer.Requests.MarkOutboxMessagePublishedRequest.MarkOutboxMessagePublishedRequest(System.Guid messageId, System.Data.IDbTransaction? transaction, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.SqlServer.Requests.SaveSnapshotRequest
+Excalibur.EventSourcing.SqlServer.Requests.SaveSnapshotRequest.SaveSnapshotRequest(Excalibur.Domain.Model.ISnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.EventSourcing.SqlServer.SqlServerEventSourcedOutboxStore
+Excalibur.EventSourcing.SqlServer.SqlServerEventSourcedOutboxStore.AddAsync(Excalibur.EventSourcing.Outbox.OutboxMessage! message, System.Data.IDbTransaction! transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.SqlServer.SqlServerEventSourcedOutboxStore.DeletePublishedOlderThanAsync(System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.EventSourcing.SqlServer.SqlServerEventSourcedOutboxStore.GetPendingAsync(int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Outbox.OutboxMessage!>!>!
+Excalibur.EventSourcing.SqlServer.SqlServerEventSourcedOutboxStore.IncrementRetryCountAsync(System.Guid messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.SqlServer.SqlServerEventSourcedOutboxStore.MarkAsPublishedAsync(System.Guid messageId, System.Data.IDbTransaction? transaction, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.SqlServer.SqlServerEventSourcedOutboxStore.SqlServerEventSourcedOutboxStore(string! connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.SqlServer.SqlServerEventSourcedOutboxStore!>! logger) -> void
+Excalibur.EventSourcing.SqlServer.SqlServerEventSourcedOutboxStore.SqlServerEventSourcedOutboxStore(System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.SqlServer.SqlServerEventSourcedOutboxStore!>! logger) -> void
+Excalibur.EventSourcing.SqlServer.SqlServerEventStore
+Excalibur.EventSourcing.SqlServer.SqlServerEventStore.AppendAsync(string! aggregateId, string! aggregateType, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.Abstractions.AppendResult!>
+Excalibur.EventSourcing.SqlServer.SqlServerEventStore.GetUndispatchedEventsAsync(int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+Excalibur.EventSourcing.SqlServer.SqlServerEventStore.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+Excalibur.EventSourcing.SqlServer.SqlServerEventStore.LoadAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+Excalibur.EventSourcing.SqlServer.SqlServerEventStore.MarkEventAsDispatchedAsync(string! eventId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.SqlServer.SqlServerEventStore.SqlServerEventStore(string! connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.SqlServer.SqlServerEventStore!>! logger) -> void
+Excalibur.EventSourcing.SqlServer.SqlServerEventStore.SqlServerEventStore(string! connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.SqlServer.SqlServerEventStore!>! logger, Excalibur.Dispatch.Abstractions.Serialization.ISerializer? internalSerializer) -> void
+Excalibur.EventSourcing.SqlServer.SqlServerEventStore.SqlServerEventStore(string! connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.SqlServer.SqlServerEventStore!>! logger, Excalibur.Dispatch.Abstractions.Serialization.ISerializer? internalSerializer, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer? payloadSerializer) -> void
+Excalibur.EventSourcing.SqlServer.SqlServerEventStore.SqlServerEventStore(System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.SqlServer.SqlServerEventStore!>! logger, Excalibur.Dispatch.Abstractions.Serialization.ISerializer? internalSerializer = null, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer? payloadSerializer = null) -> void
+Excalibur.EventSourcing.SqlServer.SqlServerMaterializedViewStore
+Excalibur.EventSourcing.SqlServer.SqlServerMaterializedViewStore.DeleteAsync(string! viewName, string! viewId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.SqlServer.SqlServerMaterializedViewStore.GetAsync<TView>(string! viewName, string! viewId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<TView?>
+Excalibur.EventSourcing.SqlServer.SqlServerMaterializedViewStore.GetPositionAsync(string! viewName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<long?>
+Excalibur.EventSourcing.SqlServer.SqlServerMaterializedViewStore.SaveAsync<TView>(string! viewName, string! viewId, TView! view, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.SqlServer.SqlServerMaterializedViewStore.SavePositionAsync(string! viewName, long position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.SqlServer.SqlServerMaterializedViewStore.SqlServerMaterializedViewStore(string! connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.SqlServer.SqlServerMaterializedViewStore!>! logger, string? viewTableName = null, string? positionTableName = null, System.Text.Json.JsonSerializerOptions? jsonOptions = null) -> void
+Excalibur.EventSourcing.SqlServer.SqlServerMaterializedViewStore.SqlServerMaterializedViewStore(System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.SqlServer.SqlServerMaterializedViewStore!>! logger, string? viewTableName = null, string? positionTableName = null, System.Text.Json.JsonSerializerOptions? jsonOptions = null) -> void
+Excalibur.EventSourcing.SqlServer.SqlServerMigrator
+Excalibur.EventSourcing.SqlServer.SqlServerMigrator.GetAppliedMigrationsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.AppliedMigration!>!>!
+Excalibur.EventSourcing.SqlServer.SqlServerMigrator.GetPendingMigrationsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
+Excalibur.EventSourcing.SqlServer.SqlServerMigrator.MigrateAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Abstractions.MigrationResult!>!
+Excalibur.EventSourcing.SqlServer.SqlServerMigrator.RollbackAsync(string! targetMigrationId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.EventSourcing.Abstractions.MigrationResult!>!
+Excalibur.EventSourcing.SqlServer.SqlServerMigrator.SqlServerMigrator(string! connectionString, System.Reflection.Assembly! migrationAssembly, string! migrationNamespace, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.SqlServer.SqlServerMigrator!>! logger) -> void
+Excalibur.EventSourcing.SqlServer.SqlServerMigrator.SqlServerMigrator(System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory, System.Reflection.Assembly! migrationAssembly, string! migrationNamespace, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.SqlServer.SqlServerMigrator!>! logger) -> void
+Excalibur.EventSourcing.SqlServer.SqlServerProjectionStore<TProjection>
+Excalibur.EventSourcing.SqlServer.SqlServerProjectionStore<TProjection>.CountAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+Excalibur.EventSourcing.SqlServer.SqlServerProjectionStore<TProjection>.DeleteAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.SqlServer.SqlServerProjectionStore<TProjection>.GetByIdAsync(string! id, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TProjection?>!
+Excalibur.EventSourcing.SqlServer.SqlServerProjectionStore<TProjection>.QueryAsync(System.Collections.Generic.IDictionary<string!, object!>? filters, Excalibur.EventSourcing.Abstractions.QueryOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<TProjection!>!>!
+Excalibur.EventSourcing.SqlServer.SqlServerProjectionStore<TProjection>.SqlServerProjectionStore(string! connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.SqlServer.SqlServerProjectionStore<TProjection!>!>! logger, string? tableName = null, System.Text.Json.JsonSerializerOptions? jsonOptions = null) -> void
+Excalibur.EventSourcing.SqlServer.SqlServerProjectionStore<TProjection>.SqlServerProjectionStore(System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.SqlServer.SqlServerProjectionStore<TProjection!>!>! logger, string? tableName = null, System.Text.Json.JsonSerializerOptions? jsonOptions = null) -> void
+Excalibur.EventSourcing.SqlServer.SqlServerProjectionStore<TProjection>.UpsertAsync(string! id, TProjection! projection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.SqlServer.SqlServerProjectionStoreOptions
+Excalibur.EventSourcing.SqlServer.SqlServerProjectionStoreOptions.ConnectionString.get -> string?
+Excalibur.EventSourcing.SqlServer.SqlServerProjectionStoreOptions.ConnectionString.set -> void
+Excalibur.EventSourcing.SqlServer.SqlServerProjectionStoreOptions.JsonSerializerOptions.get -> System.Text.Json.JsonSerializerOptions?
+Excalibur.EventSourcing.SqlServer.SqlServerProjectionStoreOptions.JsonSerializerOptions.set -> void
+Excalibur.EventSourcing.SqlServer.SqlServerProjectionStoreOptions.SqlServerProjectionStoreOptions() -> void
+Excalibur.EventSourcing.SqlServer.SqlServerProjectionStoreOptions.TableName.get -> string?
+Excalibur.EventSourcing.SqlServer.SqlServerProjectionStoreOptions.TableName.set -> void
+Excalibur.EventSourcing.SqlServer.SqlServerProjectionStoreOptions.Validate() -> void
+Excalibur.EventSourcing.SqlServer.SqlServerSnapshotStore
+Excalibur.EventSourcing.SqlServer.SqlServerSnapshotStore.DeleteSnapshotsAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.SqlServer.SqlServerSnapshotStore.DeleteSnapshotsOlderThanAsync(string! aggregateId, string! aggregateType, long olderThanVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.SqlServer.SqlServerSnapshotStore.GetLatestSnapshotAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot?>
+Excalibur.EventSourcing.SqlServer.SqlServerSnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.SqlServer.SqlServerSnapshotStore.SqlServerSnapshotStore(string! connectionString, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.SqlServer.SqlServerSnapshotStore!>! logger) -> void
+Excalibur.EventSourcing.SqlServer.SqlServerSnapshotStore.SqlServerSnapshotStore(System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.SqlServer.SqlServerSnapshotStore!>! logger) -> void
+Microsoft.Extensions.DependencyInjection.SqlServerEventSourcingServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.SqlServerProjectionStoreExtensions
+static Excalibur.EventSourcing.SqlServer.EventSourcingBuilderSqlServerExtensions.UseSqlServer(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, string! connectionString, bool registerHealthChecks = true) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Excalibur.EventSourcing.SqlServer.EventSourcingBuilderSqlServerExtensions.UseSqlServer(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.SqlServerEventSourcingServiceCollectionExtensions.AddSqlServerEventSourcing(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, bool registerHealthChecks = true) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerEventSourcingServiceCollectionExtensions.AddSqlServerEventSourcing(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerEventSourcingOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerEventSourcingServiceCollectionExtensions.AddSqlServerEventSourcing(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerEventSourcingServiceCollectionExtensions.AddSqlServerEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerEventSourcingServiceCollectionExtensions.AddSqlServerEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerEventSourcingServiceCollectionExtensions.AddSqlServerMaterializedViewStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string? viewTableName = null, string? positionTableName = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerEventSourcingServiceCollectionExtensions.AddSqlServerMaterializedViewStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory, string? viewTableName = null, string? positionTableName = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerEventSourcingServiceCollectionExtensions.AddSqlServerMigrator(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Reflection.Assembly! migrationAssembly, string! migrationNamespace) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerEventSourcingServiceCollectionExtensions.AddSqlServerMigrator(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.SqlServer.DependencyInjection.SqlServerMigratorOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerEventSourcingServiceCollectionExtensions.AddSqlServerMigrator(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory, System.Reflection.Assembly! migrationAssembly, string! migrationNamespace) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerEventSourcingServiceCollectionExtensions.AddSqlServerOutboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerEventSourcingServiceCollectionExtensions.AddSqlServerOutboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerEventSourcingServiceCollectionExtensions.AddSqlServerSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerEventSourcingServiceCollectionExtensions.AddSqlServerSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerProjectionStoreExtensions.AddSqlServerProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Action<Excalibur.EventSourcing.SqlServer.SqlServerProjectionStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerProjectionStoreExtensions.AddSqlServerProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.SqlServer.SqlServerProjectionStoreOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerProjectionStoreExtensions.AddSqlServerProjectionStore<TProjection>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory, System.Action<Excalibur.EventSourcing.SqlServer.SqlServerProjectionStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

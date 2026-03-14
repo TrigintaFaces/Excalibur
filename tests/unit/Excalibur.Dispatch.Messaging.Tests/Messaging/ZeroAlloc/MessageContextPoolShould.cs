@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Dispatch.ZeroAlloc;
 
@@ -139,8 +140,8 @@ public sealed class MessageContextPoolShould : IDisposable
 
 		// Act - Set context properties before message is set (lazy binding pattern)
 		context.CorrelationId = "test-correlation";
-		context.TenantId = "tenant-123";
-		context.UserId = "user-456";
+		context.GetOrCreateIdentityFeature().TenantId = "tenant-123";
+		context.GetOrCreateIdentityFeature().UserId = "user-456";
 		context.Items["custom-key"] = "custom-value";
 
 		// Now set the message
@@ -149,8 +150,8 @@ public sealed class MessageContextPoolShould : IDisposable
 
 		// Assert - all properties should be preserved
 		context.CorrelationId.ShouldBe("test-correlation");
-		context.TenantId.ShouldBe("tenant-123");
-		context.UserId.ShouldBe("user-456");
+		context.GetTenantId().ShouldBe("tenant-123");
+		context.GetUserId().ShouldBe("user-456");
 		context.Items["custom-key"].ShouldBe("custom-value");
 		context.Message.ShouldBe(message);
 
@@ -244,13 +245,13 @@ public sealed class MessageContextPoolShould : IDisposable
 	{
 		// Arrange
 		var context = _pool.Rent();
-		context.ProcessingAttempts = 5;
-		context.IsRetry = true;
-		context.ValidationPassed = true;
-		context.TimeoutExceeded = true;
-		context.RateLimitExceeded = true;
+		context.GetOrCreateProcessingFeature().ProcessingAttempts = 5;
+		context.GetOrCreateProcessingFeature().IsRetry = true;
+		context.GetOrCreateValidationFeature().ValidationPassed = true;
+		context.GetOrCreateTimeoutFeature().TimeoutExceeded = true;
+		context.GetOrCreateRateLimitFeature().RateLimitExceeded = true;
 		context.CorrelationId = "test-correlation";
-		context.TenantId = "test-tenant";
+		context.GetOrCreateIdentityFeature().TenantId = "test-tenant";
 
 		// Act
 		_pool.ReturnToPool(context);
@@ -307,7 +308,7 @@ public sealed class MessageContextPoolShould : IDisposable
 		var message1 = A.Fake<IDispatchMessage>();
 		var context1 = _pool.Rent(message1);
 		context1.CorrelationId = "correlation-1";
-		context1.TenantId = "tenant-1";
+		context1.GetOrCreateIdentityFeature().TenantId = "tenant-1";
 		context1.Items["secret"] = "sensitive-data";
 
 		// Act - Return and rent again

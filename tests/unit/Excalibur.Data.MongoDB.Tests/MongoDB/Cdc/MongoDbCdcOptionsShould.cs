@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Data.MongoDB.Cdc;
+using Excalibur.Cdc.MongoDB;
 
 namespace Excalibur.Data.Tests.MongoDB.Cdc;
 
@@ -14,7 +14,7 @@ public sealed class MongoDbCdcOptionsShould
 	{
 		var options = new MongoDbCdcOptions();
 
-		options.ConnectionString.ShouldBe("mongodb://localhost:27017");
+		options.Connection.ConnectionString.ShouldBe("mongodb://localhost:27017");
 	}
 
 	[Fact]
@@ -54,7 +54,7 @@ public sealed class MongoDbCdcOptionsShould
 	{
 		var options = new MongoDbCdcOptions();
 
-		options.MaxAwaitTime.ShouldBe(TimeSpan.FromSeconds(5));
+		options.ChangeStream.MaxAwaitTime.ShouldBe(TimeSpan.FromSeconds(5));
 	}
 
 	[Fact]
@@ -70,7 +70,7 @@ public sealed class MongoDbCdcOptionsShould
 	{
 		var options = new MongoDbCdcOptions();
 
-		options.FullDocument.ShouldBeTrue();
+		options.ChangeStream.FullDocument.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -78,7 +78,7 @@ public sealed class MongoDbCdcOptionsShould
 	{
 		var options = new MongoDbCdcOptions();
 
-		options.FullDocumentBeforeChange.ShouldBeFalse();
+		options.ChangeStream.FullDocumentBeforeChange.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -86,7 +86,7 @@ public sealed class MongoDbCdcOptionsShould
 	{
 		var options = new MongoDbCdcOptions();
 
-		options.OperationTypes.ShouldBeEmpty();
+		options.ChangeStream.OperationTypes.ShouldBeEmpty();
 	}
 
 	[Fact]
@@ -94,7 +94,7 @@ public sealed class MongoDbCdcOptionsShould
 	{
 		var options = new MongoDbCdcOptions();
 
-		options.ServerSelectionTimeout.ShouldBe(TimeSpan.FromSeconds(30));
+		options.Connection.ServerSelectionTimeout.ShouldBe(TimeSpan.FromSeconds(30));
 	}
 
 	[Fact]
@@ -102,7 +102,7 @@ public sealed class MongoDbCdcOptionsShould
 	{
 		var options = new MongoDbCdcOptions();
 
-		options.ConnectTimeout.ShouldBe(TimeSpan.FromSeconds(30));
+		options.Connection.ConnectTimeout.ShouldBe(TimeSpan.FromSeconds(30));
 	}
 
 	[Fact]
@@ -110,7 +110,7 @@ public sealed class MongoDbCdcOptionsShould
 	{
 		var options = new MongoDbCdcOptions();
 
-		options.UseSsl.ShouldBeFalse();
+		options.Connection.UseSsl.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -118,7 +118,7 @@ public sealed class MongoDbCdcOptionsShould
 	{
 		var options = new MongoDbCdcOptions();
 
-		options.MaxPoolSize.ShouldBe(100);
+		options.Connection.MaxPoolSize.ShouldBe(100);
 	}
 
 	[Fact]
@@ -132,7 +132,8 @@ public sealed class MongoDbCdcOptionsShould
 	[Fact]
 	public void ThrowWhenConnectionStringIsEmpty()
 	{
-		var options = new MongoDbCdcOptions { ConnectionString = "" };
+		var options = new MongoDbCdcOptions();
+		options.Connection.ConnectionString = "";
 
 		Should.Throw<InvalidOperationException>(() => options.Validate());
 	}
@@ -156,7 +157,8 @@ public sealed class MongoDbCdcOptionsShould
 	[Fact]
 	public void ThrowWhenMaxAwaitTimeIsZero()
 	{
-		var options = new MongoDbCdcOptions { MaxAwaitTime = TimeSpan.Zero };
+		var options = new MongoDbCdcOptions();
+		options.ChangeStream.MaxAwaitTime = TimeSpan.Zero;
 
 		Should.Throw<InvalidOperationException>(() => options.Validate());
 	}

@@ -66,7 +66,7 @@ public sealed class TransportRouterMiddlewareShould : UnitTestBase
 		var adapter = A.Fake<ITransportAdapter>();
 		A.CallTo(() => adapter.Name).Returns("test-adapter");
 		A.CallTo(() => binding.TransportAdapter).Returns(adapter);
-		_context.Properties["Excalibur.Dispatch.TransportBinding"] = binding;
+		_context.Items["Excalibur.Dispatch.TransportBinding"] = binding;
 
 		var eventMessage = A.Fake<IDispatchEvent>();
 		var nextInvoked = false;
@@ -97,7 +97,7 @@ public sealed class TransportRouterMiddlewareShould : UnitTestBase
 		var adapter = A.Fake<ITransportAdapter>();
 		A.CallTo(() => adapter.Name).Returns("event-adapter");
 		A.CallTo(() => binding.TransportAdapter).Returns(adapter);
-		_context.Properties["Excalibur.Dispatch.TransportBinding"] = binding;
+		_context.Items["Excalibur.Dispatch.TransportBinding"] = binding;
 
 		var eventMessage = A.Fake<IDispatchEvent>();
 		var nextInvoked = false;
@@ -126,7 +126,7 @@ public sealed class TransportRouterMiddlewareShould : UnitTestBase
 		var adapter = A.Fake<ITransportAdapter>();
 		A.CallTo(() => adapter.Name).Returns("rabbitmq-adapter");
 		A.CallTo(() => binding.TransportAdapter).Returns(adapter);
-		_context.Properties["Excalibur.Dispatch.TransportBinding"] = binding;
+		_context.Items["Excalibur.Dispatch.TransportBinding"] = binding;
 
 		var message = A.Fake<IDispatchMessage>();
 		ValueTask<IMessageResult> Next(IDispatchMessage m, IMessageContext c, CancellationToken ct)
@@ -137,7 +137,7 @@ public sealed class TransportRouterMiddlewareShould : UnitTestBase
 			.ConfigureAwait(false);
 
 		// Assert
-		_context.Properties["TransportAdapter"].ShouldBe("rabbitmq-adapter");
+		_context.Items["TransportAdapter"].ShouldBe("rabbitmq-adapter");
 	}
 
 	[Fact]

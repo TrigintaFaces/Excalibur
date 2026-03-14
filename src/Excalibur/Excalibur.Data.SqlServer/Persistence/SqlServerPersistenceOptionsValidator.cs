@@ -32,10 +32,10 @@ internal sealed class SqlServerPersistenceOptionsValidator : IValidateOptions<Sq
 			failures.Add($"{nameof(SqlServerPersistenceOptions.ConnectionString)} must not be null or whitespace.");
 		}
 
-		if (options.ConnectionTimeout <= 0)
+		if (options.Connection.ConnectionTimeout <= 0)
 		{
 			failures.Add(
-				$"{nameof(SqlServerPersistenceOptions.ConnectionTimeout)} must be greater than 0 (was {options.ConnectionTimeout}).");
+				$"{nameof(SqlServerPersistenceOptions.Connection)}.{nameof(SqlServerConnectionOptions.ConnectionTimeout)} must be greater than 0 (was {options.Connection.ConnectionTimeout}).");
 		}
 
 		if (options.CommandTimeout <= 0)
@@ -44,18 +44,18 @@ internal sealed class SqlServerPersistenceOptionsValidator : IValidateOptions<Sq
 				$"{nameof(SqlServerPersistenceOptions.CommandTimeout)} must be greater than 0 (was {options.CommandTimeout}).");
 		}
 
-		if (options.EnableConnectionPooling && options.MinPoolSize > options.MaxPoolSize)
+		if (options.Pooling.EnableConnectionPooling && options.Pooling.MinPoolSize > options.Pooling.MaxPoolSize)
 		{
 			failures.Add(
-				$"{nameof(SqlServerPersistenceOptions.MinPoolSize)} ({options.MinPoolSize}) " +
-				$"must not exceed {nameof(SqlServerPersistenceOptions.MaxPoolSize)} ({options.MaxPoolSize}) " +
+				$"{nameof(SqlServerPersistenceOptions.Pooling)}.{nameof(SqlServerPoolingOptions.MinPoolSize)} ({options.Pooling.MinPoolSize}) " +
+				$"must not exceed {nameof(SqlServerPersistenceOptions.Pooling)}.{nameof(SqlServerPoolingOptions.MaxPoolSize)} ({options.Pooling.MaxPoolSize}) " +
 				$"when connection pooling is enabled.");
 		}
 
-		if (options.EnableConnectionPooling && options.MaxPoolSize <= 0)
+		if (options.Pooling.EnableConnectionPooling && options.Pooling.MaxPoolSize <= 0)
 		{
 			failures.Add(
-				$"{nameof(SqlServerPersistenceOptions.MaxPoolSize)} must be greater than 0 when connection pooling is enabled (was {options.MaxPoolSize}).");
+				$"{nameof(SqlServerPersistenceOptions.Pooling)}.{nameof(SqlServerPoolingOptions.MaxPoolSize)} must be greater than 0 when connection pooling is enabled (was {options.Pooling.MaxPoolSize}).");
 		}
 
 		return failures.Count > 0

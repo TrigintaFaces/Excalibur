@@ -18,7 +18,7 @@ public sealed class InsertEventRequest : DataRequestBase<IDbConnection, long>
 {
 	private const string Sql = """
 		INSERT INTO events (event_id, aggregate_id, aggregate_type, event_type, event_data, metadata, version, timestamp, is_dispatched)
-		VALUES (@EventId::uuid, @AggregateId, @AggregateType, @EventType, @EventData, @Metadata, @Version, @Timestamp, false)
+		VALUES (@EventId, @AggregateId, @AggregateType, @EventType, @EventData, @Metadata, @Version, @Timestamp, false)
 		RETURNING position
 		""";
 

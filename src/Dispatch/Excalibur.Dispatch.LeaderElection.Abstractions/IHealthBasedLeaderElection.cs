@@ -16,10 +16,11 @@ public interface IHealthBasedLeaderElection : ILeaderElection
 	/// </summary>
 	/// <param name="isHealthy"> Whether the candidate is healthy. </param>
 	/// <param name="metadata"> Optional health metadata. </param>
+	/// <param name="cancellationToken"> Cancellation token. </param>
 	/// <returns>A task that represents the asynchronous update operation.</returns>
 	[RequiresDynamicCode("JSON serialization of health metadata requires dynamic code generation for type inspection and property access")]
 	[RequiresUnreferencedCode("JSON serialization may reference types not preserved during trimming")]
-	Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata);
+	Task UpdateHealthAsync(bool isHealthy, IDictionary<string, string>? metadata, CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Gets the health status of all candidates.

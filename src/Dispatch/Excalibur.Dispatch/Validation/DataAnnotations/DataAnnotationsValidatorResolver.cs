@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Validation.DataAnnotations;
 /// Validator resolver using System.ComponentModel.DataAnnotations.
 /// Zero external dependencies - uses only BCL types.
 /// </summary>
-public sealed class DataAnnotationsValidatorResolver : IValidatorResolver
+internal sealed class DataAnnotationsValidatorResolver : IValidatorResolver
 {
 	/// <inheritdoc/>
 	[UnconditionalSuppressMessage(

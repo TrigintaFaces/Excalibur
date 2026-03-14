@@ -30,10 +30,13 @@ public sealed class ComplianceMonitoringServiceShould
 		// Default options with monitoring enabled
 		_ = A.CallTo(() => _fakeOptions.Value).Returns(new Soc2Options
 		{
-			EnableContinuousMonitoring = true,
-			EnableAlerts = true,
-			MonitoringInterval = TimeSpan.FromMilliseconds(100),
-			AlertThreshold = GapSeverity.Medium,
+			Monitoring = new Soc2MonitoringOptions
+			{
+				EnableContinuousMonitoring = true,
+				EnableAlerts = true,
+				MonitoringInterval = TimeSpan.FromMilliseconds(100),
+				AlertThreshold = GapSeverity.Medium
+			},
 			EnabledCategories = [TrustServicesCategory.Security]
 		});
 
@@ -91,7 +94,7 @@ public sealed class ComplianceMonitoringServiceShould
 
 		_ = A.CallTo(() => _fakeOptions.Value).Returns(new Soc2Options
 		{
-			EnableContinuousMonitoring = false
+			Monitoring = new Soc2MonitoringOptions { EnableContinuousMonitoring = false }
 		});
 
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
@@ -99,12 +102,22 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		_ = await Task.WhenAny(
-			complianceCallObserved.Task,
-			global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(TimeSpan.FromMilliseconds(500), CancellationToken.None));
+		var unexpectedCallObserved = false;
+		try
+		{
+			await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+				complianceCallObserved.Task,
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromMilliseconds(500))).ConfigureAwait(false);
+			unexpectedCallObserved = true;
+		}
+		catch (TimeoutException)
+		{
+			unexpectedCallObserved = false;
+		}
 		await sut.StopAsync(cts.Token);
 
 		// Assert
+		unexpectedCallObserved.ShouldBeFalse();
 		A.CallTo(() => _fakeComplianceService.GetComplianceStatusAsync(
 				A<string>._,
 				A<CancellationToken>._))
@@ -256,14 +269,27 @@ public sealed class ComplianceMonitoringServiceShould
 	{
 		// Arrange
 		SetupStatusWithGap(GapSeverity.Low); // Below Medium threshold
+		var secondCallObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var complianceCallCount = 0;
+		_ = A.CallTo(() => _fakeComplianceService.GetComplianceStatusAsync(
+				A<string>._,
+				A<CancellationToken>._))
+			.Invokes(() =>
+			{
+				if (Interlocked.Increment(ref complianceCallCount) >= 2)
+				{
+					secondCallObserved.TrySetResult();
+				}
+			})
+			.ReturnsLazily(() => CreateStatusWithGap(GapSeverity.Low));
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
 		var cts = new CancellationTokenSource();
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await WaitUntilAsync(
-			() => GetCallCount(_fakeComplianceService, nameof(ISoc2ComplianceService.GetComplianceStatusAsync)) >= 2,
-			TimeSpan.FromSeconds(5));
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			secondCallObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		cts.Cancel();
 
 		try
@@ -288,21 +314,37 @@ public sealed class ComplianceMonitoringServiceShould
 		// Arrange
 		_ = A.CallTo(() => _fakeOptions.Value).Returns(new Soc2Options
 		{
-			EnableContinuousMonitoring = true,
-			EnableAlerts = false,
-			MonitoringInterval = TimeSpan.FromMilliseconds(100),
+			Monitoring = new Soc2MonitoringOptions
+			{
+				EnableContinuousMonitoring = true,
+				EnableAlerts = false,
+				MonitoringInterval = TimeSpan.FromMilliseconds(100)
+			},
 			EnabledCategories = [TrustServicesCategory.Security]
 		});
 
 		SetupStatusWithGap(GapSeverity.Critical);
+		var secondCallObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var complianceCallCount = 0;
+		_ = A.CallTo(() => _fakeComplianceService.GetComplianceStatusAsync(
+				A<string>._,
+				A<CancellationToken>._))
+			.Invokes(() =>
+			{
+				if (Interlocked.Increment(ref complianceCallCount) >= 2)
+				{
+					secondCallObserved.TrySetResult();
+				}
+			})
+			.ReturnsLazily(() => CreateStatusWithGap(GapSeverity.Critical));
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
 		var cts = new CancellationTokenSource();
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await WaitUntilAsync(
-			() => GetCallCount(_fakeComplianceService, nameof(ISoc2ComplianceService.GetComplianceStatusAsync)) >= 2,
-			TimeSpan.FromSeconds(5));
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			secondCallObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		cts.Cancel();
 
 		try
@@ -470,12 +512,17 @@ public sealed class ComplianceMonitoringServiceShould
 		SetupStatusWithGap(GapSeverity.Critical);
 
 		var capturedAlerts = new List<ComplianceGapAlert>();
+		var recurringAlertObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 		_ = A.CallTo(() => _fakeAlertHandler.HandleComplianceGapAsync(
 				A<ComplianceGapAlert>._,
 				A<CancellationToken>._))
 			.Invokes((ComplianceGapAlert alert, CancellationToken _) =>
 			{
 				capturedAlerts.Add(alert);
+				if (capturedAlerts.Count >= 2)
+				{
+					recurringAlertObserved.TrySetResult();
+				}
 			});
 
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
@@ -483,7 +530,9 @@ public sealed class ComplianceMonitoringServiceShould
 
 		// Act
 		await sut.StartAsync(cts.Token);
-		await WaitUntilAsync(() => capturedAlerts.Count >= 2, TimeSpan.FromSeconds(5));
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			recurringAlertObserved.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
 		cts.Cancel();
 
 		try
@@ -600,26 +649,6 @@ public sealed class ComplianceMonitoringServiceShould
 			.Returns(new[] { _fakeAlertHandler });
 	}
 
-	private static int GetCallCount(object fake, string methodName)
-	{
-		return Fake.GetCalls(fake).Count(c => c.Method.Name == methodName);
-	}
-
-	private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
-	{
-		var deadline = DateTime.UtcNow.Add(timeout);
-		while (!condition())
-		{
-			if (DateTime.UtcNow >= deadline)
-			{
-				throw new TimeoutException($"Condition not met within {timeout}.");
-			}
-
-			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(
-				TimeSpan.FromMilliseconds(25),
-				CancellationToken.None);
-		}
-	}
 
 	private void SetupFullyCompliantStatus()
 	{
@@ -634,48 +663,55 @@ public sealed class ComplianceMonitoringServiceShould
 		_ = A.CallTo(() => _fakeComplianceService.GetComplianceStatusAsync(
 				A<string>._,
 				A<CancellationToken>._))
-			.Returns(new ComplianceStatus
+			.Returns(CreateStatusWithGap(severity));
+	}
+
+	private static ComplianceStatus CreateStatusWithGap(GapSeverity severity)
+	{
+		return new ComplianceStatus
+		{
+			OverallLevel = ComplianceLevel.PartiallyCompliant,
+			CategoryStatuses = new Dictionary<TrustServicesCategory, CategoryStatus>
 			{
-				OverallLevel = ComplianceLevel.PartiallyCompliant,
-				CategoryStatuses = new Dictionary<TrustServicesCategory, CategoryStatus>
+				[TrustServicesCategory.Security] = new()
 				{
-					[TrustServicesCategory.Security] = new()
-					{
-						Category = TrustServicesCategory.Security,
-						Level = ComplianceLevel.PartiallyCompliant,
-						CompliancePercentage = 60,
-						ActiveControls = 5,
-						ControlsWithIssues = 2
-					}
-				},
-				CriterionStatuses = new Dictionary<TrustServicesCriterion, CriterionStatus>
+					Category = TrustServicesCategory.Security,
+					Level = ComplianceLevel.PartiallyCompliant,
+					CompliancePercentage = 60,
+					ActiveControls = 5,
+					ControlsWithIssues = 2
+				}
+			},
+			CriterionStatuses = new Dictionary<TrustServicesCriterion, CriterionStatus>
+			{
+				[TrustServicesCriterion.CC6_LogicalAccess] = new()
 				{
-					[TrustServicesCriterion.CC6_LogicalAccess] = new()
-					{
-						Criterion = TrustServicesCriterion.CC6_LogicalAccess,
-						IsMet = false,
-						EffectivenessScore = 60,
-						LastValidated = DateTimeOffset.UtcNow,
-						EvidenceCount = 3,
-						Gaps = ["Gap description"]
-					}
-				},
-				ActiveGaps =
-				[
-					new ComplianceGap
-					{
-						GapId = "gap-1",
-						Criterion = TrustServicesCriterion.CC6_LogicalAccess,
-						Description = "Test gap",
-						Severity = severity,
-						Remediation = "Fix it",
-						IdentifiedAt = DateTimeOffset.UtcNow
-					}
-				],
-				EvaluatedAt = DateTimeOffset.UtcNow
-			});
+					Criterion = TrustServicesCriterion.CC6_LogicalAccess,
+					IsMet = false,
+					EffectivenessScore = 60,
+					LastValidated = DateTimeOffset.UtcNow,
+					EvidenceCount = 3,
+					Gaps = ["Gap description"]
+				}
+			},
+			ActiveGaps =
+			[
+				new ComplianceGap
+				{
+					GapId = "gap-1",
+					Criterion = TrustServicesCriterion.CC6_LogicalAccess,
+					Description = "Test gap",
+					Severity = severity,
+					Remediation = "Fix it",
+					IdentifiedAt = DateTimeOffset.UtcNow
+				}
+			],
+			EvaluatedAt = DateTimeOffset.UtcNow
+		};
 	}
 
 	#endregion Helper Methods
 }
+
+
 

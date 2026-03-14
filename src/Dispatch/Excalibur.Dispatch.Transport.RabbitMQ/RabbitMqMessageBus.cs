@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Text;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Abstractions.Transport;
 using Excalibur.Dispatch.CloudEvents;
@@ -37,7 +38,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// See the pluggable serialization architecture documentation.
 /// </para>
 /// </remarks>
-public sealed partial class RabbitMqMessageBus(
+internal sealed partial class RabbitMqMessageBus(
 	IChannel channel,
 	IPayloadSerializer serializer,
 	RabbitMqOptions options,
@@ -172,21 +173,21 @@ public sealed partial class RabbitMqMessageBus(
 		var envelope = new MessageEnvelope(message)
 		{
 			MessageId = context.MessageId ?? Guid.NewGuid().ToString(),
-			ExternalId = context.ExternalId,
-			UserId = context.UserId,
+			ExternalId = context.GetExternalId(),
+			UserId = context.GetUserId(),
 			CorrelationId = context.CorrelationId,
 			CausationId = context.CausationId,
-			TraceParent = context.TraceParent,
-			TenantId = context.TenantId,
-			SessionId = context.SessionId,
-			WorkflowId = context.WorkflowId,
-			PartitionKey = context.PartitionKey,
-			Source = context.Source,
-			MessageType = context.MessageType ?? message.GetType().FullName,
-			ContentType = context.ContentType ?? "application/json",
-			DeliveryCount = context.DeliveryCount,
-			ReceivedTimestampUtc = context.ReceivedTimestampUtc,
-			SentTimestampUtc = context.SentTimestampUtc,
+			TraceParent = context.GetTraceParent(),
+			TenantId = context.GetTenantId(),
+			SessionId = context.GetSessionId(),
+			WorkflowId = context.GetWorkflowId(),
+			PartitionKey = context.GetPartitionKey(),
+			Source = context.GetSource(),
+			MessageType = context.GetMessageType() ?? message.GetType().FullName,
+			ContentType = context.GetContentType() ?? "application/json",
+			DeliveryCount = context.GetDeliveryCount(),
+			ReceivedTimestampUtc = context.GetReceivedTimestampUtc() ?? DateTimeOffset.UtcNow,
+			SentTimestampUtc = context.GetSentTimestampUtc(),
 		};
 
 		foreach (var item in context.Items)
@@ -243,7 +244,7 @@ public sealed partial class RabbitMqMessageBus(
 
 	private void ApplyPersistence(RabbitMqBasicProperties props)
 	{
-		if (_cloudEventOptions?.Persistence == RabbitMqPersistence.Persistent)
+		if (_cloudEventOptions?.Exchange.Persistence == RabbitMqPersistence.Persistent)
 		{
 			props.DeliveryMode = DeliveryModes.Persistent;
 		}
@@ -269,7 +270,7 @@ public sealed partial class RabbitMqMessageBus(
 				await _channel.BasicPublishAsync(
 						_exchange,
 						_routingKey,
-						mandatory: _cloudEventOptions?.MandatoryPublishing ?? false,
+						mandatory: _cloudEventOptions?.Exchange.MandatoryPublishing ?? false,
 						basicProperties: props,
 						body: body,
 						cancellationToken)
@@ -292,7 +293,7 @@ public sealed partial class RabbitMqMessageBus(
 					() => _channel.BasicPublishAsync(
 						_exchange,
 						_routingKey,
-						mandatory: _cloudEventOptions?.MandatoryPublishing ?? false,
+						mandatory: _cloudEventOptions?.Exchange.MandatoryPublishing ?? false,
 						basicProperties: props,
 						body: body,
 						cancellationToken),
@@ -345,7 +346,7 @@ public sealed partial class RabbitMqMessageBus(
 			_channel = channel ?? throw new ArgumentNullException(nameof(channel));
 			ArgumentNullException.ThrowIfNull(options);
 
-			_trackReturns = options.MandatoryPublishing || options.Publisher.MandatoryPublishing;
+			_trackReturns = options.Exchange.MandatoryPublishing || options.Publisher.MandatoryPublishing;
 
 			// Use explicit ConfirmTimeout from Publisher options if set, otherwise fall back to channel timeout or default
 			_confirmationTimeout = options.Publisher.ConfirmTimeout > TimeSpan.Zero
@@ -370,11 +371,11 @@ public sealed partial class RabbitMqMessageBus(
 		{
 			// Check both legacy property and new Publisher options for confirms
 			var enableConfirms = options is not null &&
-				(options.EnablePublisherConfirms || options.Publisher.EnableConfirms);
+				(options.Exchange.EnablePublisherConfirms || options.Publisher.EnableConfirms);
 
 			if (!enableConfirms)
 			{
-				var mandatoryEnabled = options?.MandatoryPublishing == true || options?.Publisher.MandatoryPublishing == true;
+				var mandatoryEnabled = options?.Exchange.MandatoryPublishing == true || options?.Publisher.MandatoryPublishing == true;
 				if (mandatoryEnabled)
 				{
 					logger.LogWarning(

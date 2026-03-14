@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Channels;
 /// <summary>
 /// Spin wait strategy for low-latency scenarios.
 /// </summary>
-public sealed class SpinWaitStrategy : WaitStrategyBase
+internal sealed class SpinWaitStrategy : WaitStrategyBase
 {
 	private SpinWait _spinWait;
 

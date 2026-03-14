@@ -3,6 +3,7 @@
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Delivery;
 
@@ -260,8 +261,8 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		{
 			MessageId = "parent-message-id",
 			CorrelationId = "correlation-123",
-			TenantId = "tenant-abc",
 		};
+		parentContext.GetOrCreateIdentityFeature().TenantId = "tenant-abc";
 		parentContext.Initialize(serviceProvider);
 
 		IMessageContext? capturedContext = null;
@@ -283,7 +284,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		_ = capturedContext.ShouldNotBeNull();
 		capturedContext.ShouldNotBe(parentContext);
 		capturedContext.CorrelationId.ShouldBe(parentContext.CorrelationId);
-		capturedContext.TenantId.ShouldBe(parentContext.TenantId);
+		capturedContext.GetTenantId().ShouldBe(parentContext.GetTenantId());
 		capturedContext.CausationId.ShouldBe(parentContext.MessageId);
 		capturedContext.MessageId.ShouldNotBe(parentContext.MessageId);
 	}
@@ -335,8 +336,8 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		{
 			MessageId = "parent-id",
 			CorrelationId = "correlation-xyz",
-			UserId = "user-123",
 		};
+		parentContext.GetOrCreateIdentityFeature().UserId = "user-123";
 		parentContext.Initialize(serviceProvider);
 
 		IMessageContext? capturedContext = null;
@@ -357,7 +358,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		// Assert
 		_ = capturedContext.ShouldNotBeNull();
 		capturedContext.CorrelationId.ShouldBe(parentContext.CorrelationId);
-		capturedContext.UserId.ShouldBe(parentContext.UserId);
+		capturedContext.GetUserId().ShouldBe(parentContext.GetUserId());
 		capturedContext.CausationId.ShouldBe(parentContext.MessageId);
 		result.ReturnValue.ShouldBe("child-result");
 	}
@@ -376,8 +377,8 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 			MessageId = "parent-id",
 			CorrelationId = "corr-parent",
 			CausationId = "upstream-cause",
-			WorkflowId = "workflow-123",
 		};
+		parentContext.GetOrCreateIdentityFeature().WorkflowId = "workflow-123";
 		parentContext.Initialize(serviceProvider);
 
 		IMessageContext? capturedContext = null;
@@ -398,7 +399,7 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 		capturedContext.ShouldNotBe(parentContext);
 		capturedContext.CorrelationId.ShouldBe("corr-parent");
 		capturedContext.CausationId.ShouldBe("parent-id");
-		capturedContext.WorkflowId.ShouldBe("workflow-123");
+		capturedContext.GetWorkflowId().ShouldBe("workflow-123");
 
 		// Parent context must remain unchanged.
 		parentContext.CausationId.ShouldBe("upstream-cause");
@@ -631,34 +632,5 @@ public sealed class DispatcherContextExtensionsShould : IDisposable
 			object? value = message is LocalQueryMessage query ? query.Value * 2 : default(TResponse);
 			return new ValueTask<TResponse?>((TResponse?)value);
 		}
-
-		public IAsyncEnumerable<TOutput> DispatchStreamingAsync<TDocument, TOutput>(
-			TDocument document,
-			IMessageContext context,
-			CancellationToken cancellationToken)
-			where TDocument : IDispatchDocument
-			=> throw new NotSupportedException();
-
-		public Task DispatchStreamAsync<TDocument>(
-			IAsyncEnumerable<TDocument> documents,
-			IMessageContext context,
-			CancellationToken cancellationToken)
-			where TDocument : IDispatchDocument
-			=> throw new NotSupportedException();
-
-		public IAsyncEnumerable<TOutput> DispatchTransformStreamAsync<TInput, TOutput>(
-			IAsyncEnumerable<TInput> input,
-			IMessageContext context,
-			CancellationToken cancellationToken)
-			where TInput : IDispatchDocument
-			=> throw new NotSupportedException();
-
-		public Task DispatchWithProgressAsync<TDocument>(
-			TDocument document,
-			IMessageContext context,
-			IProgress<DocumentProgress> progress,
-			CancellationToken cancellationToken)
-			where TDocument : IDispatchDocument
-			=> throw new NotSupportedException();
 	}
 }

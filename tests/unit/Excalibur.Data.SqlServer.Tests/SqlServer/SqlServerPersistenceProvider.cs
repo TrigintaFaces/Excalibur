@@ -13,29 +13,7 @@ using Excalibur.Data.SqlServer;
 
 namespace Excalibur.Data.Tests.SqlServer;
 
-/// <summary>
-///     SQL Server provider options for testing
-/// </summary>
-public class SqlServerProviderOptions
-{
-	public string ConnectionString { get; set; } = "Server=(localdb)\\mssqllocaldb;Database=TestDb;Trusted_Connection=true;";
-
-	public int CommandTimeout { get; set; } = 30;
-
-	public int MaxRetryCount { get; set; } = 3;
-
-	public TimeSpan RetryDelay { get; set; } = TimeSpan.FromSeconds(1);
-
-	public bool EnablePooling { get; set; } = true;
-
-	public int MinPoolSize { get; set; }
-
-	public int MaxPoolSize { get; set; } = 100;
-
-	public bool EnableMars { get; set; }
-
-	public string ApplicationName { get; set; } = "TestApp";
-}
+// Test stub removed -- tests now use the real SqlServerProviderOptions from Excalibur.Data.SqlServer
 
 /// <summary>
 /// Test stub for retry policy.
@@ -147,7 +125,7 @@ public class SqlServerPersistenceProvider : IPersistenceProvider
 	public bool IsAvailable => true;
 
 	/// <inheritdoc/>
-	public string ConnectionString => _options.ConnectionString;
+	public string ConnectionString => _options.Connection.ConnectionString;
 
 	/// <inheritdoc/>
 	public IDataRequestRetryPolicy RetryPolicy { get; }

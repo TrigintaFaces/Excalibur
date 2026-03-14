@@ -11,28 +11,14 @@ namespace Excalibur.Outbox.DynamoDb;
 /// <summary>
 /// Configuration options for the DynamoDB outbox store.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Connection properties (ServiceUrl, Region, credentials) are in <see cref="Connection"/>.
+/// This follows the <c>AmazonDynamoDBConfig</c> pattern of separating connection from table configuration.
+/// </para>
+/// </remarks>
 public sealed class DynamoDbOutboxOptions
 {
-	/// <summary>
-	/// Gets or sets the AWS service URL (for local development with DynamoDB Local).
-	/// </summary>
-	public string? ServiceUrl { get; set; }
-
-	/// <summary>
-	/// Gets or sets the AWS region.
-	/// </summary>
-	public string? Region { get; set; }
-
-	/// <summary>
-	/// Gets or sets the AWS access key (optional if using IAM roles).
-	/// </summary>
-	public string? AccessKey { get; set; }
-
-	/// <summary>
-	/// Gets or sets the AWS secret key (optional if using IAM roles).
-	/// </summary>
-	public string? SecretKey { get; set; }
-
 	/// <summary>
 	/// Gets or sets the outbox table name.
 	/// </summary>
@@ -88,11 +74,16 @@ public sealed class DynamoDbOutboxOptions
 	public bool EnableStreams { get; set; } = true;
 
 	/// <summary>
+	/// Gets or sets the connection and credential options.
+	/// </summary>
+	public DynamoDbOutboxConnectionOptions Connection { get; set; } = new();
+
+	/// <summary>
 	/// Gets the AWS region endpoint.
 	/// </summary>
 	/// <returns>The AWS region endpoint, or null if not configured.</returns>
 	public RegionEndpoint? GetRegionEndpoint() =>
-		string.IsNullOrWhiteSpace(Region) ? null : RegionEndpoint.GetBySystemName(Region);
+		string.IsNullOrWhiteSpace(Connection.Region) ? null : RegionEndpoint.GetBySystemName(Connection.Region);
 
 	/// <summary>
 	/// Validates the options.
@@ -100,8 +91,8 @@ public sealed class DynamoDbOutboxOptions
 	/// <exception cref="InvalidOperationException">Thrown when required options are missing.</exception>
 	public void Validate()
 	{
-		var hasLocalConfig = !string.IsNullOrWhiteSpace(ServiceUrl);
-		var hasAwsConfig = !string.IsNullOrWhiteSpace(Region);
+		var hasLocalConfig = !string.IsNullOrWhiteSpace(Connection.ServiceUrl);
+		var hasAwsConfig = !string.IsNullOrWhiteSpace(Connection.Region);
 
 		if (!hasLocalConfig && !hasAwsConfig)
 		{

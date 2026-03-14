@@ -1,1 +1,99 @@
 #nullable enable
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ClearedConnectionPools = 103409 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ConnectionClosed = 103001 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ConnectionFailed = 103003 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ConnectionOpened = 103000 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ConnectionPoolCreated = 103002 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ConnectionTestFailed = 103404 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ConnectionTestSuccessful = 103403 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.DeadlockDetected = 103500 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.DisposingProvider = 103408 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.DuplicateEntry = 103501 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ErrorDisposingProvider = 103410 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ExecutingDataRequest = 103400 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.ExecutingDataRequestInTransaction = 103401 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.FailedToExecuteDataRequest = 103402 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.FailedToRetrieveConnectionPoolStatistics = 103407 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.FailedToRetrieveMetrics = 103405 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.InitializingProvider = 103406 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.MySqlError = 103502 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.PersistenceRetryAttempt = 103411 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.QueryExecuted = 103101 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.QueryExecuting = 103100 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.QueryFailed = 103102 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.RetryAttempt = 103300 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.TransactionCommitted = 103201 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.TransactionRolledBack = 103202 -> int
+const Excalibur.Data.MySql.Diagnostics.DataMySqlEventId.TransactionStarted = 103200 -> int
+Excalibur.Data.MySql.Diagnostics.DataMySqlEventId
+Excalibur.Data.MySql.MySqlPersistenceProvider
+Excalibur.Data.MySql.MySqlPersistenceProvider.ConnectionString.get -> string!
+Excalibur.Data.MySql.MySqlPersistenceProvider.CreateConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Data.IDbConnection!>
+Excalibur.Data.MySql.MySqlPersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Abstractions.Persistence.ITransactionScope!
+Excalibur.Data.MySql.MySqlPersistenceProvider.Dispose() -> void
+Excalibur.Data.MySql.MySqlPersistenceProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.MySql.MySqlPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.MySql.MySqlPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, Excalibur.Data.Abstractions.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.MySql.MySqlPersistenceProvider.GetConnectionPoolStatsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>?>!
+Excalibur.Data.MySql.MySqlPersistenceProvider.GetMetricsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
+Excalibur.Data.MySql.MySqlPersistenceProvider.GetService(System.Type! serviceType) -> object?
+Excalibur.Data.MySql.MySqlPersistenceProvider.InitializeAsync(Excalibur.Data.Abstractions.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.MySql.MySqlPersistenceProvider.IsAvailable.get -> bool
+Excalibur.Data.MySql.MySqlPersistenceProvider.MySqlPersistenceProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Data.MySql.MySqlProviderOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.MySql.MySqlPersistenceProvider!>! logger) -> void
+Excalibur.Data.MySql.MySqlPersistenceProvider.Name.get -> string!
+Excalibur.Data.MySql.MySqlPersistenceProvider.ProviderType.get -> string!
+Excalibur.Data.MySql.MySqlPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Abstractions.Resilience.IDataRequestRetryPolicy!
+Excalibur.Data.MySql.MySqlPersistenceProvider.TestConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.MySql.MySqlPoolingOptions
+Excalibur.Data.MySql.MySqlPoolingOptions.ClearPoolOnDispose.get -> bool
+Excalibur.Data.MySql.MySqlPoolingOptions.ClearPoolOnDispose.set -> void
+Excalibur.Data.MySql.MySqlPoolingOptions.EnablePooling.get -> bool
+Excalibur.Data.MySql.MySqlPoolingOptions.EnablePooling.set -> void
+Excalibur.Data.MySql.MySqlPoolingOptions.MaxPoolSize.get -> int
+Excalibur.Data.MySql.MySqlPoolingOptions.MaxPoolSize.set -> void
+Excalibur.Data.MySql.MySqlPoolingOptions.MinPoolSize.get -> int
+Excalibur.Data.MySql.MySqlPoolingOptions.MinPoolSize.set -> void
+Excalibur.Data.MySql.MySqlPoolingOptions.MySqlPoolingOptions() -> void
+Excalibur.Data.MySql.MySqlProviderOptions
+Excalibur.Data.MySql.MySqlProviderOptions.ApplicationName.get -> string?
+Excalibur.Data.MySql.MySqlProviderOptions.ApplicationName.set -> void
+Excalibur.Data.MySql.MySqlProviderOptions.CommandTimeout.get -> int
+Excalibur.Data.MySql.MySqlProviderOptions.CommandTimeout.set -> void
+Excalibur.Data.MySql.MySqlProviderOptions.ConnectionString.get -> string!
+Excalibur.Data.MySql.MySqlProviderOptions.ConnectionString.set -> void
+Excalibur.Data.MySql.MySqlProviderOptions.ConnectTimeout.get -> int
+Excalibur.Data.MySql.MySqlProviderOptions.ConnectTimeout.set -> void
+Excalibur.Data.MySql.MySqlProviderOptions.MaxRetryCount.get -> int
+Excalibur.Data.MySql.MySqlProviderOptions.MaxRetryCount.set -> void
+Excalibur.Data.MySql.MySqlProviderOptions.MySqlProviderOptions() -> void
+Excalibur.Data.MySql.MySqlProviderOptions.Name.get -> string?
+Excalibur.Data.MySql.MySqlProviderOptions.Name.set -> void
+Excalibur.Data.MySql.MySqlProviderOptions.Pooling.get -> Excalibur.Data.MySql.MySqlPoolingOptions!
+Excalibur.Data.MySql.MySqlProviderOptions.Pooling.set -> void
+Excalibur.Data.MySql.MySqlProviderOptions.UseSsl.get -> bool
+Excalibur.Data.MySql.MySqlProviderOptions.UseSsl.set -> void
+Excalibur.Data.MySql.MySqlRetryPolicy
+Excalibur.Data.MySql.MySqlRetryPolicy.BaseRetryDelay.get -> System.TimeSpan
+Excalibur.Data.MySql.MySqlRetryPolicy.MaxRetryAttempts.get -> int
+Excalibur.Data.MySql.MySqlRetryPolicy.MySqlRetryPolicy(Excalibur.Data.MySql.MySqlProviderOptions! options, Microsoft.Extensions.Logging.ILogger! logger) -> void
+Excalibur.Data.MySql.MySqlRetryPolicy.ResolveAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, System.Func<System.Threading.Tasks.Task<TConnection>!>! connectionFactory, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.MySql.MySqlRetryPolicy.ResolveDocumentAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, TResult>! request, System.Func<System.Threading.Tasks.Task<TConnection>!>! connectionFactory, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.MySql.MySqlRetryPolicy.ShouldRetry(System.Exception! exception) -> bool
+Excalibur.Data.MySql.MySqlTransactionScope
+Excalibur.Data.MySql.MySqlTransactionScope.CommitAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.MySql.MySqlTransactionScope.Dispose() -> void
+Excalibur.Data.MySql.MySqlTransactionScope.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.MySql.MySqlTransactionScope.EnlistConnectionAsync(System.Data.IDbConnection! connection, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.MySql.MySqlTransactionScope.EnlistProviderAsync(Excalibur.Data.Abstractions.Persistence.IPersistenceProvider! provider, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.MySql.MySqlTransactionScope.GetEnlistedProviders() -> System.Collections.Generic.IEnumerable<Excalibur.Data.Abstractions.Persistence.IPersistenceProvider!>!
+Excalibur.Data.MySql.MySqlTransactionScope.IsolationLevel.get -> System.Data.IsolationLevel
+Excalibur.Data.MySql.MySqlTransactionScope.MySqlTransactionScope(System.Data.IsolationLevel isolationLevel, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.MySql.MySqlTransactionScope!>! logger) -> void
+Excalibur.Data.MySql.MySqlTransactionScope.RollbackAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.MySql.MySqlTransactionScope.StartTime.get -> System.DateTimeOffset
+Excalibur.Data.MySql.MySqlTransactionScope.Status.get -> Excalibur.Data.Abstractions.Persistence.TransactionStatus
+Excalibur.Data.MySql.MySqlTransactionScope.Timeout.get -> System.TimeSpan
+Excalibur.Data.MySql.MySqlTransactionScope.Timeout.set -> void
+Excalibur.Data.MySql.MySqlTransactionScope.TransactionId.get -> string!
+Microsoft.Extensions.DependencyInjection.MySqlServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.MySqlServiceCollectionExtensions.AddExcaliburMySql(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! configurationSection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MySqlServiceCollectionExtensions.AddExcaliburMySql(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.MySql.MySqlProviderOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Service for registering poison message detection rules.
 /// </summary>
-public sealed class PoisonRuleRegistrationService : IHostedService
+internal sealed class PoisonRuleRegistrationService : IHostedService
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="PoisonRuleRegistrationService" /> class.

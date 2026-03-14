@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// <param name="Members"> The collection of member identifiers. </param>
 /// <param name="Protocol"> The partition assignment protocol. </param>
 /// <param name="ProtocolType"> The protocol type. </param>
-public sealed record ConsumerGroupState(
+internal sealed record ConsumerGroupState(
 	string GroupId,
 	string State,
 	Collection<string> Members,

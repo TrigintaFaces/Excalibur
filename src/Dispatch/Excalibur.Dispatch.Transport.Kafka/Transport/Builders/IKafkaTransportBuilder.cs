@@ -74,7 +74,7 @@ public interface IKafkaTransportBuilder
 	/// kafka.UseSchemaRegistry(registry =>
 	/// {
 	///     registry.Url = "http://localhost:8081";
-	///     registry.DefaultCompatibility = CompatibilityMode.Backward;
+	///     registry.Schema.DefaultCompatibility = CompatibilityMode.Backward;
 	/// });
 	/// </code>
 	/// </example>
@@ -240,10 +240,10 @@ public interface IKafkaTransportBuilder
 	/// kafka.ConfigureCloudEvents(ce =>
 	/// {
 	///     ce.PartitioningStrategy = KafkaPartitioningStrategy.CorrelationId;
-	///     ce.AcknowledgmentLevel = KafkaAckLevel.All;
-	///     ce.EnableIdempotentProducer = true;
-	///     ce.EnableTransactions = true;
-	///     ce.TransactionalId = "orders-producer";
+	///     ce.Producer.AcknowledgmentLevel = KafkaAckLevel.All;
+	///     ce.Producer.EnableIdempotentProducer = true;
+	///     ce.Producer.EnableTransactions = true;
+	///     ce.Producer.TransactionalId = "orders-producer";
 	/// });
 	/// </code>
 	/// </example>

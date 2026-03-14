@@ -78,104 +78,6 @@ public sealed class TimeAwareSchedulerOptions
 	/// <value> The adaptive sub-options. </value>
 	public SchedulerAdaptiveOptions Adaptive { get; set; } = new();
 
-	// --- Backward-compatible shims ---
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable timeout policies for scheduling operations.
-	/// </summary>
-	/// <value> The current <see cref="EnableTimeoutPolicies" /> value. </value>
-	public bool EnableTimeoutPolicies { get => Timeouts.EnableTimeoutPolicies; set => Timeouts.EnableTimeoutPolicies = value; }
-
-	/// <summary>
-	/// Gets or sets the timeout for scheduled message retrieval operations.
-	/// </summary>
-	/// <value> The timeout for scheduled message retrieval operations. </value>
-	public TimeSpan ScheduleRetrievalTimeout { get => Timeouts.ScheduleRetrievalTimeout; set => Timeouts.ScheduleRetrievalTimeout = value; }
-
-	/// <summary>
-	/// Gets or sets the timeout for message deserialization during scheduling.
-	/// </summary>
-	/// <value> The timeout for message deserialization during scheduling. </value>
-	public TimeSpan DeserializationTimeout { get => Timeouts.DeserializationTimeout; set => Timeouts.DeserializationTimeout = value; }
-
-	/// <summary>
-	/// Gets or sets the timeout for scheduled message dispatch operations.
-	/// </summary>
-	/// <value> The timeout for scheduled message dispatch operations. </value>
-	public TimeSpan DispatchTimeout { get => Timeouts.DispatchTimeout; set => Timeouts.DispatchTimeout = value; }
-
-	/// <summary>
-	/// Gets or sets the timeout for schedule update operations.
-	/// </summary>
-	/// <value> The timeout for schedule update operations. </value>
-	public TimeSpan ScheduleUpdateTimeout { get => Timeouts.ScheduleUpdateTimeout; set => Timeouts.ScheduleUpdateTimeout = value; }
-
-	/// <summary>
-	/// Gets or sets the maximum allowed timeout for any scheduling operation.
-	/// </summary>
-	/// <value> The maximum allowed timeout for any scheduling operation. </value>
-	public TimeSpan MaxSchedulingTimeout { get => Timeouts.MaxSchedulingTimeout; set => Timeouts.MaxSchedulingTimeout = value; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to apply timeout policies to cron expression evaluation.
-	/// </summary>
-	/// <value> The current <see cref="EnableCronTimeouts" /> value. </value>
-	public bool EnableCronTimeouts { get => Timeouts.EnableCronTimeouts; set => Timeouts.EnableCronTimeouts = value; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to apply timeout policies to timezone conversions.
-	/// </summary>
-	/// <value> The current <see cref="EnableTimezoneTimeouts" /> value. </value>
-	public bool EnableTimezoneTimeouts { get => Timeouts.EnableTimezoneTimeouts; set => Timeouts.EnableTimezoneTimeouts = value; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to log timeout events during scheduling operations.
-	/// </summary>
-	/// <value> The current <see cref="LogSchedulingTimeouts" /> value. </value>
-	public bool LogSchedulingTimeouts { get => Timeouts.LogSchedulingTimeouts; set => Timeouts.LogSchedulingTimeouts = value; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to include timeout metrics in scheduling telemetry.
-	/// </summary>
-	/// <value> The current <see cref="IncludeTimeoutMetrics" /> value. </value>
-	public bool IncludeTimeoutMetrics { get => Timeouts.IncludeTimeoutMetrics; set => Timeouts.IncludeTimeoutMetrics = value; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable adaptive timeouts based on historical performance.
-	/// </summary>
-	/// <value> The current <see cref="EnableAdaptiveTimeouts" /> value. </value>
-	public bool EnableAdaptiveTimeouts { get => Adaptive.EnableAdaptiveTimeouts; set => Adaptive.EnableAdaptiveTimeouts = value; }
-
-	/// <summary>
-	/// Gets or sets the percentile to use for adaptive timeout calculations in scheduling.
-	/// </summary>
-	/// <value> The percentile to use for adaptive timeout calculations in scheduling. </value>
-	public int AdaptiveTimeoutPercentile { get => Adaptive.AdaptiveTimeoutPercentile; set => Adaptive.AdaptiveTimeoutPercentile = value; }
-
-	/// <summary>
-	/// Gets or sets the minimum sample size required for adaptive timeouts in scheduling.
-	/// </summary>
-	/// <value> The minimum sample size required for adaptive timeouts in scheduling. </value>
-	public int MinimumSampleSize { get => Adaptive.MinimumSampleSize; set => Adaptive.MinimumSampleSize = value; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable timeout escalation for failed scheduling operations.
-	/// </summary>
-	/// <value> The current <see cref="EnableTimeoutEscalation" /> value. </value>
-	public bool EnableTimeoutEscalation { get => Adaptive.EnableTimeoutEscalation; set => Adaptive.EnableTimeoutEscalation = value; }
-
-	/// <summary>
-	/// Gets or sets the escalation multiplier for retrying timed-out operations.
-	/// </summary>
-	/// <value> The escalation multiplier for retrying timed-out operations. </value>
-	public double TimeoutEscalationMultiplier { get => Adaptive.TimeoutEscalationMultiplier; set => Adaptive.TimeoutEscalationMultiplier = value; }
-
-	/// <summary>
-	/// Gets or sets the maximum number of timeout escalations before giving up.
-	/// </summary>
-	/// <value> The maximum number of timeout escalations before giving up. </value>
-	public int MaxTimeoutEscalations { get => Adaptive.MaxTimeoutEscalations; set => Adaptive.MaxTimeoutEscalations = value; }
-
 	/// <summary>
 	/// Validates the time-aware scheduler configuration options.
 	/// </summary>
@@ -185,46 +87,46 @@ public sealed class TimeAwareSchedulerOptions
 		var results = new List<ValidationResult>();
 
 		// Validate timeout hierarchy
-		if (DeserializationTimeout >= DispatchTimeout)
+		if (Timeouts.DeserializationTimeout >= Timeouts.DispatchTimeout)
 		{
 			results.Add(new ValidationResult(
 				ErrorConstants.DeserializationTimeoutShouldBeLessThanDispatchTimeout,
-				new[] { nameof(DeserializationTimeout), nameof(DispatchTimeout) }));
+				new[] { nameof(Timeouts) + "." + nameof(Timeouts.DeserializationTimeout), nameof(Timeouts) + "." + nameof(Timeouts.DispatchTimeout) }));
 		}
 
-		if (ScheduleRetrievalTimeout >= MaxSchedulingTimeout)
+		if (Timeouts.ScheduleRetrievalTimeout >= Timeouts.MaxSchedulingTimeout)
 		{
 			results.Add(new ValidationResult(
 				ErrorConstants.ScheduleRetrievalTimeoutShouldBeLessThanMaxSchedulingTimeout,
-				new[] { nameof(ScheduleRetrievalTimeout), nameof(MaxSchedulingTimeout) }));
+				new[] { nameof(Timeouts) + "." + nameof(Timeouts.ScheduleRetrievalTimeout), nameof(Timeouts) + "." + nameof(Timeouts.MaxSchedulingTimeout) }));
 		}
 
-		if (ScheduleUpdateTimeout >= MaxSchedulingTimeout)
+		if (Timeouts.ScheduleUpdateTimeout >= Timeouts.MaxSchedulingTimeout)
 		{
 			results.Add(new ValidationResult(
 				ErrorConstants.ScheduleUpdateTimeoutShouldBeLessThanMaxSchedulingTimeout,
-				new[] { nameof(ScheduleUpdateTimeout), nameof(MaxSchedulingTimeout) }));
+				new[] { nameof(Timeouts) + "." + nameof(Timeouts.ScheduleUpdateTimeout), nameof(Timeouts) + "." + nameof(Timeouts.MaxSchedulingTimeout) }));
 		}
 
-		if (DispatchTimeout >= MaxSchedulingTimeout)
+		if (Timeouts.DispatchTimeout >= Timeouts.MaxSchedulingTimeout)
 		{
 			results.Add(new ValidationResult(
 				ErrorConstants.DispatchTimeoutShouldBeLessThanMaxSchedulingTimeout,
-				new[] { nameof(DispatchTimeout), nameof(MaxSchedulingTimeout) }));
+				new[] { nameof(Timeouts) + "." + nameof(Timeouts.DispatchTimeout), nameof(Timeouts) + "." + nameof(Timeouts.MaxSchedulingTimeout) }));
 		}
 
 		// Validate poll interval relationship
-		if (PollInterval >= ScheduleRetrievalTimeout)
+		if (PollInterval >= Timeouts.ScheduleRetrievalTimeout)
 		{
 			results.Add(new ValidationResult(
 				ErrorConstants.PollIntervalShouldBeLessThanScheduleRetrievalTimeout,
-				new[] { nameof(PollInterval), nameof(ScheduleRetrievalTimeout) }));
+				new[] { nameof(PollInterval), nameof(Timeouts) + "." + nameof(Timeouts.ScheduleRetrievalTimeout) }));
 		}
 
 		// Validate message type timeouts
 		foreach (var messageTimeout in MessageTypeSchedulingTimeouts)
 		{
-			if (messageTimeout.Value > MaxSchedulingTimeout)
+			if (messageTimeout.Value > Timeouts.MaxSchedulingTimeout)
 			{
 				results.Add(new ValidationResult(
 					string.Format(CultureInfo.InvariantCulture, TimeoutExceedsMaxFormat, messageTimeout.Key),
@@ -240,11 +142,11 @@ public sealed class TimeAwareSchedulerOptions
 		}
 
 		// Validate escalation settings
-		if (EnableTimeoutEscalation && TimeoutEscalationMultiplier <= 1.0)
+		if (Adaptive.EnableTimeoutEscalation && Adaptive.TimeoutEscalationMultiplier <= 1.0)
 		{
 			results.Add(new ValidationResult(
 				ErrorConstants.TimeoutEscalationMultiplierMustBeGreaterThanOne,
-				new[] { nameof(TimeoutEscalationMultiplier), nameof(EnableTimeoutEscalation) }));
+				new[] { nameof(Adaptive) + "." + nameof(Adaptive.TimeoutEscalationMultiplier), nameof(Adaptive) + "." + nameof(Adaptive.EnableTimeoutEscalation) }));
 		}
 
 		return results;
@@ -258,13 +160,13 @@ public sealed class TimeAwareSchedulerOptions
 	public TimeSpan GetTimeoutFor(TimeoutOperationType operationType) =>
 		operationType switch
 		{
-			TimeoutOperationType.Database => ScheduleRetrievalTimeout,
-			TimeoutOperationType.Serialization => DeserializationTimeout,
-			TimeoutOperationType.Handler => DispatchTimeout,
-			TimeoutOperationType.Scheduling => ScheduleUpdateTimeout,
-			TimeoutOperationType.Validation => DeserializationTimeout,
-			TimeoutOperationType.Transport => DispatchTimeout,
-			_ => ScheduleRetrievalTimeout,
+			TimeoutOperationType.Database => Timeouts.ScheduleRetrievalTimeout,
+			TimeoutOperationType.Serialization => Timeouts.DeserializationTimeout,
+			TimeoutOperationType.Handler => Timeouts.DispatchTimeout,
+			TimeoutOperationType.Scheduling => Timeouts.ScheduleUpdateTimeout,
+			TimeoutOperationType.Validation => Timeouts.DeserializationTimeout,
+			TimeoutOperationType.Transport => Timeouts.DispatchTimeout,
+			_ => Timeouts.ScheduleRetrievalTimeout,
 		};
 
 	/// <summary>
@@ -307,7 +209,7 @@ public sealed class TimeAwareSchedulerOptions
 		var adjustedTimeout = TimeSpan.FromTicks((long)(baseTimeout.Ticks * multiplier));
 
 		// Ensure we don't exceed the maximum timeout
-		return TimeSpan.FromTicks(Math.Min(adjustedTimeout.Ticks, MaxSchedulingTimeout.Ticks));
+		return TimeSpan.FromTicks(Math.Min(adjustedTimeout.Ticks, Timeouts.MaxSchedulingTimeout.Ticks));
 	}
 }
 

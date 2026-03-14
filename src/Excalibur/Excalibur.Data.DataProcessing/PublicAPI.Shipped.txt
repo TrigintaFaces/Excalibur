@@ -1,1 +1,152 @@
 #nullable enable
+abstract Excalibur.Data.DataProcessing.DataProcessor<TRecord>.FetchBatchAsync(long skip, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<TRecord>!>!
+const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultConsumerBatchSize = 10 -> int
+const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultDispatcherTimeout = 60000 -> int
+const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultMaxAttempts = 3 -> int
+const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultProducerBatchSize = 100 -> int
+const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultQueueSize = 5000 -> int
+const Excalibur.Data.DataProcessing.DataProcessorDefaults.DataProcessorDefaultTableName = "DataProcessor.DataTaskRequests" -> string!
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ApplicationStopping = 107306 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.CompletedBatch = 107205 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.CompletedProcessing = 107206 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ConsumerCanceled = 107207 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ConsumerDisposalRequested = 107200 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ConsumerError = 107208 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ConsumerNotCompletedAsync = 107101 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ConsumerNotCompletedSync = 107105 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ConsumerTimeoutAsync = 107102 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ConsumerTimeoutSync = 107106 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.DisposeAsync = 107100 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.DisposeAsyncError = 107103 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.DisposeError = 107107 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.DisposeSync = 107104 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.EnqueuingRecords = 107301 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.NoHandlerFound = 107209 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.NoMoreRecordsConsumerExit = 107201 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.NoMoreRecordsProducerExit = 107300 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ProcessingBatch = 107203 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ProcessingDataTaskError = 107001 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ProcessingRecordError = 107204 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ProcessorNotFound = 107000 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ProducerCanceled = 107303 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ProducerCancellationRequested = 107307 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ProducerCompleted = 107305 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.ProducerError = 107304 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.QueueEmptyWaiting = 107202 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.SuccessfullyEnqueued = 107302 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.UpdateCompletedCountMismatch = 107002 -> int
+const Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId.WaitingForConsumer = 107308 -> int
+const Excalibur.Data.DataProcessing.Exceptions.InvalidDataProcessorException.DefaultMessage = "IDataProcessor implementation found but a record type could not be ascertained." -> string!
+const Excalibur.Data.DataProcessing.Exceptions.InvalidDataProcessorException.DefaultStatusCode = 500 -> int
+Excalibur.Data.DataProcessing.DataOrchestrationManager
+Excalibur.Data.DataProcessing.DataOrchestrationManager.AddDataTaskForRecordTypeAsync(string! recordType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Guid>!
+Excalibur.Data.DataProcessing.DataOrchestrationManager.DataOrchestrationManager(Excalibur.Data.DataProcessing.IDataProcessorDb! db, Excalibur.Data.DataProcessing.IDataProcessorRegistry! processorRegistry, System.IServiceProvider! serviceProvider, Microsoft.Extensions.Options.IOptions<Excalibur.Data.DataProcessing.DataProcessingConfiguration!>! configuration, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.DataProcessing.DataOrchestrationManager!>! logger) -> void
+Excalibur.Data.DataProcessing.DataOrchestrationManager.ProcessDataTasksAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Data.DataProcessing.DataProcessingConfiguration
+Excalibur.Data.DataProcessing.DataProcessingConfiguration.ConsumerBatchSize.get -> int
+Excalibur.Data.DataProcessing.DataProcessingConfiguration.ConsumerBatchSize.init -> void
+Excalibur.Data.DataProcessing.DataProcessingConfiguration.DataProcessingConfiguration() -> void
+Excalibur.Data.DataProcessing.DataProcessingConfiguration.DispatcherTimeoutMilliseconds.get -> int
+Excalibur.Data.DataProcessing.DataProcessingConfiguration.DispatcherTimeoutMilliseconds.init -> void
+Excalibur.Data.DataProcessing.DataProcessingConfiguration.MaxAttempts.get -> int
+Excalibur.Data.DataProcessing.DataProcessingConfiguration.MaxAttempts.init -> void
+Excalibur.Data.DataProcessing.DataProcessingConfiguration.ProducerBatchSize.get -> int
+Excalibur.Data.DataProcessing.DataProcessingConfiguration.ProducerBatchSize.init -> void
+Excalibur.Data.DataProcessing.DataProcessingConfiguration.QueueSize.get -> int
+Excalibur.Data.DataProcessing.DataProcessingConfiguration.QueueSize.init -> void
+Excalibur.Data.DataProcessing.DataProcessingConfiguration.TableName.get -> string!
+Excalibur.Data.DataProcessing.DataProcessingConfiguration.TableName.init -> void
+Excalibur.Data.DataProcessing.DataProcessor<TRecord>
+Excalibur.Data.DataProcessing.DataProcessor<TRecord>.DataProcessor(Microsoft.Extensions.Hosting.IHostApplicationLifetime! appLifetime, Microsoft.Extensions.Options.IOptions<Excalibur.Data.DataProcessing.DataProcessingConfiguration!>! configuration, System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger! logger) -> void
+Excalibur.Data.DataProcessing.DataProcessor<TRecord>.Dispose() -> void
+Excalibur.Data.DataProcessing.DataProcessor<TRecord>.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.DataProcessing.DataProcessorDb
+Excalibur.Data.DataProcessing.DataProcessorDb.Close() -> void
+Excalibur.Data.DataProcessing.DataProcessorDb.Connection.get -> System.Data.IDbConnection!
+Excalibur.Data.DataProcessing.DataProcessorDb.DataProcessorDb(Excalibur.Data.Abstractions.IDb! db) -> void
+Excalibur.Data.DataProcessing.DataProcessorDb.Open() -> void
+Excalibur.Data.DataProcessing.DataProcessorDefaults
+Excalibur.Data.DataProcessing.DataProcessorRegistry
+Excalibur.Data.DataProcessing.DataProcessorRegistry.DataProcessorRegistry(System.Collections.Generic.IEnumerable<Excalibur.Data.DataProcessing.IDataProcessor!>! processors) -> void
+Excalibur.Data.DataProcessing.DataProcessorRegistry.GetFactory(string! recordType) -> System.Func<System.IServiceProvider!, Excalibur.Data.DataProcessing.IDataProcessor!>!
+Excalibur.Data.DataProcessing.DataProcessorRegistry.TryGetFactory(string! recordType, out System.Func<System.IServiceProvider!, Excalibur.Data.DataProcessing.IDataProcessor!>! processor) -> bool
+Excalibur.Data.DataProcessing.DataTaskRecordTypeAttribute
+Excalibur.Data.DataProcessing.DataTaskRecordTypeAttribute.DataTaskRecordTypeAttribute(string! recordTypeName) -> void
+Excalibur.Data.DataProcessing.DataTaskRecordTypeAttribute.Deconstruct(out string! recordTypeName) -> void
+Excalibur.Data.DataProcessing.DataTaskRecordTypeAttribute.RecordTypeName.get -> string!
+Excalibur.Data.DataProcessing.DataTaskRecordTypeAttribute.RecordTypeName.init -> void
+Excalibur.Data.DataProcessing.DataTaskRequest
+Excalibur.Data.DataProcessing.DataTaskRequest.Attempts.get -> int
+Excalibur.Data.DataProcessing.DataTaskRequest.Attempts.set -> void
+Excalibur.Data.DataProcessing.DataTaskRequest.CompletedCount.get -> int
+Excalibur.Data.DataProcessing.DataTaskRequest.CompletedCount.init -> void
+Excalibur.Data.DataProcessing.DataTaskRequest.CreatedAt.get -> System.DateTimeOffset
+Excalibur.Data.DataProcessing.DataTaskRequest.CreatedAt.init -> void
+Excalibur.Data.DataProcessing.DataTaskRequest.DataTaskId.get -> System.Guid
+Excalibur.Data.DataProcessing.DataTaskRequest.DataTaskId.init -> void
+Excalibur.Data.DataProcessing.DataTaskRequest.DataTaskRequest() -> void
+Excalibur.Data.DataProcessing.DataTaskRequest.MaxAttempts.get -> int
+Excalibur.Data.DataProcessing.DataTaskRequest.MaxAttempts.init -> void
+Excalibur.Data.DataProcessing.DataTaskRequest.RecordType.get -> string!
+Excalibur.Data.DataProcessing.DataTaskRequest.RecordType.init -> void
+Excalibur.Data.DataProcessing.DataToProcessDb
+Excalibur.Data.DataProcessing.DataToProcessDb.Close() -> void
+Excalibur.Data.DataProcessing.DataToProcessDb.Connection.get -> System.Data.IDbConnection!
+Excalibur.Data.DataProcessing.DataToProcessDb.DataToProcessDb(Excalibur.Data.Abstractions.IDb! db) -> void
+Excalibur.Data.DataProcessing.DataToProcessDb.Open() -> void
+Excalibur.Data.DataProcessing.Diagnostics.DataProcessingEventId
+Excalibur.Data.DataProcessing.Exceptions.InvalidDataProcessorException
+Excalibur.Data.DataProcessing.Exceptions.InvalidDataProcessorException.InvalidDataProcessorException() -> void
+Excalibur.Data.DataProcessing.Exceptions.InvalidDataProcessorException.InvalidDataProcessorException(int statusCode, string? message, System.Exception? innerException) -> void
+Excalibur.Data.DataProcessing.Exceptions.InvalidDataProcessorException.InvalidDataProcessorException(int statusCode, System.Type? processorType = null, string? message = null, System.Exception? innerException = null) -> void
+Excalibur.Data.DataProcessing.Exceptions.InvalidDataProcessorException.InvalidDataProcessorException(string! message) -> void
+Excalibur.Data.DataProcessing.Exceptions.InvalidDataProcessorException.InvalidDataProcessorException(string! message, System.Exception? innerException) -> void
+Excalibur.Data.DataProcessing.Exceptions.InvalidDataProcessorException.InvalidDataProcessorException(System.Type? processorType = null, string? message = null, System.Exception? innerException = null) -> void
+Excalibur.Data.DataProcessing.Exceptions.MissingDataProcessorException
+Excalibur.Data.DataProcessing.Exceptions.MissingDataProcessorException.MissingDataProcessorException() -> void
+Excalibur.Data.DataProcessing.Exceptions.MissingDataProcessorException.MissingDataProcessorException(int statusCode, string? message, System.Exception? innerException) -> void
+Excalibur.Data.DataProcessing.Exceptions.MissingDataProcessorException.MissingDataProcessorException(string! message) -> void
+Excalibur.Data.DataProcessing.Exceptions.MissingDataProcessorException.MissingDataProcessorException(string! message, System.Exception? innerException) -> void
+Excalibur.Data.DataProcessing.Exceptions.MissingDataProcessorException.MissingDataProcessorException(string! recordType, int? statusCode = null, string? message = null, System.Exception? innerException = null) -> void
+Excalibur.Data.DataProcessing.Exceptions.MissingDataProcessorException.RecordType.get -> string!
+Excalibur.Data.DataProcessing.Exceptions.MissingDataProcessorException.RecordType.set -> void
+Excalibur.Data.DataProcessing.Exceptions.MultipleDataProcessorException
+Excalibur.Data.DataProcessing.Exceptions.MultipleDataProcessorException.MultipleDataProcessorException() -> void
+Excalibur.Data.DataProcessing.Exceptions.MultipleDataProcessorException.MultipleDataProcessorException(int statusCode, string? message, System.Exception? innerException) -> void
+Excalibur.Data.DataProcessing.Exceptions.MultipleDataProcessorException.MultipleDataProcessorException(string! message) -> void
+Excalibur.Data.DataProcessing.Exceptions.MultipleDataProcessorException.MultipleDataProcessorException(string! message, System.Exception? innerException) -> void
+Excalibur.Data.DataProcessing.Exceptions.MultipleDataProcessorException.MultipleDataProcessorException(string! recordType, int? statusCode = null, string? message = null, System.Exception? innerException = null) -> void
+Excalibur.Data.DataProcessing.Exceptions.MultipleDataProcessorException.RecordType.get -> string!
+Excalibur.Data.DataProcessing.Exceptions.MultipleDataProcessorException.RecordType.set -> void
+Excalibur.Data.DataProcessing.IDataOrchestrationManager
+Excalibur.Data.DataProcessing.IDataOrchestrationManager.AddDataTaskForRecordTypeAsync(string! recordType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Guid>!
+Excalibur.Data.DataProcessing.IDataOrchestrationManager.ProcessDataTasksAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Data.DataProcessing.IDataProcessor
+Excalibur.Data.DataProcessing.IDataProcessor.RunAsync(long completedCount, Excalibur.Data.DataProcessing.UpdateCompletedCount! updateCompletedCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+Excalibur.Data.DataProcessing.IDataProcessorDb
+Excalibur.Data.DataProcessing.IDataProcessorRegistry
+Excalibur.Data.DataProcessing.IDataProcessorRegistry.GetFactory(string! recordType) -> System.Func<System.IServiceProvider!, Excalibur.Data.DataProcessing.IDataProcessor!>!
+Excalibur.Data.DataProcessing.IDataProcessorRegistry.TryGetFactory(string! recordType, out System.Func<System.IServiceProvider!, Excalibur.Data.DataProcessing.IDataProcessor!>! processor) -> bool
+Excalibur.Data.DataProcessing.IDataToProcessDb
+Excalibur.Data.DataProcessing.IRecordFetcher<TRecord>
+Excalibur.Data.DataProcessing.IRecordFetcher<TRecord>.FetchBatchAsync(long skip, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<TRecord>!>!
+Excalibur.Data.DataProcessing.IRecordHandler<TRecord>
+Excalibur.Data.DataProcessing.IRecordHandler<TRecord>.ProcessAsync(TRecord record, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.DataProcessing.Requests.DeleteDataTask
+Excalibur.Data.DataProcessing.Requests.DeleteDataTask.DeleteDataTask(System.Guid dataTaskId, Excalibur.Data.DataProcessing.DataProcessingConfiguration! configuration, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.Data.DataProcessing.Requests.InsertDataTask
+Excalibur.Data.DataProcessing.Requests.InsertDataTask.InsertDataTask(System.Guid dataTaskId, string! recordType, Excalibur.Data.DataProcessing.DataProcessingConfiguration! configuration, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.Data.DataProcessing.Requests.SelectPendingDataTasks
+Excalibur.Data.DataProcessing.Requests.SelectPendingDataTasks.SelectPendingDataTasks(Excalibur.Data.DataProcessing.DataProcessingConfiguration! configuration, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.Data.DataProcessing.Requests.UpdateDataTaskAttempts
+Excalibur.Data.DataProcessing.Requests.UpdateDataTaskAttempts.UpdateDataTaskAttempts(System.Guid dataTaskId, int attempts, Excalibur.Data.DataProcessing.DataProcessingConfiguration! configuration, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.Data.DataProcessing.Requests.UpdateDataTaskCompletedCount
+Excalibur.Data.DataProcessing.Requests.UpdateDataTaskCompletedCount.UpdateDataTaskCompletedCount(System.Guid dataTaskId, long completedCount, Excalibur.Data.DataProcessing.DataProcessingConfiguration! configuration, int sqlTimeOutSeconds, System.Threading.CancellationToken cancellationToken) -> void
+Excalibur.Data.DataProcessing.UpdateCompletedCount
+Microsoft.Extensions.DependencyInjection.DataProcessingServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.DataProcessingServiceCollectionExtensions.AddDataProcessing<TDataProcessorDb, TDataToProcessDb>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! configurationSection, params System.Reflection.Assembly![]! handlerAssemblies) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DataProcessingServiceCollectionExtensions.AddDataProcessor<TProcessor>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DataProcessingServiceCollectionExtensions.AddRecordHandler<THandler, TRecord>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+virtual Excalibur.Data.DataProcessing.DataProcessor<TRecord>.Dispose(bool disposing) -> void
+virtual Excalibur.Data.DataProcessing.DataProcessor<TRecord>.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
+virtual Excalibur.Data.DataProcessing.DataProcessor<TRecord>.RunAsync(long completedCount, Excalibur.Data.DataProcessing.UpdateCompletedCount! updateCompletedCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!

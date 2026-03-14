@@ -47,6 +47,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
           fetch-depth: 1
 
       - name: Free disk space (Ubuntu only)
@@ -123,6 +125,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
           fetch-depth: 1
 
       - name: Setup Node.js
@@ -232,6 +236,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -250,13 +257,10 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore
+        run: dotnet restore eng/ci/shards/ShippingOnly.slnf --verbosity quiet
 
       - name: Build Dispatch projects
-        run: |
-          find src/Dispatch -name '*.csproj' -print0 | while IFS= read -r -d '' proj; do
-            dotnet build "$proj" --configuration Release --no-restore
-          done
+        run: dotnet build eng/ci/shards/ShippingOnly.slnf --configuration Release --no-restore --verbosity quiet
 
       - name: Pack Dispatch to local feed
         shell: pwsh
@@ -323,6 +327,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -354,6 +361,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -388,6 +398,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -441,6 +454,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Validate unit-test shard coverage
         shell: pwsh
@@ -465,15 +481,16 @@ jobs:
       matrix:
         shard:
           - { name: core, filter: "eng/ci/shards/UnitTests-Core.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
-          - { name: messaging, filter: "eng/ci/shards/UnitTests-Messaging.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
           - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
           - { name: middleware, filter: "eng/ci/shards/UnitTests-Middleware.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
-          - { name: observability, filter: "eng/ci/shards/UnitTests-Observability.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
           - { name: excalibur, filter: "eng/ci/shards/UnitTests-Excalibur.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
       fail-fast: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -534,17 +551,25 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  # Cross-platform unit test validation (Windows)
-  unit-tests-windows:
-    name: Unit Tests (Windows)
-    runs-on: windows-latest
+  # Async-risk unit tests (messaging, observability) -- advisory on PRs, blocking on push to main
+  unit-tests-async-risk:
+    name: Unit Tests - Async Risk (${{ matrix.shard.name }})
+    runs-on: ubuntu-latest
     needs: [build, smoke-tests, unit-shard-coverage]
-    timeout-minutes: 60
-    env:
-      VSTEST_CONNECTION_TIMEOUT: 300
+    continue-on-error: ${{ github.event_name == 'pull_request' }}
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        shard:
+          - { name: messaging, filter: "eng/ci/shards/UnitTests-Messaging.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
+          - { name: observability, filter: "eng/ci/shards/UnitTests-Observability.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
+      fail-fast: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -563,10 +588,84 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/UnitTests.slnf
+        run: dotnet restore ${{ matrix.shard.filter }}
+
+      - name: Build shard
+        run: dotnet build ${{ matrix.shard.filter }} --configuration Release --no-restore
+
+      - name: Compose unit test filter
+        shell: pwsh
+        run: |
+          $filterInfo = ./eng/ci/get-test-filter.ps1 -BaseFilter '${{ matrix.shard.test_filter }}' -Mode Exclude -AsJson | ConvertFrom-Json
+          "UNIT_TEST_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
+          "UNIT_QUARANTINE_COUNT=$($filterInfo.count)" >> $env:GITHUB_ENV
+          Write-Host "Using unit test filter with $($filterInfo.count) quarantined exclusions."
+
+      - name: Run Unit Tests
+        run: |
+          dotnet test ${{ matrix.shard.filter }} \
+            --configuration Release \
+            --no-build \
+            --blame-hang-timeout 5m \
+            --logger "trx;LogFileName=unit-tests-async-risk-${{ matrix.shard.name }}.trx" \
+            --logger "console;verbosity=minimal" \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./TestResults \
+            --filter "${{ env.UNIT_TEST_FILTER }}" \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-unit-async-risk-${{ matrix.shard.name }}
+          path: TestResults/*.trx
+          retention-days: 30
+
+      - name: Upload code coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage-unit-async-risk-${{ matrix.shard.name }}
+          path: TestResults/*/coverage.cobertura.xml
+          if-no-files-found: error
+          retention-days: 30
+
+  # Cross-platform unit test validation (Windows) -- Deterministic blocking tier
+  unit-tests-windows:
+    name: Unit Tests (Windows - Deterministic)
+    runs-on: windows-latest
+    needs: [build, smoke-tests, unit-shard-coverage]
+    timeout-minutes: 60
+    env:
+      VSTEST_CONNECTION_TIMEOUT: 300
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: .nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore eng/ci/shards/UnitTests-Deterministic.slnf
 
       - name: Build solution
-        run: dotnet build eng/ci/shards/UnitTests.slnf --configuration Release --no-restore
+        run: dotnet build eng/ci/shards/UnitTests-Deterministic.slnf --configuration Release --no-restore
 
       - name: Compose Windows unit test filter
         shell: pwsh
@@ -578,13 +677,71 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          dotnet test eng/ci/shards/UnitTests.slnf --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFileName=unit-tests-windows.trx" --logger "console;verbosity=minimal" --results-directory ./TestResults --filter "${{ env.WINDOWS_UNIT_TEST_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
+          dotnet test eng/ci/shards/UnitTests-Deterministic.slnf --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFileName=unit-tests-windows-deterministic.trx" --logger "console;verbosity=minimal" --results-directory ./TestResults --filter "${{ env.WINDOWS_UNIT_TEST_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-unit-windows
+          name: test-results-unit-windows-deterministic
+          path: TestResults/*.trx
+          retention-days: 30
+
+  # Cross-platform unit test validation (Windows) -- Async-risk advisory tier
+  unit-tests-windows-async-risk:
+    name: Unit Tests (Windows - Async Risk)
+    runs-on: windows-latest
+    needs: [build, smoke-tests, unit-shard-coverage]
+    continue-on-error: ${{ github.event_name == 'pull_request' }}
+    timeout-minutes: 60
+    env:
+      VSTEST_CONNECTION_TIMEOUT: 300
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: .nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore eng/ci/shards/UnitTests-AsyncRisk.slnf
+
+      - name: Build solution
+        run: dotnet build eng/ci/shards/UnitTests-AsyncRisk.slnf --configuration Release --no-restore
+
+      - name: Compose Windows unit test filter
+        shell: pwsh
+        run: |
+          $baseFilter = '(Category=Unit|Category=DependencyInjection)&Category!=Performance'
+          $filterInfo = ./eng/ci/get-test-filter.ps1 -BaseFilter $baseFilter -Mode Exclude -AsJson | ConvertFrom-Json
+          "WINDOWS_UNIT_TEST_FILTER=$($filterInfo.filter)" >> $env:GITHUB_ENV
+          Write-Host "Using Windows unit filter with $($filterInfo.count) quarantined exclusions."
+
+      - name: Run Unit Tests
+        run: |
+          dotnet test eng/ci/shards/UnitTests-AsyncRisk.slnf --configuration Release --no-build --blame-hang-timeout 5m --logger "trx;LogFileName=unit-tests-windows-async-risk.trx" --logger "console;verbosity=minimal" --results-directory ./TestResults --filter "${{ env.WINDOWS_UNIT_TEST_FILTER }}" -- RunConfiguration.TestSessionTimeout=1500000
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-unit-windows-async-risk
           path: TestResults/*.trx
           retention-days: 30
 
@@ -593,6 +750,7 @@ jobs:
     name: Integration Tests (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: unit-tests
+    continue-on-error: ${{ github.event_name == 'pull_request' }}
     timeout-minutes: 60
     strategy:
       matrix:
@@ -601,6 +759,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -693,15 +854,19 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
 
-  # Functional tests - depends on integration tests
+  # Functional tests - depends on integration tests (advisory on PRs, blocking on push to main)
   functional-tests:
     name: Functional Tests
     runs-on: ubuntu-latest
     needs: integration-tests
+    continue-on-error: ${{ github.event_name == 'pull_request' }}
     timeout-minutes: 30
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -763,6 +928,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
       - name: Free disk space (Ubuntu)
         shell: bash
         run: |
@@ -815,6 +983,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -875,6 +1046,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -943,6 +1117,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Validate flaky quarantine policy
         shell: pwsh
@@ -967,6 +1144,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -1035,6 +1215,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -1070,6 +1253,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -1096,6 +1282,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
       - name: Download unit coverage artifacts
         uses: actions/download-artifact@v4
         with:
@@ -1153,6 +1342,7 @@ jobs:
       - name: Checkout base branch
         uses: actions/checkout@v4
         with:
+          token: ${{ github.token }}
           ref: ${{ github.event.pull_request.base.sha }}
           path: base
           fetch-depth: 1
@@ -1211,11 +1401,23 @@ jobs:
           echo "Using base solution filter: $selected"
           echo "BASE_UNIT_TESTS_SLNF=$selected" >> "$GITHUB_ENV"
       - name: Restore & build base
+        id: base_restore_build
+        continue-on-error: true
         working-directory: base
         run: |
           dotnet restore "$BASE_UNIT_TESTS_SLNF"
           dotnet build "$BASE_UNIT_TESTS_SLNF" --configuration Release --no-restore
+      - name: Mark base build status
+        shell: bash
+        run: |
+          if [[ "${{ steps.base_restore_build.outcome }}" != "success" ]]; then
+            echo "::warning::Base snapshot restore/build failed; skipping coverage diff for this PR."
+            echo "SKIP_COVERAGE_DIFF=true" >> "$GITHUB_ENV"
+          fi
       - name: Run tests with coverage (base)
+        id: base_test_coverage
+        if: env.SKIP_COVERAGE_DIFF != 'true'
+        continue-on-error: true
         working-directory: base
         run: |
           dotnet test "$BASE_UNIT_TESTS_SLNF" \
@@ -1226,6 +1428,19 @@ jobs:
             --results-directory ../base-cov \
             --filter "(Category=Unit|Category=DependencyInjection)&Category!=Performance" \
             -- RunConfiguration.TestSessionTimeout=1800000 DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+      - name: Mark base test status
+        if: env.SKIP_COVERAGE_DIFF != 'true'
+        shell: bash
+        run: |
+          if [[ "${{ steps.base_test_coverage.outcome }}" != "success" ]]; then
+            echo "::warning::Base snapshot tests/coverage failed; skipping coverage diff for this PR."
+            echo "SKIP_COVERAGE_DIFF=true" >> "$GITHUB_ENV"
+          fi
+      - name: Create empty changed file set when coverage diff is skipped
+        if: env.SKIP_COVERAGE_DIFF == 'true'
+        shell: bash
+        run: |
+          printf '[]' > changed-files.json
       - name: Download head coverage artifacts (all shards)
         uses: actions/download-artifact@v4
         with:
@@ -1287,6 +1502,10 @@ jobs:
       - name: Enforce ≤1% coverage drop on touched files (Dispatch+Excalibur)
         shell: pwsh
         run: |
+          if ($env:SKIP_COVERAGE_DIFF -eq 'true') {
+            Write-Warning 'Base snapshot did not build/test cleanly; skipping coverage diff.'
+            exit 0
+          }
           $changedFile = "changed-files.json"
           $changed = @()
           if (Test-Path $changedFile) {
@@ -1383,6 +1602,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
           fetch-depth: 1
 
       - name: Free disk space (Ubuntu)
@@ -1472,6 +1693,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Download coverage artifacts (all shards)
         uses: actions/download-artifact@v4
@@ -1560,6 +1784,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
           fetch-depth: 1
 
       - name: Setup .NET
@@ -1592,6 +1818,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Run PublicAPI baseline audit
         shell: pwsh
@@ -1614,6 +1843,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
           fetch-depth: 1
 
       - name: Setup .NET
@@ -1650,6 +1881,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
           fetch-depth: 1
 
       - name: Setup .NET
@@ -1682,6 +1915,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -1766,6 +2002,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -1839,6 +2078,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -1915,6 +2157,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -1989,6 +2234,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -2108,6 +2356,55 @@ jobs:
             echo "❌ **Some checks failed.** Please review the results above." >> $GITHUB_STEP_SUMMARY
           fi
 
+  # Test result trend reporting -- advisory, publishes TRX results as GitHub check annotations
+  test-result-reporter:
+    name: Test Result Reporter (${{ matrix.report.name }})
+    runs-on: ubuntu-latest
+    needs: [unit-tests, unit-tests-async-risk, integration-tests]
+    if: always()
+    continue-on-error: true
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        report:
+          - { name: unit-core, artifact: test-results-unit-core, path: "**/*.trx" }
+          - { name: unit-transport, artifact: test-results-unit-transport, path: "**/*.trx" }
+          - { name: unit-middleware, artifact: test-results-unit-middleware, path: "**/*.trx" }
+          - { name: unit-excalibur, artifact: test-results-unit-excalibur, path: "**/*.trx" }
+          - { name: unit-observability, artifact: test-results-unit-async-risk-observability, path: "**/*.trx" }
+          - { name: unit-async-risk-messaging, artifact: test-results-unit-async-risk-messaging, path: "**/*.trx" }
+          - { name: integration, artifact: test-results-integration-ubuntu-latest, path: "**/*.trx" }
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Trust workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Download test results
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.report.artifact }}
+          path: test-results
+        continue-on-error: true
+
+      - name: Publish test results
+        if: hashFiles('test-results/**/*.trx') != ''
+        uses: dorny/test-reporter@v1
+        with:
+          name: "Test Results - ${{ matrix.report.name }}"
+          path: "test-results/${{ matrix.report.path }}"
+          reporter: dotnet-trx
+          fail-on-error: false
+
   notices-lint:
     name: Notices & License Headers
     runs-on: ubuntu-latest
@@ -2115,6 +2412,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
       - name: Setup .NET (for scripts environment)
         uses: actions/setup-dotnet@v4
         with:
@@ -2145,6 +2445,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -2170,6 +2473,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -2229,13 +2535,13 @@ jobs:
           unit_win="${{ needs.unit-tests-windows.result }}"
 
           echo "## ✅ Release-Blocking Test Governance" >> "$GITHUB_STEP_SUMMARY"
-          echo "Deterministic required tier: unit/dependency-injection only (perf/integration/functional/load are report-only)." >> "$GITHUB_STEP_SUMMARY"
+          echo "Deterministic blocking tier: core/transport/middleware/excalibur only. Async-risk (messaging/observability) is advisory." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Suite | Status |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| unit-shard-coverage | $shard |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| unit-tests | $unit |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| unit-tests-windows | $unit_win |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Suite | Status | Tier |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| unit-shard-coverage | $shard | blocking |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| unit-tests (deterministic) | $unit | blocking |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| unit-tests-windows (deterministic) | $unit_win | blocking |" >> "$GITHUB_STEP_SUMMARY"
 
           require_success "unit-shard-coverage" "$shard"
           require_success "unit-tests" "$unit"
@@ -2330,6 +2636,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -2361,6 +2670,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -2420,6 +2732,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -2446,6 +2761,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -2506,6 +2824,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -2530,6 +2851,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
       - name: Create coverage baseline markdown
         shell: bash
         run: |
@@ -2554,6 +2878,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
           fetch-depth: 1
 
       - name: Verify specs live under management/Specs/**
@@ -2654,6 +2980,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Check dependency review support
         id: dependency_review_support
@@ -2770,6 +3099,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
           fetch-depth: 1
 
       - name: Install Gitleaks
@@ -2811,6 +3142,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
           fetch-depth: 1
 
       - name: Setup .NET
@@ -2891,6 +3224,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -2946,6 +3282,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4

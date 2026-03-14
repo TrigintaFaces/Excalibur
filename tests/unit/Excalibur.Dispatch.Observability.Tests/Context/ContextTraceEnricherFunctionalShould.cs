@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Observability.Context;
 
@@ -212,7 +213,7 @@ public sealed class ContextTraceEnricherFunctionalShould : IDisposable
 	{
 		using var activity = new Activity("test.delivery").Start();
 		var context = CreateFakeContext("msg-dc", "corr-dc");
-		A.CallTo(() => context.DeliveryCount).Returns(3);
+		context.GetOrCreateProcessingFeature().DeliveryCount = 3;
 
 		_enricher.EnrichActivity(activity, context);
 
@@ -225,8 +226,8 @@ public sealed class ContextTraceEnricherFunctionalShould : IDisposable
 		using var activity = new Activity("test.timestamps").Start();
 		var now = DateTimeOffset.UtcNow;
 		var context = CreateFakeContext("msg-ts", "corr-ts");
-		A.CallTo(() => context.SentTimestampUtc).Returns(now);
-		A.CallTo(() => context.ReceivedTimestampUtc).Returns(now);
+		context.SetSentTimestampUtc(now);
+		context.SetReceivedTimestampUtc(now);
 
 		_enricher.EnrichActivity(activity, context);
 
@@ -241,20 +242,27 @@ public sealed class ContextTraceEnricherFunctionalShould : IDisposable
 		string? userId = null)
 	{
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>();
+		var features = new Dictionary<Type, object>();
+
 		A.CallTo(() => context.MessageId).Returns(messageId);
 		A.CallTo(() => context.CorrelationId).Returns(correlationId);
-		A.CallTo(() => context.MessageType).Returns("OrderCreated");
-		A.CallTo(() => context.TenantId).Returns(tenantId);
-		A.CallTo(() => context.UserId).Returns(userId);
 		A.CallTo(() => context.CausationId).Returns(null);
-		A.CallTo(() => context.ExternalId).Returns(null);
-		A.CallTo(() => context.TraceParent).Returns(null);
-		A.CallTo(() => context.Source).Returns(null);
-		A.CallTo(() => context.ContentType).Returns(null);
-		A.CallTo(() => context.DeliveryCount).Returns(1);
-		A.CallTo(() => context.ReceivedTimestampUtc).Returns(DateTimeOffset.UtcNow);
-		A.CallTo(() => context.SentTimestampUtc).Returns(null);
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
+
+		// Set Items-based properties via extension methods
+		context.SetMessageType("OrderCreated");
+		context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
+
+		// Set Features-based properties
+		var identity = context.GetOrCreateIdentityFeature();
+		identity.TenantId = tenantId;
+		identity.UserId = userId;
+
+		var processing = context.GetOrCreateProcessingFeature();
+		processing.DeliveryCount = 1;
+
 		return context;
 	}
 }

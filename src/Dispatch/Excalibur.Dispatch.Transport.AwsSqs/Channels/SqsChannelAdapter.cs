@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// High-performance channel adapter for AWS SQS with optimized batching and long polling. Achieves 50K+ msgs/sec throughput with
 /// zero-allocation design.
 /// </summary>
-public sealed partial class SqsChannelAdapter : IMessageChannelAdapter<Message>,
+internal sealed partial class SqsChannelAdapter : IMessageChannelAdapter<Message>,
 	IDisposable
 {
 	private readonly IAmazonSQS _sqsClient;

@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.TypeResolution;
 /// <remarks>
 /// This registry allows registration of type resolvers at runtime, breaking the circular dependency between Excalibur.Dispatch.Common and Excalibur.Dispatch.Messaging.
 /// </remarks>
-public static class TypeResolverRegistry
+internal static class TypeResolverRegistry
 {
 	private static readonly List<ITypeResolver> Resolvers = [];
 #if NET9_0_OR_GREATER

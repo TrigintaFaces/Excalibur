@@ -20,6 +20,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         { type: 'doc', id: 'intro' },
+        { type: 'doc', id: 'whats-new' },
         {
           type: 'category',
           label: 'Getting Started',
@@ -27,6 +28,7 @@ const sidebars: SidebarsConfig = {
           collapsible: true,
           collapsed: true,
           items: [
+            { type: 'doc', id: 'getting-started/dispatch-only' },
             { type: 'doc', id: 'getting-started/first-event' },
             { type: 'doc', id: 'getting-started/project-templates' },
             { type: 'doc', id: 'getting-started/samples' },
@@ -311,6 +313,7 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'observability/google-cloud-monitoring' },
             { type: 'doc', id: 'observability/datadog-integration' },
             { type: 'doc', id: 'observability/grafana-dashboards' },
+            { type: 'doc', id: 'observability/pii-safe-telemetry' },
             { type: 'doc', id: 'observability/audit-logging-providers' },
           ],
         },
@@ -388,6 +391,7 @@ const sidebars: SidebarsConfig = {
           collapsed: true,
           items: [
             { type: 'doc', id: 'security/authorization' },
+            { type: 'doc', id: 'security/message-signing' },
             { type: 'doc', id: 'security/audit-logging' },
             { type: 'doc', id: 'security/encryption-architecture' },
             { type: 'doc', id: 'security/encryption-providers' },

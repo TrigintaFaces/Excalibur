@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Inbox.Postgres</PackageId>
+    <Description>Postgres implementation of the inbox pattern for Excalibur, providing idempotent message processing using Postgres as the backing store.</Description>
+    <PackageTags>excalibur;inbox;idempotent;messaging;postgres;dapper</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+    <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Dapper" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="System.Text.Json" />
+      <ProjectReference Include="..\Excalibur.Inbox\Excalibur.Inbox.csproj" />
+  </ItemGroup>
+  <!-- Development mode: Dispatch ProjectReferences -->
+  <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">
+    <ProjectReference Include="..\..\Dispatch\Excalibur.Dispatch.Abstractions\Excalibur.Dispatch.Abstractions.csproj" />
+  </ItemGroup>
+  <!-- CI mode: PackageReference for Dispatch packages -->
+  <ItemGroup Condition="'$(UsePackageReferences)' == 'true'">
+    <PackageReference Include="Excalibur.Dispatch.Abstractions" VersionOverride="$(DispatchPackageVersion)" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

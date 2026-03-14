@@ -31,7 +31,7 @@ public sealed class SnapshotUpgraderShould
 
 	private sealed class TestV1ToV2SnapshotUpgrader : SnapshotUpgrader<SnapshotV1, SnapshotV2>
 	{
-		public TestV1ToV2SnapshotUpgrader(ISnapshotDataSerializer serializer)
+		public TestV1ToV2SnapshotUpgrader(ISnapshotSerializer serializer)
 			: base(serializer)
 		{
 		}
@@ -63,7 +63,7 @@ public sealed class SnapshotUpgraderShould
 	public void AggregateType_ReturnConfiguredValue()
 	{
 		// Arrange
-		var serializer = A.Fake<ISnapshotDataSerializer>();
+		var serializer = A.Fake<ISnapshotSerializer>();
 		var upgrader = new TestV1ToV2SnapshotUpgrader(serializer);
 
 		// Act & Assert
@@ -74,7 +74,7 @@ public sealed class SnapshotUpgraderShould
 	public void FromVersion_ReturnConfiguredValue()
 	{
 		// Arrange
-		var serializer = A.Fake<ISnapshotDataSerializer>();
+		var serializer = A.Fake<ISnapshotSerializer>();
 		var upgrader = new TestV1ToV2SnapshotUpgrader(serializer);
 
 		// Act & Assert
@@ -85,7 +85,7 @@ public sealed class SnapshotUpgraderShould
 	public void ToVersion_ReturnConfiguredValue()
 	{
 		// Arrange
-		var serializer = A.Fake<ISnapshotDataSerializer>();
+		var serializer = A.Fake<ISnapshotSerializer>();
 		var upgrader = new TestV1ToV2SnapshotUpgrader(serializer);
 
 		// Act & Assert
@@ -100,7 +100,7 @@ public sealed class SnapshotUpgraderShould
 	public void CanUpgrade_ReturnTrue_WhenAggregateTypeAndVersionMatch()
 	{
 		// Arrange
-		var serializer = A.Fake<ISnapshotDataSerializer>();
+		var serializer = A.Fake<ISnapshotSerializer>();
 		var upgrader = new TestV1ToV2SnapshotUpgrader(serializer);
 
 		// Act
@@ -114,7 +114,7 @@ public sealed class SnapshotUpgraderShould
 	public void CanUpgrade_ReturnFalse_WhenAggregateTypeDoesNotMatch()
 	{
 		// Arrange
-		var serializer = A.Fake<ISnapshotDataSerializer>();
+		var serializer = A.Fake<ISnapshotSerializer>();
 		var upgrader = new TestV1ToV2SnapshotUpgrader(serializer);
 
 		// Act
@@ -128,7 +128,7 @@ public sealed class SnapshotUpgraderShould
 	public void CanUpgrade_ReturnFalse_WhenVersionDoesNotMatch()
 	{
 		// Arrange
-		var serializer = A.Fake<ISnapshotDataSerializer>();
+		var serializer = A.Fake<ISnapshotSerializer>();
 		var upgrader = new TestV1ToV2SnapshotUpgrader(serializer);
 
 		// Act
@@ -142,7 +142,7 @@ public sealed class SnapshotUpgraderShould
 	public void CanUpgrade_ReturnFalse_WhenBothAggregateTypeAndVersionDoNotMatch()
 	{
 		// Arrange
-		var serializer = A.Fake<ISnapshotDataSerializer>();
+		var serializer = A.Fake<ISnapshotSerializer>();
 		var upgrader = new TestV1ToV2SnapshotUpgrader(serializer);
 
 		// Act
@@ -156,7 +156,7 @@ public sealed class SnapshotUpgraderShould
 	public void CanUpgrade_ReturnFalse_WhenAggregateTypeIsNull()
 	{
 		// Arrange
-		var serializer = A.Fake<ISnapshotDataSerializer>();
+		var serializer = A.Fake<ISnapshotSerializer>();
 		var upgrader = new TestV1ToV2SnapshotUpgrader(serializer);
 
 		// Act
@@ -170,7 +170,7 @@ public sealed class SnapshotUpgraderShould
 	public void CanUpgrade_IsCaseSensitive()
 	{
 		// Arrange
-		var serializer = A.Fake<ISnapshotDataSerializer>();
+		var serializer = A.Fake<ISnapshotSerializer>();
 		var upgrader = new TestV1ToV2SnapshotUpgrader(serializer);
 
 		// Act
@@ -188,7 +188,7 @@ public sealed class SnapshotUpgraderShould
 	public void Upgrade_DeserializeOldDataCallUpgradeSnapshotAndSerializeNewData()
 	{
 		// Arrange
-		var serializer = A.Fake<ISnapshotDataSerializer>();
+		var serializer = A.Fake<ISnapshotSerializer>();
 		var upgrader = new TestV1ToV2SnapshotUpgrader(serializer);
 
 		var oldData = new byte[] { 1, 2, 3 };
@@ -215,11 +215,11 @@ public sealed class SnapshotUpgraderShould
 	public void Upgrade_ThrowInvalidOperationException_WhenDeserializerReturnsNull()
 	{
 		// Arrange
-		var serializer = A.Fake<ISnapshotDataSerializer>();
+		var serializer = A.Fake<ISnapshotSerializer>();
 		var upgrader = new TestV1ToV2SnapshotUpgrader(serializer);
 
 		var oldData = new byte[] { 1, 2, 3 };
-		A.CallTo(() => serializer.Deserialize<SnapshotV1>(oldData)).Returns(null);
+		A.CallTo(() => serializer.Deserialize<SnapshotV1>(oldData)).Returns((SnapshotV1)null!);
 
 		// Act & Assert
 		var exception = Should.Throw<InvalidOperationException>(() => upgrader.Upgrade(oldData));
@@ -230,7 +230,7 @@ public sealed class SnapshotUpgraderShould
 	public void Upgrade_ThrowArgumentNullException_WhenOldSnapshotDataIsNull()
 	{
 		// Arrange
-		var serializer = A.Fake<ISnapshotDataSerializer>();
+		var serializer = A.Fake<ISnapshotSerializer>();
 		var upgrader = new TestV1ToV2SnapshotUpgrader(serializer);
 
 		// Act & Assert
@@ -241,7 +241,7 @@ public sealed class SnapshotUpgraderShould
 	public void Upgrade_PreserveDataDuringTransformation()
 	{
 		// Arrange
-		var serializer = A.Fake<ISnapshotDataSerializer>();
+		var serializer = A.Fake<ISnapshotSerializer>();
 		var upgrader = new TestV1ToV2SnapshotUpgrader(serializer);
 
 		var oldData = new byte[] { 10, 20, 30 };

@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// <summary>
 /// Represents channel state.
 /// </summary>
-public sealed record ChannelState(
+internal sealed record ChannelState(
 	int ChannelNumber,
 	bool IsOpen,
 	int PrefetchCount,

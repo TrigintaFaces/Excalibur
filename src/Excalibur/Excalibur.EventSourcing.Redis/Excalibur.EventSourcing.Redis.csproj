@@ -17,6 +17,7 @@
   <!-- Excalibur internal references (always ProjectReference) -->
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
   </ItemGroup>
   <!-- Development mode: Dispatch ProjectReferences -->
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">

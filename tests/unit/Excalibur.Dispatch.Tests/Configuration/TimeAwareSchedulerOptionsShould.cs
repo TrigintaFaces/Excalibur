@@ -36,24 +36,24 @@ public sealed class TimeAwareSchedulerOptionsShould
 	}
 
 	[Fact]
-	public void BackwardCompatibleShims_DelegateToTimeouts()
+	public void TimeoutSubOptions_AreAccessibleAndConfigurable()
 	{
 		// Arrange
 		var options = new TimeAwareSchedulerOptions();
 
 		// Act
-		options.EnableTimeoutPolicies = false;
-		options.ScheduleRetrievalTimeout = TimeSpan.FromSeconds(60);
-		options.DeserializationTimeout = TimeSpan.FromSeconds(20);
-		options.DispatchTimeout = TimeSpan.FromMinutes(5);
-		options.ScheduleUpdateTimeout = TimeSpan.FromSeconds(30);
-		options.MaxSchedulingTimeout = TimeSpan.FromMinutes(10);
-		options.EnableCronTimeouts = false;
-		options.EnableTimezoneTimeouts = false;
-		options.LogSchedulingTimeouts = false;
-		options.IncludeTimeoutMetrics = false;
+		options.Timeouts.EnableTimeoutPolicies = false;
+		options.Timeouts.ScheduleRetrievalTimeout = TimeSpan.FromSeconds(60);
+		options.Timeouts.DeserializationTimeout = TimeSpan.FromSeconds(20);
+		options.Timeouts.DispatchTimeout = TimeSpan.FromMinutes(5);
+		options.Timeouts.ScheduleUpdateTimeout = TimeSpan.FromSeconds(30);
+		options.Timeouts.MaxSchedulingTimeout = TimeSpan.FromMinutes(10);
+		options.Timeouts.EnableCronTimeouts = false;
+		options.Timeouts.EnableTimezoneTimeouts = false;
+		options.Timeouts.LogSchedulingTimeouts = false;
+		options.Timeouts.IncludeTimeoutMetrics = false;
 
-		// Assert - shims read from sub-options
+		// Assert
 		options.Timeouts.EnableTimeoutPolicies.ShouldBeFalse();
 		options.Timeouts.ScheduleRetrievalTimeout.ShouldBe(TimeSpan.FromSeconds(60));
 		options.Timeouts.DeserializationTimeout.ShouldBe(TimeSpan.FromSeconds(20));
@@ -67,20 +67,20 @@ public sealed class TimeAwareSchedulerOptionsShould
 	}
 
 	[Fact]
-	public void BackwardCompatibleShims_DelegateToAdaptive()
+	public void AdaptiveSubOptions_AreAccessibleAndConfigurable()
 	{
 		// Arrange
 		var options = new TimeAwareSchedulerOptions();
 
 		// Act
-		options.EnableAdaptiveTimeouts = true;
-		options.AdaptiveTimeoutPercentile = 90;
-		options.MinimumSampleSize = 100;
-		options.EnableTimeoutEscalation = false;
-		options.TimeoutEscalationMultiplier = 2.0;
-		options.MaxTimeoutEscalations = 5;
+		options.Adaptive.EnableAdaptiveTimeouts = true;
+		options.Adaptive.AdaptiveTimeoutPercentile = 90;
+		options.Adaptive.MinimumSampleSize = 100;
+		options.Adaptive.EnableTimeoutEscalation = false;
+		options.Adaptive.TimeoutEscalationMultiplier = 2.0;
+		options.Adaptive.MaxTimeoutEscalations = 5;
 
-		// Assert - shims read from sub-options
+		// Assert
 		options.Adaptive.EnableAdaptiveTimeouts.ShouldBeTrue();
 		options.Adaptive.AdaptiveTimeoutPercentile.ShouldBe(90);
 		options.Adaptive.MinimumSampleSize.ShouldBe(100);
@@ -110,72 +110,64 @@ public sealed class TimeAwareSchedulerOptionsShould
 	public void Validate_DetectsDeserializationTimeoutExceedsDispatch()
 	{
 		// Arrange
-		var options = new TimeAwareSchedulerOptions
-		{
-			DeserializationTimeout = TimeSpan.FromMinutes(3),
-			DispatchTimeout = TimeSpan.FromMinutes(2),
-		};
+		var options = new TimeAwareSchedulerOptions();
+		options.Timeouts.DeserializationTimeout = TimeSpan.FromMinutes(3);
+		options.Timeouts.DispatchTimeout = TimeSpan.FromMinutes(2);
 
 		// Act
 		var results = options.Validate().ToList();
 
 		// Assert
 		results.ShouldNotBeEmpty();
-		results.ShouldContain(r => r.MemberNames.Contains("DeserializationTimeout"));
+		results.ShouldContain(r => r.MemberNames.Any(m => m.Contains("DeserializationTimeout")));
 	}
 
 	[Fact]
 	public void Validate_DetectsScheduleRetrievalExceedsMax()
 	{
 		// Arrange
-		var options = new TimeAwareSchedulerOptions
-		{
-			ScheduleRetrievalTimeout = TimeSpan.FromMinutes(6),
-			MaxSchedulingTimeout = TimeSpan.FromMinutes(5),
-		};
+		var options = new TimeAwareSchedulerOptions();
+		options.Timeouts.ScheduleRetrievalTimeout = TimeSpan.FromMinutes(6);
+		options.Timeouts.MaxSchedulingTimeout = TimeSpan.FromMinutes(5);
 
 		// Act
 		var results = options.Validate().ToList();
 
 		// Assert
 		results.ShouldNotBeEmpty();
-		results.ShouldContain(r => r.MemberNames.Contains("ScheduleRetrievalTimeout"));
+		results.ShouldContain(r => r.MemberNames.Any(m => m.Contains("ScheduleRetrievalTimeout")));
 	}
 
 	[Fact]
 	public void Validate_DetectsScheduleUpdateExceedsMax()
 	{
 		// Arrange
-		var options = new TimeAwareSchedulerOptions
-		{
-			ScheduleUpdateTimeout = TimeSpan.FromMinutes(6),
-			MaxSchedulingTimeout = TimeSpan.FromMinutes(5),
-		};
+		var options = new TimeAwareSchedulerOptions();
+		options.Timeouts.ScheduleUpdateTimeout = TimeSpan.FromMinutes(6);
+		options.Timeouts.MaxSchedulingTimeout = TimeSpan.FromMinutes(5);
 
 		// Act
 		var results = options.Validate().ToList();
 
 		// Assert
 		results.ShouldNotBeEmpty();
-		results.ShouldContain(r => r.MemberNames.Contains("ScheduleUpdateTimeout"));
+		results.ShouldContain(r => r.MemberNames.Any(m => m.Contains("ScheduleUpdateTimeout")));
 	}
 
 	[Fact]
 	public void Validate_DetectsDispatchTimeoutExceedsMax()
 	{
 		// Arrange
-		var options = new TimeAwareSchedulerOptions
-		{
-			DispatchTimeout = TimeSpan.FromMinutes(6),
-			MaxSchedulingTimeout = TimeSpan.FromMinutes(5),
-		};
+		var options = new TimeAwareSchedulerOptions();
+		options.Timeouts.DispatchTimeout = TimeSpan.FromMinutes(6);
+		options.Timeouts.MaxSchedulingTimeout = TimeSpan.FromMinutes(5);
 
 		// Act
 		var results = options.Validate().ToList();
 
 		// Assert
 		results.ShouldNotBeEmpty();
-		results.ShouldContain(r => r.MemberNames.Contains("DispatchTimeout"));
+		results.ShouldContain(r => r.MemberNames.Any(m => m.Contains("DispatchTimeout")));
 	}
 
 	[Fact]
@@ -185,8 +177,8 @@ public sealed class TimeAwareSchedulerOptionsShould
 		var options = new TimeAwareSchedulerOptions
 		{
 			PollInterval = TimeSpan.FromMinutes(1),
-			ScheduleRetrievalTimeout = TimeSpan.FromSeconds(30),
 		};
+		options.Timeouts.ScheduleRetrievalTimeout = TimeSpan.FromSeconds(30);
 
 		// Act
 		var results = options.Validate().ToList();
@@ -200,10 +192,8 @@ public sealed class TimeAwareSchedulerOptionsShould
 	public void Validate_DetectsMessageTypeTimeoutExceedsMax()
 	{
 		// Arrange
-		var options = new TimeAwareSchedulerOptions
-		{
-			MaxSchedulingTimeout = TimeSpan.FromMinutes(5),
-		};
+		var options = new TimeAwareSchedulerOptions();
+		options.Timeouts.MaxSchedulingTimeout = TimeSpan.FromMinutes(5);
 		options.MessageTypeSchedulingTimeouts["MyMessage"] = TimeSpan.FromMinutes(10);
 
 		// Act
@@ -233,18 +223,16 @@ public sealed class TimeAwareSchedulerOptionsShould
 	public void Validate_DetectsEscalationMultiplierTooLow()
 	{
 		// Arrange
-		var options = new TimeAwareSchedulerOptions
-		{
-			EnableTimeoutEscalation = true,
-			TimeoutEscalationMultiplier = 0.5,
-		};
+		var options = new TimeAwareSchedulerOptions();
+		options.Adaptive.EnableTimeoutEscalation = true;
+		options.Adaptive.TimeoutEscalationMultiplier = 0.5;
 
 		// Act
 		var results = options.Validate().ToList();
 
 		// Assert
 		results.ShouldNotBeEmpty();
-		results.ShouldContain(r => r.MemberNames.Contains("TimeoutEscalationMultiplier"));
+		results.ShouldContain(r => r.MemberNames.Any(m => m.Contains("TimeoutEscalationMultiplier")));
 	}
 
 	[Fact]
@@ -254,13 +242,13 @@ public sealed class TimeAwareSchedulerOptionsShould
 		var options = new TimeAwareSchedulerOptions();
 
 		// Act & Assert
-		options.GetTimeoutFor(TimeoutOperationType.Database).ShouldBe(options.ScheduleRetrievalTimeout);
-		options.GetTimeoutFor(TimeoutOperationType.Serialization).ShouldBe(options.DeserializationTimeout);
-		options.GetTimeoutFor(TimeoutOperationType.Handler).ShouldBe(options.DispatchTimeout);
-		options.GetTimeoutFor(TimeoutOperationType.Scheduling).ShouldBe(options.ScheduleUpdateTimeout);
-		options.GetTimeoutFor(TimeoutOperationType.Validation).ShouldBe(options.DeserializationTimeout);
-		options.GetTimeoutFor(TimeoutOperationType.Transport).ShouldBe(options.DispatchTimeout);
-		options.GetTimeoutFor(TimeoutOperationType.Default).ShouldBe(options.ScheduleRetrievalTimeout);
+		options.GetTimeoutFor(TimeoutOperationType.Database).ShouldBe(options.Timeouts.ScheduleRetrievalTimeout);
+		options.GetTimeoutFor(TimeoutOperationType.Serialization).ShouldBe(options.Timeouts.DeserializationTimeout);
+		options.GetTimeoutFor(TimeoutOperationType.Handler).ShouldBe(options.Timeouts.DispatchTimeout);
+		options.GetTimeoutFor(TimeoutOperationType.Scheduling).ShouldBe(options.Timeouts.ScheduleUpdateTimeout);
+		options.GetTimeoutFor(TimeoutOperationType.Validation).ShouldBe(options.Timeouts.DeserializationTimeout);
+		options.GetTimeoutFor(TimeoutOperationType.Transport).ShouldBe(options.Timeouts.DispatchTimeout);
+		options.GetTimeoutFor(TimeoutOperationType.Default).ShouldBe(options.Timeouts.ScheduleRetrievalTimeout);
 	}
 
 	[Fact]
@@ -300,7 +288,7 @@ public sealed class TimeAwareSchedulerOptionsShould
 		var timeout = options.GetTimeoutForMessageType(typeof(string), TimeoutOperationType.Handler);
 
 		// Assert
-		timeout.ShouldBe(options.DispatchTimeout);
+		timeout.ShouldBe(options.Timeouts.DispatchTimeout);
 	}
 
 	[Fact]
@@ -371,9 +359,9 @@ public sealed class TimeAwareSchedulerOptionsShould
 		// Arrange
 		var options = new TimeAwareSchedulerOptions
 		{
-			MaxSchedulingTimeout = TimeSpan.FromMinutes(5),
 			HeavyOperationMultiplier = 5.0,
 		};
+		options.Timeouts.MaxSchedulingTimeout = TimeSpan.FromMinutes(5);
 		var baseTimeout = TimeSpan.FromMinutes(3);
 
 		// Act

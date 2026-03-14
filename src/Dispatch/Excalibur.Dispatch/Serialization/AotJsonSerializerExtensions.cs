@@ -4,7 +4,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Delivery.Registry;
 
 namespace Excalibur.Dispatch.Serialization;
@@ -19,11 +18,11 @@ public static class AotJsonSerializerExtensions
 	/// </summary>
 	[UnconditionalSuppressMessage(
 		"AOT",
-		"IL2026:Using member 'IJsonSerializer.Deserialize(String, Type)' which has 'RequiresUnreferencedCodeAttribute' can break functionality when trimming application code",
+		"IL2026:Using member 'DispatchJsonSerializer.Deserialize(String, Type)' which has 'RequiresUnreferencedCodeAttribute' can break functionality when trimming application code",
 		Justification =
 			"Types are resolved from MessageTypeRegistry which preserves all registered message types. In AOT builds, messages should use source-generated JSON contexts.")]
 	[RequiresDynamicCode("Uses dynamic code generation which requires JIT compilation")]
-	public static bool TryDeserializeMessage(this IJsonSerializer serializer, string json, string messageTypeName,
+	public static bool TryDeserializeMessage(this DispatchJsonSerializer serializer, string json, string messageTypeName,
 		[NotNullWhen(true)] out object? message)
 	{
 		ArgumentNullException.ThrowIfNull(serializer);
@@ -50,7 +49,7 @@ public static class AotJsonSerializerExtensions
 	/// <summary>
 	/// Gets the type name for a message that can be resolved by the registry.
 	/// </summary>
-	public static string GetMessageTypeName(this IJsonSerializer serializer, Type messageType)
+	public static string GetMessageTypeName(this DispatchJsonSerializer serializer, Type messageType)
 	{
 		ArgumentNullException.ThrowIfNull(serializer);
 		ArgumentNullException.ThrowIfNull(messageType);

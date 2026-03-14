@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// </remarks>
 /// <param name="queueClient"> The queue client. </param>
 /// <param name="logger"> The logger instance. </param>
-public sealed class VisibilityTimeoutManager(QueueClient queueClient, ILogger<VisibilityTimeoutManager> logger)
+internal sealed class VisibilityTimeoutManager(QueueClient queueClient, ILogger<VisibilityTimeoutManager> logger)
 	: IVisibilityTimeoutManager, IAsyncDisposable
 {
 	private readonly QueueClient _queueClient = queueClient ?? throw new ArgumentNullException(nameof(queueClient));

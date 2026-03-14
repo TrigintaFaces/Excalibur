@@ -34,8 +34,11 @@ public sealed class RabbitMqMessageBusPublishShould : UnitTestBase
 		var options = new RabbitMqOptions { Exchange = "ex", RoutingKey = "rk" };
 		var cloudOptions = new RabbitMqCloudEventOptions
 		{
-			EnablePublisherConfirms = true,
-			MandatoryPublishing = true,
+			Exchange = new RabbitMqCloudEventExchangeOptions
+			{
+				EnablePublisherConfirms = true,
+				MandatoryPublishing = true,
+			},
 		};
 
 		AsyncEventHandler<BasicReturnEventArgs>? returnHandler = null;

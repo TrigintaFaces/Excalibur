@@ -43,11 +43,15 @@ public sealed class InputValidationMiddlewareDepthShould
 	private static IMessageContext CreateValidContext()
 	{
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
 		A.CallTo(() => context.CorrelationId).Returns(Guid.NewGuid().ToString());
 		A.CallTo(() => context.MessageId).Returns(Guid.NewGuid().ToString());
-		A.CallTo(() => context.SentTimestampUtc).Returns(DateTimeOffset.UtcNow);
-		A.CallTo(() => context.ReceivedTimestampUtc).Returns(DateTimeOffset.UtcNow);
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		A.CallTo(() => context.Items).Returns(items);
+
+		// Set timestamps via Items-based extension methods
+		context.SetSentTimestampUtc(DateTimeOffset.UtcNow);
+		context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
+
 		return context;
 	}
 
@@ -56,13 +60,16 @@ public sealed class InputValidationMiddlewareDepthShould
 		EnableValidation = true,
 		AllowNullProperties = true,
 		AllowEmptyStrings = true,
-		BlockSqlInjection = false,
-		BlockNoSqlInjection = false,
-		BlockCommandInjection = false,
-		BlockPathTraversal = false,
-		BlockLdapInjection = false,
-		BlockHtmlContent = false,
-		BlockControlCharacters = false,
+		InjectionPrevention = new InputInjectionPreventionOptions
+		{
+			BlockSqlInjection = false,
+			BlockNoSqlInjection = false,
+			BlockCommandInjection = false,
+			BlockPathTraversal = false,
+			BlockLdapInjection = false,
+			BlockHtmlContent = false,
+			BlockControlCharacters = false,
+		},
 		RequireCorrelationId = false,
 		MaxMessageSizeBytes = int.MaxValue,
 		MaxObjectDepth = 100,
@@ -101,10 +108,11 @@ public sealed class InputValidationMiddlewareDepthShould
 		var sut = new InputValidationMiddleware(_logger, options, [], _securityEventLogger);
 
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
 		A.CallTo(() => context.CorrelationId).Returns(null as string);
 		A.CallTo(() => context.MessageId).Returns(Guid.NewGuid().ToString());
-		A.CallTo(() => context.SentTimestampUtc).Returns(DateTimeOffset.UtcNow);
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		A.CallTo(() => context.Items).Returns(items);
+		context.SetSentTimestampUtc(DateTimeOffset.UtcNow);
 
 		// Act & Assert
 		await Should.ThrowAsync<InputValidationException>(async () =>
@@ -119,10 +127,11 @@ public sealed class InputValidationMiddlewareDepthShould
 		var sut = new InputValidationMiddleware(_logger, options, [], _securityEventLogger);
 
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
 		A.CallTo(() => context.CorrelationId).Returns(Guid.NewGuid().ToString());
 		A.CallTo(() => context.MessageId).Returns(null as string);
-		A.CallTo(() => context.SentTimestampUtc).Returns(DateTimeOffset.UtcNow);
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		A.CallTo(() => context.Items).Returns(items);
+		context.SetSentTimestampUtc(DateTimeOffset.UtcNow);
 
 		// Act & Assert
 		await Should.ThrowAsync<InputValidationException>(async () =>
@@ -138,11 +147,12 @@ public sealed class InputValidationMiddlewareDepthShould
 		var sut = new InputValidationMiddleware(_logger, options, [], _securityEventLogger);
 
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
 		A.CallTo(() => context.CorrelationId).Returns(Guid.NewGuid().ToString());
 		A.CallTo(() => context.MessageId).Returns(Guid.NewGuid().ToString());
-		A.CallTo(() => context.SentTimestampUtc).Returns(DateTimeOffset.UtcNow.AddDays(-5));
-		A.CallTo(() => context.ReceivedTimestampUtc).Returns(DateTimeOffset.UtcNow.AddDays(-5));
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		A.CallTo(() => context.Items).Returns(items);
+		context.SetSentTimestampUtc(DateTimeOffset.UtcNow.AddDays(-5));
+		context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow.AddDays(-5));
 
 		// Act & Assert
 		await Should.ThrowAsync<InputValidationException>(async () =>
@@ -157,12 +167,13 @@ public sealed class InputValidationMiddlewareDepthShould
 		var sut = new InputValidationMiddleware(_logger, options, [], _securityEventLogger);
 
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
 		A.CallTo(() => context.CorrelationId).Returns(Guid.NewGuid().ToString());
 		A.CallTo(() => context.MessageId).Returns(Guid.NewGuid().ToString());
+		A.CallTo(() => context.Items).Returns(items);
 		// More than 5 minutes in the future
-		A.CallTo(() => context.SentTimestampUtc).Returns(DateTimeOffset.UtcNow.AddMinutes(10));
-		A.CallTo(() => context.ReceivedTimestampUtc).Returns(DateTimeOffset.UtcNow.AddMinutes(10));
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		context.SetSentTimestampUtc(DateTimeOffset.UtcNow.AddMinutes(10));
+		context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow.AddMinutes(10));
 
 		// Act & Assert
 		await Should.ThrowAsync<InputValidationException>(async () =>
@@ -234,8 +245,8 @@ public sealed class InputValidationMiddlewareDepthShould
 		var context = A.Fake<IMessageContext>();
 		A.CallTo(() => context.CorrelationId).Returns(Guid.NewGuid().ToString());
 		A.CallTo(() => context.MessageId).Returns(Guid.NewGuid().ToString());
-		A.CallTo(() => context.SentTimestampUtc).Returns(DateTimeOffset.UtcNow);
 		A.CallTo(() => context.Items).Returns(items);
+		context.SetSentTimestampUtc(DateTimeOffset.UtcNow);
 
 		// Act
 		var result = await sut.InvokeAsync(_message, context, _nextDelegate, CancellationToken.None);
@@ -255,10 +266,11 @@ public sealed class InputValidationMiddlewareDepthShould
 		var sut = new InputValidationMiddleware(_logger, options, [], _securityEventLogger);
 
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
 		A.CallTo(() => context.CorrelationId).Returns(Guid.NewGuid().ToString());
 		A.CallTo(() => context.MessageId).Returns(null as string);
-		A.CallTo(() => context.SentTimestampUtc).Returns(DateTimeOffset.UtcNow);
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
+		A.CallTo(() => context.Items).Returns(items);
+		context.SetSentTimestampUtc(DateTimeOffset.UtcNow);
 
 		// Act
 		try
@@ -320,8 +332,8 @@ public sealed class InputValidationMiddlewareDepthShould
 		var context = A.Fake<IMessageContext>();
 		A.CallTo(() => context.CorrelationId).Returns(Guid.NewGuid().ToString());
 		A.CallTo(() => context.MessageId).Returns(Guid.NewGuid().ToString());
-		A.CallTo(() => context.SentTimestampUtc).Returns(DateTimeOffset.UtcNow);
 		A.CallTo(() => context.Items).Returns(items);
+		context.SetSentTimestampUtc(DateTimeOffset.UtcNow);
 
 		// Act & Assert - invalid user ID should cause validation failure
 		await Should.ThrowAsync<InputValidationException>(async () =>
@@ -342,8 +354,8 @@ public sealed class InputValidationMiddlewareDepthShould
 		var context = A.Fake<IMessageContext>();
 		A.CallTo(() => context.CorrelationId).Returns(Guid.NewGuid().ToString());
 		A.CallTo(() => context.MessageId).Returns(Guid.NewGuid().ToString());
-		A.CallTo(() => context.SentTimestampUtc).Returns(DateTimeOffset.UtcNow);
 		A.CallTo(() => context.Items).Returns(items);
+		context.SetSentTimestampUtc(DateTimeOffset.UtcNow);
 
 		// Act
 		var result = await sut.InvokeAsync(_message, context, _nextDelegate, CancellationToken.None);
@@ -366,8 +378,8 @@ public sealed class InputValidationMiddlewareDepthShould
 		var context = A.Fake<IMessageContext>();
 		A.CallTo(() => context.CorrelationId).Returns(Guid.NewGuid().ToString());
 		A.CallTo(() => context.MessageId).Returns(Guid.NewGuid().ToString());
-		A.CallTo(() => context.SentTimestampUtc).Returns(DateTimeOffset.UtcNow);
 		A.CallTo(() => context.Items).Returns(items);
+		context.SetSentTimestampUtc(DateTimeOffset.UtcNow);
 
 		// Act
 		var result = await sut.InvokeAsync(_message, context, _nextDelegate, CancellationToken.None);

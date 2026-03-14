@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Resilience;
 /// <remarks>
 /// Increases the delay linearly with each attempt: delay = baseDelay * attempt. Provides a gentler increase than exponential backoff.
 /// </remarks>
-public sealed class LinearBackoffCalculator : IBackoffCalculator
+internal sealed class LinearBackoffCalculator : IBackoffCalculator
 {
 	private readonly TimeSpan _baseDelay;
 	private readonly TimeSpan _maxDelay;

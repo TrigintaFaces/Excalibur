@@ -3,7 +3,7 @@
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <Description>Conformance test kits for Excalibur infrastructure implementations. Provides reusable abstract test suites for IEventStore, IOutboxStore, ISagaStore, ISnapshotStore, and other provider contracts.</Description>
-    <PackageTags>testing;conformance;event-sourcing;event-store;outbox;inbox;saga;persistence;snapshot</PackageTags>
+    <PackageTags>testing;conformance;event-sourcing;event-store;outbox;inbox;saga;persistence;snapshot;idempotency;monitoring</PackageTags>
     <IsAotCompatible>true</IsAotCompatible>
     <DispatchPackageVersion Condition="'$(DispatchPackageVersion)' == ''">0.1.0-local</DispatchPackageVersion>
   </PropertyGroup>
@@ -12,6 +12,7 @@
     <ProjectReference Include="..\Excalibur.Testing\Excalibur.Testing.csproj" />
     <ProjectReference Include="..\Excalibur.Domain\Excalibur.Domain.csproj" />
     <ProjectReference Include="..\Excalibur.EventSourcing.Abstractions\Excalibur.EventSourcing.Abstractions.csproj" />
+    <ProjectReference Include="..\Excalibur.Saga\Excalibur.Saga.csproj" />
   </ItemGroup>
   <!-- Development mode: Dispatch ProjectReferences -->
   <ItemGroup Condition="'$(UsePackageReferences)' != 'true'">

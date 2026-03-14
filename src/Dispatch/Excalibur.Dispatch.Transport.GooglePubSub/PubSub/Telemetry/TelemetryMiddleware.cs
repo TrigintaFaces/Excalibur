@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <remarks> Initializes a new instance of the <see cref="TelemetryMiddleware" /> class. </remarks>
 /// <param name="telemetryProvider"> The telemetry provider. </param>
 /// <param name="subscription"> The subscription name. </param>
-public sealed class TelemetryMiddleware(PubSubTelemetryProvider telemetryProvider, string subscription)
+internal sealed class TelemetryMiddleware(PubSubTelemetryProvider telemetryProvider, string subscription)
 {
 	private readonly PubSubTelemetryProvider _telemetryProvider =
 		telemetryProvider ?? throw new ArgumentNullException(nameof(telemetryProvider));

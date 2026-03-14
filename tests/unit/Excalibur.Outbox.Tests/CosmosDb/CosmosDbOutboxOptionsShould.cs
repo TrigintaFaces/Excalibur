@@ -16,9 +16,9 @@ public sealed class CosmosDbOutboxOptionsShould : UnitTestBase
 		var options = new CosmosDbOutboxOptions();
 
 		// Assert
-		options.ConnectionString.ShouldBeNull();
-		options.AccountEndpoint.ShouldBeNull();
-		options.AccountKey.ShouldBeNull();
+		options.Connection.ConnectionString.ShouldBeNull();
+		options.Connection.AccountEndpoint.ShouldBeNull();
+		options.Connection.AccountKey.ShouldBeNull();
 		options.DatabaseName.ShouldBeNull();
 		options.ContainerName.ShouldBe("outbox");
 		options.DefaultTimeToLiveSeconds.ShouldBe(604800); // 7 days
@@ -37,10 +37,10 @@ public sealed class CosmosDbOutboxOptionsShould : UnitTestBase
 		const string connectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=testkey==";
 
 		// Act
-		options.ConnectionString = connectionString;
+		options.Connection.ConnectionString = connectionString;
 
 		// Assert
-		options.ConnectionString.ShouldBe(connectionString);
+		options.Connection.ConnectionString.ShouldBe(connectionString);
 	}
 
 	[Fact]
@@ -51,10 +51,10 @@ public sealed class CosmosDbOutboxOptionsShould : UnitTestBase
 		const string endpoint = "https://test.documents.azure.com:443/";
 
 		// Act
-		options.AccountEndpoint = endpoint;
+		options.Connection.AccountEndpoint = endpoint;
 
 		// Assert
-		options.AccountEndpoint.ShouldBe(endpoint);
+		options.Connection.AccountEndpoint.ShouldBe(endpoint);
 	}
 
 	[Fact]
@@ -65,10 +65,10 @@ public sealed class CosmosDbOutboxOptionsShould : UnitTestBase
 		const string key = "testkey==";
 
 		// Act
-		options.AccountKey = key;
+		options.Connection.AccountKey = key;
 
 		// Assert
-		options.AccountKey.ShouldBe(key);
+		options.Connection.AccountKey.ShouldBe(key);
 	}
 
 	[Fact]
@@ -119,7 +119,7 @@ public sealed class CosmosDbOutboxOptionsShould : UnitTestBase
 		// Arrange
 		var options = new CosmosDbOutboxOptions
 		{
-			ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=testkey==",
+			Connection = { ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=testkey==" },
 			DatabaseName = "TestDatabase"
 		};
 
@@ -133,8 +133,11 @@ public sealed class CosmosDbOutboxOptionsShould : UnitTestBase
 		// Arrange
 		var options = new CosmosDbOutboxOptions
 		{
-			AccountEndpoint = "https://test.documents.azure.com:443/",
-			AccountKey = "testkey==",
+			Connection =
+			{
+				AccountEndpoint = "https://test.documents.azure.com:443/",
+				AccountKey = "testkey=="
+			},
 			DatabaseName = "TestDatabase"
 		};
 
@@ -162,7 +165,7 @@ public sealed class CosmosDbOutboxOptionsShould : UnitTestBase
 		// Arrange
 		var options = new CosmosDbOutboxOptions
 		{
-			AccountEndpoint = "https://test.documents.azure.com:443/",
+			Connection = { AccountEndpoint = "https://test.documents.azure.com:443/" },
 			DatabaseName = "TestDatabase"
 		};
 
@@ -177,7 +180,7 @@ public sealed class CosmosDbOutboxOptionsShould : UnitTestBase
 		// Arrange
 		var options = new CosmosDbOutboxOptions
 		{
-			AccountKey = "testkey==",
+			Connection = { AccountKey = "testkey==" },
 			DatabaseName = "TestDatabase"
 		};
 
@@ -192,7 +195,7 @@ public sealed class CosmosDbOutboxOptionsShould : UnitTestBase
 		// Arrange
 		var options = new CosmosDbOutboxOptions
 		{
-			ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=testkey=="
+			Connection = { ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=testkey==" }
 		};
 
 		// Act & Assert

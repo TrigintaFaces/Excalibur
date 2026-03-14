@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Manages multiple concurrent streaming pull connections for high-throughput message consumption.
 /// </summary>
-public sealed class StreamingPullManager : IAsyncDisposable
+internal sealed class StreamingPullManager : IAsyncDisposable
 {
 	private readonly ILogger<StreamingPullManager> _logger;
 	private readonly ILoggerFactory _loggerFactory;

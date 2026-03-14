@@ -87,7 +87,7 @@ public sealed class LeaderElectionServiceCollectionExtensionsShould
 		IServiceCollection services = null!;
 
 		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => services.AddExcaliburLeaderElection(_ => { }));
+		_ = Should.Throw<ArgumentNullException>(() => services.AddExcaliburLeaderElection(static (LeaderElectionOptions _) => { }));
 	}
 
 	[Fact]
@@ -107,7 +107,7 @@ public sealed class LeaderElectionServiceCollectionExtensionsShould
 		var services = new ServiceCollection();
 
 		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() => services.AddExcaliburLeaderElection(null!));
+		_ = Should.Throw<ArgumentNullException>(() => services.AddExcaliburLeaderElection((Action<LeaderElectionOptions>)null!));
 	}
 
 	[Fact]

@@ -1,1 +1,47 @@
 #nullable enable
+Excalibur.LeaderElection.Consul.ConsulLeaderElection
+Excalibur.LeaderElection.Consul.ConsulLeaderElection.BecameLeader -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
+Excalibur.LeaderElection.Consul.ConsulLeaderElection.CandidateId.get -> string!
+Excalibur.LeaderElection.Consul.ConsulLeaderElection.ConsulLeaderElection(string! resourceName, Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions!>? options, Consul.IConsulClient? consulClient, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.Consul.ConsulLeaderElection!>? logger) -> void
+Excalibur.LeaderElection.Consul.ConsulLeaderElection.CurrentLeaderId.get -> string?
+Excalibur.LeaderElection.Consul.ConsulLeaderElection.Dispose() -> void
+Excalibur.LeaderElection.Consul.ConsulLeaderElection.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.LeaderElection.Consul.ConsulLeaderElection.GetCandidateHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.LeaderElection.CandidateHealth!>!>!
+Excalibur.LeaderElection.Consul.ConsulLeaderElection.IsLeader.get -> bool
+Excalibur.LeaderElection.Consul.ConsulLeaderElection.LeaderChanged -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs!>?
+Excalibur.LeaderElection.Consul.ConsulLeaderElection.LostLeadership -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
+Excalibur.LeaderElection.Consul.ConsulLeaderElection.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.LeaderElection.Consul.ConsulLeaderElection.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.LeaderElection.Consul.ConsulLeaderElection.UpdateHealthAsync(bool isHealthy, System.Collections.Generic.IDictionary<string!, string!>? metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionFactory
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionFactory.ConsulLeaderElectionFactory(Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions!>! options, Consul.IConsulClient? consulClient = null, Microsoft.Extensions.Logging.ILoggerFactory? loggerFactory = null) -> void
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionFactory.CreateElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.ILeaderElection!
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionFactory.CreateHealthBasedElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection!
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions.ConsulAddress.get -> string!
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions.ConsulAddress.set -> void
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions.ConsulLeaderElectionOptions() -> void
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions.Datacenter.get -> string?
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions.Datacenter.set -> void
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions.HealthCheckId.get -> string?
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions.HealthCheckId.set -> void
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions.KeyPrefix.get -> string!
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions.KeyPrefix.set -> void
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions.LockDelay.get -> System.TimeSpan
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions.LockDelay.set -> void
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions.MaxRetryAttempts.get -> int
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions.MaxRetryAttempts.set -> void
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions.SessionTTL.get -> System.TimeSpan
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions.SessionTTL.set -> void
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions.Token.get -> string?
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions.Token.set -> void
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptionsValidator
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptionsValidator.ConsulLeaderElectionOptionsValidator() -> void
+Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptionsValidator.Validate(string? name, Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
+Microsoft.Extensions.DependencyInjection.ConsulLeaderElectionBuilderExtensions
+Microsoft.Extensions.DependencyInjection.ConsulLeaderElectionExtensions
+static Microsoft.Extensions.DependencyInjection.ConsulLeaderElectionBuilderExtensions.UseConsul(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder, System.Action<Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions!>? configureOptions = null) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
+static Microsoft.Extensions.DependencyInjection.ConsulLeaderElectionExtensions.AddConsulHealthBasedLeaderElectionForResource(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! resourceName, string? candidateId = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ConsulLeaderElectionExtensions.AddConsulLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ConsulLeaderElectionExtensions.AddConsulLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.LeaderElection.Consul.ConsulLeaderElectionOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ConsulLeaderElectionExtensions.AddConsulLeaderElectionForResource(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! resourceName, string? candidateId = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// MessageAttributeValue format. It provides optimized handling of numeric attributes using AWS's Number data type for better performance
 /// and type safety.
 /// </remarks>
-public static class MessageContextSerializer
+internal static class MessageContextSerializer
 {
 	/// <summary>
 	/// Serializes the complete message context into SQS message attributes.

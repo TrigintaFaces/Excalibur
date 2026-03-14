@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Observability.Context;
 
 using Microsoft.Extensions.Logging;
@@ -201,9 +202,14 @@ public sealed class ContextFlowTrackerDepthCoverageShould : IAsyncDisposable
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		var features = new Dictionary<Type, object>();
 		A.CallTo(() => context.MessageId).Returns("msg-valid");
 		A.CallTo(() => context.CorrelationId).Returns("corr-valid");
-		A.CallTo(() => context.MessageType).Returns("TestCommand");
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
+		// MessageType is read via extension method from Items
+		context.SetMessageType("TestCommand");
 
 		// Act
 		var result = _sut.ValidateContextIntegrity(context);
@@ -217,9 +223,13 @@ public sealed class ContextFlowTrackerDepthCoverageShould : IAsyncDisposable
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		var features = new Dictionary<Type, object>();
 		A.CallTo(() => context.MessageId).Returns("msg-1");
 		A.CallTo(() => context.CorrelationId).Returns(null); // missing
-		A.CallTo(() => context.MessageType).Returns("TestCommand");
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
+		context.SetMessageType("TestCommand");
 
 		// Act
 		var result = _sut.ValidateContextIntegrity(context);
@@ -233,9 +243,13 @@ public sealed class ContextFlowTrackerDepthCoverageShould : IAsyncDisposable
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		var features = new Dictionary<Type, object>();
 		A.CallTo(() => context.MessageId).Returns("msg-1");
 		A.CallTo(() => context.CorrelationId).Returns("corr-1");
-		A.CallTo(() => context.MessageType).Returns("   "); // whitespace
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
+		context.SetMessageType("   "); // whitespace
 
 		// Act
 		var result = _sut.ValidateContextIntegrity(context);
@@ -336,18 +350,32 @@ public sealed class ContextFlowTrackerDepthCoverageShould : IAsyncDisposable
 	private static IMessageContext CreateValidContext(string messageId, string correlationId, Dictionary<string, object>? items = null)
 	{
 		var context = A.Fake<IMessageContext>();
+		var contextItems = items ?? new Dictionary<string, object>(StringComparer.Ordinal);
+		var features = new Dictionary<Type, object>();
+
 		A.CallTo(() => context.MessageId).Returns(messageId);
 		A.CallTo(() => context.CorrelationId).Returns(correlationId);
-		A.CallTo(() => context.MessageType).Returns("TestCommand");
-		A.CallTo(() => context.Items).Returns(items ?? new Dictionary<string, object>(StringComparer.Ordinal));
-		A.CallTo(() => context.Source).Returns("TestSource");
-		A.CallTo(() => context.ContentType).Returns("application/json");
-		A.CallTo(() => context.TenantId).Returns("tenant-1");
-		A.CallTo(() => context.UserId).Returns("user-1");
-		A.CallTo(() => context.ExternalId).Returns("ext-1");
 		A.CallTo(() => context.CausationId).Returns("cause-1");
-		A.CallTo(() => context.TraceParent).Returns("00-trace-1");
-		A.CallTo(() => context.DeliveryCount).Returns(1);
+		A.CallTo(() => context.Items).Returns(contextItems);
+		A.CallTo(() => context.Features).Returns(features);
+
+		// Set properties via extension methods / features
+		context.SetMessageType("TestCommand");
+		context.SetContentType("application/json");
+		context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
+
+		var identity = context.GetOrCreateIdentityFeature();
+		identity.TenantId = "tenant-1";
+		identity.UserId = "user-1";
+		identity.ExternalId = "ext-1";
+		identity.TraceParent = "00-trace-1";
+
+		var routing = context.GetOrCreateRoutingFeature();
+		routing.Source = "TestSource";
+
+		var processing = context.GetOrCreateProcessingFeature();
+		processing.DeliveryCount = 1;
+
 		return context;
 	}
 }

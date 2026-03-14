@@ -18,22 +18,6 @@ public sealed class AwsSnsOptions : AwsProviderOptions
 	public string TopicArn { get; set; } = string.Empty;
 
 	/// <summary>
-	/// Gets or sets a value indicating whether enables encryption when sending messages.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether enables encryption when sending messages.
-	/// </value>
-	public new bool EnableEncryption { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable message deduplication.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether to enable message deduplication.
-	/// </value>
-	public new bool EnableDeduplication { get; set; }
-
-	/// <summary>
 	/// Gets or sets a value indicating whether to enable content-based deduplication.
 	/// </summary>
 	/// <value>
@@ -74,12 +58,26 @@ public sealed class AwsSnsOptions : AwsProviderOptions
 	public string? KmsMasterKeyId { get; set; }
 
 	/// <summary>
+	/// Gets or sets the connection and endpoint options for SNS.
+	/// </summary>
+	/// <value>
+	/// The connection and endpoint options.
+	/// </value>
+	public new AwsSnsConnectionOptions Connection { get; set; } = new();
+}
+
+/// <summary>
+/// Connection and endpoint options for AWS SNS.
+/// </summary>
+public sealed class AwsSnsConnectionOptions
+{
+	/// <summary>
 	/// Gets or sets the service URL for the SNS endpoint.
 	/// </summary>
 	/// <value>
 	/// The service URL for the SNS endpoint.
 	/// </value>
-	public new Uri? ServiceUrl { get; set; }
+	public Uri? ServiceUrl { get; set; }
 
 	/// <summary>
 	/// Gets or sets the maximum number of error retries.
@@ -120,14 +118,6 @@ public sealed class AwsSnsOptions : AwsProviderOptions
 	/// The AWS region endpoint.
 	/// </value>
 	public string? RegionEndpoint { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether gets or sets whether to use LocalStack for testing.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether gets or sets whether to use LocalStack for testing.
-	/// </value>
-	public new bool UseLocalStack { get; set; }
 
 	/// <summary>
 	/// Gets or sets the AWS access key.

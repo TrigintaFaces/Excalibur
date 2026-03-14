@@ -52,7 +52,7 @@ public sealed class PoisonMessageOptionsShould
 		var options = new PoisonMessageOptions();
 
 		// Assert
-		options.DeadLetterRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
+		options.Cleanup.DeadLetterRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
 	}
 
 	[Fact]
@@ -62,7 +62,7 @@ public sealed class PoisonMessageOptionsShould
 		var options = new PoisonMessageOptions();
 
 		// Assert
-		options.EnableAutoCleanup.ShouldBeTrue();
+		options.Cleanup.EnableAutoCleanup.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -72,7 +72,7 @@ public sealed class PoisonMessageOptionsShould
 		var options = new PoisonMessageOptions();
 
 		// Assert
-		options.AutoCleanupInterval.ShouldBe(TimeSpan.FromDays(1));
+		options.Cleanup.AutoCleanupInterval.ShouldBe(TimeSpan.FromDays(1));
 	}
 
 	[Fact]
@@ -102,7 +102,7 @@ public sealed class PoisonMessageOptionsShould
 		var options = new PoisonMessageOptions();
 
 		// Assert
-		options.EnableAlerting.ShouldBeTrue();
+		options.Alerting.EnableAlerting.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -112,7 +112,7 @@ public sealed class PoisonMessageOptionsShould
 		var options = new PoisonMessageOptions();
 
 		// Assert
-		options.AlertThreshold.ShouldBe(10);
+		options.Alerting.AlertThreshold.ShouldBe(10);
 	}
 
 	[Fact]
@@ -122,7 +122,7 @@ public sealed class PoisonMessageOptionsShould
 		var options = new PoisonMessageOptions();
 
 		// Assert
-		options.AlertTimeWindow.ShouldBe(TimeSpan.FromMinutes(15));
+		options.Alerting.AlertTimeWindow.ShouldBe(TimeSpan.FromMinutes(15));
 	}
 
 	#endregion
@@ -218,28 +218,34 @@ public sealed class PoisonMessageOptionsShould
 			Enabled = false,
 			MaxRetryAttempts = 5,
 			MaxProcessingTime = TimeSpan.FromMinutes(10),
-			DeadLetterRetentionPeriod = TimeSpan.FromDays(60),
-			EnableAutoCleanup = false,
-			AutoCleanupInterval = TimeSpan.FromHours(12),
+			Cleanup =
+			{
+				DeadLetterRetentionPeriod = TimeSpan.FromDays(60),
+				EnableAutoCleanup = false,
+				AutoCleanupInterval = TimeSpan.FromHours(12),
+			},
 			CaptureExceptionDetails = false,
 			EnableMetrics = false,
-			EnableAlerting = false,
-			AlertThreshold = 20,
-			AlertTimeWindow = TimeSpan.FromMinutes(30),
+			Alerting =
+			{
+				EnableAlerting = false,
+				AlertThreshold = 20,
+				AlertTimeWindow = TimeSpan.FromMinutes(30),
+			},
 		};
 
 		// Assert
 		options.Enabled.ShouldBeFalse();
 		options.MaxRetryAttempts.ShouldBe(5);
 		options.MaxProcessingTime.ShouldBe(TimeSpan.FromMinutes(10));
-		options.DeadLetterRetentionPeriod.ShouldBe(TimeSpan.FromDays(60));
-		options.EnableAutoCleanup.ShouldBeFalse();
-		options.AutoCleanupInterval.ShouldBe(TimeSpan.FromHours(12));
+		options.Cleanup.DeadLetterRetentionPeriod.ShouldBe(TimeSpan.FromDays(60));
+		options.Cleanup.EnableAutoCleanup.ShouldBeFalse();
+		options.Cleanup.AutoCleanupInterval.ShouldBe(TimeSpan.FromHours(12));
 		options.CaptureExceptionDetails.ShouldBeFalse();
 		options.EnableMetrics.ShouldBeFalse();
-		options.EnableAlerting.ShouldBeFalse();
-		options.AlertThreshold.ShouldBe(20);
-		options.AlertTimeWindow.ShouldBe(TimeSpan.FromMinutes(30));
+		options.Alerting.EnableAlerting.ShouldBeFalse();
+		options.Alerting.AlertThreshold.ShouldBe(20);
+		options.Alerting.AlertTimeWindow.ShouldBe(TimeSpan.FromMinutes(30));
 	}
 
 	#endregion

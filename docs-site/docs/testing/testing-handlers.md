@@ -195,7 +195,7 @@ public class GetOrderHandlerShould
 Event handlers follow the same pattern. The difference is that events are broadcast to multiple handlers, so you test each handler in isolation:
 
 ```csharp
-public record OrderCreatedEvent(Guid OrderId, string CustomerId) : DomainEventBase;
+public record OrderCreatedEvent(Guid OrderId, string CustomerId) : DomainEvent;
 
 public class SendOrderConfirmationHandler : IEventHandler<OrderCreatedEvent>
 {

@@ -2,7 +2,7 @@ namespace Excalibur.Dispatch.Abstractions.Tests.Events;
 
 /// <summary>
 /// Tests for DomainEvent base record.
-/// Verifies UUID v7 generation, TimeProvider abstraction, metadata support, and immutability.
+/// Verifies UUID v7 generation, OccurredAt init, metadata support, and immutability.
 /// </summary>
 [Trait("Category", "Unit")]
 public class DomainEventShould
@@ -10,22 +10,21 @@ public class DomainEventShould
 	// Test implementation of abstract DomainEvent
 	private sealed record TestDomainEvent : DomainEvent
 	{
-		public TestDomainEvent(string aggregateId, long version, TimeProvider? timeProvider = null)
-			: base(aggregateId, version, timeProvider ?? TimeProvider.System)
-		{
-		}
+		public override string AggregateId { get; init; } = string.Empty;
+	}
+
+	// Derived record with positional params and AggregateId override
+	private sealed record TestOrderCreated(string OrderId, decimal Total) : DomainEvent
+	{
+		public override string AggregateId => OrderId;
 	}
 
 	[Fact]
 	public void Generate_Unique_EventId_Using_Uuid7()
 	{
-		// Arrange
-		var timeProvider = A.Fake<TimeProvider>();
-		_ = A.CallTo(() => timeProvider.GetUtcNow()).Returns(DateTimeOffset.UtcNow);
-
 		// Act
-		var event1 = new TestDomainEvent("agg-1", 1, timeProvider);
-		var event2 = new TestDomainEvent("agg-1", 2, timeProvider);
+		var event1 = new TestDomainEvent { AggregateId = "agg-1", Version = 1 };
+		var event2 = new TestDomainEvent { AggregateId = "agg-1", Version = 2 };
 
 		// Assert
 		event1.EventId.ShouldNotBeNullOrWhiteSpace("EventId must be generated");
@@ -33,8 +32,8 @@ public class DomainEventShould
 		event1.EventId.ShouldNotBe(event2.EventId, "EventIds must be unique");
 
 		// Verify UUID v7 format (36 characters with dashes)
-		Guid.TryParse(event1.EventId, out var guid1).ShouldBeTrue("EventId must be valid GUID");
-		Guid.TryParse(event2.EventId, out var guid2).ShouldBeTrue("EventId must be valid GUID");
+		Guid.TryParse(event1.EventId, out _).ShouldBeTrue("EventId must be valid GUID");
+		Guid.TryParse(event2.EventId, out _).ShouldBeTrue("EventId must be valid GUID");
 	}
 
 	[Fact]
@@ -42,15 +41,12 @@ public class DomainEventShould
 	{
 		// Arrange
 		var expectedTime = new DateTimeOffset(2025, 11, 23, 10, 30, 0, TimeSpan.Zero);
-		var timeProvider = A.Fake<TimeProvider>();
-		_ = A.CallTo(() => timeProvider.GetUtcNow()).Returns(expectedTime);
 
 		// Act
-		var domainEvent = new TestDomainEvent("agg-1", 1, timeProvider);
+		var domainEvent = new TestDomainEvent { AggregateId = "agg-1", Version = 1, OccurredAt = expectedTime };
 
 		// Assert
-		domainEvent.OccurredAt.ShouldBe(expectedTime, "OccurredAt must use provided TimeProvider");
-		_ = A.CallTo(() => timeProvider.GetUtcNow()).MustHaveHappenedOnceExactly();
+		domainEvent.OccurredAt.ShouldBe(expectedTime, "OccurredAt must accept init value");
 	}
 
 	[Fact]
@@ -60,7 +56,7 @@ public class DomainEventShould
 		var beforeCreation = DateTimeOffset.UtcNow;
 
 		// Act
-		var domainEvent = new TestDomainEvent("agg-1", 1);
+		var domainEvent = new TestDomainEvent { AggregateId = "agg-1", Version = 1 };
 		var afterCreation = DateTimeOffset.UtcNow;
 
 		// Assert
@@ -72,7 +68,7 @@ public class DomainEventShould
 	public void Support_Metadata_Dictionary()
 	{
 		// Arrange
-		var domainEvent = new TestDomainEvent("agg-1", 1);
+		var domainEvent = new TestDomainEvent { AggregateId = "agg-1", Version = 1 };
 
 		// Act
 		var eventWithMetadata = domainEvent.WithMetadata("key1", "value1");
@@ -93,7 +89,7 @@ public class DomainEventShould
 	{
 		// Arrange
 		var correlationId = Guid.NewGuid();
-		var domainEvent = new TestDomainEvent("agg-1", 1);
+		var domainEvent = new TestDomainEvent { AggregateId = "agg-1", Version = 1 };
 
 		// Act
 		var eventWithCorrelation = domainEvent.WithCorrelationId(correlationId);
@@ -109,7 +105,7 @@ public class DomainEventShould
 	{
 		// Arrange
 		var causationId = "parent-event-123";
-		var domainEvent = new TestDomainEvent("agg-1", 1);
+		var domainEvent = new TestDomainEvent { AggregateId = "agg-1", Version = 1 };
 
 		// Act
 		var eventWithCausation = domainEvent.WithCausationId(causationId);
@@ -124,29 +120,168 @@ public class DomainEventShould
 	public void Be_Immutable_Record()
 	{
 		// Arrange
-		var event1 = new TestDomainEvent("agg-1", 1);
-		var event2 = new TestDomainEvent("agg-1", 1);
+		var event1 = new TestDomainEvent { AggregateId = "agg-1", Version = 1 };
+		var event2 = new TestDomainEvent { AggregateId = "agg-1", Version = 1 };
 
 		// Act & Assert - Record provides value equality
 		event1.ShouldNotBeSameAs(event2, "Different instances should not be the same reference");
 
-		// Core properties are init-only (immutable)
-		// Note: WithMetadata uses builder pattern and mutates the instance
+		// WithMetadata returns a NEW instance (record with expression), original stays unchanged
 		var beforeMetadata = event1.Metadata;
-		_ = event1.WithMetadata("key", "value");
-		event1.Metadata.ShouldBe(beforeMetadata, "Metadata dictionary is the same instance (builder pattern)");
-		event1.Metadata.ShouldContainKey("key", "WithMetadata should mutate the metadata dictionary");
+		var eventWithMetadata = event1.WithMetadata("key", "value");
+		event1.Metadata.ShouldBe(beforeMetadata, "Original event metadata must remain unchanged");
+		_ = eventWithMetadata.Metadata.ShouldNotBeNull("Returned event should have metadata");
+		eventWithMetadata.Metadata.ShouldContainKey("key");
 	}
 
 	[Fact]
 	public void Implement_IDispatchMessage()
 	{
 		// Arrange & Act
-		var domainEvent = new TestDomainEvent("agg-1", 1);
+		var domainEvent = new TestDomainEvent { AggregateId = "agg-1", Version = 1 };
 
 		// Assert
 		_ = domainEvent.ShouldBeAssignableTo<IDispatchMessage>("DomainEvent must implement IDispatchMessage");
 		_ = domainEvent.ShouldBeAssignableTo<IDomainEvent>("DomainEvent must implement IDomainEvent");
 		_ = domainEvent.ShouldBeAssignableTo<IDispatchEvent>("DomainEvent must implement IDispatchEvent");
+	}
+
+	// ── Fluent API edge cases ──
+
+	[Fact]
+	public void WithMetadata_OverwriteExistingKey()
+	{
+		// Arrange
+		var evt = new TestDomainEvent().WithMetadata("key", "original");
+
+		// Act
+		var updated = evt.WithMetadata("key", "overwritten");
+
+		// Assert
+		updated.Metadata!["key"].ShouldBe("overwritten");
+		updated.Metadata.Count.ShouldBe(1);
+	}
+
+	[Fact]
+	public void WithMetadata_ChainMultipleCalls_PreservesAll()
+	{
+		// Arrange
+		var correlationId = Guid.NewGuid();
+
+		// Act
+		var evt = new TestDomainEvent()
+			.WithMetadata("source", "test")
+			.WithCorrelationId(correlationId)
+			.WithCausationId("cause-123")
+			.WithMetadata("extra", 99);
+
+		// Assert
+		evt.Metadata!.Count.ShouldBe(4);
+		evt.Metadata["source"].ShouldBe("test");
+		evt.Metadata["CorrelationId"].ShouldBe(correlationId.ToString());
+		evt.Metadata["CausationId"].ShouldBe("cause-123");
+		evt.Metadata["extra"].ShouldBe(99);
+	}
+
+	[Fact]
+	public void WithCorrelationId_EmptyGuid_ReturnsUnchangedEvent()
+	{
+		// Arrange
+		var evt = new TestDomainEvent();
+
+		// Act
+		var result = evt.WithCorrelationId(Guid.Empty);
+
+		// Assert — should be same instance (no-op)
+		result.Metadata.ShouldBeNull();
+	}
+
+	[Fact]
+	public void WithCausationId_EmptyString_ReturnsUnchangedEvent()
+	{
+		// Arrange
+		var evt = new TestDomainEvent();
+
+		// Act
+		var result = evt.WithCausationId(string.Empty);
+
+		// Assert
+		result.Metadata.ShouldBeNull();
+	}
+
+	[Fact]
+	public void WithCausationId_NullString_ReturnsUnchangedEvent()
+	{
+		// Arrange
+		var evt = new TestDomainEvent();
+
+		// Act
+		var result = evt.WithCausationId(null!);
+
+		// Assert
+		result.Metadata.ShouldBeNull();
+	}
+
+	// ── Derived record pattern ──
+
+	[Fact]
+	public void DerivedRecord_OverrideAggregateId_ViaPositionalParam()
+	{
+		// Arrange & Act
+		var evt = new TestOrderCreated("order-42", 199.99m);
+
+		// Assert
+		evt.AggregateId.ShouldBe("order-42");
+		evt.OrderId.ShouldBe("order-42");
+		evt.Total.ShouldBe(199.99m);
+		evt.EventType.ShouldBe(nameof(TestOrderCreated));
+	}
+
+	[Fact]
+	public void DerivedRecord_InheritsFluentApi()
+	{
+		// Arrange
+		var correlationId = Guid.NewGuid();
+		var evt = new TestOrderCreated("order-1", 50m);
+
+		// Act
+		var withMeta = evt.WithCorrelationId(correlationId);
+
+		// Assert — returns DomainEvent, but retains derived record data
+		withMeta.ShouldBeOfType<TestOrderCreated>();
+		var typed = (TestOrderCreated)withMeta;
+		typed.OrderId.ShouldBe("order-1");
+		typed.Total.ShouldBe(50m);
+		typed.Metadata!["CorrelationId"].ShouldBe(correlationId.ToString());
+	}
+
+	// ── Default values ──
+
+	[Fact]
+	public void DefaultMetadata_IsNull()
+	{
+		var evt = new TestDomainEvent();
+		evt.Metadata.ShouldBeNull();
+	}
+
+	[Fact]
+	public void DefaultVersion_IsZero()
+	{
+		var evt = new TestDomainEvent();
+		evt.Version.ShouldBe(0);
+	}
+
+	[Fact]
+	public void DefaultAggregateId_IsEmptyString()
+	{
+		var evt = new TestDomainEvent();
+		evt.AggregateId.ShouldBe(string.Empty);
+	}
+
+	[Fact]
+	public void EventType_ReturnsTypeName()
+	{
+		var evt = new TestDomainEvent();
+		evt.EventType.ShouldBe(nameof(TestDomainEvent));
 	}
 }

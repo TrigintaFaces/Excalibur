@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Messaging;
 using Excalibur.Dispatch.Delivery;
 
@@ -16,7 +17,7 @@ namespace Excalibur.Dispatch.ZeroAlloc;
 /// Contexts obtained from this factory should be returned to the pool after use via
 /// <see cref="IMessageContextPool.ReturnToPool"/> for optimal memory efficiency.
 /// </remarks>
-public sealed class PooledMessageContextFactory(IMessageContextPool pool) : IMessageContextFactory
+internal sealed class PooledMessageContextFactory(IMessageContextPool pool) : IMessageContextFactory
 {
 	private readonly IMessageContextPool _pool = pool ?? throw new ArgumentNullException(nameof(pool));
 

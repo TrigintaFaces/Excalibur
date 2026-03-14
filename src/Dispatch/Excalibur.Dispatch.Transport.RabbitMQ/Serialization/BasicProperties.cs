@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// <summary>
 /// Represents basic AMQP properties for AOT serialization.
 /// </summary>
-public sealed record BasicProperties(
+internal sealed record BasicProperties(
 	string? ContentType,
 	string? ContentEncoding,
 	IDictionary<string, object>? Headers,

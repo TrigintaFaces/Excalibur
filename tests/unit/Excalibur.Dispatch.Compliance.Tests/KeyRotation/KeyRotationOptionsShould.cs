@@ -61,7 +61,7 @@ public sealed class KeyRotationOptionsShould
 	{
 		var options = new KeyRotationOptions();
 
-		options.RotationTimeout.ShouldBe(TimeSpan.FromMinutes(5));
+		options.Lock.RotationTimeout.ShouldBe(TimeSpan.FromMinutes(5));
 	}
 
 	[Fact]
@@ -77,7 +77,7 @@ public sealed class KeyRotationOptionsShould
 	{
 		var options = new KeyRotationOptions();
 
-		options.RetryFailedRotations.ShouldBeTrue();
+		options.Retry.RetryFailedRotations.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -85,7 +85,7 @@ public sealed class KeyRotationOptionsShould
 	{
 		var options = new KeyRotationOptions();
 
-		options.MaxRetryAttempts.ShouldBe(3);
+		options.Retry.MaxRetryAttempts.ShouldBe(3);
 	}
 
 	[Fact]
@@ -93,7 +93,7 @@ public sealed class KeyRotationOptionsShould
 	{
 		var options = new KeyRotationOptions();
 
-		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(5));
+		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(5));
 	}
 
 	[Fact]
@@ -101,7 +101,7 @@ public sealed class KeyRotationOptionsShould
 	{
 		var options = new KeyRotationOptions();
 
-		options.SkipLockedKeys.ShouldBeTrue();
+		options.Lock.SkipLockedKeys.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -109,7 +109,7 @@ public sealed class KeyRotationOptionsShould
 	{
 		var options = new KeyRotationOptions();
 
-		options.LockDuration.ShouldBe(TimeSpan.FromMinutes(10));
+		options.Lock.LockDuration.ShouldBe(TimeSpan.FromMinutes(10));
 	}
 
 	[Fact]
@@ -139,7 +139,7 @@ public sealed class KeyRotationOptionsShould
 		var customPolicy = new KeyRotationPolicy
 		{
 			Name = "Custom",
-			MaxKeyAge = TimeSpan.FromDays(7)
+			MaxKeyAge = TimeSpan.FromDays(7),
 		};
 		options.AddPolicy("api-keys", customPolicy);
 
@@ -155,7 +155,7 @@ public sealed class KeyRotationOptionsShould
 		var customPolicy = new KeyRotationPolicy
 		{
 			Name = "Custom",
-			MaxKeyAge = TimeSpan.FromDays(14)
+			MaxKeyAge = TimeSpan.FromDays(14),
 		};
 		options.AddPolicy("API-Keys", customPolicy);
 
@@ -171,7 +171,7 @@ public sealed class KeyRotationOptionsShould
 		var policy = new KeyRotationPolicy
 		{
 			Name = "Test",
-			MaxKeyAge = TimeSpan.FromDays(60)
+			MaxKeyAge = TimeSpan.FromDays(60),
 		};
 
 		var result = options.AddPolicy("test-purpose", policy);
@@ -218,12 +218,12 @@ public sealed class KeyRotationOptionsShould
 		var firstPolicy = new KeyRotationPolicy
 		{
 			Name = "First",
-			MaxKeyAge = TimeSpan.FromDays(30)
+			MaxKeyAge = TimeSpan.FromDays(30),
 		};
 		var secondPolicy = new KeyRotationPolicy
 		{
 			Name = "Second",
-			MaxKeyAge = TimeSpan.FromDays(60)
+			MaxKeyAge = TimeSpan.FromDays(60),
 		};
 
 		options.AddPolicy("purpose", firstPolicy);

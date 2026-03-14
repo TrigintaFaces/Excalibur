@@ -24,8 +24,8 @@ using Amazon.SQS;
 
 using AwsSqsSample.Messages;
 
-using Excalibur.Data.InMemory.Inbox;
-using Excalibur.Data.InMemory.Outbox;
+using Excalibur.Inbox.InMemory;
+using Excalibur.Outbox.InMemory;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;

@@ -22,13 +22,13 @@ Events represent things that have happened - they cannot be changed or deleted:
 
 ```csharp
 // Events use past tense - they describe completed actions
-// Events extend DomainEventBase which provides EventId, AggregateId, Version, OccurredAt
-public record OrderCreated(Guid OrderId, string CustomerId) : DomainEventBase
+// Events extend DomainEvent which provides EventId, AggregateId, Version, OccurredAt
+public record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
 
-public record OrderLineAdded(Guid OrderId, string ProductId, int Quantity) : DomainEventBase
+public record OrderLineAdded(Guid OrderId, string ProductId, int Quantity) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
@@ -74,16 +74,16 @@ Event Stream: order-123
 
 ## Event Anatomy
 
-Every domain event should extend `DomainEventBase` (from `Excalibur.Domain.Model`) which provides standard properties:
+Every domain event should extend `DomainEvent` (from `Excalibur.Dispatch.Abstractions`) which provides standard properties:
 
 ```csharp
-public record OrderCreated(Guid OrderId, string CustomerId) : DomainEventBase
+public record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
 
-// DomainEventBase provides these properties automatically:
-// - EventId: Auto-generated GUID string
+// DomainEvent provides these properties automatically:
+// - EventId: Auto-generated UUID v7 string (time-ordered)
 // - AggregateId: Override in derived records to link to aggregate
 // - Version: Set by infrastructure during event sourcing (default 0)
 // - OccurredAt: DateTimeOffset.UtcNow at construction time

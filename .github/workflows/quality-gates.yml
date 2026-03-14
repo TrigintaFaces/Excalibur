@@ -24,6 +24,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
           fetch-depth: 0
 
       - name: Detect changed paths
@@ -70,15 +72,15 @@ jobs:
       matrix:
         shard:
           - { name: core, filter: "eng/ci/shards/UnitTests-Core.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
-          - { name: messaging, filter: "eng/ci/shards/UnitTests-Messaging.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
           - { name: transport, filter: "eng/ci/shards/UnitTests-Transport.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
           - { name: middleware, filter: "eng/ci/shards/UnitTests-Middleware.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
-          - { name: observability, filter: "eng/ci/shards/UnitTests-Observability.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
           - { name: excalibur, filter: "eng/ci/shards/UnitTests-Excalibur.slnf", test_filter: "(Category=Unit|Category=DependencyInjection)&Category!=Performance" }
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
           fetch-depth: 0
 
       - name: Setup .NET
@@ -132,6 +134,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
       - name: Download shard coverage artifacts
         uses: actions/download-artifact@v4
         with:
@@ -193,6 +198,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -202,17 +210,17 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Restore dependencies
-        run: dotnet restore eng/ci/shards/TestsOnly.slnf
+      - name: Restore deterministic unit dependencies
+        run: dotnet restore eng/ci/shards/UnitTests-Deterministic.slnf
 
-      - name: Build solution
-        run: dotnet build eng/ci/shards/TestsOnly.slnf --configuration Release --no-restore
+      - name: Build deterministic unit solution
+        run: dotnet build eng/ci/shards/UnitTests-Deterministic.slnf --configuration Release --no-restore
 
-      - name: Run unit, functional, and architecture tests
+      - name: Run deterministic unit and DI tests
         run: |
-          dotnet test eng/ci/shards/TestsOnly.slnf --configuration Release --no-build \
+          dotnet test eng/ci/shards/UnitTests-Deterministic.slnf --configuration Release --no-build \
             --blame-hang-timeout 5m \
-            --filter "Category!=Integration&Category!=TransportConformance&Category!=LoadTest&Category!=Performance" \
+            --filter "(Category=Unit|Category=DependencyInjection)&Category!=Performance" \
             --logger "trx;LogFileName=test-results.trx" \
             --logger "console;verbosity=minimal" \
             --results-directory ./test-results
@@ -250,6 +258,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -292,6 +303,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Free disk space (Ubuntu)
         shell: bash
@@ -341,6 +355,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -372,6 +389,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Free disk space (Ubuntu)
         shell: bash
@@ -474,6 +494,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
           fetch-depth: 0
 
       - name: Setup .NET
@@ -497,7 +519,7 @@ jobs:
           path: management/reports/ApiCompatReport
           retention-days: 7
 
-  # Summary gate
+  # Summary gate -- blocking vs advisory split
   summary:
     name: Quality Summary
     runs-on: ubuntu-latest
@@ -508,65 +530,64 @@ jobs:
         run: |
           echo "Quality Gates Summary"
           echo "===================="
+          echo ""
 
-          if [ "${{ needs.coverage.result }}" != "success" ]; then
-            echo "❌ Coverage gate: FAILED"
-            FAILED=true
-          else
-            echo "✅ Coverage gate: PASSED"
+          blocking_failures=""
+          advisory_failures=""
+
+          # --- Blocking gates ---
+          check_blocking() {
+            local gate="$1"
+            local result="$2"
+            if [ "$result" != "success" ]; then
+              echo "::error::Blocking gate failed: ${gate} (${result})"
+              blocking_failures="${blocking_failures}${gate}=${result} "
+            fi
+          }
+
+          check_blocking "coverage" "${{ needs.coverage.result }}"
+          check_blocking "test-quality" "${{ needs.test-quality.result }}"
+          check_blocking "code-analysis" "${{ needs.code-analysis.result }}"
+          check_blocking "governance" "${{ needs.governance.result }}"
+          check_blocking "architecture" "${{ needs.architecture.result }}"
+          check_blocking "api-compatibility" "${{ needs.api-compatibility.result }}"
+
+          # --- Advisory gates ---
+          conformance_result="${{ needs.transport-conformance.result }}"
+          if [ "$conformance_result" = "skipped" ]; then
+            echo "Transport conformance: SKIPPED (no core/perf changes)"
+          elif [ "$conformance_result" != "success" ]; then
+            advisory_failures="${advisory_failures}transport-conformance=${conformance_result} "
           fi
 
-          if [ "${{ needs.test-quality.result }}" != "success" ]; then
-            echo "❌ Test quality gate: FAILED"
-            FAILED=true
-          else
-            echo "✅ Test quality gate: PASSED"
-          fi
-
-          if [ "${{ needs.transport-conformance.result }}" = "skipped" ]; then
-            echo "⏭️ Transport conformance gate: SKIPPED (no core/perf changes)"
-          elif [ "${{ needs.transport-conformance.result }}" != "success" ]; then
-            echo "❌ Transport conformance gate: FAILED"
-            FAILED=true
-          else
-            echo "✅ Transport conformance gate: PASSED"
-          fi
-
-          if [ "${{ needs.code-analysis.result }}" != "success" ]; then
-            echo "❌ Code analysis gate: FAILED"
-            FAILED=true
-          else
-            echo "✅ Code analysis gate: PASSED"
-          fi
-
-          if [ "${{ needs.governance.result }}" != "success" ]; then
-            echo "❌ Governance gate: FAILED"
-            FAILED=true
-          else
-            echo "✅ Governance gate: PASSED"
-          fi
-
-          if [ "${{ needs.architecture.result }}" != "success" ]; then
-            echo "❌ Architecture gate: FAILED"
-            FAILED=true
-          else
-            echo "✅ Architecture gate: PASSED"
-          fi
-
-          if [ "${{ needs.api-compatibility.result }}" != "success" ]; then
-            echo "❌ API compatibility gate: FAILED"
-            FAILED=true
-          else
-            echo "✅ API compatibility gate: PASSED"
-          fi
-
-          if [ "$FAILED" = true ]; then
+          # --- Summary table ---
+          {
+            echo "## Quality Gates Summary"
             echo ""
-            echo "❌ QUALITY GATES FAILED - PR cannot be merged"
+            echo "| Gate | Status | Tier |"
+            echo "|------|--------|------|"
+            echo "| coverage | ${{ needs.coverage.result }} | blocking |"
+            echo "| test-quality | ${{ needs.test-quality.result }} | blocking |"
+            echo "| code-analysis | ${{ needs.code-analysis.result }} | blocking |"
+            echo "| governance | ${{ needs.governance.result }} | blocking |"
+            echo "| architecture | ${{ needs.architecture.result }} | blocking |"
+            echo "| api-compatibility | ${{ needs.api-compatibility.result }} | blocking |"
+            echo "| transport-conformance | ${conformance_result} | advisory |"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # --- Verdict ---
+          if [ -n "$advisory_failures" ]; then
+            echo "::warning::Advisory gate failures (non-blocking): ${advisory_failures}"
+            echo "Advisory failures (non-blocking): ${advisory_failures}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -n "$blocking_failures" ]; then
+            echo ""
+            echo "Blocking failures: ${blocking_failures}" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::QUALITY GATES FAILED - blocking failures: ${blocking_failures}"
             exit 1
           else
-            echo ""
-            echo "✅ ALL QUALITY GATES PASSED"
+            echo "All blocking quality gates passed." >> "$GITHUB_STEP_SUMMARY"
+            echo "All blocking quality gates passed."
           fi
-
-

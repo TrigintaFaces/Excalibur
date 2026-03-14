@@ -64,7 +64,7 @@ public sealed class DistributedCacheOnlyShould
 		_ = distSvc.AddDistributedMemoryCache();
 		var distCache = distSvc.BuildServiceProvider().GetRequiredService<IDistributedCache>();
 		_ = services.AddSingleton<IDistributedCache>(new ForwardingDistributedCache(distCache));
-		_ = services.AddSingleton<IJsonSerializer, JsonMessageSerializer>();
+		_ = services.AddSingleton<DispatchJsonSerializer>();
 		// Register the test handler explicitly
 		_ = services.AddTransient<IActionHandler<DistributedTestQuery, DistributedTestResult>, DistributedTestQueryHandler>();
 

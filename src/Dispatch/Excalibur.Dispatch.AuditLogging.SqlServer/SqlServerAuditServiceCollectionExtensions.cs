@@ -27,7 +27,7 @@ public static class SqlServerAuditServiceCollectionExtensions
 	/// {
 	///     options.ConnectionString = configuration.GetConnectionString("AuditDb");
 	///     options.SchemaName = "audit";
-	///     options.RetentionPeriod = TimeSpan.FromDays(7 * 365); // 7 years for SOC2
+	///     options.Retention.RetentionPeriod = TimeSpan.FromDays(7 * 365); // 7 years for SOC2
 	///     options.EnableHashChain = true;
 	/// });
 	/// </code>
@@ -66,10 +66,10 @@ public static class SqlServerAuditServiceCollectionExtensions
 			o.SchemaName = options.SchemaName;
 			o.TableName = options.TableName;
 			o.BatchInsertSize = options.BatchInsertSize;
-			o.RetentionPeriod = options.RetentionPeriod;
-			o.EnableRetentionEnforcement = options.EnableRetentionEnforcement;
-			o.RetentionCleanupInterval = options.RetentionCleanupInterval;
-			o.RetentionCleanupBatchSize = options.RetentionCleanupBatchSize;
+			o.Retention.RetentionPeriod = options.Retention.RetentionPeriod;
+			o.Retention.EnableRetentionEnforcement = options.Retention.EnableRetentionEnforcement;
+			o.Retention.CleanupInterval = options.Retention.CleanupInterval;
+			o.Retention.CleanupBatchSize = options.Retention.CleanupBatchSize;
 			o.CommandTimeoutSeconds = options.CommandTimeoutSeconds;
 			o.UsePartitioning = options.UsePartitioning;
 			o.EnableHashChain = options.EnableHashChain;

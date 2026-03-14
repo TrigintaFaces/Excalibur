@@ -306,7 +306,7 @@ public sealed partial class DatadogAuditExporter : IAuditLogExporter
 		var attempts = 0;
 		HttpResponseMessage? lastResponse = null;
 
-		while (attempts <= _options.MaxRetryAttempts)
+		while (attempts <= _options.Retry.MaxRetryAttempts)
 		{
 			attempts++;
 
@@ -320,9 +320,9 @@ public sealed partial class DatadogAuditExporter : IAuditLogExporter
 					return lastResponse;
 				}
 
-				if (attempts <= _options.MaxRetryAttempts)
+				if (attempts <= _options.Retry.MaxRetryAttempts)
 				{
-					var delay = _options.RetryBaseDelay * Math.Pow(2, attempts - 1);
+					var delay = _options.Retry.RetryBaseDelay * Math.Pow(2, attempts - 1);
 					LogAuditExportRetry(
 						attempts,
 						delay.TotalMilliseconds,
@@ -331,9 +331,9 @@ public sealed partial class DatadogAuditExporter : IAuditLogExporter
 					await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
 				}
 			}
-			catch (HttpRequestException) when (attempts <= _options.MaxRetryAttempts)
+			catch (HttpRequestException) when (attempts <= _options.Retry.MaxRetryAttempts)
 			{
-				var delay = _options.RetryBaseDelay * Math.Pow(2, attempts - 1);
+				var delay = _options.Retry.RetryBaseDelay * Math.Pow(2, attempts - 1);
 				await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
 			}
 		}

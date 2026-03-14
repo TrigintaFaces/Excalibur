@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// <summary>
 /// Represents a serialized message envelope for Azure Storage Queue messages.
 /// </summary>
-public sealed class StorageQueueMessageEnvelope
+internal sealed class StorageQueueMessageEnvelope
 {
 	/// <inheritdoc/>
 	public required string MessageType { get; init; }

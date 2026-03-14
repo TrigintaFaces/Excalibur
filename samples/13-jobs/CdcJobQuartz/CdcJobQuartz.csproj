@@ -23,10 +23,12 @@
   <!-- CDC from SQL Server (Anti-Corruption Layer) -->
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Cdc.SqlServer\Excalibur.Cdc.SqlServer.csproj" />
   </ItemGroup>
   <!-- Excalibur Jobs with Quartz.NET (CdcJob) -->
   <ItemGroup>
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Jobs\Excalibur.Jobs.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Jobs.Cdc\Excalibur.Jobs.Cdc.csproj" />
   </ItemGroup>
   <!-- Event Sourcing with SQL Server provider -->
   <ItemGroup>

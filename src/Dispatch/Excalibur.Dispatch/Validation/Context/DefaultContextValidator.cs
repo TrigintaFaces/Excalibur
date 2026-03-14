@@ -8,6 +8,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Validation;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Diagnostics;
 using Excalibur.Dispatch.Options.Validation;
 
@@ -22,7 +24,7 @@ namespace Excalibur.Dispatch.Validation.Context;
 /// <remarks> Initializes a new instance of the <see cref="DefaultContextValidator" /> class. </remarks>
 /// <param name="logger"> The logger for diagnostic output. </param>
 /// <param name="options"> Configuration options for validation. </param>
-public sealed partial class DefaultContextValidator(
+internal sealed partial class DefaultContextValidator(
 	ILogger<DefaultContextValidator> logger,
 	IOptions<ContextValidationOptions> options) : IContextValidator
 {
@@ -261,7 +263,7 @@ public sealed partial class DefaultContextValidator(
 		}
 
 		// Check MessageType
-		if (string.IsNullOrWhiteSpace(context.MessageType))
+		if (string.IsNullOrWhiteSpace(context.GetMessageType()))
 		{
 			missingFields.Add("MessageType");
 		}
@@ -288,11 +290,12 @@ public sealed partial class DefaultContextValidator(
 		List<string> corruptedFields,
 		Dictionary<string, object?> details)
 	{
-		if (context.TenantId is null)
+		var tenantId = context.GetTenantId();
+		if (tenantId is null)
 		{
 			missingFields.Add("TenantId");
 		}
-		else if (string.IsNullOrWhiteSpace(context.TenantId))
+		else if (string.IsNullOrWhiteSpace(tenantId))
 		{
 			corruptedFields.Add("TenantId");
 			details["TenantId_Empty"] = true;
@@ -310,14 +313,16 @@ public sealed partial class DefaultContextValidator(
 	{
 		_ = missingFields;
 
+		var userId = context.GetUserId();
+
 		// Check if UserId is present when authentication is expected
-		if (!string.IsNullOrWhiteSpace(context.UserId))
+		if (!string.IsNullOrWhiteSpace(userId))
 		{
 			// Validate UserId format if present
-			if (context.UserId.Length > 256)
+			if (userId.Length > 256)
 			{
 				corruptedFields.Add("UserId");
-				details["UserId_TooLong"] = context.UserId.Length;
+				details["UserId_TooLong"] = userId.Length;
 			}
 		}
 
@@ -338,26 +343,27 @@ public sealed partial class DefaultContextValidator(
 		Dictionary<string, object?> details)
 	{
 		_ = missingFields;
-		if (!string.IsNullOrWhiteSpace(context.TraceParent))
+		var traceParent = context.GetTraceParent();
+		if (!string.IsNullOrWhiteSpace(traceParent))
 		{
 			// Validate W3C TraceContext format
-			if (!IsValidTraceParent(context.TraceParent))
+			if (!IsValidTraceParent(traceParent))
 			{
 				corruptedFields.Add("TraceParent");
-				details["TraceParent_Invalid"] = context.TraceParent;
+				details["TraceParent_Invalid"] = traceParent;
 			}
 		}
 
 		// Check if Activity.Current exists and matches
 		var activity = Activity.Current;
-		if (activity != null && !string.IsNullOrWhiteSpace(context.TraceParent))
+		if (activity != null && !string.IsNullOrWhiteSpace(traceParent))
 		{
 			var activityTraceParent = activity.Id;
-			if (activityTraceParent?.StartsWith(context.TraceParent, StringComparison.Ordinal) == false)
+			if (activityTraceParent?.StartsWith(traceParent, StringComparison.Ordinal) == false)
 			{
 				details["TraceContext_Mismatch"] = true;
 				details["Activity_Id"] = activityTraceParent;
-				details["Context_TraceParent"] = context.TraceParent;
+				details["Context_TraceParent"] = traceParent;
 			}
 		}
 	}
@@ -456,7 +462,8 @@ public sealed partial class DefaultContextValidator(
 		Dictionary<string, object?> details)
 	{
 		var now = DateTimeOffset.UtcNow;
-		var messageAge = now - context.ReceivedTimestampUtc;
+		var receivedTimestamp = context.GetReceivedTimestampUtc() ?? default;
+		var messageAge = now - receivedTimestamp;
 
 		if (messageAge > _options.MaxMessageAge!.Value)
 		{
@@ -466,10 +473,11 @@ public sealed partial class DefaultContextValidator(
 		}
 
 		// Check for future timestamps (clock skew)
-		if (context.SentTimestampUtc > DateTimeOffset.UtcNow.AddMinutes(5))
+		var sentTimestamp = context.GetSentTimestampUtc();
+		if (sentTimestamp > DateTimeOffset.UtcNow.AddMinutes(5))
 		{
 			corruptedFields.Add("SentTimestampUtc");
-			details["SentTimestamp_Future"] = context.SentTimestampUtc.Value;
+			details["SentTimestamp_Future"] = sentTimestamp.Value;
 		}
 	}
 

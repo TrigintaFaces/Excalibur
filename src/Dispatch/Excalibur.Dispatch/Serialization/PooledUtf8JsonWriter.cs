@@ -29,7 +29,7 @@ namespace Excalibur.Dispatch.Serialization;
 /// </code>
 /// </para>
 /// </remarks>
-public readonly struct PooledUtf8JsonWriter : IDisposable, IEquatable<PooledUtf8JsonWriter>
+internal readonly struct PooledUtf8JsonWriter : IDisposable, IEquatable<PooledUtf8JsonWriter>
 {
 	private readonly IUtf8JsonWriterPool _pool;
 

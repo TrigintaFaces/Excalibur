@@ -221,7 +221,7 @@ public class SqlServerPersistenceMetrics : IDisposable
 	/// </summary>
 	public void RecordConnectionCreated()
 	{
-		if (_options.EnableMetrics)
+		if (_options.Observability.EnableMetrics)
 		{
 			_connectionsCreated.Add(1);
 			_ = _activeConnections.AddOrUpdate(Guid.NewGuid().ToString(), 1, static (_, v) => v + 1);
@@ -233,7 +233,7 @@ public class SqlServerPersistenceMetrics : IDisposable
 	/// </summary>
 	public void RecordConnectionClosed(string connectionId)
 	{
-		if (_options.EnableMetrics && !string.IsNullOrEmpty(connectionId))
+		if (_options.Observability.EnableMetrics && !string.IsNullOrEmpty(connectionId))
 		{
 			_ = _activeConnections.TryRemove(connectionId, out _);
 		}
@@ -244,7 +244,7 @@ public class SqlServerPersistenceMetrics : IDisposable
 	/// </summary>
 	public void RecordQueryExecution(long durationMs, bool success)
 	{
-		if (_options.EnableMetrics)
+		if (_options.Observability.EnableMetrics)
 		{
 			_queriesExecuted.Add(1, new KeyValuePair<string, object?>("success", success));
 			_queryDuration.Record(durationMs);
@@ -261,7 +261,7 @@ public class SqlServerPersistenceMetrics : IDisposable
 	/// </summary>
 	public void RecordCommandExecution(long durationMs, bool success, int affectedRows)
 	{
-		if (_options.EnableMetrics)
+		if (_options.Observability.EnableMetrics)
 		{
 			_commandsExecuted.Add(
 				1,
@@ -281,7 +281,7 @@ public class SqlServerPersistenceMetrics : IDisposable
 	/// </summary>
 	public void RecordBatchExecution(long durationMs, bool success, int commandCount, int affectedRows)
 	{
-		if (_options.EnableMetrics)
+		if (_options.Observability.EnableMetrics)
 		{
 			_batchSize.Record(commandCount);
 			_commandsExecuted.Add(
@@ -303,7 +303,7 @@ public class SqlServerPersistenceMetrics : IDisposable
 	/// </summary>
 	public void RecordDataRequestExecution(long durationMs, bool success)
 	{
-		if (_options.EnableMetrics)
+		if (_options.Observability.EnableMetrics)
 		{
 			_queriesExecuted.Add(
 				1,
@@ -323,7 +323,7 @@ public class SqlServerPersistenceMetrics : IDisposable
 	/// </summary>
 	public void RecordTransactionStarted()
 	{
-		if (_options.EnableMetrics)
+		if (_options.Observability.EnableMetrics)
 		{
 			_transactionsStarted.Add(1);
 			_ = _activeTransactions.AddOrUpdate(Guid.NewGuid().ToString(), 1, static (_, v) => v + 1);
@@ -335,7 +335,7 @@ public class SqlServerPersistenceMetrics : IDisposable
 	/// </summary>
 	public void RecordTransactionCommitted(string transactionId, long durationMs)
 	{
-		if (_options.EnableMetrics)
+		if (_options.Observability.EnableMetrics)
 		{
 			_transactionsCommitted.Add(1);
 			_transactionDuration.Record(durationMs);
@@ -352,7 +352,7 @@ public class SqlServerPersistenceMetrics : IDisposable
 	/// </summary>
 	public void RecordTransactionRolledBack(string transactionId, long durationMs)
 	{
-		if (_options.EnableMetrics)
+		if (_options.Observability.EnableMetrics)
 		{
 			_transactionsRolledBack.Add(1);
 			_transactionDuration.Record(durationMs);
@@ -369,7 +369,7 @@ public class SqlServerPersistenceMetrics : IDisposable
 	/// </summary>
 	public void RecordRetry()
 	{
-		if (_options.EnableMetrics)
+		if (_options.Observability.EnableMetrics)
 		{
 			_retryCount.Add(1);
 		}
@@ -380,7 +380,7 @@ public class SqlServerPersistenceMetrics : IDisposable
 	/// </summary>
 	public void RecordDeadlock()
 	{
-		if (_options.EnableMetrics)
+		if (_options.Observability.EnableMetrics)
 		{
 			_deadlockCount.Add(1);
 			_errorCount.Add(1, new KeyValuePair<string, object?>("type", "deadlock"));
@@ -392,7 +392,7 @@ public class SqlServerPersistenceMetrics : IDisposable
 	/// </summary>
 	public void RecordConnectionWaitTime(long waitTimeMs)
 	{
-		if (_options.EnableMetrics)
+		if (_options.Observability.EnableMetrics)
 		{
 			_connectionWaitTime.Record(waitTimeMs);
 		}
@@ -403,7 +403,7 @@ public class SqlServerPersistenceMetrics : IDisposable
 	/// </summary>
 	public void RecordCdcEventProcessed(long durationMs, int eventCount)
 	{
-		if (_options.EnableMetrics)
+		if (_options.Observability.EnableMetrics)
 		{
 			_cdcEventsProcessed.Add(eventCount);
 			_cdcProcessingDuration.Record(durationMs);
@@ -415,7 +415,7 @@ public class SqlServerPersistenceMetrics : IDisposable
 	/// </summary>
 	public void UpdateCdcLag(long lagSeconds)
 	{
-		if (_options.EnableMetrics)
+		if (_options.Observability.EnableMetrics)
 		{
 			_currentCdcLag = lagSeconds;
 		}
@@ -426,7 +426,7 @@ public class SqlServerPersistenceMetrics : IDisposable
 	/// </summary>
 	public void RecordCacheHit()
 	{
-		if (_options.EnableMetrics)
+		if (_options.Observability.EnableMetrics)
 		{
 			_cacheHits.Add(1);
 			_ = Interlocked.Increment(ref _totalCacheHits);
@@ -439,7 +439,7 @@ public class SqlServerPersistenceMetrics : IDisposable
 	/// </summary>
 	public void RecordCacheMiss()
 	{
-		if (_options.EnableMetrics)
+		if (_options.Observability.EnableMetrics)
 		{
 			_cacheMisses.Add(1);
 			_ = Interlocked.Increment(ref _totalCacheRequests);
@@ -451,7 +451,7 @@ public class SqlServerPersistenceMetrics : IDisposable
 	/// </summary>
 	public void RecordHealthCheck(long durationMs, bool healthy)
 	{
-		if (_options.EnableMetrics)
+		if (_options.Observability.EnableMetrics)
 		{
 			var tags = new[]
 			{
@@ -476,10 +476,10 @@ public class SqlServerPersistenceMetrics : IDisposable
 			["cdc.lag_seconds"] = _currentCdcLag,
 
 			// Add configuration metrics
-			["config.max_pool_size"] = _options.MaxPoolSize,
+			["config.max_pool_size"] = _options.Pooling.MaxPoolSize,
 			["config.command_timeout"] = _options.CommandTimeout,
-			["config.max_retry_attempts"] = _options.MaxRetryAttempts,
-			["config.pooling_enabled"] = _options.EnableConnectionPooling,
+			["config.max_retry_attempts"] = _options.Resiliency.MaxRetryAttempts,
+			["config.pooling_enabled"] = _options.Pooling.EnableConnectionPooling,
 		};
 
 		return await Task.FromResult(metrics).ConfigureAwait(false);

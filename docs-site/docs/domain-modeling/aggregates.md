@@ -80,28 +80,28 @@ public class Order : AggregateRoot<Guid>
 
 ### Domain Events
 
-Define events as immutable records extending `DomainEventBase`:
+Define events as immutable records extending `DomainEvent`:
 
 ```csharp
 using Excalibur.Dispatch.Abstractions;
 
-public record OrderCreated(Guid OrderId, string CustomerId) : DomainEventBase
+public record OrderCreated(Guid OrderId, string CustomerId) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
 
-public record OrderLineAdded(Guid OrderId, string ProductId, int Quantity, decimal UnitPrice) : DomainEventBase
+public record OrderLineAdded(Guid OrderId, string ProductId, int Quantity, decimal UnitPrice) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
 
-public record OrderSubmitted(Guid OrderId) : DomainEventBase
+public record OrderSubmitted(Guid OrderId) : DomainEvent
 {
     public override string AggregateId => OrderId.ToString();
 }
 ```
 
-The `DomainEventBase` abstract record automatically provides:
+The `DomainEvent` abstract record automatically provides:
 - `EventId` - UUID v7 for time-ordered uniqueness
 - `AggregateId` - String identifier of the owning aggregate
 - `Version` - Aggregate version for ordering

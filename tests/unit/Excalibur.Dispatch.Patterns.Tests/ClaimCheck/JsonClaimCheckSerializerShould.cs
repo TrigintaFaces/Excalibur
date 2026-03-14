@@ -28,17 +28,17 @@ public sealed class JsonClaimCheckSerializerShould
 	#region Property Tests
 
 	[Fact]
-	public void HaveCorrectSerializerName()
+	public void HaveCorrectName()
 	{
 		// Act & Assert
-		_serializer.SerializerName.ShouldBe("Json-Abstraction");
+		_serializer.Name.ShouldBe("Json-Abstraction");
 	}
 
 	[Fact]
-	public void HaveCorrectSerializerVersion()
+	public void HaveCorrectVersion()
 	{
-		// Act & Assert
-		_serializer.SerializerVersion.ShouldBe("1.0.0");
+		// Act & Assert — Version returns the System.Text.Json assembly version
+		_serializer.Version.ShouldNotBeNullOrWhiteSpace();
 	}
 
 	[Fact]
@@ -46,20 +46,6 @@ public sealed class JsonClaimCheckSerializerShould
 	{
 		// Act & Assert
 		_serializer.ContentType.ShouldBe("application/json");
-	}
-
-	[Fact]
-	public void HaveFalseSupportsCompression()
-	{
-		// Act & Assert
-		_serializer.SupportsCompression.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void HaveCorrectFormat()
-	{
-		// Act & Assert
-		_serializer.Format.ShouldBe("JSON");
 	}
 
 	#endregion
@@ -72,8 +58,8 @@ public sealed class JsonClaimCheckSerializerShould
 		// Arrange
 		var message = new TestMessage { Id = 1, Name = "Test" };
 
-		// Act
-		var result = _serializer.Serialize(message);
+		// Act — uses SerializeToBytes extension which calls Serialize(T, IBufferWriter<byte>)
+		var result = _serializer.SerializeToBytes(message);
 
 		// Assert
 		var json = Encoding.UTF8.GetString(result);
@@ -105,8 +91,8 @@ public sealed class JsonClaimCheckSerializerShould
 		var message = new TestMessage { Id = 5, Name = "Stream" };
 		using var stream = new MemoryStream();
 
-		// Act
-		await _serializer.SerializeAsync(message, stream, CancellationToken.None);
+		// Act — uses SerializeAsync extension: SerializeAsync(stream, value, ct)
+		await _serializer.SerializeAsync(stream, message, CancellationToken.None);
 
 		// Assert
 		stream.Position = 0;
@@ -127,7 +113,7 @@ public sealed class JsonClaimCheckSerializerShould
 		var json = "{\"Id\":10,\"Name\":\"Deserialized\"}";
 		var bytes = Encoding.UTF8.GetBytes(json);
 
-		// Act
+		// Act — uses Deserialize<T>(byte[]) extension which calls Deserialize<T>(ReadOnlySpan<byte>)
 		var result = _serializer.Deserialize<TestMessage>(bytes);
 
 		// Assert
@@ -160,7 +146,7 @@ public sealed class JsonClaimCheckSerializerShould
 		var bytes = Encoding.UTF8.GetBytes(json);
 		using var stream = new MemoryStream(bytes);
 
-		// Act
+		// Act — uses DeserializeAsync extension: DeserializeAsync<T>(stream, ct)
 		var result = await _serializer.DeserializeAsync<TestMessage>(stream, CancellationToken.None);
 
 		// Assert
@@ -180,7 +166,7 @@ public sealed class JsonClaimCheckSerializerShould
 		var original = new TestMessage { Id = 42, Name = "Roundtrip" };
 
 		// Act
-		var bytes = _serializer.Serialize(original);
+		var bytes = _serializer.SerializeToBytes(original);
 		var result = _serializer.Deserialize<TestMessage>(bytes);
 
 		// Assert
@@ -197,7 +183,7 @@ public sealed class JsonClaimCheckSerializerShould
 		using var stream = new MemoryStream();
 
 		// Act - serialize to stream, then deserialize from stream
-		await _serializer.SerializeAsync(original, stream, CancellationToken.None);
+		await _serializer.SerializeAsync(stream, original, CancellationToken.None);
 		stream.Position = 0;
 		var result = await _serializer.DeserializeAsync<TestMessage>(stream, CancellationToken.None);
 
@@ -220,7 +206,7 @@ public sealed class JsonClaimCheckSerializerShould
 		var message = new TestMessage { Id = 7, Name = "CamelCase" };
 
 		// Act
-		var bytes = serializer.Serialize(message);
+		var bytes = serializer.SerializeToBytes(message);
 		var json = Encoding.UTF8.GetString(bytes);
 
 		// Assert - property names should be camelCase
@@ -256,17 +242,17 @@ public sealed class JsonClaimCheckSerializerShould
 		// Arrange
 		var message = new TestMessage { Id = 1 };
 
-		// Act & Assert
+		// Act & Assert — SerializeAsync extension checks stream != null
 		await Should.ThrowAsync<ArgumentNullException>(() =>
-			_serializer.SerializeAsync(message, null!, CancellationToken.None).AsTask());
+			_serializer.SerializeAsync((Stream)null!, message, CancellationToken.None).AsTask());
 	}
 
 	[Fact]
 	public async Task DeserializeAsync_ThrowsArgumentNullException_WhenStreamIsNull()
 	{
-		// Act & Assert
+		// Act & Assert — DeserializeAsync extension checks stream != null
 		await Should.ThrowAsync<ArgumentNullException>(() =>
-			_serializer.DeserializeAsync<TestMessage>(null!, CancellationToken.None).AsTask());
+			_serializer.DeserializeAsync<TestMessage>((Stream)null!, CancellationToken.None).AsTask());
 	}
 
 	#endregion
@@ -274,17 +260,10 @@ public sealed class JsonClaimCheckSerializerShould
 	#region Interface Implementation Tests
 
 	[Fact]
-	public void ImplementIBinaryMessageSerializer()
+	public void ImplementISerializer()
 	{
 		// Assert
-		_serializer.ShouldBeAssignableTo<IBinaryMessageSerializer>();
-	}
-
-	[Fact]
-	public void ImplementIMessageSerializer()
-	{
-		// Assert
-		_serializer.ShouldBeAssignableTo<IMessageSerializer>();
+		_serializer.ShouldBeAssignableTo<ISerializer>();
 	}
 
 	#endregion

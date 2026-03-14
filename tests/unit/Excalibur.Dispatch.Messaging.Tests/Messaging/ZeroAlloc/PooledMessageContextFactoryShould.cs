@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Messaging;
+using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Delivery;
 using Excalibur.Dispatch.ZeroAlloc;
 
@@ -142,19 +144,26 @@ public sealed class PooledMessageContextFactoryShould : IDisposable
 	}
 
 	[Fact]
-	public void CreateChildContext_DelegatesToParentContext()
+	public void CreateChildContext_PropagatesParentIdentifiers()
 	{
 		// Arrange
-		var parentContext = A.Fake<IMessageContext>();
-		var childContext = A.Fake<IMessageContext>();
-		_ = A.CallTo(() => parentContext.CreateChildContext()).Returns(childContext);
+		var parentContext = new MessageContext
+		{
+			MessageId = "parent-msg",
+			CorrelationId = "correlation-123",
+		};
+		parentContext.GetOrCreateIdentityFeature().TenantId = "tenant-abc";
+		parentContext.Initialize(_serviceProvider);
 
 		// Act
 		var result = _factory.CreateChildContext(parentContext);
 
 		// Assert
-		result.ShouldBe(childContext);
-		_ = A.CallTo(() => parentContext.CreateChildContext()).MustHaveHappenedOnceExactly();
+		_ = result.ShouldNotBeNull();
+		result.ShouldNotBeSameAs(parentContext);
+		result.CorrelationId.ShouldBe("correlation-123");
+		result.CausationId.ShouldBe("parent-msg");
+		result.GetTenantId().ShouldBe("tenant-abc");
 	}
 
 	#endregion

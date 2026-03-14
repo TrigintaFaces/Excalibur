@@ -1,59 +1,59 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Data.DynamoDb.Outbox;
-using Excalibur.Dispatch.Abstractions;
+using Excalibur.Data.Abstractions.CloudNative;
+using Excalibur.Outbox.DynamoDb;
 
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Excalibur.Data.Tests.DynamoDb;
 
 /// <summary>
-/// Unit tests for <see cref="DynamoDbOutboxExtensions"/>.
+/// Unit tests for <see cref="DynamoDbOutboxServiceCollectionExtensions"/>.
 /// </summary>
 /// <remarks>
 /// Sprint 514 (S514.4): DynamoDB unit tests.
-/// Tests verify outbox extension methods.
+/// Sprint 633: Updated for extraction -- AddDynamoDbOutboxStore, ICloudNativeOutboxStore.
 /// </remarks>
 [Trait("Category", TestCategories.Unit)]
 [Trait("Component", "DynamoDb")]
 [Trait("Feature", "DependencyInjection")]
 public sealed class DynamoDbOutboxExtensionsShould
 {
-	#region AddDynamoDbOutbox Tests
+	#region AddDynamoDbOutboxStore Tests
 
 	[Fact]
-	public void AddDynamoDbOutbox_ThrowsArgumentNullException_WhenServicesIsNull()
+	public void AddDynamoDbOutboxStore_ThrowsArgumentNullException_WhenServicesIsNull()
 	{
 		// Arrange
 		IServiceCollection? services = null;
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbOutbox(options => { }));
+			services!.AddDynamoDbOutboxStore(options => { }));
 	}
 
 	[Fact]
-	public void AddDynamoDbOutbox_ThrowsArgumentNullException_WhenConfigureIsNull()
+	public void AddDynamoDbOutboxStore_ThrowsArgumentNullException_WhenConfigureIsNull()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbOutbox(null!));
+			services.AddDynamoDbOutboxStore((Action<DynamoDbOutboxOptions>)null!));
 	}
 
 	[Fact]
-	public void AddDynamoDbOutbox_ReturnsServiceCollection()
+	public void AddDynamoDbOutboxStore_ReturnsServiceCollection()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		var result = services.AddDynamoDbOutbox(options =>
+		var result = services.AddDynamoDbOutboxStore(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 			options.TableName = "outbox";
 		});
 
@@ -62,106 +62,39 @@ public sealed class DynamoDbOutboxExtensionsShould
 	}
 
 	[Fact]
-	public void AddDynamoDbOutbox_RegistersIOutboxStore()
+	public void AddDynamoDbOutboxStore_RegistersICloudNativeOutboxStore()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		services.AddDynamoDbOutbox(options =>
+		services.AddDynamoDbOutboxStore(options =>
 		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 			options.TableName = "outbox";
 		});
 
 		// Assert
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IOutboxStore) &&
-			sd.ImplementationType == typeof(DynamoDbOutboxStore));
-	}
-
-	#endregion
-
-	#region AddDynamoDbOutbox Named Tests
-
-	[Fact]
-	public void AddDynamoDbOutbox_Named_ThrowsArgumentNullException_WhenServicesIsNull()
-	{
-		// Arrange
-		IServiceCollection? services = null;
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbOutbox("test", options => { }));
+			sd.ServiceType == typeof(ICloudNativeOutboxStore));
 	}
 
 	[Fact]
-	public void AddDynamoDbOutbox_Named_ThrowsArgumentException_WhenNameIsNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			services.AddDynamoDbOutbox(null!, options => { }));
-	}
-
-	[Fact]
-	public void AddDynamoDbOutbox_Named_ThrowsArgumentException_WhenNameIsEmpty()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentException>(() =>
-			services.AddDynamoDbOutbox(string.Empty, options => { }));
-	}
-
-	[Fact]
-	public void AddDynamoDbOutbox_Named_ThrowsArgumentNullException_WhenConfigureIsNull()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() =>
-			services.AddDynamoDbOutbox("test", null!));
-	}
-
-	[Fact]
-	public void AddDynamoDbOutbox_Named_ReturnsServiceCollection()
+	public void AddDynamoDbOutboxStore_RegistersDynamoDbOutboxStore()
 	{
 		// Arrange
 		var services = new ServiceCollection();
 
 		// Act
-		var result = services.AddDynamoDbOutbox("primary", options =>
+		services.AddDynamoDbOutboxStore(options =>
 		{
-			options.Region = "us-east-1";
-			options.TableName = "outbox";
-		});
-
-		// Assert
-		result.ShouldBe(services);
-	}
-
-	[Fact]
-	public void AddDynamoDbOutbox_Named_RegistersIOutboxStore()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		services.AddDynamoDbOutbox("primary", options =>
-		{
-			options.Region = "us-east-1";
+			options.Connection.Region = "us-east-1";
 			options.TableName = "outbox";
 		});
 
 		// Assert
 		services.ShouldContain(sd =>
-			sd.ServiceType == typeof(IOutboxStore) &&
-			sd.ImplementationType == typeof(DynamoDbOutboxStore));
+			sd.ServiceType == typeof(DynamoDbOutboxStore));
 	}
 
 	#endregion
@@ -172,15 +105,15 @@ public sealed class DynamoDbOutboxExtensionsShould
 	public void IsStatic()
 	{
 		// Assert
-		typeof(DynamoDbOutboxExtensions).IsAbstract.ShouldBeTrue();
-		typeof(DynamoDbOutboxExtensions).IsSealed.ShouldBeTrue();
+		typeof(DynamoDbOutboxServiceCollectionExtensions).IsAbstract.ShouldBeTrue();
+		typeof(DynamoDbOutboxServiceCollectionExtensions).IsSealed.ShouldBeTrue();
 	}
 
 	[Fact]
 	public void IsPublic()
 	{
 		// Assert
-		typeof(DynamoDbOutboxExtensions).IsPublic.ShouldBeTrue();
+		typeof(DynamoDbOutboxServiceCollectionExtensions).IsPublic.ShouldBeTrue();
 	}
 
 	#endregion

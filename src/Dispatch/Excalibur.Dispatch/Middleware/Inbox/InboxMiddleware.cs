@@ -10,6 +10,7 @@ using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Diagnostics;
 
 using Microsoft.Extensions.Logging;
@@ -226,9 +227,10 @@ public sealed partial class InboxMiddleware : IDispatchMiddleware
 			metadata["CausationId"] = context.CausationId;
 		}
 
-		if (context.TenantId != null)
+		var tenantId = context.GetTenantId();
+		if (tenantId != null)
 		{
-			metadata["TenantId"] = context.TenantId;
+			metadata["TenantId"] = tenantId;
 		}
 
 		return metadata;

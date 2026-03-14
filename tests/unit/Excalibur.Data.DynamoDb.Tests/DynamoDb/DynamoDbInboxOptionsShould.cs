@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Data.DynamoDb.Inbox;
+using Excalibur.Inbox.DynamoDb;
 
 namespace Excalibur.Data.Tests.DynamoDb;
 
@@ -26,7 +26,7 @@ public sealed class DynamoDbInboxOptionsShould
 		var options = new DynamoDbInboxOptions();
 
 		// Assert
-		options.ServiceUrl.ShouldBeNull();
+		options.Connection.ServiceUrl.ShouldBeNull();
 	}
 
 	[Fact]
@@ -36,7 +36,7 @@ public sealed class DynamoDbInboxOptionsShould
 		var options = new DynamoDbInboxOptions();
 
 		// Assert
-		options.Region.ShouldBeNull();
+		options.Connection.Region.ShouldBeNull();
 	}
 
 	[Fact]
@@ -46,7 +46,7 @@ public sealed class DynamoDbInboxOptionsShould
 		var options = new DynamoDbInboxOptions();
 
 		// Assert
-		options.AccessKey.ShouldBeNull();
+		options.Connection.AccessKey.ShouldBeNull();
 	}
 
 	[Fact]
@@ -56,7 +56,7 @@ public sealed class DynamoDbInboxOptionsShould
 		var options = new DynamoDbInboxOptions();
 
 		// Assert
-		options.SecretKey.ShouldBeNull();
+		options.Connection.SecretKey.ShouldBeNull();
 	}
 
 	[Fact]
@@ -96,7 +96,7 @@ public sealed class DynamoDbInboxOptionsShould
 		var options = new DynamoDbInboxOptions();
 
 		// Assert
-		options.MaxRetryAttempts.ShouldBe(3);
+		options.Connection.MaxRetryAttempts.ShouldBe(3);
 	}
 
 	[Fact]
@@ -106,7 +106,7 @@ public sealed class DynamoDbInboxOptionsShould
 		var options = new DynamoDbInboxOptions();
 
 		// Assert
-		options.TimeoutInSeconds.ShouldBe(30);
+		options.Connection.TimeoutInSeconds.ShouldBe(30);
 	}
 
 	[Fact]
@@ -149,30 +149,33 @@ public sealed class DynamoDbInboxOptionsShould
 		// Act
 		var options = new DynamoDbInboxOptions
 		{
-			ServiceUrl = "http://localhost:8000",
-			Region = "us-east-1",
-			AccessKey = "inbox-access-key",
-			SecretKey = "inbox-secret-key",
+			Connection = new()
+			{
+				ServiceUrl = "http://localhost:8000",
+				Region = "us-east-1",
+				AccessKey = "inbox-access-key",
+				SecretKey = "inbox-secret-key",
+				MaxRetryAttempts = 5,
+				TimeoutInSeconds = 60
+			},
 			TableName = "custom_inbox",
 			PartitionKeyAttribute = "custom_handler",
 			SortKeyAttribute = "custom_message_id",
-			MaxRetryAttempts = 5,
-			TimeoutInSeconds = 60,
 			UseConsistentReads = false,
 			DefaultTtlSeconds = 86400,
 			TtlAttributeName = "expires_at"
 		};
 
 		// Assert
-		options.ServiceUrl.ShouldBe("http://localhost:8000");
-		options.Region.ShouldBe("us-east-1");
-		options.AccessKey.ShouldBe("inbox-access-key");
-		options.SecretKey.ShouldBe("inbox-secret-key");
+		options.Connection.ServiceUrl.ShouldBe("http://localhost:8000");
+		options.Connection.Region.ShouldBe("us-east-1");
+		options.Connection.AccessKey.ShouldBe("inbox-access-key");
+		options.Connection.SecretKey.ShouldBe("inbox-secret-key");
 		options.TableName.ShouldBe("custom_inbox");
 		options.PartitionKeyAttribute.ShouldBe("custom_handler");
 		options.SortKeyAttribute.ShouldBe("custom_message_id");
-		options.MaxRetryAttempts.ShouldBe(5);
-		options.TimeoutInSeconds.ShouldBe(60);
+		options.Connection.MaxRetryAttempts.ShouldBe(5);
+		options.Connection.TimeoutInSeconds.ShouldBe(60);
 		options.UseConsistentReads.ShouldBeFalse();
 		options.DefaultTtlSeconds.ShouldBe(86400);
 		options.TtlAttributeName.ShouldBe("expires_at");
@@ -188,7 +191,7 @@ public sealed class DynamoDbInboxOptionsShould
 		// Arrange
 		var options = new DynamoDbInboxOptions
 		{
-			ServiceUrl = "http://localhost:8000"
+			Connection = new() { ServiceUrl = "http://localhost:8000" }
 		};
 
 		// Act & Assert - Should not throw
@@ -201,7 +204,7 @@ public sealed class DynamoDbInboxOptionsShould
 		// Arrange
 		var options = new DynamoDbInboxOptions
 		{
-			Region = "us-east-1"
+			Connection = new() { Region = "us-east-1" }
 		};
 
 		// Act & Assert - Should not throw
@@ -226,7 +229,7 @@ public sealed class DynamoDbInboxOptionsShould
 		// Arrange
 		var options = new DynamoDbInboxOptions
 		{
-			ServiceUrl = "http://localhost:8000",
+			Connection = new() { ServiceUrl = "http://localhost:8000" },
 			TableName = ""
 		};
 
@@ -245,7 +248,7 @@ public sealed class DynamoDbInboxOptionsShould
 		// Arrange
 		var options = new DynamoDbInboxOptions
 		{
-			Region = "eu-central-1"
+			Connection = new() { Region = "eu-central-1" }
 		};
 
 		// Act
@@ -275,7 +278,7 @@ public sealed class DynamoDbInboxOptionsShould
 		// Arrange
 		var options = new DynamoDbInboxOptions
 		{
-			Region = "   "
+			Connection = new() { Region = "   " }
 		};
 
 		// Act

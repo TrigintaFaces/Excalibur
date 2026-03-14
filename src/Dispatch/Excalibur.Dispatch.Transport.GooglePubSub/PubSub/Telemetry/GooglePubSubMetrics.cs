@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Default implementation of Google Pub/Sub metrics collection.
 /// </summary>
-public sealed class GooglePubSubMetrics : IGooglePubSubMetrics, IDisposable
+internal sealed class GooglePubSubMetrics : IGooglePubSubMetrics, IDisposable
 {
 	private readonly Meter _meter;
 	private readonly Counter<long> _messagesEnqueued;

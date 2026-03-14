@@ -14,7 +14,6 @@ Dispatch provides migration paths from popular .NET messaging libraries. Each gu
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
-  dotnet add package Excalibur.Dispatch.Abstractions
   ```
 - Familiarity with [Getting Started](../getting-started/index.md) and [Core Concepts](../core-concepts/index.md)
 

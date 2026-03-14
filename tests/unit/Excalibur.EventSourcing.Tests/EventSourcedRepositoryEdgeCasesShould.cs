@@ -38,28 +38,15 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 	private sealed record TestDomainEvent : DomainEvent, IVersionedMessage
 	{
 		public string Data { get; init; } = string.Empty;
+		public override string AggregateId { get; init; } = string.Empty;
 		int IVersionedMessage.Version => 1;
-
-		public TestDomainEvent(string aggregateId, long version, string data, TimeProvider? timeProvider = null)
-			: base(aggregateId, version, timeProvider ?? TimeProvider.System)
-		{
-			Data = data;
-		}
-
-		public TestDomainEvent() : base("", 0, TimeProvider.System) { }
+		string IVersionedMessage.MessageType => "TestDomainEvent";
 	}
 
 	private sealed record NonVersionedEvent : DomainEvent
 	{
 		public string Value { get; init; } = string.Empty;
-
-		public NonVersionedEvent(string aggregateId, long version, string value, TimeProvider? timeProvider = null)
-			: base(aggregateId, version, timeProvider ?? TimeProvider.System)
-		{
-			Value = value;
-		}
-
-		public NonVersionedEvent() : base("", 0, TimeProvider.System) { }
+		public override string AggregateId { get; init; } = string.Empty;
 	}
 
 	private sealed class EdgeCaseAggregate : AggregateRoot
@@ -72,12 +59,12 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 
 		public void SetData(string data)
 		{
-			RaiseEvent(new TestDomainEvent(Id, Version, data));
+			RaiseEvent(new TestDomainEvent { AggregateId = Id, Version = Version, Data = data });
 		}
 
 		public void SetValue(string value)
 		{
-			RaiseEvent(new NonVersionedEvent(Id, Version, value));
+			RaiseEvent(new NonVersionedEvent { AggregateId = Id, Version = Version, Value = value });
 		}
 
 		protected override void ApplyEventInternal(IDomainEvent @event)
@@ -393,7 +380,7 @@ public sealed class EventSourcedRepositoryEdgeCasesShould
 	{
 		// Arrange
 		var aggregateId = "agg-upcast-fallback";
-		var originalEvent = new TestDomainEvent(aggregateId, 0, "original");
+		var originalEvent = new TestDomainEvent { AggregateId = aggregateId, Version = 0, Data = "original" };
 
 		var storedEvent = new StoredEvent(
 			EventId: originalEvent.EventId,

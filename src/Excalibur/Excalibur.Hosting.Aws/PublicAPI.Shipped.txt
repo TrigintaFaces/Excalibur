@@ -1,0 +1,5 @@
+#nullable enable
+Excalibur.Hosting.ConfigurationBuilderExtensions
+static Excalibur.Hosting.ConfigurationBuilderExtensions.AddParameterStoreSettings(this Microsoft.Extensions.Configuration.IConfigurationBuilder! builder) -> Microsoft.Extensions.Configuration.IConfigurationBuilder!
+static Excalibur.Hosting.ConfigurationBuilderExtensions.AddParameterStoreSettings(this Microsoft.Extensions.Configuration.IConfigurationBuilder! builder, string! applicationParameterStoreName) -> Microsoft.Extensions.Configuration.IConfigurationBuilder!
+static Excalibur.Hosting.ConfigurationBuilderExtensions.AddParameterStoreSettings(this Microsoft.Extensions.Configuration.IConfigurationBuilder! builder, string! applicationParameterStoreName, string? localContext) -> Microsoft.Extensions.Configuration.IConfigurationBuilder!

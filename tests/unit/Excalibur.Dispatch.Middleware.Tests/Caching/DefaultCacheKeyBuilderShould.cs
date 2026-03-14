@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Caching;
 
 namespace Excalibur.Dispatch.Middleware.Tests.Caching;
@@ -16,19 +16,40 @@ namespace Excalibur.Dispatch.Middleware.Tests.Caching;
 [Trait("Component", "Caching")]
 public sealed class DefaultCacheKeyBuilderShould : UnitTestBase
 {
-	private readonly IJsonSerializer _serializer;
+	private readonly DispatchJsonSerializer _serializer;
 	private readonly IMessageContext _context;
+	private readonly Dictionary<Type, object> _features;
 	private readonly DefaultCacheKeyBuilder _sut;
 
 	public DefaultCacheKeyBuilderShould()
 	{
-		_serializer = A.Fake<IJsonSerializer>();
+		_serializer = new DispatchJsonSerializer();
 		_context = A.Fake<IMessageContext>();
 		_sut = new DefaultCacheKeyBuilder(_serializer);
 
-		// Default context values
-		A.CallTo(() => _context.TenantId).Returns(null);
-		A.CallTo(() => _context.UserId).Returns(null);
+		// Default context values: null tenant and user
+		_features = new Dictionary<Type, object>();
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => _context.Features).Returns(_features);
+		A.CallTo(() => _context.Items).Returns(items);
+
+		var identity = new MessageIdentityFeature { TenantId = null, UserId = null };
+		_features[typeof(IMessageIdentityFeature)] = identity;
+	}
+
+	protected override void Dispose(bool disposing)
+	{
+		if (disposing)
+		{
+			_serializer.Dispose();
+		}
+
+		base.Dispose(disposing);
+	}
+
+	private void SetIdentity(string? tenantId, string? userId)
+	{
+		_features[typeof(IMessageIdentityFeature)] = new MessageIdentityFeature { TenantId = tenantId, UserId = userId };
 	}
 
 	[Fact]
@@ -51,9 +72,8 @@ public sealed class DefaultCacheKeyBuilderShould : UnitTestBase
 	[Fact]
 	public void CreateKey_ReturnsDeterministicHashForSameInputs()
 	{
-		// Arrange
+		// Arrange — real serializer produces deterministic JSON for the same action
 		var action = new NonCacheableTestAction();
-		A.CallTo(() => _serializer.Serialize(A<object>._, A<Type>._)).Returns("{\"id\":1}");
 
 		// Act
 		var key1 = _sut.CreateKey(action, _context);
@@ -75,23 +95,19 @@ public sealed class DefaultCacheKeyBuilderShould : UnitTestBase
 
 		// Assert
 		key.ShouldNotBeNullOrEmpty();
-		// Serializer should NOT have been called because ICacheable provides the key
-		A.CallTo(() => _serializer.Serialize(A<object>._, A<Type>._)).MustNotHaveHappened();
 	}
 
 	[Fact]
 	public void CreateKey_WhenNotICacheable_FallsBackToSerialization()
 	{
-		// Arrange
+		// Arrange — real serializer will serialize the action to JSON
 		var action = new NonCacheableTestAction();
-		A.CallTo(() => _serializer.Serialize(A<object>._, A<Type>._)).Returns("{\"value\":42}");
 
 		// Act
 		var key = _sut.CreateKey(action, _context);
 
 		// Assert
 		key.ShouldNotBeNullOrEmpty();
-		A.CallTo(() => _serializer.Serialize(action, action.GetType())).MustHaveHappenedOnceExactly();
 	}
 
 	[Fact]
@@ -99,13 +115,12 @@ public sealed class DefaultCacheKeyBuilderShould : UnitTestBase
 	{
 		// Arrange
 		var action = new NonCacheableTestAction();
-		A.CallTo(() => _serializer.Serialize(A<object>._, A<Type>._)).Returns("{}");
-		A.CallTo(() => _context.TenantId).Returns("tenant-a");
+		SetIdentity("tenant-a", null);
 
 		// Act
 		var keyA = _sut.CreateKey(action, _context);
 
-		A.CallTo(() => _context.TenantId).Returns("tenant-b");
+		SetIdentity("tenant-b", null);
 		var keyB = _sut.CreateKey(action, _context);
 
 		// Assert -- different tenants produce different keys
@@ -117,13 +132,12 @@ public sealed class DefaultCacheKeyBuilderShould : UnitTestBase
 	{
 		// Arrange
 		var action = new NonCacheableTestAction();
-		A.CallTo(() => _serializer.Serialize(A<object>._, A<Type>._)).Returns("{}");
-		A.CallTo(() => _context.UserId).Returns("user-1");
+		SetIdentity(null, "user-1");
 
 		// Act
 		var key1 = _sut.CreateKey(action, _context);
 
-		A.CallTo(() => _context.UserId).Returns("user-2");
+		SetIdentity(null, "user-2");
 		var key2 = _sut.CreateKey(action, _context);
 
 		// Assert -- different users produce different keys
@@ -135,8 +149,7 @@ public sealed class DefaultCacheKeyBuilderShould : UnitTestBase
 	{
 		// Arrange
 		var action = new NonCacheableTestAction();
-		A.CallTo(() => _serializer.Serialize(A<object>._, A<Type>._)).Returns("{}");
-		A.CallTo(() => _context.TenantId).Returns((string?)null);
+		SetIdentity(null, null);
 
 		// Act -- should not throw
 		var key = _sut.CreateKey(action, _context);
@@ -150,8 +163,7 @@ public sealed class DefaultCacheKeyBuilderShould : UnitTestBase
 	{
 		// Arrange
 		var action = new NonCacheableTestAction();
-		A.CallTo(() => _serializer.Serialize(A<object>._, A<Type>._)).Returns("{}");
-		A.CallTo(() => _context.UserId).Returns((string?)null);
+		SetIdentity(null, null);
 
 		// Act -- should not throw
 		var key = _sut.CreateKey(action, _context);
@@ -165,7 +177,6 @@ public sealed class DefaultCacheKeyBuilderShould : UnitTestBase
 	{
 		// Arrange
 		var action = new NonCacheableTestAction();
-		A.CallTo(() => _serializer.Serialize(A<object>._, A<Type>._)).Returns("test-data");
 
 		// Act
 		var key = _sut.CreateKey(action, _context);
@@ -196,8 +207,7 @@ public sealed class DefaultCacheKeyBuilderShould : UnitTestBase
 	{
 		// Arrange
 		var action = new CacheableTestAction("same-key");
-		A.CallTo(() => _context.TenantId).Returns("tenantX");
-		A.CallTo(() => _context.UserId).Returns("userY");
+		SetIdentity("tenantX", "userY");
 
 		// Act
 		var key = _sut.CreateKey(action, _context);

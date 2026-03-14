@@ -12,7 +12,7 @@ using Excalibur.Dispatch.Options.Middleware;
 using Excalibur.Dispatch.Options.Performance;
 using Excalibur.Dispatch.Tests.TestFakes;
 
-using Excalibur.Data.InMemory.Inbox;
+using Excalibur.Inbox.InMemory;
 
 using MessageResult = Excalibur.Dispatch.Abstractions.MessageResult;
 

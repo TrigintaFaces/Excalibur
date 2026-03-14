@@ -4,6 +4,72 @@
 namespace Excalibur.Outbox;
 
 /// <summary>
+/// Retry-related configuration for outbox message processing.
+/// </summary>
+public sealed class OutboxRetryOptions
+{
+	/// <summary>
+	/// Gets the maximum number of retry attempts for failed messages.
+	/// </summary>
+	/// <value>The maximum retry count.</value>
+	public int MaxRetryCount { get; }
+
+	/// <summary>
+	/// Gets the delay between retry attempts.
+	/// </summary>
+	/// <value>The retry delay.</value>
+	public TimeSpan RetryDelay { get; }
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="OutboxRetryOptions"/> class.
+	/// </summary>
+	/// <param name="maxRetryCount">The maximum number of retry attempts.</param>
+	/// <param name="retryDelay">The delay between retry attempts.</param>
+	internal OutboxRetryOptions(int maxRetryCount, TimeSpan retryDelay)
+	{
+		MaxRetryCount = maxRetryCount;
+		RetryDelay = retryDelay;
+	}
+}
+
+/// <summary>
+/// Cleanup-related configuration for outbox message lifecycle management.
+/// </summary>
+public sealed class OutboxCleanupOptions
+{
+	/// <summary>
+	/// Gets the retention period for successfully sent messages before cleanup.
+	/// </summary>
+	/// <value>The message retention period.</value>
+	public TimeSpan MessageRetentionPeriod { get; }
+
+	/// <summary>
+	/// Gets a value indicating whether automatic cleanup of old messages is enabled.
+	/// </summary>
+	/// <value><see langword="true"/> if automatic cleanup is enabled; otherwise, <see langword="false"/>.</value>
+	public bool EnableAutomaticCleanup { get; }
+
+	/// <summary>
+	/// Gets the interval between cleanup cycles.
+	/// </summary>
+	/// <value>The cleanup interval.</value>
+	public TimeSpan CleanupInterval { get; }
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="OutboxCleanupOptions"/> class.
+	/// </summary>
+	/// <param name="messageRetentionPeriod">The retention period for sent messages.</param>
+	/// <param name="enableAutomaticCleanup">Whether automatic cleanup is enabled.</param>
+	/// <param name="cleanupInterval">The interval between cleanup cycles.</param>
+	internal OutboxCleanupOptions(TimeSpan messageRetentionPeriod, bool enableAutomaticCleanup, TimeSpan cleanupInterval)
+	{
+		MessageRetentionPeriod = messageRetentionPeriod;
+		EnableAutomaticCleanup = enableAutomaticCleanup;
+		CleanupInterval = cleanupInterval;
+	}
+}
+
+/// <summary>
 /// Immutable configuration options for the outbox pattern.
 /// </summary>
 /// <remarks>
@@ -77,11 +143,8 @@ public class OutboxOptions
 		Preset = preset;
 		BatchSize = batchSize;
 		PollingInterval = pollingInterval;
-		MaxRetryCount = maxRetryCount;
-		RetryDelay = retryDelay;
-		MessageRetentionPeriod = messageRetentionPeriod;
-		EnableAutomaticCleanup = enableAutomaticCleanup;
-		CleanupInterval = cleanupInterval;
+		Retry = new OutboxRetryOptions(maxRetryCount, retryDelay);
+		Cleanup = new OutboxCleanupOptions(messageRetentionPeriod, enableAutomaticCleanup, cleanupInterval);
 		EnableBackgroundProcessing = enableBackgroundProcessing;
 		ProcessorId = processorId;
 		EnableParallelProcessing = enableParallelProcessing;
@@ -217,34 +280,16 @@ public class OutboxOptions
 	public TimeSpan PollingInterval { get; }
 
 	/// <summary>
-	/// Gets the maximum number of retry attempts for failed messages.
+	/// Gets the retry options for failed message processing.
 	/// </summary>
-	/// <value>The maximum retry count.</value>
-	public int MaxRetryCount { get; }
+	/// <value>The retry options.</value>
+	public OutboxRetryOptions Retry { get; }
 
 	/// <summary>
-	/// Gets the delay between retry attempts.
+	/// Gets the cleanup options for message lifecycle management.
 	/// </summary>
-	/// <value>The retry delay.</value>
-	public TimeSpan RetryDelay { get; }
-
-	/// <summary>
-	/// Gets the retention period for successfully sent messages before cleanup.
-	/// </summary>
-	/// <value>The message retention period.</value>
-	public TimeSpan MessageRetentionPeriod { get; }
-
-	/// <summary>
-	/// Gets a value indicating whether automatic cleanup of old messages is enabled.
-	/// </summary>
-	/// <value><see langword="true"/> if automatic cleanup is enabled; otherwise, <see langword="false"/>.</value>
-	public bool EnableAutomaticCleanup { get; }
-
-	/// <summary>
-	/// Gets the interval between cleanup cycles.
-	/// </summary>
-	/// <value>The cleanup interval.</value>
-	public TimeSpan CleanupInterval { get; }
+	/// <value>The cleanup options.</value>
+	public OutboxCleanupOptions Cleanup { get; }
 
 	/// <summary>
 	/// Gets a value indicating whether background processing is enabled.

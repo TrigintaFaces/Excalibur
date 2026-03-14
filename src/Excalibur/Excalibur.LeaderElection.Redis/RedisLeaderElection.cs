@@ -37,6 +37,7 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 	private CancellationTokenSource? _renewalCts;
 	private Task? _renewalTask;
 	private bool _isStarted;
+	private volatile bool _disposed;
 	private volatile bool _isLeader;
 	private string? _currentLeaderId;
 	private DateTimeOffset _lastSuccessfulRenewal;
@@ -92,6 +93,8 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 	/// <inheritdoc/>
 	public async Task StartAsync(CancellationToken cancellationToken)
 	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+
 		lock (_lock)
 		{
 			if (_isStarted)
@@ -113,6 +116,26 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 
 	/// <inheritdoc/>
 	public async Task StopAsync(CancellationToken cancellationToken)
+	{
+		ObjectDisposedException.ThrowIf(_disposed, this);
+		await StopCoreAsync().ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Disposes the leader election resources asynchronously.
+	/// </summary>
+	public async ValueTask DisposeAsync()
+	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		_disposed = true;
+		await StopCoreAsync().ConfigureAwait(false);
+	}
+
+	private async Task StopCoreAsync()
 	{
 		bool wasLeader;
 
@@ -165,14 +188,6 @@ public sealed partial class RedisLeaderElection : ILeaderElection, IAsyncDisposa
 				LeaderChanged?.Invoke(this, new LeaderChangedEventArgs(previousLeader, null, _lockKey));
 			}
 		}
-	}
-
-	/// <summary>
-	/// Disposes the leader election resources asynchronously.
-	/// </summary>
-	public async ValueTask DisposeAsync()
-	{
-		await StopAsync(CancellationToken.None).ConfigureAwait(false);
 	}
 
 	private async Task TryAcquireLockAsync(CancellationToken cancellationToken)

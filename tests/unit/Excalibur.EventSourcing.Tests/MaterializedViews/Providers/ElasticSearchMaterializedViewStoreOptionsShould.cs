@@ -118,33 +118,33 @@ public sealed class ElasticSearchMaterializedViewStoreOptionsShould
 	}
 
 	[Fact]
-	public void HaveNullUsernameByDefault()
+	public void HaveNullAuthUsernameByDefault()
 	{
 		// Arrange & Act
 		var options = new ElasticSearchMaterializedViewStoreOptions();
 
 		// Assert
-		options.Username.ShouldBeNull();
+		options.Auth.Username.ShouldBeNull();
 	}
 
 	[Fact]
-	public void HaveNullPasswordByDefault()
+	public void HaveNullAuthPasswordByDefault()
 	{
 		// Arrange & Act
 		var options = new ElasticSearchMaterializedViewStoreOptions();
 
 		// Assert
-		options.Password.ShouldBeNull();
+		options.Auth.Password.ShouldBeNull();
 	}
 
 	[Fact]
-	public void HaveNullApiKeyByDefault()
+	public void HaveNullAuthApiKeyByDefault()
 	{
 		// Arrange & Act
 		var options = new ElasticSearchMaterializedViewStoreOptions();
 
 		// Assert
-		options.ApiKey.ShouldBeNull();
+		options.Auth.ApiKey.ShouldBeNull();
 	}
 
 	[Fact]
@@ -269,42 +269,42 @@ public sealed class ElasticSearchMaterializedViewStoreOptionsShould
 	}
 
 	[Fact]
-	public void AllowSettingUsername()
+	public void AllowSettingAuthUsername()
 	{
 		// Arrange
 		var options = new ElasticSearchMaterializedViewStoreOptions();
 
 		// Act
-		options.Username = "elastic";
+		options.Auth.Username = "elastic";
 
 		// Assert
-		options.Username.ShouldBe("elastic");
+		options.Auth.Username.ShouldBe("elastic");
 	}
 
 	[Fact]
-	public void AllowSettingPassword()
+	public void AllowSettingAuthPassword()
 	{
 		// Arrange
 		var options = new ElasticSearchMaterializedViewStoreOptions();
 
 		// Act
-		options.Password = "secret";
+		options.Auth.Password = "secret";
 
 		// Assert
-		options.Password.ShouldBe("secret");
+		options.Auth.Password.ShouldBe("secret");
 	}
 
 	[Fact]
-	public void AllowSettingApiKey()
+	public void AllowSettingAuthApiKey()
 	{
 		// Arrange
 		var options = new ElasticSearchMaterializedViewStoreOptions();
 
 		// Act
-		options.ApiKey = "api-key-123";
+		options.Auth.ApiKey = "api-key-123";
 
 		// Assert
-		options.ApiKey.ShouldBe("api-key-123");
+		options.Auth.ApiKey.ShouldBe("api-key-123");
 	}
 
 	[Fact]

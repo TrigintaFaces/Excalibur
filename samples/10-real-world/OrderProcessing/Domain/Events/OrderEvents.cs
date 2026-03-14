@@ -9,154 +9,92 @@ namespace OrderProcessingSample.Domain.Events;
 // Order Domain Events
 // ============================================================================
 // These events capture the state changes in the order lifecycle:
-// Created → Validated → PaymentProcessed → Shipped → Completed
+// Created -> Validated -> PaymentProcessed -> Shipped -> Completed
 // Any step can fail, leading to: PaymentFailed or Cancelled states
 
 /// <summary>
 /// Raised when a new order is created.
 /// </summary>
-public sealed record OrderCreated : DomainEvent
+public sealed record OrderCreated(
+	Guid OrderId,
+	Guid CustomerId,
+	IReadOnlyList<OrderLineItem> Items,
+	string ShippingAddress) : DomainEvent
 {
-	public OrderCreated(
-		Guid orderId,
-		Guid customerId,
-		IReadOnlyList<OrderLineItem> items,
-		string shippingAddress,
-		long version)
-		: base(orderId.ToString(), version)
-	{
-		OrderId = orderId;
-		CustomerId = customerId;
-		Items = items;
-		ShippingAddress = shippingAddress;
-		TotalAmount = items.Sum(i => i.UnitPrice * i.Quantity);
-	}
+	/// <inheritdoc/>
+	public override string AggregateId => OrderId.ToString();
 
-	public Guid OrderId { get; init; }
-	public Guid CustomerId { get; init; }
-	public IReadOnlyList<OrderLineItem> Items { get; init; }
-	public string ShippingAddress { get; init; }
-	public decimal TotalAmount { get; init; }
+	/// <summary>Gets the total order amount.</summary>
+	public decimal TotalAmount { get; init; } = Items.Sum(i => i.UnitPrice * i.Quantity);
 }
 
 /// <summary>
 /// Raised when order validation succeeds.
 /// </summary>
-public sealed record OrderValidated : DomainEvent
+public sealed record OrderValidated(Guid OrderId) : DomainEvent
 {
-	public OrderValidated(Guid orderId, long version)
-		: base(orderId.ToString(), version)
-	{
-		OrderId = orderId;
-	}
-
-	public Guid OrderId { get; init; }
+	/// <inheritdoc/>
+	public override string AggregateId => OrderId.ToString();
 }
 
 /// <summary>
 /// Raised when order validation fails.
 /// </summary>
-public sealed record OrderValidationFailed : DomainEvent
+public sealed record OrderValidationFailed(Guid OrderId, string Reason) : DomainEvent
 {
-	public OrderValidationFailed(Guid orderId, string reason, long version)
-		: base(orderId.ToString(), version)
-	{
-		OrderId = orderId;
-		Reason = reason;
-	}
-
-	public Guid OrderId { get; init; }
-	public string Reason { get; init; }
+	/// <inheritdoc/>
+	public override string AggregateId => OrderId.ToString();
 }
 
 /// <summary>
 /// Raised when payment is successfully processed.
 /// </summary>
-public sealed record PaymentProcessed : DomainEvent
+public sealed record PaymentProcessed(
+	Guid OrderId,
+	string TransactionId,
+	decimal Amount) : DomainEvent
 {
-	public PaymentProcessed(
-		Guid orderId,
-		string transactionId,
-		decimal amount,
-		long version)
-		: base(orderId.ToString(), version)
-	{
-		OrderId = orderId;
-		TransactionId = transactionId;
-		Amount = amount;
-	}
-
-	public Guid OrderId { get; init; }
-	public string TransactionId { get; init; }
-	public decimal Amount { get; init; }
+	/// <inheritdoc/>
+	public override string AggregateId => OrderId.ToString();
 }
 
 /// <summary>
 /// Raised when payment fails.
 /// </summary>
-public sealed record PaymentFailed : DomainEvent
+public sealed record PaymentFailed(Guid OrderId, string Reason) : DomainEvent
 {
-	public PaymentFailed(Guid orderId, string reason, long version)
-		: base(orderId.ToString(), version)
-	{
-		OrderId = orderId;
-		Reason = reason;
-	}
-
-	public Guid OrderId { get; init; }
-	public string Reason { get; init; }
+	/// <inheritdoc/>
+	public override string AggregateId => OrderId.ToString();
 }
 
 /// <summary>
 /// Raised when the order is shipped.
 /// </summary>
-public sealed record OrderShipped : DomainEvent
+public sealed record OrderShipped(
+	Guid OrderId,
+	string TrackingNumber,
+	string Carrier) : DomainEvent
 {
-	public OrderShipped(
-		Guid orderId,
-		string trackingNumber,
-		string carrier,
-		long version)
-		: base(orderId.ToString(), version)
-	{
-		OrderId = orderId;
-		TrackingNumber = trackingNumber;
-		Carrier = carrier;
-	}
-
-	public Guid OrderId { get; init; }
-	public string TrackingNumber { get; init; }
-	public string Carrier { get; init; }
+	/// <inheritdoc/>
+	public override string AggregateId => OrderId.ToString();
 }
 
 /// <summary>
 /// Raised when the order is delivered and completed.
 /// </summary>
-public sealed record OrderCompleted : DomainEvent
+public sealed record OrderCompleted(Guid OrderId) : DomainEvent
 {
-	public OrderCompleted(Guid orderId, long version)
-		: base(orderId.ToString(), version)
-	{
-		OrderId = orderId;
-	}
-
-	public Guid OrderId { get; init; }
+	/// <inheritdoc/>
+	public override string AggregateId => OrderId.ToString();
 }
 
 /// <summary>
 /// Raised when an order is cancelled.
 /// </summary>
-public sealed record OrderCancelled : DomainEvent
+public sealed record OrderCancelled(Guid OrderId, string Reason) : DomainEvent
 {
-	public OrderCancelled(Guid orderId, string reason, long version)
-		: base(orderId.ToString(), version)
-	{
-		OrderId = orderId;
-		Reason = reason;
-	}
-
-	public Guid OrderId { get; init; }
-	public string Reason { get; init; }
+	/// <inheritdoc/>
+	public override string AggregateId => OrderId.ToString();
 }
 
 /// <summary>

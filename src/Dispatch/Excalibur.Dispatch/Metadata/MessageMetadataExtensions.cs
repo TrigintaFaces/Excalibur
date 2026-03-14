@@ -6,6 +6,7 @@ using System.Security.Claims;
 using System.Text;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 
 namespace Excalibur.Dispatch.Metadata;
 
@@ -41,8 +42,10 @@ public static class MessageMetadataExtensions
 
 		// Core identity fields
 		context.MessageId = metadata.MessageId;
-		context.ExternalId = metadata.ExternalId;
-		context.UserId = metadata.UserId;
+
+		var identityFeature = context.GetOrCreateIdentityFeature();
+		identityFeature.ExternalId = metadata.GetExternalId();
+		identityFeature.UserId = metadata.GetUserId();
 
 		// Correlation and causation
 		if (!string.IsNullOrWhiteSpace(metadata.CorrelationId))
@@ -56,39 +59,43 @@ public static class MessageMetadataExtensions
 		}
 
 		// Tenant context
-		if (!string.IsNullOrWhiteSpace(metadata.TenantId))
+		var tenantId = metadata.GetTenantId();
+		if (!string.IsNullOrWhiteSpace(tenantId))
 		{
-			context.TenantId = metadata.TenantId;
+			identityFeature.TenantId = tenantId;
 		}
 
 		// Tracing
-		context.TraceParent = metadata.TraceParent;
+		identityFeature.TraceParent = metadata.GetTraceParent();
 
 		// Message type and versioning
-		context.MessageType = metadata.MessageType;
-		context.ContentType = metadata.ContentType;
-		context.SerializerVersion(metadata.SerializerVersion);
-		context.MessageVersion(metadata.MessageVersion);
-		context.ContractVersion(metadata.ContractVersion);
+		context.SetMessageType(metadata.MessageType);
+		context.SetContentType(metadata.ContentType);
+		context.SerializerVersion(metadata.GetSerializerVersion());
+		context.MessageVersion(metadata.GetMessageVersion());
+		context.ContractVersion(metadata.GetContractVersion());
 
 		// Routing
-		context.Source = metadata.Source;
-		context.PartitionKey(metadata.PartitionKey);
-		context.ReplyTo(metadata.ReplyTo);
+		var routingFeature = context.GetOrCreateRoutingFeature();
+		routingFeature.Source = metadata.Source;
+		context.PartitionKey(metadata.GetPartitionKey());
+		context.ReplyTo(metadata.GetReplyTo());
 
 		// Delivery state
-		context.DeliveryCount = metadata.DeliveryCount;
+		context.GetOrCreateProcessingFeature().DeliveryCount = metadata.GetDeliveryCount();
 
 		// Timing
-		if (metadata.ReceivedTimestampUtc.HasValue)
+		var receivedTimestamp = metadata.GetReceivedTimestampUtc();
+		if (receivedTimestamp.HasValue)
 		{
-			context.ReceivedTimestampUtc = metadata.ReceivedTimestampUtc.Value;
+			context.SetReceivedTimestampUtc(receivedTimestamp.Value);
 		}
 
-		context.SentTimestampUtc = metadata.SentTimestampUtc;
+		context.SetSentTimestampUtc(metadata.GetSentTimestampUtc());
 
 		// Copy extensible items
-		foreach (var item in metadata.Items)
+		var items = metadata.GetItems();
+		foreach (var item in items)
 		{
 			context.SetItem(item.Key, item.Value);
 		}
@@ -105,28 +112,30 @@ public static class MessageMetadataExtensions
 			.WithMessageId(context.MessageId ?? Guid.NewGuid().ToString())
 			.WithCorrelationId(context.CorrelationId ?? context.MessageId ?? Guid.NewGuid().ToString())
 			.WithCausationId(context.CausationId)
-			.WithExternalId(context.ExternalId)
-			.WithUserId(context.UserId)
-			.WithTenantId(context.TenantId)
-			.WithTraceParent(context.TraceParent)
-			.WithMessageType(context.MessageType ?? "Unknown")
-			.WithContentType(context.ContentType ?? "application/json")
+			.WithExternalId(context.GetExternalId())
+			.WithUserId(context.GetUserId())
+			.WithTenantId(context.GetTenantId())
+			.WithTraceParent(context.GetTraceParent())
+			.WithMessageType(context.GetMessageType() ?? "Unknown")
+			.WithContentType(context.GetContentType() ?? "application/json")
 			.WithSerializerVersion(context.SerializerVersion() ?? "1.0")
 			.WithMessageVersion(context.MessageVersion() ?? "1.0")
 			.WithContractVersion(context.ContractVersion() ?? "1.0.0")
-			.WithSource(context.Source)
+			.WithSource(context.GetSource())
 			.WithPartitionKey(context.PartitionKey())
 			.WithReplyTo(context.ReplyTo())
-			.WithDeliveryCount(context.DeliveryCount);
+			.WithDeliveryCount(context.GetDeliveryCount());
 
-		if (context.ReceivedTimestampUtc != default)
+		var receivedTimestamp = context.GetReceivedTimestampUtc();
+		if (receivedTimestamp.HasValue && receivedTimestamp.Value != default)
 		{
-			_ = builder.WithReceivedTimestampUtc(context.ReceivedTimestampUtc);
+			_ = builder.WithReceivedTimestampUtc(receivedTimestamp.Value);
 		}
 
-		if (context.SentTimestampUtc.HasValue)
+		var sentTimestamp = context.GetSentTimestampUtc();
+		if (sentTimestamp.HasValue)
 		{
-			_ = builder.WithSentTimestampUtc(context.SentTimestampUtc.Value);
+			_ = builder.WithSentTimestampUtc(sentTimestamp.Value);
 		}
 
 		// Copy items
@@ -183,24 +192,24 @@ public static class MessageMetadataExtensions
 			.WithMessageId(replyId)
 			.WithCorrelationId(metadata.CorrelationId) // Keep the same correlation
 			.WithCausationId(metadata.MessageId) // The original message caused this reply
-			.WithUserId(metadata.UserId)
-			.WithTenantId(metadata.TenantId)
-			.WithTraceParent(metadata.TraceParent)
-			.WithTraceState(metadata.TraceState)
-			.WithBaggage(metadata.Baggage)
+			.WithUserId(metadata.GetUserId())
+			.WithTenantId(metadata.GetTenantId())
+			.WithTraceParent(metadata.GetTraceParent())
+			.WithTraceState(metadata.GetTraceState())
+			.WithBaggage(metadata.GetBaggage())
 			.WithMessageType(replyMessageType ?? $"Reply.{metadata.MessageType}")
 			.WithContentType(metadata.ContentType)
-			.WithSerializerVersion(metadata.SerializerVersion)
-			.WithMessageVersion(metadata.MessageVersion)
-			.WithContractVersion(metadata.ContractVersion)
-			.WithSource(metadata.Destination) // Swap source and destination for reply
-			.WithDestination(metadata.ReplyTo ?? metadata.Source)
-			.WithSessionId(metadata.SessionId)
-			.WithPartitionKey(metadata.PartitionKey);
+			.WithSerializerVersion(metadata.GetSerializerVersion())
+			.WithMessageVersion(metadata.GetMessageVersion())
+			.WithContractVersion(metadata.GetContractVersion())
+			.WithSource(metadata.GetDestination()) // Swap source and destination for reply
+			.WithDestination(metadata.GetReplyTo() ?? metadata.Source)
+			.WithSessionId(metadata.GetSessionId())
+			.WithPartitionKey(metadata.GetPartitionKey());
 
 		// Copy roles and claims
-		_ = builder.WithRoles(metadata.Roles);
-		_ = builder.WithClaims(metadata.Claims);
+		_ = builder.WithRoles(metadata.GetRoles());
+		_ = builder.WithClaims(metadata.GetClaims());
 
 		// Copy relevant headers
 		foreach (var header in metadata.Headers)
@@ -224,15 +233,18 @@ public static class MessageMetadataExtensions
 		var now = currentUtc ?? DateTimeOffset.UtcNow;
 
 		// Check explicit expiration
-		if (metadata.ExpiresAtUtc.HasValue && now >= metadata.ExpiresAtUtc.Value)
+		var expiresAtUtc = metadata.GetExpiresAtUtc();
+		if (expiresAtUtc.HasValue && now >= expiresAtUtc.Value)
 		{
 			return true;
 		}
 
 		// Check TTL-based expiration
-		if (metadata is { TimeToLive: not null, SentTimestampUtc: not null })
+		var timeToLive = metadata.GetTimeToLive();
+		var sentTimestampUtc = metadata.GetSentTimestampUtc();
+		if (timeToLive is not null && sentTimestampUtc is not null)
 		{
-			var expirationTime = metadata.SentTimestampUtc.Value.Add(metadata.TimeToLive.Value);
+			var expirationTime = sentTimestampUtc.Value.Add(timeToLive.Value);
 			return now >= expirationTime;
 		}
 
@@ -244,12 +256,13 @@ public static class MessageMetadataExtensions
 	/// </summary>
 	public static bool ShouldDeadLetter(this IMessageMetadata metadata)
 	{
-		if (!metadata.MaxDeliveryCount.HasValue)
+		var maxDeliveryCount = metadata.GetMaxDeliveryCount();
+		if (!maxDeliveryCount.HasValue)
 		{
 			return false;
 		}
 
-		return metadata.DeliveryCount >= metadata.MaxDeliveryCount.Value;
+		return metadata.GetDeliveryCount() >= maxDeliveryCount.Value;
 	}
 
 	/// <summary>
@@ -277,22 +290,26 @@ public static class MessageMetadataExtensions
 	/// </summary>
 	public static ClaimsPrincipal? GetClaimsPrincipal(this IMessageMetadata metadata)
 	{
-		if (string.IsNullOrWhiteSpace(metadata.UserId) && metadata.Claims.Count == 0 && metadata.Roles.Count == 0)
+		var userId = metadata.GetUserId();
+		var metadataClaims = metadata.GetClaims();
+		var metadataRoles = metadata.GetRoles();
+
+		if (string.IsNullOrWhiteSpace(userId) && metadataClaims.Count == 0 && metadataRoles.Count == 0)
 		{
 			return null;
 		}
 
-		var claims = new List<Claim>(metadata.Claims);
+		var claims = new List<Claim>(metadataClaims);
 
 		// Add user ID as name claim if not already present
-		if (!string.IsNullOrWhiteSpace(metadata.UserId) &&
+		if (!string.IsNullOrWhiteSpace(userId) &&
 			!claims.Exists(c => string.Equals(c.Type, ClaimTypes.NameIdentifier, StringComparison.Ordinal)))
 		{
-			claims.Add(new Claim(ClaimTypes.NameIdentifier, metadata.UserId));
+			claims.Add(new Claim(ClaimTypes.NameIdentifier, userId));
 		}
 
 		// Add roles as role claims
-		foreach (var role in metadata.Roles)
+		foreach (var role in metadataRoles)
 		{
 			if (!claims.Exists(c =>
 					string.Equals(c.Type, ClaimTypes.Role, StringComparison.Ordinal) &&
@@ -303,9 +320,10 @@ public static class MessageMetadataExtensions
 		}
 
 		// Add tenant as a custom claim
-		if (!string.IsNullOrWhiteSpace(metadata.TenantId))
+		var tenantId = metadata.GetTenantId();
+		if (!string.IsNullOrWhiteSpace(tenantId))
 		{
-			claims.Add(new Claim("TenantId", metadata.TenantId));
+			claims.Add(new Claim("TenantId", tenantId));
 		}
 
 		var identity = new ClaimsIdentity(claims, "MessageMetadata");
@@ -338,27 +356,25 @@ public static class MessageMetadataExtensions
 			_ = builder.WithCausationId(secondary.CausationId);
 		}
 
-		if (secondary.UserId != null)
+		if (secondary.GetUserId() != null)
 		{
-			_ = builder.WithUserId(secondary.UserId);
+			_ = builder.WithUserId(secondary.GetUserId());
 		}
 
-		if (secondary.TenantId != null)
+		if (secondary.GetTenantId() != null)
 		{
-			_ = builder.WithTenantId(secondary.TenantId);
+			_ = builder.WithTenantId(secondary.GetTenantId());
 		}
 
 		// Merge collections
 		_ = builder.AddHeaders(secondary.Headers);
-		_ = builder.AddAttributes(secondary.Attributes);
 		_ = builder.AddProperties(secondary.Properties);
-		_ = builder.AddItems(secondary.Items);
 
 		// Merge roles and claims
-		var mergedRoles = primary.Roles.Union(secondary.Roles, StringComparer.Ordinal);
+		var mergedRoles = primary.GetRoles().Union(secondary.GetRoles(), StringComparer.Ordinal);
 		_ = builder.WithRoles(mergedRoles);
 
-		var mergedClaims = primary.Claims.Union(secondary.Claims, new ClaimComparer());
+		var mergedClaims = primary.GetClaims().Union(secondary.GetClaims(), new ClaimComparer());
 		_ = builder.WithClaims(mergedClaims);
 
 		return builder.Build();
@@ -373,63 +389,75 @@ public static class MessageMetadataExtensions
 
 		var dict = new Dictionary<string, object?>(StringComparer.Ordinal);
 
-		// Add all non-null values or all values if requested
+		// Core fields (on interface)
 		AddIfNotNull(dict, "MessageId", metadata.MessageId, includeNullValues);
 		AddIfNotNull(dict, "CorrelationId", metadata.CorrelationId, includeNullValues);
 		AddIfNotNull(dict, "CausationId", metadata.CausationId, includeNullValues);
-		AddIfNotNull(dict, "ExternalId", metadata.ExternalId, includeNullValues);
-		AddIfNotNull(dict, "TraceParent", metadata.TraceParent, includeNullValues);
-		AddIfNotNull(dict, "TraceState", metadata.TraceState, includeNullValues);
-		AddIfNotNull(dict, "Baggage", metadata.Baggage, includeNullValues);
-		AddIfNotNull(dict, "UserId", metadata.UserId, includeNullValues);
-		AddIfNotNull(dict, "TenantId", metadata.TenantId, includeNullValues);
 		AddIfNotNull(dict, "MessageType", metadata.MessageType, includeNullValues);
 		AddIfNotNull(dict, "ContentType", metadata.ContentType, includeNullValues);
-		AddIfNotNull(dict, "ContentEncoding", metadata.ContentEncoding, includeNullValues);
-		AddIfNotNull(dict, "MessageVersion", metadata.MessageVersion, includeNullValues);
-		AddIfNotNull(dict, "SerializerVersion", metadata.SerializerVersion, includeNullValues);
-		AddIfNotNull(dict, "ContractVersion", metadata.ContractVersion, includeNullValues);
 		AddIfNotNull(dict, "Source", metadata.Source, includeNullValues);
-		AddIfNotNull(dict, "Destination", metadata.Destination, includeNullValues);
-		AddIfNotNull(dict, "ReplyTo", metadata.ReplyTo, includeNullValues);
-		AddIfNotNull(dict, "SessionId", metadata.SessionId, includeNullValues);
-		AddIfNotNull(dict, "PartitionKey", metadata.PartitionKey, includeNullValues);
-		AddIfNotNull(dict, "RoutingKey", metadata.RoutingKey, includeNullValues);
-		AddIfNotNull(dict, "GroupId", metadata.GroupId, includeNullValues);
 
-		// Add numeric values
-		if (metadata.GroupSequence.HasValue || includeNullValues)
+		// Identity (from extension methods)
+		AddIfNotNull(dict, "ExternalId", metadata.GetExternalId(), includeNullValues);
+		AddIfNotNull(dict, "TraceParent", metadata.GetTraceParent(), includeNullValues);
+		AddIfNotNull(dict, "TraceState", metadata.GetTraceState(), includeNullValues);
+		AddIfNotNull(dict, "Baggage", metadata.GetBaggage(), includeNullValues);
+		AddIfNotNull(dict, "UserId", metadata.GetUserId(), includeNullValues);
+		AddIfNotNull(dict, "TenantId", metadata.GetTenantId(), includeNullValues);
+
+		// Versioning (from extension methods)
+		AddIfNotNull(dict, "ContentEncoding", metadata.GetContentEncoding(), includeNullValues);
+		AddIfNotNull(dict, "MessageVersion", metadata.GetMessageVersion(), includeNullValues);
+		AddIfNotNull(dict, "SerializerVersion", metadata.GetSerializerVersion(), includeNullValues);
+		AddIfNotNull(dict, "ContractVersion", metadata.GetContractVersion(), includeNullValues);
+
+		// Routing (from extension methods)
+		AddIfNotNull(dict, "Destination", metadata.GetDestination(), includeNullValues);
+		AddIfNotNull(dict, "ReplyTo", metadata.GetReplyTo(), includeNullValues);
+		AddIfNotNull(dict, "SessionId", metadata.GetSessionId(), includeNullValues);
+		AddIfNotNull(dict, "PartitionKey", metadata.GetPartitionKey(), includeNullValues);
+		AddIfNotNull(dict, "RoutingKey", metadata.GetRoutingKey(), includeNullValues);
+		AddIfNotNull(dict, "GroupId", metadata.GetGroupId(), includeNullValues);
+
+		// Numeric values
+		var groupSequence = metadata.GetGroupSequence();
+		if (groupSequence.HasValue || includeNullValues)
 		{
-			dict["GroupSequence"] = metadata.GroupSequence;
+			dict["GroupSequence"] = groupSequence;
 		}
 
-		if (metadata.DeliveryCount > 0 || includeNullValues)
+		var deliveryCount = metadata.GetDeliveryCount();
+		if (deliveryCount > 0 || includeNullValues)
 		{
-			dict["DeliveryCount"] = metadata.DeliveryCount;
+			dict["DeliveryCount"] = deliveryCount;
 		}
 
-		if (metadata.Priority.HasValue || includeNullValues)
+		var priority = metadata.GetPriority();
+		if (priority.HasValue || includeNullValues)
 		{
-			dict["Priority"] = metadata.Priority;
+			dict["Priority"] = priority;
 		}
 
-		// Add timestamps
+		// Timestamps
 		dict["CreatedTimestampUtc"] = metadata.CreatedTimestampUtc.ToString("O");
 
-		if (metadata.SentTimestampUtc.HasValue || includeNullValues)
+		var sentTimestamp = metadata.GetSentTimestampUtc();
+		if (sentTimestamp.HasValue || includeNullValues)
 		{
-			dict["SentTimestampUtc"] = metadata.SentTimestampUtc?.ToString("O");
+			dict["SentTimestampUtc"] = sentTimestamp?.ToString("O");
 		}
 
-		if (metadata.ReceivedTimestampUtc.HasValue || includeNullValues)
+		var receivedTimestamp = metadata.GetReceivedTimestampUtc();
+		if (receivedTimestamp.HasValue || includeNullValues)
 		{
-			dict["ReceivedTimestampUtc"] = metadata.ReceivedTimestampUtc?.ToString("O");
+			dict["ReceivedTimestampUtc"] = receivedTimestamp?.ToString("O");
 		}
 
-		// Add collections if not empty
-		if (metadata.Roles.Count > 0)
+		// Collections
+		var roles = metadata.GetRoles();
+		if (roles.Count > 0)
 		{
-			dict["Roles"] = metadata.Roles.ToList();
+			dict["Roles"] = roles.ToList();
 		}
 
 		if (metadata.Headers.Count > 0)
@@ -437,9 +465,10 @@ public static class MessageMetadataExtensions
 			dict["Headers"] = new Dictionary<string, string>(metadata.Headers, StringComparer.Ordinal);
 		}
 
-		if (metadata.Attributes.Count > 0)
+		var attributes = metadata.GetAttributes();
+		if (attributes.Count > 0)
 		{
-			dict["Attributes"] = new Dictionary<string, object>(metadata.Attributes, StringComparer.Ordinal);
+			dict["Attributes"] = new Dictionary<string, object>(attributes, StringComparer.Ordinal);
 		}
 
 		if (metadata.Properties.Count > 0)

@@ -7,7 +7,8 @@ using System.Security.Cryptography;
 using System.Text;
 
 using Excalibur.Dispatch.Abstractions;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Abstractions.Features;
+using Excalibur.Dispatch.Serialization;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -20,7 +21,7 @@ namespace Excalibur.Dispatch.Caching;
 /// </summary>
 /// <param name="serializer"> The JSON serializer for creating consistent keys from action data. </param>
 /// <param name="logger"> Optional logger for reporting cache key generation issues. </param>
-public sealed partial class DefaultCacheKeyBuilder(IJsonSerializer serializer, ILogger<DefaultCacheKeyBuilder>? logger = null) : ICacheKeyBuilder
+public sealed partial class DefaultCacheKeyBuilder(DispatchJsonSerializer serializer, ILogger<DefaultCacheKeyBuilder>? logger = null) : ICacheKeyBuilder
 {
 	private const int ReflectionFallbackEventId = 2550;
 	private readonly ILogger<DefaultCacheKeyBuilder> _logger = logger ?? NullLogger<DefaultCacheKeyBuilder>.Instance;
@@ -40,8 +41,8 @@ public sealed partial class DefaultCacheKeyBuilder(IJsonSerializer serializer, I
 			// Fallback to serialization if not ICacheable
 			$"dispatch:{action.GetType().FullName}:{serializer.Serialize(action, action.GetType())}";
 
-		var tenant = context.TenantId ?? "global";
-		var user = context.UserId ?? "anonymous";
+		var tenant = context.GetTenantId() ?? "global";
+		var user = context.GetUserId() ?? "anonymous";
 
 		var fullKey = $"{tenant}:{user}:{baseKey}";
 		var hashedKey = Hash(fullKey);
@@ -87,10 +88,10 @@ public sealed partial class DefaultCacheKeyBuilder(IJsonSerializer serializer, I
 			return false;
 		}
 		catch (Exception ex) when (ex is System.Reflection.TargetException
-									or System.Reflection.TargetInvocationException
-									or InvalidOperationException
-									or MemberAccessException
-									or TypeLoadException)
+								or System.Reflection.TargetInvocationException
+								or InvalidOperationException
+								or MemberAccessException
+								or TypeLoadException)
 		{
 			// Reflection failed — return fallback key based on type name + hash code
 			// to avoid propagating exceptions from cache key building

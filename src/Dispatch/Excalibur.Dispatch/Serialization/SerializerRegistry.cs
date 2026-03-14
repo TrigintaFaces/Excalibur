@@ -22,9 +22,9 @@ namespace Excalibur.Dispatch.Serialization;
 /// </para>
 /// <para> See the pluggable serialization architecture documentation. </para>
 /// </remarks>
-public sealed class SerializerRegistry : ISerializerRegistry
+internal sealed class SerializerRegistry : ISerializerRegistry
 {
-	private readonly ConcurrentDictionary<byte, IPluggableSerializer> _serializersById = new();
+	private readonly ConcurrentDictionary<byte, ISerializer> _serializersById = new();
 	private readonly ConcurrentDictionary<string, byte> _idsByName = new(StringComparer.Ordinal);
 
 	/// <summary>
@@ -35,7 +35,7 @@ public sealed class SerializerRegistry : ISerializerRegistry
 	/// <summary>
 	/// Immutable holder for the current serializer ID and instance. Reference types can be volatile, whereas value tuples cannot.
 	/// </summary>
-	private sealed record CurrentSerializer(byte Id, IPluggableSerializer Serializer);
+	private sealed record CurrentSerializer(byte Id, ISerializer Serializer);
 
 	/// <inheritdoc />
 	/// <remarks>
@@ -53,7 +53,7 @@ public sealed class SerializerRegistry : ISerializerRegistry
 	/// <item> Runtime registration is not a supported scenario </item>
 	/// </list>
 	/// </remarks>
-	public void Register(byte id, IPluggableSerializer serializer)
+	public void Register(byte id, ISerializer serializer)
 	{
 		ArgumentNullException.ThrowIfNull(serializer);
 
@@ -124,7 +124,7 @@ public sealed class SerializerRegistry : ISerializerRegistry
 	}
 
 	/// <inheritdoc />
-	public (byte Id, IPluggableSerializer Serializer) GetCurrent()
+	public (byte Id, ISerializer Serializer) GetCurrent()
 	{
 		var current = _current
 					  ?? throw new InvalidOperationException(
@@ -134,11 +134,11 @@ public sealed class SerializerRegistry : ISerializerRegistry
 	}
 
 	/// <inheritdoc />
-	public IPluggableSerializer? GetById(byte id)
+	public ISerializer? GetById(byte id)
 		=> _serializersById.GetValueOrDefault(id);
 
 	/// <inheritdoc />
-	public IReadOnlyCollection<(byte Id, string Name, IPluggableSerializer Serializer)> GetAll()
+	public IReadOnlyCollection<(byte Id, string Name, ISerializer Serializer)> GetAll()
 	{
 		return _serializersById
 			.Select(kvp => (kvp.Key, kvp.Value.Name, kvp.Value))

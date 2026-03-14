@@ -24,38 +24,6 @@ public sealed class AzureProviderOptions : ProviderOptions
 	public string SubscriptionId { get; set; } = string.Empty;
 
 	/// <summary>
-	/// Gets or sets the Azure tenant ID for authentication.
-	/// </summary>
-	/// <value>
-	/// The Azure tenant ID for authentication.
-	/// </value>
-	public string TenantId { get; set; } = string.Empty;
-
-	/// <summary>
-	/// Gets or sets the Azure client ID for service principal authentication.
-	/// </summary>
-	/// <value>
-	/// The Azure client ID for service principal authentication.
-	/// </value>
-	public string ClientId { get; set; } = string.Empty;
-
-	/// <summary>
-	/// Gets or sets the Azure client secret for service principal authentication.
-	/// </summary>
-	/// <value>
-	/// The Azure client secret for service principal authentication.
-	/// </value>
-	public string ClientSecret { get; set; } = string.Empty;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to use managed identity for authentication.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether to use managed identity for authentication.
-	/// </value>
-	public bool UseManagedIdentity { get; set; }
-
-	/// <summary>
 	/// Gets or sets the resource group name.
 	/// </summary>
 	/// <value>
@@ -72,36 +40,12 @@ public sealed class AzureProviderOptions : ProviderOptions
 	public Uri? KeyVaultUrl { get; set; }
 
 	/// <summary>
-	/// Gets or sets the Azure Storage account name.
-	/// </summary>
-	/// <value>
-	/// The Azure Storage account name.
-	/// </value>
-	public string StorageAccountName { get; set; } = string.Empty;
-
-	/// <summary>
-	/// Gets or sets the Azure Storage account key.
-	/// </summary>
-	/// <value>
-	/// The Azure Storage account key.
-	/// </value>
-	public string StorageAccountKey { get; set; } = string.Empty;
-
-	/// <summary>
 	/// Gets or sets the fully qualified namespace for managed identity authentication.
 	/// </summary>
 	/// <value>
 	/// The fully qualified namespace for managed identity authentication.
 	/// </value>
 	public string? FullyQualifiedNamespace { get; set; }
-
-	/// <summary>
-	/// Gets or sets the storage account URI for managed identity authentication.
-	/// </summary>
-	/// <value>
-	/// The storage account URI for managed identity authentication.
-	/// </value>
-	public Uri? StorageAccountUri { get; set; }
 
 	/// <summary>
 	/// Gets or sets the maximum message size in bytes.
@@ -134,4 +78,88 @@ public sealed class AzureProviderOptions : ProviderOptions
 	/// The retry options.
 	/// </value>
 	public AzureRetryOptions RetryOptions { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the authentication options for Azure identity.
+	/// </summary>
+	/// <value>
+	/// The authentication options.
+	/// </value>
+	public AzureAuthenticationOptions Authentication { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the Azure Storage account options.
+	/// </summary>
+	/// <value>
+	/// The storage account options.
+	/// </value>
+	public AzureStorageSubOptions Storage { get; set; } = new();
+}
+
+/// <summary>
+/// Authentication options for Azure identity.
+/// </summary>
+public sealed class AzureAuthenticationOptions
+{
+	/// <summary>
+	/// Gets or sets the Azure tenant ID for authentication.
+	/// </summary>
+	/// <value>
+	/// The Azure tenant ID for authentication.
+	/// </value>
+	public string TenantId { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the Azure client ID for service principal authentication.
+	/// </summary>
+	/// <value>
+	/// The Azure client ID for service principal authentication.
+	/// </value>
+	public string ClientId { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the Azure client secret for service principal authentication.
+	/// </summary>
+	/// <value>
+	/// The Azure client secret for service principal authentication.
+	/// </value>
+	public string ClientSecret { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets a value indicating whether to use managed identity for authentication.
+	/// </summary>
+	/// <value>
+	/// A value indicating whether to use managed identity for authentication.
+	/// </value>
+	public bool UseManagedIdentity { get; set; }
+}
+
+/// <summary>
+/// Azure Storage account options.
+/// </summary>
+public sealed class AzureStorageSubOptions
+{
+	/// <summary>
+	/// Gets or sets the Azure Storage account name.
+	/// </summary>
+	/// <value>
+	/// The Azure Storage account name.
+	/// </value>
+	public string StorageAccountName { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the Azure Storage account key.
+	/// </summary>
+	/// <value>
+	/// The Azure Storage account key.
+	/// </value>
+	public string StorageAccountKey { get; set; } = string.Empty;
+
+	/// <summary>
+	/// Gets or sets the storage account URI for managed identity authentication.
+	/// </summary>
+	/// <value>
+	/// The storage account URI for managed identity authentication.
+	/// </value>
+	public Uri? StorageAccountUri { get; set; }
 }

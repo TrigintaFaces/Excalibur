@@ -1,0 +1,4 @@
+#nullable enable
+Microsoft.Extensions.Hosting.ObservabilityHostApplicationBuilderExtensions
+static Microsoft.Extensions.Hosting.ObservabilityHostApplicationBuilderExtensions.ConfigureExcaliburMetrics(this Microsoft.Extensions.Hosting.IHostApplicationBuilder! builder, System.Action<OpenTelemetry.Metrics.MeterProviderBuilder!>? configureMetrics = null) -> Microsoft.Extensions.Hosting.IHostApplicationBuilder!
+static Microsoft.Extensions.Hosting.ObservabilityHostApplicationBuilderExtensions.ConfigureExcaliburTracing(this Microsoft.Extensions.Hosting.IHostApplicationBuilder! builder, System.Action<OpenTelemetry.Trace.TracerProviderBuilder!>? configureTracing = null) -> Microsoft.Extensions.Hosting.IHostApplicationBuilder!

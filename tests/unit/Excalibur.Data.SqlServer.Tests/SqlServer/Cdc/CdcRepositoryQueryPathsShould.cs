@@ -4,7 +4,7 @@
 using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.Data.SqlServer.Cdc;
+using Excalibur.Cdc.SqlServer;
 
 using Microsoft.Data.SqlClient;
 

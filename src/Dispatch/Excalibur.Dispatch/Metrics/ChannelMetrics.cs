@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Metrics;
 /// <summary>
 /// Represents metrics for a messaging channel.
 /// </summary>
-public sealed class ChannelMetrics
+internal sealed class ChannelMetrics
 {
 	/// <summary>
 	/// Gets or sets the number of messages processed per second.

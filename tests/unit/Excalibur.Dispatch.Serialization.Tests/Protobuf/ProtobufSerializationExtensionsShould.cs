@@ -31,9 +31,9 @@ public sealed class ProtobufSerializationExtensionsShould
 		var provider = services.BuildServiceProvider();
 
 		// Assert
-		var serializer = provider.GetService<IMessageSerializer>();
+		var serializer = provider.GetService<ISerializer>();
 		_ = serializer.ShouldNotBeNull();
-		_ = serializer.ShouldBeOfType<ProtobufMessageSerializer>();
+		_ = serializer.ShouldBeOfType<ProtobufSerializer>();
 	}
 
 	[Fact]
@@ -97,8 +97,8 @@ public sealed class ProtobufSerializationExtensionsShould
 		var provider = services.BuildServiceProvider();
 
 		// Act
-		var serializer1 = provider.GetRequiredService<IMessageSerializer>();
-		var serializer2 = provider.GetRequiredService<IMessageSerializer>();
+		var serializer1 = provider.GetRequiredService<ISerializer>();
+		var serializer2 = provider.GetRequiredService<ISerializer>();
 
 		// Assert
 		serializer1.ShouldBeSameAs(serializer2);
@@ -109,7 +109,7 @@ public sealed class ProtobufSerializationExtensionsShould
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var existingSerializer = A.Fake<IMessageSerializer>();
+		var existingSerializer = A.Fake<ISerializer>();
 		_ = services.AddSingleton(existingSerializer);
 
 		// Act
@@ -117,7 +117,7 @@ public sealed class ProtobufSerializationExtensionsShould
 		var provider = services.BuildServiceProvider();
 
 		// Assert
-		var resolved = provider.GetRequiredService<IMessageSerializer>();
+		var resolved = provider.GetRequiredService<ISerializer>();
 		resolved.ShouldBeSameAs(existingSerializer); // TryAddSingleton should not override
 	}
 
@@ -164,11 +164,11 @@ public sealed class ProtobufSerializationExtensionsShould
 		_ = services.AddProtobufSerialization();
 		var provider = services.BuildServiceProvider();
 
-		var serializer = provider.GetRequiredService<IMessageSerializer>();
+		var serializer = provider.GetRequiredService<ISerializer>();
 		var message = new TestMessage { Name = "IntegrationTest", Value = 999, IsActive = true };
 
 		// Act
-		var serialized = serializer.Serialize(message);
+		var serialized = serializer.SerializeToBytes(message);
 		var deserialized = serializer.Deserialize<TestMessage>(serialized);
 
 		// Assert
@@ -186,35 +186,15 @@ public sealed class ProtobufSerializationExtensionsShould
 		_ = services.AddProtobufSerialization(options => options.WireFormat = ProtobufWireFormat.Binary);
 		var provider = services.BuildServiceProvider();
 
-		var serializer = provider.GetRequiredService<IMessageSerializer>();
+		var serializer = provider.GetRequiredService<ISerializer>();
 		var message = new TestMessage { Name = "BinaryTest", Value = 42 };
 
 		// Act
-		var serialized = serializer.Serialize(message);
+		var serialized = serializer.SerializeToBytes(message);
 
 		// Assert
 		_ = serialized.ShouldNotBeNull();
 		serialized.Length.ShouldBeGreaterThan(0);
-	}
-
-	[Fact]
-	public void Support_Json_Wire_Format_Configuration()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddProtobufSerialization(options => options.WireFormat = ProtobufWireFormat.Json);
-		var provider = services.BuildServiceProvider();
-
-		var serializer = provider.GetRequiredService<IMessageSerializer>();
-		var message = new TestMessage { Name = "JsonTest", Value = 123 };
-
-		// Act
-		var serialized = serializer.Serialize(message);
-		var jsonString = System.Text.Encoding.UTF8.GetString(serialized);
-
-		// Assert
-		jsonString.ShouldContain("JsonTest");
-		jsonString.ShouldContain("123");
 	}
 
 	[Fact]
@@ -234,8 +214,8 @@ public sealed class ProtobufSerializationExtensionsShould
 		var provider = services.BuildServiceProvider();
 
 		// Assert
-		var serializer = provider.GetService<IMessageSerializer>();
+		var serializer = provider.GetService<ISerializer>();
 		_ = serializer.ShouldNotBeNull();
-		_ = serializer.ShouldBeOfType<ProtobufMessageSerializer>();
+		_ = serializer.ShouldBeOfType<ProtobufSerializer>();
 	}
 }

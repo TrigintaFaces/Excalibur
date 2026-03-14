@@ -88,20 +88,22 @@ The sample publishes `OrderPlacedEvent` messages to Azure Service Bus:
 
 ```csharp
 var order = new OrderPlacedEvent("ORD-001", "CUST-100", 99.99m);
-await dispatcher.DispatchAsync(order, context);
+await dispatcher.DispatchAsync(order, context, cancellationToken: default);
 ```
 
 ### Azure Service Bus Configuration
 
 ```csharp
-builder.Services.AddEventTransports(transports =>
-    transports.AddAzureServiceBus("azureservicebus", opts =>
-    {
-        opts.ConnectionString = connectionString;
-        opts.QueueName = "dispatch-orders";
-        opts.MaxConcurrentCalls = 10;
-        opts.PrefetchCount = 50;
-    }));
+builder.Services.AddAzureServiceBusTransport("azureservicebus", sb =>
+{
+    sb.ConnectionString(connectionString)
+      .MapEntity<OrderPlacedEvent>(queueName)
+      .ConfigureProcessor(processor =>
+      {
+          processor.MaxConcurrentCalls(10);
+          processor.PrefetchCount(50);
+      });
+});
 ```
 
 ### Routing Rules
@@ -112,8 +114,8 @@ Messages are routed to Azure Service Bus based on type:
 builder.Services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    _ = dispatch.WithRoutingRules(rules =>
-        rules.AddRule<OrderPlacedEvent>((_, _) => "azureservicebus"));
+    dispatch.UseRouting(routing =>
+        routing.Transport.Route<OrderPlacedEvent>().To("azureservicebus"));
 });
 ```
 
@@ -123,7 +125,9 @@ The sample uses the outbox pattern for reliable messaging:
 
 ```csharp
 builder.Services.AddOutbox<InMemoryOutboxStore>();
+builder.Services.AddInbox<InMemoryInboxStore>();
 builder.Services.AddOutboxHostedService();
+builder.Services.AddInboxHostedService();
 ```
 
 ## Project Structure
@@ -131,7 +135,7 @@ builder.Services.AddOutboxHostedService();
 ```
 AzureServiceBus/
 ├── Messages/
-│   └── OrderPlacedEvent.cs       # Domain event definition
+│   └── OrderPlacedEvent.cs       # Integration event definition
 ├── Handlers/
 │   └── OrderPlacedEventHandler.cs # Message handler
 ├── Program.cs                     # Application entry point

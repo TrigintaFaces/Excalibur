@@ -21,10 +21,11 @@ The message context carries metadata through the pipeline, enabling correlation,
 
 Every message dispatch has an associated `IMessageContext` that flows through the pipeline. It contains:
 
+- **MessageId** - Unique identifier for this message
 - **CorrelationId** - Unique identifier linking related operations
 - **CausationId** - ID of the operation that caused this one
 - **Items** - Key-value store for transport-specific and custom data
-- **Properties** - Alias for Items, for middleware compatibility
+- **Features** - Typed feature collection for cross-cutting concerns (identity, routing, processing state, etc.)
 
 ## Accessing Context
 
@@ -33,6 +34,9 @@ Every message dispatch has an associated `IMessageContext` that flows through th
 Use `IMessageContextAccessor` to access the current context:
 
 ```csharp
+using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
+
 public class CreateOrderHandler : IActionHandler<CreateOrderAction>
 {
     private readonly IMessageContextAccessor _contextAccessor;
@@ -46,12 +50,12 @@ public class CreateOrderHandler : IActionHandler<CreateOrderAction>
     {
         var context = _contextAccessor.MessageContext;
 
-        // Access correlation ID
+        // Core property (direct on interface)
         var correlationId = context.CorrelationId;
 
-        // Access custom items
-        var tenantId = context.GetItem<string>("TenantId");
-        var userId = context.GetItem<Guid>("UserId");
+        // Cross-cutting concerns via feature extensions
+        var tenantId = context.GetTenantId();
+        var userId = context.GetUserId();
 
         // Use in logging
         _logger.LogInformation(
@@ -96,6 +100,55 @@ public class LoggingMiddleware : IDispatchMiddleware
 }
 ```
 
+## Core Properties vs Features
+
+`IMessageContext` has 8 core properties plus a typed `Features` dictionary for cross-cutting concerns:
+
+### Core Properties (Direct on Interface)
+
+| Property | Type | Purpose |
+|----------|------|---------|
+| `MessageId` | `string?` | Unique message identifier |
+| `CorrelationId` | `string?` | Links related operations |
+| `CausationId` | `string?` | Links to causing message |
+| `Message` | `IDispatchMessage?` | The message payload |
+| `Result` | `object?` | Handler result |
+| `RequestServices` | `IServiceProvider` | Scoped DI container |
+| `Items` | `IDictionary<string, object>` | Transport metadata and custom data |
+| `Features` | `IDictionary<Type, object>` | Typed feature collection |
+
+### Feature Interfaces
+
+Cross-cutting concerns are accessed via typed feature interfaces:
+
+| Feature | Properties | Use Case |
+|---------|-----------|----------|
+| `IMessageIdentityFeature` | UserId, TenantId, SessionId, WorkflowId, ExternalId, TraceParent | Identity and multi-tenancy |
+| `IMessageProcessingFeature` | ProcessingAttempts, IsRetry, FirstAttemptTime, DeliveryCount | Retry and delivery tracking |
+| `IMessageValidationFeature` | ValidationPassed, ValidationTimestamp | Validation state |
+| `IMessageTimeoutFeature` | TimeoutExceeded, TimeoutElapsed | Timeout tracking |
+| `IMessageRateLimitFeature` | RateLimitExceeded, RateLimitRetryAfter | Rate limiting |
+| `IMessageRoutingFeature` | RoutingDecision, PartitionKey, Source | Routing decisions |
+| `IMessageTransactionFeature` | Transaction, TransactionId | Transaction context |
+
+```csharp
+using Excalibur.Dispatch.Abstractions.Features;
+
+// Read via convenience extensions
+var tenantId = context.GetTenantId();
+var isRetry = context.GetIsRetry();
+var partitionKey = context.GetPartitionKey();
+
+// Write via feature instance
+var identity = context.GetOrCreateIdentityFeature();
+identity.TenantId = "acme-corp";
+identity.UserId = currentUser.Id;
+
+// Processing state
+var processing = context.GetOrCreateProcessingFeature();
+processing.ProcessingAttempts++;
+```
+
 ## Context Items
 
 Use context items to pass custom data through the pipeline.
@@ -122,14 +175,15 @@ public class TenantMiddleware : IDispatchMiddleware
         DispatchRequestDelegate nextDelegate,
         CancellationToken cancellationToken)
     {
-        // Extract tenant from HTTP header
+        // Extract tenant from HTTP header and set on identity feature
         var tenantId = _httpContextAccessor.HttpContext?.Request
             .Headers["X-Tenant-Id"]
             .FirstOrDefault();
 
         if (!string.IsNullOrEmpty(tenantId))
         {
-            context.SetItem("TenantId", tenantId);
+            var identity = context.GetOrCreateIdentityFeature();
+            identity.TenantId = tenantId;
         }
 
         return await nextDelegate(message, context, cancellationToken);
@@ -140,19 +194,15 @@ public class TenantMiddleware : IDispatchMiddleware
 ### Reading Items
 
 ```csharp
-// Get with type
-var tenantId = context.GetItem<string>("TenantId");
-var userId = context.GetItem<Guid>("UserId");
+// Get with type (for custom/transport-specific data)
+var customValue = context.GetItem<string>("MyCustomKey");
 
 // Check existence and get value
-if (context.ContainsItem("TenantId"))
+if (context.ContainsItem("MyCustomKey"))
 {
-    var tenant = context.GetItem<string>("TenantId");
-    // Use tenant
+    var value = context.GetItem<string>("MyCustomKey");
+    // Use value
 }
-
-// Or use GetItem with default value
-var tenantWithDefault = context.GetItem<string>("TenantId", "default-tenant");
 
 // Get all items
 var items = context.Items;
@@ -160,34 +210,27 @@ var items = context.Items;
 
 ### Type-Safe Context Extensions
 
-Define extension methods for type-safe access:
+Define extension methods for type-safe access to custom data:
 
 ```csharp
-public static class MessageContextExtensions
+public static class OrderContextExtensions
 {
-    private const string TenantIdKey = "TenantId";
-    private const string UserIdKey = "UserId";
+    private const string OrderIdKey = "Order.OrderId";
 
-    public static string? GetTenantId(this IMessageContext context)
-        => context.GetItem<string>(TenantIdKey);
+    public static string? GetOrderId(this IMessageContext context)
+        => context.GetItem<string>(OrderIdKey);
 
-    public static void SetTenantId(this IMessageContext context, string tenantId)
-        => context.SetItem(TenantIdKey, tenantId);
-
-    public static Guid? GetUserId(this IMessageContext context)
-        => context.GetItem<Guid?>(UserIdKey);
-
-    public static void SetUserId(this IMessageContext context, Guid userId)
-        => context.SetItem(UserIdKey, userId);
+    public static void SetOrderId(this IMessageContext context, string orderId)
+        => context.SetItem(OrderIdKey, orderId);
 }
 
 // Usage
-var tenantId = context.GetTenantId();
-context.SetUserId(userId);
+context.SetOrderId("ORD-12345");
+var orderId = context.GetOrderId();
 ```
 
 :::info Tenant ID as a DI Service
-In addition to context items, `ITenantId` is available as a scoped DI service registered via `TryAddTenantId()`. When no tenant is explicitly configured, the framework uses `TenantDefaults.DefaultTenantId` (`"Default"`) automatically — single-tenant applications work without any tenant setup.
+In addition to the identity feature, `ITenantId` is available as a scoped DI service registered via `TryAddTenantId()`. When no tenant is explicitly configured, the framework uses `TenantDefaults.DefaultTenantId` (`"Default"`) automatically — single-tenant applications work without any tenant setup.
 
 ```csharp
 // Single-tenant: ITenantId.Value is "Default" automatically
@@ -281,6 +324,23 @@ This creates an audit trail:
 - All related actions share the same `CorrelationId`
 - Each action knows what caused it via `CausationId`
 
+## Child Context Creation
+
+Create child contexts for cascading messages:
+
+```csharp
+var childContext = context.CreateChildContext();
+```
+
+**Propagated automatically:**
+- `CorrelationId` - Maintains distributed tracing
+- `IMessageIdentityFeature` (TenantId, UserId, SessionId, WorkflowId, ExternalId, TraceParent)
+- `IMessageRoutingFeature.Source` - Preserves origin tracking
+
+**Set automatically:**
+- `CausationId` - Set to parent's `MessageId`
+- `MessageId` - New unique identifier
+
 ## Context in Distributed Systems
 
 When messages cross service boundaries:
@@ -350,7 +410,8 @@ public class MessageConsumer
 
 ### Do
 
-- Use type-safe extension methods for common items
+- Use feature extensions for cross-cutting concerns (`GetTenantId()`, `GetUserId()`)
+- Use type-safe extension methods for custom Items data
 - Propagate context in child dispatches
 - Include correlation in all logging
 - Preserve context across service boundaries
@@ -359,8 +420,9 @@ public class MessageConsumer
 
 - Store large objects in context items
 - Use context for data that should be in the action
-- Assume context items exist without checking
-- Modify context in handlers (do it in behaviors)
+- Assume Items exist without checking
+- Modify context in handlers (do it in middleware)
+- Use Items for data that has a feature interface (identity, routing, processing state)
 
 ## What's Next
 

@@ -20,24 +20,24 @@ public sealed class PostgresProviderOptionsShould : UnitTestBase
 		options.ConnectionString.ShouldBe(string.Empty);
 		options.CommandTimeout.ShouldBe(30);
 		options.ConnectTimeout.ShouldBe(15);
-		options.PrepareStatements.ShouldBeTrue();
-		options.MaxAutoPrepare.ShouldBe(20);
-		options.AutoPrepareMinUsages.ShouldBe(2);
-		options.MaxPoolSize.ShouldBe(100);
-		options.MinPoolSize.ShouldBe(0);
-		options.EnablePooling.ShouldBeTrue();
+		options.Advanced.PrepareStatements.ShouldBeTrue();
+		options.Advanced.MaxAutoPrepare.ShouldBe(20);
+		options.Advanced.AutoPrepareMinUsages.ShouldBe(2);
+		options.Pool.MaxPoolSize.ShouldBe(100);
+		options.Pool.MinPoolSize.ShouldBe(0);
+		options.Pool.EnablePooling.ShouldBeTrue();
 		options.ApplicationName.ShouldBeNull();
-		options.KeepAlive.ShouldBe(30);
-		options.ConnectionIdleLifetime.ShouldBe(300);
-		options.ConnectionPruningInterval.ShouldBe(10);
-		options.UseSsl.ShouldBeFalse();
-		options.SslMode.ShouldBe(SslMode.Prefer);
+		options.Advanced.KeepAlive.ShouldBe(30);
+		options.Pool.ConnectionIdleLifetime.ShouldBe(300);
+		options.Pool.ConnectionPruningInterval.ShouldBe(10);
+		options.Advanced.UseSsl.ShouldBeFalse();
+		options.Advanced.SslMode.ShouldBe(SslMode.Prefer);
 		options.IncludeErrorDetail.ShouldBeTrue();
-		options.EnableJsonb.ShouldBeTrue();
+		options.Advanced.EnableJsonb.ShouldBeTrue();
 		options.UseDataSource.ShouldBeTrue();
 		options.RetryCount.ShouldBe(3);
-		options.OpenConnectionImmediately.ShouldBeFalse();
-		options.ClearPoolOnDispose.ShouldBeFalse();
+		options.Pool.OpenConnectionImmediately.ShouldBeFalse();
+		options.Pool.ClearPoolOnDispose.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -60,10 +60,10 @@ public sealed class PostgresProviderOptionsShould : UnitTestBase
 		var options = new PostgresProviderOptions();
 
 		// Act
-		options.MaxPoolSize = 200;
+		options.Pool.MaxPoolSize = 200;
 
 		// Assert
-		options.MaxPoolSize.ShouldBe(200);
+		options.Pool.MaxPoolSize.ShouldBe(200);
 	}
 
 	[Fact]
@@ -73,10 +73,10 @@ public sealed class PostgresProviderOptionsShould : UnitTestBase
 		var options = new PostgresProviderOptions();
 
 		// Act
-		options.SslMode = SslMode.Require;
+		options.Advanced.SslMode = SslMode.Require;
 
 		// Assert
-		options.SslMode.ShouldBe(SslMode.Require);
+		options.Advanced.SslMode.ShouldBe(SslMode.Require);
 	}
 
 	[Fact]
@@ -86,10 +86,10 @@ public sealed class PostgresProviderOptionsShould : UnitTestBase
 		var options = new PostgresProviderOptions();
 
 		// Act
-		options.EnableJsonb = false;
+		options.Advanced.EnableJsonb = false;
 
 		// Assert
-		options.EnableJsonb.ShouldBeFalse();
+		options.Advanced.EnableJsonb.ShouldBeFalse();
 	}
 
 	[Fact]

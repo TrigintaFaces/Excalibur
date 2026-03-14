@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Batches acknowledgments for efficient processing with Google Pub/Sub.
 /// </summary>
-public sealed class AcknowledgmentBatcher : IAcknowledgmentBatcher, IDisposable
+internal sealed class AcknowledgmentBatcher : IAcknowledgmentBatcher, IDisposable
 {
 	private readonly ILogger<AcknowledgmentBatcher> _logger;
 	private readonly SubscriberServiceApiClient _client;

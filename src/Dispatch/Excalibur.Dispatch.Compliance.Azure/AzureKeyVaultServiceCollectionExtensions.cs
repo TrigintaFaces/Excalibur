@@ -48,6 +48,7 @@ public static class AzureKeyVaultServiceCollectionExtensions
 		// Register the provider
 		services.TryAddSingleton<AzureKeyVaultProvider>();
 		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<AzureKeyVaultProvider>());
+		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<AzureKeyVaultProvider>());
 
 		return services;
 	}
@@ -74,9 +75,9 @@ public static class AzureKeyVaultServiceCollectionExtensions
 			o.RequirePremiumTier = options.RequirePremiumTier;
 			o.WarnOnStandardTierInProduction = options.WarnOnStandardTierInProduction;
 			o.MetadataCacheDuration = options.MetadataCacheDuration;
-			o.EnableRetry = options.EnableRetry;
-			o.MaxRetryAttempts = options.MaxRetryAttempts;
-			o.RetryDelay = options.RetryDelay;
+			o.Retry.EnableRetry = options.Retry.EnableRetry;
+			o.Retry.MaxRetryAttempts = options.Retry.MaxRetryAttempts;
+			o.Retry.RetryDelay = options.Retry.RetryDelay;
 			o.UseSoftwareKeys = options.UseSoftwareKeys;
 			o.DefaultKeySizeBits = options.DefaultKeySizeBits;
 			o.EnableDetailedTelemetry = options.EnableDetailedTelemetry;
@@ -151,6 +152,7 @@ public static class AzureKeyVaultServiceCollectionExtensions
 		// Register the provider
 		services.TryAddSingleton<AzureKeyVaultProvider>();
 		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<AzureKeyVaultProvider>());
+		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<AzureKeyVaultProvider>());
 
 		return services;
 	}

@@ -3,7 +3,7 @@
 
 using Excalibur.Dispatch.Abstractions;
 
-using Excalibur.Data.Redis.Inbox;
+using Excalibur.Inbox.Redis;
 
 using Microsoft.Extensions.Logging.Abstractions;
 

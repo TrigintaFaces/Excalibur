@@ -30,7 +30,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// ASP.NET Core health checks and the <c>MultiTransportHealthCheck</c>.
 /// </para>
 /// </remarks>
-public sealed partial class AwsSqsTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
+internal sealed partial class AwsSqsTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
 {
 	/// <summary>
 	/// The default transport name for AWS SQS adapters.
@@ -129,9 +129,9 @@ public sealed partial class AwsSqsTransportAdapter : ITransportAdapter, ITranspo
 			var context = new MessageContext(message, _serviceProvider)
 			{
 				MessageId = messageId,
-				MessageType = message.GetType().FullName,
-				ReceivedTimestampUtc = DateTimeOffset.UtcNow,
 			};
+			context.SetMessageType(message.GetType().FullName);
+			context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
 
 			var result = await dispatcher.DispatchAsync(message, context, cancellationToken).ConfigureAwait(false);
 			_ = Interlocked.Increment(ref _successfulMessages);
@@ -410,7 +410,7 @@ public sealed partial class AwsSqsTransportAdapter : ITransportAdapter, ITranspo
 /// <summary>
 /// Configuration options for the AWS SQS transport adapter.
 /// </summary>
-public sealed class AwsSqsTransportAdapterOptions
+internal sealed class AwsSqsTransportAdapterOptions
 {
 	/// <summary>
 	/// Gets or sets the name of this transport adapter instance.
@@ -534,7 +534,7 @@ public sealed class AwsSqsTransportAdapterOptions
 /// All methods return the options instance for fluent chaining.
 /// </para>
 /// </remarks>
-public static class AwsSqsTransportAdapterOptionsExtensions
+internal static class AwsSqsTransportAdapterOptionsExtensions
 {
 	/// <summary>
 	/// Configures the standard SQS queue settings using a fluent builder.

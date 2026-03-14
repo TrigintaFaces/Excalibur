@@ -248,6 +248,6 @@ SqlServerEventStore/
 
 ## Related Samples
 
-- [ExcaliburCqrs](../../01-getting-started/ExcaliburCqrs/) - In-memory event store
+- [EventSourcingIntro](../../01-getting-started/EventSourcingIntro/) - In-memory event store
 - [SnapshotStrategies](../SnapshotStrategies/) - Snapshot optimization patterns
 - [EventUpcasting](../EventUpcasting/) - Event schema evolution

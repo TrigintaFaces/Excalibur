@@ -61,7 +61,7 @@ public sealed class SplunkExporterOptionsShould
 		var options = CreateValidOptions();
 
 		// Assert
-		options.MaxBatchSize.ShouldBe(100);
+		options.Batch.MaxBatchSize.ShouldBe(100);
 	}
 
 	[Fact]
@@ -71,7 +71,7 @@ public sealed class SplunkExporterOptionsShould
 		var options = CreateValidOptions();
 
 		// Assert
-		options.RequestTimeout.ShouldBe(TimeSpan.FromSeconds(30));
+		options.Batch.RequestTimeout.ShouldBe(TimeSpan.FromSeconds(30));
 	}
 
 	[Fact]
@@ -81,7 +81,7 @@ public sealed class SplunkExporterOptionsShould
 		var options = CreateValidOptions();
 
 		// Assert
-		options.MaxRetryAttempts.ShouldBe(3);
+		options.Batch.MaxRetryAttempts.ShouldBe(3);
 	}
 
 	[Fact]
@@ -91,7 +91,7 @@ public sealed class SplunkExporterOptionsShould
 		var options = CreateValidOptions();
 
 		// Assert
-		options.RetryBaseDelay.ShouldBe(TimeSpan.FromSeconds(1));
+		options.Batch.RetryBaseDelay.ShouldBe(TimeSpan.FromSeconds(1));
 	}
 
 	[Fact]
@@ -101,7 +101,7 @@ public sealed class SplunkExporterOptionsShould
 		var options = CreateValidOptions();
 
 		// Assert
-		options.EnableCompression.ShouldBeTrue();
+		options.Connection.EnableCompression.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -111,7 +111,7 @@ public sealed class SplunkExporterOptionsShould
 		var options = CreateValidOptions();
 
 		// Assert
-		options.ValidateCertificate.ShouldBeTrue();
+		options.Connection.ValidateCertificate.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -145,12 +145,15 @@ public sealed class SplunkExporterOptionsShould
 		var endpoint = new Uri("https://splunk.example.com:8088/services/collector");
 		var options = new SplunkExporterOptions
 		{
-			HecEndpoint = endpoint,
-			HecToken = "test-token"
+			Connection =
+			{
+				HecEndpoint = endpoint,
+				HecToken = "test-token"
+			}
 		};
 
 		// Assert
-		options.HecEndpoint.ShouldBe(endpoint);
+		options.Connection.HecEndpoint.ShouldBe(endpoint);
 	}
 
 	[Fact]
@@ -159,12 +162,15 @@ public sealed class SplunkExporterOptionsShould
 		// Arrange
 		var options = new SplunkExporterOptions
 		{
-			HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector"),
-			HecToken = "my-hec-token-123"
+			Connection =
+			{
+				HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector"),
+				HecToken = "my-hec-token-123"
+			}
 		};
 
 		// Assert
-		options.HecToken.ShouldBe("my-hec-token-123");
+		options.Connection.HecToken.ShouldBe("my-hec-token-123");
 	}
 
 	[Fact]
@@ -216,10 +222,10 @@ public sealed class SplunkExporterOptionsShould
 	{
 		// Arrange
 		var options = CreateValidOptions();
-		options.MaxBatchSize = 200;
+		options.Batch.MaxBatchSize = 200;
 
 		// Assert
-		options.MaxBatchSize.ShouldBe(200);
+		options.Batch.MaxBatchSize.ShouldBe(200);
 	}
 
 	[Fact]
@@ -227,10 +233,10 @@ public sealed class SplunkExporterOptionsShould
 	{
 		// Arrange
 		var options = CreateValidOptions();
-		options.RequestTimeout = TimeSpan.FromSeconds(60);
+		options.Batch.RequestTimeout = TimeSpan.FromSeconds(60);
 
 		// Assert
-		options.RequestTimeout.ShouldBe(TimeSpan.FromSeconds(60));
+		options.Batch.RequestTimeout.ShouldBe(TimeSpan.FromSeconds(60));
 	}
 
 	[Fact]
@@ -238,10 +244,10 @@ public sealed class SplunkExporterOptionsShould
 	{
 		// Arrange
 		var options = CreateValidOptions();
-		options.MaxRetryAttempts = 5;
+		options.Batch.MaxRetryAttempts = 5;
 
 		// Assert
-		options.MaxRetryAttempts.ShouldBe(5);
+		options.Batch.MaxRetryAttempts.ShouldBe(5);
 	}
 
 	[Fact]
@@ -249,10 +255,10 @@ public sealed class SplunkExporterOptionsShould
 	{
 		// Arrange
 		var options = CreateValidOptions();
-		options.RetryBaseDelay = TimeSpan.FromSeconds(2);
+		options.Batch.RetryBaseDelay = TimeSpan.FromSeconds(2);
 
 		// Assert
-		options.RetryBaseDelay.ShouldBe(TimeSpan.FromSeconds(2));
+		options.Batch.RetryBaseDelay.ShouldBe(TimeSpan.FromSeconds(2));
 	}
 
 	[Fact]
@@ -260,10 +266,10 @@ public sealed class SplunkExporterOptionsShould
 	{
 		// Arrange
 		var options = CreateValidOptions();
-		options.EnableCompression = false;
+		options.Connection.EnableCompression = false;
 
 		// Assert
-		options.EnableCompression.ShouldBeFalse();
+		options.Connection.EnableCompression.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -271,10 +277,10 @@ public sealed class SplunkExporterOptionsShould
 	{
 		// Arrange
 		var options = CreateValidOptions();
-		options.ValidateCertificate = false;
+		options.Connection.ValidateCertificate = false;
 
 		// Assert
-		options.ValidateCertificate.ShouldBeFalse();
+		options.Connection.ValidateCertificate.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -307,7 +313,7 @@ public sealed class SplunkExporterOptionsShould
 	public void HaveRequiredAttributeOnHecEndpoint()
 	{
 		// Arrange
-		var propertyInfo = typeof(SplunkExporterOptions).GetProperty(nameof(SplunkExporterOptions.HecEndpoint));
+		var propertyInfo = typeof(SplunkConnectionOptions).GetProperty(nameof(SplunkConnectionOptions.HecEndpoint));
 
 		// Act
 		var hasRequired = propertyInfo.GetCustomAttributes(
@@ -321,7 +327,7 @@ public sealed class SplunkExporterOptionsShould
 	public void HaveRequiredAttributeOnHecToken()
 	{
 		// Arrange
-		var propertyInfo = typeof(SplunkExporterOptions).GetProperty(nameof(SplunkExporterOptions.HecToken));
+		var propertyInfo = typeof(SplunkConnectionOptions).GetProperty(nameof(SplunkConnectionOptions.HecToken));
 
 		// Act
 		var hasRequired = propertyInfo.GetCustomAttributes(
@@ -335,7 +341,7 @@ public sealed class SplunkExporterOptionsShould
 	public void HaveRangeAttributeOnMaxBatchSize()
 	{
 		// Arrange
-		var propertyInfo = typeof(SplunkExporterOptions).GetProperty(nameof(SplunkExporterOptions.MaxBatchSize));
+		var propertyInfo = typeof(SplunkBatchOptions).GetProperty(nameof(SplunkBatchOptions.MaxBatchSize));
 
 		// Act
 		var hasRange = propertyInfo.GetCustomAttributes(
@@ -349,7 +355,7 @@ public sealed class SplunkExporterOptionsShould
 	public void HaveRangeAttributeOnMaxRetryAttempts()
 	{
 		// Arrange
-		var propertyInfo = typeof(SplunkExporterOptions).GetProperty(nameof(SplunkExporterOptions.MaxRetryAttempts));
+		var propertyInfo = typeof(SplunkBatchOptions).GetProperty(nameof(SplunkBatchOptions.MaxRetryAttempts));
 
 		// Act
 		var hasRange = propertyInfo.GetCustomAttributes(
@@ -365,8 +371,11 @@ public sealed class SplunkExporterOptionsShould
 	{
 		return new SplunkExporterOptions
 		{
-			HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector"),
-			HecToken = "test-token"
+			Connection =
+			{
+				HecEndpoint = new Uri("https://splunk.example.com:8088/services/collector"),
+				HecToken = "test-token"
+			}
 		};
 	}
 }

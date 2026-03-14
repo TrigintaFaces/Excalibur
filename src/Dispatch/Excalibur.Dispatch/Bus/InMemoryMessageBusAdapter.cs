@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Bus;
 /// <summary>
 /// In-memory message bus adapter for testing and development scenarios.
 /// </summary>
-public sealed partial class InMemoryMessageBusAdapter : IMessageBusAdapter, IAsyncDisposable
+public sealed partial class InMemoryMessageBusAdapter : IMessageBusAdapter, IMessageBusAdapterCapabilities, IMessageBusAdapterLifecycle, IAsyncDisposable
 {
 	private readonly ILogger<InMemoryMessageBusAdapter> _logger;
 	private readonly Channel<PendingMessage> _messageChannel;
@@ -295,8 +295,8 @@ public sealed partial class InMemoryMessageBusAdapter : IMessageBusAdapter, IAsy
 		}
 
 		context.MessageId ??= Guid.NewGuid().ToString();
-		context.MessageType ??= message.GetType().FullName;
-		context.ReceivedTimestampUtc = DateTimeOffset.UtcNow;
+		context.SetMessageType(context.GetMessageType() ?? message.GetType().FullName);
+		context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
 	}
 
 	private async Task ProcessMessagesAsync(CancellationToken cancellationToken)

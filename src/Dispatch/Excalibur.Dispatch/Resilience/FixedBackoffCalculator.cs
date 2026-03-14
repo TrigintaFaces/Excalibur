@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Resilience;
 /// Calculates fixed delay for retry operations.
 /// </summary>
 /// <remarks> Returns the same delay for every retry attempt. Useful when the delay should be consistent regardless of failure count. </remarks>
-public sealed class FixedBackoffCalculator : IBackoffCalculator
+internal sealed class FixedBackoffCalculator : IBackoffCalculator
 {
 	private readonly TimeSpan _delay;
 

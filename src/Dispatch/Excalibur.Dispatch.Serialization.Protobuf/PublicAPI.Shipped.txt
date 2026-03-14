@@ -1,1 +1,22 @@
 #nullable enable
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializationExtensions
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializationOptions
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializationOptions.ProtobufSerializationOptions() -> void
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializationOptions.WireFormat.get -> Excalibur.Dispatch.Serialization.Protobuf.ProtobufWireFormat
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializationOptions.WireFormat.set -> void
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializer
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializer.ContentType.get -> string!
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializer.Deserialize<T>(System.ReadOnlySpan<byte> data) -> T
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializer.DeserializeObject(System.ReadOnlySpan<byte> data, System.Type! type) -> object!
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializer.Name.get -> string!
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializer.ProtobufSerializer() -> void
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializer.Serialize<T>(T value, System.Buffers.IBufferWriter<byte>! bufferWriter) -> void
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializer.SerializeObject(object! value, System.Type! type) -> byte[]!
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializer.Version.get -> string!
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufWireFormat
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufWireFormat.Binary = 0 -> Excalibur.Dispatch.Serialization.Protobuf.ProtobufWireFormat
+Excalibur.Dispatch.Serialization.Protobuf.ProtobufWireFormat.Json = 1 -> Excalibur.Dispatch.Serialization.Protobuf.ProtobufWireFormat
+static Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializationExtensions.AddProtobufPluggableSerialization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, bool setAsCurrent = false) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializationExtensions.AddProtobufSerialization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializationOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializationExtensions.GetPluggableSerializer() -> Excalibur.Dispatch.Abstractions.Serialization.ISerializer!
+static Excalibur.Dispatch.Serialization.Protobuf.ProtobufSerializationExtensions.RegisterProtobuf(this Excalibur.Dispatch.Serialization.ISerializationBuilder! builder) -> Excalibur.Dispatch.Serialization.ISerializationBuilder!

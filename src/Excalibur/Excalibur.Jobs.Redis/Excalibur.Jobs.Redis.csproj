@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Jobs.Redis</PackageId>
+    <Description>Redis-based distributed job coordination for the Excalibur Jobs framework.</Description>
+    <PackageTags>excalibur;jobs;redis;coordination;distributed;scheduling</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Jobs.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="StackExchange.Redis" />
+    <PackageReference Include="System.Text.Json" />
+  </ItemGroup>
+  <!-- Excalibur internal references (always ProjectReference) -->
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Jobs.Abstractions\Excalibur.Jobs.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

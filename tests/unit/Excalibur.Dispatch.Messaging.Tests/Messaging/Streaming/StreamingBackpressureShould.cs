@@ -34,7 +34,7 @@ public sealed class StreamingBackpressureShould
 		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var startTime = DateTime.UtcNow;
 
@@ -67,7 +67,7 @@ public sealed class StreamingBackpressureShould
 		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		// Create a large stream
 		var documents = CreateLargeDocumentStream(1000);
@@ -97,7 +97,7 @@ public sealed class StreamingBackpressureShould
 		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var startTime = DateTime.UtcNow;
 
@@ -129,7 +129,7 @@ public sealed class StreamingBackpressureShould
 			sp => sp.GetRequiredService<SlowYieldingStreamingHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var document = new TestCsvDocument(["A", "B", "C", "D", "E"]);
 		var context = CreateTestContext(provider);
@@ -251,4 +251,3 @@ public sealed class StreamingBackpressureShould
 
 	#endregion
 }
-

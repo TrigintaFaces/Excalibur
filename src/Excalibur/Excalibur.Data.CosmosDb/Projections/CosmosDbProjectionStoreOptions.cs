@@ -6,8 +6,6 @@ using System.ComponentModel.DataAnnotations;
 
 using Excalibur.Data.CosmosDb.Resources;
 
-using Microsoft.Azure.Cosmos;
-
 namespace Excalibur.Data.CosmosDb.Projections;
 
 /// <summary>
@@ -15,26 +13,17 @@ namespace Excalibur.Data.CosmosDb.Projections;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Supports both connection string and endpoint/key authentication patterns.
+/// Supports both connection string and endpoint/key authentication patterns
+/// via the shared <see cref="Client"/> options.
 /// The projection store uses <c>projectionType</c> as the partition key for efficient queries.
 /// </para>
 /// </remarks>
 public sealed class CosmosDbProjectionStoreOptions
 {
 	/// <summary>
-	/// Gets or sets the Cosmos DB account endpoint URI.
+	/// Gets or sets the shared client/connection options.
 	/// </summary>
-	public string? AccountEndpoint { get; set; }
-
-	/// <summary>
-	/// Gets or sets the Cosmos DB account key.
-	/// </summary>
-	public string? AccountKey { get; set; }
-
-	/// <summary>
-	/// Gets or sets the connection string (alternative to AccountEndpoint + AccountKey).
-	/// </summary>
-	public string? ConnectionString { get; set; }
+	public CosmosDbClientOptions Client { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets the database name.
@@ -83,75 +72,12 @@ public sealed class CosmosDbProjectionStoreOptions
 	public int DefaultTtlSeconds { get; set; } = -1;
 
 	/// <summary>
-	/// Gets or sets the consistency level for operations.
-	/// </summary>
-	/// <value>Defaults to <see langword="null"/> (use account default).</value>
-	public ConsistencyLevel? ConsistencyLevel { get; set; }
-
-	/// <summary>
-	/// Gets or sets the maximum retry attempts for transient failures.
-	/// </summary>
-	/// <value>Defaults to 9.</value>
-	[Range(0, int.MaxValue)]
-	public int MaxRetryAttempts { get; set; } = 9;
-
-	/// <summary>
-	/// Gets or sets the maximum retry wait time in seconds.
-	/// </summary>
-	/// <value>Defaults to 30 seconds.</value>
-	[Range(1, int.MaxValue)]
-	public int MaxRetryWaitTimeInSeconds { get; set; } = 30;
-
-	/// <summary>
-	/// Gets or sets the request timeout in seconds.
-	/// </summary>
-	/// <value>Defaults to 30 seconds.</value>
-	[Range(1, int.MaxValue)]
-	public int RequestTimeoutInSeconds { get; set; } = 30;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to use direct connection mode.
-	/// </summary>
-	/// <value>Defaults to <see langword="true"/>.</value>
-	public bool UseDirectMode { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable content response on write operations.
-	/// </summary>
-	/// <remarks>
-	/// Setting this to false reduces RU consumption for write operations.
-	/// </remarks>
-	/// <value>Defaults to <see langword="false"/> for performance.</value>
-	public bool EnableContentResponseOnWrite { get; set; }
-
-	/// <summary>
-	/// Gets or sets the preferred regions for geo-redundant operations.
-	/// </summary>
-	public IReadOnlyList<string>? PreferredRegions { get; set; }
-
-	/// <summary>
-	/// Gets or sets a factory function for creating the HttpClient used by the Cosmos DB client.
-	/// </summary>
-	/// <remarks>
-	/// This is primarily used for testing with the Cosmos DB emulator, which uses self-signed certificates.
-	/// The TestContainers CosmosDb container provides an HttpClient that bypasses certificate validation.
-	/// </remarks>
-	public Func<HttpClient>? HttpClientFactory { get; set; }
-
-	/// <summary>
 	/// Validates the options and throws if invalid.
 	/// </summary>
 	/// <exception cref="InvalidOperationException">Thrown when required options are missing.</exception>
 	public void Validate()
 	{
-		var hasConnectionString = !string.IsNullOrWhiteSpace(ConnectionString);
-		var hasEndpointAndKey = !string.IsNullOrWhiteSpace(AccountEndpoint) && !string.IsNullOrWhiteSpace(AccountKey);
-
-		if (!hasConnectionString && !hasEndpointAndKey)
-		{
-			throw new InvalidOperationException(
-				ErrorMessages.EitherConnectionStringOrAccountEndpointRequired);
-		}
+		Client.Validate();
 
 		if (string.IsNullOrWhiteSpace(DatabaseName))
 		{

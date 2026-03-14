@@ -3,6 +3,8 @@
 
 #nullable enable
 
+using Excalibur.Dispatch.Abstractions.Features;
+
 using Microsoft.Extensions.Options;
 
 using MessageResult = Excalibur.Dispatch.Messaging.MessageResult;
@@ -56,14 +58,15 @@ namespace Tests.Shared.TestTypes
 				context.Items["__Error"] = ex;
 				context.Items["__ErrorId"] = errorId;
 
+				var traceParent = context.GetTraceParent();
 				_logger.LogError(ex, "Error processing message {MessageId} {TraceParent}: {ErrorMessage}",
-					context.MessageId, context.TraceParent, ex.Message);
+					context.MessageId, traceParent, ex.Message);
 
 				var problemDetails = new MessageProblemDetails
 				{
 					Title = "Unhandled dispatch exception",
 					Detail = ex.Message,
-					Instance = context.TraceParent ?? context.MessageId,
+					Instance = traceParent ?? context.MessageId,
 					Status = 500,
 				};
 

@@ -66,22 +66,10 @@ public sealed class ElasticSearchProjectionStoreOptions
 	public string RefreshInterval { get; set; } = "1s";
 
 	/// <summary>
-	/// Gets or sets the username for basic authentication.
+	/// Gets or sets the authentication options for the ElasticSearch connection.
 	/// </summary>
-	/// <value>Defaults to <see langword="null"/> (no authentication).</value>
-	public string? Username { get; set; }
-
-	/// <summary>
-	/// Gets or sets the password for basic authentication.
-	/// </summary>
-	/// <value>Defaults to <see langword="null"/> (no authentication).</value>
-	public string? Password { get; set; }
-
-	/// <summary>
-	/// Gets or sets the API key for API key authentication.
-	/// </summary>
-	/// <value>Defaults to <see langword="null"/> (no API key authentication).</value>
-	public string? ApiKey { get; set; }
+	/// <value>Authentication options including username/password and API key.</value>
+	public ElasticSearchProjectionAuthOptions Auth { get; set; } = new();
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to disable direct streaming.

@@ -63,7 +63,7 @@ public sealed class InboxOptionsBuilderShould : UnitTestBase
 			.Build();
 
 		// Assert
-		options.ProducerBatchSize.ShouldBe(batchSize);
+		options.Batch.ProducerBatchSize.ShouldBe(batchSize);
 	}
 
 	[Theory]
@@ -92,7 +92,7 @@ public sealed class InboxOptionsBuilderShould : UnitTestBase
 			.Build();
 
 		// Assert
-		options.ConsumerBatchSize.ShouldBe(batchSize);
+		options.Batch.ConsumerBatchSize.ShouldBe(batchSize);
 	}
 
 	[Theory]
@@ -293,7 +293,7 @@ public sealed class InboxOptionsBuilderShould : UnitTestBase
 			.Build();
 
 		// Assert
-		options.EnableDynamicBatchSizing.ShouldBeTrue();
+		options.Batch.EnableDynamicBatchSizing.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -305,9 +305,9 @@ public sealed class InboxOptionsBuilderShould : UnitTestBase
 			.Build();
 
 		// Assert
-		options.EnableDynamicBatchSizing.ShouldBeTrue();
-		options.MinBatchSize.ShouldBe(5);
-		options.MaxBatchSize.ShouldBe(500);
+		options.Batch.EnableDynamicBatchSizing.ShouldBeTrue();
+		options.Batch.MinBatchSize.ShouldBe(5);
+		options.Batch.MaxBatchSize.ShouldBe(500);
 	}
 
 	[Fact]
@@ -339,7 +339,7 @@ public sealed class InboxOptionsBuilderShould : UnitTestBase
 			.Build();
 
 		// Assert
-		options.EnableBatchDatabaseOperations.ShouldBeFalse();
+		options.Batch.EnableBatchDatabaseOperations.ShouldBeFalse();
 	}
 
 	#endregion
@@ -368,8 +368,8 @@ public sealed class InboxOptionsBuilderShould : UnitTestBase
 			.Build();
 
 		// Assert - should succeed with valid values
-		options.MinBatchSize.ShouldBe(10);
-		options.MaxBatchSize.ShouldBe(100);
+		options.Batch.MinBatchSize.ShouldBe(10);
+		options.Batch.MaxBatchSize.ShouldBe(100);
 	}
 
 	#endregion
@@ -384,13 +384,13 @@ public sealed class InboxOptionsBuilderShould : UnitTestBase
 
 		// Assert
 		options.QueueCapacity.ShouldBe(2000);
-		options.ProducerBatchSize.ShouldBe(500);
-		options.ConsumerBatchSize.ShouldBe(200);
+		options.Batch.ProducerBatchSize.ShouldBe(500);
+		options.Batch.ConsumerBatchSize.ShouldBe(200);
 		options.PerRunTotal.ShouldBe(5000);
 		options.MaxAttempts.ShouldBe(3);
 		options.ParallelProcessingDegree.ShouldBe(8);
 		options.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(2));
-		options.EnableBatchDatabaseOperations.ShouldBeTrue();
+		options.Batch.EnableBatchDatabaseOperations.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -401,8 +401,8 @@ public sealed class InboxOptionsBuilderShould : UnitTestBase
 
 		// Assert
 		options.QueueCapacity.ShouldBe(500);
-		options.ProducerBatchSize.ShouldBe(100);
-		options.ConsumerBatchSize.ShouldBe(50);
+		options.Batch.ProducerBatchSize.ShouldBe(100);
+		options.Batch.ConsumerBatchSize.ShouldBe(50);
 		options.PerRunTotal.ShouldBe(1000);
 		options.MaxAttempts.ShouldBe(5);
 		options.ParallelProcessingDegree.ShouldBe(4);
@@ -417,8 +417,8 @@ public sealed class InboxOptionsBuilderShould : UnitTestBase
 
 		// Assert
 		options.QueueCapacity.ShouldBe(100);
-		options.ProducerBatchSize.ShouldBe(20);
-		options.ConsumerBatchSize.ShouldBe(10);
+		options.Batch.ProducerBatchSize.ShouldBe(20);
+		options.Batch.ConsumerBatchSize.ShouldBe(10);
 		options.PerRunTotal.ShouldBe(200);
 		options.MaxAttempts.ShouldBe(10);
 		options.ParallelProcessingDegree.ShouldBe(1);
@@ -433,8 +433,8 @@ public sealed class InboxOptionsBuilderShould : UnitTestBase
 
 		// Assert - Custom uses Balanced defaults as base
 		options.QueueCapacity.ShouldBe(500);
-		options.ProducerBatchSize.ShouldBe(100);
-		options.ConsumerBatchSize.ShouldBe(50);
+		options.Batch.ProducerBatchSize.ShouldBe(100);
+		options.Batch.ConsumerBatchSize.ShouldBe(50);
 		options.PerRunTotal.ShouldBe(1000);
 		options.MaxAttempts.ShouldBe(5);
 		options.ParallelProcessingDegree.ShouldBe(4);
@@ -486,16 +486,16 @@ public sealed class InboxOptionsBuilderShould : UnitTestBase
 
 		// Assert
 		options.QueueCapacity.ShouldBe(1000);
-		options.ProducerBatchSize.ShouldBe(200);
-		options.ConsumerBatchSize.ShouldBe(100);
+		options.Batch.ProducerBatchSize.ShouldBe(200);
+		options.Batch.ConsumerBatchSize.ShouldBe(100);
 		options.PerRunTotal.ShouldBe(2000);
 		options.MaxAttempts.ShouldBe(7);
 		options.ParallelProcessingDegree.ShouldBe(8);
 		options.BatchProcessingTimeout.ShouldBe(TimeSpan.FromMinutes(3));
 		options.DefaultMessageTtl.ShouldBe(TimeSpan.FromHours(12));
-		options.EnableDynamicBatchSizing.ShouldBeTrue();
-		options.MinBatchSize.ShouldBe(20);
-		options.MaxBatchSize.ShouldBe(500);
+		options.Batch.EnableDynamicBatchSizing.ShouldBeTrue();
+		options.Batch.MinBatchSize.ShouldBe(20);
+		options.Batch.MaxBatchSize.ShouldBe(500);
 	}
 
 	#endregion

@@ -1,1 +1,65 @@
 #nullable enable
+Excalibur.Hosting.AzureFunctions.FluentSagaOrchestration<TSagaInput, TSagaOutput>
+Excalibur.Hosting.AzureFunctions.FluentSagaOrchestration<TSagaInput, TSagaOutput>.AutoCompensation.get -> bool
+Excalibur.Hosting.AzureFunctions.FluentSagaOrchestration<TSagaInput, TSagaOutput>.ExecuteAsync(TSagaInput input, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TSagaOutput>!
+Excalibur.Hosting.AzureFunctions.FluentSagaOrchestration<TSagaInput, TSagaOutput>.SagaName.get -> string!
+Excalibur.Hosting.AzureFunctions.FluentSagaOrchestration<TSagaInput, TSagaOutput>.Steps.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Hosting.AzureFunctions.ISagaStepDefinition!>!
+Excalibur.Hosting.AzureFunctions.FluentSagaOrchestration<TSagaInput, TSagaOutput>.Timeout.get -> System.TimeSpan?
+Excalibur.Hosting.AzureFunctions.ISagaStepDefinition
+Excalibur.Hosting.AzureFunctions.ISagaStepDefinition.ActivityName.get -> string?
+Excalibur.Hosting.AzureFunctions.ISagaStepDefinition.CompensationActivityName.get -> string?
+Excalibur.Hosting.AzureFunctions.ISagaStepDefinition.Name.get -> string!
+Excalibur.Hosting.AzureFunctions.ISagaStepDefinition.PrepareInput(object! sagaInput, Excalibur.Hosting.AzureFunctions.SagaState! state) -> object!
+Excalibur.Hosting.AzureFunctions.ISagaStepDefinition.ProcessOutput(object? output, Excalibur.Hosting.AzureFunctions.SagaState! state) -> void
+Excalibur.Hosting.AzureFunctions.ISagaStepDefinition.RetryCount.get -> int
+Excalibur.Hosting.AzureFunctions.ISagaStepDefinition.ShouldExecute(object! sagaInput, Excalibur.Hosting.AzureFunctions.SagaState! state) -> bool
+Excalibur.Hosting.AzureFunctions.ISagaStepDefinition.StepType.get -> Excalibur.Hosting.AzureFunctions.SagaStepType
+Excalibur.Hosting.AzureFunctions.ISagaStepDefinition.Timeout.get -> System.TimeSpan?
+Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput, TSagaOutput>
+Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput, TSagaOutput>.AddConditionalStep<TStepInput, TStepOutput>(string! stepName, System.Func<TSagaInput!, Excalibur.Hosting.AzureFunctions.SagaState!, bool>! condition, System.Func<Excalibur.Hosting.AzureFunctions.SagaStepBuilder<TSagaInput!, TStepInput, TStepOutput>!, Excalibur.Hosting.AzureFunctions.SagaStepBuilder<TSagaInput!, TStepInput, TStepOutput>!>! configure) -> Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput!, TSagaOutput!>!
+Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput, TSagaOutput>.AddParallelSteps(string! groupName, System.Func<Excalibur.Hosting.AzureFunctions.SagaParallelStepGroupBuilder<TSagaInput!, TSagaOutput!>!, Excalibur.Hosting.AzureFunctions.SagaParallelStepGroupBuilder<TSagaInput!, TSagaOutput!>!>! configure) -> Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput!, TSagaOutput!>!
+Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput, TSagaOutput>.AddStep<TStepInput, TStepOutput>(string! stepName, System.Func<Excalibur.Hosting.AzureFunctions.SagaStepBuilder<TSagaInput!, TStepInput, TStepOutput>!, Excalibur.Hosting.AzureFunctions.SagaStepBuilder<TSagaInput!, TStepInput, TStepOutput>!>! configure) -> Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput!, TSagaOutput!>!
+Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput, TSagaOutput>.Build(Microsoft.Extensions.Logging.ILogger<Excalibur.Hosting.AzureFunctions.FluentSagaOrchestration<TSagaInput!, TSagaOutput!>!>! logger) -> Excalibur.Hosting.AzureFunctions.FluentSagaOrchestration<TSagaInput!, TSagaOutput!>!
+Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput, TSagaOutput>.SagaBuilder(string! sagaName) -> void
+Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput, TSagaOutput>.WithAutoCompensation(bool enabled) -> Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput!, TSagaOutput!>!
+Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput, TSagaOutput>.WithDefaultRetry(int maxAttempts, System.TimeSpan firstRetryInterval, double backoffCoefficient) -> Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput!, TSagaOutput!>!
+Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput, TSagaOutput>.WithErrorHandler(System.Action<Excalibur.Hosting.AzureFunctions.SagaState!, System.Exception!>! errorHandler) -> Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput!, TSagaOutput!>!
+Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput, TSagaOutput>.WithInputValidation(System.Func<TSagaInput!, System.Threading.Tasks.Task!>! validator) -> Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput!, TSagaOutput!>!
+Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput, TSagaOutput>.WithOutputBuilder(System.Func<TSagaInput!, Excalibur.Hosting.AzureFunctions.SagaState!, System.Threading.Tasks.Task<TSagaOutput!>!>! outputBuilder) -> Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput!, TSagaOutput!>!
+Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput, TSagaOutput>.WithTimeout(System.TimeSpan timeout) -> Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput!, TSagaOutput!>!
+Excalibur.Hosting.AzureFunctions.SagaParallelStepGroupBuilder<TSagaInput, TSagaOutput>
+Excalibur.Hosting.AzureFunctions.SagaParallelStepGroupBuilder<TSagaInput, TSagaOutput>.AddStep<TStepInput, TStepOutput>(string! stepName, System.Action<Excalibur.Hosting.AzureFunctions.SagaStepBuilder<TSagaInput, TStepInput, TStepOutput>!>! configure) -> Excalibur.Hosting.AzureFunctions.SagaParallelStepGroupBuilder<TSagaInput, TSagaOutput>!
+Excalibur.Hosting.AzureFunctions.SagaState
+Excalibur.Hosting.AzureFunctions.SagaState.CompensatedSteps.get -> System.Collections.Generic.ICollection<string!>!
+Excalibur.Hosting.AzureFunctions.SagaState.CompletedAt.get -> System.DateTimeOffset?
+Excalibur.Hosting.AzureFunctions.SagaState.CompletedAt.set -> void
+Excalibur.Hosting.AzureFunctions.SagaState.CompletedSteps.get -> System.Collections.Generic.ICollection<string!>!
+Excalibur.Hosting.AzureFunctions.SagaState.CorrelationId.get -> string?
+Excalibur.Hosting.AzureFunctions.SagaState.CorrelationId.set -> void
+Excalibur.Hosting.AzureFunctions.SagaState.CurrentStepIndex.get -> int
+Excalibur.Hosting.AzureFunctions.SagaState.CurrentStepIndex.set -> void
+Excalibur.Hosting.AzureFunctions.SagaState.Data.get -> System.Collections.Concurrent.ConcurrentDictionary<string!, object!>!
+Excalibur.Hosting.AzureFunctions.SagaState.ErrorMessage.get -> string?
+Excalibur.Hosting.AzureFunctions.SagaState.ErrorMessage.set -> void
+Excalibur.Hosting.AzureFunctions.SagaState.SagaId.get -> string!
+Excalibur.Hosting.AzureFunctions.SagaState.SagaId.set -> void
+Excalibur.Hosting.AzureFunctions.SagaState.SagaState() -> void
+Excalibur.Hosting.AzureFunctions.SagaState.StartedAt.get -> System.DateTimeOffset
+Excalibur.Hosting.AzureFunctions.SagaState.StartedAt.set -> void
+Excalibur.Hosting.AzureFunctions.SagaState.Status.get -> Excalibur.Saga.Models.SagaStatus
+Excalibur.Hosting.AzureFunctions.SagaState.Status.set -> void
+Excalibur.Hosting.AzureFunctions.SagaStepBuilder<TSagaInput, TStepInput, TStepOutput>
+Excalibur.Hosting.AzureFunctions.SagaStepBuilder<TSagaInput, TStepInput, TStepOutput>.ExecuteActivity(string! activityName) -> Excalibur.Hosting.AzureFunctions.SagaStepBuilder<TSagaInput, TStepInput, TStepOutput>!
+Excalibur.Hosting.AzureFunctions.SagaStepBuilder<TSagaInput, TStepInput, TStepOutput>.SagaStepBuilder(string! stepName, System.Func<TSagaInput, Excalibur.Hosting.AzureFunctions.SagaState!, bool>? condition = null) -> void
+Excalibur.Hosting.AzureFunctions.SagaStepBuilder<TSagaInput, TStepInput, TStepOutput>.WithCompensation(string! compensationActivityName) -> Excalibur.Hosting.AzureFunctions.SagaStepBuilder<TSagaInput, TStepInput, TStepOutput>!
+Excalibur.Hosting.AzureFunctions.SagaStepBuilder<TSagaInput, TStepInput, TStepOutput>.WithInput(System.Func<TSagaInput, Excalibur.Hosting.AzureFunctions.SagaState!, TStepInput>! inputMapper) -> Excalibur.Hosting.AzureFunctions.SagaStepBuilder<TSagaInput, TStepInput, TStepOutput>!
+Excalibur.Hosting.AzureFunctions.SagaStepBuilder<TSagaInput, TStepInput, TStepOutput>.WithOutput(System.Action<TStepOutput?, Excalibur.Hosting.AzureFunctions.SagaState!>! outputHandler) -> Excalibur.Hosting.AzureFunctions.SagaStepBuilder<TSagaInput, TStepInput, TStepOutput>!
+Excalibur.Hosting.AzureFunctions.SagaStepBuilder<TSagaInput, TStepInput, TStepOutput>.WithRetry(int retryCount) -> Excalibur.Hosting.AzureFunctions.SagaStepBuilder<TSagaInput, TStepInput, TStepOutput>!
+Excalibur.Hosting.AzureFunctions.SagaStepBuilder<TSagaInput, TStepInput, TStepOutput>.WithTimeout(System.TimeSpan timeout) -> Excalibur.Hosting.AzureFunctions.SagaStepBuilder<TSagaInput, TStepInput, TStepOutput>!
+Excalibur.Hosting.AzureFunctions.SagaStepType
+Excalibur.Hosting.AzureFunctions.SagaStepType.ParallelGroup = 1 -> Excalibur.Hosting.AzureFunctions.SagaStepType
+Excalibur.Hosting.AzureFunctions.SagaStepType.Single = 0 -> Excalibur.Hosting.AzureFunctions.SagaStepType
+Microsoft.Extensions.DependencyInjection.ExcaliburAzureFunctionsServiceCollectionExtensions
+static Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput, TSagaOutput>.Create(string! sagaName) -> Excalibur.Hosting.AzureFunctions.SagaBuilder<TSagaInput!, TSagaOutput!>!
+static Microsoft.Extensions.DependencyInjection.ExcaliburAzureFunctionsServiceCollectionExtensions.AddExcaliburAzureFunctionsServerless(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ExcaliburAzureFunctionsServiceCollectionExtensions.AddExcaliburAzureFunctionsServerless(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -63,8 +63,8 @@ public sealed class OutboxValidateOnStartRegistrationShould
 		{
 			options.PublishBatchSize = 50;
 			options.PublishPollingInterval = TimeSpan.FromSeconds(5);
-			options.MaxRetries = 3;
-			options.RetryDelay = TimeSpan.FromSeconds(30);
+			options.Retry.MaxRetries = 3;
+			options.Retry.RetryDelay = TimeSpan.FromSeconds(30);
 		});
 
 		// Act
@@ -74,7 +74,7 @@ public sealed class OutboxValidateOnStartRegistrationShould
 
 		// Assert
 		value.PublishBatchSize.ShouldBe(50);
-		value.MaxRetries.ShouldBe(3);
+		value.Retry.MaxRetries.ShouldBe(3);
 	}
 
 	[Fact]

@@ -6,6 +6,7 @@
 using Excalibur.Jobs.Cdc;
 using Excalibur.Jobs.DataProcessing;
 using Excalibur.Jobs.Outbox;
+using Excalibur.Jobs.Quartz;
 
 using JobWorkerSample.Jobs;
 
@@ -96,9 +97,6 @@ public class Program
 			{
 				_ = builder.Services.AddJobCoordinationRedis(redisConnectionString);
 			}
-
-			// Optional: Add workflow orchestration support
-			_ = builder.Services.AddWorkflows();
 
 			var host = builder.Build();
 

@@ -32,7 +32,7 @@ public sealed class StreamingDocumentHandlerShould
 			sp => sp.GetRequiredService<TestCsvStreamingHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var document = new TestCsvDocument(["Row1", "Row2", "Row3"]);
 		var context = CreateTestContext(provider);
@@ -66,7 +66,7 @@ public sealed class StreamingDocumentHandlerShould
 			sp => sp.GetRequiredService<DelayedStreamingHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var document = new TestCsvDocument(["A", "B", "C"]);
 		var context = CreateTestContext(provider);
@@ -94,7 +94,7 @@ public sealed class StreamingDocumentHandlerShould
 		_ = services.AddDispatch(_ => { });
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var document = new TestCsvDocument(["Row1"]);
 		var context = CreateTestContext(provider);
@@ -126,7 +126,7 @@ public sealed class StreamingDocumentHandlerShould
 			sp => sp.GetRequiredService<TestCsvStreamingHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 		var context = CreateTestContext(provider);
 
 		// Act & Assert
@@ -156,7 +156,7 @@ public sealed class StreamingDocumentHandlerShould
 			sp => sp.GetRequiredService<TestCsvStreamingHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 		var document = new TestCsvDocument(["Row1"]);
 
 		// Act & Assert
@@ -186,7 +186,7 @@ public sealed class StreamingDocumentHandlerShould
 			sp => sp.GetRequiredService<TestCsvStreamingHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var document = new TestCsvDocument(["Row1"]);
 		var context = CreateTestContext(provider);
@@ -201,7 +201,7 @@ public sealed class StreamingDocumentHandlerShould
 		// Assert - context should have been populated
 		context.CorrelationId.ShouldNotBeNullOrEmpty();
 		context.CausationId.ShouldNotBeNullOrEmpty();
-		context.MessageType.ShouldNotBeNullOrEmpty();
+		context.GetMessageType().ShouldNotBeNullOrEmpty();
 	}
 
 	[Fact]
@@ -218,7 +218,7 @@ public sealed class StreamingDocumentHandlerShould
 			sp => sp.GetRequiredService<TestCsvStreamingHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		var document = new TestCsvDocument([]); // Empty document
 		var context = CreateTestContext(provider);
@@ -249,7 +249,7 @@ public sealed class StreamingDocumentHandlerShould
 			sp => sp.GetRequiredService<TestCsvStreamingHandler>());
 
 		await using var provider = services.BuildServiceProvider();
-		var dispatcher = provider.GetRequiredService<IDispatcher>();
+		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
 
 		// Create a document with many rows
 		var data = Enumerable.Range(1, 10000).Select(i => $"Row{i}").ToArray();
@@ -292,4 +292,3 @@ file sealed class DelayedStreamingHandler : IStreamingDocumentHandler<TestCsvDoc
 		}
 	}
 }
-

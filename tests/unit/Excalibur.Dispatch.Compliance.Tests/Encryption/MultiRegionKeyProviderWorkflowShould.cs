@@ -10,8 +10,8 @@ namespace Excalibur.Dispatch.Compliance.Tests.Encryption;
 [Trait("Component", "Compliance")]
 public sealed class MultiRegionKeyProviderWorkflowShould : IDisposable
 {
-	private readonly IKeyManagementProvider _primary = A.Fake<IKeyManagementProvider>();
-	private readonly IKeyManagementProvider _secondary = A.Fake<IKeyManagementProvider>();
+	private readonly IKeyManagementProvider _primary = A.Fake<IKeyManagementProvider>(o => o.Implements<IKeyManagementAdmin>());
+	private readonly IKeyManagementProvider _secondary = A.Fake<IKeyManagementProvider>(o => o.Implements<IKeyManagementAdmin>());
 	private readonly MultiRegionKeyProvider _sut;
 
 	public MultiRegionKeyProviderWorkflowShould()
@@ -28,14 +28,17 @@ public sealed class MultiRegionKeyProviderWorkflowShould : IDisposable
 				RegionId = "us-west-2",
 				Endpoint = new Uri("https://secondary.example.com"),
 			},
-			HealthCheckInterval = TimeSpan.FromHours(1),
-			EnableAutomaticFailover = false,
+			Failover = new MultiRegionFailoverOptions
+			{
+				HealthCheckInterval = TimeSpan.FromHours(1),
+				EnableAutomaticFailover = false,
+			},
 		};
 
 		// Allow health check to succeed for both
-		A.CallTo(() => _primary.ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
+		A.CallTo(() => ((IKeyManagementAdmin)_primary).ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<KeyMetadata>>([]));
-		A.CallTo(() => _secondary.ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
+		A.CallTo(() => ((IKeyManagementAdmin)_secondary).ListKeysAsync(A<KeyStatus?>._, A<string?>._, A<CancellationToken>._))
 			.Returns(Task.FromResult<IReadOnlyList<KeyMetadata>>([]));
 
 		_sut = new MultiRegionKeyProvider(
@@ -133,19 +136,19 @@ public sealed class MultiRegionKeyProviderWorkflowShould : IDisposable
 	public async Task Route_delete_key_to_secondary_after_failover()
 	{
 		// Arrange
-		A.CallTo(() => _secondary.DeleteKeyAsync("k1", 90, A<CancellationToken>._))
+		A.CallTo(() => ((IKeyManagementAdmin)_secondary).DeleteKeyAsync("k1", 90, A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
 
 		// Act
 		await _sut.ForceFailoverAsync("failover", CancellationToken.None)
 			.ConfigureAwait(false);
 
-		var result = await _sut.DeleteKeyAsync("k1", 90, CancellationToken.None)
+		var result = await ((IKeyManagementAdmin)_sut).DeleteKeyAsync("k1", 90, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert
 		result.ShouldBeTrue();
-		A.CallTo(() => _secondary.DeleteKeyAsync("k1", 90, A<CancellationToken>._))
+		A.CallTo(() => ((IKeyManagementAdmin)_secondary).DeleteKeyAsync("k1", 90, A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -153,14 +156,14 @@ public sealed class MultiRegionKeyProviderWorkflowShould : IDisposable
 	public async Task Route_suspend_key_to_secondary_after_failover()
 	{
 		// Arrange
-		A.CallTo(() => _secondary.SuspendKeyAsync("k1", "security", A<CancellationToken>._))
+		A.CallTo(() => ((IKeyManagementAdmin)_secondary).SuspendKeyAsync("k1", "security", A<CancellationToken>._))
 			.Returns(Task.FromResult(true));
 
 		// Act
 		await _sut.ForceFailoverAsync("failover", CancellationToken.None)
 			.ConfigureAwait(false);
 
-		var result = await _sut.SuspendKeyAsync("k1", "security", CancellationToken.None)
+		var result = await ((IKeyManagementAdmin)_sut).SuspendKeyAsync("k1", "security", CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert
@@ -207,14 +210,14 @@ public sealed class MultiRegionKeyProviderWorkflowShould : IDisposable
 				CreatedAt = DateTimeOffset.UtcNow,
 			},
 		];
-		A.CallTo(() => _secondary.ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
+		A.CallTo(() => ((IKeyManagementAdmin)_secondary).ListKeysAsync(KeyStatus.Active, null, A<CancellationToken>._))
 			.Returns(Task.FromResult(expected));
 
 		// Act
 		await _sut.ForceFailoverAsync("failover", CancellationToken.None)
 			.ConfigureAwait(false);
 
-		var result = await _sut.ListKeysAsync(KeyStatus.Active, null, CancellationToken.None)
+		var result = await ((IKeyManagementAdmin)_sut).ListKeysAsync(KeyStatus.Active, null, CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert
@@ -235,18 +238,18 @@ public sealed class MultiRegionKeyProviderWorkflowShould : IDisposable
 		await Should.ThrowAsync<ObjectDisposedException>(
 			() => _sut.RotateKeyAsync("k1", EncryptionAlgorithm.Aes256Gcm, null, null, CancellationToken.None)).ConfigureAwait(false);
 		await Should.ThrowAsync<ObjectDisposedException>(
-			() => _sut.ListKeysAsync(null, null, CancellationToken.None)).ConfigureAwait(false);
+			() => ((IKeyManagementAdmin)_sut).ListKeysAsync(null, null, CancellationToken.None)).ConfigureAwait(false);
 		await Should.ThrowAsync<ObjectDisposedException>(
-			() => _sut.DeleteKeyAsync("k1", 0, CancellationToken.None)).ConfigureAwait(false);
+			() => ((IKeyManagementAdmin)_sut).DeleteKeyAsync("k1", 0, CancellationToken.None)).ConfigureAwait(false);
 		await Should.ThrowAsync<ObjectDisposedException>(
-			() => _sut.SuspendKeyAsync("k1", "reason", CancellationToken.None)).ConfigureAwait(false);
+			() => ((IKeyManagementAdmin)_sut).SuspendKeyAsync("k1", "reason", CancellationToken.None)).ConfigureAwait(false);
 	}
 
 	[Fact]
 	public async Task Report_replication_status_reflects_mode()
 	{
 		// Act - get status in normal mode
-		var normalStatus = await _sut.GetReplicationStatusAsync(CancellationToken.None)
+		var normalStatus = await ((IMultiRegionHealthMonitor)_sut).GetReplicationStatusAsync(CancellationToken.None)
 			.ConfigureAwait(false);
 
 		// Assert

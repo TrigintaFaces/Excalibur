@@ -18,7 +18,7 @@ public sealed class MarkEventDispatchedRequest : DataRequestBase<IDbConnection, 
 	private const string Sql = """
 		UPDATE events
 		SET is_dispatched = true
-		WHERE event_id = @EventId::uuid
+		WHERE event_id = @EventId
 		""";
 
 	/// <summary>

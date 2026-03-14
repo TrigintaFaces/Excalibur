@@ -14,7 +14,6 @@ Dispatch integrates with Microsoft.Extensions.DependencyInjection, providing aut
 - Install the required packages:
   ```bash
   dotnet add package Excalibur.Dispatch
-  dotnet add package Excalibur.Dispatch.Abstractions
   ```
 - Familiarity with [Microsoft.Extensions.DependencyInjection](https://learn.microsoft.com/en-us/dotnet/core/extensions/dependency-injection)
 

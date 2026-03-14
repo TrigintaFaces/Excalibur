@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Validation;
 
 namespace Excalibur.Dispatch.Abstractions.Tests;
@@ -291,13 +292,21 @@ public sealed class MessageEnvelopeDepthShould
 		{
 			MessageId = "parent-msg",
 			CorrelationId = "corr-1",
+		};
+
+		// Set identity and routing via Features (the new decomposed model)
+		envelope.SetFeature<IMessageIdentityFeature>(new MessageIdentityFeature
+		{
 			TenantId = "tenant-1",
 			UserId = "user-1",
 			SessionId = "session-1",
 			WorkflowId = "workflow-1",
 			TraceParent = "trace-1",
+		});
+		envelope.SetFeature<IMessageRoutingFeature>(new MessageRoutingFeature
+		{
 			Source = "test-source",
-		};
+		});
 
 		// Act
 		var child = envelope.CreateChildContext();
@@ -305,7 +314,7 @@ public sealed class MessageEnvelopeDepthShould
 		// Assert
 		child.CorrelationId.ShouldBe("corr-1");
 		child.CausationId.ShouldBe("parent-msg"); // Current becomes cause
-		child.TenantId.ShouldBe("tenant-1");
+		child.GetTenantId().ShouldBe("tenant-1");
 		child.MessageId.ShouldNotBe("parent-msg"); // New ID
 		child.MessageId.ShouldNotBeNullOrEmpty();
 	}
@@ -450,14 +459,6 @@ public sealed class MessageEnvelopeDepthShould
 		var envelope = new MessageEnvelope();
 		envelope.SetItem("key", "value");
 		envelope.Items.ShouldContainKey("key");
-	}
-
-	[Fact]
-	public void Properties_Dictionary_IsAccessible()
-	{
-		var envelope = new MessageEnvelope();
-		envelope.SetItem("key", "value");
-		envelope.Properties.ShouldContainKey("key");
 	}
 
 	/// <summary>

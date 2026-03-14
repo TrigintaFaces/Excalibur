@@ -22,6 +22,7 @@
     <ProjectReference Include="..\Excalibur.Cdc\Excalibur.Cdc.csproj" />
     <ProjectReference Include="..\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
     <ProjectReference Include="..\Excalibur.EventSourcing\Excalibur.EventSourcing.csproj" />
+    <ProjectReference Include="..\Excalibur.Saga\Excalibur.Saga.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />

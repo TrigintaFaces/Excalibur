@@ -7,8 +7,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 
-using Excalibur.Dispatch.Abstractions.Serialization;
-
 namespace Excalibur.Dispatch.Serialization;
 
 /// <summary>
@@ -21,7 +19,7 @@ namespace Excalibur.Dispatch.Serialization;
 /// - Reduced memory allocations
 /// - Full AOT compatibility.
 /// </remarks>
-public sealed class AotJsonSerializer : IMessageSerializer, IBinaryMessageSerializer, IDisposable
+public sealed class AotJsonSerializer : IDisposable
 {
 	private readonly JsonSerializerContext context;
 

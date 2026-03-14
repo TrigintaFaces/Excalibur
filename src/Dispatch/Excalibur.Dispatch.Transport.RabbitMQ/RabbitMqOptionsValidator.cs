@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// <summary>
 /// Validates RabbitMQ configuration options to ensure secure and properly formatted connection strings.
 /// </summary>
-public sealed class RabbitMqOptionsValidator : IValidateOptions<RabbitMqOptions>
+internal sealed class RabbitMqOptionsValidator : IValidateOptions<RabbitMqOptions>
 {
 	/// <summary>
 	/// Validates the provided RabbitMQ options.
@@ -26,21 +26,21 @@ public sealed class RabbitMqOptionsValidator : IValidateOptions<RabbitMqOptions>
 		}
 
 		// Check ConnectionString is not null or empty
-		if (string.IsNullOrWhiteSpace(options.ConnectionString))
+		if (string.IsNullOrWhiteSpace(options.Connection.ConnectionString))
 		{
 			return ValidateOptionsResult.Fail("RabbitMQ connection string cannot be null or empty.");
 		}
 
 		// Validate connection string format - must start with amqp:// or amqps://
-		if (!options.ConnectionString.StartsWith("amqp://", StringComparison.OrdinalIgnoreCase) &&
-				!options.ConnectionString.StartsWith("amqps://", StringComparison.OrdinalIgnoreCase))
+		if (!options.Connection.ConnectionString.StartsWith("amqp://", StringComparison.OrdinalIgnoreCase) &&
+				!options.Connection.ConnectionString.StartsWith("amqps://", StringComparison.OrdinalIgnoreCase))
 		{
 			return ValidateOptionsResult.Fail(
 				"RabbitMQ connection string must start with 'amqp://' or 'amqps://' protocol scheme.");
 		}
 
 		// Ensure no default credentials are used in production
-		if (ContainsDefaultCredentials(options.ConnectionString))
+		if (ContainsDefaultCredentials(options.Connection.ConnectionString))
 		{
 			return ValidateOptionsResult.Fail(
 				"RabbitMQ connection string contains default credentials (guest:guest). " +
@@ -48,7 +48,7 @@ public sealed class RabbitMqOptionsValidator : IValidateOptions<RabbitMqOptions>
 		}
 
 		// Additional validation for malformed URIs
-		if (!IsValidAmqpUri(options.ConnectionString))
+		if (!IsValidAmqpUri(options.Connection.ConnectionString))
 		{
 			return ValidateOptionsResult.Fail(
 				"RabbitMQ connection string is not a valid AMQP URI. " +
@@ -98,7 +98,7 @@ public sealed class RabbitMqOptionsValidator : IValidateOptions<RabbitMqOptions>
 			}
 
 			// Port validation (if specified, should be valid)
-			if (uri.Port is not (-1) and (<= 0 or > 65535))
+			if (uri.Port is not -1 and (<= 0 or > 65535))
 			{
 				return false;
 			}

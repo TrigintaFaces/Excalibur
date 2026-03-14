@@ -11,6 +11,9 @@ namespace Excalibur.Data.DynamoDb;
 /// <summary>
 /// Configuration options for the AWS DynamoDB data provider.
 /// </summary>
+/// <remarks>
+/// Connection and credential settings are in <see cref="DynamoDbConnectionOptions"/> via the <see cref="Connection"/> property.
+/// </remarks>
 public sealed class DynamoDbOptions
 {
 	/// <summary>
@@ -18,26 +21,6 @@ public sealed class DynamoDbOptions
 	/// </summary>
 	[Required]
 	public string Name { get; set; } = "DynamoDb";
-
-	/// <summary>
-	/// Gets or sets the AWS service URL (for local development with DynamoDB Local).
-	/// </summary>
-	public string? ServiceUrl { get; set; }
-
-	/// <summary>
-	/// Gets or sets the AWS region.
-	/// </summary>
-	public string? Region { get; set; }
-
-	/// <summary>
-	/// Gets or sets the AWS access key (optional if using IAM roles).
-	/// </summary>
-	public string? AccessKey { get; set; }
-
-	/// <summary>
-	/// Gets or sets the AWS secret key (optional if using IAM roles).
-	/// </summary>
-	public string? SecretKey { get; set; }
 
 	/// <summary>
 	/// Gets or sets the default table name.
@@ -57,31 +40,9 @@ public sealed class DynamoDbOptions
 	public string DefaultSortKeyAttribute { get; set; } = "sk";
 
 	/// <summary>
-	/// Gets or sets the maximum retry attempts.
-	/// </summary>
-	[Range(1, int.MaxValue)]
-	public int MaxRetryAttempts { get; set; } = 3;
-
-	/// <summary>
-	/// Gets or sets the timeout in seconds.
-	/// </summary>
-	[Range(1, int.MaxValue)]
-	public int TimeoutInSeconds { get; set; } = 30;
-
-	/// <summary>
 	/// Gets or sets a value indicating whether to use consistent reads by default.
 	/// </summary>
 	public bool UseConsistentReads { get; set; }
-
-	/// <summary>
-	/// Gets or sets the read capacity units for on-demand scaling hints.
-	/// </summary>
-	public int? ReadCapacityUnits { get; set; }
-
-	/// <summary>
-	/// Gets or sets the write capacity units for on-demand scaling hints.
-	/// </summary>
-	public int? WriteCapacityUnits { get; set; }
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to enable DynamoDB Streams.
@@ -95,11 +56,17 @@ public sealed class DynamoDbOptions
 	public string StreamViewType { get; set; } = "NEW_AND_OLD_IMAGES";
 
 	/// <summary>
+	/// Gets or sets the connection and credential configuration options.
+	/// </summary>
+	/// <value>The connection options. Never <see langword="null"/>.</value>
+	public DynamoDbConnectionOptions Connection { get; set; } = new();
+
+	/// <summary>
 	/// Gets the AWS region endpoint.
 	/// </summary>
 	/// <returns>The AWS region endpoint, or null if not configured.</returns>
 	public RegionEndpoint? GetRegionEndpoint() =>
-		string.IsNullOrWhiteSpace(Region) ? null : RegionEndpoint.GetBySystemName(Region);
+		string.IsNullOrWhiteSpace(Connection.Region) ? null : RegionEndpoint.GetBySystemName(Connection.Region);
 
 	/// <summary>
 	/// Validates the options and throws if invalid.
@@ -109,9 +76,9 @@ public sealed class DynamoDbOptions
 	{
 		// For local development, ServiceUrl is sufficient
 		// For AWS, either explicit credentials or IAM role is required
-		var hasLocalConfig = !string.IsNullOrWhiteSpace(ServiceUrl);
-		var hasAwsConfig = !string.IsNullOrWhiteSpace(Region);
-		var hasExplicitCredentials = !string.IsNullOrWhiteSpace(AccessKey) && !string.IsNullOrWhiteSpace(SecretKey);
+		var hasLocalConfig = !string.IsNullOrWhiteSpace(Connection.ServiceUrl);
+		var hasAwsConfig = !string.IsNullOrWhiteSpace(Connection.Region);
+		var hasExplicitCredentials = !string.IsNullOrWhiteSpace(Connection.AccessKey) && !string.IsNullOrWhiteSpace(Connection.SecretKey);
 
 		if (!hasLocalConfig && !hasAwsConfig)
 		{

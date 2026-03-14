@@ -5,7 +5,6 @@ using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
-using Excalibur.Dispatch.Abstractions.Options;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Patterns.ClaimCheck;
 
@@ -22,20 +21,19 @@ namespace Excalibur.Dispatch.Patterns.Tests.ClaimCheck;
 public sealed class ClaimCheckMessageSerializerShould
 {
 	private readonly IClaimCheckProvider _fakeProvider;
-	private readonly IBinaryMessageSerializer _fakeBaseSerializer;
+	private readonly ISerializer _fakeBaseSerializer;
 	private readonly ClaimCheckOptions _options;
 
 	public ClaimCheckMessageSerializerShould()
 	{
 		_fakeProvider = A.Fake<IClaimCheckProvider>();
-		_fakeBaseSerializer = A.Fake<IBinaryMessageSerializer>();
+		_fakeBaseSerializer = A.Fake<ISerializer>();
 		_options = new ClaimCheckOptions { PayloadThreshold = 1000 };
 
 		// Setup default serializer properties
-		A.CallTo(() => _fakeBaseSerializer.SerializerName).Returns("FakeSerializer");
+		A.CallTo(() => _fakeBaseSerializer.Name).Returns("FakeSerializer");
 		A.CallTo(() => _fakeBaseSerializer.ContentType).Returns("application/json");
-		A.CallTo(() => _fakeBaseSerializer.SupportsCompression).Returns(false);
-		A.CallTo(() => _fakeBaseSerializer.Format).Returns("JSON");
+		A.CallTo(() => _fakeBaseSerializer.Version).Returns("1.0.0");
 	}
 
 	#region Constructor Tests
@@ -53,7 +51,7 @@ public sealed class ClaimCheckMessageSerializerShould
 	{
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			new ClaimCheckMessageSerializer(_fakeProvider, (IBinaryMessageSerializer)null!, _options));
+			new ClaimCheckMessageSerializer(_fakeProvider, (ISerializer)null!, _options));
 	}
 
 	[Fact]
@@ -64,7 +62,7 @@ public sealed class ClaimCheckMessageSerializerShould
 
 		// Assert
 		serializer.ShouldNotBeNull();
-		serializer.SerializerName.ShouldStartWith("ClaimCheck-");
+		serializer.Name.ShouldStartWith("ClaimCheck-");
 	}
 
 	[Fact]
@@ -82,23 +80,23 @@ public sealed class ClaimCheckMessageSerializerShould
 	#region Property Tests
 
 	[Fact]
-	public void HaveCorrectSerializerName()
+	public void HaveCorrectName()
 	{
 		// Arrange
 		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, _fakeBaseSerializer, _options);
 
 		// Act & Assert
-		serializer.SerializerName.ShouldBe("ClaimCheck-FakeSerializer");
+		serializer.Name.ShouldBe("ClaimCheck-FakeSerializer");
 	}
 
 	[Fact]
-	public void HaveCorrectSerializerVersion()
+	public void HaveCorrectVersion()
 	{
 		// Arrange
 		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, _fakeBaseSerializer, _options);
 
 		// Act & Assert
-		serializer.SerializerVersion.ShouldBe("1.0.0");
+		serializer.Version.ShouldBe("1.0.0");
 	}
 
 	[Fact]
@@ -111,26 +109,6 @@ public sealed class ClaimCheckMessageSerializerShould
 		serializer.ContentType.ShouldBe("application/json");
 	}
 
-	[Fact]
-	public void DelegateSupportsCompression_ToBaseSerializer()
-	{
-		// Arrange
-		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, _fakeBaseSerializer, _options);
-
-		// Act & Assert
-		serializer.SupportsCompression.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void HaveCorrectFormat()
-	{
-		// Arrange
-		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, _fakeBaseSerializer, _options);
-
-		// Act & Assert
-		serializer.Format.ShouldBe("ClaimCheck(JSON)");
-	}
-
 	#endregion
 
 	#region Serialize (Sync) Tests
@@ -139,15 +117,15 @@ public sealed class ClaimCheckMessageSerializerShould
 	public void SerializeSmallMessage_WithoutClaimCheck()
 	{
 		// Arrange
-		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, _fakeBaseSerializer, _options);
+		var stub = new StubSerializer();
+		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, stub, _options);
 		var message = new TestMessage { Id = 1, Data = "small" };
 		var smallPayload = new byte[100]; // Below threshold
 
-		A.CallTo(() => _fakeBaseSerializer.Serialize(message))
-			.Returns(smallPayload);
+		stub.SetupSerialize<TestMessage>(_ => smallPayload);
 
-		// Act
-		var result = serializer.Serialize(message);
+		// Act — uses SerializeToBytes extension which calls Serialize(T, IBufferWriter<byte>)
+		var result = serializer.SerializeToBytes(message);
 
 		// Assert
 		result.ShouldBe(smallPayload);
@@ -158,24 +136,25 @@ public sealed class ClaimCheckMessageSerializerShould
 	{
 		// Arrange
 		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, _fakeBaseSerializer, _options);
+		var bufferWriter = new ArrayBufferWriter<byte>();
 
 		// Act & Assert
-		Should.Throw<ArgumentNullException>(() => serializer.Serialize<TestMessage>(null!));
+		Should.Throw<ArgumentNullException>(() => serializer.Serialize<TestMessage>(null!, bufferWriter));
 	}
 
 	[Fact]
 	public void ThrowNotSupportedException_WhenPayloadExceedsThreshold_InSyncMode()
 	{
 		// Arrange - Sync mode throws for large messages (requires async for claim check storage)
-		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, _fakeBaseSerializer, _options);
+		var stub = new StubSerializer();
+		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, stub, _options);
 		var message = new TestMessage { Id = 1, Data = "large" };
 		var largePayload = new byte[2000]; // Above threshold
 
-		A.CallTo(() => _fakeBaseSerializer.Serialize(message))
-			.Returns(largePayload);
+		stub.SetupSerialize<TestMessage>(_ => largePayload);
 
 		// Act & Assert - Sync Serialize throws NotSupportedException for large messages
-		Should.Throw<NotSupportedException>(() => serializer.Serialize(message));
+		Should.Throw<NotSupportedException>(() => serializer.SerializeToBytes(message));
 	}
 
 	#endregion
@@ -186,7 +165,7 @@ public sealed class ClaimCheckMessageSerializerShould
 	public async Task SerializeSmallMessageAsync_WithoutClaimCheck()
 	{
 		// Arrange — use concrete stub to avoid FakeItEasy reflection issues with [RequiresDynamicCode]
-		var stub = new StubBinaryMessageSerializer();
+		var stub = new StubSerializer();
 		var message = new TestMessage { Id = 1, Data = "small" };
 		var smallPayload = new byte[100]; // Below threshold
 
@@ -207,7 +186,7 @@ public sealed class ClaimCheckMessageSerializerShould
 	public async Task SerializeLargeMessageAsync_UsesClaimCheck()
 	{
 		// Arrange — use concrete stub to avoid FakeItEasy reflection issues with [RequiresDynamicCode]
-		var stub = new StubBinaryMessageSerializer();
+		var stub = new StubSerializer();
 		var message = new TestMessage { Id = 1, Data = "large" };
 		var largePayload = new byte[2000]; // Above threshold
 		var envelopePayload = new byte[50];
@@ -256,7 +235,7 @@ public sealed class ClaimCheckMessageSerializerShould
 	public void DeserializeSmallMessage_Directly()
 	{
 		// Arrange — use concrete stub to avoid FakeItEasy reflection issues with [RequiresDynamicCode]
-		var stub = new StubBinaryMessageSerializer();
+		var stub = new StubSerializer();
 		var expectedMessage = new TestMessage { Id = 42, Data = "result" };
 		var data = new byte[100];
 
@@ -264,7 +243,7 @@ public sealed class ClaimCheckMessageSerializerShould
 
 		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, stub, _options);
 
-		// Act
+		// Act — uses Deserialize<T>(byte[]) extension which calls Deserialize<T>(ReadOnlySpan<byte>)
 		var result = serializer.Deserialize<TestMessage>(data);
 
 		// Assert
@@ -272,20 +251,10 @@ public sealed class ClaimCheckMessageSerializerShould
 	}
 
 	[Fact]
-	public void ThrowArgumentNullException_WhenDataIsNull_OnDeserialize()
-	{
-		// Arrange
-		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, _fakeBaseSerializer, _options);
-
-		// Act & Assert
-		Should.Throw<ArgumentNullException>(() => serializer.Deserialize<TestMessage>(null!));
-	}
-
-	[Fact]
 	public void ThrowNotSupportedException_WhenClaimCheckEnvelopeDetected_InSyncMode()
 	{
 		// Arrange — data with "CC01" magic prefix triggers claim check detection
-		var stub = new StubBinaryMessageSerializer();
+		var stub = new StubSerializer();
 		var data = new byte[] { (byte)'C', (byte)'C', (byte)'0', (byte)'1', 0, 0, 0, 0 };
 
 		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, stub, _options);
@@ -302,7 +271,7 @@ public sealed class ClaimCheckMessageSerializerShould
 	public async Task DeserializeSmallMessageAsync_Directly()
 	{
 		// Arrange — use concrete stub to avoid FakeItEasy reflection issues with [RequiresDynamicCode]
-		var stub = new StubBinaryMessageSerializer();
+		var stub = new StubSerializer();
 		var expectedMessage = new TestMessage { Id = 42, Data = "async-result" };
 		var data = new byte[100];
 
@@ -321,7 +290,7 @@ public sealed class ClaimCheckMessageSerializerShould
 	public async Task DeserializeLargeMessageAsync_FromClaimCheck()
 	{
 		// Arrange — use concrete stub to avoid FakeItEasy reflection issues with [RequiresDynamicCode]
-		var stub = new StubBinaryMessageSerializer();
+		var stub = new StubSerializer();
 		var expectedMessage = new TestMessage { Id = 99, Data = "retrieved" };
 		var envelopeContent = new byte[50]; // Raw envelope bytes (after prefix stripping)
 		var storedPayload = new byte[2000]; // The large payload retrieved from storage
@@ -374,61 +343,22 @@ public sealed class ClaimCheckMessageSerializerShould
 	#region Delegate Methods Tests
 
 	[Fact]
-	public void SerializeWithOptions_DelegatesToBaseSerializer()
-	{
-		// Arrange
-		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, _fakeBaseSerializer, _options);
-		var message = new TestMessage { Id = 1 };
-		var opts = new SerializationOptions();
-		var expected = new byte[] { 1, 2, 3 };
-
-		// Serialize(T, options) extension calls core Serialize<T>(T)
-		A.CallTo(() => _fakeBaseSerializer.Serialize(message))
-			.Returns(expected);
-
-		// Act
-		var result = serializer.Serialize(message, opts);
-
-		// Assert
-		result.ShouldBe(expected);
-	}
-
-	[Fact]
 	public void SerializeToBufferWriter_DelegatesToBaseSerializer()
 	{
 		// Arrange
-		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, _fakeBaseSerializer, _options);
+		var stub = new StubSerializer();
+		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, stub, _options);
 		var message = new TestMessage { Id = 1 };
+		var smallPayload = new byte[] { 1, 2, 3 }; // Below threshold
 		var bufferWriter = new ArrayBufferWriter<byte>();
+
+		stub.SetupSerialize<TestMessage>(_ => smallPayload);
 
 		// Act
 		serializer.Serialize(message, bufferWriter);
 
 		// Assert
-		A.CallTo(() => _fakeBaseSerializer.Serialize(message, bufferWriter))
-			.MustHaveHappenedOnceExactly();
-	}
-
-	[Fact]
-	public async Task SerializeToStreamAsync_DelegatesToBaseSerializer()
-	{
-		// Arrange
-		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, _fakeBaseSerializer, _options);
-		var message = new TestMessage { Id = 1 };
-		var expected = new byte[] { 1, 2, 3 };
-		using var stream = new MemoryStream();
-
-		// SerializeAsync(T, Stream, CT) extension calls core Serialize<T>(T) then writes to stream
-		A.CallTo(() => _fakeBaseSerializer.Serialize(message))
-			.Returns(expected);
-
-		// Act
-		await serializer.SerializeAsync(message, stream, CancellationToken.None);
-
-		// Assert
-		A.CallTo(() => _fakeBaseSerializer.Serialize(message))
-			.MustHaveHappenedOnceExactly();
-		stream.Length.ShouldBeGreaterThan(0);
+		bufferWriter.WrittenCount.ShouldBeGreaterThan(0);
 	}
 
 	[Fact]
@@ -473,7 +403,7 @@ public sealed class ClaimCheckMessageSerializerShould
 
 		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, _options);
 
-		// Act — DeserializeAsync<T>(Stream, CT) extension reads stream, calls Deserialize<T>(byte[])
+		// Act — DeserializeAsync<T>(Stream, CT) extension reads stream, calls Deserialize<T>(ReadOnlySpan<byte>)
 		var result = await serializer.DeserializeAsync<TestMessage>(stream, CancellationToken.None);
 
 		// Assert
@@ -481,46 +411,18 @@ public sealed class ClaimCheckMessageSerializerShould
 		result.Id.ShouldBe(300);
 	}
 
-	[Fact]
-	public void GetSerializedSize_DelegatesToBaseSerializer()
-	{
-		// Arrange
-		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, _fakeBaseSerializer, _options);
-		var message = new TestMessage { Id = 1 };
-
-		// GetSerializedSize extension calls core Serialize<T>(T).Length
-		A.CallTo(() => _fakeBaseSerializer.Serialize(message))
-			.Returns(new byte[256]);
-
-		// Act
-		var result = serializer.GetSerializedSize(message);
-
-		// Assert
-		result.ShouldBe(256);
-	}
-
 	#endregion
 
 	#region Interface Implementation Tests
 
 	[Fact]
-	public void ImplementIBinaryMessageSerializer()
+	public void ImplementISerializer()
 	{
 		// Arrange
 		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, _fakeBaseSerializer, _options);
 
 		// Assert
-		serializer.ShouldBeAssignableTo<IBinaryMessageSerializer>();
-	}
-
-	[Fact]
-	public void ImplementIMessageSerializer()
-	{
-		// Arrange
-		var serializer = new ClaimCheckMessageSerializer(_fakeProvider, _fakeBaseSerializer, _options);
-
-		// Assert
-		serializer.ShouldBeAssignableTo<IMessageSerializer>();
+		serializer.ShouldBeAssignableTo<ISerializer>();
 	}
 
 	#endregion
@@ -534,23 +436,19 @@ public sealed class ClaimCheckMessageSerializerShould
 	}
 
 	/// <summary>
-	/// Concrete test double for IBinaryMessageSerializer that avoids FakeItEasy reflection issues
+	/// Concrete test double for ISerializer that avoids FakeItEasy reflection issues
 	/// with [RequiresDynamicCode] attributes on .NET 10.
 	/// </summary>
-	private sealed class StubBinaryMessageSerializer : IBinaryMessageSerializer
+	private sealed class StubSerializer : ISerializer
 	{
 		private readonly Dictionary<Type, Func<object, byte[]>> _serializeFuncs = new();
 		private readonly Dictionary<Type, Func<byte[], object>> _deserializeFuncs = new();
 
-		public string SerializerName { get; set; } = "StubSerializer";
+		public string Name { get; set; } = "StubSerializer";
 
-		public string SerializerVersion { get; set; } = "1.0.0";
+		public string Version { get; set; } = "1.0.0";
 
 		public string ContentType { get; set; } = "application/json";
-
-		public bool SupportsCompression { get; set; }
-
-		public string Format { get; set; } = "JSON";
 
 		public void SetupSerialize<T>(Func<T, byte[]> func) =>
 			_serializeFuncs[typeof(T)] = obj => func((T)obj);
@@ -559,36 +457,39 @@ public sealed class ClaimCheckMessageSerializerShould
 			_deserializeFuncs[typeof(T)] = data => (object)func(data)!;
 
 #pragma warning disable IL2046, IL3051 // Test stub — AOT attributes not required for test doubles
-		public byte[] Serialize<T>(T message)
+		public void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
 		{
 			if (_serializeFuncs.TryGetValue(typeof(T), out var func))
 			{
-				return func(message);
+				var bytes = func(value);
+				var span = bufferWriter.GetSpan(bytes.Length);
+				bytes.AsSpan().CopyTo(span);
+				bufferWriter.Advance(bytes.Length);
+				return;
 			}
 
 			throw new InvalidOperationException($"No serialize setup for {typeof(T).Name}");
 		}
 
-		public T Deserialize<T>(byte[] data)
+		public T Deserialize<T>(ReadOnlySpan<byte> data)
 		{
 			if (_deserializeFuncs.TryGetValue(typeof(T), out var func))
 			{
-				return (T)func(data);
+				return (T)func(data.ToArray());
 			}
 
 			throw new InvalidOperationException($"No deserialize setup for {typeof(T).Name}");
 		}
 
-		public void Serialize<T>(T message, IBufferWriter<byte> bufferWriter)
+		public byte[] SerializeObject(object value, Type type)
 		{
-			var bytes = Serialize(message);
-			var span = bufferWriter.GetSpan(bytes.Length);
-			bytes.AsSpan().CopyTo(span);
-			bufferWriter.Advance(bytes.Length);
+			throw new NotSupportedException("Not needed for these tests.");
 		}
 
-		public T Deserialize<T>(ReadOnlySpan<byte> data) =>
-			Deserialize<T>(data.ToArray());
+		public object DeserializeObject(ReadOnlySpan<byte> data, Type type)
+		{
+			throw new NotSupportedException("Not needed for these tests.");
+		}
 #pragma warning restore IL2046, IL3051
 	}
 

@@ -159,7 +159,7 @@ public class LeaderElectionBenchmarks
 		{
 			["cpu"] = "50%",
 			["memory"] = "2GB"
-		});
+		}, CancellationToken.None);
 	}
 
 	/// <summary>
@@ -220,7 +220,7 @@ public class LeaderElectionBenchmarks
 		await _candidates[0].StartAsync(CancellationToken.None);
 
 		// Mark as unhealthy - should trigger step down
-		await _candidates[0].UpdateHealthAsync(false, null);
+		await _candidates[0].UpdateHealthAsync(false, null, CancellationToken.None);
 	}
 
 	#endregion

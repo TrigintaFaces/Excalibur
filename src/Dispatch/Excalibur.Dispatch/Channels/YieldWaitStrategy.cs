@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Channels;
 /// <summary>
 /// Task-based wait strategy that uses Task.Yield.
 /// </summary>
-public sealed class YieldWaitStrategy : WaitStrategyBase
+internal sealed class YieldWaitStrategy : WaitStrategyBase
 {
 	/// <inheritdoc />
 	public override async ValueTask<bool> WaitAsync(Func<bool> condition, CancellationToken cancellationToken)

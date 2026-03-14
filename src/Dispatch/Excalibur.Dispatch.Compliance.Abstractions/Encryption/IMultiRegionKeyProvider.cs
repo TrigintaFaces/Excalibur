@@ -26,6 +26,9 @@ namespace Excalibur.Dispatch.Compliance;
 ///   <item><description>Align with cloud provider capabilities</description></item>
 ///   <item><description>Maintain clear data residency boundaries</description></item>
 /// </list>
+/// <para>
+/// Health monitoring methods are available via <see cref="IMultiRegionHealthMonitor"/>.
+/// </para>
 /// </remarks>
 public interface IMultiRegionKeyProvider : IKeyManagementProvider, IDisposable
 {
@@ -46,30 +49,6 @@ public interface IMultiRegionKeyProvider : IKeyManagementProvider, IDisposable
 	/// <c>false</c> if the primary region is active.
 	/// </value>
 	bool IsInFailoverMode { get; }
-
-	/// <summary>
-	/// Gets the health status for the primary region.
-	/// </summary>
-	/// <param name="cancellationToken">A token to cancel the operation.</param>
-	/// <returns>The current health status of the primary region.</returns>
-	Task<RegionHealth> GetPrimaryHealthAsync(CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Gets the health status for the secondary region.
-	/// </summary>
-	/// <param name="cancellationToken">A token to cancel the operation.</param>
-	/// <returns>The current health status of the secondary region.</returns>
-	Task<RegionHealth> GetSecondaryHealthAsync(CancellationToken cancellationToken);
-
-	/// <summary>
-	/// Gets the current replication status between regions.
-	/// </summary>
-	/// <param name="cancellationToken">A token to cancel the operation.</param>
-	/// <returns>The replication status including lag and pending keys.</returns>
-	/// <remarks>
-	/// Use this to monitor whether RPO (Recovery Point Objective) targets are being met.
-	/// </remarks>
-	Task<ReplicationStatus> GetReplicationStatusAsync(CancellationToken cancellationToken);
 
 	/// <summary>
 	/// Manually triggers failover to the secondary region.
@@ -134,6 +113,44 @@ public interface IMultiRegionKeyProvider : IKeyManagementProvider, IDisposable
 	/// </para>
 	/// </remarks>
 	Task ReplicateKeysAsync(string? keyId, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Provides health monitoring and replication status for multi-region key management.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This interface separates health monitoring concerns from the core
+/// <see cref="IMultiRegionKeyProvider"/> interface, following the Interface Segregation Principle.
+/// Consumers that only need failover/failback/replication operations do not need to depend
+/// on health monitoring methods.
+/// </para>
+/// </remarks>
+public interface IMultiRegionHealthMonitor
+{
+	/// <summary>
+	/// Gets the health status for the primary region.
+	/// </summary>
+	/// <param name="cancellationToken">A token to cancel the operation.</param>
+	/// <returns>The current health status of the primary region.</returns>
+	Task<RegionHealth> GetPrimaryHealthAsync(CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Gets the health status for the secondary region.
+	/// </summary>
+	/// <param name="cancellationToken">A token to cancel the operation.</param>
+	/// <returns>The current health status of the secondary region.</returns>
+	Task<RegionHealth> GetSecondaryHealthAsync(CancellationToken cancellationToken);
+
+	/// <summary>
+	/// Gets the current replication status between regions.
+	/// </summary>
+	/// <param name="cancellationToken">A token to cancel the operation.</param>
+	/// <returns>The replication status including lag and pending keys.</returns>
+	/// <remarks>
+	/// Use this to monitor whether RPO (Recovery Point Objective) targets are being met.
+	/// </remarks>
+	Task<ReplicationStatus> GetReplicationStatusAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>

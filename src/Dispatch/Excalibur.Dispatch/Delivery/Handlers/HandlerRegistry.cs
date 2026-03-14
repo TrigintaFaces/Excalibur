@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Delivery.Handlers;
 /// Thread-safe registry for dispatch handlers. Supports multiple handlers per message type
 /// for event-based messaging patterns.
 /// </summary>
-public sealed class HandlerRegistry : IHandlerRegistry
+internal sealed class HandlerRegistry : IHandlerRegistry
 {
 	private readonly ConcurrentDictionary<Type, List<HandlerRegistryEntry>> _handlers = new();
 	private readonly ConcurrentDictionary<Type, HandlerRegistryEntry[]> _handlerSnapshots = new();

@@ -30,7 +30,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 ///   <item><description><c>traceparent</c>: From Activity.Current.Id (W3C Trace Context)</description></item>
 /// </list>
 /// </remarks>
-public sealed partial class ConfluentKafkaMessageBus : IMessageBus, IAsyncDisposable
+internal sealed partial class ConfluentKafkaMessageBus : IMessageBus, IAsyncDisposable
 {
 	private readonly IProducer<string, byte[]> _producer;
 	private readonly IConfluentFormatSerializer _serializer;

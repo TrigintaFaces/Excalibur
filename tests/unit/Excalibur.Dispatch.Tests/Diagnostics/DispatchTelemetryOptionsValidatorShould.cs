@@ -59,7 +59,10 @@ public sealed class DispatchTelemetryOptionsValidatorShould
 	{
 		// Arrange
 		var validator = CreateValidator();
-		var options = new DispatchTelemetryOptions { SamplingRatio = -1.0 };
+		var options = new DispatchTelemetryOptions
+		{
+			Export = new TelemetryExportOptions { SamplingRatio = -1.0 }
+		};
 
 		// Act
 		var result = validator.Validate(null, options);
@@ -73,7 +76,10 @@ public sealed class DispatchTelemetryOptionsValidatorShould
 	{
 		// Arrange
 		var validator = CreateValidator();
-		var options = new DispatchTelemetryOptions { ExportTimeout = TimeSpan.Zero };
+		var options = new DispatchTelemetryOptions
+		{
+			Export = new TelemetryExportOptions { ExportTimeout = TimeSpan.Zero }
+		};
 
 		// Act
 		var result = validator.Validate(null, options);

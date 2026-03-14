@@ -155,7 +155,7 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 		await InitializeAuditTableAsync().ConfigureAwait(true);
 		using var store = CreateStore(options =>
 		{
-			options.RetentionCleanupBatchSize = 1;
+			options.Retention.CleanupBatchSize = 1;
 		});
 
 		await store.StoreAsync(CreateAuditEvent("evt-old", "tenant-1", DateTimeOffset.UtcNow.AddDays(-40)), TestCancellationToken).ConfigureAwait(true);
@@ -195,7 +195,7 @@ public sealed class SqlServerAuditStoreIntegrationShould : IntegrationTestBase
 			SchemaName = "audit",
 			TableName = "AuditEvents",
 			CommandTimeoutSeconds = 30,
-			RetentionCleanupBatchSize = 100
+			Retention = { CleanupBatchSize = 100 }
 		};
 
 		configure?.Invoke(options);

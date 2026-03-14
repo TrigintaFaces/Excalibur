@@ -6,6 +6,8 @@ using Excalibur.Dispatch.Serialization.MessagePack;
 
 using MessagePack;
 
+using MpkSerializer = Excalibur.Dispatch.Serialization.MessagePack.MessagePackSerializer;
+
 namespace Excalibur.Dispatch.Serialization.Tests.MessagePack;
 
 /// <summary>
@@ -17,7 +19,7 @@ public sealed class MessagePackSerializationExtensionsShould : UnitTestBase
 	#region AddMessagePackSerialization Tests
 
 	[Fact]
-	public void AddMessagePackSerialization_RegistersIZeroCopySerializer()
+	public void AddMessagePackSerialization_RegistersISerializer()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -27,22 +29,7 @@ public sealed class MessagePackSerializationExtensionsShould : UnitTestBase
 
 		// Assert
 		services.Any(static sd =>
-			sd.ServiceType == typeof(IZeroCopySerializer) &&
-			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
-	}
-
-	[Fact]
-	public void AddMessagePackSerialization_RegistersIMessageSerializer()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddMessagePackSerialization();
-
-		// Assert
-		services.Any(static sd =>
-			sd.ServiceType == typeof(IMessageSerializer) &&
+			sd.ServiceType == typeof(ISerializer) &&
 			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
 	}
 
@@ -120,7 +107,7 @@ public sealed class MessagePackSerializationExtensionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void AddMessagePackSerialization_ResolvesIZeroCopySerializer()
+	public void AddMessagePackSerialization_ResolvesISerializer()
 	{
 		// Arrange
 		var services = new ServiceCollection();
@@ -128,138 +115,14 @@ public sealed class MessagePackSerializationExtensionsShould : UnitTestBase
 		var provider = services.BuildServiceProvider();
 
 		// Act
-		var serializer = provider.GetService<IZeroCopySerializer>();
+		var serializer = provider.GetService<ISerializer>();
 
 		// Assert
 		_ = serializer.ShouldNotBeNull();
-		_ = serializer.ShouldBeOfType<MessagePackZeroCopySerializer>();
-	}
-
-	[Fact]
-	public void AddMessagePackSerialization_ResolvesIMessageSerializer()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-		_ = services.AddMessagePackSerialization();
-		var provider = services.BuildServiceProvider();
-
-		// Act
-		var serializer = provider.GetService<IMessageSerializer>();
-
-		// Assert
-		_ = serializer.ShouldNotBeNull();
-		_ = serializer.ShouldBeOfType<DispatchMessagePackSerializer>();
+		_ = serializer.ShouldBeOfType<MpkSerializer>();
 	}
 
 	#endregion AddMessagePackSerialization Tests
-
-	#region AddMessagePackSerialization Generic Tests
-
-	[Fact]
-	public void AddMessagePackSerialization_Generic_RegistersCustomSerializer()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddMessagePackSerialization<DispatchMessagePackSerializer>();
-
-		// Assert
-		services.Any(static sd =>
-			sd.ServiceType == typeof(IMessageSerializer) &&
-			sd.ImplementationType == typeof(DispatchMessagePackSerializer) &&
-			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
-	}
-
-	[Fact]
-	public void AddMessagePackSerialization_Generic_ThrowsOnNullServices()
-	{
-		// Arrange
-		IServiceCollection services = null!;
-
-		// Act & Assert
-		_ = Should.Throw<ArgumentNullException>(() =>
-			services.AddMessagePackSerialization<DispatchMessagePackSerializer>());
-	}
-
-	[Fact]
-	public void AddMessagePackSerialization_Generic_RegistersIZeroCopySerializer()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddMessagePackSerialization<DispatchMessagePackSerializer>();
-
-		// Assert
-		services.Any(static sd =>
-			sd.ServiceType == typeof(IZeroCopySerializer) &&
-			sd.Lifetime == ServiceLifetime.Singleton).ShouldBeTrue();
-	}
-
-	[Fact]
-	public void AddMessagePackSerialization_Generic_ReturnsServiceCollection()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		var result = services.AddMessagePackSerialization<DispatchMessagePackSerializer>();
-
-		// Assert
-		result.ShouldBeSameAs(services);
-	}
-
-	[Fact]
-	public void AddMessagePackSerialization_Generic_WithConfigure_ConfiguresOptions()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddMessagePackSerialization<DispatchMessagePackSerializer>(options =>
-		{
-			options.UseLz4Compression = true;
-		});
-
-		// Assert
-		services.Any(static sd =>
-			sd.ServiceType == typeof(IConfigureOptions<MessagePackSerializationOptions>)).ShouldBeTrue();
-	}
-
-	[Fact]
-	public void AddMessagePackSerialization_Generic_WithNullConfigure_DoesNotRegisterConfigureOptions()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddMessagePackSerialization<DispatchMessagePackSerializer>(configure: null);
-
-		// Assert
-		services.Any(static sd =>
-			sd.ServiceType == typeof(IConfigureOptions<MessagePackSerializationOptions>)).ShouldBeFalse();
-	}
-
-	[Fact]
-	public void AddMessagePackSerialization_Generic_WithConfigure_AppliesConfiguration()
-	{
-		// Arrange
-		var services = new ServiceCollection();
-
-		// Act
-		_ = services.AddMessagePackSerialization<DispatchMessagePackSerializer>(options =>
-		{
-			options.UseLz4Compression = true;
-		});
-		var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<MessagePackSerializationOptions>>().Value;
-
-		// Assert
-		options.UseLz4Compression.ShouldBeTrue();
-	}
-
-	#endregion AddMessagePackSerialization Generic Tests
 
 	#region GetPluggableSerializer Tests
 
@@ -270,7 +133,7 @@ public sealed class MessagePackSerializationExtensionsShould : UnitTestBase
 		var serializer = MessagePackSerializationExtensions.GetPluggableSerializer();
 
 		// Assert
-		_ = serializer.ShouldBeOfType<MessagePackPluggableSerializer>();
+		_ = serializer.ShouldBeOfType<MpkSerializer>();
 		serializer.Name.ShouldBe("MessagePack");
 	}
 
@@ -284,7 +147,7 @@ public sealed class MessagePackSerializationExtensionsShould : UnitTestBase
 		var serializer = MessagePackSerializationExtensions.GetPluggableSerializer(options);
 
 		// Assert
-		_ = serializer.ShouldBeOfType<MessagePackPluggableSerializer>();
+		_ = serializer.ShouldBeOfType<MpkSerializer>();
 	}
 
 	[Fact]
@@ -313,8 +176,8 @@ public sealed class MessagePackSerializationExtensionsShould : UnitTestBase
 		var serializer = MessagePackSerializationExtensions.GetPluggableSerializer();
 		var value = new TestPluggableMessage { Value = 42, Text = "Test" };
 
-		// Act
-		var bytes = serializer.Serialize(value);
+		// Act -- Use SerializeToBytes extension for ISerializer (returns byte[])
+		var bytes = serializer.SerializeToBytes(value);
 		var result = serializer.Deserialize<TestPluggableMessage>(bytes);
 
 		// Assert
@@ -324,13 +187,13 @@ public sealed class MessagePackSerializationExtensionsShould : UnitTestBase
 	}
 
 	[Fact]
-	public void GetPluggableSerializer_ImplementsIPluggableSerializer()
+	public void GetPluggableSerializer_ImplementsISerializer()
 	{
 		// Act
 		var serializer = MessagePackSerializationExtensions.GetPluggableSerializer();
 
 		// Assert
-		_ = serializer.ShouldBeAssignableTo<IPluggableSerializer>();
+		_ = serializer.ShouldBeAssignableTo<ISerializer>();
 	}
 
 	#endregion GetPluggableSerializer Tests

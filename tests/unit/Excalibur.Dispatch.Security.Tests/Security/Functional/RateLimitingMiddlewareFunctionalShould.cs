@@ -22,7 +22,6 @@ public sealed class RateLimitingMiddlewareFunctionalShould : IDisposable
         _context = A.Fake<IMessageContext>();
         _items = new Dictionary<string, object>();
         A.CallTo(() => _context.Items).Returns(_items);
-        A.CallTo(() => _context.Properties).Returns(new Dictionary<string, object?>());
 
         _successResult = A.Fake<IMessageResult>();
         A.CallTo(() => _successResult.Succeeded).Returns(true);
@@ -124,7 +123,6 @@ public sealed class RateLimitingMiddlewareFunctionalShould : IDisposable
         var otherContext = A.Fake<IMessageContext>();
         var otherItems = new Dictionary<string, object> { ["TenantId"] = "tenant-B" };
         A.CallTo(() => otherContext.Items).Returns(otherItems);
-        A.CallTo(() => otherContext.Properties).Returns(new Dictionary<string, object?>());
 
         var otherResult = await sut.InvokeAsync(_message, otherContext, _successNext, CancellationToken.None);
         otherResult.ShouldNotBeOfType<RateLimitExceededResult>();

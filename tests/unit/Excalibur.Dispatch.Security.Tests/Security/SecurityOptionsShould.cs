@@ -15,14 +15,14 @@ public sealed class SecurityOptionsShould : UnitTestBase
 		var options = new SecurityOptions();
 
 		// Assert
-		options.EnableEncryption.ShouldBeTrue();
-		options.EncryptionAlgorithm.ShouldBe(EncryptionAlgorithm.Aes256Gcm);
-		options.EnableSigning.ShouldBeTrue();
-		options.SigningAlgorithm.ShouldBe(SigningAlgorithm.HMACSHA256);
-		options.EnableRateLimiting.ShouldBeTrue();
-		options.RateLimitAlgorithm.ShouldBe(RateLimitAlgorithm.TokenBucket);
-		options.EnableAuthentication.ShouldBeTrue();
-		options.RequireAuthentication.ShouldBeTrue();
+		options.Encryption.EnableEncryption.ShouldBeTrue();
+		options.Encryption.EncryptionAlgorithm.ShouldBe(EncryptionAlgorithm.Aes256Gcm);
+		options.Signing.EnableSigning.ShouldBeTrue();
+		options.Signing.SigningAlgorithm.ShouldBe(SigningAlgorithm.HMACSHA256);
+		options.RateLimiting.EnableRateLimiting.ShouldBeTrue();
+		options.RateLimiting.RateLimitAlgorithm.ShouldBe(RateLimitAlgorithm.TokenBucket);
+		options.Authentication.EnableAuthentication.ShouldBeTrue();
+		options.Authentication.RequireAuthentication.ShouldBeTrue();
 		options.EnableSecurityHeaders.ShouldBeTrue();
 	}
 
@@ -33,10 +33,10 @@ public sealed class SecurityOptionsShould : UnitTestBase
 		var options = new SecurityOptions();
 
 		// Act
-		options.EnableEncryption = false;
+		options.Encryption.EnableEncryption = false;
 
 		// Assert
-		options.EnableEncryption.ShouldBeFalse();
+		options.Encryption.EnableEncryption.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -46,10 +46,10 @@ public sealed class SecurityOptionsShould : UnitTestBase
 		var options = new SecurityOptions();
 
 		// Act
-		options.EncryptionAlgorithm = EncryptionAlgorithm.Aes256CbcHmac;
+		options.Encryption.EncryptionAlgorithm = EncryptionAlgorithm.Aes256CbcHmac;
 
 		// Assert
-		options.EncryptionAlgorithm.ShouldBe(EncryptionAlgorithm.Aes256CbcHmac);
+		options.Encryption.EncryptionAlgorithm.ShouldBe(EncryptionAlgorithm.Aes256CbcHmac);
 	}
 
 	[Fact]
@@ -60,10 +60,10 @@ public sealed class SecurityOptionsShould : UnitTestBase
 		var vaultUrl = new Uri("https://my-vault.vault.azure.net/");
 
 		// Act
-		options.AzureKeyVaultUrl = vaultUrl;
+		options.Encryption.AzureKeyVaultUrl = vaultUrl;
 
 		// Assert
-		options.AzureKeyVaultUrl.ShouldBe(vaultUrl);
+		options.Encryption.AzureKeyVaultUrl.ShouldBe(vaultUrl);
 	}
 
 	[Fact]
@@ -74,10 +74,10 @@ public sealed class SecurityOptionsShould : UnitTestBase
 		var keyArn = "arn:aws:kms:us-east-1:123456789:key/12345-abcd";
 
 		// Act
-		options.AwsKmsKeyArn = keyArn;
+		options.Encryption.AwsKmsKeyArn = keyArn;
 
 		// Assert
-		options.AwsKmsKeyArn.ShouldBe(keyArn);
+		options.Encryption.AwsKmsKeyArn.ShouldBe(keyArn);
 	}
 
 	[Fact]
@@ -87,10 +87,10 @@ public sealed class SecurityOptionsShould : UnitTestBase
 		var options = new SecurityOptions();
 
 		// Act
-		options.EnableSigning = false;
+		options.Signing.EnableSigning = false;
 
 		// Assert
-		options.EnableSigning.ShouldBeFalse();
+		options.Signing.EnableSigning.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -100,10 +100,10 @@ public sealed class SecurityOptionsShould : UnitTestBase
 		var options = new SecurityOptions();
 
 		// Act
-		options.SigningAlgorithm = SigningAlgorithm.HMACSHA512;
+		options.Signing.SigningAlgorithm = SigningAlgorithm.HMACSHA512;
 
 		// Assert
-		options.SigningAlgorithm.ShouldBe(SigningAlgorithm.HMACSHA512);
+		options.Signing.SigningAlgorithm.ShouldBe(SigningAlgorithm.HMACSHA512);
 	}
 
 	[Fact]
@@ -113,10 +113,10 @@ public sealed class SecurityOptionsShould : UnitTestBase
 		var options = new SecurityOptions();
 
 		// Act
-		options.EnableRateLimiting = false;
+		options.RateLimiting.EnableRateLimiting = false;
 
 		// Assert
-		options.EnableRateLimiting.ShouldBeFalse();
+		options.RateLimiting.EnableRateLimiting.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -126,10 +126,10 @@ public sealed class SecurityOptionsShould : UnitTestBase
 		var options = new SecurityOptions();
 
 		// Act
-		options.RateLimitAlgorithm = RateLimitAlgorithm.SlidingWindow;
+		options.RateLimiting.RateLimitAlgorithm = RateLimitAlgorithm.SlidingWindow;
 
 		// Assert
-		options.RateLimitAlgorithm.ShouldBe(RateLimitAlgorithm.SlidingWindow);
+		options.RateLimiting.RateLimitAlgorithm.ShouldBe(RateLimitAlgorithm.SlidingWindow);
 	}
 
 	[Fact]
@@ -139,7 +139,7 @@ public sealed class SecurityOptionsShould : UnitTestBase
 		var options = new SecurityOptions();
 
 		// Assert
-		_ = options.DefaultRateLimits.ShouldNotBeNull();
+		_ = options.RateLimiting.DefaultRateLimits.ShouldNotBeNull();
 	}
 
 	[Fact]
@@ -149,10 +149,10 @@ public sealed class SecurityOptionsShould : UnitTestBase
 		var options = new SecurityOptions();
 
 		// Act
-		options.JwtIssuer = "https://auth.example.com";
+		options.Authentication.JwtIssuer = "https://auth.example.com";
 
 		// Assert
-		options.JwtIssuer.ShouldBe("https://auth.example.com");
+		options.Authentication.JwtIssuer.ShouldBe("https://auth.example.com");
 	}
 
 	[Fact]
@@ -162,10 +162,10 @@ public sealed class SecurityOptionsShould : UnitTestBase
 		var options = new SecurityOptions();
 
 		// Act
-		options.JwtAudience = "my-api";
+		options.Authentication.JwtAudience = "my-api";
 
 		// Assert
-		options.JwtAudience.ShouldBe("my-api");
+		options.Authentication.JwtAudience.ShouldBe("my-api");
 	}
 
 	[Fact]
@@ -175,10 +175,10 @@ public sealed class SecurityOptionsShould : UnitTestBase
 		var options = new SecurityOptions();
 
 		// Act
-		options.JwtSigningKey = "super-secret-key-12345";
+		options.Authentication.JwtSigningKey = "super-secret-key-12345";
 
 		// Assert
-		options.JwtSigningKey.ShouldBe("super-secret-key-12345");
+		options.Authentication.JwtSigningKey.ShouldBe("super-secret-key-12345");
 	}
 
 	[Fact]
@@ -205,9 +205,9 @@ public sealed class SecurityOptionsShould : UnitTestBase
 		var options = new SecurityOptions();
 
 		// Act
-		options.RequireAuthentication = false;
+		options.Authentication.RequireAuthentication = false;
 
 		// Assert
-		options.RequireAuthentication.ShouldBeFalse();
+		options.Authentication.RequireAuthentication.ShouldBeFalse();
 	}
 }

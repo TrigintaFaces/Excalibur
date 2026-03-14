@@ -83,8 +83,8 @@ public sealed class SqsChannelServiceCollectionExtensionsShould
 		var result = services.AddSqsChannelInfrastructure<TestMessageProcessor>(opts =>
 		{
 			opts.QueueUrl = new Uri("https://sqs.us-east-1.amazonaws.com/123456789/my-queue");
-			opts.ConcurrentPollers = 5;
-			opts.MaxConcurrentReceiveBatches = 10;
+			opts.ChannelAdapter.ConcurrentPollers = 5;
+			opts.Batch.MaxConcurrentReceiveBatches = 10;
 		});
 
 		// Assert

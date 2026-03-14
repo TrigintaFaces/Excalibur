@@ -1,1 +1,276 @@
 #nullable enable
+const Excalibur.Dispatch.Caching.Diagnostics.DispatchCachingTelemetryConstants.ActivitySourceName = "Excalibur.Dispatch.Caching" -> string!
+const Excalibur.Dispatch.Caching.Diagnostics.DispatchCachingTelemetryConstants.MeterName = "Excalibur.Dispatch.Caching" -> string!
+const Excalibur.Dispatch.Caching.Diagnostics.DispatchCachingTelemetryConstants.Version = "1.0.0" -> string!
+Excalibur.Dispatch.Caching.CacheBehaviorOptions
+Excalibur.Dispatch.Caching.CacheBehaviorOptions.CacheBehaviorOptions() -> void
+Excalibur.Dispatch.Caching.CacheBehaviorOptions.CacheTimeout.get -> System.TimeSpan
+Excalibur.Dispatch.Caching.CacheBehaviorOptions.CacheTimeout.set -> void
+Excalibur.Dispatch.Caching.CacheBehaviorOptions.DefaultExpiration.get -> System.TimeSpan
+Excalibur.Dispatch.Caching.CacheBehaviorOptions.DefaultExpiration.set -> void
+Excalibur.Dispatch.Caching.CacheBehaviorOptions.EnableCompression.get -> bool
+Excalibur.Dispatch.Caching.CacheBehaviorOptions.EnableCompression.set -> void
+Excalibur.Dispatch.Caching.CacheBehaviorOptions.EnableStatistics.get -> bool
+Excalibur.Dispatch.Caching.CacheBehaviorOptions.EnableStatistics.set -> void
+Excalibur.Dispatch.Caching.CacheBehaviorOptions.JitterRatio.get -> double
+Excalibur.Dispatch.Caching.CacheBehaviorOptions.JitterRatio.set -> void
+Excalibur.Dispatch.Caching.CacheBehaviorOptions.UseSlidingExpiration.get -> bool
+Excalibur.Dispatch.Caching.CacheBehaviorOptions.UseSlidingExpiration.set -> void
+Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions
+Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions.CacheCircuitBreakerOptions() -> void
+Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions.Enabled.get -> bool
+Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions.Enabled.set -> void
+Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions.FailureThreshold.get -> int
+Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions.FailureThreshold.set -> void
+Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions.FailureWindow.get -> System.TimeSpan
+Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions.FailureWindow.set -> void
+Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions.HalfOpenSuccessThreshold.get -> int
+Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions.HalfOpenSuccessThreshold.set -> void
+Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions.HalfOpenTestLimit.get -> int
+Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions.HalfOpenTestLimit.set -> void
+Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions.OpenDuration.get -> System.TimeSpan
+Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions.OpenDuration.set -> void
+Excalibur.Dispatch.Caching.CachedValue
+Excalibur.Dispatch.Caching.CachedValue.CachedValue() -> void
+Excalibur.Dispatch.Caching.CachedValue.HasExecuted.get -> bool
+Excalibur.Dispatch.Caching.CachedValue.HasExecuted.init -> void
+Excalibur.Dispatch.Caching.CachedValue.ShouldCache.get -> bool
+Excalibur.Dispatch.Caching.CachedValue.ShouldCache.init -> void
+Excalibur.Dispatch.Caching.CachedValue.TypeName.get -> string?
+Excalibur.Dispatch.Caching.CachedValue.TypeName.init -> void
+Excalibur.Dispatch.Caching.CachedValue.Value.get -> object?
+Excalibur.Dispatch.Caching.CachedValue.Value.init -> void
+Excalibur.Dispatch.Caching.CachedValueJsonConverter
+Excalibur.Dispatch.Caching.CachedValueJsonConverter.CachedValueJsonConverter() -> void
+Excalibur.Dispatch.Caching.CacheHealthCheck
+Excalibur.Dispatch.Caching.CacheHealthCheck.CacheHealthCheck(Excalibur.Dispatch.Caching.ICacheHealthMonitor! monitor) -> void
+Excalibur.Dispatch.Caching.CacheHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+Excalibur.Dispatch.Caching.CacheHealthMonitor
+Excalibur.Dispatch.Caching.CacheHealthMonitor.CacheHealthMonitor(StackExchange.Redis.IConnectionMultiplexer? connectionMultiplexer = null) -> void
+Excalibur.Dispatch.Caching.CacheHealthMonitor.GetHealthStatusAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Caching.CacheHealthStatus!>!
+Excalibur.Dispatch.Caching.CacheHealthMonitor.GetPerformanceSnapshot() -> Excalibur.Dispatch.Caching.CachePerformanceSnapshot!
+Excalibur.Dispatch.Caching.CacheHealthMonitor.RecordCacheOperation(bool isHit, bool hasError = false) -> void
+Excalibur.Dispatch.Caching.CacheHealthStatus
+Excalibur.Dispatch.Caching.CacheHealthStatus.CacheHealthStatus() -> void
+Excalibur.Dispatch.Caching.CacheHealthStatus.ConnectionStatus.get -> string!
+Excalibur.Dispatch.Caching.CacheHealthStatus.ConnectionStatus.init -> void
+Excalibur.Dispatch.Caching.CacheHealthStatus.IsHealthy.get -> bool
+Excalibur.Dispatch.Caching.CacheHealthStatus.IsHealthy.init -> void
+Excalibur.Dispatch.Caching.CacheHealthStatus.LastChecked.get -> System.DateTimeOffset
+Excalibur.Dispatch.Caching.CacheHealthStatus.LastChecked.init -> void
+Excalibur.Dispatch.Caching.CacheHealthStatus.ResponseTimeMs.get -> double
+Excalibur.Dispatch.Caching.CacheHealthStatus.ResponseTimeMs.init -> void
+Excalibur.Dispatch.Caching.CacheInvalidationMiddleware
+Excalibur.Dispatch.Caching.CacheInvalidationMiddleware.CacheInvalidationMiddleware(System.Diagnostics.Metrics.IMeterFactory! meterFactory, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Caching.CacheOptions!>! options, Excalibur.Dispatch.Caching.ICacheTagTracker? tagTracker = null, Microsoft.Extensions.Caching.Memory.IMemoryCache? memoryCache = null, Microsoft.Extensions.Caching.Distributed.IDistributedCache? distributedCache = null, Microsoft.Extensions.Caching.Hybrid.HybridCache? hybridCache = null) -> void
+Excalibur.Dispatch.Caching.CacheInvalidationMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
+Excalibur.Dispatch.Caching.CacheInvalidationMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
+Excalibur.Dispatch.Caching.CacheMode
+Excalibur.Dispatch.Caching.CacheMode.Distributed = 1 -> Excalibur.Dispatch.Caching.CacheMode
+Excalibur.Dispatch.Caching.CacheMode.Hybrid = 2 -> Excalibur.Dispatch.Caching.CacheMode
+Excalibur.Dispatch.Caching.CacheMode.Memory = 0 -> Excalibur.Dispatch.Caching.CacheMode
+Excalibur.Dispatch.Caching.CacheOptions
+Excalibur.Dispatch.Caching.CacheOptions.Behavior.get -> Excalibur.Dispatch.Caching.CacheBehaviorOptions!
+Excalibur.Dispatch.Caching.CacheOptions.Behavior.set -> void
+Excalibur.Dispatch.Caching.CacheOptions.CacheKeyBuilder.get -> Excalibur.Dispatch.Caching.ICacheKeyBuilder?
+Excalibur.Dispatch.Caching.CacheOptions.CacheKeyBuilder.set -> void
+Excalibur.Dispatch.Caching.CacheOptions.CacheMode.get -> Excalibur.Dispatch.Caching.CacheMode
+Excalibur.Dispatch.Caching.CacheOptions.CacheMode.set -> void
+Excalibur.Dispatch.Caching.CacheOptions.CacheOptions() -> void
+Excalibur.Dispatch.Caching.CacheOptions.DefaultTags.get -> string![]!
+Excalibur.Dispatch.Caching.CacheOptions.DefaultTags.set -> void
+Excalibur.Dispatch.Caching.CacheOptions.Distributed.get -> Excalibur.Dispatch.Caching.DistributedCacheConfiguration!
+Excalibur.Dispatch.Caching.CacheOptions.Distributed.set -> void
+Excalibur.Dispatch.Caching.CacheOptions.Enabled.get -> bool
+Excalibur.Dispatch.Caching.CacheOptions.Enabled.set -> void
+Excalibur.Dispatch.Caching.CacheOptions.GlobalPolicy.get -> Excalibur.Dispatch.Caching.IResultCachePolicy?
+Excalibur.Dispatch.Caching.CacheOptions.GlobalPolicy.set -> void
+Excalibur.Dispatch.Caching.CacheOptions.Memory.get -> Excalibur.Dispatch.Caching.MemoryCacheConfiguration!
+Excalibur.Dispatch.Caching.CacheOptions.Memory.set -> void
+Excalibur.Dispatch.Caching.CacheOptions.Resilience.get -> Excalibur.Dispatch.Caching.CacheResilienceOptions!
+Excalibur.Dispatch.Caching.CacheOptions.Resilience.set -> void
+Excalibur.Dispatch.Caching.CacheOptions.UseDistributedCache.get -> bool
+Excalibur.Dispatch.Caching.CacheOptions.UseDistributedCache.set -> void
+Excalibur.Dispatch.Caching.CacheOptionsValidator
+Excalibur.Dispatch.Caching.CacheOptionsValidator.CacheOptionsValidator() -> void
+Excalibur.Dispatch.Caching.CacheOptionsValidator.Validate(string? name, Excalibur.Dispatch.Caching.CacheOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.AverageGetTimeMs.get -> double
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.AverageGetTimeMs.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.AverageSetTimeMs.get -> double
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.AverageSetTimeMs.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.AverageSizeBytes.get -> long
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.CachePerformanceSnapshot() -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.CollectionDuration.get -> System.TimeSpan
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.CollectionDuration.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.ConcurrentOperations.get -> int
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.ConcurrentOperations.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.CpuUsagePercent.get -> double
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.CpuUsagePercent.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.CustomMetrics.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object!>!
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.CustomMetrics.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.ErrorCounts.get -> System.Collections.Generic.IReadOnlyDictionary<string!, long>!
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.ErrorCounts.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.ErrorRate.get -> double
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.EvictionCount.get -> long
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.EvictionCount.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.HealthWarnings.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.HealthWarnings.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.HitCount.get -> long
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.HitCount.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.HitRatio.get -> double
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.IsHealthy.get -> bool
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.IsHealthy.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.ItemCount.get -> long
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.ItemCount.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.MaxGetTimeMs.get -> double
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.MaxGetTimeMs.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.MemoryPressure.get -> int
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.MemoryPressure.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.MissCount.get -> long
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.MissCount.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.P95GetTimeMs.get -> double
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.P95GetTimeMs.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.P99GetTimeMs.get -> double
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.P99GetTimeMs.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.PendingOperations.get -> int
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.PendingOperations.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.ThroughputOpsPerSecond.get -> double
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.ThroughputOpsPerSecond.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.Timestamp.get -> System.DateTimeOffset
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.Timestamp.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.TotalErrors.get -> long
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.TotalErrors.init -> void
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.TotalRequests.get -> long
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.TotalSizeBytes.get -> long
+Excalibur.Dispatch.Caching.CachePerformanceSnapshot.TotalSizeBytes.init -> void
+Excalibur.Dispatch.Caching.CacheResilienceOptions
+Excalibur.Dispatch.Caching.CacheResilienceOptions.CacheResilienceOptions() -> void
+Excalibur.Dispatch.Caching.CacheResilienceOptions.CircuitBreaker.get -> Excalibur.Dispatch.Caching.CacheCircuitBreakerOptions!
+Excalibur.Dispatch.Caching.CacheResilienceOptions.CircuitBreaker.set -> void
+Excalibur.Dispatch.Caching.CacheResilienceOptions.EnableFallback.get -> bool
+Excalibur.Dispatch.Caching.CacheResilienceOptions.EnableFallback.set -> void
+Excalibur.Dispatch.Caching.CacheResilienceOptions.LogMetricsOnDisposal.get -> bool
+Excalibur.Dispatch.Caching.CacheResilienceOptions.LogMetricsOnDisposal.set -> void
+Excalibur.Dispatch.Caching.CacheResilienceOptions.TypeNameCache.get -> Excalibur.Dispatch.Caching.CacheTypeNameOptions!
+Excalibur.Dispatch.Caching.CacheResilienceOptions.TypeNameCache.set -> void
+Excalibur.Dispatch.Caching.CacheResultAttribute
+Excalibur.Dispatch.Caching.CacheResultAttribute.CacheResultAttribute() -> void
+Excalibur.Dispatch.Caching.CacheResultAttribute.ExpirationSeconds.get -> int
+Excalibur.Dispatch.Caching.CacheResultAttribute.ExpirationSeconds.set -> void
+Excalibur.Dispatch.Caching.CacheResultAttribute.IgnoreNullResult.get -> bool
+Excalibur.Dispatch.Caching.CacheResultAttribute.IgnoreNullResult.set -> void
+Excalibur.Dispatch.Caching.CacheResultAttribute.OnlyIfSuccess.get -> bool
+Excalibur.Dispatch.Caching.CacheResultAttribute.OnlyIfSuccess.set -> void
+Excalibur.Dispatch.Caching.CacheResultAttribute.Tags.get -> string![]!
+Excalibur.Dispatch.Caching.CacheResultAttribute.Tags.set -> void
+Excalibur.Dispatch.Caching.CacheTypeNameOptions
+Excalibur.Dispatch.Caching.CacheTypeNameOptions.CacheTtl.get -> System.TimeSpan
+Excalibur.Dispatch.Caching.CacheTypeNameOptions.CacheTtl.set -> void
+Excalibur.Dispatch.Caching.CacheTypeNameOptions.CacheTypeNameOptions() -> void
+Excalibur.Dispatch.Caching.CacheTypeNameOptions.MaxCacheSize.get -> int
+Excalibur.Dispatch.Caching.CacheTypeNameOptions.MaxCacheSize.set -> void
+Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions
+Excalibur.Dispatch.Caching.CachingMiddleware
+Excalibur.Dispatch.Caching.CachingMiddleware.CachingMiddleware(System.Diagnostics.Metrics.IMeterFactory! meterFactory, Microsoft.Extensions.Caching.Hybrid.HybridCache! cache, Excalibur.Dispatch.Caching.ICacheKeyBuilder! keyBuilder, System.IServiceProvider! services, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Caching.CacheOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Caching.CachingMiddleware!>! logger, Excalibur.Dispatch.Caching.IResultCachePolicy? globalPolicy = null) -> void
+Excalibur.Dispatch.Caching.CachingMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
+Excalibur.Dispatch.Caching.CachingMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
+Excalibur.Dispatch.Caching.DefaultCacheKeyBuilder
+Excalibur.Dispatch.Caching.DefaultCacheKeyBuilder.CreateKey(Excalibur.Dispatch.Abstractions.IDispatchAction! action, Excalibur.Dispatch.Abstractions.IMessageContext! context) -> string!
+Excalibur.Dispatch.Caching.DefaultCacheKeyBuilder.DefaultCacheKeyBuilder(Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Caching.DefaultCacheKeyBuilder!>? logger = null) -> void
+Excalibur.Dispatch.Caching.DefaultResultCachePolicy
+Excalibur.Dispatch.Caching.DefaultResultCachePolicy.DefaultResultCachePolicy(System.Func<Excalibur.Dispatch.Abstractions.IDispatchMessage!, object?, bool>! policy) -> void
+Excalibur.Dispatch.Caching.DefaultResultCachePolicy.ShouldCache(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, object? result) -> bool
+Excalibur.Dispatch.Caching.Diagnostics.DispatchCachingTelemetryConstants
+Excalibur.Dispatch.Caching.DistributedCacheConfiguration
+Excalibur.Dispatch.Caching.DistributedCacheConfiguration.DistributedCacheConfiguration() -> void
+Excalibur.Dispatch.Caching.DistributedCacheConfiguration.KeyPrefix.get -> string!
+Excalibur.Dispatch.Caching.DistributedCacheConfiguration.KeyPrefix.set -> void
+Excalibur.Dispatch.Caching.DistributedCacheConfiguration.MaxRetryAttempts.get -> int
+Excalibur.Dispatch.Caching.DistributedCacheConfiguration.MaxRetryAttempts.set -> void
+Excalibur.Dispatch.Caching.DistributedCacheConfiguration.RetryDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Caching.DistributedCacheConfiguration.RetryDelay.set -> void
+Excalibur.Dispatch.Caching.DistributedCacheConfiguration.UseBinarySerialization.get -> bool
+Excalibur.Dispatch.Caching.DistributedCacheConfiguration.UseBinarySerialization.set -> void
+Excalibur.Dispatch.Caching.HybridCacheInvalidationService
+Excalibur.Dispatch.Caching.HybridCacheInvalidationService.HybridCacheInvalidationService(Microsoft.Extensions.Caching.Hybrid.HybridCache! cache) -> void
+Excalibur.Dispatch.Caching.HybridCacheInvalidationService.InvalidateKeysAsync(System.Collections.Generic.IEnumerable<string!>! keys, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Caching.HybridCacheInvalidationService.InvalidateTagsAsync(System.Collections.Generic.IEnumerable<string!>! tags, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Caching.ICacheable<T>
+Excalibur.Dispatch.Caching.ICacheable<T>.ExpirationSeconds.get -> int
+Excalibur.Dispatch.Caching.ICacheable<T>.GetCacheKey() -> string!
+Excalibur.Dispatch.Caching.ICacheable<T>.GetCacheTags() -> string![]?
+Excalibur.Dispatch.Caching.ICacheable<T>.ShouldCache(object? result) -> bool
+Excalibur.Dispatch.Caching.ICacheHealthMonitor
+Excalibur.Dispatch.Caching.ICacheHealthMonitor.GetHealthStatusAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Caching.CacheHealthStatus!>!
+Excalibur.Dispatch.Caching.ICacheHealthMonitor.GetPerformanceSnapshot() -> Excalibur.Dispatch.Caching.CachePerformanceSnapshot!
+Excalibur.Dispatch.Caching.ICacheInvalidationService
+Excalibur.Dispatch.Caching.ICacheInvalidationService.InvalidateKeysAsync(System.Collections.Generic.IEnumerable<string!>! keys, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Caching.ICacheInvalidationService.InvalidateTagsAsync(System.Collections.Generic.IEnumerable<string!>! tags, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Caching.ICacheInvalidator
+Excalibur.Dispatch.Caching.ICacheInvalidator.GetCacheKeysToInvalidate() -> System.Collections.Generic.IEnumerable<string!>!
+Excalibur.Dispatch.Caching.ICacheInvalidator.GetCacheTagsToInvalidate() -> System.Collections.Generic.IEnumerable<string!>!
+Excalibur.Dispatch.Caching.ICacheKeyBuilder
+Excalibur.Dispatch.Caching.ICacheKeyBuilder.CreateKey(Excalibur.Dispatch.Abstractions.IDispatchAction! action, Excalibur.Dispatch.Abstractions.IMessageContext! context) -> string!
+Excalibur.Dispatch.Caching.ICacheProvider
+Excalibur.Dispatch.Caching.ICacheProvider.ExistsAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Caching.ICacheProvider.GetAsync<T>(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T?>!
+Excalibur.Dispatch.Caching.ICacheProvider.RemoveAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Caching.ICacheProvider.RemoveByTagAsync(string! tag, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Caching.ICacheProvider.SetAsync<T>(string! key, T value, System.Threading.CancellationToken cancellationToken, System.TimeSpan? expiration = null, string![]? tags = null) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Caching.ICacheProviderManagement
+Excalibur.Dispatch.Caching.ICacheProviderManagement.ClearAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Caching.ICacheTagTracker
+Excalibur.Dispatch.Caching.ICacheTagTracker.GetKeysByTagsAsync(string![]! tags, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.HashSet<string!>!>!
+Excalibur.Dispatch.Caching.ICacheTagTracker.RegisterKeyAsync(string! key, string![]! tags, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Caching.ICacheTagTracker.UnregisterKeyAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Caching.InMemoryCacheTagTracker
+Excalibur.Dispatch.Caching.InMemoryCacheTagTracker.GetKeysByTagsAsync(string![]! tags, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.HashSet<string!>!>!
+Excalibur.Dispatch.Caching.InMemoryCacheTagTracker.InMemoryCacheTagTracker() -> void
+Excalibur.Dispatch.Caching.InMemoryCacheTagTracker.InMemoryCacheTagTracker(System.Diagnostics.Metrics.IMeterFactory! meterFactory) -> void
+Excalibur.Dispatch.Caching.InMemoryCacheTagTracker.RegisterKeyAsync(string! key, string![]! tags, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Caching.InMemoryCacheTagTracker.UnregisterKeyAsync(string! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Caching.InvalidateCacheAttribute
+Excalibur.Dispatch.Caching.InvalidateCacheAttribute.InvalidateCacheAttribute() -> void
+Excalibur.Dispatch.Caching.InvalidateCacheAttribute.Tags.get -> string![]!
+Excalibur.Dispatch.Caching.InvalidateCacheAttribute.Tags.init -> void
+Excalibur.Dispatch.Caching.IResultCachePolicy
+Excalibur.Dispatch.Caching.IResultCachePolicy.ShouldCache(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, object? result) -> bool
+Excalibur.Dispatch.Caching.IResultCachePolicy<TMessage>
+Excalibur.Dispatch.Caching.IResultCachePolicy<TMessage>.ShouldCache(TMessage message, object? result) -> bool
+Excalibur.Dispatch.Caching.LruCache<TKey, TValue>
+Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.Capacity.get -> int
+Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.Clear() -> void
+Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.Count.get -> int
+Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.Dispose() -> void
+Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.GetOrAdd(TKey key, System.Func<TKey, TValue>! valueFactory, System.TimeSpan? ttl = null) -> TValue
+Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.LruCache(int capacity, System.Diagnostics.Metrics.IMeterFactory? meterFactory, System.TimeSpan? defaultTtl = null, System.TimeSpan? cleanupInterval = null) -> void
+Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.LruCache(int capacity, System.TimeSpan? defaultTtl = null, System.TimeSpan? cleanupInterval = null) -> void
+Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.Remove(TKey key) -> bool
+Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.RemoveExpiredItems() -> void
+Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.Set(TKey key, TValue value, System.TimeSpan? ttl = null) -> void
+Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.Statistics.get -> Excalibur.Dispatch.Abstractions.Messaging.CacheStatistics!
+Excalibur.Dispatch.Caching.LruCache<TKey, TValue>.TryGetValue(TKey key, out TValue? value) -> bool
+Excalibur.Dispatch.Caching.MemoryCacheConfiguration
+Excalibur.Dispatch.Caching.MemoryCacheConfiguration.CompactionPercentage.get -> double
+Excalibur.Dispatch.Caching.MemoryCacheConfiguration.CompactionPercentage.set -> void
+Excalibur.Dispatch.Caching.MemoryCacheConfiguration.ExpirationScanFrequency.get -> System.TimeSpan
+Excalibur.Dispatch.Caching.MemoryCacheConfiguration.ExpirationScanFrequency.set -> void
+Excalibur.Dispatch.Caching.MemoryCacheConfiguration.MemoryCacheConfiguration() -> void
+Excalibur.Dispatch.Caching.MemoryCacheConfiguration.SizeLimit.get -> long?
+Excalibur.Dispatch.Caching.MemoryCacheConfiguration.SizeLimit.set -> void
+Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions
+override Excalibur.Dispatch.Caching.CachedValueJsonConverter.Read(ref System.Text.Json.Utf8JsonReader reader, System.Type! typeToConvert, System.Text.Json.JsonSerializerOptions! options) -> Excalibur.Dispatch.Caching.CachedValue?
+override Excalibur.Dispatch.Caching.CachedValueJsonConverter.Write(System.Text.Json.Utf8JsonWriter! writer, Excalibur.Dispatch.Caching.CachedValue! value, System.Text.Json.JsonSerializerOptions! options) -> void
+override Excalibur.Dispatch.Caching.CachePerformanceSnapshot.ToString() -> string!
+static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.AddCaching(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Caching.CacheOptions!>? configure = null) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.AddDispatchCaching(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.WithCachingOptions(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.WithCachingOptions(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Dispatch.Caching.CacheOptions!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.WithResultCachePolicy(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Func<Excalibur.Dispatch.Abstractions.IDispatchMessage!, object?, bool>! policy) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.WithResultCachePolicy<TMessage, TPolicy>(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Excalibur.Dispatch.Caching.CachingDispatchBuilderExtensions.WithResultCachePolicy<TMessage>(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Func<TMessage!, object?, bool>! shouldCache) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions.AddDispatchCaching(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Caching.CacheOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions.AddDispatchDistributedCaching<TImplementation>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Caching.CacheOptions!>? configureCaching = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions.AddDispatchHybridCaching(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Microsoft.Extensions.Caching.Hybrid.HybridCacheOptions!>? configureHybrid = null, System.Action<Microsoft.Extensions.Caching.StackExchangeRedis.RedisCacheOptions!>? configureRedis = null, System.Action<Excalibur.Dispatch.Caching.CacheOptions!>? configureCaching = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions.AddDispatchMemoryCaching(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Microsoft.Extensions.Caching.Memory.MemoryCacheOptions!>? configureMemory = null, System.Action<Excalibur.Dispatch.Caching.CacheOptions!>? configureCaching = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CachingServiceCollectionExtensions.AddDispatchRedisCaching(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Microsoft.Extensions.Caching.StackExchangeRedis.RedisCacheOptions!>! configureRedis, System.Action<Excalibur.Dispatch.Caching.CacheOptions!>? configureCaching = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

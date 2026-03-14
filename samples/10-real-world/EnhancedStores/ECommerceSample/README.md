@@ -119,24 +119,24 @@ While the application is running, you can use these keyboard commands:
 
 ## Configuration
 
-The sample uses performance profiles to demonstrate different enhanced store configurations:
+The sample uses in-memory store implementations for demonstration:
 
-### Production Profile (Default)
 ```csharp
-services.AddEnhancedInboxStore(options =>
+// In-memory store implementations for the sample
+services.AddSingleton<IInboxStore, InMemoryInboxStore>();
+services.AddSingleton<IOutboxStore, InMemoryOutboxStore>();
+services.AddSingleton<IScheduleStore, InMemoryScheduleStore>();
+
+// Telemetry for enhanced store observability
+services.AddDispatchTelemetry(options =>
 {
-    options.EnableAdvancedDeduplication = true;
-    options.EnableContentBasedDeduplication = true;
-    options.DeduplicationCacheSize = 50000;
-    options.ContentDeduplicationWindow = TimeSpan.FromMinutes(30);
+    options.ServiceName = "ECommerce.OrderProcessing";
+    options.ServiceVersion = "1.0.0";
+    options.EnableEnhancedStoreObservability = true;
+    options.EnableMetrics = true;
+    options.EnableTracing = true;
 });
 ```
-
-### Available Profiles
-- **Development** - Enhanced debugging capabilities
-- **Production** - Balanced performance and reliability
-- **HighPerformance** - Maximum throughput optimizations
-- **Reliability** - Maximum fault tolerance
 
 ## Sample Workload
 
@@ -190,45 +190,15 @@ var products = [
 - **Structured metrics** exported to console (configurable for production exporters)
 - **Performance counters** for cache hit rates and processing times
 
-## Enhanced Store Configuration
+## Store Architecture
 
-### Inbox Store (Order Processing)
-```csharp
-services.AddEnhancedInboxStore(options =>
-{
-    options.EnableAdvancedDeduplication = true;
-    options.EnableContentBasedDeduplication = true;
-    options.DeduplicationCacheSize = 50000;
-    options.ContentDeduplicationWindow = TimeSpan.FromMinutes(30);
-    options.MaxConcurrentOperations = 200;
-});
-```
+This sample demonstrates the store abstraction pattern using in-memory implementations:
 
-### Outbox Store (Email Notifications)
-```csharp
-services.AddEnhancedOutboxStore(options =>
-{
-    options.EnableBatchStaging = true;
-    options.EnableExponentialBackoff = true;
-    options.StagingBatchSize = 50;
-    options.MaxRetryAttempts = 5;
-    options.BaseRetryDelay = TimeSpan.FromSeconds(2);
-    options.MaxRetryDelay = TimeSpan.FromMinutes(10);
-});
-```
+- **IInboxStore** - Processes incoming orders with deduplication
+- **IOutboxStore** - Stages outgoing email notifications for reliable delivery
+- **IScheduleStore** - Manages scheduled inventory check tasks
 
-### Schedule Store (Inventory Management)
-```csharp
-services.AddEnhancedScheduleStore(options =>
-{
-    options.EnableDuplicateDetection = true;
-    options.EnableExecutionTimeIndexing = true;
-    options.EnableBatchOperations = true;
-    options.ScheduleCacheSize = 25000;
-    options.BatchSize = 100;
-    options.DuplicateDetectionWindow = TimeSpan.FromMinutes(15);
-});
-```
+For production use, swap in SQL Server or other persistent store implementations.
 
 ## Background Services
 

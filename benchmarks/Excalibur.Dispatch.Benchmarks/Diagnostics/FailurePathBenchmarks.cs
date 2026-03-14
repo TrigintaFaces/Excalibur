@@ -31,16 +31,22 @@ public class FailurePathBenchmarks
 		_retryPolicy = new DefaultRetryPolicy(new RetryPolicyOptions
 		{
 			MaxRetryAttempts = 3,
-			BaseDelay = TimeSpan.FromMilliseconds(1),
-			MaxDelay = TimeSpan.FromMilliseconds(5),
-			EnableJitter = false,
+			Backoff = new RetryBackoffOptions
+			{
+				BaseDelay = TimeSpan.FromMilliseconds(1),
+				MaxDelay = TimeSpan.FromMilliseconds(5),
+				EnableJitter = false,
+			},
 		});
 		_retryPolicyNoDelay = new DefaultRetryPolicy(new RetryPolicyOptions
 		{
 			MaxRetryAttempts = 3,
-			BaseDelay = TimeSpan.FromTicks(1),
-			MaxDelay = TimeSpan.FromTicks(1),
-			EnableJitter = false,
+			Backoff = new RetryBackoffOptions
+			{
+				BaseDelay = TimeSpan.FromTicks(1),
+				MaxDelay = TimeSpan.FromTicks(1),
+				EnableJitter = false,
+			},
 		}, new FixedBackoffCalculator(TimeSpan.Zero));
 	}
 

@@ -44,7 +44,7 @@ public sealed class AntiPatternVerificationShould
 
 		_ = services.AddSingleton(Microsoft.Extensions.Options.Options.Create(new SqlServerProviderOptions
 		{
-			ConnectionString = "Server=test;Database=test;Integrated Security=true;",
+			Connection = { ConnectionString = "Server=test;Database=test;Integrated Security=true;" },
 			Name = "test-provider",
 			RetryCount = 3
 		}));
@@ -69,7 +69,7 @@ public sealed class AntiPatternVerificationShould
 		// Arrange
 		var options = Microsoft.Extensions.Options.Options.Create(new SqlServerProviderOptions
 		{
-			ConnectionString = "Server=test;Database=test;",
+			Connection = { ConnectionString = "Server=test;Database=test;" },
 			Name = "test-provider",
 			RetryCount = 5
 		});
@@ -288,7 +288,7 @@ public sealed class AntiPatternVerificationShould
 		// Arrange - Service that needs retry
 		var options = Microsoft.Extensions.Options.Options.Create(new SqlServerProviderOptions
 		{
-			ConnectionString = "Server=test;Database=test;",
+			Connection = { ConnectionString = "Server=test;Database=test;" },
 			Name = "test-provider",
 			RetryCount = 3
 		});

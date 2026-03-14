@@ -8,7 +8,7 @@ using Dapper;
 
 using Excalibur.Data.Abstractions;
 using Excalibur.Dispatch.Abstractions.Messaging;
-using Excalibur.Dispatch.Abstractions.Serialization;
+using Excalibur.Dispatch.Serialization;
 
 namespace Excalibur.Saga.SqlServer.Requests;
 
@@ -28,7 +28,7 @@ public sealed class LoadSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 	/// <param name="cancellationToken">The cancellation token.</param>
 	public LoadSagaRequest(
 			Guid sagaId,
-			IJsonSerializer serializer,
+			DispatchJsonSerializer serializer,
 			string qualifiedTableName,
 			CancellationToken cancellationToken)
 	{
@@ -40,7 +40,7 @@ public sealed class LoadSagaRequest<TSagaState> : DataRequestBase<IDbConnection,
 		ResolveAsync = async conn =>
 		{
 			var record = await conn.QuerySingleOrDefaultAsync<(string StateJson, bool IsCompleted)>(Command).ConfigureAwait(false);
-			return record == default ? null : await serializer.DeserializeAsync<TSagaState>(record.StateJson).ConfigureAwait(false);
+			return record == default ? null : serializer.Deserialize<TSagaState>(record.StateJson);
 		};
 	}
 }

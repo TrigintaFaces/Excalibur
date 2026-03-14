@@ -48,19 +48,12 @@ var host = builder.Build();
 
 // Demonstrate that the configuration worked
 var transportRegistry = host.Services.GetRequiredService<TransportRegistry>();
-var bindingRegistry = host.Services.GetRequiredService<TransportBindingRegistry>();
 
 Console.WriteLine("\nRegistered Transports:");
 foreach (var transportName in transportRegistry.GetTransportNames())
 {
 	var registration = transportRegistry.GetTransportRegistration(transportName);
 	Console.WriteLine($"  - {transportName} ({registration.TransportType})");
-}
-
-Console.WriteLine("\nRegistered Bindings:");
-foreach (var binding in bindingRegistry.GetBindings())
-{
-	Console.WriteLine($"  - {binding.Name}: {binding.EndpointPattern} -> Profile: {binding.PipelineProfile?.Name ?? "default"}");
 }
 
 Console.WriteLine("\nTransport Bindings API implementation complete!");

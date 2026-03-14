@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Caching;
 
@@ -11,16 +12,50 @@ namespace Excalibur.Dispatch.Caching.Tests;
 
 [Trait("Category", "Unit")]
 [Trait("Component", "Caching")]
-public sealed class DefaultCacheKeyBuilderShould
+public sealed class DefaultCacheKeyBuilderShould : IDisposable
 {
-	private readonly IJsonSerializer _serializer = A.Fake<IJsonSerializer>();
+	private readonly DispatchJsonSerializer _serializer = new();
 	private readonly DefaultCacheKeyBuilder _sut;
+
+	/// <summary>
+	/// Concrete action type that the real <see cref="DispatchJsonSerializer"/> can serialize
+	/// (unlike FakeItEasy Castle.Proxies which are not in the source-gen context).
+	/// </summary>
+	private sealed class TestAction : IDispatchAction
+	{
+		public string Id { get; init; } = "default";
+	}
+
+	/// <summary>
+	/// A second concrete action type to produce different serialized output.
+	/// </summary>
+	private sealed class OtherAction : IDispatchAction
+	{
+		public string Value { get; init; } = "other";
+	}
 
 	public DefaultCacheKeyBuilderShould()
 	{
-		A.CallTo(() => _serializer.Serialize(A<object>._, A<Type>._))
-			.Returns("serialized-json");
 		_sut = new DefaultCacheKeyBuilder(_serializer, NullLogger<DefaultCacheKeyBuilder>.Instance);
+	}
+
+	public void Dispose()
+	{
+		_serializer.Dispose();
+	}
+
+	private static IMessageContext CreateFakeContext(string? tenantId, string? userId)
+	{
+		var context = A.Fake<IMessageContext>();
+		var features = new Dictionary<Type, object>();
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Features).Returns(features);
+		A.CallTo(() => context.Items).Returns(items);
+
+		var identity = new MessageIdentityFeature { TenantId = tenantId, UserId = userId };
+		features[typeof(IMessageIdentityFeature)] = identity;
+
+		return context;
 	}
 
 	[Fact]
@@ -37,7 +72,7 @@ public sealed class DefaultCacheKeyBuilderShould
 	public void ThrowArgumentNullException_WhenContextIsNull()
 	{
 		// Arrange
-		var action = A.Fake<IDispatchAction>();
+		var action = new TestAction();
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() => _sut.CreateKey(action, null!));
@@ -47,10 +82,8 @@ public sealed class DefaultCacheKeyBuilderShould
 	public void ReturnNonEmptyKey()
 	{
 		// Arrange
-		var action = A.Fake<IDispatchAction>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.TenantId).Returns("tenant1");
-		A.CallTo(() => context.UserId).Returns("user1");
+		var action = new TestAction();
+		var context = CreateFakeContext("tenant1", "user1");
 
 		// Act
 		var key = _sut.CreateKey(action, context);
@@ -63,10 +96,8 @@ public sealed class DefaultCacheKeyBuilderShould
 	public void ReturnConsistentKey_ForSameInput()
 	{
 		// Arrange
-		var action = A.Fake<IDispatchAction>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.TenantId).Returns("tenant1");
-		A.CallTo(() => context.UserId).Returns("user1");
+		var action = new TestAction();
+		var context = CreateFakeContext("tenant1", "user1");
 
 		// Act
 		var key1 = _sut.CreateKey(action, context);
@@ -80,10 +111,8 @@ public sealed class DefaultCacheKeyBuilderShould
 	public void UseGlobalTenantId_WhenTenantIdIsNull()
 	{
 		// Arrange
-		var action = A.Fake<IDispatchAction>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.TenantId).Returns(null);
-		A.CallTo(() => context.UserId).Returns("user1");
+		var action = new TestAction();
+		var context = CreateFakeContext(null, "user1");
 
 		// Act
 		var key = _sut.CreateKey(action, context);
@@ -96,10 +125,8 @@ public sealed class DefaultCacheKeyBuilderShould
 	public void UseAnonymousUserId_WhenUserIdIsNull()
 	{
 		// Arrange
-		var action = A.Fake<IDispatchAction>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.TenantId).Returns("tenant1");
-		A.CallTo(() => context.UserId).Returns(null);
+		var action = new TestAction();
+		var context = CreateFakeContext("tenant1", null);
 
 		// Act
 		var key = _sut.CreateKey(action, context);
@@ -112,15 +139,10 @@ public sealed class DefaultCacheKeyBuilderShould
 	public void ProduceDifferentKeys_ForDifferentTenants()
 	{
 		// Arrange
-		var action = A.Fake<IDispatchAction>();
+		var action = new TestAction();
 
-		var context1 = A.Fake<IMessageContext>();
-		A.CallTo(() => context1.TenantId).Returns("tenant-a");
-		A.CallTo(() => context1.UserId).Returns("user1");
-
-		var context2 = A.Fake<IMessageContext>();
-		A.CallTo(() => context2.TenantId).Returns("tenant-b");
-		A.CallTo(() => context2.UserId).Returns("user1");
+		var context1 = CreateFakeContext("tenant-a", "user1");
+		var context2 = CreateFakeContext("tenant-b", "user1");
 
 		// Act
 		var key1 = _sut.CreateKey(action, context1);
@@ -134,15 +156,10 @@ public sealed class DefaultCacheKeyBuilderShould
 	public void ProduceDifferentKeys_ForDifferentUsers()
 	{
 		// Arrange
-		var action = A.Fake<IDispatchAction>();
+		var action = new TestAction();
 
-		var context1 = A.Fake<IMessageContext>();
-		A.CallTo(() => context1.TenantId).Returns("tenant1");
-		A.CallTo(() => context1.UserId).Returns("user-a");
-
-		var context2 = A.Fake<IMessageContext>();
-		A.CallTo(() => context2.TenantId).Returns("tenant1");
-		A.CallTo(() => context2.UserId).Returns("user-b");
+		var context1 = CreateFakeContext("tenant1", "user-a");
+		var context2 = CreateFakeContext("tenant1", "user-b");
 
 		// Act
 		var key1 = _sut.CreateKey(action, context1);
@@ -156,10 +173,8 @@ public sealed class DefaultCacheKeyBuilderShould
 	public void ProduceUrlSafeKey()
 	{
 		// Arrange
-		var action = A.Fake<IDispatchAction>();
-		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.TenantId).Returns("tenant1");
-		A.CallTo(() => context.UserId).Returns("user1");
+		var action = new TestAction();
+		var context = CreateFakeContext("tenant1", "user1");
 
 		// Act
 		var key = _sut.CreateKey(action, context);
@@ -175,8 +190,10 @@ public sealed class DefaultCacheKeyBuilderShould
 	{
 		// Arrange
 		var builder = new DefaultCacheKeyBuilder(_serializer);
-		var action = A.Fake<IDispatchAction>();
+		var action = new TestAction();
 		var context = A.Fake<IMessageContext>();
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
+		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>(StringComparer.Ordinal));
 
 		// Act
 		var key = builder.CreateKey(action, context);

@@ -4,14 +4,14 @@
 
 using System.Diagnostics.CodeAnalysis;
 
-using Excalibur.A3.Events;
+using Excalibur.Dispatch.Abstractions;
 
 namespace Excalibur.A3.Authorization.Events;
 
 /// <summary>
 /// Represents an event that occurs when a grant is revoked from a user.
 /// </summary>
-public sealed class GrantRevoked : DomainEventBase, IGrantRevoked
+public sealed record GrantRevoked : DomainEvent, IGrantRevoked
 {
 	/// <summary>
 	/// Initializes a new instance of the <see cref="GrantRevoked" /> class with the specified details.

@@ -1,13 +1,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // Licensed under MIT. See LICENSE file in the project root for full license information.
 
+using System.Buffers;
+
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Serialization;
-using Excalibur.Dispatch.Options.Core;
 
 namespace Excalibur.Dispatch.Benchmarks.Serialization;
 
@@ -24,12 +25,14 @@ namespace Excalibur.Dispatch.Benchmarks.Serialization;
 /// - Medium message (1-10KB): &lt; 200μs serialize, &lt; 300μs deserialize (P50)
 /// - Large message (&gt; 10KB): &lt; 1ms serialize, &lt; 1.5ms deserialize (P50)
 /// - Polymorphic: &lt; 100μs serialize, &lt; 150μs deserialize (P50)
+///
+/// Sprint 586 - Updated to use consolidated SystemTextJsonSerializer (ISerializer).
 /// </remarks>
 [MemoryDiagnoser]
 [SimpleJob(RuntimeMoniker.HostProcess)]
 public class JsonSerializationBenchmarks
 {
-	private IMessageSerializer? _serializer;
+	private SystemTextJsonSerializer _serializer = null!;
 	private SmallMessage? _smallMessage;
 	private MediumMessage? _mediumMessage;
 	private LargeMessage? _largeMessage;
@@ -45,13 +48,8 @@ public class JsonSerializationBenchmarks
 	[GlobalSetup]
 	public void GlobalSetup()
 	{
-		// Create JSON serializer
-		var options = Microsoft.Extensions.Options.Options.Create(new JsonSerializationOptions
-		{
-			MaxDepth = 64,
-			PreserveReferences = false,
-		});
-		_serializer = new SystemTextJsonMessageSerializer(options);
+		// Create JSON serializer (consolidated SystemTextJsonSerializer with default options)
+		_serializer = new SystemTextJsonSerializer();
 
 		// Create test messages
 		_smallMessage = CreateSmallMessage();
@@ -60,19 +58,21 @@ public class JsonSerializationBenchmarks
 		_polymorphicMessage = CreatePolymorphicMessage();
 
 		// Pre-serialize for deserialization benchmarks
-		_smallMessageBytes = _serializer.Serialize(_smallMessage);
-		_mediumMessageBytes = _serializer.Serialize(_mediumMessage);
-		_largeMessageBytes = _serializer.Serialize(_largeMessage);
-		_polymorphicMessageBytes = _serializer.Serialize(_polymorphicMessage);
+		_smallMessageBytes = _serializer.SerializeToBytes(_smallMessage);
+		_mediumMessageBytes = _serializer.SerializeToBytes(_mediumMessage);
+		_largeMessageBytes = _serializer.SerializeToBytes(_largeMessage);
+		_polymorphicMessageBytes = _serializer.SerializeToBytes(_polymorphicMessage);
 	}
 
 	/// <summary>
-	/// Benchmark: Serialize small message (&lt; 1KB).
+	/// Benchmark: Serialize small message (&lt; 1KB) using IBufferWriter (zero-alloc path).
 	/// </summary>
 	[Benchmark(Baseline = true)]
-	public byte[] SerializeSmallMessage()
+	public int SerializeSmallMessage()
 	{
-		return _serializer.Serialize(_smallMessage);
+		var bufferWriter = new ArrayBufferWriter<byte>(256);
+		_serializer.Serialize(_smallMessage, bufferWriter);
+		return bufferWriter.WrittenCount;
 	}
 
 	/// <summary>
@@ -81,16 +81,18 @@ public class JsonSerializationBenchmarks
 	[Benchmark]
 	public SmallMessage DeserializeSmallMessage()
 	{
-		return _serializer.Deserialize<SmallMessage>(_smallMessageBytes);
+		return _serializer.Deserialize<SmallMessage>(_smallMessageBytes.AsSpan());
 	}
 
 	/// <summary>
-	/// Benchmark: Serialize medium message (1-10KB).
+	/// Benchmark: Serialize medium message (1-10KB) using IBufferWriter (zero-alloc path).
 	/// </summary>
 	[Benchmark]
-	public byte[] SerializeMediumMessage()
+	public int SerializeMediumMessage()
 	{
-		return _serializer.Serialize(_mediumMessage);
+		var bufferWriter = new ArrayBufferWriter<byte>(4096);
+		_serializer.Serialize(_mediumMessage, bufferWriter);
+		return bufferWriter.WrittenCount;
 	}
 
 	/// <summary>
@@ -99,16 +101,18 @@ public class JsonSerializationBenchmarks
 	[Benchmark]
 	public MediumMessage DeserializeMediumMessage()
 	{
-		return _serializer.Deserialize<MediumMessage>(_mediumMessageBytes);
+		return _serializer.Deserialize<MediumMessage>(_mediumMessageBytes.AsSpan());
 	}
 
 	/// <summary>
-	/// Benchmark: Serialize large message (&gt; 10KB).
+	/// Benchmark: Serialize large message (&gt; 10KB) using IBufferWriter (zero-alloc path).
 	/// </summary>
 	[Benchmark]
-	public byte[] SerializeLargeMessage()
+	public int SerializeLargeMessage()
 	{
-		return _serializer.Serialize(_largeMessage);
+		var bufferWriter = new ArrayBufferWriter<byte>(65536);
+		_serializer.Serialize(_largeMessage, bufferWriter);
+		return bufferWriter.WrittenCount;
 	}
 
 	/// <summary>
@@ -117,7 +121,7 @@ public class JsonSerializationBenchmarks
 	[Benchmark]
 	public LargeMessage DeserializeLargeMessage()
 	{
-		return _serializer.Deserialize<LargeMessage>(_largeMessageBytes);
+		return _serializer.Deserialize<LargeMessage>(_largeMessageBytes.AsSpan());
 	}
 
 	/// <summary>
@@ -126,8 +130,8 @@ public class JsonSerializationBenchmarks
 	[Benchmark]
 	public SmallMessage RoundTripSmallMessage()
 	{
-		var bytes = _serializer.Serialize(_smallMessage);
-		return _serializer.Deserialize<SmallMessage>(bytes);
+		var bytes = _serializer.SerializeToBytes(_smallMessage);
+		return _serializer.Deserialize<SmallMessage>(bytes.AsSpan());
 	}
 
 	/// <summary>
@@ -136,8 +140,8 @@ public class JsonSerializationBenchmarks
 	[Benchmark]
 	public MediumMessage RoundTripMediumMessage()
 	{
-		var bytes = _serializer.Serialize(_mediumMessage);
-		return _serializer.Deserialize<MediumMessage>(bytes);
+		var bytes = _serializer.SerializeToBytes(_mediumMessage);
+		return _serializer.Deserialize<MediumMessage>(bytes.AsSpan());
 	}
 
 	/// <summary>
@@ -146,8 +150,8 @@ public class JsonSerializationBenchmarks
 	[Benchmark]
 	public LargeMessage RoundTripLargeMessage()
 	{
-		var bytes = _serializer.Serialize(_largeMessage);
-		return _serializer.Deserialize<LargeMessage>(bytes);
+		var bytes = _serializer.SerializeToBytes(_largeMessage);
+		return _serializer.Deserialize<LargeMessage>(bytes.AsSpan());
 	}
 
 	// ========================================================================
@@ -159,9 +163,11 @@ public class JsonSerializationBenchmarks
 	/// Tests System.Text.Json polymorphic serialization with discriminator.
 	/// </summary>
 	[Benchmark(Description = "Serialize Polymorphic Message")]
-	public byte[] SerializePolymorphicMessage()
+	public int SerializePolymorphicMessage()
 	{
-		return _serializer.Serialize(_polymorphicMessage);
+		var bufferWriter = new ArrayBufferWriter<byte>(1024);
+		_serializer.Serialize(_polymorphicMessage, bufferWriter);
+		return bufferWriter.WrittenCount;
 	}
 
 	/// <summary>
@@ -171,7 +177,7 @@ public class JsonSerializationBenchmarks
 	[Benchmark(Description = "Deserialize Polymorphic Message")]
 	public PolymorphicMessage DeserializePolymorphicMessage()
 	{
-		return _serializer.Deserialize<PolymorphicMessage>(_polymorphicMessageBytes);
+		return _serializer.Deserialize<PolymorphicMessage>(_polymorphicMessageBytes.AsSpan());
 	}
 
 	// Test Message Factories

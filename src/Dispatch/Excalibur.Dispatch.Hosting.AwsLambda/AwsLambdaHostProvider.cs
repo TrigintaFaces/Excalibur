@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Hosting.AwsLambda;
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="AwsLambdaHostProvider" /> class. </remarks>
 /// <param name="logger"> The logger instance. </param>
-public partial class AwsLambdaHostProvider(ILogger logger) : IServerlessHostProvider, IServerlessHostConfigurator
+internal partial class AwsLambdaHostProvider(ILogger logger) : IServerlessHostProvider, IServerlessHostConfigurator
 {
 	private readonly ILogger _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
@@ -49,13 +49,13 @@ public partial class AwsLambdaHostProvider(ILogger logger) : IServerlessHostProv
 		}
 
 		// Configure tracing if enabled
-		if (options.EnableDistributedTracing)
+		if (options.Telemetry.EnableDistributedTracing)
 		{
 			ConfigureXRayTracing();
 		}
 
 		// Configure metrics if enabled
-		if (options.EnableMetrics)
+		if (options.Telemetry.EnableMetrics)
 		{
 			ConfigureLambdaMetrics();
 		}

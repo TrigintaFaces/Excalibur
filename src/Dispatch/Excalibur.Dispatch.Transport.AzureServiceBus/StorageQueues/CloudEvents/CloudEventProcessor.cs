@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="CloudEventProcessor" /> class. </remarks>
 /// <param name="logger"> The logger instance. </param>
-public sealed class CloudEventProcessor(ILogger<CloudEventProcessor> logger) : ICloudEventProcessor
+internal sealed class CloudEventProcessor(ILogger<CloudEventProcessor> logger) : ICloudEventProcessor
 {
 	private static readonly JsonEventFormatter JsonFormatter = new();
 

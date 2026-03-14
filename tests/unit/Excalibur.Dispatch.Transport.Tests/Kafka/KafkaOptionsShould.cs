@@ -22,16 +22,16 @@ public sealed class KafkaOptionsShould : UnitTestBase
 		options.BootstrapServers.ShouldBe("localhost:9092");
 		options.ConsumerGroup.ShouldBe("dispatch-consumer");
 		options.EnableEncryption.ShouldBeFalse();
-		options.MaxBatchSize.ShouldBe(100);
-		options.MaxBatchWaitMs.ShouldBe(1000);
-		options.EnableAutoCommit.ShouldBeFalse();
-		options.AutoCommitIntervalMs.ShouldBe(5000);
-		options.SessionTimeoutMs.ShouldBe(30000);
-		options.MaxPollIntervalMs.ShouldBe(300000);
-		options.AutoOffsetReset.ShouldBe("latest");
-		options.EnablePartitionEof.ShouldBeFalse();
-		options.QueuedMinMessages.ShouldBe(1000);
-		options.MaxConcurrentCommits.ShouldBe(10);
+		options.Consumer.MaxBatchSize.ShouldBe(100);
+		options.Consumer.MaxBatchWaitMs.ShouldBe(1000);
+		options.Consumer.EnableAutoCommit.ShouldBeFalse();
+		options.Consumer.AutoCommitIntervalMs.ShouldBe(5000);
+		options.Consumer.SessionTimeoutMs.ShouldBe(30000);
+		options.Consumer.MaxPollIntervalMs.ShouldBe(300000);
+		options.Consumer.AutoOffsetReset.ShouldBe("latest");
+		options.Consumer.EnablePartitionEof.ShouldBeFalse();
+		options.Consumer.QueuedMinMessages.ShouldBe(1000);
+		options.Consumer.MaxConcurrentCommits.ShouldBe(10);
 		_ = options.AdditionalConfig.ShouldNotBeNull();
 		options.AdditionalConfig.ShouldBeEmpty();
 	}
@@ -69,10 +69,10 @@ public sealed class KafkaOptionsShould : UnitTestBase
 		var options = new KafkaOptions();
 
 		// Act
-		options.MaxBatchSize = 500;
+		options.Consumer.MaxBatchSize = 500;
 
 		// Assert
-		options.MaxBatchSize.ShouldBe(500);
+		options.Consumer.MaxBatchSize.ShouldBe(500);
 	}
 
 	[Fact]
@@ -82,10 +82,10 @@ public sealed class KafkaOptionsShould : UnitTestBase
 		var options = new KafkaOptions();
 
 		// Act
-		options.EnableAutoCommit = true;
+		options.Consumer.EnableAutoCommit = true;
 
 		// Assert
-		options.EnableAutoCommit.ShouldBeTrue();
+		options.Consumer.EnableAutoCommit.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -95,10 +95,10 @@ public sealed class KafkaOptionsShould : UnitTestBase
 		var options = new KafkaOptions();
 
 		// Act
-		options.AutoOffsetReset = "earliest";
+		options.Consumer.AutoOffsetReset = "earliest";
 
 		// Assert
-		options.AutoOffsetReset.ShouldBe("earliest");
+		options.Consumer.AutoOffsetReset.ShouldBe("earliest");
 	}
 
 	[Fact]
@@ -108,10 +108,10 @@ public sealed class KafkaOptionsShould : UnitTestBase
 		var options = new KafkaOptions();
 
 		// Act
-		options.SessionTimeoutMs = 60000;
+		options.Consumer.SessionTimeoutMs = 60000;
 
 		// Assert
-		options.SessionTimeoutMs.ShouldBe(60000);
+		options.Consumer.SessionTimeoutMs.ShouldBe(60000);
 	}
 
 	[Fact]

@@ -477,33 +477,33 @@ public sealed class ElasticSearchMaterializedViewStoreShould
 	}
 
 	[Fact]
-	public void Options_HaveNullUsernameByDefault()
+	public void Options_HaveNullAuthUsernameByDefault()
 	{
 		// Arrange & Act
 		var options = new ElasticSearchMaterializedViewStoreOptions();
 
 		// Assert
-		options.Username.ShouldBeNull();
+		options.Auth.Username.ShouldBeNull();
 	}
 
 	[Fact]
-	public void Options_HaveNullPasswordByDefault()
+	public void Options_HaveNullAuthPasswordByDefault()
 	{
 		// Arrange & Act
 		var options = new ElasticSearchMaterializedViewStoreOptions();
 
 		// Assert
-		options.Password.ShouldBeNull();
+		options.Auth.Password.ShouldBeNull();
 	}
 
 	[Fact]
-	public void Options_HaveNullApiKeyByDefault()
+	public void Options_HaveNullAuthApiKeyByDefault()
 	{
 		// Arrange & Act
 		var options = new ElasticSearchMaterializedViewStoreOptions();
 
 		// Assert
-		options.ApiKey.ShouldBeNull();
+		options.Auth.ApiKey.ShouldBeNull();
 	}
 
 	[Fact]

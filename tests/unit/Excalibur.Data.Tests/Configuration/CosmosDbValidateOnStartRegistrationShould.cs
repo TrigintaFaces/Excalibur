@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Data.CosmosDb.Inbox;
-using Excalibur.Data.CosmosDb.Outbox;
-using Excalibur.Data.CosmosDb.Saga;
 using Excalibur.Data.CosmosDb.Snapshots;
+using Excalibur.Inbox.CosmosDb;
+using Excalibur.Outbox.CosmosDb;
+using Excalibur.Saga.CosmosDb;
 
 namespace Excalibur.Data.Tests.Configuration;
 
@@ -25,7 +25,7 @@ public sealed class CosmosDbValidateOnStartRegistrationShould
 		var services = new ServiceCollection();
 		_ = services.AddCosmosDb(opts =>
 		{
-			opts.ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;";
+			opts.Client.ConnectionString = "AccountEndpoint=https://test.documents.azure.com:443/;AccountKey=dGVzdA==;";
 		});
 
 		using var provider = services.BuildServiceProvider();
@@ -39,7 +39,7 @@ public sealed class CosmosDbValidateOnStartRegistrationShould
 		var services = new ServiceCollection();
 		_ = services.AddCosmosDb(opts =>
 		{
-			opts.MaxRetryAttempts = -1; // Violates [Range(0, int.MaxValue)]
+			opts.MaxConnectionsPerEndpoint = 0; // Violates [Range(1, int.MaxValue)]
 		});
 
 		using var provider = services.BuildServiceProvider();
@@ -84,7 +84,7 @@ public sealed class CosmosDbValidateOnStartRegistrationShould
 	public void CosmosDbOutbox_RegistersOptionsValidation()
 	{
 		var services = new ServiceCollection();
-		_ = services.AddCosmosDbOutbox(opts => { });
+		_ = services.AddCosmosDbOutboxStore(opts => { });
 
 		using var provider = services.BuildServiceProvider();
 		var validators = provider.GetServices<IValidateOptions<CosmosDbOutboxOptions>>();
@@ -112,7 +112,7 @@ public sealed class CosmosDbValidateOnStartRegistrationShould
 		var services = new ServiceCollection();
 		_ = services.AddCosmosDbInboxStore(opts =>
 		{
-			opts.MaxRetryWaitTimeInSeconds = 0; // Violates [Range(1, int.MaxValue)]
+			opts.DatabaseName = null!; // Violates [Required]
 		});
 
 		using var provider = services.BuildServiceProvider();

@@ -88,7 +88,7 @@ builder.Services.AddPollyRetryPolicy("payment-retry", options =>
     options.UseJitter = true;                              // Add randomness
     options.JitterFactor = 0.3;                            // 30% jitter
     options.MaxDelay = TimeSpan.FromSeconds(10);           // Max delay cap
-    options.ShouldRetry = ex => ex is TransientException;  // Retry predicate
+    options.ShouldRetry = ex => ex is PaymentServiceException;  // Retry predicate
 });
 ```
 

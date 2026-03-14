@@ -26,8 +26,8 @@ public sealed class MongoDbProviderOptionsShould : UnitTestBase
 		options.ServerSelectionTimeout.ShouldBe(30);
 		options.ConnectTimeout.ShouldBe(30);
 		options.UseSsl.ShouldBeTrue();
-		options.MaxPoolSize.ShouldBe(100);
-		options.MinPoolSize.ShouldBe(0);
+		options.Pooling.MaxPoolSize.ShouldBe(100);
+		options.Pooling.MinPoolSize.ShouldBe(0);
 		options.UseTransactions.ShouldBeFalse();
 		options.RetryCount.ShouldBe(3);
 		options.IsReadOnly.ShouldBeFalse();
@@ -97,13 +97,16 @@ public sealed class MongoDbProviderOptionsShould : UnitTestBase
 		// Arrange & Act
 		var options = new MongoDbProviderOptions
 		{
-			MaxPoolSize = 200,
-			MinPoolSize = 10
+			Pooling =
+			{
+				MaxPoolSize = 200,
+				MinPoolSize = 10,
+			},
 		};
 
 		// Assert
-		options.MaxPoolSize.ShouldBe(200);
-		options.MinPoolSize.ShouldBe(10);
+		options.Pooling.MaxPoolSize.ShouldBe(200);
+		options.Pooling.MinPoolSize.ShouldBe(10);
 	}
 
 	[Fact]
@@ -174,8 +177,11 @@ public sealed class MongoDbProviderOptionsShould : UnitTestBase
 			ServerSelectionTimeout = 60,
 			ConnectTimeout = 45,
 			UseSsl = true,
-			MaxPoolSize = 200,
-			MinPoolSize = 20,
+			Pooling =
+			{
+				MaxPoolSize = 200,
+				MinPoolSize = 20,
+			},
 			UseTransactions = true,
 			RetryCount = 5,
 			IsReadOnly = false
@@ -188,8 +194,8 @@ public sealed class MongoDbProviderOptionsShould : UnitTestBase
 		options.ServerSelectionTimeout.ShouldBe(60);
 		options.ConnectTimeout.ShouldBe(45);
 		options.UseSsl.ShouldBeTrue();
-		options.MaxPoolSize.ShouldBe(200);
-		options.MinPoolSize.ShouldBe(20);
+		options.Pooling.MaxPoolSize.ShouldBe(200);
+		options.Pooling.MinPoolSize.ShouldBe(20);
 		options.UseTransactions.ShouldBeTrue();
 		options.RetryCount.ShouldBe(5);
 		options.IsReadOnly.ShouldBeFalse();
@@ -224,16 +230,19 @@ public sealed class MongoDbProviderOptionsShould : UnitTestBase
 			ConnectionString = "mongodb://localhost:27017",
 			DatabaseName = "dev_db",
 			UseSsl = false,
-			MaxPoolSize = 10,
-			MinPoolSize = 1
+			Pooling =
+			{
+				MaxPoolSize = 10,
+				MinPoolSize = 1,
+			},
 		};
 
 		// Assert
 		options.Name.ShouldBe("local-mongo");
 		options.ConnectionString.ShouldBe("mongodb://localhost:27017");
 		options.UseSsl.ShouldBeFalse();
-		options.MaxPoolSize.ShouldBe(10);
-		options.MinPoolSize.ShouldBe(1);
+		options.Pooling.MaxPoolSize.ShouldBe(10);
+		options.Pooling.MinPoolSize.ShouldBe(1);
 	}
 
 	#endregion Complex Configurations

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using MsOptions = Microsoft.Extensions.Options.Options;
-using Excalibur.Data.MongoDB.EventSourcing;
+using Excalibur.EventSourcing.MongoDB;
 using Excalibur.EventSourcing.Observability;
 
 using Microsoft.Extensions.Logging.Abstractions;

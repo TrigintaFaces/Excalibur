@@ -21,20 +21,20 @@ public sealed class DeadLetterOptionsShould
 		options.DefaultMaxDeliveryAttempts.ShouldBe(5);
 		options.AutoCreateDeadLetterResources.ShouldBeTrue();
 		options.DeadLetterRetentionDuration.ShouldBe(TimeSpan.FromDays(7));
-		options.EnableAutomaticRetry.ShouldBeFalse();
-		options.AutomaticRetryInterval.ShouldBe(TimeSpan.FromHours(1));
-		options.AutomaticRetryBatchSize.ShouldBe(100);
-		options.EnableMonitoring.ShouldBeTrue();
-		options.MonitoringInterval.ShouldBe(TimeSpan.FromMinutes(5));
-		options.AlertThresholdMessageCount.ShouldBe(1000);
-		options.AlertThresholdMessageAge.ShouldBe(TimeSpan.FromHours(24));
+		options.Retry.EnableAutomaticRetry.ShouldBeFalse();
+		options.Retry.AutomaticRetryInterval.ShouldBe(TimeSpan.FromHours(1));
+		options.Retry.AutomaticRetryBatchSize.ShouldBe(100);
+		options.Monitoring.EnableMonitoring.ShouldBeTrue();
+		options.Monitoring.MonitoringInterval.ShouldBe(TimeSpan.FromMinutes(5));
+		options.Monitoring.AlertThresholdMessageCount.ShouldBe(1000);
+		options.Monitoring.AlertThresholdMessageAge.ShouldBe(TimeSpan.FromHours(24));
 		options.NonRetryableReasons.ShouldNotBeEmpty();
 		options.NonRetryableReasons.ShouldContain("INVALID_MESSAGE_FORMAT");
 		options.NonRetryableReasons.ShouldContain("UNAUTHORIZED");
 		options.NonRetryableReasons.ShouldContain("MESSAGE_TOO_LARGE");
 		options.NonRetryableReasons.ShouldContain("UNSUPPORTED_OPERATION");
 		options.PreserveMessageOrdering.ShouldBeFalse();
-		options.EnableCompression.ShouldBeTrue();
+		options.Retry.EnableCompression.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -46,30 +46,36 @@ public sealed class DeadLetterOptionsShould
 			DefaultMaxDeliveryAttempts = 10,
 			AutoCreateDeadLetterResources = false,
 			DeadLetterRetentionDuration = TimeSpan.FromDays(14),
-			EnableAutomaticRetry = true,
-			AutomaticRetryInterval = TimeSpan.FromHours(2),
-			AutomaticRetryBatchSize = 50,
-			EnableMonitoring = false,
-			MonitoringInterval = TimeSpan.FromMinutes(10),
-			AlertThresholdMessageCount = 500,
-			AlertThresholdMessageAge = TimeSpan.FromHours(12),
+			Retry =
+			{
+				EnableAutomaticRetry = true,
+				AutomaticRetryInterval = TimeSpan.FromHours(2),
+				AutomaticRetryBatchSize = 50,
+				EnableCompression = false,
+			},
+			Monitoring =
+			{
+				EnableMonitoring = false,
+				MonitoringInterval = TimeSpan.FromMinutes(10),
+				AlertThresholdMessageCount = 500,
+				AlertThresholdMessageAge = TimeSpan.FromHours(12),
+			},
 			PreserveMessageOrdering = true,
-			EnableCompression = false,
 		};
 
 		// Assert
 		options.DefaultMaxDeliveryAttempts.ShouldBe(10);
 		options.AutoCreateDeadLetterResources.ShouldBeFalse();
 		options.DeadLetterRetentionDuration.ShouldBe(TimeSpan.FromDays(14));
-		options.EnableAutomaticRetry.ShouldBeTrue();
-		options.AutomaticRetryInterval.ShouldBe(TimeSpan.FromHours(2));
-		options.AutomaticRetryBatchSize.ShouldBe(50);
-		options.EnableMonitoring.ShouldBeFalse();
-		options.MonitoringInterval.ShouldBe(TimeSpan.FromMinutes(10));
-		options.AlertThresholdMessageCount.ShouldBe(500);
-		options.AlertThresholdMessageAge.ShouldBe(TimeSpan.FromHours(12));
+		options.Retry.EnableAutomaticRetry.ShouldBeTrue();
+		options.Retry.AutomaticRetryInterval.ShouldBe(TimeSpan.FromHours(2));
+		options.Retry.AutomaticRetryBatchSize.ShouldBe(50);
+		options.Monitoring.EnableMonitoring.ShouldBeFalse();
+		options.Monitoring.MonitoringInterval.ShouldBe(TimeSpan.FromMinutes(10));
+		options.Monitoring.AlertThresholdMessageCount.ShouldBe(500);
+		options.Monitoring.AlertThresholdMessageAge.ShouldBe(TimeSpan.FromHours(12));
 		options.PreserveMessageOrdering.ShouldBeTrue();
-		options.EnableCompression.ShouldBeFalse();
+		options.Retry.EnableCompression.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -98,7 +104,10 @@ public sealed class DeadLetterOptionsShould
 	public void ValidateThrowWhenRetryIntervalTooShort()
 	{
 		// Arrange
-		var options = new GoogleDeadLetterOptions { AutomaticRetryInterval = TimeSpan.FromSeconds(30) };
+		var options = new GoogleDeadLetterOptions
+		{
+			Retry = { AutomaticRetryInterval = TimeSpan.FromSeconds(30) },
+		};
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(() => options.Validate())
@@ -109,7 +118,10 @@ public sealed class DeadLetterOptionsShould
 	public void ValidateThrowWhenRetryBatchSizeTooLarge()
 	{
 		// Arrange
-		var options = new GoogleDeadLetterOptions { AutomaticRetryBatchSize = 1001 };
+		var options = new GoogleDeadLetterOptions
+		{
+			Retry = { AutomaticRetryBatchSize = 1001 },
+		};
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(() => options.Validate())
@@ -120,7 +132,10 @@ public sealed class DeadLetterOptionsShould
 	public void ValidateThrowWhenMonitoringIntervalTooShort()
 	{
 		// Arrange
-		var options = new GoogleDeadLetterOptions { MonitoringInterval = TimeSpan.FromSeconds(10) };
+		var options = new GoogleDeadLetterOptions
+		{
+			Monitoring = { MonitoringInterval = TimeSpan.FromSeconds(10) },
+		};
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(() => options.Validate())
@@ -131,7 +146,10 @@ public sealed class DeadLetterOptionsShould
 	public void ValidateThrowWhenAlertThresholdNegative()
 	{
 		// Arrange
-		var options = new GoogleDeadLetterOptions { AlertThresholdMessageCount = -1 };
+		var options = new GoogleDeadLetterOptions
+		{
+			Monitoring = { AlertThresholdMessageCount = -1 },
+		};
 
 		// Act & Assert
 		Should.Throw<InvalidOperationException>(() => options.Validate())

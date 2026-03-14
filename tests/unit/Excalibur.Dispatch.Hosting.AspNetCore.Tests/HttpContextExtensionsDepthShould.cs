@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Hosting.AspNetCore;
 using Excalibur.Dispatch.Messaging;
 
@@ -33,7 +34,7 @@ public sealed class HttpContextExtensionsDepthShould : UnitTestBase
 		var messageContext = httpContext.CreateDispatchMessageContext();
 
 		// Assert
-		messageContext.Source.ShouldBe("WebRequest");
+		messageContext.GetSource().ShouldBe("WebRequest");
 	}
 
 	[Fact]
@@ -46,7 +47,7 @@ public sealed class HttpContextExtensionsDepthShould : UnitTestBase
 		var messageContext = httpContext.CreateDispatchMessageContext();
 
 		// Assert
-		messageContext.UserId.ShouldBe("user-42");
+		messageContext.GetUserId().ShouldBe("user-42");
 	}
 
 	[Fact]
@@ -65,7 +66,7 @@ public sealed class HttpContextExtensionsDepthShould : UnitTestBase
 		var messageContext = httpContext.CreateDispatchMessageContext();
 
 		// Assert
-		messageContext.UserId.ShouldBe("anonymous");
+		messageContext.GetUserId().ShouldBe("anonymous");
 	}
 
 	[Fact]
@@ -136,7 +137,7 @@ public sealed class HttpContextExtensionsDepthShould : UnitTestBase
 		var messageContext = httpContext.CreateDispatchMessageContext();
 
 		// Assert
-		messageContext.TenantId.ShouldBe("tenant-abc");
+		messageContext.GetTenantId().ShouldBe("tenant-abc");
 	}
 
 	[Fact]
@@ -150,7 +151,7 @@ public sealed class HttpContextExtensionsDepthShould : UnitTestBase
 		var messageContext = httpContext.CreateDispatchMessageContext();
 
 		// Assert
-		messageContext.TenantId.ShouldBeNull();
+		messageContext.GetTenantId().ShouldBeNull();
 	}
 
 	[Fact]
@@ -258,6 +259,100 @@ public sealed class HttpContextExtensionsDepthShould : UnitTestBase
 
 	#endregion
 
+	#region CreateDispatchMessageContext — Anonymous / Unauthenticated
+
+	[Fact]
+	public void CreateDispatchMessageContext_SetAnonymousUserId_WhenUserIsNotAuthenticated()
+	{
+		// Arrange — explicitly unauthenticated identity (no auth type)
+		var httpContext = new DefaultHttpContext
+		{
+			User = new ClaimsPrincipal(new ClaimsIdentity()),
+			RequestServices = TestServiceProvider,
+		};
+
+		// Act
+		var messageContext = httpContext.CreateDispatchMessageContext();
+
+		// Assert
+		messageContext.GetUserId().ShouldBe("anonymous");
+	}
+
+	#endregion
+
+	#region CorrelationId — Uniqueness
+
+	[Fact]
+	public void CorrelationId_GenerateDifferentValues_AcrossMultipleCalls()
+	{
+		// Arrange
+		var httpContext1 = new DefaultHttpContext();
+		var httpContext2 = new DefaultHttpContext();
+
+		// Act
+		var id1 = httpContext1.CorrelationId();
+		var id2 = httpContext2.CorrelationId();
+
+		// Assert — each call without a header should produce a unique ID
+		id1.Value.ShouldNotBe(id2.Value);
+	}
+
+	#endregion
+
+	#region CausationId — Edge Cases
+
+	[Fact]
+	public void CausationId_ReturnNull_WhenHeaderIsEmptyString()
+	{
+		// Arrange
+		var httpContext = new DefaultHttpContext();
+		httpContext.Request.Headers["X-Causation-Id"] = "";
+
+		// Act
+		var causationId = httpContext.CausationId();
+
+		// Assert
+		causationId.ShouldBeNull();
+	}
+
+	#endregion
+
+	#region TenantId — Edge Cases
+
+	[Fact]
+	public void TenantId_ReturnNull_WhenClaimIsWhitespaceOnly()
+	{
+		// Arrange — whitespace-only claim should be treated as absent
+		var httpContext = new DefaultHttpContext();
+		httpContext.Request.Host = new HostString("localhost");
+		httpContext.User = new ClaimsPrincipal(
+			new ClaimsIdentity([new Claim("tenant_id", "   ")], "test"));
+
+		// Act
+		var tenantId = httpContext.TenantId();
+
+		// Assert
+		tenantId.ShouldBeNull();
+	}
+
+	[Fact]
+	public void TenantId_ReturnNull_WhenClaimIsEmptyString()
+	{
+		// Arrange
+		var httpContext = new DefaultHttpContext();
+		httpContext.Request.Host = new HostString("localhost");
+		httpContext.User = new ClaimsPrincipal(
+			new ClaimsIdentity([new Claim("tenant_id", "")], "test"));
+
+		// Act
+		var tenantId = httpContext.TenantId();
+
+		// Assert
+		tenantId.ShouldBeNull();
+	}
+
+	#endregion
+
 	#region RemoteIpAddress
 
 	[Fact]
@@ -272,6 +367,20 @@ public sealed class HttpContextExtensionsDepthShould : UnitTestBase
 
 		// Assert
 		ip.ShouldBe("192.168.1.100");
+	}
+
+	[Fact]
+	public void RemoteIpAddress_ReturnIpv6Address_WhenConnectionHasIpv6()
+	{
+		// Arrange
+		var httpContext = new DefaultHttpContext();
+		httpContext.Connection.RemoteIpAddress = System.Net.IPAddress.IPv6Loopback;
+
+		// Act
+		var ip = httpContext.RemoteIpAddress();
+
+		// Assert
+		ip.ShouldBe("::1");
 	}
 
 	#endregion

@@ -6,6 +6,7 @@ using System.Text.Json;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Configuration;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Caching;
 using Excalibur.Dispatch.Messaging;
@@ -353,20 +354,23 @@ public sealed class CachingCoverageTargetedShould : UnitTestBase
 	public void DefaultCacheKeyBuilder_WithNullCacheKey_FallsBackToSerialization()
 	{
 		// Arrange -- ICacheable that returns null from GetCacheKey (non-string result)
-		var serializer = A.Fake<IJsonSerializer>();
-		A.CallTo(() => serializer.Serialize(A<object>._, A<Type>._)).Returns("{}");
+		using var serializer = new DispatchJsonSerializer();
 		var builder = new DefaultCacheKeyBuilder(serializer);
 		var action = new CacheableReturningNullKey();
 		var context = A.Fake<IMessageContext>();
-		A.CallTo(() => context.TenantId).Returns("t");
-		A.CallTo(() => context.UserId).Returns("u");
+		var features = new Dictionary<Type, object>();
+		var items = new Dictionary<string, object>(StringComparer.Ordinal);
+		A.CallTo(() => context.Features).Returns(features);
+		A.CallTo(() => context.Items).Returns(items);
+
+		var identity = new MessageIdentityFeature { TenantId = "t", UserId = "u" };
+		features[typeof(IMessageIdentityFeature)] = identity;
 
 		// Act -- GetCacheKey returns null, so TryGetCacheKeyFromInterface returns false (lines 74-75)
 		var key = builder.CreateKey(action, context);
 
-		// Assert -- should fall back to serialization
+		// Assert -- should fall back to serialization and produce a valid key
 		key.ShouldNotBeNullOrWhiteSpace();
-		A.CallTo(() => serializer.Serialize(action, A<Type>._)).MustHaveHappened();
 	}
 
 	// =========================================================================
@@ -424,4 +428,3 @@ public sealed class CachingCoverageTargetedShould : UnitTestBase
 		public string GetCacheKey() => null!;
 	}
 }
-

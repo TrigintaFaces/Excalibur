@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Messaging;
 /// <summary>
 /// Default implementation of <see cref="IMessageContextAccessor" /> that stores context in an <see cref="AsyncLocal{T}" />.
 /// </summary>
-public sealed class MessageContextAccessor : IMessageContextAccessor
+internal sealed class MessageContextAccessor : IMessageContextAccessor
 {
 	/// <summary>
 	/// Gets or sets the current message context.

@@ -22,6 +22,13 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.DataProcessing\Excalibur.Data.DataProcessing.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.SqlServer\Excalibur.Data.SqlServer.csproj" />
+    <!-- Extracted concern.provider packages -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Cdc.SqlServer\Excalibur.Cdc.SqlServer.csproj" />
+    <!-- Sprint 637 B.4: CDC cloud provider builder extension tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Cdc.CosmosDb\Excalibur.Cdc.CosmosDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Cdc.DynamoDb\Excalibur.Cdc.DynamoDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Cdc.MongoDB\Excalibur.Cdc.MongoDB.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Cdc.Firestore\Excalibur.Cdc.Firestore.csproj" />
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
   </ItemGroup>
 </Project>

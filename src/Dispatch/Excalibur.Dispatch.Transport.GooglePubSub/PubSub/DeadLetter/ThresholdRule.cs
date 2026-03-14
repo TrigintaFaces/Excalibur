@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// Detects poison messages based on failure count threshold.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="ThresholdRule" /> class. </remarks>
-public sealed class ThresholdRule(string name, int threshold) : PoisonDetectionRuleBase(name)
+internal sealed class ThresholdRule(string name, int threshold) : PoisonDetectionRuleBase(name)
 {
 	/// <inheritdoc />
 	public override bool IsPoison(PubsubMessage message, Exception exception, MessageFailureHistory history) =>

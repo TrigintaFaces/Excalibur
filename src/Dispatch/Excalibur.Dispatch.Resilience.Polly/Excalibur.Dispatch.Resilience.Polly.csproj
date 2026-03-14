@@ -37,6 +37,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Dispatch.Resilience.Tests.Unit" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Middleware.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
   <ItemGroup>
     <AdditionalFiles Include="PublicAPI.Shipped.txt" />

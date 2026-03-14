@@ -28,6 +28,7 @@
 		<PackageVersion Include="CloudNative.CloudEvents" Version="2.8.0" />
 		<PackageVersion Include="CloudNative.CloudEvents.SystemTextJson" Version="2.8.0" />
 		<PackageVersion Include="Google.Protobuf" Version="3.32.1" />
+		<PackageVersion Include="Apache.Avro" Version="1.12.0" />
 		<!-- Resilience / Telemetry -->
 		<PackageVersion Include="Polly" Version="8.6.4" />
 		<PackageVersion Include="Microsoft.ApplicationInsights" Version="2.23.0" />
@@ -159,6 +160,7 @@
 		<PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.0" />
 		<PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions" Version="10.0.0" />
 		<PackageVersion Include="FluentValidation" Version="12.0.0" />
+		<PackageVersion Include="Wasmtime" Version="34.0.2" />
 		<!-- Caching / Redis -->
 		<PackageVersion Include="StackExchange.Redis" Version="2.9.25" />
 		<PackageVersion Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.0" />
@@ -260,6 +262,7 @@
 		<PackageVersion Include="Serilog" Version="3.1.1" />
 		<PackageVersion Include="Serilog.Extensions.Logging" Version="8.0.0" />
 		<PackageVersion Include="Serilog.Extensions.Hosting" Version="8.0.0" />
+		<PackageVersion Include="Serilog.Settings.Configuration" Version="8.0.0" />
 		<PackageVersion Include="AspNetCore.HealthChecks.UI" Version="9.0.0" />
 		<PackageVersion Include="AspNetCore.HealthChecks.UI.Client" Version="9.0.0" />
 		<PackageVersion Include="Testcontainers.Elasticsearch" Version="4.7.0" />

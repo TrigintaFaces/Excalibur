@@ -19,12 +19,12 @@ public sealed class MySqlProviderOptionsShould
 		options.CommandTimeout.ShouldBe(30);
 		options.ConnectTimeout.ShouldBe(15);
 		options.MaxRetryCount.ShouldBe(3);
-		options.MaxPoolSize.ShouldBe(100);
-		options.MinPoolSize.ShouldBe(0);
-		options.EnablePooling.ShouldBeTrue();
+		options.Pooling.MaxPoolSize.ShouldBe(100);
+		options.Pooling.MinPoolSize.ShouldBe(0);
+		options.Pooling.EnablePooling.ShouldBeTrue();
 		options.ApplicationName.ShouldBeNull();
 		options.UseSsl.ShouldBeFalse();
-		options.ClearPoolOnDispose.ShouldBeFalse();
+		options.Pooling.ClearPoolOnDispose.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -59,14 +59,17 @@ public sealed class MySqlProviderOptionsShould
 	{
 		var options = new MySqlProviderOptions
 		{
-			MaxPoolSize = 50,
-			MinPoolSize = 5,
-			EnablePooling = false
+			Pooling =
+			{
+				MaxPoolSize = 50,
+				MinPoolSize = 5,
+				EnablePooling = false,
+			},
 		};
 
-		options.MaxPoolSize.ShouldBe(50);
-		options.MinPoolSize.ShouldBe(5);
-		options.EnablePooling.ShouldBeFalse();
+		options.Pooling.MaxPoolSize.ShouldBe(50);
+		options.Pooling.MinPoolSize.ShouldBe(5);
+		options.Pooling.EnablePooling.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -79,8 +82,12 @@ public sealed class MySqlProviderOptionsShould
 	[Fact]
 	public void AllowClearPoolOnDispose()
 	{
-		var options = new MySqlProviderOptions { ClearPoolOnDispose = true };
-		options.ClearPoolOnDispose.ShouldBeTrue();
+		var options = new MySqlProviderOptions
+		{
+			Pooling = { ClearPoolOnDispose = true },
+		};
+
+		options.Pooling.ClearPoolOnDispose.ShouldBeTrue();
 	}
 
 	[Fact]

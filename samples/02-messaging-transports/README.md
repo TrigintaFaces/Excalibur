@@ -79,32 +79,31 @@ dotnet run
 
 ### Transport Configuration
 
+Each transport is registered directly on `IServiceCollection` with a named instance:
+
 ```csharp
-builder.Services.AddEventTransports(transports =>
+// RabbitMQ
+builder.Services.AddRabbitMQTransport("rabbitmq", rmq =>
 {
-    // RabbitMQ
-    transports.AddRabbitMq("rabbitmq", opts =>
-    {
-        opts.ConnectionString = "amqp://guest:guest@localhost:5672";
-    });
+    _ = rmq.ConnectionString("amqp://guest:guest@localhost:5672");
+});
 
-    // Kafka
-    transports.AddKafka("kafka", opts =>
-    {
-        opts.BootstrapServers = "localhost:9092";
-    });
+// Kafka
+builder.Services.AddKafkaTransport("kafka", kafka =>
+{
+    _ = kafka.BootstrapServers("localhost:9092");
+});
 
-    // Azure Service Bus
-    transports.AddAzureServiceBus("azuresb", opts =>
-    {
-        opts.ConnectionString = "Endpoint=sb://...";
-    });
+// Azure Service Bus
+builder.Services.AddAzureServiceBusTransport("azuresb", asb =>
+{
+    _ = asb.ConnectionString("Endpoint=sb://...");
+});
 
-    // AWS SQS
-    transports.AddAwsSqs("sqs", opts =>
-    {
-        opts.Region = "us-east-1";
-    });
+// AWS SQS
+builder.Services.AddAwsSqsTransport("sqs", sqs =>
+{
+    _ = sqs.Region("us-east-1");
 });
 ```
 
@@ -115,26 +114,34 @@ Route specific message types to specific transports:
 ```csharp
 builder.Services.AddDispatch(dispatch =>
 {
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    _ = dispatch.WithRoutingRules(rules =>
+    _ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+    _ = dispatch.UseRouting(routing =>
     {
-        rules.AddRule<OrderEvent>((_, _) => "rabbitmq");
-        rules.AddRule<SensorReading>((_, _) => "kafka");
-        rules.AddRule<AuditEvent>((_, _) => "azuresb");
+        routing.Transport.Route<OrderEvent>().To("rabbitmq");
+        routing.Transport.Route<SensorReading>().To("kafka");
+        routing.Transport.Route<AuditEvent>().To("azuresb");
     });
 });
 ```
 
-### Multi-Bus Architecture
+### Multi-Transport Architecture
 
-When you need separate message buses for different concerns:
+When you need multiple transports for different concerns, register each transport separately and use routing to direct message types:
 
 ```csharp
-// Local bus for internal commands
-var localBus = services.AddDispatchBus("local", cfg => cfg.UseInMemory());
+// Register both transports
+builder.Services.AddRabbitMQTransport("rabbitmq", rmq => { /* ... */ });
+builder.Services.AddKafkaTransport("kafka", kafka => { /* ... */ });
 
-// Remote bus for integration events
-var remoteBus = services.AddDispatchBus("remote", cfg => cfg.UseRabbitMq());
+// Route messages to the appropriate transport
+builder.Services.AddDispatch(dispatch =>
+{
+    _ = dispatch.UseRouting(routing =>
+    {
+        routing.Transport.Route<OrderEvent>().To("rabbitmq");
+        routing.Transport.Route<AnalyticsEvent>().To("kafka");
+    });
+});
 ```
 
 ## Prerequisites

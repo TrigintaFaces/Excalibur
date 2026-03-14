@@ -3,7 +3,7 @@
 
 using System.Collections.ObjectModel;
 
-using Excalibur.Data.SqlServer.Cdc;
+using Excalibur.Cdc.SqlServer;
 using Excalibur.Jobs.Cdc;
 using Excalibur.Jobs.Core;
 

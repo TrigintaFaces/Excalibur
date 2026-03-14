@@ -42,13 +42,13 @@ public sealed class ExcaliburGoogleCloudFunctionsServiceCollectionExtensionsShou
 		// Act
 		services.AddExcaliburGoogleCloudFunctionsServerless(options =>
 		{
-			options.EnableMetrics = false;
+			options.Telemetry.EnableMetrics = false;
 		});
 
 		// Assert
 		var provider = services.BuildServiceProvider();
 		var resolved = provider.GetRequiredService<IOptions<ServerlessHostOptions>>();
-		resolved.Value.EnableMetrics.ShouldBeFalse();
+		resolved.Value.Telemetry.EnableMetrics.ShouldBeFalse();
 	}
 
 	[Fact]

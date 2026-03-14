@@ -12,13 +12,14 @@ namespace Excalibur.Dispatch.Transport.Tests.AwsSqs.Sqs;
 [Trait("Component", "Transport")]
 public sealed class SqsMessageEnvelopeShould : IDisposable
 {
-	private readonly IMessageContext _context = A.Fake<IMessageContext>();
+	private readonly IMessageContext _context;
 	private readonly Dictionary<string, object> _items = new(StringComparer.Ordinal);
 
 	public SqsMessageEnvelopeShould()
 	{
+		_context = A.Fake<IMessageContext>();
 		A.CallTo(() => _context.Items).Returns(_items);
-		A.CallTo(() => _context.DeliveryCount).Returns(0);
+		A.CallTo(() => _context.Features).Returns(new Dictionary<Type, object>());
 	}
 
 	[Fact]

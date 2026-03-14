@@ -1,0 +1,38 @@
+#nullable enable
+Excalibur.Inbox.SqlServer.SqlServerInboxOptions
+Excalibur.Inbox.SqlServer.SqlServerInboxOptions.CommandTimeoutSeconds.get -> int
+Excalibur.Inbox.SqlServer.SqlServerInboxOptions.CommandTimeoutSeconds.set -> void
+Excalibur.Inbox.SqlServer.SqlServerInboxOptions.ConnectionString.get -> string!
+Excalibur.Inbox.SqlServer.SqlServerInboxOptions.ConnectionString.set -> void
+Excalibur.Inbox.SqlServer.SqlServerInboxOptions.MaxRetryCount.get -> int
+Excalibur.Inbox.SqlServer.SqlServerInboxOptions.MaxRetryCount.set -> void
+Excalibur.Inbox.SqlServer.SqlServerInboxOptions.QualifiedTableName.get -> string!
+Excalibur.Inbox.SqlServer.SqlServerInboxOptions.SchemaName.get -> string!
+Excalibur.Inbox.SqlServer.SqlServerInboxOptions.SchemaName.set -> void
+Excalibur.Inbox.SqlServer.SqlServerInboxOptions.SqlServerInboxOptions() -> void
+Excalibur.Inbox.SqlServer.SqlServerInboxOptions.TableName.get -> string!
+Excalibur.Inbox.SqlServer.SqlServerInboxOptions.TableName.set -> void
+Excalibur.Inbox.SqlServer.SqlServerInboxStore
+Excalibur.Inbox.SqlServer.SqlServerInboxStore.CleanupAsync(System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Excalibur.Inbox.SqlServer.SqlServerInboxStore.CreateEntryAsync(string! messageId, string! handlerType, string! messageType, byte[]! payload, System.Collections.Generic.IDictionary<string!, object!>! metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry!>
+Excalibur.Inbox.SqlServer.SqlServerInboxStore.GetAllEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry!>!>
+Excalibur.Inbox.SqlServer.SqlServerInboxStore.GetEntryAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry?>
+Excalibur.Inbox.SqlServer.SqlServerInboxStore.GetFailedEntriesAsync(int maxRetries, System.DateTimeOffset? olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry!>!>
+Excalibur.Inbox.SqlServer.SqlServerInboxStore.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxStatistics!>
+Excalibur.Inbox.SqlServer.SqlServerInboxStore.IsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Excalibur.Inbox.SqlServer.SqlServerInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Inbox.SqlServer.SqlServerInboxStore.MarkProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Inbox.SqlServer.SqlServerInboxStore.SqlServerInboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.SqlServer.SqlServerInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.SqlServer.SqlServerInboxStore!>! logger) -> void
+Excalibur.Inbox.SqlServer.SqlServerInboxStore.SqlServerInboxStore(System.Func<Microsoft.Data.SqlClient.SqlConnection!>! connectionFactory, Excalibur.Inbox.SqlServer.SqlServerInboxOptions! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.SqlServer.SqlServerInboxStore!>! logger) -> void
+Excalibur.Inbox.SqlServer.SqlServerInboxStore.TryMarkAsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Microsoft.Extensions.DependencyInjection.InboxBuilderSqlServerExtensions
+Microsoft.Extensions.DependencyInjection.SqlServerInboxExtensions
+static Microsoft.Extensions.DependencyInjection.InboxBuilderSqlServerExtensions.UseSqlServer(this Excalibur.Inbox.DependencyInjection.IInboxBuilder! builder, string! connectionString) -> Excalibur.Inbox.DependencyInjection.IInboxBuilder!
+static Microsoft.Extensions.DependencyInjection.InboxBuilderSqlServerExtensions.UseSqlServer(this Excalibur.Inbox.DependencyInjection.IInboxBuilder! builder, System.Action<Excalibur.Inbox.SqlServer.SqlServerInboxOptions!>! configure) -> Excalibur.Inbox.DependencyInjection.IInboxBuilder!
+static Microsoft.Extensions.DependencyInjection.InboxBuilderSqlServerExtensions.UseSqlServer(this Excalibur.Inbox.DependencyInjection.IInboxBuilder! builder, System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! connectionFactoryProvider, System.Action<Excalibur.Inbox.SqlServer.SqlServerInboxOptions!>! configure) -> Excalibur.Inbox.DependencyInjection.IInboxBuilder!
+static Microsoft.Extensions.DependencyInjection.SqlServerInboxExtensions.AddSqlServerInboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerInboxExtensions.AddSqlServerInboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Inbox.SqlServer.SqlServerInboxOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerInboxExtensions.AddSqlServerInboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! connectionFactoryProvider, System.Action<Excalibur.Inbox.SqlServer.SqlServerInboxOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SqlServerInboxExtensions.UseSqlServerInboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, string! connectionString) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.SqlServerInboxExtensions.UseSqlServerInboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Inbox.SqlServer.SqlServerInboxOptions!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.SqlServerInboxExtensions.UseSqlServerInboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! connectionFactoryProvider, System.Action<Excalibur.Inbox.SqlServer.SqlServerInboxOptions!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!

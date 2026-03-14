@@ -15,9 +15,13 @@ namespace Excalibur.Data.Postgres.Persistence;
 /// Configuration options for Postgres persistence provider.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Properties mandated by <see cref="IPersistenceOptions"/> remain on this root class.
 /// Postgres-specific networking/connection settings are in <see cref="Connection"/>,
-/// and prepared-statement settings are in <see cref="Statements"/>.
+/// prepared-statement settings are in <see cref="Statements"/>,
+/// pooling settings are in <see cref="Pooling"/>,
+/// and resilience settings are in <see cref="Resilience"/>.
+/// </para>
 /// </remarks>
 public sealed class PostgresPersistenceOptions : IPersistenceOptions, IPersistenceResilienceOptions, IPersistencePoolingOptions, IPersistenceObservabilityOptions
 {
@@ -47,50 +51,6 @@ public sealed class PostgresPersistenceOptions : IPersistenceOptions, IPersisten
 	/// </value>
 	[Range(1, 3600, ErrorMessage = "Command timeout must be between 1 and 3600 seconds")]
 	public int CommandTimeout { get; set; } = 30;
-
-	/// <summary>
-	/// Gets or sets the maximum number of retry attempts for transient failures. Default is 3.
-	/// </summary>
-	/// <value>
-	/// The maximum number of retry attempts for transient failures. Default is 3.
-	/// </value>
-	[Range(0, 10, ErrorMessage = "Max retry attempts must be between 0 and 10")]
-	public int MaxRetryAttempts { get; set; } = 3;
-
-	/// <summary>
-	/// Gets or sets the delay between retry attempts in milliseconds. Default is 1000ms.
-	/// </summary>
-	/// <value>
-	/// The delay between retry attempts in milliseconds. Default is 1000ms.
-	/// </value>
-	[Range(100, 30000, ErrorMessage = "Retry delay must be between 100 and 30000 milliseconds")]
-	public int RetryDelayMilliseconds { get; set; } = 1000;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable connection pooling. Default is true.
-	/// </summary>
-	/// <value>
-	/// A value indicating whether to enable connection pooling. Default is true.
-	/// </value>
-	public bool EnableConnectionPooling { get; set; } = true;
-
-	/// <summary>
-	/// Gets or sets the maximum pool size when connection pooling is enabled. Default is 100.
-	/// </summary>
-	/// <value>
-	/// The maximum pool size when connection pooling is enabled. Default is 100.
-	/// </value>
-	[Range(1, 1000, ErrorMessage = "Max pool size must be between 1 and 1000")]
-	public int MaxPoolSize { get; set; } = 100;
-
-	/// <summary>
-	/// Gets or sets the minimum pool size when connection pooling is enabled. Default is 0.
-	/// </summary>
-	/// <value>
-	/// The minimum pool size when connection pooling is enabled. Default is 0.
-	/// </value>
-	[Range(0, 100, ErrorMessage = "Min pool size must be between 0 and 100")]
-	public int MinPoolSize { get; set; }
 
 	/// <summary>
 	/// Gets or sets a value indicating whether to enable detailed logging. Default is false.
@@ -133,6 +93,61 @@ public sealed class PostgresPersistenceOptions : IPersistenceOptions, IPersisten
 	public PostgresStatementOptions Statements { get; } = new();
 
 	/// <summary>
+	/// Gets the connection pooling options.
+	/// </summary>
+	/// <value>
+	/// The pooling options including pool sizing and enablement.
+	/// </value>
+	public PostgresPersistencePoolingOptions Pooling { get; } = new();
+
+	/// <summary>
+	/// Gets the resilience options for retry behavior.
+	/// </summary>
+	/// <value>
+	/// The resilience options including retry attempts and delay.
+	/// </value>
+	public PostgresPersistenceResilienceOptions Resilience { get; } = new();
+
+	// Explicit interface implementations delegating to sub-options.
+	// These maintain compatibility with IPersistenceOptions consumers
+	// (e.g., PersistenceConfiguration) while keeping the root class <=10 properties.
+
+	/// <inheritdoc />
+	int IPersistenceResilienceOptions.MaxRetryAttempts
+	{
+		get => Resilience.MaxRetryAttempts;
+		set => Resilience.MaxRetryAttempts = value;
+	}
+
+	/// <inheritdoc />
+	int IPersistenceResilienceOptions.RetryDelayMilliseconds
+	{
+		get => Resilience.RetryDelayMilliseconds;
+		set => Resilience.RetryDelayMilliseconds = value;
+	}
+
+	/// <inheritdoc />
+	bool IPersistencePoolingOptions.EnableConnectionPooling
+	{
+		get => Pooling.EnableConnectionPooling;
+		set => Pooling.EnableConnectionPooling = value;
+	}
+
+	/// <inheritdoc />
+	int IPersistencePoolingOptions.MaxPoolSize
+	{
+		get => Pooling.MaxPoolSize;
+		set => Pooling.MaxPoolSize = value;
+	}
+
+	/// <inheritdoc />
+	int IPersistencePoolingOptions.MinPoolSize
+	{
+		get => Pooling.MinPoolSize;
+		set => Pooling.MinPoolSize = value;
+	}
+
+	/// <summary>
 	/// Validates the options and throws an exception if invalid.
 	/// </summary>
 	/// <exception cref="ValidationException"> Thrown when validation fails. </exception>
@@ -149,12 +164,12 @@ public sealed class PostgresPersistenceOptions : IPersistenceOptions, IPersisten
 		}
 
 		// Additional custom validation
-		if (MinPoolSize > MaxPoolSize)
+		if (Pooling.MinPoolSize > Pooling.MaxPoolSize)
 		{
 			throw new ValidationException("MinPoolSize cannot be greater than MaxPoolSize");
 		}
 
-		if (EnableConnectionPooling && MaxPoolSize < 1)
+		if (Pooling.EnableConnectionPooling && Pooling.MaxPoolSize < 1)
 		{
 			throw new ValidationException("MaxPoolSize must be at least 1 when connection pooling is enabled");
 		}
@@ -179,9 +194,9 @@ public sealed class PostgresPersistenceOptions : IPersistenceOptions, IPersisten
 		{
 			Timeout = ConnectionTimeout,
 			CommandTimeout = CommandTimeout,
-			Pooling = EnableConnectionPooling,
-			MaxPoolSize = MaxPoolSize,
-			MinPoolSize = MinPoolSize,
+			Pooling = Pooling.EnableConnectionPooling,
+			MaxPoolSize = Pooling.MaxPoolSize,
+			MinPoolSize = Pooling.MinPoolSize,
 			ConnectionIdleLifetime = Connection.ConnectionIdleLifetime,
 			ConnectionPruningInterval = Connection.ConnectionPruningInterval,
 			IncludeErrorDetail = Connection.IncludeErrorDetail,

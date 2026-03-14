@@ -27,7 +27,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// for key storage.
 /// </para>
 /// </remarks>
-public sealed partial class CachingSchemaRegistryClient : ISchemaRegistryClient
+internal sealed partial class CachingSchemaRegistryClient : ISchemaRegistryClient
 {
 	private const string SchemaIdPrefix = "schema:";
 	private const string SchemaByIdPrefix = "id:";

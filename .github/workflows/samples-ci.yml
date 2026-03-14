@@ -30,6 +30,8 @@ on:
         default: false
         type: boolean
 
+permissions: read-all
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -50,6 +52,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: List sample directories
         id: list
@@ -88,10 +93,13 @@ jobs:
         sample: ${{ fromJson(needs.enumerate-samples.outputs.samples) }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.1.7
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          token: ${{ github.token }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v4.0.1
         with:
           dotnet-version: |
             8.0.x

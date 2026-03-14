@@ -160,7 +160,7 @@ public sealed class OutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.MaxRetryCount.ShouldBe(10);
+		options.Retry.MaxRetryCount.ShouldBe(10);
 	}
 
 	[Fact]
@@ -182,7 +182,7 @@ public sealed class OutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.RetryDelay.ShouldBe(expectedDelay);
+		options.Retry.RetryDelay.ShouldBe(expectedDelay);
 	}
 
 	[Fact]
@@ -255,8 +255,8 @@ public sealed class OutboxBuilderShould : UnitTestBase
 		var options = provider.GetRequiredService<OutboxOptions>();
 		options.BatchSize.ShouldBe(250);
 		options.PollingInterval.ShouldBe(TimeSpan.FromSeconds(10));
-		options.MaxRetryCount.ShouldBe(5);
-		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(2));
+		options.Retry.MaxRetryCount.ShouldBe(5);
+		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(2));
 		options.ProcessorId.ShouldBe("test-processor");
 		options.EnableParallelProcessing.ShouldBeTrue();
 		options.MaxDegreeOfParallelism.ShouldBe(4);
@@ -294,7 +294,7 @@ public sealed class OutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.EnableAutomaticCleanup.ShouldBeTrue();
+		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -315,7 +315,7 @@ public sealed class OutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.EnableAutomaticCleanup.ShouldBeFalse();
+		options.Cleanup.EnableAutomaticCleanup.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -337,7 +337,7 @@ public sealed class OutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.MessageRetentionPeriod.ShouldBe(expectedPeriod);
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(expectedPeriod);
 	}
 
 	[Fact]
@@ -359,7 +359,7 @@ public sealed class OutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.CleanupInterval.ShouldBe(expectedInterval);
+		options.Cleanup.CleanupInterval.ShouldBe(expectedInterval);
 	}
 
 	[Fact]
@@ -383,9 +383,9 @@ public sealed class OutboxBuilderShould : UnitTestBase
 
 		// Assert
 		var options = provider.GetRequiredService<OutboxOptions>();
-		options.EnableAutomaticCleanup.ShouldBeTrue();
-		options.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
-		options.CleanupInterval.ShouldBe(TimeSpan.FromHours(2));
+		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
+		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromHours(2));
 	}
 
 	[Fact]
@@ -426,8 +426,8 @@ public sealed class OutboxBuilderShould : UnitTestBase
 		var options = provider.GetRequiredService<OutboxOptions>();
 		options.BatchSize.ShouldBe(100);
 		options.PollingInterval.ShouldBe(TimeSpan.FromSeconds(10));
-		options.EnableAutomaticCleanup.ShouldBeTrue();
-		options.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(7));
+		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(7));
 		options.EnableBackgroundProcessing.ShouldBeTrue();
 	}
 }

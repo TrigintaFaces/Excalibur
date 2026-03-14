@@ -6,6 +6,7 @@
 using System.Diagnostics;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Observability.Context;
@@ -141,7 +142,7 @@ public sealed class ContextTraceEnricherDepthShould : IDisposable
 		activity.ShouldNotBeNull();
 
 		var context = CreateFakeContext();
-		A.CallTo(() => context.UserId).Returns("user-123");
+		context.GetOrCreateIdentityFeature().UserId = "user-123";
 
 		// Act
 		_enricher.EnrichActivity(activity, context);
@@ -324,7 +325,7 @@ public sealed class ContextTraceEnricherDepthShould : IDisposable
 			.Returns("hash-user");
 		_enricher = CreateEnricher();
 		var context = CreateFakeContext();
-		A.CallTo(() => context.UserId).Returns("user-123");
+		context.GetOrCreateIdentityFeature().UserId = "user-123";
 		var carrier = new Dictionary<string, string>();
 
 		// Act
@@ -418,8 +419,8 @@ public sealed class ContextTraceEnricherDepthShould : IDisposable
 
 		var context = CreateFakeContext();
 		// Valid W3C trace parent format: version-traceId-spanId-flags
-		A.CallTo(() => context.TraceParent)
-			.Returns("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01");
+		context.GetOrCreateIdentityFeature().TraceParent =
+			"00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
 
 		// Act
 		_enricher.EnrichActivity(activity, context);
@@ -445,7 +446,7 @@ public sealed class ContextTraceEnricherDepthShould : IDisposable
 		activity.ShouldNotBeNull();
 
 		var context = CreateFakeContext();
-		A.CallTo(() => context.TraceParent).Returns("invalid-trace-parent");
+		context.GetOrCreateIdentityFeature().TraceParent = "invalid-trace-parent";
 
 		// Act — should not throw
 		_enricher.EnrichActivity(activity, context);
@@ -465,15 +466,27 @@ public sealed class ContextTraceEnricherDepthShould : IDisposable
 	private static IMessageContext CreateFakeContext()
 	{
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>();
+		var features = new Dictionary<Type, object>();
+
 		A.CallTo(() => context.MessageId).Returns("msg-1");
 		A.CallTo(() => context.CorrelationId).Returns("corr-1");
 		A.CallTo(() => context.CausationId).Returns("cause-1");
-		A.CallTo(() => context.MessageType).Returns("OrderCreated");
-		A.CallTo(() => context.UserId).Returns("user-1");
-		A.CallTo(() => context.TenantId).Returns("tenant-1");
-		A.CallTo(() => context.Source).Returns("test-source");
-		A.CallTo(() => context.ReceivedTimestampUtc).Returns(DateTimeOffset.UtcNow);
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
+
+		// Set Items-based properties via extension methods
+		context.SetMessageType("OrderCreated");
+		context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
+
+		// Set Features-based properties
+		var identity = context.GetOrCreateIdentityFeature();
+		identity.UserId = "user-1";
+		identity.TenantId = "tenant-1";
+
+		var routing = context.GetOrCreateRoutingFeature();
+		routing.Source = "test-source";
+
 		return context;
 	}
 }

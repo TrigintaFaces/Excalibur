@@ -11,6 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Excalibur.Domain\Excalibur.Domain.csproj" />
     <ProjectReference Include="..\Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
+    <ProjectReference Include="..\Excalibur.Inbox.InMemory\Excalibur.Inbox.InMemory.csproj" />
     <ProjectReference Include="..\Excalibur.EventSourcing.InMemory\Excalibur.EventSourcing.InMemory.csproj" />
   </ItemGroup>
   <!-- Development mode: Dispatch ProjectReferences -->

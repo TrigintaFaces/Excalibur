@@ -41,8 +41,8 @@ public sealed class AwsKmsProviderShould : IDisposable
 		{
 			KeyAliasPrefix = "test-dispatch",
 			Environment = "test",
-			EnableAutoRotation = true,
-			MetadataCacheDurationSeconds = 60
+			KeyPolicy = { EnableAutoRotation = true },
+			Cache = { MetadataCacheDurationSeconds = 60 }
 		};
 
 		_sut = new AwsKmsProvider(
@@ -1075,7 +1075,7 @@ public sealed class AwsKmsProviderShould : IDisposable
 		{
 			KeyAliasPrefix = "test-dispatch",
 			Environment = "test",
-			EnableAutoRotation = false
+			KeyPolicy = { EnableAutoRotation = false }
 		};
 
 		using var cache = new MemoryCache(new MemoryCacheOptions());
@@ -1268,7 +1268,7 @@ public sealed class AwsKmsProviderShould : IDisposable
 		var optionsWithMrk = new AwsKmsOptions
 		{
 			KeyAliasPrefix = "test-dispatch",
-			CreateMultiRegionKeys = true
+			KeyPolicy = { CreateMultiRegionKeys = true }
 		};
 
 		using var cache = new MemoryCache(new MemoryCacheOptions());

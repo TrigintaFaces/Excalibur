@@ -18,7 +18,7 @@ public sealed class DynamoDbOutboxServiceCollectionExtensionsShould : UnitTestBa
 		// Act
 		_ = services.AddDynamoDbOutboxStore(options =>
 		{
-			options.ServiceUrl = "http://localhost:8000";
+			options.Connection.ServiceUrl = "http://localhost:8000";
 		});
 
 		// Assert - Check services are registered
@@ -39,7 +39,7 @@ public sealed class DynamoDbOutboxServiceCollectionExtensionsShould : UnitTestBa
 		// Act
 		_ = services.AddDynamoDbOutboxStore(options =>
 		{
-			options.ServiceUrl = "http://localhost:8000";
+			options.Connection.ServiceUrl = "http://localhost:8000";
 			options.TableName = "custom-table";
 		});
 
@@ -78,7 +78,7 @@ public sealed class DynamoDbOutboxServiceCollectionExtensionsShould : UnitTestBa
 		var configuration = new ConfigurationBuilder()
 			.AddInMemoryCollection(new Dictionary<string, string?>
 			{
-				["ServiceUrl"] = "http://localhost:8000",
+				["Connection:ServiceUrl"] = "http://localhost:8000",
 			})
 			.Build();
 
@@ -124,7 +124,7 @@ public sealed class DynamoDbOutboxServiceCollectionExtensionsShould : UnitTestBa
 		var services = new ServiceCollection();
 		var options = new DynamoDbOutboxOptions
 		{
-			ServiceUrl = "http://localhost:8000",
+			Connection = { ServiceUrl = "http://localhost:8000" },
 			TableName = "custom-table",
 		};
 
@@ -172,7 +172,7 @@ public sealed class DynamoDbOutboxServiceCollectionExtensionsShould : UnitTestBa
 		// Act
 		var result = services.AddDynamoDbOutboxStore(options =>
 		{
-			options.ServiceUrl = "http://localhost:8000";
+			options.Connection.ServiceUrl = "http://localhost:8000";
 		});
 
 		// Assert

@@ -9,7 +9,7 @@ using Amazon.Scheduler;
 using Amazon.Scheduler.Model;
 
 using Excalibur.Jobs.Abstractions;
-using Excalibur.Jobs.CloudProviders.Aws;
+using Excalibur.Jobs.Aws;
 
 using FakeItEasy;
 

@@ -1,1 +1,106 @@
 #nullable enable
+Excalibur.Dispatch.Serialization.MemoryPack.EventEnvelope
+Excalibur.Dispatch.Serialization.MemoryPack.EventEnvelope.AggregateId.get -> System.Guid
+Excalibur.Dispatch.Serialization.MemoryPack.EventEnvelope.AggregateId.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.EventEnvelope.AggregateType.get -> string!
+Excalibur.Dispatch.Serialization.MemoryPack.EventEnvelope.AggregateType.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.EventEnvelope.EventEnvelope() -> void
+Excalibur.Dispatch.Serialization.MemoryPack.EventEnvelope.EventId.get -> System.Guid
+Excalibur.Dispatch.Serialization.MemoryPack.EventEnvelope.EventId.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.EventEnvelope.EventType.get -> string!
+Excalibur.Dispatch.Serialization.MemoryPack.EventEnvelope.EventType.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.EventEnvelope.Metadata.get -> System.Collections.Generic.Dictionary<string!, string!>?
+Excalibur.Dispatch.Serialization.MemoryPack.EventEnvelope.Metadata.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.EventEnvelope.OccurredAt.get -> System.DateTimeOffset
+Excalibur.Dispatch.Serialization.MemoryPack.EventEnvelope.OccurredAt.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.EventEnvelope.Payload.get -> byte[]!
+Excalibur.Dispatch.Serialization.MemoryPack.EventEnvelope.Payload.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.EventEnvelope.SchemaVersion.get -> int
+Excalibur.Dispatch.Serialization.MemoryPack.EventEnvelope.SchemaVersion.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.EventEnvelope.Version.get -> long
+Excalibur.Dispatch.Serialization.MemoryPack.EventEnvelope.Version.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.InboxEnvelope
+Excalibur.Dispatch.Serialization.MemoryPack.InboxEnvelope.CorrelationId.get -> string?
+Excalibur.Dispatch.Serialization.MemoryPack.InboxEnvelope.CorrelationId.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.InboxEnvelope.InboxEnvelope() -> void
+Excalibur.Dispatch.Serialization.MemoryPack.InboxEnvelope.MessageId.get -> System.Guid
+Excalibur.Dispatch.Serialization.MemoryPack.InboxEnvelope.MessageId.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.InboxEnvelope.MessageType.get -> string!
+Excalibur.Dispatch.Serialization.MemoryPack.InboxEnvelope.MessageType.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.InboxEnvelope.Metadata.get -> System.Collections.Generic.Dictionary<string!, string!>?
+Excalibur.Dispatch.Serialization.MemoryPack.InboxEnvelope.Metadata.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.InboxEnvelope.Payload.get -> byte[]!
+Excalibur.Dispatch.Serialization.MemoryPack.InboxEnvelope.Payload.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.InboxEnvelope.ReceivedAt.get -> System.DateTimeOffset
+Excalibur.Dispatch.Serialization.MemoryPack.InboxEnvelope.ReceivedAt.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.InboxEnvelope.SchemaVersion.get -> int
+Excalibur.Dispatch.Serialization.MemoryPack.InboxEnvelope.SchemaVersion.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.InboxEnvelope.SourceTransport.get -> string?
+Excalibur.Dispatch.Serialization.MemoryPack.InboxEnvelope.SourceTransport.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.MemoryPackSerializer
+Excalibur.Dispatch.Serialization.MemoryPack.MemoryPackSerializer.ContentType.get -> string!
+Excalibur.Dispatch.Serialization.MemoryPack.MemoryPackSerializer.Deserialize<T>(System.ReadOnlySpan<byte> data) -> T
+Excalibur.Dispatch.Serialization.MemoryPack.MemoryPackSerializer.DeserializeObject(System.ReadOnlySpan<byte> data, System.Type! type) -> object!
+Excalibur.Dispatch.Serialization.MemoryPack.MemoryPackSerializer.MemoryPackSerializer() -> void
+Excalibur.Dispatch.Serialization.MemoryPack.MemoryPackSerializer.Name.get -> string!
+Excalibur.Dispatch.Serialization.MemoryPack.MemoryPackSerializer.Serialize<T>(T value, System.Buffers.IBufferWriter<byte>! bufferWriter) -> void
+Excalibur.Dispatch.Serialization.MemoryPack.MemoryPackSerializer.SerializeObject(object! value, System.Type! type) -> byte[]!
+Excalibur.Dispatch.Serialization.MemoryPack.MemoryPackSerializer.Version.get -> string!
+Excalibur.Dispatch.Serialization.MemoryPack.OutboxEnvelope
+Excalibur.Dispatch.Serialization.MemoryPack.OutboxEnvelope.CausationId.get -> string?
+Excalibur.Dispatch.Serialization.MemoryPack.OutboxEnvelope.CausationId.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.OutboxEnvelope.CorrelationId.get -> string?
+Excalibur.Dispatch.Serialization.MemoryPack.OutboxEnvelope.CorrelationId.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.OutboxEnvelope.CreatedAt.get -> System.DateTimeOffset
+Excalibur.Dispatch.Serialization.MemoryPack.OutboxEnvelope.CreatedAt.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.OutboxEnvelope.Headers.get -> System.Collections.Generic.Dictionary<string!, string!>?
+Excalibur.Dispatch.Serialization.MemoryPack.OutboxEnvelope.Headers.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.OutboxEnvelope.MessageId.get -> System.Guid
+Excalibur.Dispatch.Serialization.MemoryPack.OutboxEnvelope.MessageId.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.OutboxEnvelope.MessageType.get -> string!
+Excalibur.Dispatch.Serialization.MemoryPack.OutboxEnvelope.MessageType.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.OutboxEnvelope.OutboxEnvelope() -> void
+Excalibur.Dispatch.Serialization.MemoryPack.OutboxEnvelope.Payload.get -> byte[]!
+Excalibur.Dispatch.Serialization.MemoryPack.OutboxEnvelope.Payload.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.OutboxEnvelope.SchemaVersion.get -> int
+Excalibur.Dispatch.Serialization.MemoryPack.OutboxEnvelope.SchemaVersion.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.SnapshotEnvelope
+Excalibur.Dispatch.Serialization.MemoryPack.SnapshotEnvelope.AggregateId.get -> System.Guid
+Excalibur.Dispatch.Serialization.MemoryPack.SnapshotEnvelope.AggregateId.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.SnapshotEnvelope.AggregateType.get -> string!
+Excalibur.Dispatch.Serialization.MemoryPack.SnapshotEnvelope.AggregateType.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.SnapshotEnvelope.CreatedAt.get -> System.DateTimeOffset
+Excalibur.Dispatch.Serialization.MemoryPack.SnapshotEnvelope.CreatedAt.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.SnapshotEnvelope.Metadata.get -> System.Collections.Generic.Dictionary<string!, string!>?
+Excalibur.Dispatch.Serialization.MemoryPack.SnapshotEnvelope.Metadata.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.SnapshotEnvelope.SchemaVersion.get -> int
+Excalibur.Dispatch.Serialization.MemoryPack.SnapshotEnvelope.SchemaVersion.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.SnapshotEnvelope.SnapshotEnvelope() -> void
+Excalibur.Dispatch.Serialization.MemoryPack.SnapshotEnvelope.State.get -> byte[]!
+Excalibur.Dispatch.Serialization.MemoryPack.SnapshotEnvelope.State.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.SnapshotEnvelope.Version.get -> long
+Excalibur.Dispatch.Serialization.MemoryPack.SnapshotEnvelope.Version.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.CausationId.get -> string?
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.CausationId.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.CorrelationId.get -> string?
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.CorrelationId.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.Headers.get -> System.Collections.Generic.Dictionary<string!, string!>?
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.Headers.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.MessageId.get -> System.Guid
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.MessageId.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.MessageType.get -> string!
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.MessageType.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.Payload.get -> byte[]!
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.Payload.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.SchemaVersion.get -> int
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.SchemaVersion.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.SourceTransport.get -> string?
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.SourceTransport.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.TargetTransport.get -> string?
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.TargetTransport.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.Timestamp.get -> System.DateTimeOffset
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.Timestamp.init -> void
+Excalibur.Dispatch.Serialization.MemoryPack.TransportEnvelope.TransportEnvelope() -> void
+Microsoft.Extensions.DependencyInjection.MemoryPackSerializationServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer() -> Excalibur.Dispatch.Abstractions.Serialization.ISerializer!

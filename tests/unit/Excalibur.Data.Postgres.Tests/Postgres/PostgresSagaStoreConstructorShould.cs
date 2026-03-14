@@ -1,9 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions.Serialization;
-
-using Excalibur.Data.Postgres.Saga;
+using Excalibur.Saga.Postgres;
 
 using Microsoft.Extensions.Options;
 
@@ -22,18 +20,28 @@ public sealed class PostgresSagaStoreConstructorShould : UnitTestBase
 {
 	private readonly ILogger<PostgresSagaStore> _logger;
 	private readonly IOptions<PostgresSagaOptions> _options;
-	private readonly IJsonSerializer _serializer;
+	private readonly DispatchJsonSerializer _serializer;
 
 	public PostgresSagaStoreConstructorShould()
 	{
 		_logger = A.Fake<ILogger<PostgresSagaStore>>();
-		_serializer = A.Fake<IJsonSerializer>();
+		_serializer = new DispatchJsonSerializer();
 		_options = Options.Create(new PostgresSagaOptions
 		{
 			ConnectionString = "Host=localhost;Database=test;",
 			Schema = "dispatch",
 			TableName = "sagas"
 		});
+	}
+
+	protected override void Dispose(bool disposing)
+	{
+		if (disposing)
+		{
+			_serializer.Dispose();
+		}
+
+		base.Dispose(disposing);
 	}
 
 	#region Simple Constructor Tests

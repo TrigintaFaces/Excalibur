@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -16,6 +16,11 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.A3\Excalibur.A3.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Postgres\Excalibur.Data.Postgres.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Cdc.Postgres\Excalibur.Cdc.Postgres.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Outbox.Postgres\Excalibur.Outbox.Postgres.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Inbox.Postgres\Excalibur.Inbox.Postgres.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.LeaderElection.Postgres\Excalibur.LeaderElection.Postgres.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.Postgres\Excalibur.Saga.Postgres.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Abstractions\Excalibur.Data.Abstractions.csproj" />
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Domain\Excalibur.Domain.csproj" />
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />

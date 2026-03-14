@@ -4,6 +4,7 @@
 using System.Diagnostics;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Extensions;
 
 using FakeItEasy;
@@ -39,10 +40,11 @@ public sealed class TraceContextExtensionsShould
 		// Arrange
 		var traceParent = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
 		var context = A.Fake<IMessageContext>();
-		_ = A.CallTo(() => context.TraceParent).Returns(traceParent);
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
+		context.GetOrCreateIdentityFeature().TraceParent = traceParent;
 
 		// Act
-		var result = context.GetTraceParent();
+		var result = context.GetTraceParentOrCurrent();
 
 		// Assert
 		result.ShouldBe(traceParent);
@@ -53,13 +55,13 @@ public sealed class TraceContextExtensionsShould
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		_ = A.CallTo(() => context.TraceParent).Returns(null);
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
 
 		// Ensure no current activity
 		Activity.Current = null;
 
 		// Act
-		var result = context.GetTraceParent();
+		var result = context.GetTraceParentOrCurrent();
 
 		// Assert
 		result.ShouldBeNull();
@@ -70,7 +72,7 @@ public sealed class TraceContextExtensionsShould
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		_ = A.CallTo(() => context.TraceParent).Returns(null);
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
 
 		using var activity = new Activity("TestOperation");
 		_ = activity.Start();
@@ -78,7 +80,7 @@ public sealed class TraceContextExtensionsShould
 		try
 		{
 			// Act
-			var result = context.GetTraceParent();
+			var result = context.GetTraceParentOrCurrent();
 
 			// Assert
 			_ = result.ShouldNotBeNull();
@@ -96,7 +98,8 @@ public sealed class TraceContextExtensionsShould
 		// Arrange
 		var contextTraceParent = "context-trace-parent";
 		var context = A.Fake<IMessageContext>();
-		_ = A.CallTo(() => context.TraceParent).Returns(contextTraceParent);
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
+		context.GetOrCreateIdentityFeature().TraceParent = contextTraceParent;
 
 		using var activity = new Activity("TestOperation");
 		_ = activity.Start();
@@ -104,7 +107,7 @@ public sealed class TraceContextExtensionsShould
 		try
 		{
 			// Act
-			var result = context.GetTraceParent();
+			var result = context.GetTraceParentOrCurrent();
 
 			// Assert - Context value takes precedence
 			result.ShouldBe(contextTraceParent);
@@ -125,7 +128,7 @@ public sealed class TraceContextExtensionsShould
 	{
 		// Arrange
 		var context = A.Fake<IMessageContext>();
-		_ = A.CallTo(() => context.TraceParent).Returns(null);
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
 
 		using var activity = new Activity("TestOperation");
 		_ = activity.SetIdFormat(ActivityIdFormat.W3C);
@@ -134,7 +137,7 @@ public sealed class TraceContextExtensionsShould
 		try
 		{
 			// Act
-			var result = context.GetTraceParent();
+			var result = context.GetTraceParentOrCurrent();
 
 			// Assert
 			_ = result.ShouldNotBeNull();

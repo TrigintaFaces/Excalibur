@@ -33,10 +33,10 @@ public sealed class PipelineProfileRegistryShould
 	}
 
 	[Fact]
-	public void BePublicAndSealed()
+	public void BeInternalAndSealed()
 	{
-		// Assert
-		typeof(PipelineProfileRegistry).IsPublic.ShouldBeTrue();
+		// Assert -- PipelineProfileRegistry is internal (Sprint 641: Public API Surface Reduction)
+		typeof(PipelineProfileRegistry).IsPublic.ShouldBeFalse();
 		typeof(PipelineProfileRegistry).IsSealed.ShouldBeTrue();
 	}
 

@@ -22,6 +22,16 @@
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga\Excalibur.Saga.csproj" />
     <!-- From Excalibur.Saga.SqlServer.Tests -->
     <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.SqlServer\Excalibur.Saga.SqlServer.csproj" />
+    <!-- Sprint 621: Data provider packages for ISagaBuilder Use*() extension tests -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.MongoDB\Excalibur.Data.MongoDB.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.CosmosDb\Excalibur.Data.CosmosDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.DynamoDb\Excalibur.Data.DynamoDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Data.Firestore\Excalibur.Data.Firestore.csproj" />
+    <!-- Extracted saga provider packages (namespace: Excalibur.Saga.{Provider}) -->
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.MongoDB\Excalibur.Saga.MongoDB.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.CosmosDb\Excalibur.Saga.CosmosDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.DynamoDb\Excalibur.Saga.DynamoDb.csproj" />
+    <ProjectReference Include="..\..\..\src\Excalibur\Excalibur.Saga.Firestore\Excalibur.Saga.Firestore.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />

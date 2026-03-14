@@ -3,6 +3,7 @@
 
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Messaging;
 
 using Microsoft.AspNetCore.Http;
@@ -28,7 +29,7 @@ public static class DispatcherWebExtensions
 
 		// Sprint 71: Use direct properties only (no redundant Items[] writes)
 		messageContext.CorrelationId = correlationGuid.ToString();
-		messageContext.TenantId = context.RequestServices.GetRequiredService<ITenantId>().Value;
+		messageContext.GetOrCreateIdentityFeature().TenantId = context.RequestServices.GetRequiredService<ITenantId>().Value;
 
 		return messageContext;
 	}

@@ -9,7 +9,7 @@ namespace Excalibur.Data.Tests.Redis;
 
 /// <summary>
 /// Tests for RedisProviderOptions ISP split (S560.32) -- verifies sub-option binding,
-/// nested initializer syntax, backward-compatible shims, and DataAnnotations validation.
+/// nested initializer syntax, and DataAnnotations validation.
 /// </summary>
 [Trait("Category", "Unit")]
 public sealed class RedisOptionsIspSplitShould
@@ -97,108 +97,12 @@ public sealed class RedisOptionsIspSplitShould
 
 	#endregion
 
-	#region Backward-Compatible Shims
-
-	[Fact]
-	public void Shim_ConnectTimeout_DelegatesToPool()
-	{
-		var options = new RedisProviderOptions();
-
-		// Set via shim
-		options.ConnectTimeout = 25;
-
-		// Read from Pool
-		options.Pool.ConnectTimeout.ShouldBe(25);
-
-		// Set via Pool
-		options.Pool.ConnectTimeout = 40;
-
-		// Read from shim
-		options.ConnectTimeout.ShouldBe(40);
-	}
-
-	[Fact]
-	public void Shim_SyncTimeout_DelegatesToPool()
-	{
-		var options = new RedisProviderOptions();
-
-		options.SyncTimeout = 12;
-		options.Pool.SyncTimeout.ShouldBe(12);
-
-		options.Pool.SyncTimeout = 20;
-		options.SyncTimeout.ShouldBe(20);
-	}
-
-	[Fact]
-	public void Shim_AsyncTimeout_DelegatesToPool()
-	{
-		var options = new RedisProviderOptions();
-
-		options.AsyncTimeout = 15;
-		options.Pool.AsyncTimeout.ShouldBe(15);
-
-		options.Pool.AsyncTimeout = 25;
-		options.AsyncTimeout.ShouldBe(25);
-	}
-
-	[Fact]
-	public void Shim_ConnectRetry_DelegatesToPool()
-	{
-		var options = new RedisProviderOptions();
-
-		options.ConnectRetry = 7;
-		options.Pool.ConnectRetry.ShouldBe(7);
-
-		options.Pool.ConnectRetry = 10;
-		options.ConnectRetry.ShouldBe(10);
-	}
-
-	[Fact]
-	public void Shim_AbortOnConnectFail_DelegatesToPool()
-	{
-		var options = new RedisProviderOptions();
-
-		options.AbortOnConnectFail = true;
-		options.Pool.AbortOnConnectFail.ShouldBeTrue();
-
-		options.Pool.AbortOnConnectFail = false;
-		options.AbortOnConnectFail.ShouldBeFalse();
-	}
-
-	[Fact]
-	public void Shim_RetryCount_DelegatesToPool()
-	{
-		var options = new RedisProviderOptions();
-
-		options.RetryCount = 8;
-		options.Pool.RetryCount.ShouldBe(8);
-
-		options.Pool.RetryCount = 12;
-		options.RetryCount.ShouldBe(12);
-	}
-
-	[Fact]
-	public void Shim_DefaultValues_MatchPoolDefaults()
-	{
-		var options = new RedisProviderOptions();
-
-		// Shim defaults should mirror Pool defaults
-		options.ConnectTimeout.ShouldBe(options.Pool.ConnectTimeout);
-		options.SyncTimeout.ShouldBe(options.Pool.SyncTimeout);
-		options.AsyncTimeout.ShouldBe(options.Pool.AsyncTimeout);
-		options.ConnectRetry.ShouldBe(options.Pool.ConnectRetry);
-		options.AbortOnConnectFail.ShouldBe(options.Pool.AbortOnConnectFail);
-		options.RetryCount.ShouldBe(options.Pool.RetryCount);
-	}
-
-	#endregion
-
 	#region ISP Gate Compliance
 
 	[Fact]
 	public void Root_PropertyCount_ShouldBeWithinGate()
 	{
-		// ISP gate: root class should have <= 10 non-shim properties
+		// ISP gate: root class should have <= 10 properties
 		// Root properties: Name, ConnectionString, Password, DatabaseId, UseSsl,
 		//                  AllowAdmin, IsReadOnly, Pool = 8 (within gate)
 		var rootType = typeof(RedisProviderOptions);
@@ -206,9 +110,8 @@ public sealed class RedisOptionsIspSplitShould
 			.Where(p => p.DeclaringType == rootType)
 			.ToList();
 
-		// Count should be reasonable (shims + root properties)
-		// The total should be <= 10 for the gate, but shims are backward-compat
-		nonShimProps.Count.ShouldBeGreaterThan(0);
+		nonShimProps.Count.ShouldBeLessThanOrEqualTo(10,
+			"RedisProviderOptions should have <= 10 root properties per ISP gate");
 	}
 
 	[Fact]

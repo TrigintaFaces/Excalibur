@@ -55,7 +55,7 @@ public sealed class CloudEventOptionsShould
 		var options = new CloudEventOptions();
 
 		// Assert
-		options.ValidateSchema.ShouldBeTrue();
+		options.Schema.ValidateSchema.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -65,7 +65,7 @@ public sealed class CloudEventOptionsShould
 		var options = new CloudEventOptions();
 
 		// Assert
-		options.IncludeSchemaVersion.ShouldBeTrue();
+		options.Schema.IncludeSchemaVersion.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -75,7 +75,7 @@ public sealed class CloudEventOptionsShould
 		var options = new CloudEventOptions();
 
 		// Assert
-		options.AutoRegisterSchemas.ShouldBeFalse();
+		options.Schema.AutoRegisterSchemas.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -85,7 +85,7 @@ public sealed class CloudEventOptionsShould
 		var options = new CloudEventOptions();
 
 		// Assert
-		options.SchemaProvider.ShouldBeNull();
+		options.Schema.SchemaProvider.ShouldBeNull();
 	}
 
 	[Fact]
@@ -115,7 +115,7 @@ public sealed class CloudEventOptionsShould
 		var options = new CloudEventOptions();
 
 		// Assert
-		options.UseCompression.ShouldBeFalse();
+		options.Compression.UseCompression.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -125,7 +125,7 @@ public sealed class CloudEventOptionsShould
 		var options = new CloudEventOptions();
 
 		// Assert
-		options.CompressionThreshold.ShouldBe(1024);
+		options.Compression.CompressionThreshold.ShouldBe(1024);
 	}
 
 	[Fact]
@@ -196,10 +196,10 @@ public sealed class CloudEventOptionsShould
 		var options = new CloudEventOptions();
 
 		// Act
-		options.ValidateSchema = false;
+		options.Schema.ValidateSchema = false;
 
 		// Assert
-		options.ValidateSchema.ShouldBeFalse();
+		options.Schema.ValidateSchema.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -209,10 +209,10 @@ public sealed class CloudEventOptionsShould
 		var options = new CloudEventOptions();
 
 		// Act
-		options.UseCompression = true;
+		options.Compression.UseCompression = true;
 
 		// Assert
-		options.UseCompression.ShouldBeTrue();
+		options.Compression.UseCompression.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -222,10 +222,10 @@ public sealed class CloudEventOptionsShould
 		var options = new CloudEventOptions();
 
 		// Act
-		options.CompressionThreshold = 4096;
+		options.Compression.CompressionThreshold = 4096;
 
 		// Assert
-		options.CompressionThreshold.ShouldBe(4096);
+		options.Compression.CompressionThreshold.ShouldBe(4096);
 	}
 
 	[Fact]
@@ -267,18 +267,17 @@ public sealed class CloudEventOptionsShould
 		var options = new CloudEventOptions
 		{
 			Mode = CloudEventMode.Binary,
-			ValidateSchema = false,
-			UseCompression = true,
-			CompressionThreshold = 2048,
+			Schema = { ValidateSchema = false },
+			Compression = { UseCompression = true, CompressionThreshold = 2048 },
 			EnableDoDCompliance = true,
 			DispatchExtensionPrefix = "custom",
 		};
 
 		// Assert
 		options.Mode.ShouldBe(CloudEventMode.Binary);
-		options.ValidateSchema.ShouldBeFalse();
-		options.UseCompression.ShouldBeTrue();
-		options.CompressionThreshold.ShouldBe(2048);
+		options.Schema.ValidateSchema.ShouldBeFalse();
+		options.Compression.UseCompression.ShouldBeTrue();
+		options.Compression.CompressionThreshold.ShouldBe(2048);
 		options.EnableDoDCompliance.ShouldBeTrue();
 		options.DispatchExtensionPrefix.ShouldBe("custom");
 	}
@@ -294,13 +293,13 @@ public sealed class CloudEventOptionsShould
 		var options = new CloudEventOptions
 		{
 			EnableDoDCompliance = true,
-			ValidateSchema = true,
+			Schema = { ValidateSchema = true },
 			PreserveEnvelopeProperties = true,
 		};
 
 		// Assert
 		options.EnableDoDCompliance.ShouldBeTrue();
-		options.ValidateSchema.ShouldBeTrue();
+		options.Schema.ValidateSchema.ShouldBeTrue();
 		options.PreserveEnvelopeProperties.ShouldBeTrue();
 	}
 
@@ -325,13 +324,12 @@ public sealed class CloudEventOptionsShould
 		// Act
 		var options = new CloudEventOptions
 		{
-			UseCompression = true,
-			CompressionThreshold = 512,
+			Compression = { UseCompression = true, CompressionThreshold = 512 },
 		};
 
 		// Assert
-		options.UseCompression.ShouldBeTrue();
-		options.CompressionThreshold.ShouldBeLessThan(1024);
+		options.Compression.UseCompression.ShouldBeTrue();
+		options.Compression.CompressionThreshold.ShouldBeLessThan(1024);
 	}
 
 	#endregion

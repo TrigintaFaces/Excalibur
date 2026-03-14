@@ -40,7 +40,7 @@ public sealed class PoisonMessageValidateOnStartRegistrationShould
 		_ = services.AddPoisonMessageHandling(opts =>
 		{
 			opts.MaxRetryAttempts = 5;
-			opts.AlertThreshold = 20;
+			opts.Alerting.AlertThreshold = 20;
 		});
 
 		// Act
@@ -50,7 +50,7 @@ public sealed class PoisonMessageValidateOnStartRegistrationShould
 
 		// Assert
 		value.MaxRetryAttempts.ShouldBe(5);
-		value.AlertThreshold.ShouldBe(20);
+		value.Alerting.AlertThreshold.ShouldBe(20);
 	}
 
 	[Fact]
@@ -80,7 +80,7 @@ public sealed class PoisonMessageValidateOnStartRegistrationShould
 
 		_ = services.AddPoisonMessageHandling(opts =>
 		{
-			opts.AlertThreshold = -1; // Violates [Range(1, int.MaxValue)]
+			opts.Alerting.AlertThreshold = -1; // Violates [Range(1, int.MaxValue)]
 		});
 
 		// Act
@@ -105,7 +105,7 @@ public sealed class PoisonMessageValidateOnStartRegistrationShould
 
 		// Assert - defaults should pass validation
 		value.MaxRetryAttempts.ShouldBe(3);
-		value.AlertThreshold.ShouldBe(10);
+		value.Alerting.AlertThreshold.ShouldBe(10);
 		value.Enabled.ShouldBeTrue();
 	}
 
@@ -120,7 +120,7 @@ public sealed class PoisonMessageValidateOnStartRegistrationShould
 			opts.MaxRetryAttempts = 10;
 			opts.MaxProcessingTime = TimeSpan.FromMinutes(10);
 			opts.EnableMetrics = false;
-			opts.AlertThreshold = 50;
+			opts.Alerting.AlertThreshold = 50;
 		});
 
 		// Act
@@ -131,6 +131,6 @@ public sealed class PoisonMessageValidateOnStartRegistrationShould
 		options.MaxRetryAttempts.ShouldBe(10);
 		options.MaxProcessingTime.ShouldBe(TimeSpan.FromMinutes(10));
 		options.EnableMetrics.ShouldBeFalse();
-		options.AlertThreshold.ShouldBe(50);
+		options.Alerting.AlertThreshold.ShouldBe(50);
 	}
 }

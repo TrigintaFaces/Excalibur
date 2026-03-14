@@ -45,26 +45,6 @@ public sealed class MySqlProviderOptions
 	public int MaxRetryCount { get; set; } = 3;
 
 	/// <summary>
-	/// Gets or sets the maximum pool size.
-	/// </summary>
-	/// <value>The maximum pool size.</value>
-	[Range(1, int.MaxValue)]
-	public int MaxPoolSize { get; set; } = 100;
-
-	/// <summary>
-	/// Gets or sets the minimum pool size.
-	/// </summary>
-	/// <value>The minimum pool size.</value>
-	[Range(0, int.MaxValue)]
-	public int MinPoolSize { get; set; }
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable connection pooling.
-	/// </summary>
-	/// <value><see langword="true"/> if connection pooling is enabled; otherwise, <see langword="false"/>.</value>
-	public bool EnablePooling { get; set; } = true;
-
-	/// <summary>
 	/// Gets or sets the application name for the connection.
 	/// </summary>
 	/// <value>The application name for the connection.</value>
@@ -77,8 +57,8 @@ public sealed class MySqlProviderOptions
 	public bool UseSsl { get; set; }
 
 	/// <summary>
-	/// Gets or sets a value indicating whether to clear the connection pool on dispose.
+	/// Gets or sets the connection pooling options.
 	/// </summary>
-	/// <value><see langword="true"/> if the connection pool is cleared on dispose; otherwise, <see langword="false"/>.</value>
-	public bool ClearPoolOnDispose { get; set; }
+	/// <value>The connection pooling options.</value>
+	public MySqlPoolingOptions Pooling { get; set; } = new();
 }

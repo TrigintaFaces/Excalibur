@@ -53,9 +53,9 @@ public sealed partial class MySqlPersistenceProvider : IPersistenceProvider, IPe
 		{
 			DefaultCommandTimeout = (uint)_options.CommandTimeout,
 			ConnectionTimeout = (uint)_options.ConnectTimeout,
-			MaximumPoolSize = (uint)_options.MaxPoolSize,
-			MinimumPoolSize = (uint)_options.MinPoolSize,
-			Pooling = _options.EnablePooling,
+			MaximumPoolSize = (uint)_options.Pooling.MaxPoolSize,
+			MinimumPoolSize = (uint)_options.Pooling.MinPoolSize,
+			Pooling = _options.Pooling.EnablePooling,
 			ApplicationName = _options.ApplicationName ?? "Excalibur.Data",
 		};
 
@@ -197,9 +197,9 @@ public sealed partial class MySqlPersistenceProvider : IPersistenceProvider, IPe
 			["Provider"] = "MySQL",
 			["Name"] = Name,
 			["IsAvailable"] = IsAvailable,
-			["MaxPoolSize"] = _options.MaxPoolSize,
-			["MinPoolSize"] = _options.MinPoolSize,
-			["EnablePooling"] = _options.EnablePooling,
+			["MaxPoolSize"] = _options.Pooling.MaxPoolSize,
+			["MinPoolSize"] = _options.Pooling.MinPoolSize,
+			["EnablePooling"] = _options.Pooling.EnablePooling,
 			["UseSsl"] = _options.UseSsl,
 			["CommandTimeout"] = _options.CommandTimeout,
 			["ConnectTimeout"] = _options.ConnectTimeout,
@@ -285,9 +285,9 @@ public sealed partial class MySqlPersistenceProvider : IPersistenceProvider, IPe
 				stats["MaxConnections"] = reader["max_connections"];
 			}
 
-			stats["MinPoolSize"] = _options.MinPoolSize;
-			stats["MaxPoolSize"] = _options.MaxPoolSize;
-			stats["PoolingEnabled"] = _options.EnablePooling;
+			stats["MinPoolSize"] = _options.Pooling.MinPoolSize;
+			stats["MaxPoolSize"] = _options.Pooling.MaxPoolSize;
+			stats["PoolingEnabled"] = _options.Pooling.EnablePooling;
 
 			return stats;
 		}
@@ -354,7 +354,7 @@ public sealed partial class MySqlPersistenceProvider : IPersistenceProvider, IPe
 
 		try
 		{
-			if (_options.ClearPoolOnDispose)
+			if (_options.Pooling.ClearPoolOnDispose)
 			{
 				MySqlConnection.ClearAllPools();
 				LogClearedConnectionPools();
@@ -379,7 +379,7 @@ public sealed partial class MySqlPersistenceProvider : IPersistenceProvider, IPe
 
 		try
 		{
-			if (_options.ClearPoolOnDispose)
+			if (_options.Pooling.ClearPoolOnDispose)
 			{
 				await MySqlConnection.ClearAllPoolsAsync().ConfigureAwait(false);
 				LogClearedConnectionPools();

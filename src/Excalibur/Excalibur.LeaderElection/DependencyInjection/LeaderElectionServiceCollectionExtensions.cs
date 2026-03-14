@@ -18,7 +18,7 @@ public static class LeaderElectionServiceCollectionExtensions
 	/// <returns>The service collection for chaining.</returns>
 	public static IServiceCollection AddExcaliburLeaderElection(this IServiceCollection services)
 	{
-		return services.AddExcaliburLeaderElection(_ => { });
+		return services.AddExcaliburLeaderElection(static (LeaderElectionOptions _) => { });
 	}
 
 	/// <summary>

@@ -256,26 +256,37 @@ registry.Register(SerializerIds.MessagePack,
 
 ## Custom Serializers
 
-### Implementing IMessageSerializer
+### Implementing ISerializer
 
 ```csharp
+using System.Buffers;
 using Excalibur.Dispatch.Abstractions.Serialization;
 
-public class CustomSerializer : IMessageSerializer
+public class CustomSerializer : ISerializer
 {
-    public string SerializerName => "CustomFormat";
-    public string SerializerVersion => "1.0";
+    public string Name => "CustomFormat";
+    public string Version => "1.0";
+    public string ContentType => "application/x-custom";
 
-    public byte[] Serialize<T>(T message)
+    public void Serialize<T>(T value, IBufferWriter<byte> bufferWriter)
     {
-        // Your serialization logic
-        return CustomFormat.Serialize(message);
+        var bytes = CustomFormat.Serialize(value);
+        bufferWriter.Write(bytes);
     }
 
-    public T Deserialize<T>(byte[] data)
+    public T Deserialize<T>(ReadOnlySpan<byte> data)
     {
-        // Your deserialization logic
         return CustomFormat.Deserialize<T>(data);
+    }
+
+    public byte[] SerializeObject(object value, Type type)
+    {
+        return CustomFormat.Serialize(value, type);
+    }
+
+    public object DeserializeObject(ReadOnlySpan<byte> data, Type type)
+    {
+        return CustomFormat.Deserialize(data, type);
     }
 }
 ```
@@ -283,37 +294,43 @@ public class CustomSerializer : IMessageSerializer
 ### Registration
 
 ```csharp
-// Register your custom serializer via DI
-services.AddSingleton<IMessageSerializer, CustomSerializer>();
+// Register your custom serializer via the serialization builder
+services.AddDispatch()
+    .ConfigureSerialization(config =>
+    {
+        config.Register(new CustomSerializer(), id: 200);
+        config.UseCurrent("CustomFormat");
+    });
 ```
 
 ## Zero-Allocation Serialization
 
-For high-throughput event sourcing scenarios, Dispatch provides `IZeroAllocEventSerializer` which uses `Span<byte>` and `ArrayPool<byte>` to eliminate allocations during serialization.
+For high-throughput event sourcing scenarios, `IEventSerializer` provides Span-based overloads via `EventSerializerExtensions` that use `ArrayPool<byte>` to eliminate allocations during serialization.
 
 ### When to Use
 
 | Scenario | Recommendation |
 |----------|----------------|
-| High-volume event stores | Use ZeroAlloc |
-| Event replay/projection | Use ZeroAlloc |
+| High-volume event stores | Use Span-based extensions |
+| Event replay/projection | Use Span-based extensions |
 | Standard message dispatch | Standard serializers sufficient |
 | Cross-language systems | Use standard JSON |
 
-### IZeroAllocEventSerializer Interface
+### EventSerializerExtensions
+
+Span-based overloads are extension methods on `IEventSerializer`:
 
 ```csharp
-public interface IZeroAllocEventSerializer : IEventSerializer
+public static class EventSerializerExtensions
 {
-    // Span-based serialization (zero-allocation)
-    int SerializeEvent(IDomainEvent domainEvent, Span<byte> buffer);
-    IDomainEvent DeserializeEvent(ReadOnlySpan<byte> data, Type eventType);
-    int GetEventSize(IDomainEvent domainEvent);
+    // Serialize to pre-allocated span (zero-allocation)
+    public static int SerializeEvent(this IEventSerializer s, IDomainEvent evt, Span<byte> buffer);
 
-    // Snapshot support
-    int SerializeSnapshot(object snapshot, Span<byte> buffer);
-    object DeserializeSnapshot(ReadOnlySpan<byte> data, Type snapshotType);
-    int GetSnapshotSize(object snapshot);
+    // Deserialize from span
+    public static IDomainEvent DeserializeEvent(this IEventSerializer s, ReadOnlySpan<byte> data, Type type);
+
+    // Get serialized size for buffer allocation
+    public static int GetEventSize(this IEventSerializer s, IDomainEvent evt);
 }
 ```
 
@@ -321,7 +338,7 @@ public interface IZeroAllocEventSerializer : IEventSerializer
 
 ```csharp
 // 1. Get the serializer
-var serializer = serviceProvider.GetRequiredService<IZeroAllocEventSerializer>();
+var serializer = serviceProvider.GetRequiredService<IEventSerializer>();
 
 // 2. Estimate buffer size
 var size = serializer.GetEventSize(domainEvent);
@@ -343,33 +360,16 @@ finally
 }
 ```
 
-### Configuration
-
-```csharp
-using Excalibur.Dispatch.Serialization;
-
-services.AddDispatch(dispatch =>
-{
-    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    // Register SpanEventSerializer (uses MemoryPack by default)
-    dispatch.AddZeroAllocEventSerializer();
-});
-
-// Or with explicit pluggable serializer
-services.AddSingleton<IZeroAllocEventSerializer>(sp =>
-    new SpanEventSerializer(sp.GetRequiredService<ISerializerRegistry>()));
-```
-
 ### SpanEventSerializer Implementation
 
-The built-in `SpanEventSerializer` wraps the pluggable serialization infrastructure:
+The built-in `SpanEventSerializer` implements `IEventSerializer` and wraps the pluggable serialization infrastructure:
 
 ```csharp
-// SpanEventSerializer prefers MemoryPack for best Span support
-// Falls back to current configured serializer if MemoryPack unavailable
+// SpanEventSerializer delegates to the configured ISerializer
+// Prefers MemoryPack for best Span support
 public SpanEventSerializer(ISerializerRegistry registry)
 {
-    _pluggable = registry.GetByName("MemoryPack")
+    _serializer = registry.GetByName("MemoryPack")
         ?? registry.GetById(SerializerIds.MemoryPack)
         ?? registry.GetCurrent().Serializer;
 }
@@ -377,8 +377,8 @@ public SpanEventSerializer(ISerializerRegistry registry)
 
 ### Performance Characteristics
 
-| Operation | Standard IEventSerializer | IZeroAllocEventSerializer |
-|-----------|---------------------------|---------------------------|
+| Operation | Standard byte[] API | Span-based Extensions |
+|-----------|---------------------|----------------------|
 | Allocations per serialize | 1-3 byte[] | 0 (pooled) |
 | Allocations per deserialize | 1 byte[] copy | 0 (span-based) |
 | GC pressure | Moderate | Minimal |
@@ -389,7 +389,7 @@ public SpanEventSerializer(ISerializerRegistry registry)
 ```csharp
 public class HighPerformanceEventStore : IEventStore
 {
-    private readonly IZeroAllocEventSerializer _serializer;
+    private readonly IEventSerializer _serializer;
 
     public async Task AppendAsync(
         Guid streamId,
@@ -414,17 +414,17 @@ public class HighPerformanceEventStore : IEventStore
 }
 ```
 
-### Backward Compatibility
+### Both APIs Available
 
-`IZeroAllocEventSerializer` extends `IEventSerializer`, so it supports both patterns:
+`EventSerializerExtensions` adds Span-based methods alongside the core byte[] API:
 
 ```csharp
-IZeroAllocEventSerializer serializer = ...;
+IEventSerializer serializer = ...;
 
-// New Span-based API (zero-allocation)
+// Span-based API via extension (zero-allocation)
 int written = serializer.SerializeEvent(evt, buffer.AsSpan());
 
-// Legacy byte[] API (still works)
+// Core byte[] API (always available)
 byte[] data = serializer.SerializeEvent(evt);
 ```
 

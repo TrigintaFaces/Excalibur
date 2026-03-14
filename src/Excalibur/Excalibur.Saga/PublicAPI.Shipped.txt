@@ -1,1 +1,1163 @@
 #nullable enable
+abstract Excalibur.Saga.Orchestration.SagaBase<TSagaState>.HandleAsync(object! eventMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+abstract Excalibur.Saga.Orchestration.SagaBase<TSagaState>.HandlesEvent(object! eventMessage) -> bool
+const Excalibur.Saga.Diagnostics.SagaEventId.AllTimeoutsCancelled = 123202 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.AverageCompletionTimeRetrieved = 123304 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.BranchExecution = 120205 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.CompensatingExecutedStep = 120210 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.CompensatingParallelStep = 120307 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.CompletedCountRetrieved = 123301 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.ConditionalStepCompensationFailed = 120211 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.ConditionalStepCompensationStarted = 120207 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.ConditionalStepExecutionFailed = 120206 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.ConditionalStepExecutionStarted = 120203 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.ConditionEvaluationCompleted = 120201 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.ConditionEvaluationError = 120202 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.ConditionEvaluationStarted = 120200 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.ExecutedStepCannotBeCompensated = 120209 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.FailedSagasRetrieved = 123303 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.InMemorySagaStoreCreated = 123101 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.MultiCondBranchEvaluated = 120501 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.MultiCondBranchEvaluationError = 120502 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.MultiCondCompensatingExecutedStep = 120511 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.MultiCondCompensatingStep = 120508 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.MultiCondCompensationFailed = 120512 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.MultiCondEvaluatingBranch = 120500 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.MultiCondExecutingBranch = 120504 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.MultiCondExecutingDefaultStep = 120505 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.MultiCondExecutingStep = 120503 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.MultiCondNoBranchFound = 120506 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.MultiCondSkippingCompensation = 120509 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.MultiCondStepCannotCompensate = 120510 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.MultiCondStepFailed = 120507 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.NoStepExecutedSkippingCompensation = 120208 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.NoStepToExecute = 120204 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.ParallelCompensationCompleted = 120308 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.ParallelCompensationFailed = 120309 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.ParallelExecutionCompleted = 120304 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.ParallelExecutionFailed = 120305 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.ParallelStepCompensationStarted = 120306 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.ParallelStepCompleted = 120302 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.ParallelStepExecutionStarted = 120300 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.ParallelStepFailed = 120303 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.RunningCountRetrieved = 123300 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaCommandDispatched = 122001 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaCompensated = 120005 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaCompensating = 120004 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaCompensationCompleted = 122204 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaCompleted = 120002 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaConcurrencyConflict = 123102 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaCoordinatorCreated = 122000 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaCorrelationEstablished = 122004 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaDeadLetterStored = 122104 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaEventPublished = 122002 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaExecutionCompletedSuccessfully = 122202 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaExecutionFailed = 122205 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaExecutionStarting = 122200 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaFailed = 120003 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaHandlingCompleted = 120401 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaHandlingFailed = 120402 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaHandlingStarted = 120400 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaInitializationStarted = 120403 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaLoadedFromStore = 123002 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaManagerCreated = 120000 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaMessageDeferred = 121102 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaMessageHandled = 121101 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaMessageReceived = 121100 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaMiddlewareProcessing = 120404 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaOutboxDelegateNotConfigured = 122302 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaOutboxPublished = 122301 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaOutboxPublishing = 122300 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaPersisted = 123001 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaRecoveryCompleted = 122101 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaRecoveryStarted = 122100 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaRemovedFromStore = 123003 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaReplyReceived = 122003 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaRetryExecuted = 122103 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaRetryScheduled = 122102 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaStarted = 120001 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaStateDeleted = 121004 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaStateLoaded = 121000 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaStateNotFound = 121003 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaStateSaved = 121001 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaStateTransitioned = 121002 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaStepCompensated = 120104 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaStepCompensating = 120103 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaStepCompleted = 120101 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaStepExecuting = 122201 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaStepFailed = 120102 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaStepFailedStartingCompensation = 122203 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaStepSkipped = 120105 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaStepStarted = 120100 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaStoreConnectionError = 123103 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaStoreCreated = 123000 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaStoreQueried = 123004 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaTimeoutScheduled = 121103 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SagaTimeoutTriggered = 121104 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.SqlServerSagaStoreCreated = 123100 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.StartingParallelStepExecution = 120301 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.StuckSagasRetrieved = 123302 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.TimeoutBatchCompleted = 121204 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.TimeoutCancelled = 123201 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.TimeoutDeliveredSuccessfully = 121202 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.TimeoutDeliveryFailed = 121203 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.TimeoutDeliveryStarted = 121200 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.TimeoutMarkedDelivered = 123203 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.TimeoutMessageCreationFailed = 121207 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.TimeoutMessageTypeInvalid = 121208 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.TimeoutProcessingStarted = 121201 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.TimeoutScheduled = 123200 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.TimeoutServiceStopped = 121205 -> int
+const Excalibur.Saga.Diagnostics.SagaEventId.TimeoutTypeResolutionFailed = 121206 -> int
+const Excalibur.Saga.SagaActivitySource.SourceName = "Excalibur.Dispatch.Sagas" -> string!
+const Excalibur.Saga.SagaActivitySource.SourceVersion = "1.0.0" -> string!
+const Excalibur.Saga.Telemetry.SagaMetrics.MeterName = "Excalibur.Dispatch.Sagas" -> string!
+const Excalibur.Saga.Telemetry.SagaMetrics.MeterVersion = "1.0.0" -> string!
+Excalibur.Saga.Abstractions.BranchingStrategy
+Excalibur.Saga.Abstractions.BranchingStrategy.MultiWay = 1 -> Excalibur.Saga.Abstractions.BranchingStrategy
+Excalibur.Saga.Abstractions.BranchingStrategy.PatternMatching = 2 -> Excalibur.Saga.Abstractions.BranchingStrategy
+Excalibur.Saga.Abstractions.BranchingStrategy.Simple = 0 -> Excalibur.Saga.Abstractions.BranchingStrategy
+Excalibur.Saga.Abstractions.BranchingStrategy.StateMachine = 3 -> Excalibur.Saga.Abstractions.BranchingStrategy
+Excalibur.Saga.Abstractions.CompensationResult
+Excalibur.Saga.Abstractions.CompensationResult.CompensationResult() -> void
+Excalibur.Saga.Abstractions.CompensationResult.Duration.get -> System.TimeSpan
+Excalibur.Saga.Abstractions.CompensationResult.Duration.init -> void
+Excalibur.Saga.Abstractions.CompensationResult.ErrorMessage.get -> string?
+Excalibur.Saga.Abstractions.CompensationResult.ErrorMessage.init -> void
+Excalibur.Saga.Abstractions.CompensationResult.Exception.get -> System.Exception?
+Excalibur.Saga.Abstractions.CompensationResult.Exception.init -> void
+Excalibur.Saga.Abstractions.CompensationResult.IsSuccess.get -> bool
+Excalibur.Saga.Abstractions.CompensationResult.IsSuccess.init -> void
+Excalibur.Saga.Abstractions.CompensationResult.StepsCompensated.get -> int
+Excalibur.Saga.Abstractions.CompensationResult.StepsCompensated.init -> void
+Excalibur.Saga.Abstractions.ICloudNativeSaga<TData>
+Excalibur.Saga.Abstractions.ICloudNativeSaga<TData>.CompletedAt.get -> System.DateTime?
+Excalibur.Saga.Abstractions.ICloudNativeSaga<TData>.CorrelationId.get -> string!
+Excalibur.Saga.Abstractions.ICloudNativeSaga<TData>.CurrentStepIndex.get -> int
+Excalibur.Saga.Abstractions.ICloudNativeSaga<TData>.Data.get -> TData!
+Excalibur.Saga.Abstractions.ICloudNativeSaga<TData>.ErrorMessage.get -> string?
+Excalibur.Saga.Abstractions.ICloudNativeSaga<TData>.SagaId.get -> string!
+Excalibur.Saga.Abstractions.ICloudNativeSaga<TData>.StartedAt.get -> System.DateTime
+Excalibur.Saga.Abstractions.ICloudNativeSaga<TData>.Status.get -> Excalibur.Saga.Models.SagaStatus
+Excalibur.Saga.Abstractions.ICloudNativeSaga<TData>.Steps.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.ISagaStep<TData!>!>!
+Excalibur.Saga.Abstractions.IConditionalSagaStep<TData>
+Excalibur.Saga.Abstractions.IConditionalSagaStep<TData>.ElseStep.get -> Excalibur.Saga.Abstractions.ISagaStep<TData!>?
+Excalibur.Saga.Abstractions.IConditionalSagaStep<TData>.EvaluateConditionAsync(Excalibur.Saga.Abstractions.ISagaContext<TData!>! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Saga.Abstractions.IConditionalSagaStep<TData>.Strategy.get -> Excalibur.Saga.Abstractions.BranchingStrategy
+Excalibur.Saga.Abstractions.IConditionalSagaStep<TData>.ThenStep.get -> Excalibur.Saga.Abstractions.ISagaStep<TData!>?
+Excalibur.Saga.Abstractions.IMultiConditionalSagaStep<TData>
+Excalibur.Saga.Abstractions.IMultiConditionalSagaStep<TData>.Branches.get -> System.Collections.Generic.IReadOnlyDictionary<string!, Excalibur.Saga.Abstractions.ISagaStep<TData!>!>!
+Excalibur.Saga.Abstractions.IMultiConditionalSagaStep<TData>.DefaultStep.get -> Excalibur.Saga.Abstractions.ISagaStep<TData!>?
+Excalibur.Saga.Abstractions.IMultiConditionalSagaStep<TData>.EvaluateBranchAsync(Excalibur.Saga.Abstractions.ISagaContext<TData!>! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Saga.Abstractions.IOrchestrationSaga<TSagaData>
+Excalibur.Saga.Abstractions.IOrchestrationSaga<TSagaData>.CompensateAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Saga.Abstractions.CompensationResult!>!
+Excalibur.Saga.Abstractions.IOrchestrationSaga<TSagaData>.Data.get -> TSagaData!
+Excalibur.Saga.Abstractions.IOrchestrationSaga<TSagaData>.ExecuteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Saga.Abstractions.SagaResult<TSagaData!>!>!
+Excalibur.Saga.Abstractions.IOrchestrationSaga<TSagaData>.SagaId.get -> string!
+Excalibur.Saga.Abstractions.IOrchestrationSaga<TSagaData>.State.get -> Excalibur.Saga.Abstractions.SagaState
+Excalibur.Saga.Abstractions.IParallelSagaStep<TData>
+Excalibur.Saga.Abstractions.IParallelSagaStep<TData>.AggregateResults(System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.StepResult!>! results) -> Excalibur.Saga.Abstractions.StepResult!
+Excalibur.Saga.Abstractions.IParallelSagaStep<TData>.FailurePolicy.get -> Excalibur.Saga.Abstractions.ParallelFailurePolicy
+Excalibur.Saga.Abstractions.IParallelSagaStep<TData>.MaxDegreeOfParallelism.get -> int
+Excalibur.Saga.Abstractions.IParallelSagaStep<TData>.ParallelSteps.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.ISagaStep<TData!>!>!
+Excalibur.Saga.Abstractions.IParallelSagaStep<TData>.Strategy.get -> Excalibur.Saga.Abstractions.ParallelismStrategy
+Excalibur.Saga.Abstractions.ISagaContext<TSagaData>
+Excalibur.Saga.Abstractions.ISagaContext<TSagaData>.Activities.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.SagaActivity!>!
+Excalibur.Saga.Abstractions.ISagaContext<TSagaData>.AddActivity(string! message, object? details = null) -> void
+Excalibur.Saga.Abstractions.ISagaContext<TSagaData>.CurrentStepIndex.get -> int
+Excalibur.Saga.Abstractions.ISagaContext<TSagaData>.Data.get -> TSagaData!
+Excalibur.Saga.Abstractions.ISagaContext<TSagaData>.Data.set -> void
+Excalibur.Saga.Abstractions.ISagaContext<TSagaData>.Metadata.get -> System.Collections.Generic.IDictionary<string!, object!>!
+Excalibur.Saga.Abstractions.ISagaContext<TSagaData>.SagaId.get -> string!
+Excalibur.Saga.Abstractions.ISagaData
+Excalibur.Saga.Abstractions.ISagaData.Id.get -> System.Guid
+Excalibur.Saga.Abstractions.ISagaData.Version.get -> int
+Excalibur.Saga.Abstractions.ISagaDefinition<TSagaData>
+Excalibur.Saga.Abstractions.ISagaDefinition<TSagaData>.Name.get -> string!
+Excalibur.Saga.Abstractions.ISagaDefinition<TSagaData>.OnCompletedAsync(Excalibur.Saga.Abstractions.ISagaContext<TSagaData!>! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Abstractions.ISagaDefinition<TSagaData>.OnFailedAsync(Excalibur.Saga.Abstractions.ISagaContext<TSagaData!>! context, System.Exception! exception, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Abstractions.ISagaDefinition<TSagaData>.RetryPolicy.get -> Excalibur.Saga.Abstractions.ISagaRetryPolicy?
+Excalibur.Saga.Abstractions.ISagaDefinition<TSagaData>.Steps.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.ISagaStep<TSagaData!>!>!
+Excalibur.Saga.Abstractions.ISagaDefinition<TSagaData>.Timeout.get -> System.TimeSpan
+Excalibur.Saga.Abstractions.ISagaMonitoringService
+Excalibur.Saga.Abstractions.ISagaMonitoringService.GetAverageCompletionTimeAsync(string! sagaType, System.DateTime since, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.TimeSpan?>!
+Excalibur.Saga.Abstractions.ISagaMonitoringService.GetCompletedCountAsync(string? sagaType, System.DateTime? since, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Saga.Abstractions.ISagaMonitoringService.GetFailedSagasAsync(int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.SagaInstanceInfo!>!>!
+Excalibur.Saga.Abstractions.ISagaMonitoringService.GetRunningCountAsync(string? sagaType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Saga.Abstractions.ISagaMonitoringService.GetStuckSagasAsync(System.TimeSpan threshold, int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.SagaInstanceInfo!>!>!
+Excalibur.Saga.Abstractions.ISagaOrchestrator
+Excalibur.Saga.Abstractions.ISagaOrchestrator.CancelSagaAsync(string! sagaId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Abstractions.ISagaOrchestrator.CreateSaga<TSagaData>(Excalibur.Saga.Abstractions.ISagaDefinition<TSagaData!>! sagaDefinition, TSagaData! data) -> Excalibur.Saga.Abstractions.IOrchestrationSaga<TSagaData!>!
+Excalibur.Saga.Abstractions.ISagaOrchestrator.GetSagaAsync<TSagaData>(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Saga.Abstractions.IOrchestrationSaga<TSagaData!>?>!
+Excalibur.Saga.Abstractions.ISagaOrchestrator.ListActiveSagasAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Saga.Abstractions.SagaSummary!>!>!
+Excalibur.Saga.Abstractions.ISagaRetryPolicy
+Excalibur.Saga.Abstractions.ISagaRetryPolicy.MaxAttempts.get -> int
+Excalibur.Saga.Abstractions.ISagaRetryPolicy.RetryDelay.get -> System.TimeSpan
+Excalibur.Saga.Abstractions.ISagaRetryPolicy.ShouldRetry(System.Exception! exception) -> bool
+Excalibur.Saga.Abstractions.ISagaStateStore
+Excalibur.Saga.Abstractions.ISagaStateStore.DeleteStateAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Saga.Abstractions.ISagaStateStore.GetStateAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Saga.Models.SagaState?>!
+Excalibur.Saga.Abstractions.ISagaStateStore.SaveStateAsync(Excalibur.Saga.Models.SagaState! state, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Abstractions.ISagaStateStore.UpdateStateAsync(Excalibur.Saga.Models.SagaState! state, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Saga.Abstractions.ISagaStateStoreQuery
+Excalibur.Saga.Abstractions.ISagaStateStoreQuery.GetByStatusAsync(Excalibur.Saga.Models.SagaStatus status, int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Saga.Models.SagaState!>!>!
+Excalibur.Saga.Abstractions.ISagaStateStoreQuery.MarkExpiredSagasAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Saga.Abstractions.ISagaStep<TSagaData>
+Excalibur.Saga.Abstractions.ISagaStep<TSagaData>.CanCompensate.get -> bool
+Excalibur.Saga.Abstractions.ISagaStep<TSagaData>.CompensateAsync(Excalibur.Saga.Abstractions.ISagaContext<TSagaData!>! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Saga.Abstractions.StepResult!>!
+Excalibur.Saga.Abstractions.ISagaStep<TSagaData>.ExecuteAsync(Excalibur.Saga.Abstractions.ISagaContext<TSagaData!>! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Saga.Abstractions.StepResult!>!
+Excalibur.Saga.Abstractions.ISagaStep<TSagaData>.Name.get -> string!
+Excalibur.Saga.Abstractions.ISagaStep<TSagaData>.Timeout.get -> System.TimeSpan
+Excalibur.Saga.Abstractions.ISagaTimeoutStore
+Excalibur.Saga.Abstractions.ISagaTimeoutStore.CancelAllTimeoutsAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Abstractions.ISagaTimeoutStore.CancelTimeoutAsync(string! sagaId, string! timeoutId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Abstractions.ISagaTimeoutStore.GetDueTimeoutsAsync(System.DateTimeOffset asOf, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.SagaTimeout!>!>!
+Excalibur.Saga.Abstractions.ISagaTimeoutStore.MarkDeliveredAsync(string! timeoutId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Abstractions.ISagaTimeoutStore.ScheduleTimeoutAsync(Excalibur.Saga.Abstractions.SagaTimeout! timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Abstractions.ParallelFailurePolicy
+Excalibur.Saga.Abstractions.ParallelFailurePolicy.ContinueOnFailure = 1 -> Excalibur.Saga.Abstractions.ParallelFailurePolicy
+Excalibur.Saga.Abstractions.ParallelFailurePolicy.FailFast = 0 -> Excalibur.Saga.Abstractions.ParallelFailurePolicy
+Excalibur.Saga.Abstractions.ParallelFailurePolicy.RequireAll = 2 -> Excalibur.Saga.Abstractions.ParallelFailurePolicy
+Excalibur.Saga.Abstractions.ParallelismStrategy
+Excalibur.Saga.Abstractions.ParallelismStrategy.Adaptive = 3 -> Excalibur.Saga.Abstractions.ParallelismStrategy
+Excalibur.Saga.Abstractions.ParallelismStrategy.Batched = 2 -> Excalibur.Saga.Abstractions.ParallelismStrategy
+Excalibur.Saga.Abstractions.ParallelismStrategy.Limited = 1 -> Excalibur.Saga.Abstractions.ParallelismStrategy
+Excalibur.Saga.Abstractions.ParallelismStrategy.Unlimited = 0 -> Excalibur.Saga.Abstractions.ParallelismStrategy
+Excalibur.Saga.Abstractions.SagaActivity
+Excalibur.Saga.Abstractions.SagaActivity.Details.get -> object?
+Excalibur.Saga.Abstractions.SagaActivity.Details.init -> void
+Excalibur.Saga.Abstractions.SagaActivity.Message.get -> string!
+Excalibur.Saga.Abstractions.SagaActivity.Message.init -> void
+Excalibur.Saga.Abstractions.SagaActivity.SagaActivity() -> void
+Excalibur.Saga.Abstractions.SagaActivity.StepName.get -> string?
+Excalibur.Saga.Abstractions.SagaActivity.StepName.init -> void
+Excalibur.Saga.Abstractions.SagaActivity.Timestamp.get -> System.DateTimeOffset
+Excalibur.Saga.Abstractions.SagaActivity.Timestamp.init -> void
+Excalibur.Saga.Abstractions.SagaInstanceInfo
+Excalibur.Saga.Abstractions.SagaInstanceInfo.CompletedAt.get -> System.DateTime?
+Excalibur.Saga.Abstractions.SagaInstanceInfo.CompletedAt.init -> void
+Excalibur.Saga.Abstractions.SagaInstanceInfo.CreatedAt.get -> System.DateTime
+Excalibur.Saga.Abstractions.SagaInstanceInfo.CreatedAt.init -> void
+Excalibur.Saga.Abstractions.SagaInstanceInfo.FailureReason.get -> string?
+Excalibur.Saga.Abstractions.SagaInstanceInfo.FailureReason.init -> void
+Excalibur.Saga.Abstractions.SagaInstanceInfo.IsCompleted.get -> bool
+Excalibur.Saga.Abstractions.SagaInstanceInfo.IsCompleted.init -> void
+Excalibur.Saga.Abstractions.SagaInstanceInfo.LastUpdatedAt.get -> System.DateTime
+Excalibur.Saga.Abstractions.SagaInstanceInfo.LastUpdatedAt.init -> void
+Excalibur.Saga.Abstractions.SagaInstanceInfo.SagaId.get -> System.Guid
+Excalibur.Saga.Abstractions.SagaInstanceInfo.SagaId.init -> void
+Excalibur.Saga.Abstractions.SagaInstanceInfo.SagaInstanceInfo(System.Guid SagaId, string! SagaType, bool IsCompleted, System.DateTime CreatedAt, System.DateTime LastUpdatedAt, System.DateTime? CompletedAt, string? FailureReason) -> void
+Excalibur.Saga.Abstractions.SagaInstanceInfo.SagaType.get -> string!
+Excalibur.Saga.Abstractions.SagaInstanceInfo.SagaType.init -> void
+Excalibur.Saga.Abstractions.SagaResult<TSagaData>
+Excalibur.Saga.Abstractions.SagaResult<TSagaData>.Activities.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.SagaActivity!>!
+Excalibur.Saga.Abstractions.SagaResult<TSagaData>.Activities.init -> void
+Excalibur.Saga.Abstractions.SagaResult<TSagaData>.Data.get -> TSagaData!
+Excalibur.Saga.Abstractions.SagaResult<TSagaData>.Data.init -> void
+Excalibur.Saga.Abstractions.SagaResult<TSagaData>.Duration.get -> System.TimeSpan
+Excalibur.Saga.Abstractions.SagaResult<TSagaData>.Duration.init -> void
+Excalibur.Saga.Abstractions.SagaResult<TSagaData>.ErrorMessage.get -> string?
+Excalibur.Saga.Abstractions.SagaResult<TSagaData>.ErrorMessage.init -> void
+Excalibur.Saga.Abstractions.SagaResult<TSagaData>.Exception.get -> System.Exception?
+Excalibur.Saga.Abstractions.SagaResult<TSagaData>.Exception.init -> void
+Excalibur.Saga.Abstractions.SagaResult<TSagaData>.FinalState.get -> Excalibur.Saga.Abstractions.SagaState
+Excalibur.Saga.Abstractions.SagaResult<TSagaData>.FinalState.init -> void
+Excalibur.Saga.Abstractions.SagaResult<TSagaData>.IsSuccess.get -> bool
+Excalibur.Saga.Abstractions.SagaResult<TSagaData>.SagaId.get -> string!
+Excalibur.Saga.Abstractions.SagaResult<TSagaData>.SagaId.init -> void
+Excalibur.Saga.Abstractions.SagaResult<TSagaData>.SagaResult() -> void
+Excalibur.Saga.Abstractions.SagaState
+Excalibur.Saga.Abstractions.SagaState.Cancelled = 6 -> Excalibur.Saga.Abstractions.SagaState
+Excalibur.Saga.Abstractions.SagaState.CompensatedSuccessfully = 4 -> Excalibur.Saga.Abstractions.SagaState
+Excalibur.Saga.Abstractions.SagaState.Compensating = 2 -> Excalibur.Saga.Abstractions.SagaState
+Excalibur.Saga.Abstractions.SagaState.CompensationFailed = 5 -> Excalibur.Saga.Abstractions.SagaState
+Excalibur.Saga.Abstractions.SagaState.Completed = 3 -> Excalibur.Saga.Abstractions.SagaState
+Excalibur.Saga.Abstractions.SagaState.Created = 0 -> Excalibur.Saga.Abstractions.SagaState
+Excalibur.Saga.Abstractions.SagaState.Running = 1 -> Excalibur.Saga.Abstractions.SagaState
+Excalibur.Saga.Abstractions.SagaSummary
+Excalibur.Saga.Abstractions.SagaSummary.CompletedAt.get -> System.DateTimeOffset?
+Excalibur.Saga.Abstractions.SagaSummary.CompletedAt.init -> void
+Excalibur.Saga.Abstractions.SagaSummary.CurrentStep.get -> int
+Excalibur.Saga.Abstractions.SagaSummary.CurrentStep.init -> void
+Excalibur.Saga.Abstractions.SagaSummary.SagaId.get -> string!
+Excalibur.Saga.Abstractions.SagaSummary.SagaId.init -> void
+Excalibur.Saga.Abstractions.SagaSummary.SagaSummary() -> void
+Excalibur.Saga.Abstractions.SagaSummary.SagaType.get -> string!
+Excalibur.Saga.Abstractions.SagaSummary.SagaType.init -> void
+Excalibur.Saga.Abstractions.SagaSummary.StartedAt.get -> System.DateTimeOffset
+Excalibur.Saga.Abstractions.SagaSummary.StartedAt.init -> void
+Excalibur.Saga.Abstractions.SagaSummary.State.get -> Excalibur.Saga.Abstractions.SagaState
+Excalibur.Saga.Abstractions.SagaSummary.State.init -> void
+Excalibur.Saga.Abstractions.SagaSummary.TotalSteps.get -> int
+Excalibur.Saga.Abstractions.SagaSummary.TotalSteps.init -> void
+Excalibur.Saga.Abstractions.SagaTimeout
+Excalibur.Saga.Abstractions.SagaTimeout.DueAt.get -> System.DateTimeOffset
+Excalibur.Saga.Abstractions.SagaTimeout.DueAt.init -> void
+Excalibur.Saga.Abstractions.SagaTimeout.SagaId.get -> string!
+Excalibur.Saga.Abstractions.SagaTimeout.SagaId.init -> void
+Excalibur.Saga.Abstractions.SagaTimeout.SagaTimeout(string! TimeoutId, string! SagaId, string! SagaType, string! TimeoutType, byte[]? TimeoutData, System.DateTimeOffset DueAt, System.DateTimeOffset ScheduledAt) -> void
+Excalibur.Saga.Abstractions.SagaTimeout.SagaType.get -> string!
+Excalibur.Saga.Abstractions.SagaTimeout.SagaType.init -> void
+Excalibur.Saga.Abstractions.SagaTimeout.ScheduledAt.get -> System.DateTimeOffset
+Excalibur.Saga.Abstractions.SagaTimeout.ScheduledAt.init -> void
+Excalibur.Saga.Abstractions.SagaTimeout.TimeoutData.get -> byte[]?
+Excalibur.Saga.Abstractions.SagaTimeout.TimeoutData.init -> void
+Excalibur.Saga.Abstractions.SagaTimeout.TimeoutId.get -> string!
+Excalibur.Saga.Abstractions.SagaTimeout.TimeoutId.init -> void
+Excalibur.Saga.Abstractions.SagaTimeout.TimeoutType.get -> string!
+Excalibur.Saga.Abstractions.SagaTimeout.TimeoutType.init -> void
+Excalibur.Saga.Abstractions.StepResult
+Excalibur.Saga.Abstractions.StepResult.ErrorMessage.get -> string?
+Excalibur.Saga.Abstractions.StepResult.ErrorMessage.init -> void
+Excalibur.Saga.Abstractions.StepResult.Exception.get -> System.Exception?
+Excalibur.Saga.Abstractions.StepResult.Exception.init -> void
+Excalibur.Saga.Abstractions.StepResult.IsSuccess.get -> bool
+Excalibur.Saga.Abstractions.StepResult.IsSuccess.init -> void
+Excalibur.Saga.Abstractions.StepResult.OutputData.get -> System.Collections.Generic.IDictionary<string!, object!>?
+Excalibur.Saga.Abstractions.StepResult.OutputData.init -> void
+Excalibur.Saga.Abstractions.StepResult.StepResult() -> void
+Excalibur.Saga.AdvancedSagaBuilder
+Excalibur.Saga.AdvancedSagaBuilder.AdvancedSagaBuilder(Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Saga.AdvancedSagaOptions! options) -> void
+Excalibur.Saga.AdvancedSagaBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Saga.AdvancedSagaBuilder.UseRetryPolicy<TPolicy>() -> Excalibur.Saga.AdvancedSagaBuilder!
+Excalibur.Saga.AdvancedSagaBuilder.UseStateStore<TStore>() -> Excalibur.Saga.AdvancedSagaBuilder!
+Excalibur.Saga.AdvancedSagaBuilder.WithAutoCompensation(bool enable = true) -> Excalibur.Saga.AdvancedSagaBuilder!
+Excalibur.Saga.AdvancedSagaBuilder.WithCompletedSagaRetention(System.TimeSpan retention) -> Excalibur.Saga.AdvancedSagaBuilder!
+Excalibur.Saga.AdvancedSagaBuilder.WithDefaultTimeout(System.TimeSpan timeout) -> Excalibur.Saga.AdvancedSagaBuilder!
+Excalibur.Saga.AdvancedSagaBuilder.WithMaxParallelism(int maxDegree) -> Excalibur.Saga.AdvancedSagaBuilder!
+Excalibur.Saga.AdvancedSagaBuilder.WithMaxRetries(int maxAttempts) -> Excalibur.Saga.AdvancedSagaBuilder!
+Excalibur.Saga.AdvancedSagaBuilder.WithMetrics(bool enable = true) -> Excalibur.Saga.AdvancedSagaBuilder!
+Excalibur.Saga.AdvancedSagaBuilder.WithStatePersistence(bool enable = true) -> Excalibur.Saga.AdvancedSagaBuilder!
+Excalibur.Saga.AdvancedSagaBuilder.WithStepTimeout(System.TimeSpan timeout) -> Excalibur.Saga.AdvancedSagaBuilder!
+Excalibur.Saga.AdvancedSagaMiddleware
+Excalibur.Saga.AdvancedSagaMiddleware.AdvancedSagaMiddleware(Excalibur.Saga.Abstractions.ISagaOrchestrator! orchestrator, Excalibur.Saga.Abstractions.ISagaStateStore! stateStore, Microsoft.Extensions.Options.IOptions<Excalibur.Saga.AdvancedSagaOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.AdvancedSagaMiddleware!>! logger, Excalibur.Saga.Idempotency.ISagaIdempotencyProvider? idempotencyProvider = null) -> void
+Excalibur.Saga.AdvancedSagaMiddleware.ApplicableMessageKinds.get -> Excalibur.Dispatch.Abstractions.MessageKinds
+Excalibur.Saga.AdvancedSagaMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
+Excalibur.Saga.AdvancedSagaMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
+Excalibur.Saga.AdvancedSagaOptions
+Excalibur.Saga.AdvancedSagaOptions.AdvancedSagaOptions() -> void
+Excalibur.Saga.AdvancedSagaOptions.CleanupInterval.get -> System.TimeSpan
+Excalibur.Saga.AdvancedSagaOptions.CleanupInterval.set -> void
+Excalibur.Saga.AdvancedSagaOptions.CompletedSagaRetention.get -> System.TimeSpan
+Excalibur.Saga.AdvancedSagaOptions.CompletedSagaRetention.set -> void
+Excalibur.Saga.AdvancedSagaOptions.DefaultStepTimeout.get -> System.TimeSpan
+Excalibur.Saga.AdvancedSagaOptions.DefaultStepTimeout.set -> void
+Excalibur.Saga.AdvancedSagaOptions.DefaultTimeout.get -> System.TimeSpan
+Excalibur.Saga.AdvancedSagaOptions.DefaultTimeout.set -> void
+Excalibur.Saga.AdvancedSagaOptions.EnableAutoCompensation.get -> bool
+Excalibur.Saga.AdvancedSagaOptions.EnableAutoCompensation.set -> void
+Excalibur.Saga.AdvancedSagaOptions.EnableMetrics.get -> bool
+Excalibur.Saga.AdvancedSagaOptions.EnableMetrics.set -> void
+Excalibur.Saga.AdvancedSagaOptions.EnableStatePersistence.get -> bool
+Excalibur.Saga.AdvancedSagaOptions.EnableStatePersistence.set -> void
+Excalibur.Saga.AdvancedSagaOptions.MaxDegreeOfParallelism.get -> int
+Excalibur.Saga.AdvancedSagaOptions.MaxDegreeOfParallelism.set -> void
+Excalibur.Saga.AdvancedSagaOptions.MaxRetryAttempts.get -> int
+Excalibur.Saga.AdvancedSagaOptions.MaxRetryAttempts.set -> void
+Excalibur.Saga.AdvancedSagaOptions.RetryBaseDelay.get -> System.TimeSpan
+Excalibur.Saga.AdvancedSagaOptions.RetryBaseDelay.set -> void
+Excalibur.Saga.Attributes.SagaCompensationAttribute
+Excalibur.Saga.Attributes.SagaCompensationAttribute.ForStep.get -> string!
+Excalibur.Saga.Attributes.SagaCompensationAttribute.ForStep.set -> void
+Excalibur.Saga.Attributes.SagaCompensationAttribute.MaxRetries.get -> int
+Excalibur.Saga.Attributes.SagaCompensationAttribute.MaxRetries.set -> void
+Excalibur.Saga.Attributes.SagaCompensationAttribute.Order.get -> int
+Excalibur.Saga.Attributes.SagaCompensationAttribute.Order.set -> void
+Excalibur.Saga.Attributes.SagaCompensationAttribute.SagaCompensationAttribute() -> void
+Excalibur.Saga.Attributes.SagaCompensationAttribute.Strategy.get -> Excalibur.Saga.CompensationStrategy
+Excalibur.Saga.Attributes.SagaCompensationAttribute.Strategy.set -> void
+Excalibur.Saga.Attributes.SagaStepAttribute
+Excalibur.Saga.Attributes.SagaStepAttribute.Order.get -> int
+Excalibur.Saga.Attributes.SagaStepAttribute.Order.set -> void
+Excalibur.Saga.Attributes.SagaStepAttribute.SagaStepAttribute() -> void
+Excalibur.Saga.Attributes.SagaStepAttribute.StepName.get -> string?
+Excalibur.Saga.Attributes.SagaStepAttribute.StepName.set -> void
+Excalibur.Saga.Attributes.SagaStepAttribute.TimeoutSeconds.get -> int
+Excalibur.Saga.Attributes.SagaStepAttribute.TimeoutSeconds.set -> void
+Excalibur.Saga.CompensationStrategy
+Excalibur.Saga.CompensationStrategy.Default = 0 -> Excalibur.Saga.CompensationStrategy
+Excalibur.Saga.CompensationStrategy.ManualIntervention = 3 -> Excalibur.Saga.CompensationStrategy
+Excalibur.Saga.CompensationStrategy.Retry = 1 -> Excalibur.Saga.CompensationStrategy
+Excalibur.Saga.CompensationStrategy.Skip = 2 -> Excalibur.Saga.CompensationStrategy
+Excalibur.Saga.Correlation.ConventionBasedCorrelator
+Excalibur.Saga.Correlation.ConventionBasedCorrelator.ConventionBasedCorrelator() -> void
+Excalibur.Saga.Correlation.ConventionBasedCorrelator.TryGetCorrelationId(object! message, out string? correlationId) -> bool
+Excalibur.Saga.Correlation.DefaultMultiPropertyCorrelator<TMessage>
+Excalibur.Saga.Correlation.DefaultMultiPropertyCorrelator<TMessage>.CorrelateByAsync(System.Linq.Expressions.Expression<System.Func<TMessage!, object!>!>![]! propertyExpressions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Saga.Correlation.DefaultMultiPropertyCorrelator<TMessage>.CorrelateMessage(TMessage! message, System.Linq.Expressions.Expression<System.Func<TMessage!, object!>!>![]! propertyExpressions) -> string!
+Excalibur.Saga.Correlation.DefaultMultiPropertyCorrelator<TMessage>.DefaultMultiPropertyCorrelator(Microsoft.Extensions.Options.IOptions<Excalibur.Saga.Correlation.MultiPropertyCorrelationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Correlation.DefaultMultiPropertyCorrelator<TMessage!>!>! logger) -> void
+Excalibur.Saga.Correlation.IMultiPropertyCorrelator<TMessage>
+Excalibur.Saga.Correlation.IMultiPropertyCorrelator<TMessage>.CorrelateByAsync(System.Linq.Expressions.Expression<System.Func<TMessage!, object!>!>![]! propertyExpressions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Saga.Correlation.ISagaCorrelationBuilder<TSaga>
+Excalibur.Saga.Correlation.ISagaCorrelationBuilder<TSaga>.Build() -> Excalibur.Saga.Correlation.SagaCorrelationConfiguration<TSaga!>!
+Excalibur.Saga.Correlation.ISagaCorrelationBuilder<TSaga>.CorrelateBy<TMessage>(params System.Linq.Expressions.Expression<System.Func<TMessage!, object!>!>![]! propertyExpressions) -> Excalibur.Saga.Correlation.ISagaCorrelationBuilder<TSaga!>!
+Excalibur.Saga.Correlation.ISagaCorrelationBuilder<TSaga>.CorrelateBy<TMessage>(System.Linq.Expressions.Expression<System.Func<TMessage!, string!>!>! correlationExpression) -> Excalibur.Saga.Correlation.ISagaCorrelationBuilder<TSaga!>!
+Excalibur.Saga.Correlation.MultiPropertyCorrelationOptions
+Excalibur.Saga.Correlation.MultiPropertyCorrelationOptions.MultiPropertyCorrelationOptions() -> void
+Excalibur.Saga.Correlation.MultiPropertyCorrelationOptions.RequireAllProperties.get -> bool
+Excalibur.Saga.Correlation.MultiPropertyCorrelationOptions.RequireAllProperties.set -> void
+Excalibur.Saga.Correlation.MultiPropertyCorrelationOptions.UseCompositeKey.get -> bool
+Excalibur.Saga.Correlation.MultiPropertyCorrelationOptions.UseCompositeKey.set -> void
+Excalibur.Saga.Correlation.SagaCorrelationBuilder<TSaga>
+Excalibur.Saga.Correlation.SagaCorrelationBuilder<TSaga>.Build() -> Excalibur.Saga.Correlation.SagaCorrelationConfiguration<TSaga!>!
+Excalibur.Saga.Correlation.SagaCorrelationBuilder<TSaga>.CorrelateBy<TMessage>(params System.Linq.Expressions.Expression<System.Func<TMessage!, object!>!>![]! propertyExpressions) -> Excalibur.Saga.Correlation.ISagaCorrelationBuilder<TSaga!>!
+Excalibur.Saga.Correlation.SagaCorrelationBuilder<TSaga>.CorrelateBy<TMessage>(System.Linq.Expressions.Expression<System.Func<TMessage!, string!>!>! correlationExpression) -> Excalibur.Saga.Correlation.ISagaCorrelationBuilder<TSaga!>!
+Excalibur.Saga.Correlation.SagaCorrelationBuilder<TSaga>.SagaCorrelationBuilder() -> void
+Excalibur.Saga.Correlation.SagaCorrelationConfiguration<TSaga>
+Excalibur.Saga.Correlation.SagaCorrelationConfiguration<TSaga>.RuleCount.get -> int
+Excalibur.Saga.Correlation.SagaCorrelationConfiguration<TSaga>.TryGetCorrelationId(object! message, out string? correlationId) -> bool
+Excalibur.Saga.Correlation.SagaMessageCorrelationAttribute
+Excalibur.Saga.Correlation.SagaMessageCorrelationAttribute.SagaMessageCorrelationAttribute() -> void
+Excalibur.Saga.DependencyInjection.ISagaBuilder
+Excalibur.Saga.DependencyInjection.ISagaBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Saga.Diagnostics.SagaEventId
+Excalibur.Saga.EventSourced.EventSourcedSagaOptions
+Excalibur.Saga.EventSourced.EventSourcedSagaOptions.EventSourcedSagaOptions() -> void
+Excalibur.Saga.EventSourced.EventSourcedSagaOptions.SnapshotInterval.get -> int
+Excalibur.Saga.EventSourced.EventSourcedSagaOptions.SnapshotInterval.set -> void
+Excalibur.Saga.EventSourced.EventSourcedSagaOptions.StreamPrefix.get -> string!
+Excalibur.Saga.EventSourced.EventSourcedSagaOptions.StreamPrefix.set -> void
+Excalibur.Saga.EventSourced.IEventSourcedSagaStore
+Excalibur.Saga.EventSourced.IEventSourcedSagaStore.AppendEventAsync(string! sagaId, Excalibur.Saga.EventSourced.ISagaEvent! sagaEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.EventSourced.IEventSourcedSagaStore.RehydrateAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Saga.Models.SagaState?>!
+Excalibur.Saga.EventSourced.InMemoryEventSourcedSagaStore
+Excalibur.Saga.EventSourced.InMemoryEventSourcedSagaStore.AppendEventAsync(string! sagaId, Excalibur.Saga.EventSourced.ISagaEvent! sagaEvent, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.EventSourced.InMemoryEventSourcedSagaStore.Clear() -> void
+Excalibur.Saga.EventSourced.InMemoryEventSourcedSagaStore.InMemoryEventSourcedSagaStore(Microsoft.Extensions.Options.IOptions<Excalibur.Saga.EventSourced.EventSourcedSagaOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.EventSourced.InMemoryEventSourcedSagaStore!>! logger) -> void
+Excalibur.Saga.EventSourced.InMemoryEventSourcedSagaStore.RehydrateAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Saga.Models.SagaState?>!
+Excalibur.Saga.EventSourced.InMemoryEventSourcedSagaStore.StreamCount.get -> int
+Excalibur.Saga.EventSourced.InMemoryEventSourcedSagaStore.TotalEventCount.get -> int
+Excalibur.Saga.EventSourced.ISagaEvent
+Excalibur.Saga.EventSourced.ISagaEvent.EventType.get -> string!
+Excalibur.Saga.EventSourced.ISagaEvent.OccurredAt.get -> System.DateTimeOffset
+Excalibur.Saga.EventSourced.ISagaEvent.SagaId.get -> string!
+Excalibur.Saga.EventSourced.SagaStateTransitioned
+Excalibur.Saga.EventSourced.SagaStateTransitioned.EventType.get -> string!
+Excalibur.Saga.EventSourced.SagaStateTransitioned.FromStatus.get -> Excalibur.Saga.Models.SagaStatus
+Excalibur.Saga.EventSourced.SagaStateTransitioned.FromStatus.init -> void
+Excalibur.Saga.EventSourced.SagaStateTransitioned.OccurredAt.get -> System.DateTimeOffset
+Excalibur.Saga.EventSourced.SagaStateTransitioned.OccurredAt.init -> void
+Excalibur.Saga.EventSourced.SagaStateTransitioned.Reason.get -> string?
+Excalibur.Saga.EventSourced.SagaStateTransitioned.Reason.init -> void
+Excalibur.Saga.EventSourced.SagaStateTransitioned.SagaId.get -> string!
+Excalibur.Saga.EventSourced.SagaStateTransitioned.SagaId.init -> void
+Excalibur.Saga.EventSourced.SagaStateTransitioned.SagaStateTransitioned() -> void
+Excalibur.Saga.EventSourced.SagaStateTransitioned.ToStatus.get -> Excalibur.Saga.Models.SagaStatus
+Excalibur.Saga.EventSourced.SagaStateTransitioned.ToStatus.init -> void
+Excalibur.Saga.EventSourced.SagaStepCompleted
+Excalibur.Saga.EventSourced.SagaStepCompleted.Duration.get -> System.TimeSpan
+Excalibur.Saga.EventSourced.SagaStepCompleted.Duration.init -> void
+Excalibur.Saga.EventSourced.SagaStepCompleted.EventType.get -> string!
+Excalibur.Saga.EventSourced.SagaStepCompleted.OccurredAt.get -> System.DateTimeOffset
+Excalibur.Saga.EventSourced.SagaStepCompleted.OccurredAt.init -> void
+Excalibur.Saga.EventSourced.SagaStepCompleted.SagaId.get -> string!
+Excalibur.Saga.EventSourced.SagaStepCompleted.SagaId.init -> void
+Excalibur.Saga.EventSourced.SagaStepCompleted.SagaStepCompleted() -> void
+Excalibur.Saga.EventSourced.SagaStepCompleted.StepIndex.get -> int
+Excalibur.Saga.EventSourced.SagaStepCompleted.StepIndex.init -> void
+Excalibur.Saga.EventSourced.SagaStepCompleted.StepName.get -> string!
+Excalibur.Saga.EventSourced.SagaStepCompleted.StepName.init -> void
+Excalibur.Saga.EventSourced.SagaStepFailed
+Excalibur.Saga.EventSourced.SagaStepFailed.ErrorMessage.get -> string!
+Excalibur.Saga.EventSourced.SagaStepFailed.ErrorMessage.init -> void
+Excalibur.Saga.EventSourced.SagaStepFailed.EventType.get -> string!
+Excalibur.Saga.EventSourced.SagaStepFailed.OccurredAt.get -> System.DateTimeOffset
+Excalibur.Saga.EventSourced.SagaStepFailed.OccurredAt.init -> void
+Excalibur.Saga.EventSourced.SagaStepFailed.RetryCount.get -> int
+Excalibur.Saga.EventSourced.SagaStepFailed.RetryCount.init -> void
+Excalibur.Saga.EventSourced.SagaStepFailed.SagaId.get -> string!
+Excalibur.Saga.EventSourced.SagaStepFailed.SagaId.init -> void
+Excalibur.Saga.EventSourced.SagaStepFailed.SagaStepFailed() -> void
+Excalibur.Saga.EventSourced.SagaStepFailed.StepIndex.get -> int
+Excalibur.Saga.EventSourced.SagaStepFailed.StepIndex.init -> void
+Excalibur.Saga.EventSourced.SagaStepFailed.StepName.get -> string!
+Excalibur.Saga.EventSourced.SagaStepFailed.StepName.init -> void
+Excalibur.Saga.Faults.ISagaFaultEvent
+Excalibur.Saga.Faults.ISagaFaultEvent.FailedStepName.get -> string!
+Excalibur.Saga.Faults.ISagaFaultEvent.FaultReason.get -> string!
+Excalibur.Saga.Faults.ISagaFaultEvent.SagaId.get -> string!
+Excalibur.Saga.Faults.SagaFaultEvent
+Excalibur.Saga.Faults.SagaFaultEvent.AggregateId.get -> string!
+Excalibur.Saga.Faults.SagaFaultEvent.AggregateId.init -> void
+Excalibur.Saga.Faults.SagaFaultEvent.EventId.get -> string!
+Excalibur.Saga.Faults.SagaFaultEvent.EventId.init -> void
+Excalibur.Saga.Faults.SagaFaultEvent.EventType.get -> string!
+Excalibur.Saga.Faults.SagaFaultEvent.EventType.init -> void
+Excalibur.Saga.Faults.SagaFaultEvent.FailedStepName.get -> string!
+Excalibur.Saga.Faults.SagaFaultEvent.FailedStepName.init -> void
+Excalibur.Saga.Faults.SagaFaultEvent.FaultReason.get -> string!
+Excalibur.Saga.Faults.SagaFaultEvent.FaultReason.init -> void
+Excalibur.Saga.Faults.SagaFaultEvent.Metadata.get -> System.Collections.Generic.IDictionary<string!, object!>?
+Excalibur.Saga.Faults.SagaFaultEvent.Metadata.init -> void
+Excalibur.Saga.Faults.SagaFaultEvent.OccurredAt.get -> System.DateTimeOffset
+Excalibur.Saga.Faults.SagaFaultEvent.OccurredAt.init -> void
+Excalibur.Saga.Faults.SagaFaultEvent.SagaId.get -> string!
+Excalibur.Saga.Faults.SagaFaultEvent.SagaId.init -> void
+Excalibur.Saga.Faults.SagaFaultEvent.Version.get -> long
+Excalibur.Saga.Faults.SagaFaultEvent.Version.init -> void
+Excalibur.Saga.Faults.SagaFaultGenerator
+Excalibur.Saga.Handlers.ISagaNotFoundHandler<TSaga>
+Excalibur.Saga.Handlers.ISagaNotFoundHandler<TSaga>.HandleAsync(object! message, string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Handlers.LoggingNotFoundHandler<TSaga>
+Excalibur.Saga.Handlers.LoggingNotFoundHandler<TSaga>.HandleAsync(object! message, string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Handlers.LoggingNotFoundHandler<TSaga>.LoggingNotFoundHandler(Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Handlers.LoggingNotFoundHandler<TSaga!>!>! logger) -> void
+Excalibur.Saga.Health.SagaHealthCheck
+Excalibur.Saga.Health.SagaHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+Excalibur.Saga.Health.SagaHealthCheck.SagaHealthCheck(Excalibur.Saga.Abstractions.ISagaMonitoringService! monitoring, Excalibur.Saga.Health.SagaHealthCheckOptions! options) -> void
+Excalibur.Saga.Health.SagaHealthCheckOptions
+Excalibur.Saga.Health.SagaHealthCheckOptions.DegradedFailedThreshold.get -> int
+Excalibur.Saga.Health.SagaHealthCheckOptions.DegradedFailedThreshold.set -> void
+Excalibur.Saga.Health.SagaHealthCheckOptions.FailedLimit.get -> int
+Excalibur.Saga.Health.SagaHealthCheckOptions.FailedLimit.set -> void
+Excalibur.Saga.Health.SagaHealthCheckOptions.SagaHealthCheckOptions() -> void
+Excalibur.Saga.Health.SagaHealthCheckOptions.StuckLimit.get -> int
+Excalibur.Saga.Health.SagaHealthCheckOptions.StuckLimit.set -> void
+Excalibur.Saga.Health.SagaHealthCheckOptions.StuckThreshold.get -> System.TimeSpan
+Excalibur.Saga.Health.SagaHealthCheckOptions.StuckThreshold.set -> void
+Excalibur.Saga.Health.SagaHealthCheckOptions.UnhealthyStuckThreshold.get -> int
+Excalibur.Saga.Health.SagaHealthCheckOptions.UnhealthyStuckThreshold.set -> void
+Excalibur.Saga.Hosting.SagaTimeoutCleanupOptions
+Excalibur.Saga.Hosting.SagaTimeoutCleanupOptions.BatchSize.get -> int
+Excalibur.Saga.Hosting.SagaTimeoutCleanupOptions.BatchSize.set -> void
+Excalibur.Saga.Hosting.SagaTimeoutCleanupOptions.CleanupInterval.get -> System.TimeSpan
+Excalibur.Saga.Hosting.SagaTimeoutCleanupOptions.CleanupInterval.set -> void
+Excalibur.Saga.Hosting.SagaTimeoutCleanupOptions.EnableVerboseLogging.get -> bool
+Excalibur.Saga.Hosting.SagaTimeoutCleanupOptions.EnableVerboseLogging.set -> void
+Excalibur.Saga.Hosting.SagaTimeoutCleanupOptions.SagaTimeoutCleanupOptions() -> void
+Excalibur.Saga.Hosting.SagaTimeoutCleanupOptions.TimeoutThreshold.get -> System.TimeSpan
+Excalibur.Saga.Hosting.SagaTimeoutCleanupOptions.TimeoutThreshold.set -> void
+Excalibur.Saga.Hosting.SagaTimeoutCleanupService
+Excalibur.Saga.Hosting.SagaTimeoutCleanupService.SagaTimeoutCleanupService(Excalibur.Saga.Abstractions.ISagaStateStore! stateStore, Excalibur.Saga.Abstractions.ISagaStateStoreQuery! stateStoreQuery, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Hosting.SagaTimeoutCleanupService!>! logger, Microsoft.Extensions.Options.IOptions<Excalibur.Saga.Hosting.SagaTimeoutCleanupOptions!>! options) -> void
+Excalibur.Saga.Idempotency.InMemorySagaIdempotencyProvider
+Excalibur.Saga.Idempotency.InMemorySagaIdempotencyProvider.Clear() -> void
+Excalibur.Saga.Idempotency.InMemorySagaIdempotencyProvider.Count.get -> int
+Excalibur.Saga.Idempotency.InMemorySagaIdempotencyProvider.InMemorySagaIdempotencyProvider() -> void
+Excalibur.Saga.Idempotency.InMemorySagaIdempotencyProvider.IsProcessedAsync(string! sagaId, string! idempotencyKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Saga.Idempotency.InMemorySagaIdempotencyProvider.MarkProcessedAsync(string! sagaId, string! idempotencyKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Idempotency.ISagaIdempotencyProvider
+Excalibur.Saga.Idempotency.ISagaIdempotencyProvider.IsProcessedAsync(string! sagaId, string! idempotencyKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Saga.Idempotency.ISagaIdempotencyProvider.MarkProcessedAsync(string! sagaId, string! idempotencyKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Implementation.ConditionalSagaStep<TData>
+Excalibur.Saga.Implementation.ConditionalSagaStep<TData>.CanCompensate.get -> bool
+Excalibur.Saga.Implementation.ConditionalSagaStep<TData>.CompensateAsync(Excalibur.Saga.Abstractions.ISagaContext<TData!>! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Saga.Abstractions.StepResult!>!
+Excalibur.Saga.Implementation.ConditionalSagaStep<TData>.ConditionalSagaStep(string! name, System.Func<Excalibur.Saga.Abstractions.ISagaContext<TData!>!, System.Threading.CancellationToken, System.Threading.Tasks.Task<bool>!>! condition, Excalibur.Saga.Abstractions.ISagaStep<TData!>? thenStep = null, Excalibur.Saga.Abstractions.ISagaStep<TData!>? elseStep = null, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Implementation.ConditionalSagaStep<TData!>!>? logger = null) -> void
+Excalibur.Saga.Implementation.ConditionalSagaStep<TData>.ElseStep.get -> Excalibur.Saga.Abstractions.ISagaStep<TData!>?
+Excalibur.Saga.Implementation.ConditionalSagaStep<TData>.EvaluateConditionAsync(Excalibur.Saga.Abstractions.ISagaContext<TData!>! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Saga.Implementation.ConditionalSagaStep<TData>.ExecuteAsync(Excalibur.Saga.Abstractions.ISagaContext<TData!>! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Saga.Abstractions.StepResult!>!
+Excalibur.Saga.Implementation.ConditionalSagaStep<TData>.Name.get -> string!
+Excalibur.Saga.Implementation.ConditionalSagaStep<TData>.RetryPolicy.get -> Excalibur.Saga.Models.RetryPolicy?
+Excalibur.Saga.Implementation.ConditionalSagaStep<TData>.RetryPolicy.set -> void
+Excalibur.Saga.Implementation.ConditionalSagaStep<TData>.Strategy.get -> Excalibur.Saga.Abstractions.BranchingStrategy
+Excalibur.Saga.Implementation.ConditionalSagaStep<TData>.Strategy.set -> void
+Excalibur.Saga.Implementation.ConditionalSagaStep<TData>.ThenStep.get -> Excalibur.Saga.Abstractions.ISagaStep<TData!>?
+Excalibur.Saga.Implementation.ConditionalSagaStep<TData>.Timeout.get -> System.TimeSpan
+Excalibur.Saga.Implementation.ConditionalSagaStep<TData>.Timeout.set -> void
+Excalibur.Saga.Implementation.ConditionalStepBuilder<TData>
+Excalibur.Saga.Implementation.ConditionalStepBuilder<TData>.Build() -> Excalibur.Saga.Implementation.ConditionalSagaStep<TData!>!
+Excalibur.Saga.Implementation.ConditionalStepBuilder<TData>.ConditionalStepBuilder(string! name) -> void
+Excalibur.Saga.Implementation.ConditionalStepBuilder<TData>.Else(Excalibur.Saga.Abstractions.ISagaStep<TData!>! step) -> Excalibur.Saga.Implementation.ConditionalStepBuilder<TData!>!
+Excalibur.Saga.Implementation.ConditionalStepBuilder<TData>.Then(Excalibur.Saga.Abstractions.ISagaStep<TData!>! step) -> Excalibur.Saga.Implementation.ConditionalStepBuilder<TData!>!
+Excalibur.Saga.Implementation.ConditionalStepBuilder<TData>.When(System.Func<Excalibur.Saga.Abstractions.ISagaContext<TData!>!, bool>! predicate) -> Excalibur.Saga.Implementation.ConditionalStepBuilder<TData!>!
+Excalibur.Saga.Implementation.ConditionalStepBuilder<TData>.When(System.Func<Excalibur.Saga.Abstractions.ISagaContext<TData!>!, System.Threading.CancellationToken, System.Threading.Tasks.Task<bool>!>! condition) -> Excalibur.Saga.Implementation.ConditionalStepBuilder<TData!>!
+Excalibur.Saga.Implementation.ConditionalStepBuilder<TData>.WithRetryPolicy(Excalibur.Saga.Models.RetryPolicy! retryPolicy) -> Excalibur.Saga.Implementation.ConditionalStepBuilder<TData!>!
+Excalibur.Saga.Implementation.ConditionalStepBuilder<TData>.WithTimeout(System.TimeSpan timeout) -> Excalibur.Saga.Implementation.ConditionalStepBuilder<TData!>!
+Excalibur.Saga.Implementation.DefaultSagaRetryPolicy
+Excalibur.Saga.Implementation.DefaultSagaRetryPolicy.BackoffMultiplier.get -> double
+Excalibur.Saga.Implementation.DefaultSagaRetryPolicy.BackoffMultiplier.init -> void
+Excalibur.Saga.Implementation.DefaultSagaRetryPolicy.DefaultSagaRetryPolicy() -> void
+Excalibur.Saga.Implementation.DefaultSagaRetryPolicy.MaxAttempts.get -> int
+Excalibur.Saga.Implementation.DefaultSagaRetryPolicy.MaxAttempts.init -> void
+Excalibur.Saga.Implementation.DefaultSagaRetryPolicy.RetryDelay.get -> System.TimeSpan
+Excalibur.Saga.Implementation.DefaultSagaRetryPolicy.RetryDelay.init -> void
+Excalibur.Saga.Implementation.DefaultSagaRetryPolicy.ShouldRetry(System.Exception! exception) -> bool
+Excalibur.Saga.Implementation.MultiConditionalSagaStep<TData>
+Excalibur.Saga.Implementation.MultiConditionalSagaStep<TData>.Branches.get -> System.Collections.Generic.IReadOnlyDictionary<string!, Excalibur.Saga.Abstractions.ISagaStep<TData!>!>!
+Excalibur.Saga.Implementation.MultiConditionalSagaStep<TData>.CanCompensate.get -> bool
+Excalibur.Saga.Implementation.MultiConditionalSagaStep<TData>.CompensateAsync(Excalibur.Saga.Abstractions.ISagaContext<TData!>! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Saga.Abstractions.StepResult!>!
+Excalibur.Saga.Implementation.MultiConditionalSagaStep<TData>.DefaultStep.get -> Excalibur.Saga.Abstractions.ISagaStep<TData!>?
+Excalibur.Saga.Implementation.MultiConditionalSagaStep<TData>.EvaluateBranchAsync(Excalibur.Saga.Abstractions.ISagaContext<TData!>! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Saga.Implementation.MultiConditionalSagaStep<TData>.ExecuteAsync(Excalibur.Saga.Abstractions.ISagaContext<TData!>! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Saga.Abstractions.StepResult!>!
+Excalibur.Saga.Implementation.MultiConditionalSagaStep<TData>.MultiConditionalSagaStep(string! name, System.Func<Excalibur.Saga.Abstractions.ISagaContext<TData!>!, System.Threading.CancellationToken, System.Threading.Tasks.Task<string!>!>! branchEvaluator, System.Collections.Generic.IDictionary<string!, Excalibur.Saga.Abstractions.ISagaStep<TData!>!>! branches, Excalibur.Saga.Abstractions.ISagaStep<TData!>? defaultStep = null, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Implementation.MultiConditionalSagaStep<TData!>!>? logger = null) -> void
+Excalibur.Saga.Implementation.MultiConditionalSagaStep<TData>.Name.get -> string!
+Excalibur.Saga.Implementation.MultiConditionalSagaStep<TData>.RetryPolicy.get -> Excalibur.Saga.Models.RetryPolicy?
+Excalibur.Saga.Implementation.MultiConditionalSagaStep<TData>.RetryPolicy.set -> void
+Excalibur.Saga.Implementation.MultiConditionalSagaStep<TData>.Timeout.get -> System.TimeSpan
+Excalibur.Saga.Implementation.MultiConditionalSagaStep<TData>.Timeout.set -> void
+Excalibur.Saga.Implementation.MultiConditionalStepBuilder<TData>
+Excalibur.Saga.Implementation.MultiConditionalStepBuilder<TData>.AddBranch(string! branchKey, Excalibur.Saga.Abstractions.ISagaStep<TData!>! step) -> Excalibur.Saga.Implementation.MultiConditionalStepBuilder<TData!>!
+Excalibur.Saga.Implementation.MultiConditionalStepBuilder<TData>.AddBranches(System.Collections.Generic.IDictionary<string!, Excalibur.Saga.Abstractions.ISagaStep<TData!>!>! branches) -> Excalibur.Saga.Implementation.MultiConditionalStepBuilder<TData!>!
+Excalibur.Saga.Implementation.MultiConditionalStepBuilder<TData>.Build() -> Excalibur.Saga.Implementation.MultiConditionalSagaStep<TData!>!
+Excalibur.Saga.Implementation.MultiConditionalStepBuilder<TData>.EvaluateWith(System.Func<Excalibur.Saga.Abstractions.ISagaContext<TData!>!, string!>! evaluator) -> Excalibur.Saga.Implementation.MultiConditionalStepBuilder<TData!>!
+Excalibur.Saga.Implementation.MultiConditionalStepBuilder<TData>.EvaluateWith(System.Func<Excalibur.Saga.Abstractions.ISagaContext<TData!>!, System.Threading.CancellationToken, System.Threading.Tasks.Task<string!>!>! evaluator) -> Excalibur.Saga.Implementation.MultiConditionalStepBuilder<TData!>!
+Excalibur.Saga.Implementation.MultiConditionalStepBuilder<TData>.MultiConditionalStepBuilder(string! name) -> void
+Excalibur.Saga.Implementation.MultiConditionalStepBuilder<TData>.WithDefault(Excalibur.Saga.Abstractions.ISagaStep<TData!>! step) -> Excalibur.Saga.Implementation.MultiConditionalStepBuilder<TData!>!
+Excalibur.Saga.Implementation.MultiConditionalStepBuilder<TData>.WithRetryPolicy(Excalibur.Saga.Models.RetryPolicy! retryPolicy) -> Excalibur.Saga.Implementation.MultiConditionalStepBuilder<TData!>!
+Excalibur.Saga.Implementation.MultiConditionalStepBuilder<TData>.WithTimeout(System.TimeSpan timeout) -> Excalibur.Saga.Implementation.MultiConditionalStepBuilder<TData!>!
+Excalibur.Saga.Implementation.ParallelSagaStep<TData>
+Excalibur.Saga.Implementation.ParallelSagaStep<TData>.AggregateResults(System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.StepResult!>! results) -> Excalibur.Saga.Abstractions.StepResult!
+Excalibur.Saga.Implementation.ParallelSagaStep<TData>.CanCompensate.get -> bool
+Excalibur.Saga.Implementation.ParallelSagaStep<TData>.CompensateAsync(Excalibur.Saga.Abstractions.ISagaContext<TData!>! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Saga.Abstractions.StepResult!>!
+Excalibur.Saga.Implementation.ParallelSagaStep<TData>.ExecuteAsync(Excalibur.Saga.Abstractions.ISagaContext<TData!>! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Saga.Abstractions.StepResult!>!
+Excalibur.Saga.Implementation.ParallelSagaStep<TData>.FailurePolicy.get -> Excalibur.Saga.Abstractions.ParallelFailurePolicy
+Excalibur.Saga.Implementation.ParallelSagaStep<TData>.FailurePolicy.set -> void
+Excalibur.Saga.Implementation.ParallelSagaStep<TData>.MaxDegreeOfParallelism.get -> int
+Excalibur.Saga.Implementation.ParallelSagaStep<TData>.MaxDegreeOfParallelism.set -> void
+Excalibur.Saga.Implementation.ParallelSagaStep<TData>.Name.get -> string!
+Excalibur.Saga.Implementation.ParallelSagaStep<TData>.ParallelSagaStep(string! name, System.Collections.Generic.IEnumerable<Excalibur.Saga.Abstractions.ISagaStep<TData!>!>? parallelSteps, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Implementation.ParallelSagaStep<TData!>!>? logger = null) -> void
+Excalibur.Saga.Implementation.ParallelSagaStep<TData>.ParallelSteps.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.ISagaStep<TData!>!>!
+Excalibur.Saga.Implementation.ParallelSagaStep<TData>.RetryPolicy.get -> Excalibur.Saga.Models.RetryPolicy?
+Excalibur.Saga.Implementation.ParallelSagaStep<TData>.RetryPolicy.set -> void
+Excalibur.Saga.Implementation.ParallelSagaStep<TData>.Strategy.get -> Excalibur.Saga.Abstractions.ParallelismStrategy
+Excalibur.Saga.Implementation.ParallelSagaStep<TData>.Strategy.set -> void
+Excalibur.Saga.Implementation.ParallelSagaStep<TData>.Timeout.get -> System.TimeSpan
+Excalibur.Saga.Implementation.ParallelSagaStep<TData>.Timeout.set -> void
+Excalibur.Saga.Inspection.InMemorySagaStateInspector
+Excalibur.Saga.Inspection.InMemorySagaStateInspector.GetActiveStepAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
+Excalibur.Saga.Inspection.InMemorySagaStateInspector.GetHistoryAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Models.StepExecutionRecord!>!>!
+Excalibur.Saga.Inspection.InMemorySagaStateInspector.GetStateAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Saga.Models.SagaState?>!
+Excalibur.Saga.Inspection.InMemorySagaStateInspector.InMemorySagaStateInspector(Excalibur.Saga.Abstractions.ISagaStateStore! stateStore) -> void
+Excalibur.Saga.Inspection.ISagaStateInspector
+Excalibur.Saga.Inspection.ISagaStateInspector.GetActiveStepAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
+Excalibur.Saga.Inspection.ISagaStateInspector.GetHistoryAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Models.StepExecutionRecord!>!>!
+Excalibur.Saga.Inspection.ISagaStateInspector.GetStateAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Saga.Models.SagaState?>!
+Excalibur.Saga.ISagaPersistence
+Excalibur.Saga.ISagaPersistence.DeleteSagaAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.ISagaPersistence.ListActiveSagasAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Saga.SagaSummary!>!>!
+Excalibur.Saga.ISagaPersistence.LoadSagaAsync<TSagaData>(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Saga.SagaPersistedState<TSagaData!>?>!
+Excalibur.Saga.ISagaPersistence.SaveSagaAsync<TSagaData>(Excalibur.Saga.SagaPersistedState<TSagaData!>! state, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Models.CompensationStatus
+Excalibur.Saga.Models.CompensationStatus.Failed = 4 -> Excalibur.Saga.Models.CompensationStatus
+Excalibur.Saga.Models.CompensationStatus.NotCompensable = 5 -> Excalibur.Saga.Models.CompensationStatus
+Excalibur.Saga.Models.CompensationStatus.NotRequired = 0 -> Excalibur.Saga.Models.CompensationStatus
+Excalibur.Saga.Models.CompensationStatus.Pending = 1 -> Excalibur.Saga.Models.CompensationStatus
+Excalibur.Saga.Models.CompensationStatus.Running = 2 -> Excalibur.Saga.Models.CompensationStatus
+Excalibur.Saga.Models.CompensationStatus.Succeeded = 3 -> Excalibur.Saga.Models.CompensationStatus
+Excalibur.Saga.Models.RetryPolicy
+Excalibur.Saga.Models.RetryPolicy.BackoffMultiplier.get -> double
+Excalibur.Saga.Models.RetryPolicy.BackoffMultiplier.set -> void
+Excalibur.Saga.Models.RetryPolicy.GetDelay(int attempt) -> System.TimeSpan
+Excalibur.Saga.Models.RetryPolicy.InitialDelay.get -> System.TimeSpan
+Excalibur.Saga.Models.RetryPolicy.InitialDelay.set -> void
+Excalibur.Saga.Models.RetryPolicy.MaxAttempts.get -> int
+Excalibur.Saga.Models.RetryPolicy.MaxAttempts.set -> void
+Excalibur.Saga.Models.RetryPolicy.MaxDelay.get -> System.TimeSpan
+Excalibur.Saga.Models.RetryPolicy.MaxDelay.set -> void
+Excalibur.Saga.Models.RetryPolicy.RetryPolicy() -> void
+Excalibur.Saga.Models.RetryPolicy.UseJitter.get -> bool
+Excalibur.Saga.Models.RetryPolicy.UseJitter.set -> void
+Excalibur.Saga.Models.SagaDefinition<TData>
+Excalibur.Saga.Models.SagaDefinition<TData>.CacheTtl.get -> System.TimeSpan
+Excalibur.Saga.Models.SagaDefinition<TData>.CacheTtl.set -> void
+Excalibur.Saga.Models.SagaDefinition<TData>.Description.get -> string?
+Excalibur.Saga.Models.SagaDefinition<TData>.Description.set -> void
+Excalibur.Saga.Models.SagaDefinition<TData>.EnableCaching.get -> bool
+Excalibur.Saga.Models.SagaDefinition<TData>.EnableCaching.set -> void
+Excalibur.Saga.Models.SagaDefinition<TData>.Metadata.get -> System.Collections.Generic.IDictionary<string!, object!>!
+Excalibur.Saga.Models.SagaDefinition<TData>.Name.get -> string!
+Excalibur.Saga.Models.SagaDefinition<TData>.Name.set -> void
+Excalibur.Saga.Models.SagaDefinition<TData>.RetentionPeriod.get -> System.TimeSpan
+Excalibur.Saga.Models.SagaDefinition<TData>.RetentionPeriod.set -> void
+Excalibur.Saga.Models.SagaDefinition<TData>.SagaDefinition() -> void
+Excalibur.Saga.Models.SagaDefinition<TData>.Steps.get -> System.Collections.Generic.IList<Excalibur.Saga.Abstractions.ISagaStep<TData!>!>!
+Excalibur.Saga.Models.SagaDefinition<TData>.Timeout.get -> System.TimeSpan
+Excalibur.Saga.Models.SagaDefinition<TData>.Timeout.set -> void
+Excalibur.Saga.Models.SagaDefinition<TData>.Version.get -> string!
+Excalibur.Saga.Models.SagaDefinition<TData>.Version.set -> void
+Excalibur.Saga.Models.SagaExecutionContext<TData>
+Excalibur.Saga.Models.SagaExecutionContext<TData>.Activities.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.SagaActivity!>!
+Excalibur.Saga.Models.SagaExecutionContext<TData>.AddActivity(string! message, object? details = null) -> void
+Excalibur.Saga.Models.SagaExecutionContext<TData>.CorrelationId.get -> string!
+Excalibur.Saga.Models.SagaExecutionContext<TData>.CurrentStepIndex.get -> int
+Excalibur.Saga.Models.SagaExecutionContext<TData>.Data.get -> TData!
+Excalibur.Saga.Models.SagaExecutionContext<TData>.Data.set -> void
+Excalibur.Saga.Models.SagaExecutionContext<TData>.GetRequiredService<TService>() -> TService
+Excalibur.Saga.Models.SagaExecutionContext<TData>.IsCompensating.get -> bool
+Excalibur.Saga.Models.SagaExecutionContext<TData>.Metadata.get -> System.Collections.Generic.IDictionary<string!, object!>!
+Excalibur.Saga.Models.SagaExecutionContext<TData>.SagaExecutionContext(string! sagaId, string! correlationId, TData! data, System.IServiceProvider! services, int currentStepIndex, bool isCompensating = false) -> void
+Excalibur.Saga.Models.SagaExecutionContext<TData>.SagaId.get -> string!
+Excalibur.Saga.Models.SagaExecutionContext<TData>.Services.get -> System.IServiceProvider!
+Excalibur.Saga.Models.SagaExecutionContext<TData>.SharedContext.get -> System.Collections.Generic.IDictionary<string!, object!>!
+Excalibur.Saga.Models.SagaInstanceFilter
+Excalibur.Saga.Models.SagaInstanceFilter.CorrelationId.get -> string?
+Excalibur.Saga.Models.SagaInstanceFilter.CorrelationId.set -> void
+Excalibur.Saga.Models.SagaInstanceFilter.CreatedAfter.get -> System.DateTime?
+Excalibur.Saga.Models.SagaInstanceFilter.CreatedAfter.set -> void
+Excalibur.Saga.Models.SagaInstanceFilter.CreatedBefore.get -> System.DateTime?
+Excalibur.Saga.Models.SagaInstanceFilter.CreatedBefore.set -> void
+Excalibur.Saga.Models.SagaInstanceFilter.IncludeCompleted.get -> bool
+Excalibur.Saga.Models.SagaInstanceFilter.IncludeCompleted.set -> void
+Excalibur.Saga.Models.SagaInstanceFilter.IncludeFailed.get -> bool
+Excalibur.Saga.Models.SagaInstanceFilter.IncludeFailed.set -> void
+Excalibur.Saga.Models.SagaInstanceFilter.MaxResults.get -> int?
+Excalibur.Saga.Models.SagaInstanceFilter.MaxResults.set -> void
+Excalibur.Saga.Models.SagaInstanceFilter.MetadataFilters.get -> System.Collections.Generic.IDictionary<string!, string!>?
+Excalibur.Saga.Models.SagaInstanceFilter.SagaId.get -> string?
+Excalibur.Saga.Models.SagaInstanceFilter.SagaId.set -> void
+Excalibur.Saga.Models.SagaInstanceFilter.SagaInstanceFilter() -> void
+Excalibur.Saga.Models.SagaInstanceFilter.Status.get -> Excalibur.Saga.Models.SagaStatus?
+Excalibur.Saga.Models.SagaInstanceFilter.Status.set -> void
+Excalibur.Saga.Models.SagaProgress
+Excalibur.Saga.Models.SagaProgress.CompletedAt.get -> System.DateTime?
+Excalibur.Saga.Models.SagaProgress.CompletedAt.set -> void
+Excalibur.Saga.Models.SagaProgress.CompletedSteps.get -> int
+Excalibur.Saga.Models.SagaProgress.CompletedSteps.set -> void
+Excalibur.Saga.Models.SagaProgress.CurrentStep.get -> string?
+Excalibur.Saga.Models.SagaProgress.CurrentStep.set -> void
+Excalibur.Saga.Models.SagaProgress.Duration.get -> System.TimeSpan?
+Excalibur.Saga.Models.SagaProgress.ErrorMessage.get -> string?
+Excalibur.Saga.Models.SagaProgress.ErrorMessage.set -> void
+Excalibur.Saga.Models.SagaProgress.IsSuccess.get -> bool
+Excalibur.Saga.Models.SagaProgress.SagaId.get -> string!
+Excalibur.Saga.Models.SagaProgress.SagaId.set -> void
+Excalibur.Saga.Models.SagaProgress.SagaProgress() -> void
+Excalibur.Saga.Models.SagaProgress.StartedAt.get -> System.DateTime
+Excalibur.Saga.Models.SagaProgress.StartedAt.set -> void
+Excalibur.Saga.Models.SagaProgress.Status.get -> Excalibur.Saga.Models.SagaStatus
+Excalibur.Saga.Models.SagaProgress.Status.set -> void
+Excalibur.Saga.Models.SagaProgress.TotalSteps.get -> int
+Excalibur.Saga.Models.SagaProgress.TotalSteps.set -> void
+Excalibur.Saga.Models.SagaState
+Excalibur.Saga.Models.SagaState.CompletedAt.get -> System.DateTime?
+Excalibur.Saga.Models.SagaState.CompletedAt.set -> void
+Excalibur.Saga.Models.SagaState.CorrelationId.get -> string!
+Excalibur.Saga.Models.SagaState.CorrelationId.set -> void
+Excalibur.Saga.Models.SagaState.CurrentStepIndex.get -> int
+Excalibur.Saga.Models.SagaState.CurrentStepIndex.set -> void
+Excalibur.Saga.Models.SagaState.DataJson.get -> string!
+Excalibur.Saga.Models.SagaState.DataJson.set -> void
+Excalibur.Saga.Models.SagaState.DataType.get -> string!
+Excalibur.Saga.Models.SagaState.DataType.set -> void
+Excalibur.Saga.Models.SagaState.ErrorMessage.get -> string?
+Excalibur.Saga.Models.SagaState.ErrorMessage.set -> void
+Excalibur.Saga.Models.SagaState.GetData<TData>() -> TData?
+Excalibur.Saga.Models.SagaState.LastUpdatedAt.get -> System.DateTime
+Excalibur.Saga.Models.SagaState.LastUpdatedAt.set -> void
+Excalibur.Saga.Models.SagaState.Metadata.get -> System.Collections.Generic.IDictionary<string!, object!>!
+Excalibur.Saga.Models.SagaState.SagaId.get -> string!
+Excalibur.Saga.Models.SagaState.SagaId.set -> void
+Excalibur.Saga.Models.SagaState.SagaName.get -> string!
+Excalibur.Saga.Models.SagaState.SagaName.set -> void
+Excalibur.Saga.Models.SagaState.SagaState() -> void
+Excalibur.Saga.Models.SagaState.SetData<TData>(TData! data) -> void
+Excalibur.Saga.Models.SagaState.StartedAt.get -> System.DateTime
+Excalibur.Saga.Models.SagaState.StartedAt.set -> void
+Excalibur.Saga.Models.SagaState.Status.get -> Excalibur.Saga.Models.SagaStatus
+Excalibur.Saga.Models.SagaState.Status.set -> void
+Excalibur.Saga.Models.SagaState.StepHistory.get -> System.Collections.Generic.IList<Excalibur.Saga.Models.StepExecutionRecord!>!
+Excalibur.Saga.Models.SagaState.Version.get -> string!
+Excalibur.Saga.Models.SagaState.Version.set -> void
+Excalibur.Saga.Models.SagaStatus
+Excalibur.Saga.Models.SagaStatus.Cancelled = 6 -> Excalibur.Saga.Models.SagaStatus
+Excalibur.Saga.Models.SagaStatus.Compensated = 5 -> Excalibur.Saga.Models.SagaStatus
+Excalibur.Saga.Models.SagaStatus.Compensating = 4 -> Excalibur.Saga.Models.SagaStatus
+Excalibur.Saga.Models.SagaStatus.Completed = 2 -> Excalibur.Saga.Models.SagaStatus
+Excalibur.Saga.Models.SagaStatus.Created = 0 -> Excalibur.Saga.Models.SagaStatus
+Excalibur.Saga.Models.SagaStatus.Expired = 8 -> Excalibur.Saga.Models.SagaStatus
+Excalibur.Saga.Models.SagaStatus.Failed = 3 -> Excalibur.Saga.Models.SagaStatus
+Excalibur.Saga.Models.SagaStatus.Running = 1 -> Excalibur.Saga.Models.SagaStatus
+Excalibur.Saga.Models.SagaStatus.Suspended = 7 -> Excalibur.Saga.Models.SagaStatus
+Excalibur.Saga.Models.SagaStepState
+Excalibur.Saga.Models.SagaStepState.Attempts.get -> int
+Excalibur.Saga.Models.SagaStepState.Attempts.set -> void
+Excalibur.Saga.Models.SagaStepState.CompensationCompletedAt.get -> System.DateTime?
+Excalibur.Saga.Models.SagaStepState.CompensationCompletedAt.set -> void
+Excalibur.Saga.Models.SagaStepState.CompensationError.get -> string?
+Excalibur.Saga.Models.SagaStepState.CompensationError.set -> void
+Excalibur.Saga.Models.SagaStepState.CompensationStartedAt.get -> System.DateTime?
+Excalibur.Saga.Models.SagaStepState.CompensationStartedAt.set -> void
+Excalibur.Saga.Models.SagaStepState.CompensationStatus.get -> Excalibur.Saga.Models.CompensationStatus
+Excalibur.Saga.Models.SagaStepState.CompensationStatus.set -> void
+Excalibur.Saga.Models.SagaStepState.CompletedAt.get -> System.DateTime?
+Excalibur.Saga.Models.SagaStepState.CompletedAt.set -> void
+Excalibur.Saga.Models.SagaStepState.ErrorMessage.get -> string?
+Excalibur.Saga.Models.SagaStepState.ErrorMessage.set -> void
+Excalibur.Saga.Models.SagaStepState.Name.get -> string!
+Excalibur.Saga.Models.SagaStepState.Name.set -> void
+Excalibur.Saga.Models.SagaStepState.SagaStepState() -> void
+Excalibur.Saga.Models.SagaStepState.StartedAt.get -> System.DateTime?
+Excalibur.Saga.Models.SagaStepState.StartedAt.set -> void
+Excalibur.Saga.Models.SagaStepState.Status.get -> Excalibur.Saga.Models.StepStatus
+Excalibur.Saga.Models.SagaStepState.Status.set -> void
+Excalibur.Saga.Models.SagaStepState.StepDataJson.get -> string?
+Excalibur.Saga.Models.SagaStepState.StepDataJson.set -> void
+Excalibur.Saga.Models.StepExecutionRecord
+Excalibur.Saga.Models.StepExecutionRecord.CompletedAt.get -> System.DateTime?
+Excalibur.Saga.Models.StepExecutionRecord.CompletedAt.set -> void
+Excalibur.Saga.Models.StepExecutionRecord.Duration.get -> System.TimeSpan?
+Excalibur.Saga.Models.StepExecutionRecord.ErrorMessage.get -> string?
+Excalibur.Saga.Models.StepExecutionRecord.ErrorMessage.set -> void
+Excalibur.Saga.Models.StepExecutionRecord.IsSuccess.get -> bool
+Excalibur.Saga.Models.StepExecutionRecord.IsSuccess.set -> void
+Excalibur.Saga.Models.StepExecutionRecord.RetryCount.get -> int
+Excalibur.Saga.Models.StepExecutionRecord.RetryCount.set -> void
+Excalibur.Saga.Models.StepExecutionRecord.StartedAt.get -> System.DateTime
+Excalibur.Saga.Models.StepExecutionRecord.StartedAt.set -> void
+Excalibur.Saga.Models.StepExecutionRecord.StepExecutionRecord() -> void
+Excalibur.Saga.Models.StepExecutionRecord.StepIndex.get -> int
+Excalibur.Saga.Models.StepExecutionRecord.StepIndex.set -> void
+Excalibur.Saga.Models.StepExecutionRecord.StepName.get -> string!
+Excalibur.Saga.Models.StepExecutionRecord.StepName.set -> void
+Excalibur.Saga.Models.StepExecutionRecord.WasCompensated.get -> bool
+Excalibur.Saga.Models.StepExecutionRecord.WasCompensated.set -> void
+Excalibur.Saga.Models.StepResult
+Excalibur.Saga.Models.StepResult.ErrorMessage.get -> string?
+Excalibur.Saga.Models.StepResult.ErrorMessage.set -> void
+Excalibur.Saga.Models.StepResult.Exception.get -> System.Exception?
+Excalibur.Saga.Models.StepResult.Exception.set -> void
+Excalibur.Saga.Models.StepResult.IsSuccess.get -> bool
+Excalibur.Saga.Models.StepResult.IsSuccess.set -> void
+Excalibur.Saga.Models.StepResult.OutputData.get -> System.Collections.Generic.IDictionary<string!, object!>!
+Excalibur.Saga.Models.StepResult.RetryDelay.get -> System.TimeSpan?
+Excalibur.Saga.Models.StepResult.RetryDelay.set -> void
+Excalibur.Saga.Models.StepResult.ShouldRetry.get -> bool
+Excalibur.Saga.Models.StepResult.ShouldRetry.set -> void
+Excalibur.Saga.Models.StepResult.StepResult() -> void
+Excalibur.Saga.Models.StepStatus
+Excalibur.Saga.Models.StepStatus.Failed = 3 -> Excalibur.Saga.Models.StepStatus
+Excalibur.Saga.Models.StepStatus.NotStarted = 0 -> Excalibur.Saga.Models.StepStatus
+Excalibur.Saga.Models.StepStatus.Running = 1 -> Excalibur.Saga.Models.StepStatus
+Excalibur.Saga.Models.StepStatus.Skipped = 4 -> Excalibur.Saga.Models.StepStatus
+Excalibur.Saga.Models.StepStatus.Succeeded = 2 -> Excalibur.Saga.Models.StepStatus
+Excalibur.Saga.Models.StepStatus.TimedOut = 5 -> Excalibur.Saga.Models.StepStatus
+Excalibur.Saga.Orchestration.DispatchOrchestrationExtensions
+Excalibur.Saga.Orchestration.InMemorySagaStore
+Excalibur.Saga.Orchestration.InMemorySagaStore.InMemorySagaStore() -> void
+Excalibur.Saga.Orchestration.InMemorySagaStore.LoadAsync<TSagaState>(System.Guid sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TSagaState?>!
+Excalibur.Saga.Orchestration.InMemorySagaStore.SaveAsync<TSagaState>(TSagaState! sagaState, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Orchestration.OrchestrationDispatchBuilderExtensions
+Excalibur.Saga.Orchestration.SagaBase<TSagaState>
+Excalibur.Saga.Orchestration.SagaBase<TSagaState>.CancelTimeoutAsync(string! timeoutId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Orchestration.SagaBase<TSagaState>.Dispatcher.get -> Excalibur.Dispatch.Abstractions.IDispatcher!
+Excalibur.Saga.Orchestration.SagaBase<TSagaState>.Id.get -> System.Guid
+Excalibur.Saga.Orchestration.SagaBase<TSagaState>.IsCompleted.get -> bool
+Excalibur.Saga.Orchestration.SagaBase<TSagaState>.Logger.get -> Microsoft.Extensions.Logging.ILogger!
+Excalibur.Saga.Orchestration.SagaBase<TSagaState>.MarkCompleted() -> void
+Excalibur.Saga.Orchestration.SagaBase<TSagaState>.MarkCompletedAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Orchestration.SagaBase<TSagaState>.PublishEventAsync<TEvent>(TEvent event, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.IMessageResult!>!
+Excalibur.Saga.Orchestration.SagaBase<TSagaState>.RequestTimeoutAsync<TTimeout>(System.TimeSpan delay, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Saga.Orchestration.SagaBase<TSagaState>.RequestTimeoutAsync<TTimeout>(System.TimeSpan delay, TTimeout? timeoutData, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Saga.Orchestration.SagaBase<TSagaState>.SagaBase(TSagaState! initialState, Excalibur.Dispatch.Abstractions.IDispatcher! dispatcher, Microsoft.Extensions.Logging.ILogger! logger) -> void
+Excalibur.Saga.Orchestration.SagaBase<TSagaState>.SendCommandAsync<TCommand>(TCommand command, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Abstractions.IMessageResult!>!
+Excalibur.Saga.Orchestration.SagaBase<TSagaState>.State.get -> TSagaState!
+Excalibur.Saga.Orchestration.SagaBase<TSagaState>.TimeoutStore.get -> Excalibur.Saga.Abstractions.ISagaTimeoutStore?
+Excalibur.Saga.Orchestration.SagaBase<TSagaState>.TimeoutStore.set -> void
+Excalibur.Saga.Orchestration.SagaCoordinator
+Excalibur.Saga.Orchestration.SagaCoordinator.HandleEventInternalAsync<TSaga, TSagaState>(Excalibur.Dispatch.Abstractions.IMessageContext! messageContext, Excalibur.Dispatch.Abstractions.ISagaEvent! evt, Excalibur.Dispatch.Abstractions.Messaging.SagaInfo! sagaInfo, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Orchestration.SagaCoordinator.ProcessEventAsync(Excalibur.Dispatch.Abstractions.IMessageContext! messageContext, Excalibur.Dispatch.Abstractions.ISagaEvent! evt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Orchestration.SagaCoordinator.SagaCoordinator(System.IServiceProvider! serviceProvider, Excalibur.Dispatch.Abstractions.Messaging.ISagaStore! sagaStore, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Orchestration.SagaCoordinator!>! logger) -> void
+Excalibur.Saga.Orchestration.SagaHandlingMiddleware
+Excalibur.Saga.Orchestration.SagaHandlingMiddleware.InvokeAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, Excalibur.Dispatch.Abstractions.DispatchRequestDelegate! nextDelegate, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.IMessageResult!>
+Excalibur.Saga.Orchestration.SagaHandlingMiddleware.SagaHandlingMiddleware(Excalibur.Saga.Orchestration.SagaCoordinator! coordinator, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Orchestration.SagaHandlingMiddleware!>! logger) -> void
+Excalibur.Saga.Orchestration.SagaHandlingMiddleware.Stage.get -> Excalibur.Dispatch.Abstractions.DispatchMiddlewareStage?
+Excalibur.Saga.Orchestration.SagaManager
+Excalibur.Saga.Orchestration.SagaManager.HandleEventAsync<TSaga, TSagaState>(System.Guid sagaId, object! event, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Orchestration.SagaManager.SagaManager(Excalibur.Dispatch.Abstractions.Messaging.ISagaStore! sagaStore, System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILoggerFactory! loggerFactory) -> void
+Excalibur.Saga.Orchestration.SagaRegistry
+Excalibur.Saga.Outbox.ISagaOutboxMediator
+Excalibur.Saga.Outbox.ISagaOutboxMediator.PublishThroughOutboxAsync(System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Outbox.SagaOutboxOptions
+Excalibur.Saga.Outbox.SagaOutboxOptions.PublishDelegate.get -> System.Func<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Abstractions.IDomainEvent!>!, string!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>?
+Excalibur.Saga.Outbox.SagaOutboxOptions.PublishDelegate.set -> void
+Excalibur.Saga.Outbox.SagaOutboxOptions.SagaOutboxOptions() -> void
+Excalibur.Saga.Queries.InMemorySagaCorrelationQuery
+Excalibur.Saga.Queries.InMemorySagaCorrelationQuery.Clear() -> void
+Excalibur.Saga.Queries.InMemorySagaCorrelationQuery.Count.get -> int
+Excalibur.Saga.Queries.InMemorySagaCorrelationQuery.FindByCorrelationIdAsync(string! correlationId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Queries.SagaQueryResult!>!>!
+Excalibur.Saga.Queries.InMemorySagaCorrelationQuery.FindByPropertyAsync(string! propertyName, object! value, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Queries.SagaQueryResult!>!>!
+Excalibur.Saga.Queries.InMemorySagaCorrelationQuery.IndexProperty(string! sagaId, string! propertyName, object! value) -> void
+Excalibur.Saga.Queries.InMemorySagaCorrelationQuery.IndexSaga(string! sagaId, string! sagaName, string! correlationId, Excalibur.Saga.Models.SagaStatus status, System.DateTimeOffset createdAt) -> void
+Excalibur.Saga.Queries.InMemorySagaCorrelationQuery.InMemorySagaCorrelationQuery(Microsoft.Extensions.Options.IOptions<Excalibur.Saga.Queries.SagaCorrelationQueryOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Queries.InMemorySagaCorrelationQuery!>! logger) -> void
+Excalibur.Saga.Queries.InMemorySagaCorrelationQuery.UpdateStatus(string! sagaId, Excalibur.Saga.Models.SagaStatus newStatus) -> void
+Excalibur.Saga.Queries.ISagaCorrelationQuery
+Excalibur.Saga.Queries.ISagaCorrelationQuery.FindByCorrelationIdAsync(string! correlationId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Queries.SagaQueryResult!>!>!
+Excalibur.Saga.Queries.ISagaCorrelationQuery.FindByPropertyAsync(string! propertyName, object! value, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Queries.SagaQueryResult!>!>!
+Excalibur.Saga.Queries.SagaCorrelationQueryOptions
+Excalibur.Saga.Queries.SagaCorrelationQueryOptions.IncludeCompleted.get -> bool
+Excalibur.Saga.Queries.SagaCorrelationQueryOptions.IncludeCompleted.set -> void
+Excalibur.Saga.Queries.SagaCorrelationQueryOptions.MaxResults.get -> int
+Excalibur.Saga.Queries.SagaCorrelationQueryOptions.MaxResults.set -> void
+Excalibur.Saga.Queries.SagaCorrelationQueryOptions.SagaCorrelationQueryOptions() -> void
+Excalibur.Saga.Queries.SagaQueryResult
+Excalibur.Saga.Queries.SagaQueryResult.CorrelationId.get -> string!
+Excalibur.Saga.Queries.SagaQueryResult.CorrelationId.init -> void
+Excalibur.Saga.Queries.SagaQueryResult.CreatedAt.get -> System.DateTimeOffset
+Excalibur.Saga.Queries.SagaQueryResult.CreatedAt.init -> void
+Excalibur.Saga.Queries.SagaQueryResult.SagaId.get -> string!
+Excalibur.Saga.Queries.SagaQueryResult.SagaId.init -> void
+Excalibur.Saga.Queries.SagaQueryResult.SagaName.get -> string!
+Excalibur.Saga.Queries.SagaQueryResult.SagaName.init -> void
+Excalibur.Saga.Queries.SagaQueryResult.SagaQueryResult(string! SagaId, string! SagaName, Excalibur.Saga.Models.SagaStatus Status, string! CorrelationId, System.DateTimeOffset CreatedAt) -> void
+Excalibur.Saga.Queries.SagaQueryResult.Status.get -> Excalibur.Saga.Models.SagaStatus
+Excalibur.Saga.Queries.SagaQueryResult.Status.init -> void
+Excalibur.Saga.Reminders.ISagaReminder
+Excalibur.Saga.Reminders.ISagaReminder.CancelReminderAsync(string! sagaId, string! reminderId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Saga.Reminders.ISagaReminder.ScheduleReminderAsync(string! sagaId, string! reminderName, System.TimeSpan delay, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Saga.Reminders.SagaReminderOptions
+Excalibur.Saga.Reminders.SagaReminderOptions.DefaultDelay.get -> System.TimeSpan
+Excalibur.Saga.Reminders.SagaReminderOptions.DefaultDelay.set -> void
+Excalibur.Saga.Reminders.SagaReminderOptions.MaximumDelay.get -> System.TimeSpan
+Excalibur.Saga.Reminders.SagaReminderOptions.MaximumDelay.set -> void
+Excalibur.Saga.Reminders.SagaReminderOptions.MaxRemindersPerSaga.get -> int
+Excalibur.Saga.Reminders.SagaReminderOptions.MaxRemindersPerSaga.set -> void
+Excalibur.Saga.Reminders.SagaReminderOptions.MinimumDelay.get -> System.TimeSpan
+Excalibur.Saga.Reminders.SagaReminderOptions.MinimumDelay.set -> void
+Excalibur.Saga.Reminders.SagaReminderOptions.SagaReminderOptions() -> void
+Excalibur.Saga.SagaActivitySource
+Excalibur.Saga.SagaMessageAttribute
+Excalibur.Saga.SagaMessageAttribute.SagaMessageAttribute() -> void
+Excalibur.Saga.SagaMessageAttribute.SagaType.get -> string?
+Excalibur.Saga.SagaMessageAttribute.SagaType.set -> void
+Excalibur.Saga.SagaOptions
+Excalibur.Saga.SagaOptions.CleanupInterval.get -> System.TimeSpan
+Excalibur.Saga.SagaOptions.CleanupInterval.set -> void
+Excalibur.Saga.SagaOptions.DefaultTimeout.get -> System.TimeSpan
+Excalibur.Saga.SagaOptions.DefaultTimeout.set -> void
+Excalibur.Saga.SagaOptions.EnableAutomaticCleanup.get -> bool
+Excalibur.Saga.SagaOptions.EnableAutomaticCleanup.set -> void
+Excalibur.Saga.SagaOptions.EnableOptimisticConcurrency.get -> bool
+Excalibur.Saga.SagaOptions.EnableOptimisticConcurrency.set -> void
+Excalibur.Saga.SagaOptions.MaxConcurrency.get -> int
+Excalibur.Saga.SagaOptions.MaxConcurrency.set -> void
+Excalibur.Saga.SagaOptions.MaxRetryAttempts.get -> int
+Excalibur.Saga.SagaOptions.MaxRetryAttempts.set -> void
+Excalibur.Saga.SagaOptions.RetryDelay.get -> System.TimeSpan
+Excalibur.Saga.SagaOptions.RetryDelay.set -> void
+Excalibur.Saga.SagaOptions.SagaOptions() -> void
+Excalibur.Saga.SagaOptions.SagaRetentionPeriod.get -> System.TimeSpan
+Excalibur.Saga.SagaOptions.SagaRetentionPeriod.set -> void
+Excalibur.Saga.SagaOptionsValidator
+Excalibur.Saga.SagaOptionsValidator.SagaOptionsValidator() -> void
+Excalibur.Saga.SagaOptionsValidator.Validate(string? name, Excalibur.Saga.SagaOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
+Excalibur.Saga.SagaPersistedState<TSagaData>
+Excalibur.Saga.SagaPersistedState<TSagaData>.Activities.get -> System.Collections.Generic.IList<Excalibur.Saga.Abstractions.SagaActivity!>!
+Excalibur.Saga.SagaPersistedState<TSagaData>.Activities.init -> void
+Excalibur.Saga.SagaPersistedState<TSagaData>.CompletedAt.get -> System.DateTimeOffset?
+Excalibur.Saga.SagaPersistedState<TSagaData>.CompletedAt.init -> void
+Excalibur.Saga.SagaPersistedState<TSagaData>.CurrentStepIndex.get -> int
+Excalibur.Saga.SagaPersistedState<TSagaData>.CurrentStepIndex.init -> void
+Excalibur.Saga.SagaPersistedState<TSagaData>.Data.get -> TSagaData!
+Excalibur.Saga.SagaPersistedState<TSagaData>.Data.init -> void
+Excalibur.Saga.SagaPersistedState<TSagaData>.Definition.get -> Excalibur.Saga.Abstractions.ISagaDefinition<TSagaData!>!
+Excalibur.Saga.SagaPersistedState<TSagaData>.Definition.init -> void
+Excalibur.Saga.SagaPersistedState<TSagaData>.SagaId.get -> string!
+Excalibur.Saga.SagaPersistedState<TSagaData>.SagaId.init -> void
+Excalibur.Saga.SagaPersistedState<TSagaData>.SagaPersistedState() -> void
+Excalibur.Saga.SagaPersistedState<TSagaData>.StartedAt.get -> System.DateTimeOffset
+Excalibur.Saga.SagaPersistedState<TSagaData>.StartedAt.init -> void
+Excalibur.Saga.SagaPersistedState<TSagaData>.State.get -> Excalibur.Saga.Abstractions.SagaState
+Excalibur.Saga.SagaPersistedState<TSagaData>.State.init -> void
+Excalibur.Saga.SagaSummary
+Excalibur.Saga.SagaSummary.CompletedAt.get -> System.DateTimeOffset?
+Excalibur.Saga.SagaSummary.CompletedAt.init -> void
+Excalibur.Saga.SagaSummary.CurrentStep.get -> int
+Excalibur.Saga.SagaSummary.CurrentStep.init -> void
+Excalibur.Saga.SagaSummary.SagaId.get -> string!
+Excalibur.Saga.SagaSummary.SagaId.init -> void
+Excalibur.Saga.SagaSummary.SagaSummary() -> void
+Excalibur.Saga.SagaSummary.SagaType.get -> string!
+Excalibur.Saga.SagaSummary.SagaType.init -> void
+Excalibur.Saga.SagaSummary.StartedAt.get -> System.DateTimeOffset
+Excalibur.Saga.SagaSummary.StartedAt.init -> void
+Excalibur.Saga.SagaSummary.State.get -> Excalibur.Saga.Abstractions.SagaState
+Excalibur.Saga.SagaSummary.State.init -> void
+Excalibur.Saga.SagaSummary.TotalSteps.get -> int
+Excalibur.Saga.SagaSummary.TotalSteps.init -> void
+Excalibur.Saga.SagaTimeoutOptions
+Excalibur.Saga.SagaTimeoutOptions.BatchSize.get -> int
+Excalibur.Saga.SagaTimeoutOptions.BatchSize.set -> void
+Excalibur.Saga.SagaTimeoutOptions.EnableVerboseLogging.get -> bool
+Excalibur.Saga.SagaTimeoutOptions.EnableVerboseLogging.set -> void
+Excalibur.Saga.SagaTimeoutOptions.PollInterval.get -> System.TimeSpan
+Excalibur.Saga.SagaTimeoutOptions.PollInterval.set -> void
+Excalibur.Saga.SagaTimeoutOptions.SagaTimeoutOptions() -> void
+Excalibur.Saga.SagaTimeoutOptions.ShutdownTimeout.get -> System.TimeSpan
+Excalibur.Saga.SagaTimeoutOptions.ShutdownTimeout.set -> void
+Excalibur.Saga.Services.SagaTimeoutDeliveryService
+Excalibur.Saga.Services.SagaTimeoutDeliveryService.SagaTimeoutDeliveryService(Excalibur.Saga.Abstractions.ISagaTimeoutStore! timeoutStore, System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.Services.SagaTimeoutDeliveryService!>! logger, Microsoft.Extensions.Options.IOptions<Excalibur.Saga.SagaTimeoutOptions!>! options) -> void
+Excalibur.Saga.Snapshots.ISagaSnapshotStore
+Excalibur.Saga.Snapshots.ISagaSnapshotStore.DeleteSnapshotAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Saga.Snapshots.ISagaSnapshotStore.LoadSnapshotAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Saga.Models.SagaState?>!
+Excalibur.Saga.Snapshots.ISagaSnapshotStore.SaveSnapshotAsync(string! sagaId, Excalibur.Saga.Models.SagaState! state, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Snapshots.SagaSnapshotOptions
+Excalibur.Saga.Snapshots.SagaSnapshotOptions.EnableAutomaticSnapshots.get -> bool
+Excalibur.Saga.Snapshots.SagaSnapshotOptions.EnableAutomaticSnapshots.set -> void
+Excalibur.Saga.Snapshots.SagaSnapshotOptions.MaxRetainedSnapshots.get -> int
+Excalibur.Saga.Snapshots.SagaSnapshotOptions.MaxRetainedSnapshots.set -> void
+Excalibur.Saga.Snapshots.SagaSnapshotOptions.RetentionPeriod.get -> System.TimeSpan
+Excalibur.Saga.Snapshots.SagaSnapshotOptions.RetentionPeriod.set -> void
+Excalibur.Saga.Snapshots.SagaSnapshotOptions.SagaSnapshotOptions() -> void
+Excalibur.Saga.Snapshots.SagaSnapshotOptions.SnapshotInterval.get -> int
+Excalibur.Saga.Snapshots.SagaSnapshotOptions.SnapshotInterval.set -> void
+Excalibur.Saga.StateMachine.IMessageHandler<TData, TMessage>
+Excalibur.Saga.StateMachine.IMessageHandler<TData, TMessage>.Complete() -> Excalibur.Saga.StateMachine.IMessageHandler<TData!, TMessage!>!
+Excalibur.Saga.StateMachine.IMessageHandler<TData, TMessage>.If(System.Func<TData!, TMessage!, bool>! condition) -> Excalibur.Saga.StateMachine.IMessageHandler<TData!, TMessage!>!
+Excalibur.Saga.StateMachine.IMessageHandler<TData, TMessage>.Then(System.Action<Excalibur.Saga.StateMachine.SagaContext<TData!, TMessage!>!>! action) -> Excalibur.Saga.StateMachine.IMessageHandler<TData!, TMessage!>!
+Excalibur.Saga.StateMachine.IMessageHandler<TData, TMessage>.TransitionTo(string! stateName) -> Excalibur.Saga.StateMachine.IMessageHandler<TData!, TMessage!>!
+Excalibur.Saga.StateMachine.InvalidStateTransitionException
+Excalibur.Saga.StateMachine.InvalidStateTransitionException.AttemptedTransition.get -> string!
+Excalibur.Saga.StateMachine.InvalidStateTransitionException.CurrentState.get -> string!
+Excalibur.Saga.StateMachine.InvalidStateTransitionException.InvalidStateTransitionException(string! currentState, string! attemptedTransition, System.Type? messageType) -> void
+Excalibur.Saga.StateMachine.InvalidStateTransitionException.InvalidStateTransitionException(string! currentState, string! attemptedTransition, System.Type? messageType, System.Exception! innerException) -> void
+Excalibur.Saga.StateMachine.InvalidStateTransitionException.MessageType.get -> System.Type?
+Excalibur.Saga.StateMachine.IStateDefinition<TData>
+Excalibur.Saga.StateMachine.IStateDefinition<TData>.Name.get -> string!
+Excalibur.Saga.StateMachine.IStateDefinition<TData>.OnEnter(System.Action<TData!>! action) -> Excalibur.Saga.StateMachine.IStateDefinition<TData!>!
+Excalibur.Saga.StateMachine.IStateDefinition<TData>.OnExit(System.Action<TData!>! action) -> Excalibur.Saga.StateMachine.IStateDefinition<TData!>!
+Excalibur.Saga.StateMachine.IStateDefinition<TData>.When<TMessage>(System.Action<Excalibur.Saga.StateMachine.IMessageHandler<TData!, TMessage!>!>! configure) -> Excalibur.Saga.StateMachine.IStateDefinition<TData!>!
+Excalibur.Saga.StateMachine.ProcessManager<TData>
+Excalibur.Saga.StateMachine.ProcessManager<TData>.CurrentState.get -> string!
+Excalibur.Saga.StateMachine.ProcessManager<TData>.During(string! stateName, System.Action<Excalibur.Saga.StateMachine.IStateDefinition<TData!>!>! configure) -> void
+Excalibur.Saga.StateMachine.ProcessManager<TData>.Finally(System.Action<Excalibur.Saga.StateMachine.IStateDefinition<TData!>!>! configure) -> void
+Excalibur.Saga.StateMachine.ProcessManager<TData>.Initially(System.Action<Excalibur.Saga.StateMachine.IStateDefinition<TData!>!>! configure) -> void
+Excalibur.Saga.StateMachine.ProcessManager<TData>.ProcessManager(TData! initialState, Excalibur.Dispatch.Abstractions.IDispatcher! dispatcher, Microsoft.Extensions.Logging.ILogger! logger) -> void
+Excalibur.Saga.StateMachine.ProcessManager<TData>.TransitionTo(string! stateName) -> void
+Excalibur.Saga.StateMachine.SagaContext<TData, TMessage>
+Excalibur.Saga.StateMachine.SagaContext<TData, TMessage>.Data.get -> TData!
+Excalibur.Saga.StateMachine.SagaContext<TData, TMessage>.Data.init -> void
+Excalibur.Saga.StateMachine.SagaContext<TData, TMessage>.Message.get -> TMessage!
+Excalibur.Saga.StateMachine.SagaContext<TData, TMessage>.Message.init -> void
+Excalibur.Saga.StateMachine.SagaContext<TData, TMessage>.ProcessManager.get -> Excalibur.Saga.StateMachine.ProcessManager<TData!>!
+Excalibur.Saga.StateMachine.SagaContext<TData, TMessage>.ProcessManager.init -> void
+Excalibur.Saga.StateMachine.SagaContext<TData, TMessage>.SagaContext(TData! Data, TMessage! Message, Excalibur.Saga.StateMachine.ProcessManager<TData!>! ProcessManager) -> void
+Excalibur.Saga.Storage.CachedSagaStateStoreOptions
+Excalibur.Saga.Storage.CachedSagaStateStoreOptions.ActiveSagaCacheTtl.get -> System.TimeSpan
+Excalibur.Saga.Storage.CachedSagaStateStoreOptions.ActiveSagaCacheTtl.set -> void
+Excalibur.Saga.Storage.CachedSagaStateStoreOptions.CachedSagaStateStoreOptions() -> void
+Excalibur.Saga.Storage.CachedSagaStateStoreOptions.CompletedSagaCacheTtl.get -> System.TimeSpan
+Excalibur.Saga.Storage.CachedSagaStateStoreOptions.CompletedSagaCacheTtl.set -> void
+Excalibur.Saga.Storage.CachedSagaStateStoreOptions.DefaultCacheTtl.get -> System.TimeSpan
+Excalibur.Saga.Storage.CachedSagaStateStoreOptions.DefaultCacheTtl.set -> void
+Excalibur.Saga.Storage.CachedSagaStateStoreOptions.EnableCaching.get -> bool
+Excalibur.Saga.Storage.CachedSagaStateStoreOptions.EnableCaching.set -> void
+Excalibur.Saga.Storage.CachedSagaStateStoreOptions.InvalidateCacheOnUpdate.get -> bool
+Excalibur.Saga.Storage.CachedSagaStateStoreOptions.InvalidateCacheOnUpdate.set -> void
+Excalibur.Saga.Storage.CachedSagaStateStoreOptions.LocalCacheSizeLimit.get -> int
+Excalibur.Saga.Storage.CachedSagaStateStoreOptions.LocalCacheSizeLimit.set -> void
+Excalibur.Saga.Storage.CachedSagaStateStoreOptions.UseLocalCache.get -> bool
+Excalibur.Saga.Storage.CachedSagaStateStoreOptions.UseLocalCache.set -> void
+Excalibur.Saga.Storage.InMemorySagaMonitoringService
+Excalibur.Saga.Storage.InMemorySagaMonitoringService.GetAverageCompletionTimeAsync(string! sagaType, System.DateTime since, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.TimeSpan?>!
+Excalibur.Saga.Storage.InMemorySagaMonitoringService.GetCompletedCountAsync(string? sagaType, System.DateTime? since, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Saga.Storage.InMemorySagaMonitoringService.GetFailedSagasAsync(int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.SagaInstanceInfo!>!>!
+Excalibur.Saga.Storage.InMemorySagaMonitoringService.GetRunningCountAsync(string? sagaType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Saga.Storage.InMemorySagaMonitoringService.GetStuckSagasAsync(System.TimeSpan threshold, int limit, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.SagaInstanceInfo!>!>!
+Excalibur.Saga.Storage.InMemorySagaMonitoringService.InMemorySagaMonitoringService() -> void
+Excalibur.Saga.Storage.InMemorySagaMonitoringService.RecordSaga(Excalibur.Saga.Abstractions.SagaInstanceInfo! info) -> void
+Excalibur.Saga.Storage.InMemorySagaTimeoutStore
+Excalibur.Saga.Storage.InMemorySagaTimeoutStore.CancelAllTimeoutsAsync(string! sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Storage.InMemorySagaTimeoutStore.CancelTimeoutAsync(string! sagaId, string! timeoutId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Storage.InMemorySagaTimeoutStore.Clear() -> void
+Excalibur.Saga.Storage.InMemorySagaTimeoutStore.GetDueTimeoutsAsync(System.DateTimeOffset asOf, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Saga.Abstractions.SagaTimeout!>!>!
+Excalibur.Saga.Storage.InMemorySagaTimeoutStore.GetPendingCount() -> int
+Excalibur.Saga.Storage.InMemorySagaTimeoutStore.InMemorySagaTimeoutStore() -> void
+Excalibur.Saga.Storage.InMemorySagaTimeoutStore.MarkDeliveredAsync(string! timeoutId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Storage.InMemorySagaTimeoutStore.ScheduleTimeoutAsync(Excalibur.Saga.Abstractions.SagaTimeout! timeout, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Saga.Telemetry.SagaInstrumentationOptions
+Excalibur.Saga.Telemetry.SagaInstrumentationOptions.EnableMetrics.get -> bool
+Excalibur.Saga.Telemetry.SagaInstrumentationOptions.EnableMetrics.set -> void
+Excalibur.Saga.Telemetry.SagaInstrumentationOptions.EnableTracing.get -> bool
+Excalibur.Saga.Telemetry.SagaInstrumentationOptions.EnableTracing.set -> void
+Excalibur.Saga.Telemetry.SagaInstrumentationOptions.SagaInstrumentationOptions() -> void
+Excalibur.Saga.Telemetry.SagaMetrics
+Excalibur.Saga.Versioning.ISagaStateMigrator<TFrom, TTo>
+Excalibur.Saga.Versioning.ISagaStateMigrator<TFrom, TTo>.MigrateAsync(TFrom! source, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TTo!>!
+Excalibur.Saga.Versioning.SagaVersionAttribute
+Excalibur.Saga.Versioning.SagaVersionAttribute.FromVersion.get -> int
+Excalibur.Saga.Versioning.SagaVersionAttribute.SagaVersionAttribute(int fromVersion, int toVersion) -> void
+Excalibur.Saga.Versioning.SagaVersionAttribute.ToVersion.get -> int
+Excalibur.Saga.Visualization.ISagaVisualizer<TData>
+Excalibur.Saga.Visualization.ISagaVisualizer<TData>.GenerateDiagram(Excalibur.Saga.Models.SagaDefinition<TData!>! definition, Excalibur.Saga.Visualization.SagaVisualizationFormat format) -> string!
+Excalibur.Saga.Visualization.SagaMermaidGenerator<TData>
+Excalibur.Saga.Visualization.SagaMermaidGenerator<TData>.GenerateDiagram(Excalibur.Saga.Models.SagaDefinition<TData!>! definition, Excalibur.Saga.Visualization.SagaVisualizationFormat format) -> string!
+Excalibur.Saga.Visualization.SagaMermaidGenerator<TData>.SagaMermaidGenerator() -> void
+Excalibur.Saga.Visualization.SagaVisualizationFormat
+Excalibur.Saga.Visualization.SagaVisualizationFormat.Mermaid = 0 -> Excalibur.Saga.Visualization.SagaVisualizationFormat
+Excalibur.Saga.Visualization.SagaVisualizationFormat.PlantUml = 1 -> Excalibur.Saga.Visualization.SagaVisualizationFormat
+Microsoft.Extensions.DependencyInjection.AdvancedSagaServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.SagaBuilderExtensions
+Microsoft.Extensions.DependencyInjection.SagaEnhancementsBuilderExtensions
+Microsoft.Extensions.DependencyInjection.SagaEnhancementsServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.SagaExcaliburBuilderExtensions
+Microsoft.Extensions.DependencyInjection.SagaHealthCheckExtensions
+Microsoft.Extensions.DependencyInjection.SagasDispatchBuilderExtensions
+Microsoft.Extensions.DependencyInjection.SagaServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.SagaTelemetryExtensions
+Microsoft.Extensions.DependencyInjection.SagaTimeoutServiceCollectionExtensions
+override Excalibur.Saga.Services.SagaTimeoutDeliveryService.ExecuteAsync(System.Threading.CancellationToken stoppingToken) -> System.Threading.Tasks.Task!
+override Excalibur.Saga.StateMachine.ProcessManager<TData>.HandleAsync(object! eventMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override Excalibur.Saga.StateMachine.ProcessManager<TData>.HandlesEvent(object! eventMessage) -> bool
+static Excalibur.Saga.Abstractions.StepResult.Failure(string! errorMessage, System.Exception? exception = null) -> Excalibur.Saga.Abstractions.StepResult!
+static Excalibur.Saga.Abstractions.StepResult.Success(System.Collections.Generic.IDictionary<string!, object!>? outputData = null) -> Excalibur.Saga.Abstractions.StepResult!
+static Excalibur.Saga.Faults.SagaFaultGenerator.CreateFaultEvent(string! sagaId, string! failedStepName, string! faultReason) -> Excalibur.Saga.Faults.ISagaFaultEvent!
+static Excalibur.Saga.Faults.SagaFaultGenerator.CreateFaultEvent(string! sagaId, string! failedStepName, System.Exception! exception) -> Excalibur.Saga.Faults.ISagaFaultEvent!
+static Excalibur.Saga.Implementation.ConditionalSagaStep<TData>.CreateBuilder(string! name) -> Excalibur.Saga.Implementation.ConditionalStepBuilder<TData!>!
+static Excalibur.Saga.Implementation.DefaultSagaRetryPolicy.ExponentialBackoff(int maxAttempts = 3, System.TimeSpan? initialDelay = null) -> Excalibur.Saga.Abstractions.ISagaRetryPolicy!
+static Excalibur.Saga.Implementation.DefaultSagaRetryPolicy.FixedDelay(int maxAttempts = 3, System.TimeSpan? delay = null) -> Excalibur.Saga.Abstractions.ISagaRetryPolicy!
+static Excalibur.Saga.Implementation.MultiConditionalSagaStep<TData>.CreateBuilder(string! name) -> Excalibur.Saga.Implementation.MultiConditionalStepBuilder<TData!>!
+static Excalibur.Saga.Models.RetryPolicy.ExponentialBackoff(int maxAttempts = 3, System.TimeSpan? initialDelay = null) -> Excalibur.Saga.Models.RetryPolicy!
+static Excalibur.Saga.Models.RetryPolicy.FixedDelay(int maxAttempts = 3, System.TimeSpan? delay = null) -> Excalibur.Saga.Models.RetryPolicy!
+static Excalibur.Saga.Models.StepResult.Failure(string! errorMessage, System.Exception? exception = null) -> Excalibur.Saga.Models.StepResult!
+static Excalibur.Saga.Models.StepResult.Retry(System.TimeSpan delay, string! reason) -> Excalibur.Saga.Models.StepResult!
+static Excalibur.Saga.Models.StepResult.Success() -> Excalibur.Saga.Models.StepResult!
+static Excalibur.Saga.Models.StepResult.Success(System.Collections.Generic.IDictionary<string!, object!>! outputData) -> Excalibur.Saga.Models.StepResult!
+static Excalibur.Saga.Orchestration.DispatchOrchestrationExtensions.AddDispatchOrchestration(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Excalibur.Saga.Orchestration.OrchestrationDispatchBuilderExtensions.AddDispatchOrchestration(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Excalibur.Saga.Orchestration.SagaRegistry.GetSagaInfo(System.Type! sagaType) -> Excalibur.Dispatch.Abstractions.Messaging.SagaInfo?
+static Excalibur.Saga.Orchestration.SagaRegistry.GetSagaTypeForEvent(System.Type! eventType) -> System.Type?
+static Excalibur.Saga.Orchestration.SagaRegistry.Register<TSaga, TSagaState>(System.Action<Excalibur.Dispatch.Abstractions.Messaging.SagaInfo!>! configure) -> void
+static Excalibur.Saga.SagaActivitySource.Instance.get -> System.Diagnostics.ActivitySource!
+static Excalibur.Saga.SagaActivitySource.StartActivity(string! name, System.Diagnostics.ActivityKind kind = System.Diagnostics.ActivityKind.Internal) -> System.Diagnostics.Activity?
+static Excalibur.Saga.Telemetry.SagaMetrics.DecrementActive(string! sagaType) -> void
+static Excalibur.Saga.Telemetry.SagaMetrics.GetActiveCount(string! sagaType) -> long
+static Excalibur.Saga.Telemetry.SagaMetrics.IncrementActive(string! sagaType) -> void
+static Excalibur.Saga.Telemetry.SagaMetrics.RecordHandlerDuration(string! sagaType, double durationMs) -> void
+static Excalibur.Saga.Telemetry.SagaMetrics.RecordSagaCompensated(string! sagaType) -> void
+static Excalibur.Saga.Telemetry.SagaMetrics.RecordSagaCompleted(string! sagaType) -> void
+static Excalibur.Saga.Telemetry.SagaMetrics.RecordSagaDuration(string! sagaType, double durationMs) -> void
+static Excalibur.Saga.Telemetry.SagaMetrics.RecordSagaFailed(string! sagaType) -> void
+static Excalibur.Saga.Telemetry.SagaMetrics.RecordSagaStarted(string! sagaType) -> void
+static Excalibur.Saga.Telemetry.SagaMetrics.ResetActiveCounts() -> void
+static Microsoft.Extensions.DependencyInjection.AdvancedSagaServiceCollectionExtensions.AddDispatchAdvancedSagas(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.AdvancedSagaBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AdvancedSagaServiceCollectionExtensions.AddDispatchAdvancedSagas(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.AdvancedSagaOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaBuilderExtensions.WithCoordination(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaBuilderExtensions.WithInstrumentation(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaBuilderExtensions.WithOrchestration(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, System.Action<Excalibur.Saga.AdvancedSagaBuilder!>! configure) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaBuilderExtensions.WithOrchestration(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, System.Action<Excalibur.Saga.AdvancedSagaOptions!>? configure = null) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaBuilderExtensions.WithOutbox(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, System.Action<Excalibur.Saga.Outbox.SagaOutboxOptions!>? configure = null) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaBuilderExtensions.WithTimeouts(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, System.Action<Excalibur.Saga.SagaTimeoutOptions!>? configure = null) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsBuilderExtensions.WithCorrelation(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsBuilderExtensions.WithIdempotency<TProvider>(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsBuilderExtensions.WithNotFoundHandler<TSaga, THandler>(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsBuilderExtensions.WithNotFoundHandler<TSaga>(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsBuilderExtensions.WithReminders(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, System.Action<Excalibur.Saga.Reminders.SagaReminderOptions!>? configure = null) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsBuilderExtensions.WithSnapshots(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, System.Action<Excalibur.Saga.Snapshots.SagaSnapshotOptions!>? configure = null) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsBuilderExtensions.WithStateInspection(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsBuilderExtensions.WithTimeoutCleanup(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, System.Action<Excalibur.Saga.Hosting.SagaTimeoutCleanupOptions!>? configure = null) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsServiceCollectionExtensions.AddSagaCorrelation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsServiceCollectionExtensions.AddSagaIdempotency<TProvider>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsServiceCollectionExtensions.AddSagaNotFoundHandler<TSaga, THandler>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsServiceCollectionExtensions.AddSagaNotFoundHandler<TSaga>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsServiceCollectionExtensions.AddSagaReminders(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsServiceCollectionExtensions.AddSagaReminders(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.Reminders.SagaReminderOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsServiceCollectionExtensions.AddSagaSnapshots(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsServiceCollectionExtensions.AddSagaSnapshots(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.Snapshots.SagaSnapshotOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsServiceCollectionExtensions.AddSagaStateInspection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsServiceCollectionExtensions.AddSagaTimeoutCleanup(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaEnhancementsServiceCollectionExtensions.AddSagaTimeoutCleanup(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.Hosting.SagaTimeoutCleanupOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaExcaliburBuilderExtensions.AddSagas(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder, System.Action<Excalibur.Saga.SagaOptions!>? configure = null) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaHealthCheckExtensions.AddSagaHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, Excalibur.Saga.Health.SagaHealthCheckOptions! options, string! name = "sagas", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaHealthCheckExtensions.AddSagaHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "sagas", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null, System.Action<Excalibur.Saga.Health.SagaHealthCheckOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.SagasDispatchBuilderExtensions.WithAdvancedSagas(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Saga.AdvancedSagaBuilder!>? configure = null) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.SagasDispatchBuilderExtensions.WithAdvancedSagas(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Saga.AdvancedSagaOptions!>! configureOptions) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.SagaServiceCollectionExtensions.AddExcaliburSaga(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaServiceCollectionExtensions.AddExcaliburSaga(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.DependencyInjection.ISagaBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaServiceCollectionExtensions.AddExcaliburSaga(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.SagaOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaServiceCollectionExtensions.HasExcaliburSaga(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> bool
+static Microsoft.Extensions.DependencyInjection.SagaTelemetryExtensions.AddSagaInstrumentation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaTelemetryExtensions.AddSagaInstrumentation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.Telemetry.SagaInstrumentationOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaTimeoutServiceCollectionExtensions.AddSagaTimeoutDelivery(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaTimeoutServiceCollectionExtensions.AddSagaTimeoutDelivery(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.SagaTimeoutOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaTimeoutServiceCollectionExtensions.AddSagaTimeoutDeliveryService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.SagaTimeoutOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+virtual Excalibur.Saga.Orchestration.SagaBase<TSagaState>.SerializeTimeoutData<T>(T data) -> byte[]!
+virtual Excalibur.Saga.StateMachine.ProcessManager<TData>.CurrentStateName.get -> string!
+virtual Excalibur.Saga.StateMachine.ProcessManager<TData>.CurrentStateName.set -> void

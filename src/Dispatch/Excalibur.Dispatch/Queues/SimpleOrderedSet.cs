@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Queues;
 /// Simple in-memory implementation of IDistributedOrderedSetQueue.
 /// </summary>
 /// <typeparam name="T"> The type of items in the queue. </typeparam>
-public sealed class SimpleOrderedSet<T> : IDistributedOrderedSetQueue<T>
+internal sealed class SimpleOrderedSet<T> : IDistributedOrderedSetQueue<T>
 	where T : notnull
 {
 	private readonly Channel<T> _channel;

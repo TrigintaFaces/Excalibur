@@ -489,7 +489,8 @@ public sealed class StaticPipelineInvocationShould : IDisposable
 		var dispatcher = new Dispatcher(_middlewareInvoker, _finalHandler);
 		var message = new DeterministicCommand();
 		var timestamp = DateTimeOffset.UtcNow.AddMinutes(-5);
-		var context = new MessageContext { ReceivedTimestampUtc = timestamp };
+		var context = new MessageContext();
+		context.SetReceivedTimestampUtc(timestamp);
 		IMessageContext? capturedContext = null;
 
 		_ = A.CallTo(() => _middlewareInvoker.InvokeAsync(
@@ -505,7 +506,7 @@ public sealed class StaticPipelineInvocationShould : IDisposable
 
 		// Assert
 		_ = capturedContext.ShouldNotBeNull();
-		capturedContext.ReceivedTimestampUtc.ShouldBe(timestamp);
+		capturedContext.GetReceivedTimestampUtc().ShouldBe(timestamp);
 	}
 
 	#endregion

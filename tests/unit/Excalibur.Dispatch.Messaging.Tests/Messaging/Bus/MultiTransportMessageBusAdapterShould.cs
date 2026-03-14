@@ -22,13 +22,13 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 
 	public MultiTransportMessageBusAdapterShould()
 	{
-		_rabbitMqAdapter = A.Fake<IMessageBusAdapter>();
-		_kafkaAdapter = A.Fake<IMessageBusAdapter>();
+		_rabbitMqAdapter = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>().Implements<IMessageBusAdapterCapabilities>());
+		_kafkaAdapter = A.Fake<IMessageBusAdapter>(o => o.Implements<IMessageBusAdapterLifecycle>().Implements<IMessageBusAdapterCapabilities>());
 
 		A.CallTo(() => _rabbitMqAdapter.Name).Returns("rabbitmq");
 		A.CallTo(() => _kafkaAdapter.Name).Returns("kafka");
-		A.CallTo(() => _rabbitMqAdapter.SupportsPublishing).Returns(true);
-		A.CallTo(() => _kafkaAdapter.SupportsPublishing).Returns(true);
+		A.CallTo(() => ((IMessageBusAdapterCapabilities)_rabbitMqAdapter).SupportsPublishing).Returns(true);
+		A.CallTo(() => ((IMessageBusAdapterCapabilities)_kafkaAdapter).SupportsPublishing).Returns(true);
 
 		_sut = new MultiTransportMessageBusAdapter(
 			[_rabbitMqAdapter, _kafkaAdapter],
@@ -99,8 +99,8 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public void ReturnTrue_ForSupportsPublishing_WhenAnyAdapterSupports()
 	{
 		// Arrange
-		A.CallTo(() => _rabbitMqAdapter.SupportsPublishing).Returns(true);
-		A.CallTo(() => _kafkaAdapter.SupportsPublishing).Returns(false);
+		A.CallTo(() => ((IMessageBusAdapterCapabilities)_rabbitMqAdapter).SupportsPublishing).Returns(true);
+		A.CallTo(() => ((IMessageBusAdapterCapabilities)_kafkaAdapter).SupportsPublishing).Returns(false);
 
 		// Act
 		var result = _sut.SupportsPublishing;
@@ -113,8 +113,8 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public void ReturnFalse_ForSupportsPublishing_WhenNoAdapterSupports()
 	{
 		// Arrange
-		A.CallTo(() => _rabbitMqAdapter.SupportsPublishing).Returns(false);
-		A.CallTo(() => _kafkaAdapter.SupportsPublishing).Returns(false);
+		A.CallTo(() => ((IMessageBusAdapterCapabilities)_rabbitMqAdapter).SupportsPublishing).Returns(false);
+		A.CallTo(() => ((IMessageBusAdapterCapabilities)_kafkaAdapter).SupportsPublishing).Returns(false);
 
 		using var adapter = new MultiTransportMessageBusAdapter(
 			[_rabbitMqAdapter, _kafkaAdapter],
@@ -135,8 +135,8 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public void ReturnTrue_ForSupportsSubscription_WhenAnyAdapterSupports()
 	{
 		// Arrange
-		A.CallTo(() => _rabbitMqAdapter.SupportsSubscription).Returns(true);
-		A.CallTo(() => _kafkaAdapter.SupportsSubscription).Returns(false);
+		A.CallTo(() => ((IMessageBusAdapterCapabilities)_rabbitMqAdapter).SupportsSubscription).Returns(true);
+		A.CallTo(() => ((IMessageBusAdapterCapabilities)_kafkaAdapter).SupportsSubscription).Returns(false);
 
 		// Act
 		var result = _sut.SupportsSubscription;
@@ -153,8 +153,8 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public void ReturnTrue_ForSupportsTransactions_WhenAnyAdapterSupports()
 	{
 		// Arrange
-		A.CallTo(() => _rabbitMqAdapter.SupportsTransactions).Returns(false);
-		A.CallTo(() => _kafkaAdapter.SupportsTransactions).Returns(true);
+		A.CallTo(() => ((IMessageBusAdapterCapabilities)_rabbitMqAdapter).SupportsTransactions).Returns(false);
+		A.CallTo(() => ((IMessageBusAdapterCapabilities)_kafkaAdapter).SupportsTransactions).Returns(true);
 
 		// Act
 		var result = _sut.SupportsTransactions;
@@ -445,9 +445,9 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task AggregateHealthFromAllAdapters()
 	{
 		// Arrange
-		A.CallTo(() => _rabbitMqAdapter.CheckHealthAsync(A<CancellationToken>._))
+		A.CallTo(() => ((IMessageBusAdapterLifecycle)_rabbitMqAdapter).CheckHealthAsync(A<CancellationToken>._))
 			.Returns(new HealthCheckResult(true, "RabbitMQ healthy"));
-		A.CallTo(() => _kafkaAdapter.CheckHealthAsync(A<CancellationToken>._))
+		A.CallTo(() => ((IMessageBusAdapterLifecycle)_kafkaAdapter).CheckHealthAsync(A<CancellationToken>._))
 			.Returns(new HealthCheckResult(true, "Kafka healthy"));
 
 		// Act
@@ -464,9 +464,9 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 	public async Task ReturnUnhealthy_WhenAnyAdapterIsUnhealthy()
 	{
 		// Arrange
-		A.CallTo(() => _rabbitMqAdapter.CheckHealthAsync(A<CancellationToken>._))
+		A.CallTo(() => ((IMessageBusAdapterLifecycle)_rabbitMqAdapter).CheckHealthAsync(A<CancellationToken>._))
 			.Returns(new HealthCheckResult(true, "RabbitMQ healthy"));
-		A.CallTo(() => _kafkaAdapter.CheckHealthAsync(A<CancellationToken>._))
+		A.CallTo(() => ((IMessageBusAdapterLifecycle)_kafkaAdapter).CheckHealthAsync(A<CancellationToken>._))
 			.Returns(new HealthCheckResult(false, "Kafka connection failed"));
 
 		// Act
@@ -491,9 +491,9 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 		await _sut.StartAsync(CancellationToken.None);
 
 		// Assert
-		A.CallTo(() => _rabbitMqAdapter.StartAsync(A<CancellationToken>._))
+		A.CallTo(() => ((IMessageBusAdapterLifecycle)_rabbitMqAdapter).StartAsync(A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
-		A.CallTo(() => _kafkaAdapter.StartAsync(A<CancellationToken>._))
+		A.CallTo(() => ((IMessageBusAdapterLifecycle)_kafkaAdapter).StartAsync(A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 
@@ -508,9 +508,9 @@ public sealed class MultiTransportMessageBusAdapterShould : IDisposable
 		await _sut.StopAsync(CancellationToken.None);
 
 		// Assert
-		A.CallTo(() => _rabbitMqAdapter.StopAsync(A<CancellationToken>._))
+		A.CallTo(() => ((IMessageBusAdapterLifecycle)_rabbitMqAdapter).StopAsync(A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
-		A.CallTo(() => _kafkaAdapter.StopAsync(A<CancellationToken>._))
+		A.CallTo(() => ((IMessageBusAdapterLifecycle)_kafkaAdapter).StopAsync(A<CancellationToken>._))
 			.MustHaveHappenedOnceExactly();
 	}
 

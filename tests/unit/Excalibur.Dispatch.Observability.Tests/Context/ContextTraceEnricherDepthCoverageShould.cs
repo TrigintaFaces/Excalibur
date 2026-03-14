@@ -6,6 +6,7 @@
 using System.Diagnostics;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Telemetry;
 using Excalibur.Dispatch.Observability.Context;
 
@@ -41,12 +42,13 @@ public sealed class ContextTraceEnricherDepthCoverageShould : IDisposable
 		// Arrange
 		_enricher = CreateEnricher();
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>();
+		var features = new Dictionary<Type, object>();
 		A.CallTo(() => context.CorrelationId).Returns(null);
 		A.CallTo(() => context.CausationId).Returns(null);
-		A.CallTo(() => context.TenantId).Returns(null);
-		A.CallTo(() => context.UserId).Returns(null);
-		A.CallTo(() => context.MessageType).Returns(null);
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
+		// No TenantId, UserId, or MessageType set — all null
 		var carrier = new Dictionary<string, string>();
 
 		// Act
@@ -81,7 +83,7 @@ public sealed class ContextTraceEnricherDepthCoverageShould : IDisposable
 			.Returns("hashed-tenant");
 		_enricher = CreateEnricher();
 		var context = CreateFakeContext();
-		A.CallTo(() => context.TenantId).Returns("tenant-xyz");
+		context.GetOrCreateIdentityFeature().TenantId = "tenant-xyz";
 		var carrier = new Dictionary<string, string>();
 
 		// Act
@@ -100,8 +102,9 @@ public sealed class ContextTraceEnricherDepthCoverageShould : IDisposable
 		A.CallTo(() => _sanitizer.SanitizeTag("user.id", A<string?>._)).Returns(null);
 		_enricher = CreateEnricher();
 		var context = CreateFakeContext();
-		A.CallTo(() => context.TenantId).Returns("tenant-1");
-		A.CallTo(() => context.UserId).Returns("user-1");
+		var identity = context.GetOrCreateIdentityFeature();
+		identity.TenantId = "tenant-1";
+		identity.UserId = "user-1";
 		var carrier = new Dictionary<string, string>();
 
 		// Act
@@ -121,6 +124,7 @@ public sealed class ContextTraceEnricherDepthCoverageShould : IDisposable
 		A.CallTo(() => context.CorrelationId).Returns(null);
 		A.CallTo(() => context.MessageId).Returns("msg-extract");
 		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
 
 		var carrier = new Dictionary<string, string>
 		{
@@ -142,6 +146,7 @@ public sealed class ContextTraceEnricherDepthCoverageShould : IDisposable
 		A.CallTo(() => context.CausationId).Returns(null);
 		A.CallTo(() => context.MessageId).Returns("msg-cause");
 		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
 
 		var carrier = new Dictionary<string, string>
 		{
@@ -165,6 +170,7 @@ public sealed class ContextTraceEnricherDepthCoverageShould : IDisposable
 		var context = A.Fake<IMessageContext>();
 		A.CallTo(() => context.MessageId).Returns("msg-unknown");
 		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		A.CallTo(() => context.Features).Returns(new Dictionary<Type, object>());
 
 		var carrier = new Dictionary<string, string>
 		{
@@ -299,7 +305,7 @@ public sealed class ContextTraceEnricherDepthCoverageShould : IDisposable
 		activity.ShouldNotBeNull();
 
 		var context = CreateFakeContext();
-		A.CallTo(() => context.TraceParent).Returns(null);
+		// TraceParent is null by default (not set in identity feature)
 
 		// Act — should not throw
 		_enricher.EnrichActivity(activity, context);
@@ -324,7 +330,7 @@ public sealed class ContextTraceEnricherDepthCoverageShould : IDisposable
 		activity.ShouldNotBeNull();
 
 		var context = CreateFakeContext();
-		A.CallTo(() => context.TraceParent).Returns("   ");
+		context.GetOrCreateIdentityFeature().TraceParent = "   ";
 
 		// Act — should not throw
 		_enricher.EnrichActivity(activity, context);
@@ -378,16 +384,27 @@ public sealed class ContextTraceEnricherDepthCoverageShould : IDisposable
 	private static IMessageContext CreateFakeContext()
 	{
 		var context = A.Fake<IMessageContext>();
+		var items = new Dictionary<string, object>();
+		var features = new Dictionary<Type, object>();
+
 		A.CallTo(() => context.MessageId).Returns("msg-depth");
 		A.CallTo(() => context.CorrelationId).Returns("corr-depth");
 		A.CallTo(() => context.CausationId).Returns("cause-depth");
-		A.CallTo(() => context.MessageType).Returns("TestEvent");
-		A.CallTo(() => context.UserId).Returns("user-depth");
-		A.CallTo(() => context.TenantId).Returns("tenant-depth");
-		A.CallTo(() => context.Source).Returns("test-source");
-		A.CallTo(() => context.ReceivedTimestampUtc).Returns(DateTimeOffset.UtcNow);
-		A.CallTo(() => context.TraceParent).Returns(null);
-		A.CallTo(() => context.Items).Returns(new Dictionary<string, object>());
+		A.CallTo(() => context.Items).Returns(items);
+		A.CallTo(() => context.Features).Returns(features);
+
+		// Set Items-based properties via extension methods
+		context.SetMessageType("TestEvent");
+		context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
+
+		// Set Features-based properties via feature objects
+		var identity = context.GetOrCreateIdentityFeature();
+		identity.UserId = "user-depth";
+		identity.TenantId = "tenant-depth";
+
+		var routing = context.GetOrCreateRoutingFeature();
+		routing.Source = "test-source";
+
 		return context;
 	}
 }

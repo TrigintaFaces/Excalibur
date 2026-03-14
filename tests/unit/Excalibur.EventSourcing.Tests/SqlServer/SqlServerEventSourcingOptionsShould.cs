@@ -88,7 +88,7 @@ public sealed class SqlServerEventSourcingOptionsShould : UnitTestBase
 		var options = new SqlServerEventSourcingOptions();
 
 		// Assert
-		options.RegisterHealthChecks.ShouldBeTrue();
+		options.HealthChecks.RegisterHealthChecks.ShouldBeTrue();
 	}
 
 	[Fact]
@@ -98,7 +98,7 @@ public sealed class SqlServerEventSourcingOptionsShould : UnitTestBase
 		var options = new SqlServerEventSourcingOptions();
 
 		// Assert
-		options.EventStoreHealthCheckName.ShouldBe("sqlserver-event-store");
+		options.HealthChecks.EventStoreHealthCheckName.ShouldBe("sqlserver-event-store");
 	}
 
 	[Fact]
@@ -108,7 +108,7 @@ public sealed class SqlServerEventSourcingOptionsShould : UnitTestBase
 		var options = new SqlServerEventSourcingOptions();
 
 		// Assert
-		options.SnapshotStoreHealthCheckName.ShouldBe("sqlserver-snapshot-store");
+		options.HealthChecks.SnapshotStoreHealthCheckName.ShouldBe("sqlserver-snapshot-store");
 	}
 
 	[Fact]
@@ -118,7 +118,7 @@ public sealed class SqlServerEventSourcingOptionsShould : UnitTestBase
 		var options = new SqlServerEventSourcingOptions();
 
 		// Assert
-		options.OutboxStoreHealthCheckName.ShouldBe("sqlserver-outbox-store");
+		options.HealthChecks.OutboxStoreHealthCheckName.ShouldBe("sqlserver-outbox-store");
 	}
 
 	[Fact]
@@ -219,10 +219,10 @@ public sealed class SqlServerEventSourcingOptionsShould : UnitTestBase
 		var options = new SqlServerEventSourcingOptions();
 
 		// Act
-		options.RegisterHealthChecks = false;
+		options.HealthChecks.RegisterHealthChecks = false;
 
 		// Assert
-		options.RegisterHealthChecks.ShouldBeFalse();
+		options.HealthChecks.RegisterHealthChecks.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -232,10 +232,10 @@ public sealed class SqlServerEventSourcingOptionsShould : UnitTestBase
 		var options = new SqlServerEventSourcingOptions();
 
 		// Act
-		options.EventStoreHealthCheckName = "custom-event-store-health";
+		options.HealthChecks.EventStoreHealthCheckName = "custom-event-store-health";
 
 		// Assert
-		options.EventStoreHealthCheckName.ShouldBe("custom-event-store-health");
+		options.HealthChecks.EventStoreHealthCheckName.ShouldBe("custom-event-store-health");
 	}
 
 	[Fact]
@@ -245,10 +245,10 @@ public sealed class SqlServerEventSourcingOptionsShould : UnitTestBase
 		var options = new SqlServerEventSourcingOptions();
 
 		// Act
-		options.SnapshotStoreHealthCheckName = "custom-snapshot-store-health";
+		options.HealthChecks.SnapshotStoreHealthCheckName = "custom-snapshot-store-health";
 
 		// Assert
-		options.SnapshotStoreHealthCheckName.ShouldBe("custom-snapshot-store-health");
+		options.HealthChecks.SnapshotStoreHealthCheckName.ShouldBe("custom-snapshot-store-health");
 	}
 
 	[Fact]
@@ -258,9 +258,9 @@ public sealed class SqlServerEventSourcingOptionsShould : UnitTestBase
 		var options = new SqlServerEventSourcingOptions();
 
 		// Act
-		options.OutboxStoreHealthCheckName = "custom-outbox-store-health";
+		options.HealthChecks.OutboxStoreHealthCheckName = "custom-outbox-store-health";
 
 		// Assert
-		options.OutboxStoreHealthCheckName.ShouldBe("custom-outbox-store-health");
+		options.HealthChecks.OutboxStoreHealthCheckName.ShouldBe("custom-outbox-store-health");
 	}
 }

@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <param name="messageProcessor"> The message processing function. </param>
 /// <param name="logger"> Logger instance. </param>
 /// <param name="metricsCollector"> Metrics collector. </param>
-public class ParallelBatchProcessor(
+internal class ParallelBatchProcessor(
 	IOptions<BatchConfiguration> options,
 	Func<ReceivedMessage, CancellationToken, Task<object>> messageProcessor,
 	ILogger<ParallelBatchProcessor> logger,

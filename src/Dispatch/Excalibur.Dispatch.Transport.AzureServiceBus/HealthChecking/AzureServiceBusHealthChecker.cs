@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// <param name="serviceBusClient"> The Service Bus client. </param>
 /// <param name="connectionString"> The connection string for admin operations. </param>
 /// <param name="testQueueName"> Optional test queue name for health checks. </param>
-public sealed class AzureServiceBusHealthChecker(
+internal sealed class AzureServiceBusHealthChecker(
 	ILogger<AzureServiceBusHealthChecker> logger,
 	ServiceBusClient serviceBusClient,
 	string? connectionString = null,

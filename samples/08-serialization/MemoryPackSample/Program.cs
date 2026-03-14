@@ -15,8 +15,8 @@
 #pragma warning disable CA1303 // Sample code uses literal strings
 #pragma warning disable CA1506 // Sample has high coupling by design
 
-using Excalibur.Data.InMemory.Inbox;
-using Excalibur.Data.InMemory.Outbox;
+using Excalibur.Inbox.InMemory;
+using Excalibur.Outbox.InMemory;
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
@@ -55,9 +55,9 @@ builder.Services.AddDispatch(dispatch =>
 	_ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
 });
 
-// Add MemoryPack internal serialization (for Outbox/Inbox persistence)
-// MemoryPack is the default and fastest binary serializer
-builder.Services.AddMemoryPackInternalSerialization();
+// Register MemoryPack as the ISerializer for binary serialization (Outbox/Inbox persistence)
+builder.Services.AddSingleton<Excalibur.Dispatch.Abstractions.Serialization.ISerializer>(
+	MemoryPackSerializationServiceCollectionExtensions.GetPluggableSerializer());
 
 // ============================================================
 // Configure outbox/inbox for reliable messaging

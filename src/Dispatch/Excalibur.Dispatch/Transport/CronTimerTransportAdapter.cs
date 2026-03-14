@@ -500,9 +500,9 @@ public sealed partial class CronTimerTransportAdapter : ITransportAdapter, ITran
 			var context = new MessageContext(message, _serviceProvider)
 			{
 				MessageId = messageId,
-				MessageType = typeof(CronTimerTriggerMessage).FullName,
-				ReceivedTimestampUtc = DateTimeOffset.UtcNow,
 			};
+			context.SetMessageType(typeof(CronTimerTriggerMessage).FullName);
+			context.SetReceivedTimestampUtc(DateTimeOffset.UtcNow);
 
 			var result = await dispatcher.DispatchAsync(message, context, cancellationToken).ConfigureAwait(false);
 

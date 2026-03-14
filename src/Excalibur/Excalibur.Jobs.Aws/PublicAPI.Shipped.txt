@@ -1,0 +1,24 @@
+#nullable enable
+Excalibur.Jobs.Aws.AwsSchedulerJobProvider
+Excalibur.Jobs.Aws.AwsSchedulerJobProvider.AwsSchedulerJobProvider(Amazon.Scheduler.AmazonSchedulerClient! schedulerClient, Excalibur.Jobs.Aws.AwsSchedulerOptions! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Aws.AwsSchedulerJobProvider!>! logger) -> void
+Excalibur.Jobs.Aws.AwsSchedulerJobProvider.DeleteJobAsync(string! jobName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.Aws.AwsSchedulerJobProvider.Dispose() -> void
+Excalibur.Jobs.Aws.AwsSchedulerJobProvider.ScheduleJobAsync<TJob>(string! jobName, string! cronExpression, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.Aws.AwsSchedulerOptions
+Excalibur.Jobs.Aws.AwsSchedulerOptions.AwsSchedulerOptions() -> void
+Excalibur.Jobs.Aws.AwsSchedulerOptions.ExecutionRoleArn.get -> string!
+Excalibur.Jobs.Aws.AwsSchedulerOptions.ExecutionRoleArn.set -> void
+Excalibur.Jobs.Aws.AwsSchedulerOptions.MaximumEventAgeInSeconds.get -> int
+Excalibur.Jobs.Aws.AwsSchedulerOptions.MaximumEventAgeInSeconds.set -> void
+Excalibur.Jobs.Aws.AwsSchedulerOptions.RetryPolicyMaximumRetryAttempts.get -> int
+Excalibur.Jobs.Aws.AwsSchedulerOptions.RetryPolicyMaximumRetryAttempts.set -> void
+Excalibur.Jobs.Aws.AwsSchedulerOptions.ScheduleGroup.get -> string!
+Excalibur.Jobs.Aws.AwsSchedulerOptions.ScheduleGroup.set -> void
+Excalibur.Jobs.Aws.AwsSchedulerOptions.TargetArn.get -> string!
+Excalibur.Jobs.Aws.AwsSchedulerOptions.TargetArn.set -> void
+Excalibur.Jobs.Aws.AwsSchedulerOptions.TimeZone.get -> string!
+Excalibur.Jobs.Aws.AwsSchedulerOptions.TimeZone.set -> void
+Microsoft.Extensions.DependencyInjection.AwsJobsServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.AwsJobsServiceCollectionExtensions.AddAwsScheduler(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Amazon.Extensions.NETCore.Setup.AWSOptions! awsOptions, System.Action<Excalibur.Jobs.Aws.AwsSchedulerOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AwsJobsServiceCollectionExtensions.AddAwsScheduler(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Jobs.Aws.AwsSchedulerOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+virtual Excalibur.Jobs.Aws.AwsSchedulerJobProvider.Dispose(bool disposing) -> void

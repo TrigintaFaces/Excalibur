@@ -5,6 +5,7 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Abstractions.Features;
 
 namespace Excalibur.Dispatch.Messaging;
 
@@ -52,10 +53,10 @@ public record MessageMetadata(
 			MessageId: context.MessageId ?? Guid.NewGuid().ToString(),
 			CorrelationId: context.CorrelationId ?? Guid.NewGuid().ToString(),
 			CausationId: context.CausationId,
-			TraceParent: context.TraceParent,
-			TenantId: context.TenantId,
-			UserId: context.UserId,
-			ContentType: context.ContentType ?? "application/json",
+			TraceParent: context.GetTraceParent(),
+			TenantId: context.GetTenantId(),
+			UserId: context.GetUserId(),
+			ContentType: context.GetContentType() ?? "application/json",
 			SerializerVersion: context.SerializerVersion() ?? "1.0.0",
 			MessageVersion: context.MessageVersion() ?? "1.0.0",
 			ContractVersion: context.ContractVersion() ?? "1.0.0");

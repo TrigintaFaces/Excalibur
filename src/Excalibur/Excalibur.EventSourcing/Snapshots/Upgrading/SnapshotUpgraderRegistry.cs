@@ -48,7 +48,7 @@ public sealed partial class SnapshotUpgraderRegistry
 	/// <exception cref="InvalidOperationException">Thrown when a duplicate upgrader is registered for the same aggregate type and version range.</exception>
 	public void Register<TFrom, TTo>(
 		ISnapshotUpgrader<TFrom, TTo> upgrader,
-		ISnapshotDataSerializer serializer)
+		ISnapshotSerializer serializer)
 		where TFrom : class
 		where TTo : class
 	{

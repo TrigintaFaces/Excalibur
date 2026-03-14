@@ -18,22 +18,25 @@ public sealed class DynamoDbOptionsShould : UnitTestBase
 		// Act
 		var options = new DynamoDbOptions();
 
-		// Assert
+		// Assert - root properties
 		options.Name.ShouldBe("DynamoDb");
-		options.ServiceUrl.ShouldBeNull();
-		options.Region.ShouldBeNull();
-		options.AccessKey.ShouldBeNull();
-		options.SecretKey.ShouldBeNull();
 		options.DefaultTableName.ShouldBeNull();
 		options.DefaultPartitionKeyAttribute.ShouldBe("pk");
 		options.DefaultSortKeyAttribute.ShouldBe("sk");
-		options.MaxRetryAttempts.ShouldBe(3);
-		options.TimeoutInSeconds.ShouldBe(30);
 		options.UseConsistentReads.ShouldBeFalse();
-		options.ReadCapacityUnits.ShouldBeNull();
-		options.WriteCapacityUnits.ShouldBeNull();
 		options.EnableStreams.ShouldBeFalse();
 		options.StreamViewType.ShouldBe("NEW_AND_OLD_IMAGES");
+
+		// Assert - connection sub-options
+		options.Connection.ShouldNotBeNull();
+		options.Connection.ServiceUrl.ShouldBeNull();
+		options.Connection.Region.ShouldBeNull();
+		options.Connection.AccessKey.ShouldBeNull();
+		options.Connection.SecretKey.ShouldBeNull();
+		options.Connection.MaxRetryAttempts.ShouldBe(3);
+		options.Connection.TimeoutInSeconds.ShouldBe(30);
+		options.Connection.ReadCapacityUnits.ShouldBeNull();
+		options.Connection.WriteCapacityUnits.ShouldBeNull();
 	}
 
 	[Fact]
@@ -42,7 +45,10 @@ public sealed class DynamoDbOptionsShould : UnitTestBase
 		// Arrange
 		var options = new DynamoDbOptions
 		{
-			ServiceUrl = "http://localhost:8000"
+			Connection = new DynamoDbConnectionOptions
+			{
+				ServiceUrl = "http://localhost:8000",
+			},
 		};
 
 		// Act & Assert - should not throw
@@ -55,7 +61,10 @@ public sealed class DynamoDbOptionsShould : UnitTestBase
 		// Arrange
 		var options = new DynamoDbOptions
 		{
-			Region = "us-east-1"
+			Connection = new DynamoDbConnectionOptions
+			{
+				Region = "us-east-1",
+			},
 		};
 
 		// Act & Assert - should not throw
@@ -68,9 +77,12 @@ public sealed class DynamoDbOptionsShould : UnitTestBase
 		// Arrange
 		var options = new DynamoDbOptions
 		{
-			Region = "us-east-1",
-			AccessKey = "AKIAIOSFODNN7EXAMPLE",
-			SecretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+			Connection = new DynamoDbConnectionOptions
+			{
+				Region = "us-east-1",
+				AccessKey = "AKIAIOSFODNN7EXAMPLE",
+				SecretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+			},
 		};
 
 		// Act & Assert - should not throw
@@ -95,7 +107,10 @@ public sealed class DynamoDbOptionsShould : UnitTestBase
 		// Arrange
 		var options = new DynamoDbOptions
 		{
-			Region = "us-east-1"
+			Connection = new DynamoDbConnectionOptions
+			{
+				Region = "us-east-1",
+			},
 		};
 
 		// Act
@@ -126,37 +141,42 @@ public sealed class DynamoDbOptionsShould : UnitTestBase
 		var options = new DynamoDbOptions
 		{
 			Name = "CustomDynamoDb",
-			ServiceUrl = "http://localhost:8000",
-			Region = "us-west-2",
-			AccessKey = "TestKey",
-			SecretKey = "TestSecret",
 			DefaultTableName = "TestTable",
 			DefaultPartitionKeyAttribute = "customPk",
 			DefaultSortKeyAttribute = "customSk",
-			MaxRetryAttempts = 5,
-			TimeoutInSeconds = 60,
 			UseConsistentReads = true,
-			ReadCapacityUnits = 10,
-			WriteCapacityUnits = 5,
 			EnableStreams = true,
-			StreamViewType = "KEYS_ONLY"
+			StreamViewType = "KEYS_ONLY",
+			Connection = new DynamoDbConnectionOptions
+			{
+				ServiceUrl = "http://localhost:8000",
+				Region = "us-west-2",
+				AccessKey = "TestKey",
+				SecretKey = "TestSecret",
+				MaxRetryAttempts = 5,
+				TimeoutInSeconds = 60,
+				ReadCapacityUnits = 10,
+				WriteCapacityUnits = 5,
+			},
 		};
 
-		// Assert
+		// Assert - root
 		options.Name.ShouldBe("CustomDynamoDb");
-		options.ServiceUrl.ShouldBe("http://localhost:8000");
-		options.Region.ShouldBe("us-west-2");
-		options.AccessKey.ShouldBe("TestKey");
-		options.SecretKey.ShouldBe("TestSecret");
 		options.DefaultTableName.ShouldBe("TestTable");
 		options.DefaultPartitionKeyAttribute.ShouldBe("customPk");
 		options.DefaultSortKeyAttribute.ShouldBe("customSk");
-		options.MaxRetryAttempts.ShouldBe(5);
-		options.TimeoutInSeconds.ShouldBe(60);
 		options.UseConsistentReads.ShouldBeTrue();
-		options.ReadCapacityUnits.ShouldBe(10);
-		options.WriteCapacityUnits.ShouldBe(5);
 		options.EnableStreams.ShouldBeTrue();
 		options.StreamViewType.ShouldBe("KEYS_ONLY");
+
+		// Assert - connection
+		options.Connection.ServiceUrl.ShouldBe("http://localhost:8000");
+		options.Connection.Region.ShouldBe("us-west-2");
+		options.Connection.AccessKey.ShouldBe("TestKey");
+		options.Connection.SecretKey.ShouldBe("TestSecret");
+		options.Connection.MaxRetryAttempts.ShouldBe(5);
+		options.Connection.TimeoutInSeconds.ShouldBe(60);
+		options.Connection.ReadCapacityUnits.ShouldBe(10);
+		options.Connection.WriteCapacityUnits.ShouldBe(5);
 	}
 }

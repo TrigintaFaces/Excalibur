@@ -151,7 +151,7 @@ public sealed class DispatcherShould
 		await dispatcher.DispatchAsync(message, context, CancellationToken.None);
 
 		// Assert
-		context.MessageType.ShouldNotBeNullOrWhiteSpace();
+		context.GetMessageType().ShouldNotBeNullOrWhiteSpace();
 	}
 
 	[Fact]

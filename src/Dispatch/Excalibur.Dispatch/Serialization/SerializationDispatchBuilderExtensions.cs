@@ -5,7 +5,6 @@
 using System.Diagnostics.CodeAnalysis;
 
 using Excalibur.Dispatch.Abstractions.Configuration;
-using Excalibur.Dispatch.Abstractions.Serialization;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -36,7 +35,7 @@ public static class SerializationDispatchBuilderExtensions
 	/// Adds a custom message serializer implementation to the builder with a specific version. Enables registration of alternative
 	/// serialization strategies with versioning support.
 	/// </summary>
-	/// <typeparam name="TSerializer"> The type of serializer to register. Must implement IMessageSerializer. </typeparam>
+	/// <typeparam name="TSerializer"> The type of serializer to register. </typeparam>
 	/// <param name="builder"> The dispatch builder to configure. </param>
 	/// <param name="version"> The version number for the serializer implementation. </param>
 	/// <returns> The dispatch builder for method chaining. </returns>
@@ -46,7 +45,7 @@ public static class SerializationDispatchBuilderExtensions
 	TSerializer>(
 		this IDispatchBuilder builder,
 		int version)
-		where TSerializer : class, IMessageSerializer
+		where TSerializer : class
 	{
 		ArgumentNullException.ThrowIfNull(builder);
 

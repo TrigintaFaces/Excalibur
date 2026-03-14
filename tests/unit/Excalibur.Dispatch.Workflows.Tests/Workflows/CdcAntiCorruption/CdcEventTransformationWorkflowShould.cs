@@ -496,7 +496,7 @@ public sealed class CdcEventTransformationWorkflowShould
 		}
 	}
 
-	// Simulated CDC types (mirrors the real Excalibur.Data.SqlServer.Cdc types)
+	// Simulated CDC types (mirrors the real Excalibur.Cdc.SqlServer types)
 	internal sealed class SimulatedDataChange
 	{
 		public string ColumnName { get; init; } = string.Empty;

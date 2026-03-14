@@ -45,8 +45,11 @@ public sealed class MultiProviderComplianceShould : IAsyncLifetime, IDisposable
 		{
 			KeyAliasPrefix = "excalibur-e2e",
 			Environment = "test",
-			EnableAutoRotation = false,
-			DefaultKeySpec = KeySpec.SYMMETRIC_DEFAULT
+			KeyPolicy =
+			{
+				EnableAutoRotation = false,
+				DefaultKeySpec = KeySpec.SYMMETRIC_DEFAULT
+			}
 		});
 		_awsProvider = new AwsKmsProvider(_kmsClient, awsOptions, _awsLogger, _cache);
 

@@ -38,6 +38,130 @@ public sealed class TimePolicyOptions
 	public TimeSpan MaxTimeout { get; set; } = TimeSpan.FromMinutes(5);
 
 	/// <summary>
+	/// Gets or sets a value indicating whether timeouts should be enforced for all operations.
+	/// Default: true.
+	/// </summary>
+	/// <value> True to enforce timeouts; otherwise, false. </value>
+	public bool EnforceTimeouts { get; set; } = true;
+
+	/// <summary>
+	/// Gets or sets the operation-specific timeout configuration.
+	/// </summary>
+	/// <value> The operation timeout settings. </value>
+	public TimePolicyOperationTimeoutOptions OperationTimeouts { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the adaptive timeout configuration.
+	/// </summary>
+	/// <value> The adaptive timeout settings. </value>
+	public TimePolicyAdaptiveOptions Adaptive { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the custom timeout override configuration.
+	/// </summary>
+	/// <value> The timeout override settings. </value>
+	public TimePolicyOverrideOptions Overrides { get; set; } = new();
+
+	/// <summary>
+	/// Gets or sets the timeout observability configuration.
+	/// </summary>
+	/// <value> The timeout observability settings. </value>
+	public TimePolicyObservabilityOptions Observability { get; set; } = new();
+
+	/// <summary>
+	/// Validates the configuration options.
+	/// </summary>
+	/// <returns> A collection of validation results. </returns>
+	public IEnumerable<ValidationResult> Validate()
+	{
+		var results = new List<ValidationResult>();
+		ValidateSimpleRanges(results);
+		ValidateRelativeTimeouts(results);
+		ValidateDictionaries(results);
+		return results;
+	}
+
+	private void ValidateSimpleRanges(List<ValidationResult> results)
+	{
+		if (DefaultTimeout >= MaxTimeout)
+		{
+			results.Add(new ValidationResult(
+				"DefaultTimeout must be less than MaxTimeout",
+				new[] { nameof(DefaultTimeout), nameof(MaxTimeout) }));
+		}
+
+		if (OperationTimeouts.HandlerTimeout > MaxTimeout)
+		{
+			results.Add(new ValidationResult(
+				"OperationTimeouts.HandlerTimeout cannot exceed MaxTimeout",
+				new[] { nameof(OperationTimeouts), nameof(MaxTimeout) }));
+		}
+
+		if (OperationTimeouts.TransportTimeout > MaxTimeout)
+		{
+			results.Add(new ValidationResult(
+				"OperationTimeouts.TransportTimeout cannot exceed MaxTimeout",
+				new[] { nameof(OperationTimeouts), nameof(MaxTimeout) }));
+		}
+	}
+
+	private void ValidateRelativeTimeouts(List<ValidationResult> results)
+	{
+		if (OperationTimeouts.SerializationTimeout >= OperationTimeouts.HandlerTimeout)
+		{
+			results.Add(new ValidationResult(
+				"OperationTimeouts.SerializationTimeout should be less than OperationTimeouts.HandlerTimeout",
+				new[] { nameof(OperationTimeouts) }));
+		}
+
+		if (OperationTimeouts.ValidationTimeout >= OperationTimeouts.HandlerTimeout)
+		{
+			results.Add(new ValidationResult(
+				"OperationTimeouts.ValidationTimeout should be less than OperationTimeouts.HandlerTimeout",
+				new[] { nameof(OperationTimeouts) }));
+		}
+	}
+
+	private void ValidateDictionaries(List<ValidationResult> results)
+	{
+		foreach (var customTimeout in Overrides.CustomTimeouts)
+		{
+			if (customTimeout.Value > MaxTimeout)
+			{
+				results.Add(new ValidationResult(
+					$"Custom timeout for {customTimeout.Key} cannot exceed MaxTimeout",
+					new[] { nameof(Overrides) }));
+			}
+		}
+
+		foreach (var messageTimeout in Overrides.MessageTypeTimeouts)
+		{
+			if (messageTimeout.Value > MaxTimeout)
+			{
+				results.Add(new ValidationResult(
+					$"Message type timeout for {messageTimeout.Key} cannot exceed MaxTimeout",
+					new[] { nameof(Overrides) }));
+			}
+		}
+
+		foreach (var handlerTimeout in Overrides.HandlerTypeTimeouts)
+		{
+			if (handlerTimeout.Value > MaxTimeout)
+			{
+				results.Add(new ValidationResult(
+					$"Handler type timeout for {handlerTimeout.Key} cannot exceed MaxTimeout",
+					new[] { nameof(Overrides) }));
+			}
+		}
+	}
+}
+
+/// <summary>
+/// Configuration options for operation-specific timeouts and multipliers.
+/// </summary>
+public sealed class TimePolicyOperationTimeoutOptions
+{
+	/// <summary>
 	/// Gets or sets the timeout for handler execution.
 	/// Default: 2 minutes.
 	/// </summary>
@@ -92,14 +216,13 @@ public sealed class TimePolicyOptions
 	/// <value> The multiplier applied to heavy operations. </value>
 	[Range(1.0, 10.0)]
 	public double HeavyOperationMultiplier { get; set; } = 3.0;
+}
 
-	/// <summary>
-	/// Gets or sets a value indicating whether timeouts should be enforced for all operations.
-	/// Default: true.
-	/// </summary>
-	/// <value> True to enforce timeouts; otherwise, false. </value>
-	public bool EnforceTimeouts { get; set; } = true;
-
+/// <summary>
+/// Configuration options for adaptive timeout behavior.
+/// </summary>
+public sealed class TimePolicyAdaptiveOptions
+{
 	/// <summary>
 	/// Gets or sets a value indicating whether to use adaptive timeouts based on historical performance.
 	/// Default: false.
@@ -122,7 +245,13 @@ public sealed class TimePolicyOptions
 	/// <value> The minimum sample size required for adaptive timeouts. </value>
 	[Range(10, 10000)]
 	public int MinimumSampleSize { get; set; } = 100;
+}
 
+/// <summary>
+/// Configuration options for custom timeout overrides by operation, message, or handler type.
+/// </summary>
+public sealed class TimePolicyOverrideOptions
+{
 	/// <summary>
 	/// Gets custom timeout overrides for specific operation types.
 	/// </summary>
@@ -140,7 +269,13 @@ public sealed class TimePolicyOptions
 	/// </summary>
 	/// <value> The custom timeout overrides by handler type. </value>
 	public IDictionary<string, TimeSpan> HandlerTypeTimeouts { get; init; } = new Dictionary<string, TimeSpan>(StringComparer.Ordinal);
+}
 
+/// <summary>
+/// Configuration options for timeout observability (logging and metrics).
+/// </summary>
+public sealed class TimePolicyObservabilityOptions
+{
 	/// <summary>
 	/// Gets or sets a value indicating whether to log timeout events for monitoring.
 	/// Default: true.
@@ -154,91 +289,4 @@ public sealed class TimePolicyOptions
 	/// </summary>
 	/// <value> True to include timeout metrics; otherwise, false. </value>
 	public bool IncludeTimeoutMetrics { get; set; } = true;
-
-	/// <summary>
-	/// Validates the configuration options.
-	/// </summary>
-	/// <returns> A collection of validation results. </returns>
-	public IEnumerable<ValidationResult> Validate()
-	{
-		var results = new List<ValidationResult>();
-		ValidateSimpleRanges(results);
-		ValidateRelativeTimeouts(results);
-		ValidateDictionaries(results);
-		return results;
-	}
-
-	private void ValidateSimpleRanges(List<ValidationResult> results)
-	{
-		if (DefaultTimeout >= MaxTimeout)
-		{
-			results.Add(new ValidationResult(
-				"DefaultTimeout must be less than MaxTimeout",
-				new[] { nameof(DefaultTimeout), nameof(MaxTimeout) }));
-		}
-
-		if (HandlerTimeout > MaxTimeout)
-		{
-			results.Add(new ValidationResult(
-				"HandlerTimeout cannot exceed MaxTimeout",
-				new[] { nameof(HandlerTimeout), nameof(MaxTimeout) }));
-		}
-
-		if (TransportTimeout > MaxTimeout)
-		{
-			results.Add(new ValidationResult(
-				"TransportTimeout cannot exceed MaxTimeout",
-				new[] { nameof(TransportTimeout), nameof(MaxTimeout) }));
-		}
-	}
-
-	private void ValidateRelativeTimeouts(List<ValidationResult> results)
-	{
-		if (SerializationTimeout >= HandlerTimeout)
-		{
-			results.Add(new ValidationResult(
-				"SerializationTimeout should be less than HandlerTimeout",
-				new[] { nameof(SerializationTimeout), nameof(HandlerTimeout) }));
-		}
-
-		if (ValidationTimeout >= HandlerTimeout)
-		{
-			results.Add(new ValidationResult(
-				"ValidationTimeout should be less than HandlerTimeout",
-				new[] { nameof(ValidationTimeout), nameof(HandlerTimeout) }));
-		}
-	}
-
-	private void ValidateDictionaries(List<ValidationResult> results)
-	{
-		foreach (var customTimeout in CustomTimeouts)
-		{
-			if (customTimeout.Value > MaxTimeout)
-			{
-				results.Add(new ValidationResult(
-					$"Custom timeout for {customTimeout.Key} cannot exceed MaxTimeout",
-					new[] { nameof(CustomTimeouts) }));
-			}
-		}
-
-		foreach (var messageTimeout in MessageTypeTimeouts)
-		{
-			if (messageTimeout.Value > MaxTimeout)
-			{
-				results.Add(new ValidationResult(
-					$"Message type timeout for {messageTimeout.Key} cannot exceed MaxTimeout",
-					new[] { nameof(MessageTypeTimeouts) }));
-			}
-		}
-
-		foreach (var handlerTimeout in HandlerTypeTimeouts)
-		{
-			if (handlerTimeout.Value > MaxTimeout)
-			{
-				results.Add(new ValidationResult(
-					$"Handler type timeout for {handlerTimeout.Key} cannot exceed MaxTimeout",
-					new[] { nameof(HandlerTypeTimeouts) }));
-			}
-		}
-	}
 }

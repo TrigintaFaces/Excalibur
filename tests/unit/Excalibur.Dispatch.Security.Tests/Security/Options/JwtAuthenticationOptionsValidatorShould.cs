@@ -52,12 +52,18 @@ public sealed class JwtAuthenticationOptionsValidatorShould
 		var options = new JwtAuthenticationOptions
 		{
 			Enabled = true,
-			ValidateIssuer = true,
-			ValidIssuer = "https://auth.example.com",
-			ValidateAudience = true,
-			ValidAudience = "my-api",
-			ValidateSigningKey = true,
-			SigningKey = "super-secret-key-that-is-long-enough"
+			Validation = new JwtTokenValidationOptions
+			{
+				ValidateIssuer = true,
+				ValidateAudience = true,
+				ValidateSigningKey = true,
+			},
+			Credentials = new JwtTokenCredentialOptions
+			{
+				ValidIssuer = "https://auth.example.com",
+				ValidAudience = "my-api",
+				SigningKey = "super-secret-key-that-is-long-enough",
+			},
 		};
 
 		var result = _sut.Validate(null, options);
@@ -71,9 +77,12 @@ public sealed class JwtAuthenticationOptionsValidatorShould
 		var options = new JwtAuthenticationOptions
 		{
 			Enabled = true,
-			ValidateIssuer = false,
-			ValidateAudience = false,
-			ValidateSigningKey = false
+			Validation = new JwtTokenValidationOptions
+			{
+				ValidateIssuer = false,
+				ValidateAudience = false,
+				ValidateSigningKey = false,
+			},
 		};
 
 		var result = _sut.Validate(null, options);
@@ -87,10 +96,13 @@ public sealed class JwtAuthenticationOptionsValidatorShould
 		var options = new JwtAuthenticationOptions
 		{
 			Enabled = true,
-			ValidateIssuer = true,
-			// No ValidIssuer or ValidIssuers set
-			ValidateAudience = false,
-			ValidateSigningKey = false
+			Validation = new JwtTokenValidationOptions
+			{
+				ValidateIssuer = true,
+				ValidateAudience = false,
+				ValidateSigningKey = false,
+			},
+			// No ValidIssuer or ValidIssuers set in Credentials
 		};
 
 		var result = _sut.Validate(null, options);
@@ -105,10 +117,16 @@ public sealed class JwtAuthenticationOptionsValidatorShould
 		var options = new JwtAuthenticationOptions
 		{
 			Enabled = true,
-			ValidateIssuer = true,
-			ValidIssuers = ["https://auth1.example.com", "https://auth2.example.com"],
-			ValidateAudience = false,
-			ValidateSigningKey = false
+			Validation = new JwtTokenValidationOptions
+			{
+				ValidateIssuer = true,
+				ValidateAudience = false,
+				ValidateSigningKey = false,
+			},
+			Credentials = new JwtTokenCredentialOptions
+			{
+				ValidIssuers = ["https://auth1.example.com", "https://auth2.example.com"],
+			},
 		};
 
 		var result = _sut.Validate(null, options);
@@ -122,10 +140,13 @@ public sealed class JwtAuthenticationOptionsValidatorShould
 		var options = new JwtAuthenticationOptions
 		{
 			Enabled = true,
-			ValidateIssuer = false,
-			ValidateAudience = true,
-			// No ValidAudience or ValidAudiences set
-			ValidateSigningKey = false
+			Validation = new JwtTokenValidationOptions
+			{
+				ValidateIssuer = false,
+				ValidateAudience = true,
+				ValidateSigningKey = false,
+			},
+			// No ValidAudience or ValidAudiences set in Credentials
 		};
 
 		var result = _sut.Validate(null, options);
@@ -140,10 +161,16 @@ public sealed class JwtAuthenticationOptionsValidatorShould
 		var options = new JwtAuthenticationOptions
 		{
 			Enabled = true,
-			ValidateIssuer = false,
-			ValidateAudience = true,
-			ValidAudiences = ["api-1", "api-2"],
-			ValidateSigningKey = false
+			Validation = new JwtTokenValidationOptions
+			{
+				ValidateIssuer = false,
+				ValidateAudience = true,
+				ValidateSigningKey = false,
+			},
+			Credentials = new JwtTokenCredentialOptions
+			{
+				ValidAudiences = ["api-1", "api-2"],
+			},
 		};
 
 		var result = _sut.Validate(null, options);
@@ -157,10 +184,13 @@ public sealed class JwtAuthenticationOptionsValidatorShould
 		var options = new JwtAuthenticationOptions
 		{
 			Enabled = true,
-			ValidateIssuer = false,
-			ValidateAudience = false,
-			ValidateSigningKey = true
-			// No SigningKey, RsaPublicKey, or SigningKeyCredentialName set
+			Validation = new JwtTokenValidationOptions
+			{
+				ValidateIssuer = false,
+				ValidateAudience = false,
+				ValidateSigningKey = true,
+			},
+			// No SigningKey, RsaPublicKey, or SigningKeyCredentialName set in Credentials
 		};
 
 		var result = _sut.Validate(null, options);
@@ -175,10 +205,16 @@ public sealed class JwtAuthenticationOptionsValidatorShould
 		var options = new JwtAuthenticationOptions
 		{
 			Enabled = true,
-			ValidateIssuer = false,
-			ValidateAudience = false,
-			ValidateSigningKey = true,
-			RsaPublicKey = "MIIBCgKCAQEA..."
+			Validation = new JwtTokenValidationOptions
+			{
+				ValidateIssuer = false,
+				ValidateAudience = false,
+				ValidateSigningKey = true,
+			},
+			Credentials = new JwtTokenCredentialOptions
+			{
+				RsaPublicKey = "MIIBCgKCAQEA...",
+			},
 		};
 
 		var result = _sut.Validate(null, options);
@@ -192,10 +228,16 @@ public sealed class JwtAuthenticationOptionsValidatorShould
 		var options = new JwtAuthenticationOptions
 		{
 			Enabled = true,
-			ValidateIssuer = false,
-			ValidateAudience = false,
-			ValidateSigningKey = true,
-			SigningKeyCredentialName = "my-vault-key"
+			Validation = new JwtTokenValidationOptions
+			{
+				ValidateIssuer = false,
+				ValidateAudience = false,
+				ValidateSigningKey = true,
+			},
+			Credentials = new JwtTokenCredentialOptions
+			{
+				SigningKeyCredentialName = "my-vault-key",
+			},
 		};
 
 		var result = _sut.Validate(null, options);
@@ -209,11 +251,14 @@ public sealed class JwtAuthenticationOptionsValidatorShould
 		var options = new JwtAuthenticationOptions
 		{
 			Enabled = true,
-			ValidateIssuer = true,
-			ValidateAudience = true,
-			ValidateSigningKey = true,
-			ClockSkewSeconds = -1
-			// No issuer, audience, or signing key configured
+			Validation = new JwtTokenValidationOptions
+			{
+				ValidateIssuer = true,
+				ValidateAudience = true,
+				ValidateSigningKey = true,
+			},
+			ClockSkewSeconds = -1,
+			// No issuer, audience, or signing key configured in Credentials
 		};
 
 		var result = _sut.Validate(null, options);

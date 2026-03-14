@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// High-performance batch receiver for Google Pub/Sub with adaptive batching and flow control integration.
 /// </summary>
-public sealed partial class PubSubBatchReceiver : IBatchReceiver, IDisposable
+internal sealed partial class PubSubBatchReceiver : IBatchReceiver, IDisposable
 {
 	private readonly SubscriberServiceApiClient _subscriberClient;
 	private readonly PubSubFlowController _flowController;

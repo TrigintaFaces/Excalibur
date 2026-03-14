@@ -22,8 +22,7 @@ public sealed class CosmosDbPersistenceProviderShould : UnitTestBase
 		_logger = A.Fake<ILogger<CosmosDbPersistenceProvider>>();
 		_validOptions = Options.Create(new CosmosDbOptions
 		{
-			AccountEndpoint = "https://localhost:8081",
-			AccountKey = CreateNonSecretAccountKey(),
+			Client = new() { AccountEndpoint = "https://localhost:8081", AccountKey = CreateNonSecretAccountKey() },
 			DatabaseName = "TestDb",
 			Name = "TestCosmosDb",
 		});
@@ -65,8 +64,7 @@ public sealed class CosmosDbPersistenceProviderShould : UnitTestBase
 	{
 		var invalidOptions = Options.Create(new CosmosDbOptions
 		{
-			AccountEndpoint = "https://localhost:8081",
-			AccountKey = CreateNonSecretAccountKey(),
+			Client = new() { AccountEndpoint = "https://localhost:8081", AccountKey = CreateNonSecretAccountKey() },
 			DatabaseName = null,
 		});
 
@@ -87,7 +85,7 @@ public sealed class CosmosDbPersistenceProviderShould : UnitTestBase
 	{
 		var options = Options.Create(new CosmosDbOptions
 		{
-			ConnectionString = BuildLocalConnectionString(),
+			Client = new() { ConnectionString = BuildLocalConnectionString() },
 			DatabaseName = "TestDb",
 		});
 

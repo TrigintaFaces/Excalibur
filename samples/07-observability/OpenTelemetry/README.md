@@ -74,7 +74,7 @@ ProcessOrder (custom span)
 ### Adding Custom Spans
 
 ```csharp
-using var activity = DispatchActivitySource.Source.StartActivity("MyOperation");
+using var activity = DispatchActivitySource.Instance.StartActivity("MyOperation");
 activity?.SetTag("custom.tag", "value");
 activity?.AddEvent(new ActivityEvent("ImportantEvent"));
 

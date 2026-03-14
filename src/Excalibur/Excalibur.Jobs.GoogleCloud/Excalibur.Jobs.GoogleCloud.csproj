@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageId>Excalibur.Jobs.GoogleCloud</PackageId>
+    <Description>Google Cloud Scheduler integration for the Excalibur Jobs framework.</Description>
+    <PackageTags>excalibur;jobs;google;cloud;scheduler;gcp</PackageTags>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Jobs.Tests" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Google.Cloud.Scheduler.V1" />
+    <PackageReference Include="Google.Apis.Auth" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+  <!-- Excalibur internal references (always ProjectReference) -->
+  <ItemGroup>
+    <ProjectReference Include="..\Excalibur.Jobs.Abstractions\Excalibur.Jobs.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+</Project>

@@ -43,8 +43,8 @@ public class Startup : FunctionsStartup
 		_ = services.AddExcaliburGoogleCloudFunctionsServerless(opts =>
 		{
 			opts.EnableColdStartOptimization = true;
-			opts.EnableDistributedTracing = true;
-			opts.EnableStructuredLogging = true;
+			opts.Telemetry.EnableDistributedTracing = true;
+			opts.Telemetry.EnableStructuredLogging = true;
 
 			// Google Cloud Functions specific options
 			opts.GoogleCloudFunctions.Runtime = "dotnet8";

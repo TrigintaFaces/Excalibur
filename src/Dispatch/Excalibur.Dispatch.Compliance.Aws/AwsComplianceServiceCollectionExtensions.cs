@@ -29,6 +29,7 @@ public static class AwsComplianceServiceCollectionExtensions
 	/// <list type="bullet">
 	/// <item><see cref="IAmazonKeyManagementService"/> - AWS KMS client</item>
 	/// <item><see cref="IKeyManagementProvider"/> - Key management via AWS KMS</item>
+	/// <item><see cref="IKeyManagementAdmin"/> - Key administration via AWS KMS</item>
 	/// <item><see cref="AwsKmsProvider"/> - Concrete implementation (for direct access if needed)</item>
 	/// </list>
 	/// </para>
@@ -84,6 +85,7 @@ public static class AwsComplianceServiceCollectionExtensions
 		// Register the provider
 		services.TryAddSingleton<AwsKmsProvider>();
 		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<AwsKmsProvider>());
+		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<AwsKmsProvider>());
 
 		return services;
 	}
@@ -123,6 +125,7 @@ public static class AwsComplianceServiceCollectionExtensions
 		// Register the provider
 		services.TryAddSingleton<AwsKmsProvider>();
 		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<AwsKmsProvider>());
+		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<AwsKmsProvider>());
 
 		return services;
 	}
@@ -173,6 +176,7 @@ public static class AwsComplianceServiceCollectionExtensions
 		// Register the provider
 		services.TryAddSingleton<AwsKmsProvider>();
 		services.TryAddSingleton<IKeyManagementProvider>(sp => sp.GetRequiredService<AwsKmsProvider>());
+		services.TryAddSingleton<IKeyManagementAdmin>(sp => sp.GetRequiredService<AwsKmsProvider>());
 
 		return services;
 	}
@@ -202,8 +206,8 @@ public static class AwsComplianceServiceCollectionExtensions
 		return services.AddAwsKmsKeyManagement(options =>
 		{
 			options.Region = primaryRegion;
-			options.CreateMultiRegionKeys = true;
-			options.ReplicaRegions = [.. replicaRegions];
+			options.KeyPolicy.CreateMultiRegionKeys = true;
+			options.KeyPolicy.ReplicaRegions = [.. replicaRegions];
 			configure?.Invoke(options);
 		});
 	}

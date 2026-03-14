@@ -56,6 +56,28 @@ public sealed class KafkaOptions
 	public bool EnableEncryption { get; set; }
 
 	/// <summary>
+	/// Gets or sets the consumer tuning options for batching, offset management, and session timeouts.
+	/// </summary>
+	/// <value>
+	/// The consumer tuning options.
+	/// </value>
+	public KafkaConsumerTuningOptions Consumer { get; set; } = new();
+
+	/// <summary>
+	/// Gets additional Kafka consumer configuration properties.
+	/// </summary>
+	/// <value>
+	/// Additional Kafka consumer configuration properties.
+	/// </value>
+	public Dictionary<string, string> AdditionalConfig { get; } = [];
+}
+
+/// <summary>
+/// Consumer tuning options for Kafka batching, offset management, and session timeouts.
+/// </summary>
+public sealed class KafkaConsumerTuningOptions
+{
+	/// <summary>
 	/// Gets or sets the maximum number of messages to consume in a single batch. Default is 100.
 	/// </summary>
 	/// <value>
@@ -141,12 +163,4 @@ public sealed class KafkaOptions
 	/// </value>
 	[Range(1, 100)]
 	public int MaxConcurrentCommits { get; set; } = 10;
-
-	/// <summary>
-	/// Gets additional Kafka consumer configuration properties.
-	/// </summary>
-	/// <value>
-	/// Additional Kafka consumer configuration properties.
-	/// </value>
-	public Dictionary<string, string> AdditionalConfig { get; } = [];
 }

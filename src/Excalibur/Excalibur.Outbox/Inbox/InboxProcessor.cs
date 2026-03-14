@@ -10,6 +10,7 @@ using System.Threading.Channels;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Diagnostics;
+using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Delivery.BatchProcessing;
 using Excalibur.Dispatch.Delivery.Registry;
@@ -68,8 +69,8 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	private readonly int _queueCapacity;
 	private readonly IInboxStore _inboxStore;
 	private readonly IServiceProvider _serviceProvider;
-	private readonly IJsonSerializer _serializer;
-	private readonly IInternalSerializer? _internalSerializer;
+	private readonly DispatchJsonSerializer _serializer;
+	private readonly ISerializer? _internalSerializer;
 	private readonly ILogger<InboxProcessor> _logger;
 	private readonly TelemetryClient? _telemetryClient;
 	private readonly BatchProcessingMetrics _batchMetrics;
@@ -122,10 +123,10 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		IOptions<InboxOptions> options,
 		IInboxStore inboxStore,
 		IServiceProvider serviceProvider,
-		IJsonSerializer serializer,
+		DispatchJsonSerializer serializer,
 		ILogger<InboxProcessor> logger,
 		TelemetryClient? telemetryClient = null,
-		IInternalSerializer? internalSerializer = null,
+		ISerializer? internalSerializer = null,
 		IDeadLetterQueue? deadLetterQueue = null,
 		ITransportCircuitBreakerRegistry? circuitBreakerRegistry = null,
 		IBackoffCalculator? backoffCalculator = null,
@@ -163,11 +164,11 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		_backoffCalculator = backoffCalculator ?? ExponentialBackoffCalculator.CreateForMessageQueue();
 		_deliveryGuaranteeOptions = deliveryGuaranteeOptions?.Value ?? new DeliveryGuaranteeOptions();
 
-		if (_options.EnableDynamicBatchSizing)
+		if (_options.BatchProcessing.EnableDynamicBatchSizing)
 		{
 			_batchSizeCalculator = new DynamicBatchSizeCalculator(
-				_options.MinBatchSize,
-				_options.MaxBatchSize,
+				_options.BatchProcessing.MinBatchSize,
+				_options.BatchProcessing.MaxBatchSize,
 				_options.ConsumerBatchSize);
 		}
 	}
@@ -351,7 +352,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	}
 
 	/// <summary>
-	/// Deserializes an InboxEnvelope from binary format if IInternalSerializer is available.
+	/// Deserializes an InboxEnvelope from binary format if ISerializer is available.
 	/// </summary>
 	/// <param name="data"> The serialized envelope data. </param>
 	/// <returns> The deserialized envelope, or null if internal serializer is not configured. </returns>
@@ -521,7 +522,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 
 				var stopwatch = ValueStopwatch.StartNew();
 
-				if (_options.ParallelProcessingDegree > 1)
+				if (_options.BatchProcessing.ParallelProcessingDegree > 1)
 				{
 					// Parallel batch processing
 					var processedCount = await ProcessBatchParallelAsync(batch, cancellationToken).ConfigureAwait(false);
@@ -653,8 +654,8 @@ public sealed partial class InboxProcessor : IInboxProcessor
 					throw; // Re-throw for Batching to track
 				}
 			},
-			_options.ParallelProcessingDegree,
-			_options.BatchProcessingTimeout,
+			_options.BatchProcessing.ParallelProcessingDegree,
+			_options.BatchProcessing.BatchProcessingTimeout,
 			cancellationToken).ConfigureAwait(false);
 
 		// Route messages to DLQ
@@ -701,7 +702,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 				(StringComparer.Ordinal)
 				{
 					["ProcessorType"] = "Inbox",
-					["ParallelDegree"] = _options.ParallelProcessingDegree,
+					["ParallelDegree"] = _options.BatchProcessing.ParallelProcessingDegree,
 					["BatchOperationsEnabled"] = _options.EnableBatchDatabaseOperations,
 				});
 
@@ -762,7 +763,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 	}
 
 	[RequiresUnreferencedCode("Uses DeserializeAsync with runtime type resolution from MessageTypeRegistry")]
-	[RequiresDynamicCode("Calls Excalibur.Dispatch.Abstractions.Serialization.IJsonSerializer.DeserializeAsync(String, Type)")]
+	[RequiresDynamicCode("Calls Excalibur.Dispatch.Abstractions.Serialization.DispatchJsonSerializer.DeserializeAsync(String, Type)")]
 	private async Task DispatchAsync(IInboxMessage storedMessage, CancellationToken cancellationToken)
 	{
 		var type = MessageTypeRegistry.GetType(storedMessage.MessageType)
@@ -799,7 +800,7 @@ public sealed partial class InboxProcessor : IInboxProcessor
 		using var scope = _serviceProvider.CreateScope();
 		var context = DispatchContextInitializer.CreateFromMetadata(metaDict);
 		context.MessageId = storedMessage.ExternalMessageId;
-		context.ExternalId = storedMessage.ExternalMessageId;
+		context.GetOrCreateIdentityFeature().ExternalId = storedMessage.ExternalMessageId;
 
 		var dispatcher = scope.ServiceProvider.GetRequiredService<IDispatcher>();
 		var result = await dispatcher.DispatchAsync(dispatchMessage, context, cancellationToken).ConfigureAwait(false);

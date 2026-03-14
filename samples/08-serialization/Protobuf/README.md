@@ -1,6 +1,6 @@
 # Protobuf Serialization Sample
 
-This sample demonstrates Protocol Buffers (Protobuf) serialization with `Excalibur.Dispatch.Serialization.Protobuf` for high-performance, cross-language messaging.
+This sample demonstrates Protocol Buffers (Protobuf) serialization with `Excalibur.Dispatch.Serialization.Protobuf` for high-performance, cross-language messaging using Google.Protobuf.
 
 ## Prerequisites
 
@@ -16,52 +16,33 @@ No external dependencies required - uses in-memory storage for demonstration.
 
 ## What This Sample Demonstrates
 
-### protobuf-net Attribute-Based Serialization
+### Google.Protobuf IMessage Implementation
 
-Use C# attributes instead of `.proto` files:
+Events implement `IMessage<T>` from Google.Protobuf for wire-format serialization:
 
 ```csharp
-[ProtoContract]
-public sealed class OrderPlacedEvent : IDispatchEvent
+public sealed class OrderPlacedEvent : IMessage<OrderPlacedEvent>, IDispatchEvent
 {
-    [ProtoMember(1)]
-    public Guid EventId { get; set; }
+    private static readonly MessageParser<OrderPlacedEvent> _parser = new(() => new OrderPlacedEvent());
 
-    [ProtoMember(2)]
-    public string OrderId { get; set; }
+    public static MessageParser<OrderPlacedEvent> Parser => _parser;
 
-    [ProtoMember(3)]
-    public string CustomerId { get; set; }
+    public string EventId { get; set; } = Guid.NewGuid().ToString();
+    public string OrderId { get; set; } = string.Empty;
+    public string CustomerId { get; set; } = string.Empty;
+    public float TotalAmount { get; set; }
+    public string ProductName { get; set; } = string.Empty;
+    public int Quantity { get; set; }
 
-    [ProtoMember(4)]
-    public List<OrderItem> Items { get; set; }
-
-    [ProtoMember(5)]
-    public decimal TotalAmount { get; set; }
-
-    [ProtoMember(6)]
-    public DateTimeOffset OccurredAt { get; set; }
+    public int CalculateSize() { /* wire format size calculation */ }
+    public void WriteTo(CodedOutputStream output) { /* field-by-field serialization */ }
+    public void MergeFrom(CodedInputStream input) { /* tag-based deserialization */ }
+    public void MergeFrom(OrderPlacedEvent other) { /* merge non-default values */ }
+    public OrderPlacedEvent Clone() => new() { /* copy all fields */ };
 }
 ```
 
-### Schema Evolution with Reserved Fields
-
-Safely remove fields while maintaining backwards compatibility:
-
-```csharp
-[ProtoContract]
-public sealed class OrderPlacedEvent
-{
-    // Active fields
-    [ProtoMember(1)] public string OrderId { get; set; }
-    [ProtoMember(2)] public string CustomerId { get; set; }
-
-    // Reserved tags - these were previously used:
-    // Tag 7 was 'ShippingAddress' (removed in v2)
-    // Tag 8 was 'Notes' (removed in v2)
-    // In .proto files: reserved 7, 8;
-}
-```
+> In production, you would typically use `protoc` to generate these classes from `.proto` files. This sample uses manual implementation for educational purposes.
 
 ### Binary Format Efficiency
 
@@ -82,7 +63,6 @@ Register Protobuf serialization with Dispatch:
 builder.Services.AddProtobufSerialization(options =>
 {
     options.WireFormat = ProtobufWireFormat.Binary;
-    options.IgnoreMissingFields = true;
 });
 ```
 
@@ -91,7 +71,7 @@ builder.Services.AddProtobufSerialization(options =>
 ```
 Protobuf/
 ├── Messages/
-│   └── OrderEvents.cs          # [ProtoContract] annotated events
+│   └── OrderEvents.cs          # IMessage<T> implemented events
 ├── Handlers/
 │   └── OrderEventHandlers.cs   # Event handlers
 ├── Program.cs                  # Demo scenarios
@@ -111,7 +91,7 @@ Protobuf/
 
 ## Cross-Language Interoperability
 
-The protobuf-net attributes map directly to `.proto` schema:
+The manual `IMessage<T>` implementation maps to this `.proto` schema:
 
 ```protobuf
 syntax = "proto3";
@@ -121,17 +101,16 @@ message OrderPlacedEvent {
   string event_id = 1;
   string order_id = 2;
   string customer_id = 3;
-  repeated OrderItem items = 4;
-  double total_amount = 5;
-  int64 occurred_at = 6;
-  reserved 7, 8;
+  float total_amount = 4;
+  string product_name = 5;
+  int32 quantity = 6;
 }
 
-message OrderItem {
-  string product_sku = 1;
-  string product_name = 2;
-  int32 quantity = 3;
-  double unit_price = 4;
+message OrderCancelledEvent {
+  string event_id = 1;
+  string order_id = 2;
+  string reason = 3;
+  string cancelled_by = 4;
 }
 ```
 
@@ -198,6 +177,5 @@ message OrderItem {
 ## Learn More
 
 - [Protocol Buffers Documentation](https://protobuf.dev/)
-- [protobuf-net Documentation](https://protobuf-net.github.io/protobuf-net/)
+- [Google.Protobuf NuGet](https://www.nuget.org/packages/Google.Protobuf)
 - [Excalibur.Dispatch.Serialization.Protobuf Package](../../../src/Dispatch/Excalibur.Dispatch.Serialization.Protobuf/)
-

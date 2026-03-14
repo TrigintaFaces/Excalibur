@@ -4,7 +4,7 @@
 using Dapper;
 
 using Excalibur.Data.Postgres.Audit;
-using Excalibur.Data.Postgres.LeaderElection;
+using Excalibur.LeaderElection.Postgres;
 using Excalibur.Dispatch.Compliance;
 using Excalibur.Dispatch.LeaderElection;
 
@@ -138,13 +138,15 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 		var sharedLockKey = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 		await using var leader = CreateLeaderElection(lockKey: sharedLockKey);
 		await using var follower = CreateLeaderElection(lockKey: sharedLockKey);
+		var leaderAcquired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		leader.BecameLeader += (_, _) => leaderAcquired.TrySetResult();
 
 		await leader.StartAsync(TestCancellationToken).ConfigureAwait(true);
 		await follower.StartAsync(TestCancellationToken).ConfigureAwait(true);
-		await WaitForConditionAsync(
-				() => leader.IsLeader && !follower.IsLeader,
-				TimeSpan.FromSeconds(5),
-				TestCancellationToken)
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+				leaderAcquired.Task,
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)),
+				cancellationToken: TestCancellationToken)
 			.ConfigureAwait(true);
 
 		leader.IsLeader.ShouldBeTrue();
@@ -160,20 +162,27 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 		var sharedLockKey = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 		await using var leader = CreateLeaderElection(lockKey: sharedLockKey);
 		await using var follower = CreateLeaderElection(lockKey: sharedLockKey);
+		var leaderAcquired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var followerAcquired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		leader.BecameLeader += (_, _) => leaderAcquired.TrySetResult();
+		follower.BecameLeader += (_, _) => followerAcquired.TrySetResult();
 
 		await leader.StartAsync(TestCancellationToken).ConfigureAwait(true);
 		await follower.StartAsync(TestCancellationToken).ConfigureAwait(true);
-		await WaitForConditionAsync(
-				() => leader.IsLeader && !follower.IsLeader,
-				TimeSpan.FromSeconds(5),
-				TestCancellationToken)
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+				leaderAcquired.Task,
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)),
+				cancellationToken: TestCancellationToken)
 			.ConfigureAwait(true);
 
 		leader.IsLeader.ShouldBeTrue();
 		follower.IsLeader.ShouldBeFalse();
 
 		await leader.StopAsync(TestCancellationToken).ConfigureAwait(true);
-		await WaitForConditionAsync(() => follower.IsLeader, TimeSpan.FromSeconds(10), TestCancellationToken)
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+				followerAcquired.Task,
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
+				cancellationToken: TestCancellationToken)
 			.ConfigureAwait(true);
 
 		follower.IsLeader.ShouldBeTrue();
@@ -188,11 +197,16 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 			lockKey: sharedLockKey,
 			renewInterval: TimeSpan.FromMilliseconds(100),
 			gracePeriod: TimeSpan.FromMilliseconds(100));
-		var lostLeadershipRaised = 0;
-		leader.LostLeadership += (_, _) => Interlocked.Exchange(ref lostLeadershipRaised, 1);
+		var leaderAcquired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var leadershipLost = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		leader.BecameLeader += (_, _) => leaderAcquired.TrySetResult();
+		leader.LostLeadership += (_, _) => leadershipLost.TrySetResult();
 
 		await leader.StartAsync(TestCancellationToken).ConfigureAwait(true);
-		await WaitForConditionAsync(() => leader.IsLeader, TimeSpan.FromSeconds(10), TestCancellationToken)
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+				leaderAcquired.Task,
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
+				cancellationToken: TestCancellationToken)
 			.ConfigureAwait(true);
 
 		var connectionField = typeof(PostgresLeaderElection).GetField(
@@ -200,13 +214,13 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 			System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
 		connectionField.SetValue(leader, null);
 
-		await WaitForConditionAsync(
-				() => !leader.IsLeader && Volatile.Read(ref lostLeadershipRaised) == 1,
-				TimeSpan.FromSeconds(10),
-				TestCancellationToken)
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+				leadershipLost.Task,
+				global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)),
+				cancellationToken: TestCancellationToken)
 			.ConfigureAwait(true);
 
-		(Volatile.Read(ref lostLeadershipRaised) == 1).ShouldBeTrue();
+		leader.IsLeader.ShouldBeFalse();
 		await leader.StopAsync(TestCancellationToken).ConfigureAwait(true);
 	}
 
@@ -252,21 +266,6 @@ public sealed class PostgresAuditAndLeaderElectionIntegrationShould : Integratio
 			Microsoft.Extensions.Options.Options.Create(pgOptions),
 			Microsoft.Extensions.Options.Options.Create(electionOptions),
 			EnabledTestLogger.Create<PostgresLeaderElection>());
-	}
-
-	private static async Task WaitForConditionAsync(
-		Func<bool> condition,
-		TimeSpan timeout,
-		CancellationToken cancellationToken)
-	{
-		var scaledTimeout = global::Tests.Shared.Infrastructure.TestTimeouts.Scale(timeout);
-		var conditionMet = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
-				condition,
-				scaledTimeout,
-				TimeSpan.FromMilliseconds(100),
-				cancellationToken)
-			.ConfigureAwait(true);
-		conditionMet.ShouldBeTrue($"Condition was not met within {scaledTimeout}.");
 	}
 
 	private async Task InitializeAuditTableAsync()

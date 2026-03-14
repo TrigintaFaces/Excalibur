@@ -37,7 +37,7 @@ namespace Excalibur.EventSourcing.Implementation;
 /// <item> Snapshot support via <see cref="ExcaliburSnapshotManager" /> </item>
 /// <item> ETag-based optimistic concurrency control </item>
 /// <item> Outbox integration for reliable messaging of <see cref="IIntegrationEvent" /> instances </item>
-/// <item> Query support via <see cref="Abstractions.IAggregateQuery{TAggregate}" /> (requires injected executor) </item>
+/// <item> CQRS write-side only — query operations belong in a separate read model </item>
 /// </list>
 /// </para>
 /// <para> <b> Usage: </b>
@@ -59,11 +59,6 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 			CompositeFormat.Parse(Resources.EventSourcedRepository_SaveFailedFormat);
 	private static readonly CompositeFormat DeleteRequiresTombstoneFormat =
 			CompositeFormat.Parse(Resources.EventSourcedRepository_DeleteRequiresTombstoneFormat);
-	private static readonly CompositeFormat QueryRequiresExecutorFormat =
-			CompositeFormat.Parse(Resources.EventSourcedRepository_QueryRequiresExecutorFormat);
-	private static readonly CompositeFormat FindRequiresExecutorFormat =
-			CompositeFormat.Parse(Resources.EventSourcedRepository_FindRequiresExecutorFormat);
-
 	private readonly IEventStore _eventStore;
 	private readonly IUpcastingPipeline? _upcastingPipeline;
 	private readonly ISnapshotManager? _snapshotManager;
@@ -290,32 +285,6 @@ public class EventSourcedRepository<TAggregate, TKey> : Abstractions.IEventSourc
 			.ConfigureAwait(false);
 
 		return events.Count > 0;
-	}
-
-	/// <inheritdoc />
-	public virtual Task<IReadOnlyList<TAggregate>> QueryAsync<TQuery>(TQuery query, CancellationToken cancellationToken)
-		where TQuery : Abstractions.IAggregateQuery<TAggregate>
-	{
-		// Query execution requires a query executor to be injected. This base implementation throws NotSupportedException. Derived classes
-		// can override this method to provide query support.
-		throw new NotSupportedException(
-				string.Format(
-						CultureInfo.CurrentCulture,
-												QueryRequiresExecutorFormat,
-						typeof(TAggregate).Name));
-	}
-
-	/// <inheritdoc />
-	public virtual Task<TAggregate?> FindAsync<TQuery>(TQuery query, CancellationToken cancellationToken)
-		where TQuery : Abstractions.IAggregateQuery<TAggregate>
-	{
-		// Find execution requires a query executor to be injected. This base implementation throws NotSupportedException. Derived classes
-		// can override this method to provide query support.
-		throw new NotSupportedException(
-				string.Format(
-						CultureInfo.CurrentCulture,
-												FindRequiresExecutorFormat,
-						typeof(TAggregate).Name));
 	}
 
 	/// <summary>

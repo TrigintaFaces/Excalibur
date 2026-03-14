@@ -31,3 +31,4 @@ global using Excalibur.Outbox.SqlServer.Requests;
 
 // Null logger support (used by SqlServer tests)
 global using Microsoft.Extensions.Logging.Abstractions;
+global using Excalibur.Dispatch.Serialization;

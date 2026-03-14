@@ -1,1 +1,13 @@
 #nullable enable
+const Excalibur.Dispatch.Security.Aws.AwsSecurityEventId.AwsSecretsManagerCredentialStoreCreated = 70901 -> int
+const Excalibur.Dispatch.Security.Aws.AwsSecurityEventId.AwsSecretsManagerRequestFailed = 70923 -> int
+const Excalibur.Dispatch.Security.Aws.AwsSecurityEventId.AwsSecretsManagerRetrieved = 70922 -> int
+const Excalibur.Dispatch.Security.Aws.AwsSecurityEventId.AwsSecretsManagerRetrieveFailed = 70924 -> int
+const Excalibur.Dispatch.Security.Aws.AwsSecurityEventId.AwsSecretsManagerRetrieving = 70920 -> int
+const Excalibur.Dispatch.Security.Aws.AwsSecurityEventId.AwsSecretsManagerSecretNotFound = 70921 -> int
+const Excalibur.Dispatch.Security.Aws.AwsSecurityEventId.AwsSecretsManagerStored = 70926 -> int
+const Excalibur.Dispatch.Security.Aws.AwsSecurityEventId.AwsSecretsManagerStoring = 70925 -> int
+Excalibur.Dispatch.Security.Aws.AwsSecurityEventId
+Microsoft.Extensions.DependencyInjection.DispatchSecurityAwsServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.DispatchSecurityAwsServiceCollectionExtensions.AddAwsSecretsManagerCredentialStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DispatchSecurityAwsServiceCollectionExtensions.AddDispatchSecurityAws(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

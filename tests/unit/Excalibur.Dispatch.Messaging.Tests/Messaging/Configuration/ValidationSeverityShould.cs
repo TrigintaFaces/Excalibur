@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Dispatch.Abstractions.Validation;
 using Excalibur.Dispatch.Configuration;
 
 namespace Excalibur.Dispatch.Tests.Messaging.Configuration;
@@ -39,6 +40,13 @@ public sealed class ValidationSeverityShould
 		((int)ValidationSeverity.Error).ShouldBe(2);
 	}
 
+	[Fact]
+	public void Critical_HasValue3()
+	{
+		// Assert
+		((int)ValidationSeverity.Critical).ShouldBe(3);
+	}
+
 	#endregion
 
 	#region Enum Completeness Tests
@@ -50,13 +58,14 @@ public sealed class ValidationSeverityShould
 		var values = Enum.GetValues<ValidationSeverity>();
 
 		// Assert
-		values.Length.ShouldBe(3);
+		values.Length.ShouldBe(4);
 	}
 
 	[Theory]
 	[InlineData(ValidationSeverity.Info, "Info")]
 	[InlineData(ValidationSeverity.Warning, "Warning")]
 	[InlineData(ValidationSeverity.Error, "Error")]
+	[InlineData(ValidationSeverity.Critical, "Critical")]
 	public void ToString_ReturnsExpectedName(ValidationSeverity severity, string expectedName)
 	{
 		// Act
@@ -74,6 +83,7 @@ public sealed class ValidationSeverityShould
 	[InlineData("Info", ValidationSeverity.Info)]
 	[InlineData("Warning", ValidationSeverity.Warning)]
 	[InlineData("Error", ValidationSeverity.Error)]
+	[InlineData("Critical", ValidationSeverity.Critical)]
 	public void Parse_WithValidString_ReturnsExpectedSeverity(string input, ValidationSeverity expected)
 	{
 		// Act
@@ -87,14 +97,14 @@ public sealed class ValidationSeverityShould
 	public void Parse_WithInvalidString_ThrowsArgumentException()
 	{
 		// Act & Assert
-		_ = Should.Throw<ArgumentException>(() => Enum.Parse<ValidationSeverity>("Critical"));
+		_ = Should.Throw<ArgumentException>(() => Enum.Parse<ValidationSeverity>("Fatal"));
 	}
 
 	[Fact]
 	public void TryParse_WithInvalidString_ReturnsFalse()
 	{
 		// Act
-		var result = Enum.TryParse<ValidationSeverity>("Critical", out _);
+		var result = Enum.TryParse<ValidationSeverity>("Fatal", out _);
 
 		// Assert
 		result.ShouldBeFalse();
@@ -108,7 +118,8 @@ public sealed class ValidationSeverityShould
 	[InlineData(0, true)]
 	[InlineData(1, true)]
 	[InlineData(2, true)]
-	[InlineData(3, false)]
+	[InlineData(3, true)]
+	[InlineData(4, false)]
 	[InlineData(-1, false)]
 	public void IsDefined_WithIntValue_ReturnsExpected(int value, bool expected)
 	{
@@ -205,6 +216,7 @@ public sealed class ValidationSeverityShould
 				ValidationSeverity.Info => "Log",
 				ValidationSeverity.Warning => "Warn",
 				ValidationSeverity.Error => "Fail",
+				ValidationSeverity.Critical => "Abort",
 				_ => "Unknown",
 			};
 

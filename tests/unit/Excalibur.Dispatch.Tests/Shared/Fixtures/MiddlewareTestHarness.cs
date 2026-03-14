@@ -33,13 +33,15 @@ public abstract class MiddlewareTestHarness
 	/// <returns>A configured <see cref="FakeMessageContext"/>.</returns>
 	protected static FakeMessageContext CreateTestContext(string? messageId = null)
 	{
-		return new FakeMessageContext
+		var context = new FakeMessageContext
 		{
 			MessageId = messageId ?? Guid.NewGuid().ToString(),
 			CorrelationId = Guid.NewGuid().ToString(),
 			CausationId = Guid.NewGuid().ToString(),
-			Source = "test-source",
 		};
+		// Source is now on the routing feature, set via Items for backward compat
+		context.Items["__Source"] = "test-source";
+		return context;
 	}
 
 	/// <summary>

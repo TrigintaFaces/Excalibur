@@ -5,7 +5,7 @@ using System.Collections.Concurrent;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.BatchProcessing;
-using Excalibur.Data.InMemory.Inbox;
+using Excalibur.Inbox.InMemory;
 using Excalibur.Dispatch.Middleware;
 using Excalibur.Dispatch.Middleware.Batch;
 using Excalibur.Dispatch.Options.Middleware;
@@ -99,7 +99,8 @@ public sealed class ObservabilityValidationShould : IDisposable
 		var logger = _loggerFactory.CreateLogger<BatchProcessor<string>>();
 		var processedBatches = new ConcurrentBag<IReadOnlyList<string>>();
 		var processedItems = new ConcurrentBag<string>();
-		var completionSource = new TaskCompletionSource<bool>();
+		var processedItemCount = 0;
+		var completionSource = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		var processor = new BatchProcessor<string>(
 			batch =>
@@ -110,7 +111,7 @@ public sealed class ObservabilityValidationShould : IDisposable
 					processedItems.Add(item);
 				}
 
-				if (processedItems.Count >= 5)
+				if (Interlocked.Add(ref processedItemCount, batch.Count) >= 5)
 				{
 					_ = completionSource.TrySetResult(true);
 				}
@@ -118,7 +119,7 @@ public sealed class ObservabilityValidationShould : IDisposable
 				return ValueTask.CompletedTask;
 			},
 			logger,
-			new MicroBatchOptions { MaxBatchSize = 3, MaxBatchDelay = TimeSpan.FromMilliseconds(100) });
+			new MicroBatchOptions { MaxBatchSize = 1, MaxBatchDelay = TimeSpan.FromMilliseconds(25) });
 
 		_disposables.Add(processor);
 
@@ -129,11 +130,10 @@ public sealed class ObservabilityValidationShould : IDisposable
 		}
 
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-
 			completionSource.Task,
-
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10)));
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10))).ConfigureAwait(false);
 		// Assert - Verify batch processing occurred
+		Volatile.Read(ref processedItemCount).ShouldBe(5);
 		processedItems.Count.ShouldBe(5);
 		processedBatches.ShouldNotBeEmpty();
 
@@ -182,8 +182,12 @@ public sealed class ObservabilityValidationShould : IDisposable
 		// Act
 		var result = await middleware.InvokeAsync(message, context, NextDelegate, CancellationToken.None).ConfigureAwait(false);
 
-		// Wait a bit for async operations to complete
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(200).ConfigureAwait(false);
+		var activitiesObserved = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => activities.Any(a =>
+				a.Source.Name.Contains("UnifiedBatchingMiddleware") ||
+				a.OperationName.Contains("UnifiedBatchingMiddleware")),
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)),
+			TimeSpan.FromMilliseconds(20)).ConfigureAwait(false);
 
 		// Assert - Verify result
 		_ = result.ShouldNotBeNull();
@@ -195,6 +199,7 @@ public sealed class ObservabilityValidationShould : IDisposable
 			a.Source.Name.Contains("UnifiedBatchingMiddleware") ||
 			a.OperationName.Contains("UnifiedBatchingMiddleware")).ToList();
 
+		activitiesObserved.ShouldBeTrue("Middleware should create activities for observability");
 		middlewareActivities.ShouldNotBeEmpty("Middleware should create activities for observability");
 
 		// Assert - Verify structured logging
@@ -289,9 +294,6 @@ public sealed class ObservabilityValidationShould : IDisposable
 
 		// Act - Trigger error
 		await processor.AddAsync("error-item", CancellationToken.None).ConfigureAwait(false);
-
-		// Give time for the exception to be processed and logged
-		await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(200).ConfigureAwait(false);
 
 		// Add another item to see if processor recovers
 		await processor.AddAsync("recovery-item", CancellationToken.None).ConfigureAwait(false);
@@ -525,4 +527,3 @@ internal sealed class ObservabilityMeterProvider : IDisposable
 	{
 	}
 }
-

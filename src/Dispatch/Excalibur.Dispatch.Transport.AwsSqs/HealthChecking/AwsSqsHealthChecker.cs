@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <param name="logger"> The logger. </param>
 /// <param name="sqsClient"> The SQS client. </param>
 /// <param name="testQueueUrl"> Optional test queue URL for health checks. </param>
-public sealed class AwsSqsHealthChecker(
+internal sealed class AwsSqsHealthChecker(
 	ILogger<AwsSqsHealthChecker> logger,
 	IAmazonSQS sqsClient,
 	string? testQueueUrl = null) : IHealthCheck

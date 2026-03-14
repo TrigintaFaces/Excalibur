@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Resilience;
 /// circuit breaker functionality is not configured or not needed. The circuit is always
 /// closed and all operations pass through without protection.
 /// </remarks>
-public sealed class NullCircuitBreakerPolicy : ICircuitBreakerPolicy, ICircuitBreakerDiagnostics, ICircuitBreakerEvents
+internal sealed class NullCircuitBreakerPolicy : ICircuitBreakerPolicy, ICircuitBreakerDiagnostics, ICircuitBreakerEvents
 {
 	private NullCircuitBreakerPolicy()
 	{

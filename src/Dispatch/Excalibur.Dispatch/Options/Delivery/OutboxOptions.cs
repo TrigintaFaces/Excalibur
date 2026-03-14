@@ -69,13 +69,16 @@ public class OutboxOptions
 		ProducerBatchSize = 1000,
 		ConsumerBatchSize = 1000,
 		MaxAttempts = 3,
-		ParallelProcessingDegree = 8,
-		EnableDynamicBatchSizing = true,
-		MinBatchSize = 100,
-		MaxBatchSize = 2000,
+		BatchProcessing =
+		{
+			ParallelProcessingDegree = 8,
+			EnableDynamicBatchSizing = true,
+			MinBatchSize = 100,
+			MaxBatchSize = 2000,
+			BatchProcessingTimeout = TimeSpan.FromMinutes(10),
+		},
 		EnableBatchDatabaseOperations = true,
 		DeliveryGuarantee = OutboxDeliveryGuarantee.AtLeastOnce,
-		BatchProcessingTimeout = TimeSpan.FromMinutes(10)
 	};
 
 	/// <summary>
@@ -106,13 +109,16 @@ public class OutboxOptions
 		ProducerBatchSize = 100,
 		ConsumerBatchSize = 100,
 		MaxAttempts = 5,
-		ParallelProcessingDegree = 4,
-		EnableDynamicBatchSizing = false,
-		MinBatchSize = 10,
-		MaxBatchSize = 1000,
+		BatchProcessing =
+		{
+			ParallelProcessingDegree = 4,
+			EnableDynamicBatchSizing = false,
+			MinBatchSize = 10,
+			MaxBatchSize = 1000,
+			BatchProcessingTimeout = TimeSpan.FromMinutes(5),
+		},
 		EnableBatchDatabaseOperations = true,
 		DeliveryGuarantee = OutboxDeliveryGuarantee.AtLeastOnce,
-		BatchProcessingTimeout = TimeSpan.FromMinutes(5)
 	};
 
 	/// <summary>
@@ -143,13 +149,16 @@ public class OutboxOptions
 		ProducerBatchSize = 10,
 		ConsumerBatchSize = 10,
 		MaxAttempts = 10,
-		ParallelProcessingDegree = 1,
-		EnableDynamicBatchSizing = false,
-		MinBatchSize = 1,
-		MaxBatchSize = 100,
+		BatchProcessing =
+		{
+			ParallelProcessingDegree = 1,
+			EnableDynamicBatchSizing = false,
+			MinBatchSize = 1,
+			MaxBatchSize = 100,
+			BatchProcessingTimeout = TimeSpan.FromMinutes(2),
+		},
 		EnableBatchDatabaseOperations = false,
 		DeliveryGuarantee = OutboxDeliveryGuarantee.MinimizedWindow,
-		BatchProcessingTimeout = TimeSpan.FromMinutes(2)
 	};
 
 	#endregion
@@ -204,41 +213,6 @@ public class OutboxOptions
 	public TimeSpan? DefaultMessageTimeToLive { get; set; }
 
 	/// <summary>
-	/// Gets or sets the degree of parallelism for batch processing. Default is 1 (sequential processing).
-	/// </summary>
-	/// <value>The current <see cref="ParallelProcessingDegree"/> value.</value>
-	[Range(1, int.MaxValue)]
-	public int ParallelProcessingDegree { get; set; } = 1;
-
-	/// <summary>
-	/// Gets or sets a value indicating whether to enable dynamic batch sizing based on throughput.
-	/// </summary>
-	/// <value>The current <see cref="EnableDynamicBatchSizing"/> value.</value>
-	public bool EnableDynamicBatchSizing { get; set; }
-
-	/// <summary>
-	/// Gets or sets the minimum batch size when dynamic sizing is enabled.
-	/// </summary>
-	/// <value>The current <see cref="MinBatchSize"/> value.</value>
-	[Range(1, int.MaxValue)]
-	public int MinBatchSize { get; set; } = 10;
-
-	/// <summary>
-	/// Gets or sets the maximum batch size when dynamic sizing is enabled.
-	/// </summary>
-	/// <value>The current <see cref="MaxBatchSize"/> value.</value>
-	[Range(1, int.MaxValue)]
-	public int MaxBatchSize { get; set; } = 1000;
-
-	/// <summary>
-	/// Gets or sets the timeout for processing a batch of messages.
-	/// </summary>
-	/// <value>
-	/// The timeout for processing a batch of messages.
-	/// </value>
-	public TimeSpan BatchProcessingTimeout { get; set; } = TimeSpan.FromMinutes(5);
-
-	/// <summary>
 	/// Gets or sets a value indicating whether to enable batch database operations.
 	/// </summary>
 	/// <value>The current <see cref="EnableBatchDatabaseOperations"/> value.</value>
@@ -274,6 +248,12 @@ public class OutboxOptions
 	/// </list>
 	/// </remarks>
 	public OutboxDeliveryGuarantee DeliveryGuarantee { get; set; } = OutboxDeliveryGuarantee.AtLeastOnce;
+
+	/// <summary>
+	/// Gets or sets the batch processing configuration including parallelism and dynamic sizing.
+	/// </summary>
+	/// <value>The batch processing options.</value>
+	public OutboxBatchProcessingOptions BatchProcessing { get; set; } = new();
 
 	#endregion
 
@@ -321,7 +301,7 @@ public class OutboxOptions
 	public OutboxOptions WithParallelDegree(int degree)
 	{
 		var clone = Clone();
-		clone.ParallelProcessingDegree = degree;
+		clone.BatchProcessing.ParallelProcessingDegree = degree;
 		return clone;
 	}
 
@@ -384,15 +364,27 @@ public class OutboxOptions
 	public OutboxOptions WithTimeout(TimeSpan timeout)
 	{
 		var clone = Clone();
-		clone.BatchProcessingTimeout = timeout;
+		clone.BatchProcessing.BatchProcessingTimeout = timeout;
 		return clone;
 	}
 
 	/// <summary>
-	/// Creates a shallow copy of this instance.
+	/// Creates a deep copy of this instance, including sub-option objects.
 	/// </summary>
-	/// <returns>A new <see cref="OutboxOptions"/> instance with the same property values.</returns>
-	private OutboxOptions Clone() => (OutboxOptions)MemberwiseClone();
+	/// <returns>A new <see cref="OutboxOptions"/> instance with cloned property values.</returns>
+	private OutboxOptions Clone()
+	{
+		var clone = (OutboxOptions)MemberwiseClone();
+		clone.BatchProcessing = new OutboxBatchProcessingOptions
+		{
+			ParallelProcessingDegree = BatchProcessing.ParallelProcessingDegree,
+			BatchProcessingTimeout = BatchProcessing.BatchProcessingTimeout,
+			EnableDynamicBatchSizing = BatchProcessing.EnableDynamicBatchSizing,
+			MinBatchSize = BatchProcessing.MinBatchSize,
+			MaxBatchSize = BatchProcessing.MaxBatchSize,
+		};
+		return clone;
+	}
 
 	#endregion
 
@@ -437,36 +429,77 @@ public class OutboxOptions
 			return "QueueCapacity cannot be less than the ProducerBatchSize.";
 		}
 
-		if (options.ParallelProcessingDegree <= 0)
+		if (options.BatchProcessing.ParallelProcessingDegree <= 0)
 		{
-			return "ParallelProcessingDegree must be greater than zero.";
+			return "BatchProcessing.ParallelProcessingDegree must be greater than zero.";
 		}
 
-		if (options.EnableDynamicBatchSizing)
+		if (options.BatchProcessing.EnableDynamicBatchSizing)
 		{
-			if (options.MinBatchSize <= 0)
+			if (options.BatchProcessing.MinBatchSize <= 0)
 			{
-				return "MinBatchSize must be greater than zero when dynamic batch sizing is enabled.";
+				return "BatchProcessing.MinBatchSize must be greater than zero when dynamic batch sizing is enabled.";
 			}
 
-			if (options.MaxBatchSize <= 0)
+			if (options.BatchProcessing.MaxBatchSize <= 0)
 			{
-				return "MaxBatchSize must be greater than zero when dynamic batch sizing is enabled.";
+				return "BatchProcessing.MaxBatchSize must be greater than zero when dynamic batch sizing is enabled.";
 			}
 
-			if (options.MinBatchSize > options.MaxBatchSize)
+			if (options.BatchProcessing.MinBatchSize > options.BatchProcessing.MaxBatchSize)
 			{
-				return "MinBatchSize cannot be greater than MaxBatchSize.";
+				return "BatchProcessing.MinBatchSize cannot be greater than BatchProcessing.MaxBatchSize.";
 			}
 		}
 
-		if (options.BatchProcessingTimeout <= TimeSpan.Zero)
+		if (options.BatchProcessing.BatchProcessingTimeout <= TimeSpan.Zero)
 		{
-			return "BatchProcessingTimeout must be greater than zero.";
+			return "BatchProcessing.BatchProcessingTimeout must be greater than zero.";
 		}
 
 		return null;
 	}
 
 	#endregion
+}
+
+/// <summary>
+/// Configuration options for outbox batch processing including parallelism and dynamic sizing.
+/// </summary>
+public sealed class OutboxBatchProcessingOptions
+{
+	/// <summary>
+	/// Gets or sets the degree of parallelism for batch processing. Default is 1 (sequential processing).
+	/// </summary>
+	/// <value>The current <see cref="ParallelProcessingDegree"/> value.</value>
+	[Range(1, int.MaxValue)]
+	public int ParallelProcessingDegree { get; set; } = 1;
+
+	/// <summary>
+	/// Gets or sets the timeout for processing a batch of messages.
+	/// </summary>
+	/// <value>
+	/// The timeout for processing a batch of messages.
+	/// </value>
+	public TimeSpan BatchProcessingTimeout { get; set; } = TimeSpan.FromMinutes(5);
+
+	/// <summary>
+	/// Gets or sets a value indicating whether to enable dynamic batch sizing based on throughput.
+	/// </summary>
+	/// <value>The current <see cref="EnableDynamicBatchSizing"/> value.</value>
+	public bool EnableDynamicBatchSizing { get; set; }
+
+	/// <summary>
+	/// Gets or sets the minimum batch size when dynamic sizing is enabled.
+	/// </summary>
+	/// <value>The current <see cref="MinBatchSize"/> value.</value>
+	[Range(1, int.MaxValue)]
+	public int MinBatchSize { get; set; } = 10;
+
+	/// <summary>
+	/// Gets or sets the maximum batch size when dynamic sizing is enabled.
+	/// </summary>
+	/// <value>The current <see cref="MaxBatchSize"/> value.</value>
+	[Range(1, int.MaxValue)]
+	public int MaxBatchSize { get; set; } = 1000;
 }

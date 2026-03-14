@@ -239,7 +239,8 @@ public sealed class MetricsMiddlewareShould : UnitTestBase
 		// Arrange
 		var message = new TestMetricMessage();
 		var context = A.Fake<IMessageContext>();
-		_ = A.CallTo(() => context.GetItem<Type>("HandlerType")).Returns(typeof(TestHandler));
+		var items = new Dictionary<string, object> { ["HandlerType"] = typeof(TestHandler) };
+		A.CallTo(() => context.Items).Returns(items);
 		DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(MessageResult.Success());
 
 		// Act
@@ -256,7 +257,8 @@ public sealed class MetricsMiddlewareShould : UnitTestBase
 		// Arrange
 		var message = new TestMetricMessage();
 		var context = A.Fake<IMessageContext>();
-		_ = A.CallTo(() => context.GetItem<Type>("HandlerType")).Returns(null);
+		var items = new Dictionary<string, object>();
+		A.CallTo(() => context.Items).Returns(items);
 		DispatchRequestDelegate next = (_, _, _) => ValueTask.FromResult(MessageResult.Success());
 
 		// Act

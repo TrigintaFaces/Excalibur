@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <param name="options"> The flow control options. </param>
 /// <param name="metrics"> The metrics tracker. </param>
 /// <param name="logger"> The logger. </param>
-public sealed class AdaptiveFlowControlStrategy(
+internal sealed class AdaptiveFlowControlStrategy(
 	PubSubFlowControlOptions options,
 	FlowControlMetrics metrics,
 	ILogger<AdaptiveFlowControlStrategy> logger)

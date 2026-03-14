@@ -33,7 +33,7 @@ internal sealed partial class SqlServerConnectionManager : IDisposable, IAsyncDi
 		_metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
-		_connectionSemaphore = new SemaphoreSlim(_options.MaxPoolSize, _options.MaxPoolSize);
+		_connectionSemaphore = new SemaphoreSlim(_options.Pooling.MaxPoolSize, _options.Pooling.MaxPoolSize);
 	}
 
 	public void Dispose() => _connectionSemaphore.Dispose();
@@ -49,7 +49,7 @@ internal sealed partial class SqlServerConnectionManager : IDisposable, IAsyncDi
 		var builder = BuildConnectionString();
 		var connection = new SqlConnection(builder.ConnectionString);
 
-		if (_options.EnableDetailedLogging)
+		if (_options.Observability.EnableDetailedLogging)
 		{
 			LogConnectionCreated(_logger);
 		}
@@ -68,7 +68,7 @@ internal sealed partial class SqlServerConnectionManager : IDisposable, IAsyncDi
 
 			await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-			if (_options.EnableDetailedLogging)
+			if (_options.Observability.EnableDetailedLogging)
 			{
 				LogConnectionOpened(_logger);
 			}
@@ -90,7 +90,7 @@ internal sealed partial class SqlServerConnectionManager : IDisposable, IAsyncDi
 			actualTimeout,
 			_loggerFactory.CreateLogger<SqlServerTransactionScope>());
 
-		if (_options.EnableDetailedLogging)
+		if (_options.Observability.EnableDetailedLogging)
 		{
 			LogTransactionScopeCreated(_logger, scope.TransactionId, isolationLevel);
 		}
@@ -119,7 +119,7 @@ internal sealed partial class SqlServerConnectionManager : IDisposable, IAsyncDi
 		var builder = new SqlConnectionStringBuilder(_options.ConnectionString)
 		{
 			ApplicationName = _options.Connection.ApplicationName,
-			ConnectTimeout = _options.ConnectionTimeout,
+			ConnectTimeout = _options.Connection.ConnectionTimeout,
 			CommandTimeout = _options.CommandTimeout,
 			MultiSubnetFailover = _options.Connection.MultiSubnetFailover,
 			TrustServerCertificate = _options.Security.TrustServerCertificate,
@@ -131,11 +131,11 @@ internal sealed partial class SqlServerConnectionManager : IDisposable, IAsyncDi
 			ConnectRetryInterval = _options.Resiliency.ConnectRetryInterval,
 		};
 
-		if (_options.EnableConnectionPooling)
+		if (_options.Pooling.EnableConnectionPooling)
 		{
 			builder.Pooling = true;
-			builder.MaxPoolSize = _options.MaxPoolSize;
-			builder.MinPoolSize = _options.MinPoolSize;
+			builder.MaxPoolSize = _options.Pooling.MaxPoolSize;
+			builder.MinPoolSize = _options.Pooling.MinPoolSize;
 		}
 		else
 		{

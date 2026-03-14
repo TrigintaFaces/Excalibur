@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Resilience;
 /// <summary>
 /// Implementation of the circuit breaker pattern for protecting operations from repeated failures.
 /// </summary>
-public sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICircuitBreakerDiagnostics, ICircuitBreakerEvents
+internal sealed partial class CircuitBreakerPolicy : ICircuitBreakerPolicy, ICircuitBreakerDiagnostics, ICircuitBreakerEvents
 {
 	private readonly CircuitBreakerOptions _options;
 	private readonly ILogger<CircuitBreakerPolicy>? _logger;

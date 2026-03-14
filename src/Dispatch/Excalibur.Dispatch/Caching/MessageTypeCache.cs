@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Caching;
 /// High-performance cache for message type metadata that eliminates runtime reflection and string allocations in hot paths. Uses frozen
 /// collections for maximum lookup performance.
 /// </summary>
-public static class MessageTypeCache
+internal static class MessageTypeCache
 {
 #if NET9_0_OR_GREATER
 
@@ -30,10 +30,14 @@ public static class MessageTypeCache
 	/// <summary>
 	/// Pre-computed type metadata using frozen collections for O(1) lookup performance.
 	/// </summary>
-	private static FrozenDictionary<Type, MessageTypeMetadata> _typeCache = FrozenDictionary<Type, MessageTypeMetadata>.Empty;
+	private static System.Collections.Frozen.FrozenDictionary<Type, MessageTypeMetadata> _typeCache =
+		System.Collections.Frozen.FrozenDictionary<Type, MessageTypeMetadata>.Empty;
 	private static readonly ConcurrentDictionary<Type, MessageTypeMetadata> _fallbackTypeCache = new();
 
-	private static FrozenDictionary<string, Type> _nameToTypeCache = FrozenDictionary<string, Type>.Empty;
+	// Keep name lookups on an ordinal Dictionary to avoid runtime instability in FrozenDictionary<string, T>
+	// for some nested-type key layouts on current .NET 10 builds. The field remains interface-typed so
+	// tests can safely reset it via reflection to FrozenDictionary.Empty.
+	private static IReadOnlyDictionary<string, Type> _nameToTypeCache = FrozenDictionary<string, Type>.Empty;
 	private static volatile bool _initialized;
 
 	/// <summary>
@@ -87,7 +91,7 @@ public static class MessageTypeCache
 			}
 
 			_typeCache = typeDict.ToFrozenDictionary();
-			_nameToTypeCache = nameDict.ToFrozenDictionary(StringComparer.Ordinal);
+			_nameToTypeCache = new Dictionary<string, Type>(nameDict, StringComparer.Ordinal);
 			_fallbackTypeCache.Clear();
 			_initialized = true;
 		}
@@ -133,8 +137,17 @@ public static class MessageTypeCache
 	/// <param name="typeName"> The full or simple name of the type. </param>
 	/// <returns> The resolved type or null if not found. </returns>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public static Type? ResolveType(string typeName) =>
-		string.IsNullOrEmpty(typeName) ? null : _nameToTypeCache.GetValueOrDefault(typeName);
+	public static Type? ResolveType(string typeName)
+	{
+		if (string.IsNullOrEmpty(typeName))
+		{
+			return null;
+		}
+
+		return _nameToTypeCache.TryGetValue(typeName, out var type)
+			? type
+			: null;
+	}
 
 	/// <summary>
 	/// Gets the type name for routing purposes without allocation.
@@ -165,4 +178,19 @@ public static class MessageTypeCache
 	/// </summary>
 	/// <returns> Collection of all cached types. </returns>
 	public static IReadOnlyCollection<Type> GetCachedTypes() => _typeCache.Keys;
+
+	/// <summary>
+	/// Resets the cache to its initial empty state. Intended for testing only
+	/// to prevent static state contamination between parallel test runs.
+	/// </summary>
+	internal static void Reset()
+	{
+		lock (_initLock)
+		{
+			_typeCache = System.Collections.Frozen.FrozenDictionary<Type, MessageTypeMetadata>.Empty;
+			_nameToTypeCache = FrozenDictionary<string, Type>.Empty;
+			_fallbackTypeCache.Clear();
+			_initialized = false;
+		}
+	}
 }

@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Service for analyzing dead letter queue messages and providing insights.
 /// </summary>
-public class DeadLetterAnalyticsService : BackgroundService, IDeadLetterAnalyticsService
+internal class DeadLetterAnalyticsService : BackgroundService, IDeadLetterAnalyticsService
 {
 	private readonly ILogger<DeadLetterAnalyticsService> _logger;
 	private readonly DeadLetterAnalyticsOptions _options;

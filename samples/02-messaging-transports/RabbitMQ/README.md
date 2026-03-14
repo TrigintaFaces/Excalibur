@@ -37,42 +37,53 @@ The sample publishes `OrderPlacedEvent` messages to RabbitMQ:
 
 ```csharp
 var order = new OrderPlacedEvent("ORD-001", "CUST-100", 99.99m);
-await dispatcher.DispatchAsync(order, context);
+await dispatcher.DispatchAsync(order, context, cancellationToken: default);
 ```
 
 ### RabbitMQ Configuration
 
+The sample uses `AddRabbitMQTransport` with a fluent builder API:
+
 ```csharp
-builder.Services.AddRabbitMqMessageBus(options =>
+builder.Services.AddRabbitMQTransport("rabbitmq", rmq =>
 {
-    options.ConnectionString = "amqp://guest:guest@localhost:5672/";
-    options.ExchangeName = "dispatch.events";
-    options.ExchangeType = ExchangeType.Topic;
-    options.Persistence = MessagePersistence.Persistent;
-    options.EnableCloudEvents = true;
+    rmq.ConnectionString(connectionString)
+        .ConfigureExchange(exchange =>
+        {
+            exchange.Name("dispatch.events")
+                .Type(RabbitMQExchangeType.Topic)
+                .AutoDelete(true);
+        })
+        .ConfigureCloudEvents(ce =>
+        {
+            ce.Exchange.Persistence = RabbitMqPersistence.Persistent;
+        });
 });
 ```
 
 ### Routing Rules
 
-Messages are routed to RabbitMQ based on type:
+Messages are routed to RabbitMQ using the `UseRouting` fluent API:
 
 ```csharp
 builder.Services.AddDispatch(dispatch =>
 {
     dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
-    _ = dispatch.WithRoutingRules(rules =>
-        rules.AddRule<OrderPlacedEvent>((_, _) => "rabbitmq"));
+    dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+    dispatch.UseRouting(routing =>
+        routing.Transport.Route<OrderPlacedEvent>().To("rabbitmq"));
 });
 ```
 
-### Outbox Pattern
+### Outbox and Inbox Pattern
 
-The sample uses the outbox pattern for reliable messaging:
+The sample uses the outbox and inbox patterns for reliable messaging:
 
 ```csharp
 builder.Services.AddOutbox<InMemoryOutboxStore>();
+builder.Services.AddInbox<InMemoryInboxStore>();
 builder.Services.AddOutboxHostedService();
+builder.Services.AddInboxHostedService();
 ```
 
 ## Project Structure
@@ -80,7 +91,7 @@ builder.Services.AddOutboxHostedService();
 ```
 RabbitMQ/
 ├── Messages/
-│   └── OrderPlacedEvent.cs      # Domain event definition
+│   └── OrderPlacedEvent.cs      # Integration event definition
 ├── Handlers/
 │   └── OrderPlacedEventHandler.cs # Message handler
 ├── Program.cs                    # Application entry point
@@ -94,9 +105,8 @@ RabbitMQ/
 | Setting | Description | Default |
 |---------|-------------|---------|
 | `RabbitMq:ConnectionString` | AMQP connection string | `amqp://guest:guest@localhost:5672/` |
-| `RabbitMq:Exchange` | Exchange name | `dispatch.events` |
-| `RabbitMq:QueueName` | Queue name for consuming | `dispatch.orders` |
-| `RabbitMq:RoutingKey` | Routing key pattern | `orders.#` |
+
+Connection settings can be overridden in `appsettings.json` or via environment variables. The exchange name, type, and CloudEvents options are configured in code via the fluent builder API.
 
 ## Key Concepts
 
@@ -104,17 +114,17 @@ RabbitMQ/
 
 RabbitMQ uses exchanges to route messages. This sample uses a **topic exchange** which routes based on routing key patterns.
 
-### Queues
-
-Queues store messages until consumed. With `QueueDurable = true`, messages survive broker restarts.
-
 ### CloudEvents
 
-With `EnableCloudEvents = true`, messages are formatted according to the [CloudEvents specification](https://cloudevents.io/) for interoperability.
+The sample configures CloudEvents formatting via `ConfigureCloudEvents()` for interoperability with the [CloudEvents specification](https://cloudevents.io/).
 
-### Dead Letter Exchange
+### Integration Events
 
-Enable `EnableDeadLetterExchange` to route failed messages to a DLX for later analysis.
+`OrderPlacedEvent` implements `IIntegrationEvent`, which signals that the event is intended for cross-service communication via a transport like RabbitMQ.
+
+### Event Handlers
+
+`OrderPlacedEventHandler` implements `IEventHandler<OrderPlacedEvent>` to process messages consumed from RabbitMQ.
 
 ## Cleanup
 
@@ -151,4 +161,3 @@ Queues are created on first consume. To create manually, use the Management UI o
 - [RabbitMQ Documentation](https://www.rabbitmq.com/documentation.html)
 - [Excalibur.Dispatch.Transport.RabbitMQ Package](../../../src/Dispatch/Excalibur.Dispatch.Transport.RabbitMQ/)
 - [CloudEvents Specification](https://cloudevents.io/)
-

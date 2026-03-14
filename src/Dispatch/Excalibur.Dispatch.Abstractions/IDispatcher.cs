@@ -8,6 +8,17 @@ namespace Excalibur.Dispatch.Abstractions;
 /// <summary>
 /// Defines methods for dispatching messages through the Dispatch pipeline.
 /// </summary>
+/// <remarks>
+/// <para>
+/// The core interface provides fire-and-forget and request-response dispatch.
+/// Streaming and progress features are available via sub-interfaces discoverable
+/// through the dispatcher's <see cref="ServiceProvider"/>:
+/// </para>
+/// <list type="bullet">
+/// <item><description><see cref="IStreamingDispatcher"/> for streaming document dispatch</description></item>
+/// <item><description><see cref="IProgressDispatcher"/> for progress-reporting dispatch</description></item>
+/// </list>
+/// </remarks>
 public interface IDispatcher
 {
 	/// <summary>
@@ -65,7 +76,24 @@ public interface IDispatcher
 		CancellationToken cancellationToken)
 #pragma warning restore RS0026
 		where TMessage : IDispatchAction<TResponse>;
+}
 
+/// <summary>
+/// Provides streaming dispatch operations for document processing.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This interface is available as a sub-interface of the dispatcher, discoverable via DI
+/// or by casting an <see cref="IDispatcher"/> implementation that supports streaming.
+/// </para>
+/// <para>
+/// Follows the ISP (Interface Segregation Principle) to keep the core <see cref="IDispatcher"/>
+/// focused on fire-and-forget and request-response patterns, while streaming operations
+/// are opt-in for consumers that need them.
+/// </para>
+/// </remarks>
+public interface IStreamingDispatcher
+{
 	/// <summary>
 	/// Dispatches a document and returns a stream of outputs from the streaming handler.
 	/// </summary>
@@ -88,7 +116,7 @@ public interface IDispatcher
 	/// </remarks>
 	/// <example>
 	/// <code>
-	/// await foreach (var row in dispatcher.DispatchStreamingAsync&lt;CsvDocument, DataRow&gt;(
+	/// await foreach (var row in streamingDispatcher.DispatchStreamingAsync&lt;CsvDocument, DataRow&gt;(
 	///     document, context, cancellationToken))
 	/// {
 	///     ProcessRow(row);
@@ -123,7 +151,7 @@ public interface IDispatcher
 	/// <example>
 	/// <code>
 	/// var rows = ParseCsvAsync(fileStream, cancellationToken);
-	/// await dispatcher.DispatchStreamAsync&lt;DataRow&gt;(
+	/// await streamingDispatcher.DispatchStreamAsync&lt;DataRow&gt;(
 	///     rows, context, cancellationToken);
 	/// </code>
 	/// </example>
@@ -156,7 +184,7 @@ public interface IDispatcher
 	/// </remarks>
 	/// <example>
 	/// <code>
-	/// var enriched = dispatcher.DispatchTransformStreamAsync&lt;CustomerRecord, EnrichedCustomer&gt;(
+	/// var enriched = streamingDispatcher.DispatchTransformStreamAsync&lt;CustomerRecord, EnrichedCustomer&gt;(
 	///     records, context, cancellationToken);
 	/// await foreach (var customer in enriched.WithCancellation(cancellationToken))
 	/// {
@@ -169,7 +197,24 @@ public interface IDispatcher
 		IMessageContext context,
 		CancellationToken cancellationToken)
 		where TInput : IDispatchDocument;
+}
 
+/// <summary>
+/// Provides progress-reporting dispatch operations for long-running document processing.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This interface is available as a sub-interface of the dispatcher, discoverable via DI
+/// or by casting an <see cref="IDispatcher"/> implementation that supports progress reporting.
+/// </para>
+/// <para>
+/// Follows the ISP (Interface Segregation Principle) to keep the core <see cref="IDispatcher"/>
+/// focused on fire-and-forget and request-response patterns, while progress-reporting
+/// operations are opt-in for consumers that need them.
+/// </para>
+/// </remarks>
+public interface IProgressDispatcher
+{
 	/// <summary>
 	/// Dispatches a document to a progress-reporting handler.
 	/// </summary>
@@ -195,7 +240,7 @@ public interface IDispatcher
 	/// <code>
 	/// var progress = new Progress&lt;DocumentProgress&gt;(p =&gt;
 	///     Console.WriteLine($"{p.PercentComplete:F1}% - {p.CurrentPhase}"));
-	/// await dispatcher.DispatchWithProgressAsync(
+	/// await progressDispatcher.DispatchWithProgressAsync(
 	///     document, context, progress, cancellationToken);
 	/// </code>
 	/// </example>

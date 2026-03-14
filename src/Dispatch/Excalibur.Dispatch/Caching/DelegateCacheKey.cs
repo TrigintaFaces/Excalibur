@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Caching;
 /// Previous pattern: $"continuation_{key}_{typeof(T).Name}_{typeof(TResult).Name}" (allocates on every call).
 /// New pattern: DelegateCacheKey struct (zero-allocation, Type objects are runtime-cached).
 /// </remarks>
-public readonly struct DelegateCacheKey : IEquatable<DelegateCacheKey>
+internal readonly struct DelegateCacheKey : IEquatable<DelegateCacheKey>
 {
 	/// <summary>
 	/// Pre-computed hash code for faster dictionary lookups.

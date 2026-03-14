@@ -168,7 +168,7 @@ public readonly struct StructMessageResult : IMessageResult, IEquatable<StructMe
 	/// Singleton default routing decision to avoid allocations.
 	/// </summary>
 	private static readonly RoutingDecision DefaultRoutingDecision =
-		RoutingDecision.Success("local", []);
+		RoutingDecision.Local;
 
 	/// <summary>
 	/// Singleton default validation result to avoid allocations.

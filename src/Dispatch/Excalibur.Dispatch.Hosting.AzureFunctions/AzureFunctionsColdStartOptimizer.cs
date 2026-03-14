@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Hosting.AzureFunctions;
 /// </remarks>
 /// <param name="serviceProvider">The service provider for DI container access.</param>
 /// <param name="logger">The logger instance.</param>
-public partial class AzureFunctionsColdStartOptimizer(
+internal partial class AzureFunctionsColdStartOptimizer(
 	IServiceProvider serviceProvider,
 	ILogger<AzureFunctionsColdStartOptimizer> logger) : ColdStartOptimizerBase(serviceProvider, logger)
 {

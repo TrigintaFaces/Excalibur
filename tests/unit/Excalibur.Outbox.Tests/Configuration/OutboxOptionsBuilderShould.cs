@@ -16,13 +16,13 @@ public sealed class OutboxOptionsBuilderShould
 		options.Preset.ShouldBe(OutboxPreset.HighThroughput);
 		options.BatchSize.ShouldBe(1000);
 		options.PollingInterval.ShouldBe(TimeSpan.FromMilliseconds(100));
-		options.MaxRetryCount.ShouldBe(3);
-		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(1));
+		options.Retry.MaxRetryCount.ShouldBe(3);
+		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(1));
 		options.EnableParallelProcessing.ShouldBeTrue();
 		options.MaxDegreeOfParallelism.ShouldBe(8);
-		options.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(1));
-		options.CleanupInterval.ShouldBe(TimeSpan.FromMinutes(15));
-		options.EnableAutomaticCleanup.ShouldBeTrue();
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(1));
+		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromMinutes(15));
+		options.Cleanup.EnableAutomaticCleanup.ShouldBeTrue();
 		options.EnableBackgroundProcessing.ShouldBeTrue();
 	}
 
@@ -36,12 +36,12 @@ public sealed class OutboxOptionsBuilderShould
 		options.Preset.ShouldBe(OutboxPreset.Balanced);
 		options.BatchSize.ShouldBe(100);
 		options.PollingInterval.ShouldBe(TimeSpan.FromSeconds(1));
-		options.MaxRetryCount.ShouldBe(5);
-		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(5));
+		options.Retry.MaxRetryCount.ShouldBe(5);
+		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(5));
 		options.EnableParallelProcessing.ShouldBeTrue();
 		options.MaxDegreeOfParallelism.ShouldBe(4);
-		options.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(7));
-		options.CleanupInterval.ShouldBe(TimeSpan.FromHours(1));
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(7));
+		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromHours(1));
 	}
 
 	[Fact]
@@ -54,12 +54,12 @@ public sealed class OutboxOptionsBuilderShould
 		options.Preset.ShouldBe(OutboxPreset.HighReliability);
 		options.BatchSize.ShouldBe(10);
 		options.PollingInterval.ShouldBe(TimeSpan.FromSeconds(5));
-		options.MaxRetryCount.ShouldBe(10);
-		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(15));
+		options.Retry.MaxRetryCount.ShouldBe(10);
+		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(15));
 		options.EnableParallelProcessing.ShouldBeFalse();
 		options.MaxDegreeOfParallelism.ShouldBe(1);
-		options.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
-		options.CleanupInterval.ShouldBe(TimeSpan.FromHours(6));
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(30));
+		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromHours(6));
 	}
 
 	[Fact]
@@ -127,7 +127,7 @@ public sealed class OutboxOptionsBuilderShould
 			.Build();
 
 		// Assert
-		options.MaxRetryCount.ShouldBe(7);
+		options.Retry.MaxRetryCount.ShouldBe(7);
 	}
 
 	[Fact]
@@ -146,7 +146,7 @@ public sealed class OutboxOptionsBuilderShould
 			.Build();
 
 		// Assert
-		options.MaxRetryCount.ShouldBe(0);
+		options.Retry.MaxRetryCount.ShouldBe(0);
 	}
 
 	[Fact]
@@ -158,7 +158,7 @@ public sealed class OutboxOptionsBuilderShould
 			.Build();
 
 		// Assert
-		options.RetryDelay.ShouldBe(TimeSpan.FromMinutes(2));
+		options.Retry.RetryDelay.ShouldBe(TimeSpan.FromMinutes(2));
 	}
 
 	[Fact]
@@ -179,7 +179,7 @@ public sealed class OutboxOptionsBuilderShould
 			.Build();
 
 		// Assert
-		options.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
+		options.Cleanup.MessageRetentionPeriod.ShouldBe(TimeSpan.FromDays(14));
 	}
 
 	[Fact]
@@ -198,7 +198,7 @@ public sealed class OutboxOptionsBuilderShould
 			.Build();
 
 		// Assert
-		options.CleanupInterval.ShouldBe(TimeSpan.FromMinutes(30));
+		options.Cleanup.CleanupInterval.ShouldBe(TimeSpan.FromMinutes(30));
 	}
 
 	[Fact]
@@ -217,7 +217,7 @@ public sealed class OutboxOptionsBuilderShould
 			.Build();
 
 		// Assert
-		options.EnableAutomaticCleanup.ShouldBeFalse();
+		options.Cleanup.EnableAutomaticCleanup.ShouldBeFalse();
 	}
 
 	[Fact]
@@ -325,7 +325,7 @@ public sealed class OutboxOptionsBuilderShould
 		// Assert
 		options.BatchSize.ShouldBe(2000);
 		options.ProcessorId.ShouldBe("worker-1");
-		options.MaxRetryCount.ShouldBe(5);
+		options.Retry.MaxRetryCount.ShouldBe(5);
 		options.MaxDegreeOfParallelism.ShouldBe(16);
 	}
 }

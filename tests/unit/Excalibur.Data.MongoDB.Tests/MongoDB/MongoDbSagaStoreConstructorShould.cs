@@ -1,9 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
-using Excalibur.Dispatch.Abstractions.Serialization;
-
-using Excalibur.Data.MongoDB.Saga;
+using Excalibur.Saga.MongoDB;
 
 using Microsoft.Extensions.Options;
 
@@ -22,13 +20,23 @@ public sealed class MongoDbSagaStoreConstructorShould : UnitTestBase
 {
 	private readonly ILogger<MongoDbSagaStore> _logger;
 	private readonly IOptions<MongoDbSagaOptions> _options;
-	private readonly IJsonSerializer _serializer;
+	private readonly DispatchJsonSerializer _serializer;
 
 	public MongoDbSagaStoreConstructorShould()
 	{
 		_logger = A.Fake<ILogger<MongoDbSagaStore>>();
-		_serializer = A.Fake<IJsonSerializer>();
+		_serializer = new DispatchJsonSerializer();
 		_options = Options.Create(new MongoDbSagaOptions());
+	}
+
+	protected override void Dispose(bool disposing)
+	{
+		if (disposing)
+		{
+			_serializer.Dispose();
+		}
+
+		base.Dispose(disposing);
 	}
 
 	#region Simple Constructor Tests

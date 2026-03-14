@@ -158,28 +158,6 @@ public partial class GrantRepository : IGrantRepository
 	}
 
 	/// <inheritdoc />
-	public async Task<IReadOnlyList<Grant>> QueryAsync<TQuery>(TQuery query, CancellationToken cancellationToken)
-		where TQuery : IAggregateQuery<Grant>
-	{
-		ArgumentNullException.ThrowIfNull(query);
-
-		// For now, return empty collection as GrantQuery doesn't have specific criteria
-		// This would typically be implemented based on query properties
-		return await Task.FromResult<IReadOnlyList<Grant>>([]).ConfigureAwait(false);
-	}
-
-	/// <inheritdoc />
-	public async Task<Grant?> FindAsync<TQuery>(TQuery query, CancellationToken cancellationToken)
-		where TQuery : IAggregateQuery<Grant>
-	{
-		ArgumentNullException.ThrowIfNull(query);
-
-		// For now, return null as GrantQuery doesn't have specific criteria
-		// This would typically be implemented based on query properties
-		return await Task.FromResult<Grant?>(null).ConfigureAwait(false);
-	}
-
-	/// <inheritdoc />
 	public async Task<IEnumerable<Grant>> MatchingAsync(GrantScope scope, string? userId = null)
 	{
 		ArgumentNullException.ThrowIfNull(scope);

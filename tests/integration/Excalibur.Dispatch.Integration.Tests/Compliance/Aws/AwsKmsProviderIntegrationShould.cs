@@ -40,8 +40,11 @@ public sealed class AwsKmsProviderIntegrationShould : IAsyncLifetime, IDisposabl
 		{
 			KeyAliasPrefix = "excalibur-dispatch",
 			Environment = "test",
-			EnableAutoRotation = false,
-			DefaultKeySpec = KeySpec.SYMMETRIC_DEFAULT
+			KeyPolicy =
+			{
+				EnableAutoRotation = false,
+				DefaultKeySpec = KeySpec.SYMMETRIC_DEFAULT
+			}
 		});
 
 		_provider = new AwsKmsProvider(_kmsClient, options, _logger, _cache);

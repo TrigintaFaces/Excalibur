@@ -83,13 +83,53 @@ $Templates = @(
     },
     @{
         ShortName    = "excalibur-cqrs"
-        SourceName   = "Company.ExcaliburCqrs"
+        SourceName   = "Company.EventSourcingIntro"
         TemplatePath = Join-Path $TemplatesDir "excalibur-cqrs"
         Transports   = @("inmemory", "kafka", "rabbitmq", "azureservicebus", "awssqs")
         Databases    = @("sqlserver", "postgresql", "inmemory")
         HasDocker    = $true
         HasTests     = $true
         ExpectedFiles = @("Program.cs", "appsettings.json", "Domain/Aggregates/Order.cs", "Domain/Events/OrderCreated.cs", "Domain/Events/OrderShipped.cs", "Application/Commands/CreateOrderCommand.cs", "Application/Commands/CreateOrderCommandHandler.cs", "Application/Queries/GetOrderQuery.cs", "Application/Queries/GetOrderQueryHandler.cs", "ReadModel/OrderProjection.cs", "ReadModel/OrderReadModel.cs")
+    },
+    @{
+        ShortName    = "dispatch-serverless"
+        SourceName   = "Company.DispatchServerless"
+        TemplatePath = Join-Path $TemplatesDir "dispatch-serverless"
+        Transports   = @("inmemory", "kafka", "rabbitmq", "azureservicebus", "awssqs", "googlepubsub")
+        Databases    = @()
+        HasDocker    = $false
+        HasTests     = $false
+        ExpectedFiles = @("Program.cs", "Function.cs")
+    },
+    @{
+        ShortName    = "dispatch-minimal-api"
+        SourceName   = "Company.DispatchMinimalApi"
+        TemplatePath = Join-Path $TemplatesDir "dispatch-minimal-api"
+        Transports   = @("inmemory", "kafka", "rabbitmq", "azureservicebus", "awssqs", "googlepubsub")
+        Databases    = @()
+        HasDocker    = $true
+        HasTests     = $false
+        ExpectedFiles = @("Program.cs", "appsettings.json")
+    },
+    @{
+        ShortName    = "excalibur-saga"
+        SourceName   = "Company.ExcaliburSaga"
+        TemplatePath = Join-Path $TemplatesDir "excalibur-saga"
+        Transports   = @("inmemory", "kafka", "rabbitmq", "azureservicebus", "awssqs", "googlepubsub")
+        Databases    = @("sqlserver", "inmemory")
+        HasDocker    = $true
+        HasTests     = $false
+        ExpectedFiles = @("Program.cs", "appsettings.json", "Sagas/OrderSaga.cs", "Sagas/OrderSagaData.cs", "Messages/StartOrderProcessing.cs", "Messages/OrderEvents.cs")
+    },
+    @{
+        ShortName    = "excalibur-outbox"
+        SourceName   = "Company.ExcaliburOutbox"
+        TemplatePath = Join-Path $TemplatesDir "excalibur-outbox"
+        Transports   = @("inmemory", "kafka", "rabbitmq", "azureservicebus", "awssqs", "googlepubsub")
+        Databases    = @("sqlserver", "inmemory")
+        HasDocker    = $true
+        HasTests     = $false
+        ExpectedFiles = @("Program.cs", "appsettings.json", "Handlers/PlaceOrderHandler.cs", "Messages/PlaceOrderCommand.cs", "Messages/OrderPlacedEvent.cs")
     }
 )
 
@@ -131,14 +171,17 @@ function Test-TemplateInstallation {
         Write-TestResult "Install $shortName from local source" $installed $output
     }
 
-    # Verify all 4 show in list
+    # Verify all 7 show in list
     $listOutput = dotnet new list 2>&1 | Out-String
     $allListed = ($listOutput -match "dispatch-api") -and
                  ($listOutput -match "dispatch-worker") -and
                  ($listOutput -match "excalibur-ddd") -and
-                 ($listOutput -match "excalibur-cqrs")
+                 ($listOutput -match "excalibur-cqrs") -and
+                 ($listOutput -match "dispatch-serverless") -and
+                 ($listOutput -match "excalibur-saga") -and
+                 ($listOutput -match "excalibur-outbox")
 
-    Write-TestResult "All 4 templates visible in 'dotnet new list'" $allListed
+    Write-TestResult "All 7 templates visible in 'dotnet new list'" $allListed
 }
 
 function Test-DefaultInstantiation {
@@ -231,9 +274,13 @@ function Test-TransportOptions {
                             $hasRef = $csprojContent -match "Dispatch\.Transport\.AwsSqs"
                             Write-TestResult "  $shortName/$transport has AwsSqs package ref" $hasRef
                         }
+                        "googlepubsub" {
+                            $hasRef = $csprojContent -match "Dispatch\.Transport\.GooglePubSub"
+                            Write-TestResult "  $shortName/$transport has GooglePubSub package ref" $hasRef
+                        }
                         "inmemory" {
                             # Should NOT have any transport-specific packages
-                            $hasTransportRef = $csprojContent -match "Dispatch\.Transport\.(Kafka|RabbitMQ|AzureServiceBus|AwsSqs)"
+                            $hasTransportRef = $csprojContent -match "Dispatch\.Transport\.(Kafka|RabbitMQ|AzureServiceBus|AwsSqs|GooglePubSub)"
                             Write-TestResult "  $shortName/$transport has NO transport package refs" (-not $hasTransportRef)
                         }
                     }
@@ -243,7 +290,7 @@ function Test-TransportOptions {
                     $hasPreprocessor = $false
                     foreach ($f in $csFiles) {
                         $content = Get-Content $f.FullName -Raw
-                        if ($content -match '#if \(Use(Kafka|RabbitMQ|AzureServiceBus|AwsSqs)\)') {
+                        if ($content -match '#if \(Use(Kafka|RabbitMQ|AzureServiceBus|AwsSqs|GooglePubSub)\)') {
                             $hasPreprocessor = $true
                             break
                         }
@@ -285,7 +332,8 @@ function Test-DatabaseOptions {
 
                     switch ($database) {
                         "sqlserver" {
-                            $hasRef = $csprojContent -match "Excalibur\.EventSourcing\.SqlServer"
+                            # Different templates use different SqlServer packages
+                            $hasRef = $csprojContent -match "Excalibur\.(EventSourcing|Saga|Outbox)\.SqlServer"
                             Write-TestResult "  $shortName/$database has SqlServer package ref" $hasRef
                         }
                         "postgresql" {
@@ -293,7 +341,7 @@ function Test-DatabaseOptions {
                             Write-TestResult "  $shortName/$database has Postgres package ref" $hasRef
                         }
                         "inmemory" {
-                            $hasDbRef = $csprojContent -match "Excalibur\.EventSourcing\.(SqlServer|Postgres)"
+                            $hasDbRef = $csprojContent -match "Excalibur\.(EventSourcing|Saga|Outbox)\.(SqlServer|Postgres)"
                             Write-TestResult "  $shortName/$database has NO database-specific package refs" (-not $hasDbRef)
                         }
                     }
@@ -440,8 +488,8 @@ function Test-TemplatePack {
         $noBuildOutput = $content -match "<IncludeBuildOutput>false</IncludeBuildOutput>"
         Write-TestResult "  .csproj excludes build output" $noBuildOutput
 
-        # Verify all 4 templates are included as Content items
-        foreach ($tmpl in @("dispatch-api", "dispatch-worker", "excalibur-ddd", "excalibur-cqrs")) {
+        # Verify all 7 templates are included as Content items
+        foreach ($tmpl in @("dispatch-api", "dispatch-worker", "excalibur-ddd", "excalibur-cqrs", "dispatch-serverless", "dispatch-minimal-api", "excalibur-saga", "excalibur-outbox")) {
             $included = $content -match "Content Include=`"$tmpl"
             Write-TestResult "  .csproj includes $tmpl content" $included
         }
