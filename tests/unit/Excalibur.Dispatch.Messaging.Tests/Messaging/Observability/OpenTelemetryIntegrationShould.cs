@@ -192,30 +192,22 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 	public async Task EmitCorrectMetricsForBatchSizeAndDuration()
 	{
 		// Arrange
-		var batchProcessed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		var processedBatches = new ConcurrentBag<IReadOnlyList<string>>();
 
-		var processor = new BatchProcessor<string>(
+		// Act
+		await using (var processor = new BatchProcessor<string>(
 			batch =>
 			{
 				processedBatches.Add(batch);
-				_ = batchProcessed.TrySetResult(true);
 				return ValueTask.CompletedTask;
 			},
 			_processorLogger,
-			new MicroBatchOptions { MaxBatchSize = 2, MaxBatchDelay = TimeSpan.FromMilliseconds(50) });
+			new MicroBatchOptions { MaxBatchSize = 2, MaxBatchDelay = TimeSpan.FromMilliseconds(50) }))
+		{
+			await processor.AddAsync("item1", CancellationToken.None).ConfigureAwait(false);
+			await processor.AddAsync("item2", CancellationToken.None).ConfigureAwait(false); // Should trigger batch size limit
+		}
 
-		_disposables.Add(processor);
-
-		// Act
-		await processor.AddAsync("item1", CancellationToken.None).ConfigureAwait(false);
-		await processor.AddAsync("item2", CancellationToken.None).ConfigureAwait(false); // Should trigger batch size limit
-
-		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-
-			batchProcessed.Task,
-
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30)));
 		// Assert
 		processedBatches.Count.ShouldBe(1);
 		processedBatches.ShouldContain(batch => batch.Count == 2);

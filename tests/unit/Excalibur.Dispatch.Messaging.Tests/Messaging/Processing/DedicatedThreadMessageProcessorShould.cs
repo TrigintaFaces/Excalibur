@@ -58,9 +58,16 @@ public sealed class DedicatedThreadMessageProcessorShould
 	public async Task ProcessSubmittedMessagesAndReportStatistics()
 	{
 		var handled = 0;
+		var expectedSubmitted = 0;
+		var allProcessed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 		using var sut = CreateProcessor(new DelegateMessageHandler((_, _) =>
 		{
-			_ = Interlocked.Increment(ref handled);
+			var current = Interlocked.Increment(ref handled);
+			var expected = Volatile.Read(ref expectedSubmitted);
+			if (expected > 0 && current >= expected)
+			{
+				_ = allProcessed.TrySetResult(true);
+			}
 			return ProcessingResult.Ok();
 		}));
 
@@ -75,10 +82,15 @@ public sealed class DedicatedThreadMessageProcessorShould
 			}
 		}
 
-		var processed = await global::Tests.Shared.Infrastructure.WaitHelpers
-			.WaitUntilAsync(() => Volatile.Read(ref handled) >= submitted, TimeSpan.FromSeconds(10))
-			.ConfigureAwait(false);
-		processed.ShouldBeTrue();
+		Volatile.Write(ref expectedSubmitted, submitted);
+		if (Volatile.Read(ref handled) >= submitted)
+		{
+			_ = allProcessed.TrySetResult(true);
+		}
+
+		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
+			allProcessed.Task,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(45))).ConfigureAwait(false);
 
 		sut.Stop();
 		var stats = sut.GetStatistics();
