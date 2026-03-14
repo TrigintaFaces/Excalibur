@@ -363,18 +363,6 @@
   <data name="ValidationMiddleware_LoggerNotInitialized" xml:space="preserve">
     <value>Logger is not initialized.</value>
   </data>
-  <data name="DedicatedThreadMessageProcessor_ThreadCountMustBePositive" xml:space="preserve">
-    <value>Thread count must be positive.</value>
-  </data>
-  <data name="DedicatedThreadMessageProcessor_AlreadyRunning" xml:space="preserve">
-    <value>Processor is already running.</value>
-  </data>
-  <data name="LockFreeMessageBuffer_CapacityMustBeAtLeastTwo" xml:space="preserve">
-    <value>Capacity must be at least two.</value>
-  </data>
-  <data name="MpmcLockFreeBuffer_BufferSizeMustBeAtLeastTwo" xml:space="preserve">
-    <value>Buffer size must be at least two.</value>
-  </data>
   <data name="TransportConfigurationValidator_DuplicateTransportNameFormat" xml:space="preserve">
     <value>Duplicate transport name '{0}'. Transport names must be unique.</value>
   </data>

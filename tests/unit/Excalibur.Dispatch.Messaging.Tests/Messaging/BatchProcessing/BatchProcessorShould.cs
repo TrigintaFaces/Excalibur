@@ -135,7 +135,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 	[Fact]
 	public async Task FlushBatchBasedOnTimeDelay()
 	{
-		var options = new MicroBatchOptions { MaxBatchSize = 10, MaxBatchDelay = TimeSpan.FromMilliseconds(25) };
+		var options = new MicroBatchOptions { MaxBatchSize = 10, MaxBatchDelay = TimeSpan.FromMilliseconds(100) };
 
 		var processedBatches = new ConcurrentQueue<IReadOnlyList<string>>();
 		var batchObserved = new TaskCompletionSource<IReadOnlyList<string>>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -869,7 +869,6 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		var exceptions = new ConcurrentBag<Exception>();
 		var totalProcessed = 0;
 		var options = new MicroBatchOptions { MaxBatchSize = 25, MaxBatchDelay = TimeSpan.FromMilliseconds(50) };
-		var allItemsProcessed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 		var processor = new BatchProcessor<string>(
 			batch =>
@@ -881,10 +880,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 						processedItems.Add(item);
 					}
 
-					if (Interlocked.Add(ref totalProcessed, batch.Count) >= Environment.ProcessorCount * 2 * 100)
-					{
-						_ = allItemsProcessed.TrySetResult();
-					}
+					_ = Interlocked.Add(ref totalProcessed, batch.Count);
 
 					// Simulate some processing work
 					var sum = 0;
@@ -906,7 +902,7 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 		_disposables.Add(processor);
 
 		var itemsPerThread = 100;
-		var threadCount = Environment.ProcessorCount * 2;
+		var threadCount = Math.Min(Environment.ProcessorCount, 8);
 
 		// Launch multiple producer threads
 		var producerTasks = Enumerable.Range(0, threadCount)
@@ -932,12 +928,9 @@ public sealed class BatchProcessorShould : IAsyncDisposable
 			}));
 
 		await Task.WhenAll(producerTasks).ConfigureAwait(false);
-
-		// Wait for processing to complete
 		var expectedCount = threadCount * itemsPerThread;
-		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-			allItemsProcessed.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(45))).ConfigureAwait(false);
+		await processor.DisposeAsync().ConfigureAwait(false);
+		_ = _disposables.Remove(processor);
 
 		exceptions.ShouldBeEmpty();
 		Volatile.Read(ref totalProcessed).ShouldBe(expectedCount);

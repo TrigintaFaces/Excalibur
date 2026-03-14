@@ -465,27 +465,6 @@ public static class CoreEventId
 	/// <summary>Background task cancelled.</summary>
 	public const int BackgroundTaskCancelled = 10903;
 
-	/// <summary>Thread pool task scheduled.</summary>
-	public const int ThreadPoolTaskScheduled = 10904;
-
-	/// <summary>Dedicated thread started.</summary>
-	public const int DedicatedThreadStarted = 10905;
-
-	/// <summary>Dedicated thread stopped.</summary>
-	public const int DedicatedThreadStopped = 10906;
-
-	/// <summary>Dedicated processor started.</summary>
-	public const int DedicatedProcessorStarted = 10907;
-
-	/// <summary>Dedicated processor stopped.</summary>
-	public const int DedicatedProcessorStopped = 10908;
-
-	/// <summary>Dedicated processor processing error.</summary>
-	public const int DedicatedProcessorError = 10909;
-
-	/// <summary>Dedicated processor fatal error.</summary>
-	public const int DedicatedProcessorFatalError = 10910;
-
 	/// <summary>Unhandled background task exception.</summary>
 	public const int UnhandledBackgroundException = 10911;
 

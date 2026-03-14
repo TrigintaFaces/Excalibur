@@ -857,48 +857,6 @@ public sealed class CoreEventIdShould : UnitTestBase
 	}
 
 	[Fact]
-	public void HaveThreadPoolTaskScheduledInThreadingRange()
-	{
-		CoreEventId.ThreadPoolTaskScheduled.ShouldBe(10904);
-	}
-
-	[Fact]
-	public void HaveDedicatedThreadStartedInThreadingRange()
-	{
-		CoreEventId.DedicatedThreadStarted.ShouldBe(10905);
-	}
-
-	[Fact]
-	public void HaveDedicatedThreadStoppedInThreadingRange()
-	{
-		CoreEventId.DedicatedThreadStopped.ShouldBe(10906);
-	}
-
-	[Fact]
-	public void HaveDedicatedProcessorStartedInThreadingRange()
-	{
-		CoreEventId.DedicatedProcessorStarted.ShouldBe(10907);
-	}
-
-	[Fact]
-	public void HaveDedicatedProcessorStoppedInThreadingRange()
-	{
-		CoreEventId.DedicatedProcessorStopped.ShouldBe(10908);
-	}
-
-	[Fact]
-	public void HaveDedicatedProcessorErrorInThreadingRange()
-	{
-		CoreEventId.DedicatedProcessorError.ShouldBe(10909);
-	}
-
-	[Fact]
-	public void HaveDedicatedProcessorFatalErrorInThreadingRange()
-	{
-		CoreEventId.DedicatedProcessorFatalError.ShouldBe(10910);
-	}
-
-	[Fact]
 	public void HaveUnhandledBackgroundExceptionInThreadingRange()
 	{
 		CoreEventId.UnhandledBackgroundException.ShouldBe(10911);
@@ -1206,13 +1164,6 @@ public sealed class CoreEventIdShould : UnitTestBase
 			CoreEventId.BackgroundTaskCompleted,
 			CoreEventId.BackgroundTaskFailed,
 			CoreEventId.BackgroundTaskCancelled,
-			CoreEventId.ThreadPoolTaskScheduled,
-			CoreEventId.DedicatedThreadStarted,
-			CoreEventId.DedicatedThreadStopped,
-			CoreEventId.DedicatedProcessorStarted,
-			CoreEventId.DedicatedProcessorStopped,
-			CoreEventId.DedicatedProcessorError,
-			CoreEventId.DedicatedProcessorFatalError,
 			CoreEventId.UnhandledBackgroundException,
 			CoreEventId.BackgroundExecutionInvalid,
 			CoreEventId.BackgroundExecutionFailed,

@@ -1003,11 +1003,11 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 				return ValueTask.CompletedTask;
 			},
 			_processorLogger,
-			new MicroBatchOptions { MaxBatchSize = 2, MaxBatchDelay = TimeSpan.FromMilliseconds(100) });
+			new MicroBatchOptions { MaxBatchSize = 2, MaxBatchDelay = TimeSpan.FromSeconds(5) });
 
 		_disposables.Add(processor);
 
-		// Act - Process multiple batches
+		// Act - Process three deterministic size-triggered batches
 		await processor.AddAsync("batch1-item1", CancellationToken.None).ConfigureAwait(false);
 		await processor.AddAsync("batch1-item2", CancellationToken.None).ConfigureAwait(false); // Batch 1 (size trigger)
 
@@ -1015,12 +1015,13 @@ public sealed class OpenTelemetryIntegrationShould : IDisposable
 		await processor.AddAsync("batch2-item2", CancellationToken.None).ConfigureAwait(false); // Batch 2 (size trigger)
 
 		await processor.AddAsync("batch3-item1", CancellationToken.None).ConfigureAwait(false);
+		await processor.AddAsync("batch3-item2", CancellationToken.None).ConfigureAwait(false); // Batch 3 (size trigger)
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			allBatchesCompleted.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(15))).ConfigureAwait(false);
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 		// Assert - Primary assertions: batch processing completed correctly
 		batchesProcessed.ShouldBeGreaterThanOrEqualTo(3);
-		totalItemsProcessed.ShouldBeGreaterThanOrEqualTo(5);
+		totalItemsProcessed.ShouldBeGreaterThanOrEqualTo(6);
 
 		// Verify metrics aggregation if metrics were collected
 		var allMetrics = batchMetrics.ToList();

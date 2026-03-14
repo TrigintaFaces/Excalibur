@@ -2376,10 +2376,19 @@ jobs:
           - { name: unit-transport, artifact: test-results-unit-transport, path: "**/*.trx" }
           - { name: unit-middleware, artifact: test-results-unit-middleware, path: "**/*.trx" }
           - { name: unit-excalibur, artifact: test-results-unit-excalibur, path: "**/*.trx" }
-          - { name: unit-observability, artifact: test-results-unit-observability, path: "**/*.trx" }
+          - { name: unit-observability, artifact: test-results-unit-async-risk-observability, path: "**/*.trx" }
           - { name: unit-async-risk-messaging, artifact: test-results-unit-async-risk-messaging, path: "**/*.trx" }
           - { name: integration, artifact: test-results-integration-ubuntu-latest, path: "**/*.trx" }
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Trust workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
       - name: Download test results
         uses: actions/download-artifact@v4
         with:
