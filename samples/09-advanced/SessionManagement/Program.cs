@@ -9,6 +9,8 @@ using Amazon.SQS.Model;
 using Excalibur.Dispatch.Transport;
 using Excalibur.Dispatch.Transport.Aws;
 
+using SessionInfo = Excalibur.Dispatch.Transport.SessionInfo;
+
 using MessageSystemAttributeName = Amazon.SQS.MessageSystemAttributeName;
 
 namespace SessionManagementExample;
@@ -27,9 +29,18 @@ public static class Program
 				_ = services.AddDefaultAWSOptions(context.Configuration.GetAWSOptions());
 				_ = services.AddAWSService<IAmazonSQS>();
 
-				// Register session management services
-				_ = services.AddSingleton<Excalibur.Dispatch.Transport.Aws.ISessionStore, InMemorySessionStore>();
-				_ = services.AddSingleton<ISessionManager, SessionManager>();
+				// Register the AWS SQS transport via the builder API.
+				// SessionManager is an internal implementation detail of the transport.
+				_ = services.AddAwsSqsTransport(static sqs =>
+				{
+					sqs.ConfigureFifo(static fifo => fifo.ContentBasedDeduplication(true));
+				});
+
+				// Register session lock coordination using a simple in-memory implementation.
+				// In production, use the transport's built-in session management.
+				_ = services.AddSingleton<ISessionLockCoordinator, InMemorySessionLockCoordinator>();
+				_ = services.AddSingleton<ISessionInfoProvider>(
+					static sp => (ISessionInfoProvider)sp.GetRequiredService<ISessionLockCoordinator>());
 
 				// Configure session options
 				_ = services.Configure<Excalibur.Dispatch.Transport.Aws.SessionOptions>(static options =>
@@ -39,8 +50,6 @@ public static class Program
 					options.EnableAutoRenewal = true;
 					options.LockTimeout = TimeSpan.FromMinutes(2);
 				});
-
-				// Session management is handled by the AWS provider
 
 				// Register our message processor
 				_ = services.AddHostedService<OrderProcessingService>();
@@ -55,11 +64,11 @@ public static class Program
 ///     Background service that processes orders with session affinity.
 /// </summary>
 public class OrderProcessingService(
-	ISessionManager sessionManager,
+	ISessionLockCoordinator sessionLockCoordinator,
 	IAmazonSQS sqsClient,
 	ILogger<OrderProcessingService> logger) : BackgroundService
 {
-	private readonly ISessionManager _sessionManager = sessionManager;
+	private readonly ISessionLockCoordinator _sessionLockCoordinator = sessionLockCoordinator;
 	private readonly IAmazonSQS _sqsClient = sqsClient;
 	private readonly ILogger<OrderProcessingService> _logger = logger;
 	private readonly string _queueUrl = "https://sqs.us-east-1.amazonaws.com/123456789/orders.fifo";
@@ -105,7 +114,7 @@ public class OrderProcessingService(
 		try
 		{
 			// Try to acquire session lock
-			sessionLock = await _sessionManager.TryAcquireLockAsync(
+			sessionLock = await _sessionLockCoordinator.TryAcquireLockAsync(
 				sessionId,
 				TimeSpan.FromMinutes(5),
 				cancellationToken);
@@ -147,7 +156,7 @@ public class OrderProcessingService(
 			// Always release session lock
 			if (sessionLock != null)
 			{
-				_ = await _sessionManager.ReleaseLockAsync(sessionLock, cancellationToken);
+				_ = await _sessionLockCoordinator.ReleaseLockAsync(sessionLock, cancellationToken);
 			}
 		}
 	}
@@ -165,13 +174,13 @@ public class OrderProcessingService(
 }
 
 /// <summary>
-///     Example showing session migration for load balancing.
+///     Example showing session analysis for load balancing.
 /// </summary>
 public class LoadBalancer(
-	ISessionManager sessionManager,
+	ISessionInfoProvider sessionInfoProvider,
 	ILogger<LoadBalancer> logger)
 {
-	private readonly ISessionManager _sessionManager = sessionManager;
+	private readonly ISessionInfoProvider _sessionInfoProvider = sessionInfoProvider;
 	private readonly ILogger<LoadBalancer> _logger = logger;
 
 	public async Task BalanceLoad()
@@ -194,7 +203,7 @@ public class LoadBalancer(
 				try
 				{
 					// Check if session exists and is active
-					var sessionInfo = await _sessionManager.GetSessionInfoAsync(sessionId, CancellationToken.None);
+					var sessionInfo = await _sessionInfoProvider.GetSessionInfoAsync(sessionId, CancellationToken.None);
 					if (sessionInfo != null)
 					{
 						_logger.LogInformation("Active session found: {SessionId}", sessionId);
@@ -267,4 +276,136 @@ internal sealed class InMemorySessionStore : Excalibur.Dispatch.Transport.Aws.IS
 
 	public Task<int> GetCountAsync(CancellationToken cancellationToken = default) =>
 		Task.FromResult(_sessions.Count);
+}
+
+/// <summary>
+/// Simple in-memory session lock coordinator for sample usage.
+/// In production, use the transport's built-in SessionManager via DI.
+/// </summary>
+internal sealed class InMemorySessionLockCoordinator : ISessionLockCoordinator, ISessionInfoProvider
+{
+	private readonly ConcurrentDictionary<string, SessionLockToken> _locks = new(StringComparer.Ordinal);
+
+	public Task<SessionLockToken> AcquireLockAsync(
+		string sessionId, TimeSpan lockDuration, CancellationToken cancellationToken)
+	{
+		var token = CreateToken(sessionId, lockDuration);
+		_locks[sessionId] = token;
+		return Task.FromResult(token);
+	}
+
+	public Task<SessionLockToken?> TryAcquireLockAsync(
+		string sessionId, TimeSpan lockDuration, CancellationToken cancellationToken)
+	{
+		if (_locks.TryGetValue(sessionId, out var existing) && existing.IsValid)
+		{
+			return Task.FromResult<SessionLockToken?>(null);
+		}
+
+		var token = CreateToken(sessionId, lockDuration);
+		_locks[sessionId] = token;
+		return Task.FromResult<SessionLockToken?>(token);
+	}
+
+	public Task<bool> ExtendLockAsync(
+		SessionLockToken lockToken, TimeSpan extension, CancellationToken cancellationToken)
+	{
+		if (_locks.TryGetValue(lockToken.SessionId, out var existing) &&
+			string.Equals(existing.Token, lockToken.Token, StringComparison.Ordinal))
+		{
+			var extended = CreateToken(lockToken.SessionId, extension);
+			_locks[lockToken.SessionId] = extended;
+			return Task.FromResult(true);
+		}
+
+		return Task.FromResult(false);
+	}
+
+	public Task<bool> ReleaseLockAsync(SessionLockToken lockToken, CancellationToken cancellationToken)
+	{
+		var removed = _locks.TryRemove(lockToken.SessionId, out _);
+		return Task.FromResult(removed);
+	}
+
+	public Task<bool> IsLockedAsync(string sessionId, CancellationToken cancellationToken)
+	{
+		var locked = _locks.TryGetValue(sessionId, out var token) && token.IsValid;
+		return Task.FromResult(locked);
+	}
+
+	public Task<SessionInfo?> GetSessionInfoAsync(string sessionId, CancellationToken cancellationToken)
+	{
+		if (_locks.TryGetValue(sessionId, out var token))
+		{
+			return Task.FromResult<SessionInfo?>(new SessionInfo
+			{
+				SessionId = sessionId,
+				State = DispatchSessionState.Active,
+				CreatedAt = token.AcquiredAt,
+				LastAccessedAt = DateTimeOffset.UtcNow,
+				LockToken = token.Token,
+			});
+		}
+
+		return Task.FromResult<SessionInfo?>(null);
+	}
+
+	public Task<IReadOnlyDictionary<string, SessionInfo>> GetSessionInfosAsync(
+		IEnumerable<string> sessionIds, CancellationToken cancellationToken)
+	{
+		var result = new Dictionary<string, SessionInfo>(StringComparer.Ordinal);
+		foreach (var id in sessionIds)
+		{
+			if (_locks.TryGetValue(id, out var token))
+			{
+				result[id] = new SessionInfo
+				{
+					SessionId = id,
+					State = DispatchSessionState.Active,
+					CreatedAt = token.AcquiredAt,
+					LastAccessedAt = DateTimeOffset.UtcNow,
+					LockToken = token.Token,
+				};
+			}
+		}
+
+		return Task.FromResult<IReadOnlyDictionary<string, SessionInfo>>(result);
+	}
+
+	public Task<IReadOnlyList<SessionInfo>> ListActiveSessionsAsync(
+		int maxSessions, CancellationToken cancellationToken)
+	{
+		var sessions = _locks.Values
+			.Where(static t => t.IsValid)
+			.Take(maxSessions)
+			.Select(static t => new SessionInfo
+			{
+				SessionId = t.SessionId,
+				State = DispatchSessionState.Active,
+				CreatedAt = t.AcquiredAt,
+				LastAccessedAt = DateTimeOffset.UtcNow,
+				LockToken = t.Token,
+			})
+			.ToList();
+
+		return Task.FromResult<IReadOnlyList<SessionInfo>>(sessions);
+	}
+
+	public Task<SessionStatistics> GetStatisticsAsync(CancellationToken cancellationToken) =>
+		Task.FromResult(new SessionStatistics
+		{
+			ActiveSessions = _locks.Count(static kvp => kvp.Value.IsValid),
+			TotalSessions = _locks.Count,
+			GeneratedAt = DateTimeOffset.UtcNow,
+		});
+
+	private static SessionLockToken CreateToken(string sessionId, TimeSpan duration) =>
+		new()
+		{
+			SessionId = sessionId,
+			Token = Guid.NewGuid().ToString("N"),
+			AcquiredAt = DateTimeOffset.UtcNow,
+			ExpiresAt = DateTimeOffset.UtcNow.Add(duration),
+			OwnerId = Environment.MachineName,
+		};
 }
