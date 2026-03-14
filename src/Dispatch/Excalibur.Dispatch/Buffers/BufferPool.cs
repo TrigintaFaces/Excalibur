@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Buffers;
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="BufferPool" /> class. </remarks>
 /// <param name="pool"> The underlying array pool to use. </param>
-public sealed class BufferPool(ArrayPool<byte> pool)
+internal sealed class BufferPool(ArrayPool<byte> pool)
 {
 	private readonly ArrayPool<byte> _pool = pool ?? throw new ArgumentNullException(nameof(pool));
 

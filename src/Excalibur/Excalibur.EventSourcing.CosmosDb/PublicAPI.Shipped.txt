@@ -1,1 +1,47 @@
 #nullable enable
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.AppendAsync(string! aggregateId, string! aggregateType, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudAppendResult!>!
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.CloudProvider.get -> Excalibur.Data.Abstractions.CloudNative.CloudProviderType
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.CosmosDbEventStore(Microsoft.Azure.Cosmos.CosmosClient! cosmosClient, Microsoft.Extensions.Options.IOptions<Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore!>! logger) -> void
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.GetCurrentVersionAsync(string! aggregateId, string! aggregateType, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<long>!
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.GetService(System.Type! serviceType) -> object?
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.GetUndispatchedEventsAsync(int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.LoadAsync(string! aggregateId, string! aggregateType, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, Excalibur.Data.Abstractions.CloudNative.IConsistencyOptions? consistencyOptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudEventLoadResult!>!
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.LoadFromVersionAsync(string! aggregateId, string! aggregateType, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, long fromVersion, Excalibur.Data.Abstractions.CloudNative.IConsistencyOptions? consistencyOptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudEventLoadResult!>!
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.MarkEventAsDispatchedAsync(string! eventId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStore.SubscribeToChangesAsync(Excalibur.Data.Abstractions.CloudNative.IChangeFeedOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.IChangeFeedSubscription<Excalibur.Data.Abstractions.CloudNative.CloudStoredEvent!>!>!
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreChangeFeedSubscription
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreChangeFeedSubscription.CosmosDbEventStoreChangeFeedSubscription(Microsoft.Azure.Cosmos.Container! container, Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions! options, Microsoft.Extensions.Logging.ILogger! logger) -> void
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreChangeFeedSubscription.CurrentContinuationToken.get -> string?
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreChangeFeedSubscription.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreChangeFeedSubscription.IsActive.get -> bool
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreChangeFeedSubscription.ReadChangesAsync(System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.Data.Abstractions.CloudNative.IChangeFeedEvent<Excalibur.Data.Abstractions.CloudNative.CloudStoredEvent!>!>!
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreChangeFeedSubscription.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreChangeFeedSubscription.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreChangeFeedSubscription.SubscriptionId.get -> string!
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.ChangeFeedPollIntervalMs.get -> int
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.ChangeFeedPollIntervalMs.set -> void
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.ContainerThroughput.get -> int
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.ContainerThroughput.set -> void
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.CosmosDbEventStoreOptions() -> void
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.CreateContainerIfNotExists.get -> bool
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.CreateContainerIfNotExists.set -> void
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.DefaultTimeToLiveSeconds.get -> int
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.DefaultTimeToLiveSeconds.set -> void
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.EventsContainerName.get -> string!
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.EventsContainerName.set -> void
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.MaxBatchSize.get -> int
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.MaxBatchSize.set -> void
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.PartitionKeyPath.get -> string!
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.PartitionKeyPath.set -> void
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.UseTransactionalBatch.get -> bool
+Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions.UseTransactionalBatch.set -> void
+Excalibur.EventSourcing.CosmosDb.EventSourcingBuilderCosmosDbExtensions
+Microsoft.Extensions.DependencyInjection.CosmosDbEventStoreServiceCollectionExtensions
+static Excalibur.EventSourcing.CosmosDb.EventSourcingBuilderCosmosDbExtensions.UseCosmosDb(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Excalibur.EventSourcing.CosmosDb.EventSourcingBuilderCosmosDbExtensions.UseCosmosDb(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder, System.Action<Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions!>! configure) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.CosmosDbEventStoreServiceCollectionExtensions.AddCosmosDbEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CosmosDbEventStoreServiceCollectionExtensions.AddCosmosDbEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! sectionName) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CosmosDbEventStoreServiceCollectionExtensions.AddCosmosDbEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.EventSourcing.CosmosDb.CosmosDbEventStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

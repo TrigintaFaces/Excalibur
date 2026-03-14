@@ -27,7 +27,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// (typically <see cref="CachingSchemaRegistryClient"/>). No additional caching is performed here.
 /// </para>
 /// </remarks>
-public sealed partial class ConfluentJsonSerializer : IConfluentFormatSerializer
+internal sealed partial class ConfluentJsonSerializer : IConfluentFormatSerializer
 {
 	private readonly ISchemaRegistryClient _schemaRegistry;
 	private readonly JsonSerializerOptions _jsonOptions;

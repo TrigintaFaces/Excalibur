@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Provides telemetry integration hooks for Google Pub/Sub components.
 /// </summary>
-public static class TelemetryIntegration
+internal static class TelemetryIntegration
 {
 	/// <summary>
 	/// Creates a telemetry-enabled message handler wrapper.

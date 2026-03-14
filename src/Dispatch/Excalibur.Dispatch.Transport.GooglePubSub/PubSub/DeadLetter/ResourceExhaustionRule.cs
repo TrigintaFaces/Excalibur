@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// Detects resource exhaustion patterns.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="ResourceExhaustionRule" /> class. </remarks>
-public sealed class ResourceExhaustionRule(string name) : PoisonDetectionRuleBase(name)
+internal sealed class ResourceExhaustionRule(string name) : PoisonDetectionRuleBase(name)
 {
 	private static readonly string[] ResourceIndicators =
 	[

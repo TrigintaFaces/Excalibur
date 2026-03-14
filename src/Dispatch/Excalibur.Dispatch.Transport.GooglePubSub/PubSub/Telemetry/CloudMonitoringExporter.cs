@@ -19,7 +19,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Exports metrics to Google Cloud Monitoring (formerly Stackdriver).
 /// </summary>
-public sealed class CloudMonitoringExporter : IDisposable
+internal sealed class CloudMonitoringExporter : IDisposable
 {
 	private readonly GooglePubSubOptions _options;
 	private readonly ILogger<CloudMonitoringExporter> _logger;

@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Pooling;
 /// <remarks> Initializes a new instance of the DictionaryPool class. </remarks>
 /// <param name="maxPoolSize"> Maximum number of dictionaries to keep in the pool. </param>
 /// <param name="initialCapacity"> Initial capacity for new dictionaries. </param>
-public sealed class DictionaryPool<TKey, TValue>(int maxPoolSize = 64, int initialCapacity = 16)
+internal sealed class DictionaryPool<TKey, TValue>(int maxPoolSize = 64, int initialCapacity = 16)
 	where TKey : notnull
 {
 	private readonly ConcurrentBag<Dictionary<TKey, TValue>> _pool = [];

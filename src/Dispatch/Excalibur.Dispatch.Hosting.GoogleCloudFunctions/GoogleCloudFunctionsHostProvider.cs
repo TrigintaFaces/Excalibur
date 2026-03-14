@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Hosting.GoogleCloud;
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="GoogleCloudFunctionsHostProvider" /> class. </remarks>
 /// <param name="logger"> The logger instance. </param>
-public sealed partial class GoogleCloudFunctionsHostProvider(ILogger<GoogleCloudFunctionsHostProvider> logger) : IServerlessHostProvider, IServerlessHostConfigurator
+internal sealed partial class GoogleCloudFunctionsHostProvider(ILogger<GoogleCloudFunctionsHostProvider> logger) : IServerlessHostProvider, IServerlessHostConfigurator
 {
 	private readonly ILogger<GoogleCloudFunctionsHostProvider> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 

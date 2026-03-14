@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Queues;
 /// </summary>
 /// <param name="instanceId"> The unique identifier for this instance that will be prefixed to all values. </param>
 /// <param name="queue"> The underlying distributed queue implementation to wrap. </param>
-public sealed class InstanceAwareQueue(string instanceId, IDistributedOrderedSetQueue<string> queue) : IAsyncDisposable
+internal sealed class InstanceAwareQueue(string instanceId, IDistributedOrderedSetQueue<string> queue) : IAsyncDisposable
 #pragma warning restore CA1711
 {
 	private readonly Channel<string> _ownedItems = Channel.CreateUnbounded<string>();

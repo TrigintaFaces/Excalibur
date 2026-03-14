@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport;
 /// <summary>
 /// Processed message information.
 /// </summary>
-public sealed class ProcessedMessage
+internal sealed class ProcessedMessage
 {
 	/// <summary>
 	/// Gets or sets the message ID.

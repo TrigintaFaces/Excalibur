@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Resilience;
 /// </para>
 /// <para> The formula used is: delay = min(baseDelay * multiplier^(attempt-1) +/- jitter, maxDelay) </para>
 /// </remarks>
-public sealed class ExponentialBackoffCalculator : IBackoffCalculator
+internal sealed class ExponentialBackoffCalculator : IBackoffCalculator
 {
 	private readonly TimeSpan _baseDelay;
 	private readonly TimeSpan _maxDelay;

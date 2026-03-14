@@ -28,7 +28,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// ASP.NET Core health checks and the <c>MultiTransportHealthCheck</c>.
 /// </para>
 /// </remarks>
-public sealed partial class KafkaTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
+internal sealed partial class KafkaTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
 {
 	/// <summary>
 	/// The default transport name for Kafka adapters.
@@ -433,7 +433,7 @@ public sealed partial class KafkaTransportAdapter : ITransportAdapter, ITranspor
 /// <summary>
 /// Configuration options for the Kafka transport adapter.
 /// </summary>
-public sealed class KafkaTransportAdapterOptions
+internal sealed class KafkaTransportAdapterOptions
 {
 	/// <summary>
 	/// Gets or sets the name of this transport adapter instance.

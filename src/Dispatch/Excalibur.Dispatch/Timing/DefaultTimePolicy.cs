@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Timing;
 /// <remarks> Initializes a new instance of the <see cref="DefaultTimePolicy" /> class. </remarks>
 /// <param name="options"> The time policy options. </param>
 /// <param name="monitor"> Optional timeout monitor for adaptive timeouts. </param>
-public sealed class DefaultTimePolicy(IOptions<TimePolicyOptions> options, ITimeoutMonitor? monitor = null) : ITimePolicy
+internal sealed class DefaultTimePolicy(IOptions<TimePolicyOptions> options, ITimeoutMonitor? monitor = null) : ITimePolicy
 {
 	private readonly TimePolicyOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 

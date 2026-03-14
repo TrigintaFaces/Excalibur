@@ -25,7 +25,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <param name="dlqOptions"> The DLQ configuration options. </param>
 /// <param name="retryStrategy"> The retry strategy. </param>
 /// <param name="errorTracker"> The error tracker. </param>
-public sealed partial class DlqProcessor(
+internal sealed partial class DlqProcessor(
 	IAmazonSQS sqsClient,
 	ILogger<DlqProcessor> logger,
 	IOptions<DlqProcessorOptions> options,

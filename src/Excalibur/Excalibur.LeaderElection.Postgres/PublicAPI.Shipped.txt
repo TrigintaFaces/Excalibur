@@ -1,1 +1,64 @@
 #nullable enable
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.BecameLeader -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.CandidateId.get -> string!
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.CurrentLeaderId.get -> string?
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.GetCandidateHealthAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.LeaderElection.CandidateHealth!>!>!
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.IsLeader.get -> bool
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.LeaderChanged -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs!>?
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.LostLeadership -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.PostgresHealthBasedLeaderElection(Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions!>! pgOptions, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! electionOptions, Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions!>! healthOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection!>! logger, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.Postgres.PostgresLeaderElection!>! innerLogger) -> void
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElection.UpdateHealthAsync(bool isHealthy, System.Collections.Generic.IDictionary<string!, string!>? metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions.AutoCreateTable.get -> bool
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions.AutoCreateTable.set -> void
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions.CommandTimeoutSeconds.get -> int
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions.CommandTimeoutSeconds.set -> void
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions.HealthExpirationSeconds.get -> int
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions.HealthExpirationSeconds.set -> void
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions.PostgresHealthBasedLeaderElectionOptions() -> void
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions.SchemaName.get -> string!
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions.SchemaName.set -> void
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions.StepDownWhenUnhealthy.get -> bool
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions.StepDownWhenUnhealthy.set -> void
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions.TableName.get -> string!
+Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions.TableName.set -> void
+Excalibur.LeaderElection.Postgres.PostgresLeaderElection
+Excalibur.LeaderElection.Postgres.PostgresLeaderElection.BecameLeader -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
+Excalibur.LeaderElection.Postgres.PostgresLeaderElection.CandidateId.get -> string!
+Excalibur.LeaderElection.Postgres.PostgresLeaderElection.CurrentLeaderId.get -> string?
+Excalibur.LeaderElection.Postgres.PostgresLeaderElection.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.LeaderElection.Postgres.PostgresLeaderElection.IsLeader.get -> bool
+Excalibur.LeaderElection.Postgres.PostgresLeaderElection.LeaderChanged -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderChangedEventArgs!>?
+Excalibur.LeaderElection.Postgres.PostgresLeaderElection.LostLeadership -> System.EventHandler<Excalibur.Dispatch.LeaderElection.LeaderElectionEventArgs!>?
+Excalibur.LeaderElection.Postgres.PostgresLeaderElection.PostgresLeaderElection(Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions!>! pgOptions, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! electionOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.LeaderElection.Postgres.PostgresLeaderElection!>! logger) -> void
+Excalibur.LeaderElection.Postgres.PostgresLeaderElection.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.LeaderElection.Postgres.PostgresLeaderElection.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.LeaderElection.Postgres.PostgresLeaderElectionFactory
+Excalibur.LeaderElection.Postgres.PostgresLeaderElectionFactory.CreateElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.ILeaderElection!
+Excalibur.LeaderElection.Postgres.PostgresLeaderElectionFactory.CreateHealthBasedElection(string! resourceName, string? candidateId) -> Excalibur.Dispatch.LeaderElection.IHealthBasedLeaderElection!
+Excalibur.LeaderElection.Postgres.PostgresLeaderElectionFactory.PostgresLeaderElectionFactory(Microsoft.Extensions.Options.IOptions<Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions!>! pgOptions, Microsoft.Extensions.Logging.ILoggerFactory! loggerFactory) -> void
+Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions
+Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions.CommandTimeoutSeconds.get -> int
+Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions.CommandTimeoutSeconds.set -> void
+Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions.ConnectionString.get -> string!
+Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions.ConnectionString.set -> void
+Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions.LockKey.get -> long
+Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions.LockKey.set -> void
+Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions.PostgresLeaderElectionOptions() -> void
+Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions.Validate() -> void
+Microsoft.Extensions.DependencyInjection.PostgresHealthBasedLeaderElectionExtensions
+Microsoft.Extensions.DependencyInjection.PostgresLeaderElectionBuilderExtensions
+Microsoft.Extensions.DependencyInjection.PostgresLeaderElectionExtensions
+Microsoft.Extensions.DependencyInjection.PostgresLeaderElectionHealthCheckExtensions
+static Microsoft.Extensions.DependencyInjection.PostgresHealthBasedLeaderElectionExtensions.AddPostgresHealthBasedLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PostgresHealthBasedLeaderElectionExtensions.AddPostgresHealthBasedLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions!>! configureOptions, System.Action<Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions!>! configureHealth) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PostgresHealthBasedLeaderElectionExtensions.AddPostgresHealthBasedLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions!>! configureOptions, System.Action<Excalibur.LeaderElection.Postgres.PostgresHealthBasedLeaderElectionOptions!>! configureHealth, System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! configureElection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PostgresLeaderElectionBuilderExtensions.UsePostgres(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder, System.Action<Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions!>! configureOptions) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
+static Microsoft.Extensions.DependencyInjection.PostgresLeaderElectionBuilderExtensions.UsePostgresFactory(this Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder! builder, System.Action<Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions!>! configureOptions) -> Excalibur.Dispatch.LeaderElection.DependencyInjection.ILeaderElectionBuilder!
+static Microsoft.Extensions.DependencyInjection.PostgresLeaderElectionExtensions.AddPostgresLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PostgresLeaderElectionExtensions.AddPostgresLeaderElection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.LeaderElection.Postgres.PostgresLeaderElectionOptions!>! configureOptions, System.Action<Excalibur.Dispatch.LeaderElection.LeaderElectionOptions!>! configureElection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PostgresLeaderElectionHealthCheckExtensions.AddPostgresLeaderElectionHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string? name = null, Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!

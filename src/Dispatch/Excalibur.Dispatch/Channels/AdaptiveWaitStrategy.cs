@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Channels;
 /// <remarks> Initializes a new instance of the <see cref="AdaptiveWaitStrategy" /> class. </remarks>
 /// <param name="maxSpinCount"> The maximum number of spin iterations before yielding. </param>
 /// <param name="contentionThreshold"> The threshold for switching to less aggressive waiting. </param>
-public sealed class AdaptiveWaitStrategy(int maxSpinCount = 100, int contentionThreshold = 10) : WaitStrategyBase
+internal sealed class AdaptiveWaitStrategy(int maxSpinCount = 100, int contentionThreshold = 10) : WaitStrategyBase
 {
 	private readonly int _maxSpinCount = maxSpinCount > 0
 		? maxSpinCount

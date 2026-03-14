@@ -31,7 +31,7 @@ namespace Excalibur.Dispatch.Transport;
 /// </remarks>
 /// <remarks> Initializes a new instance of the <see cref="MessageBufferPool" /> class. </remarks>
 /// <param name="maxBufferSize"> Maximum buffer size to pool. </param>
-public class MessageBufferPool(int maxBufferSize = 65536) : IDisposable
+internal class MessageBufferPool(int maxBufferSize = 65536) : IDisposable
 {
 	private readonly ArrayPool<byte> _bytePool = ArrayPool<byte>.Create(maxBufferSize, 100);
 	private readonly ArrayPool<char> _charPool = ArrayPool<char>.Create(maxBufferSize, 100);

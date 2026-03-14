@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Pooling;
 /// <remarks> Initializes a new instance of the <see cref="MessageBufferPool" /> class. </remarks>
 /// <param name="maxArrayLength"> Maximum array length that can be rented from the pool. </param>
 /// <param name="maxArraysPerBucket"> Maximum number of arrays per bucket in the pool. </param>
-public sealed class MessageBufferPool(int maxArrayLength = 1024 * 1024, int maxArraysPerBucket = 50)
+internal sealed class MessageBufferPool(int maxArrayLength = 1024 * 1024, int maxArraysPerBucket = 50)
 {
 	/// <summary>
 	/// Default buffer sizes optimized for typical message processing scenarios.

@@ -1,1 +1,45 @@
 #nullable enable
+Excalibur.Inbox.Redis.RedisInboxOptions
+Excalibur.Inbox.Redis.RedisInboxOptions.AbortOnConnectFail.get -> bool
+Excalibur.Inbox.Redis.RedisInboxOptions.AbortOnConnectFail.set -> void
+Excalibur.Inbox.Redis.RedisInboxOptions.ConnectionString.get -> string!
+Excalibur.Inbox.Redis.RedisInboxOptions.ConnectionString.set -> void
+Excalibur.Inbox.Redis.RedisInboxOptions.ConnectTimeoutMs.get -> int
+Excalibur.Inbox.Redis.RedisInboxOptions.ConnectTimeoutMs.set -> void
+Excalibur.Inbox.Redis.RedisInboxOptions.DatabaseId.get -> int
+Excalibur.Inbox.Redis.RedisInboxOptions.DatabaseId.set -> void
+Excalibur.Inbox.Redis.RedisInboxOptions.DefaultTtlSeconds.get -> int
+Excalibur.Inbox.Redis.RedisInboxOptions.DefaultTtlSeconds.set -> void
+Excalibur.Inbox.Redis.RedisInboxOptions.KeyPrefix.get -> string!
+Excalibur.Inbox.Redis.RedisInboxOptions.KeyPrefix.set -> void
+Excalibur.Inbox.Redis.RedisInboxOptions.Password.get -> string?
+Excalibur.Inbox.Redis.RedisInboxOptions.Password.set -> void
+Excalibur.Inbox.Redis.RedisInboxOptions.RedisInboxOptions() -> void
+Excalibur.Inbox.Redis.RedisInboxOptions.SyncTimeoutMs.get -> int
+Excalibur.Inbox.Redis.RedisInboxOptions.SyncTimeoutMs.set -> void
+Excalibur.Inbox.Redis.RedisInboxOptions.UseSsl.get -> bool
+Excalibur.Inbox.Redis.RedisInboxOptions.UseSsl.set -> void
+Excalibur.Inbox.Redis.RedisInboxOptions.Validate() -> void
+Excalibur.Inbox.Redis.RedisInboxStore
+Excalibur.Inbox.Redis.RedisInboxStore.CleanupAsync(System.TimeSpan retentionPeriod, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Excalibur.Inbox.Redis.RedisInboxStore.CreateEntryAsync(string! messageId, string! handlerType, string! messageType, byte[]! payload, System.Collections.Generic.IDictionary<string!, object!>! metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry!>
+Excalibur.Inbox.Redis.RedisInboxStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Inbox.Redis.RedisInboxStore.GetAllEntriesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry!>!>
+Excalibur.Inbox.Redis.RedisInboxStore.GetEntryAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxEntry?>
+Excalibur.Inbox.Redis.RedisInboxStore.GetFailedEntriesAsync(int maxRetries, System.DateTimeOffset? olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.InboxEntry!>!>
+Excalibur.Inbox.Redis.RedisInboxStore.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.InboxStatistics!>
+Excalibur.Inbox.Redis.RedisInboxStore.IsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Excalibur.Inbox.Redis.RedisInboxStore.MarkFailedAsync(string! messageId, string! handlerType, string! errorMessage, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Inbox.Redis.RedisInboxStore.MarkProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Inbox.Redis.RedisInboxStore.RedisInboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.Redis.RedisInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.Redis.RedisInboxStore!>! logger) -> void
+Excalibur.Inbox.Redis.RedisInboxStore.RedisInboxStore(StackExchange.Redis.ConnectionMultiplexer! connection, Microsoft.Extensions.Options.IOptions<Excalibur.Inbox.Redis.RedisInboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Inbox.Redis.RedisInboxStore!>! logger) -> void
+Excalibur.Inbox.Redis.RedisInboxStore.TryMarkAsProcessedAsync(string! messageId, string! handlerType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<bool>
+Microsoft.Extensions.DependencyInjection.InboxBuilderRedisExtensions
+Microsoft.Extensions.DependencyInjection.RedisInboxExtensions
+static Microsoft.Extensions.DependencyInjection.InboxBuilderRedisExtensions.UseRedis(this Excalibur.Inbox.DependencyInjection.IInboxBuilder! builder, System.Action<Excalibur.Inbox.Redis.RedisInboxOptions!>! configure) -> Excalibur.Inbox.DependencyInjection.IInboxBuilder!
+static Microsoft.Extensions.DependencyInjection.RedisInboxExtensions.AddRedisInboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.RedisInboxExtensions.AddRedisInboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Inbox.Redis.RedisInboxOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.RedisInboxExtensions.AddRedisInboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, StackExchange.Redis.ConnectionMultiplexer!>! connectionProvider, System.Action<Excalibur.Inbox.Redis.RedisInboxOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.RedisInboxExtensions.UseRedisInboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, string! connectionString) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.RedisInboxExtensions.UseRedisInboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Inbox.Redis.RedisInboxOptions!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.RedisInboxExtensions.UseRedisInboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Func<System.IServiceProvider!, StackExchange.Redis.ConnectionMultiplexer!>! connectionProvider, System.Action<Excalibur.Inbox.Redis.RedisInboxOptions!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!

@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Channels;
 /// <summary>
 /// A channel that works with memory message envelopes for zero-copy operations.
 /// </summary>
-public static class MemoryMessageChannel
+internal static class MemoryMessageChannel
 {
 	/// <summary>
 	/// Creates a bounded channel for memory message envelopes.

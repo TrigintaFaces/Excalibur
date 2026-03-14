@@ -1,1 +1,28 @@
 #nullable enable
+Excalibur.Outbox.InMemory.IInMemoryOutboxBuilder
+Excalibur.Outbox.InMemory.IInMemoryOutboxBuilder.MaxMessages(int count) -> Excalibur.Outbox.InMemory.IInMemoryOutboxBuilder!
+Excalibur.Outbox.InMemory.IInMemoryOutboxBuilder.RetentionPeriod(System.TimeSpan period) -> Excalibur.Outbox.InMemory.IInMemoryOutboxBuilder!
+Excalibur.Outbox.InMemory.InMemoryOutboxOptions
+Excalibur.Outbox.InMemory.InMemoryOutboxOptions.DefaultRetentionPeriod.get -> System.TimeSpan
+Excalibur.Outbox.InMemory.InMemoryOutboxOptions.DefaultRetentionPeriod.set -> void
+Excalibur.Outbox.InMemory.InMemoryOutboxOptions.InMemoryOutboxOptions() -> void
+Excalibur.Outbox.InMemory.InMemoryOutboxOptions.MaxMessages.get -> int
+Excalibur.Outbox.InMemory.InMemoryOutboxOptions.MaxMessages.set -> void
+Excalibur.Outbox.InMemory.InMemoryOutboxStore
+Excalibur.Outbox.InMemory.InMemoryOutboxStore.CleanupSentMessagesAsync(System.DateTimeOffset olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Excalibur.Outbox.InMemory.InMemoryOutboxStore.Dispose() -> void
+Excalibur.Outbox.InMemory.InMemoryOutboxStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.InMemory.InMemoryOutboxStore.EnqueueAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.InMemory.InMemoryOutboxStore.GetFailedMessagesAsync(int maxRetries, System.DateTimeOffset? olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.OutboundMessage!>!>
+Excalibur.Outbox.InMemory.InMemoryOutboxStore.GetScheduledMessagesAsync(System.DateTimeOffset scheduledBefore, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.OutboundMessage!>!>
+Excalibur.Outbox.InMemory.InMemoryOutboxStore.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Dispatch.Abstractions.OutboxStatistics!>
+Excalibur.Outbox.InMemory.InMemoryOutboxStore.GetUnsentMessagesAsync(int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.OutboundMessage!>!>
+Excalibur.Outbox.InMemory.InMemoryOutboxStore.InMemoryOutboxStore(Microsoft.Extensions.Options.IOptions<Excalibur.Outbox.InMemory.InMemoryOutboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Outbox.InMemory.InMemoryOutboxStore!>! logger) -> void
+Excalibur.Outbox.InMemory.InMemoryOutboxStore.MarkFailedAsync(string! messageId, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.InMemory.InMemoryOutboxStore.MarkSentAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.InMemory.InMemoryOutboxStore.StageMessageAsync(Excalibur.Dispatch.Abstractions.OutboundMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Microsoft.Extensions.DependencyInjection.InMemoryOutboxExtensions
+Microsoft.Extensions.DependencyInjection.OutboxBuilderInMemoryExtensions
+static Microsoft.Extensions.DependencyInjection.InMemoryOutboxExtensions.AddInMemoryOutboxStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Outbox.InMemory.InMemoryOutboxOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.InMemoryOutboxExtensions.UseInMemoryOutboxStore(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Excalibur.Outbox.InMemory.InMemoryOutboxOptions!>? configure = null) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.OutboxBuilderInMemoryExtensions.UseInMemory(this Excalibur.Outbox.IOutboxBuilder! builder, System.Action<Excalibur.Outbox.InMemory.IInMemoryOutboxBuilder!>? configure = null) -> Excalibur.Outbox.IOutboxBuilder!

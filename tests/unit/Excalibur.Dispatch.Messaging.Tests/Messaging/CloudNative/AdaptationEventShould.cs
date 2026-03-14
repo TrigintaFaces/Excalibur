@@ -180,13 +180,14 @@ public sealed class AdaptationEventShould
 	}
 
 	[Theory]
-	[InlineData(AdaptationImpact.Minor)]
-	[InlineData(AdaptationImpact.Moderate)]
-	[InlineData(AdaptationImpact.Major)]
-	public void AcceptAllAdaptationImpactLevels(AdaptationImpact impact)
+	[InlineData(0)]
+	[InlineData(1)]
+	[InlineData(2)]
+	public void AcceptAllAdaptationImpactLevels(int impactValue)
 	{
 		// Arrange
 		var adaptationEvent = new AdaptationEvent();
+		var impact = (AdaptationImpact)impactValue;
 
 		// Act
 		adaptationEvent.Impact = impact;

@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Channels;
 /// <remarks> Initializes a new instance of the <see cref="HybridWaitStrategy" /> class. </remarks>
 /// <param name="spinCount"> The number of times to spin before using a timer. </param>
 /// <param name="delayMilliseconds"> The delay in milliseconds when using a timer. </param>
-public sealed class HybridWaitStrategy(int spinCount = 10, int delayMilliseconds = 1) : WaitStrategyBase
+internal sealed class HybridWaitStrategy(int spinCount = 10, int delayMilliseconds = 1) : WaitStrategyBase
 {
 	private readonly int _spinCount = spinCount > 0
 		? spinCount

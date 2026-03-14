@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// <summary>
 /// Validates RabbitMQ configuration options to ensure secure and properly formatted connection strings.
 /// </summary>
-public sealed class RabbitMqOptionsValidator : IValidateOptions<RabbitMqOptions>
+internal sealed class RabbitMqOptionsValidator : IValidateOptions<RabbitMqOptions>
 {
 	/// <summary>
 	/// Validates the provided RabbitMQ options.

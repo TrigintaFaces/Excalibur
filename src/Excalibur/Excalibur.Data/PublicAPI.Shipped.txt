@@ -1,1 +1,150 @@
 #nullable enable
+const Excalibur.Data.Diagnostics.DataEventId.CheckingExternalSources = 110008 -> int
+const Excalibur.Data.Diagnostics.DataEventId.ConfigurationValidated = 110100 -> int
+const Excalibur.Data.Diagnostics.DataEventId.ConfigurationValidationError = 110102 -> int
+const Excalibur.Data.Diagnostics.DataEventId.ConfigurationValidationWarning = 110103 -> int
+const Excalibur.Data.Diagnostics.DataEventId.ConnectionStringRemoved = 110001 -> int
+const Excalibur.Data.Diagnostics.DataEventId.ConnectionStringSet = 110000 -> int
+const Excalibur.Data.Diagnostics.DataEventId.ConnectionStringsLoaded = 110005 -> int
+const Excalibur.Data.Diagnostics.DataEventId.ConnectionStringsRefreshed = 110003 -> int
+const Excalibur.Data.Diagnostics.DataEventId.DetailedHealthCheckFailed = 110203 -> int
+const Excalibur.Data.Diagnostics.DataEventId.HealthCheckCompleted = 110201 -> int
+const Excalibur.Data.Diagnostics.DataEventId.HealthCheckFailed = 110202 -> int
+const Excalibur.Data.Diagnostics.DataEventId.HealthCheckStarted = 110200 -> int
+const Excalibur.Data.Diagnostics.DataEventId.ProviderCreated = 110300 -> int
+const Excalibur.Data.Diagnostics.DataEventId.ProviderCreationFailed = 110302 -> int
+const Excalibur.Data.Diagnostics.DataEventId.ProviderNotFound = 110301 -> int
+const Excalibur.Data.Diagnostics.DataEventId.ProviderRegistered = 110303 -> int
+const Excalibur.Data.Diagnostics.DataEventId.ProviderTypeConfigured = 110101 -> int
+const Excalibur.Data.Diagnostics.DataEventId.ProviderUnregistered = 110304 -> int
+const Excalibur.Data.Diagnostics.DataEventId.ReferencesSecretStore = 110007 -> int
+const Excalibur.Data.Diagnostics.DataEventId.RefreshingConnectionStrings = 110002 -> int
+const Excalibur.Data.Diagnostics.DataEventId.ResolvedFromEnvironment = 110006 -> int
+const Excalibur.Data.Diagnostics.DataEventId.ValidationFailed = 110004 -> int
+const Excalibur.Data.Exceptions.ResourceAlreadyExistsException.DefaultMessage = "The specified resource was not found." -> string!
+const Excalibur.Data.Exceptions.ResourceAlreadyExistsException.DefaultStatusCode = 404 -> int
+Excalibur.Data.ActivityContextExtensions
+Excalibur.Data.Diagnostics.DataEventId
+Excalibur.Data.DomainDb
+Excalibur.Data.DomainDb.DomainDb(System.Data.IDbConnection! connection) -> void
+Excalibur.Data.EventStore.EventMetadata
+Excalibur.Data.EventStore.EventMetadata.CausationId.get -> string?
+Excalibur.Data.EventStore.EventMetadata.CausationId.set -> void
+Excalibur.Data.EventStore.EventMetadata.CorrelationId.get -> string?
+Excalibur.Data.EventStore.EventMetadata.CorrelationId.set -> void
+Excalibur.Data.EventStore.EventMetadata.EventMetadata() -> void
+Excalibur.Data.EventStore.EventMetadata.EventType.get -> string!
+Excalibur.Data.EventStore.EventMetadata.EventType.set -> void
+Excalibur.Data.EventStore.EventMetadata.EventVersion.get -> int
+Excalibur.Data.EventStore.EventMetadata.EventVersion.set -> void
+Excalibur.Data.EventStore.EventMetadata.Properties.get -> System.Collections.Generic.Dictionary<string!, object?>!
+Excalibur.Data.EventStore.EventMetadata.Timestamp.get -> System.DateTimeOffset
+Excalibur.Data.EventStore.EventMetadata.Timestamp.set -> void
+Excalibur.Data.EventStore.EventMetadata.UserId.get -> string?
+Excalibur.Data.EventStore.EventMetadata.UserId.set -> void
+Excalibur.Data.EventStore.EventStoreJsonContext
+Excalibur.Data.Exceptions.ResourceAlreadyExistsException
+Excalibur.Data.Exceptions.ResourceAlreadyExistsException.ResourceAlreadyExistsException(string! resource, int? statusCode, string? message = null, System.Exception? innerException = null) -> void
+Excalibur.Data.Exceptions.ResourceAlreadyExistsException.ResourceAlreadyExistsException(string! resourceKey, string! resource, int? statusCode = null, string? message = null, System.Exception? innerException = null) -> void
+Excalibur.Data.Exceptions.ResourceAlreadyExistsException.ResourceKey.get -> string!
+Excalibur.Data.Exceptions.ResourceAlreadyExistsException.ResourceKey.set -> void
+Excalibur.Data.IDataAccessPolicyFactory
+Excalibur.Data.IDataAccessPolicyFactory.CreateCircuitBreakerPolicy() -> Polly.IAsyncPolicy!
+Excalibur.Data.IDataAccessPolicyFactory.GetComprehensivePolicy() -> Polly.IAsyncPolicy!
+Excalibur.Data.IDataAccessPolicyFactory.GetRetryPolicy() -> Polly.IAsyncPolicy!
+Excalibur.Data.IDomainDb
+Excalibur.Data.IOutboxDb
+Excalibur.Data.IProjectionDb
+Excalibur.Data.ISagaDb
+Excalibur.Data.OutboxDb
+Excalibur.Data.OutboxDb.OutboxDb(System.Data.IDbConnection! connection) -> void
+Excalibur.Data.Persistence.PersistenceConfiguration
+Excalibur.Data.Persistence.PersistenceConfiguration.ConfigurationSection.get -> Microsoft.Extensions.Configuration.IConfigurationSection!
+Excalibur.Data.Persistence.PersistenceConfiguration.DefaultProvider.get -> string!
+Excalibur.Data.Persistence.PersistenceConfiguration.DefaultProvider.set -> void
+Excalibur.Data.Persistence.PersistenceConfiguration.DefaultProviderName.get -> string!
+Excalibur.Data.Persistence.PersistenceConfiguration.GetConfiguredProviders() -> System.Collections.Generic.IEnumerable<string!>!
+Excalibur.Data.Persistence.PersistenceConfiguration.GetProviderOptions(string! providerName) -> Excalibur.Data.Abstractions.Persistence.IPersistenceOptions!
+Excalibur.Data.Persistence.PersistenceConfiguration.GlobalOptions.get -> Excalibur.Data.Persistence.PersistenceOptions!
+Excalibur.Data.Persistence.PersistenceConfiguration.PersistenceConfiguration() -> void
+Excalibur.Data.Persistence.PersistenceConfiguration.Providers.get -> System.Collections.Generic.IDictionary<string!, Excalibur.Data.Persistence.ProviderConfiguration!>!
+Excalibur.Data.Persistence.PersistenceConfiguration.RegisterProviderConfiguration(string! providerName, Excalibur.Data.Abstractions.Persistence.IPersistenceOptions! options) -> void
+Excalibur.Data.Persistence.PersistenceConfiguration.Reload() -> void
+Excalibur.Data.Persistence.PersistenceConfiguration.RemoveProviderConfiguration(string! providerName) -> bool
+Excalibur.Data.Persistence.PersistenceConfiguration.Validate() -> System.Collections.Generic.IEnumerable<Excalibur.Data.Abstractions.Persistence.ConfigurationValidationResult!>!
+Excalibur.Data.Persistence.PersistenceOptions
+Excalibur.Data.Persistence.PersistenceOptions.DefaultCommandTimeout.get -> int
+Excalibur.Data.Persistence.PersistenceOptions.DefaultCommandTimeout.set -> void
+Excalibur.Data.Persistence.PersistenceOptions.DefaultIsolationLevel.get -> System.Data.IsolationLevel
+Excalibur.Data.Persistence.PersistenceOptions.DefaultIsolationLevel.set -> void
+Excalibur.Data.Persistence.PersistenceOptions.EnableAutoRetry.get -> bool
+Excalibur.Data.Persistence.PersistenceOptions.EnableAutoRetry.set -> void
+Excalibur.Data.Persistence.PersistenceOptions.EnableMetrics.get -> bool
+Excalibur.Data.Persistence.PersistenceOptions.EnableMetrics.set -> void
+Excalibur.Data.Persistence.PersistenceOptions.EnableSensitiveDataLogging.get -> bool
+Excalibur.Data.Persistence.PersistenceOptions.EnableSensitiveDataLogging.set -> void
+Excalibur.Data.Persistence.PersistenceOptions.EnableTracing.get -> bool
+Excalibur.Data.Persistence.PersistenceOptions.EnableTracing.set -> void
+Excalibur.Data.Persistence.PersistenceOptions.MaxRetryAttempts.get -> int
+Excalibur.Data.Persistence.PersistenceOptions.MaxRetryAttempts.set -> void
+Excalibur.Data.Persistence.PersistenceOptions.PersistenceOptions() -> void
+Excalibur.Data.Persistence.PersistenceOptions.RetryDelayMilliseconds.get -> int
+Excalibur.Data.Persistence.PersistenceOptions.RetryDelayMilliseconds.set -> void
+Excalibur.Data.Persistence.ProviderConfiguration
+Excalibur.Data.Persistence.ProviderConfiguration.CommandTimeout.get -> int
+Excalibur.Data.Persistence.ProviderConfiguration.CommandTimeout.set -> void
+Excalibur.Data.Persistence.ProviderConfiguration.ConnectionString.get -> string!
+Excalibur.Data.Persistence.ProviderConfiguration.ConnectionString.set -> void
+Excalibur.Data.Persistence.ProviderConfiguration.ConnectionTimeout.get -> int
+Excalibur.Data.Persistence.ProviderConfiguration.ConnectionTimeout.set -> void
+Excalibur.Data.Persistence.ProviderConfiguration.EnableConnectionPooling.get -> bool
+Excalibur.Data.Persistence.ProviderConfiguration.EnableConnectionPooling.set -> void
+Excalibur.Data.Persistence.ProviderConfiguration.EnableDetailedLogging.get -> bool
+Excalibur.Data.Persistence.ProviderConfiguration.EnableDetailedLogging.set -> void
+Excalibur.Data.Persistence.ProviderConfiguration.EnableMetrics.get -> bool
+Excalibur.Data.Persistence.ProviderConfiguration.EnableMetrics.set -> void
+Excalibur.Data.Persistence.ProviderConfiguration.IsReadOnly.get -> bool
+Excalibur.Data.Persistence.ProviderConfiguration.IsReadOnly.set -> void
+Excalibur.Data.Persistence.ProviderConfiguration.MaxPoolSize.get -> int
+Excalibur.Data.Persistence.ProviderConfiguration.MaxPoolSize.set -> void
+Excalibur.Data.Persistence.ProviderConfiguration.MaxRetryAttempts.get -> int
+Excalibur.Data.Persistence.ProviderConfiguration.MaxRetryAttempts.set -> void
+Excalibur.Data.Persistence.ProviderConfiguration.MinPoolSize.get -> int
+Excalibur.Data.Persistence.ProviderConfiguration.MinPoolSize.set -> void
+Excalibur.Data.Persistence.ProviderConfiguration.Name.get -> string!
+Excalibur.Data.Persistence.ProviderConfiguration.Name.set -> void
+Excalibur.Data.Persistence.ProviderConfiguration.ProviderConfiguration() -> void
+Excalibur.Data.Persistence.ProviderConfiguration.ProviderSpecificOptions.get -> System.Collections.Generic.IDictionary<string!, object!>!
+Excalibur.Data.Persistence.ProviderConfiguration.ProviderSpecificOptions.set -> void
+Excalibur.Data.Persistence.ProviderConfiguration.RetryDelayMilliseconds.get -> int
+Excalibur.Data.Persistence.ProviderConfiguration.RetryDelayMilliseconds.set -> void
+Excalibur.Data.Persistence.ProviderConfiguration.Type.get -> Excalibur.Data.Abstractions.Persistence.PersistenceProviderType
+Excalibur.Data.Persistence.ProviderConfiguration.Type.set -> void
+Excalibur.Data.Persistence.ProviderConfiguration.Validate() -> void
+Excalibur.Data.ProjectionDb
+Excalibur.Data.ProjectionDb.ProjectionDb(System.Data.IDbConnection! connection) -> void
+Excalibur.Data.SagaDb
+Excalibur.Data.SagaDb.SagaDb(System.Data.IDbConnection! connection) -> void
+Excalibur.Data.Serialization.ExcaliburJsonSerializerOptions
+Microsoft.Extensions.DependencyInjection.ExcaliburDataServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.PersistenceServiceCollectionExtensions
+static Excalibur.Data.ActivityContextExtensions.ApplicationName(this Excalibur.Domain.IActivityContext! context) -> string!
+static Excalibur.Data.ActivityContextExtensions.ClientAddress(this Excalibur.Domain.IActivityContext! context) -> string?
+static Excalibur.Data.ActivityContextExtensions.Configuration(this Excalibur.Domain.IActivityContext! context) -> Microsoft.Extensions.Configuration.IConfiguration!
+static Excalibur.Data.ActivityContextExtensions.CorrelationId(this Excalibur.Domain.IActivityContext! context) -> System.Guid
+static Excalibur.Data.ActivityContextExtensions.DomainDb(this Excalibur.Domain.IActivityContext! context) -> Excalibur.Data.IDomainDb!
+static Excalibur.Data.ActivityContextExtensions.ETag(this Excalibur.Domain.IActivityContext! context) -> string?
+static Excalibur.Data.ActivityContextExtensions.ETag(this Excalibur.Domain.IActivityContext! context, string? newETag) -> void
+static Excalibur.Data.ActivityContextExtensions.Get<T>(this Excalibur.Domain.IActivityContext! context, string! key) -> T
+static Excalibur.Data.ActivityContextExtensions.LatestETag(this Excalibur.Domain.IActivityContext! context) -> string?
+static Excalibur.Data.ActivityContextExtensions.ServiceProvider(this Excalibur.Domain.IActivityContext! context) -> System.IServiceProvider!
+static Excalibur.Data.ActivityContextExtensions.TenantId(this Excalibur.Domain.IActivityContext! context) -> string!
+static Excalibur.Data.EventStore.EventStoreJsonContext.Instance.get -> Excalibur.Data.EventStore.EventStoreJsonContext!
+static Excalibur.Data.Serialization.ExcaliburJsonSerializerOptions.Default.get -> System.Text.Json.JsonSerializerOptions!
+static Excalibur.Data.Serialization.ExcaliburJsonSerializerOptions.IgnoreStream.get -> System.Text.Json.JsonSerializerOptions!
+static Microsoft.Extensions.DependencyInjection.ExcaliburDataServiceCollectionExtensions.AddExcaliburDataServices(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ExcaliburDataServiceCollectionExtensions.AddExcaliburDataServicesWithPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.ExcaliburDataServiceCollectionExtensions.AddExcaliburDataServicesWithPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Persistence.PersistenceConfiguration!>! configurePersistence) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PersistenceServiceCollectionExtensions.AddPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PersistenceServiceCollectionExtensions.AddPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PersistenceServiceCollectionExtensions.AddPersistence(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.Persistence.PersistenceConfiguration!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

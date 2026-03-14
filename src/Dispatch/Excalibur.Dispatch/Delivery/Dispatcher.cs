@@ -38,7 +38,7 @@ namespace Excalibur.Dispatch.Delivery;
 /// <item><description>Execute middleware chain with resolved context</description></item>
 /// </list>
 /// </remarks>
-public sealed class Dispatcher(
+internal sealed class Dispatcher(
 	IDispatchMiddlewareInvoker? middlewareInvoker = null,
 	FinalDispatchHandler? finalHandler = null,
 	ITransportContextProvider? transportContextProvider = null,

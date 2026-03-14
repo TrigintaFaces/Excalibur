@@ -25,7 +25,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// For receiving messages, use the existing RabbitMqChannelConsumer infrastructure.
 /// </para>
 /// </remarks>
-public sealed partial class RabbitMQTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
+internal sealed partial class RabbitMQTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
 {
 	/// <summary>
 	/// The default transport name for RabbitMQ adapters.
@@ -429,7 +429,7 @@ public sealed partial class RabbitMQTransportAdapter : ITransportAdapter, ITrans
 /// <summary>
 /// Configuration options for the RabbitMQ transport adapter.
 /// </summary>
-public sealed class RabbitMQTransportAdapterOptions
+internal sealed class RabbitMQTransportAdapterOptions
 {
 	/// <summary>
 	/// Gets or sets the name of this transport adapter instance.

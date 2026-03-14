@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Buffers;
 /// <summary>
 /// Static helper for easy buffer management.
 /// </summary>
-public static class BufferManager
+internal static class BufferManager
 {
 	private static readonly BufferPool Instance = BufferPool.Default;
 

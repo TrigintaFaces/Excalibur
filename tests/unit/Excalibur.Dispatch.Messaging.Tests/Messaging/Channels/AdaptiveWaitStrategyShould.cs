@@ -25,10 +25,10 @@ public sealed class AdaptiveWaitStrategyShould
 	}
 
 	[Fact]
-	public void BePublicAndSealed()
+	public void BeInternalAndSealed()
 	{
 		// Assert
-		typeof(AdaptiveWaitStrategy).IsPublic.ShouldBeTrue();
+		typeof(AdaptiveWaitStrategy).IsNotPublic.ShouldBeTrue();
 		typeof(AdaptiveWaitStrategy).IsSealed.ShouldBeTrue();
 	}
 

@@ -24,7 +24,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// protected by <see cref="TagCardinalityGuard"/> to prevent unbounded metric cardinality.
 /// </para>
 /// </remarks>
-public sealed class StreamingPullTelemetry : IDisposable
+internal sealed class StreamingPullTelemetry : IDisposable
 {
 	/// <summary>
 	/// The meter name for streaming pull metrics.

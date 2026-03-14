@@ -89,11 +89,13 @@
 	     Suppress NU5118 (duplicate file warning) for pack stability
 	     CA1873 (logging arg evaluation) — Sprint 565: fixed in Compliance/Dispatch core, remaining in transport packages -->
 	<PropertyGroup>
-		<!-- RS0016: Undeclared public API, suppressed during alpha (PublicAPI.Shipped.txt files are empty baselines).
-		     Enable after populating PublicAPI files to track new API additions (before v3.0.0 stable).
+		<!-- RS0016: Public API tracking ENABLED (Sprint 643). PublicAPI.Shipped.txt baselines populated.
+		     New public API additions will trigger RS0016 warnings requiring explicit declaration.
 		     RS0027: Optional parameter backcompat, alpha consumers expect breaking changes.
 		     RS0041: Oblivious reference types in System.Text.Json source generated code (uncontrollable). -->
-		<NoWarn>$(NoWarn);NU5118;CA1873;RS0016;RS0027;RS0041</NoWarn>
+		<NoWarn>$(NoWarn);NU5118;CA1873;RS0027;RS0041</NoWarn>
+		<!-- RS0016/RS0017: Keep as warnings (not errors) so new public API is flagged but doesn't break builds -->
+		<WarningsNotAsErrors>$(WarningsNotAsErrors);RS0016;RS0017</WarningsNotAsErrors>
 	</PropertyGroup>
 	<ItemGroup Condition="'$(IsPackable)' != 'false' And Exists('$(MSBuildProjectDirectory)\README.md')">
 		<None Include="$(MSBuildProjectDirectory)\README.md" Pack="true" PackagePath="/" Visible="false" />

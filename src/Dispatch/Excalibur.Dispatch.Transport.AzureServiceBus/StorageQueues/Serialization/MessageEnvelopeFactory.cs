@@ -24,7 +24,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// <param name="cloudEventProcessor"> The CloudEvent processor. </param>
 /// <param name="logger"> The logger instance. </param>
 /// <param name="serviceProvider"> The service provider. </param>
-public sealed class MessageEnvelopeFactory(
+internal sealed class MessageEnvelopeFactory(
 	IPayloadSerializer serializer,
 	ICloudEventProcessor cloudEventProcessor,
 	ILogger<MessageEnvelopeFactory> logger,

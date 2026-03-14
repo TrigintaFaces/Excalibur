@@ -35,7 +35,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// See the pluggable serialization architecture documentation for details.
 /// </para>
 /// </remarks>
-public sealed partial class AwsEventBridgeMessageBus(
+internal sealed partial class AwsEventBridgeMessageBus(
 	IAmazonEventBridge client,
 	IPayloadSerializer serializer,
 	AwsEventBridgeOptions options,

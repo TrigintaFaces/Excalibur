@@ -1,1 +1,32 @@
 #nullable enable
+const Excalibur.Dispatch.Observability.Aws.AwsObservabilityEventId.CloudWatchMetricsConfigurationFailed = 93556 -> int
+const Excalibur.Dispatch.Observability.Aws.AwsObservabilityEventId.CloudWatchMetricsConfigured = 93551 -> int
+const Excalibur.Dispatch.Observability.Aws.AwsObservabilityEventId.XRayConfigurationFailed = 93555 -> int
+const Excalibur.Dispatch.Observability.Aws.AwsObservabilityEventId.XRayConfigured = 93550 -> int
+Excalibur.Dispatch.Observability.Aws.AwsObservabilityEventId
+Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions
+Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions.AwsObservabilityOptions() -> void
+Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions.EnableCloudWatchMetrics.get -> bool
+Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions.EnableCloudWatchMetrics.set -> void
+Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions.EnableXRay.get -> bool
+Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions.EnableXRay.set -> void
+Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions.MetricsNamespace.get -> string!
+Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions.MetricsNamespace.set -> void
+Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions.Region.get -> string?
+Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions.Region.set -> void
+Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions.SamplingRate.get -> double
+Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions.SamplingRate.set -> void
+Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions.ServiceName.get -> string!
+Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions.ServiceName.set -> void
+Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions.XRayDaemonEndpoint.get -> string?
+Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions.XRayDaemonEndpoint.set -> void
+Excalibur.Dispatch.Observability.Aws.AwsTracingIntegration
+Excalibur.Dispatch.Observability.Aws.AwsTracingIntegration.AwsTracingIntegration(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Observability.Aws.AwsTracingIntegration!>! logger) -> void
+Excalibur.Dispatch.Observability.Aws.AwsTracingIntegration.ConfigureCloudWatchMetricsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Observability.Aws.AwsTracingIntegration.ConfigureXRayAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Observability.Aws.AwsTracingIntegration.Dispose() -> void
+Excalibur.Dispatch.Observability.Aws.IAwsTracingIntegration
+Excalibur.Dispatch.Observability.Aws.IAwsTracingIntegration.ConfigureCloudWatchMetricsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Observability.Aws.IAwsTracingIntegration.ConfigureXRayAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Microsoft.Extensions.DependencyInjection.AwsObservabilityServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.AwsObservabilityServiceCollectionExtensions.AddAwsObservability(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Observability.Aws.AwsObservabilityOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

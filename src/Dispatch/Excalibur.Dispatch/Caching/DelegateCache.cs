@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Caching;
 /// <remarks>
 /// Supports both string keys (backward compatibility) and struct-based DelegateCacheKey for zero-allocation lookups.
 /// </remarks>
-public static class DelegateCache
+internal static class DelegateCache
 {
 	private static readonly ConcurrentDictionary<string, Delegate> _stringCache = new(StringComparer.Ordinal);
 	private static readonly ConcurrentDictionary<DelegateCacheKey, Delegate> _structCache = new();

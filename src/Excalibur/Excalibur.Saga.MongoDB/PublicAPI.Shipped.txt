@@ -1,1 +1,30 @@
 #nullable enable
+Excalibur.Saga.MongoDB.MongoDbSagaOptions
+Excalibur.Saga.MongoDB.MongoDbSagaOptions.CollectionName.get -> string!
+Excalibur.Saga.MongoDB.MongoDbSagaOptions.CollectionName.set -> void
+Excalibur.Saga.MongoDB.MongoDbSagaOptions.ConnectionString.get -> string!
+Excalibur.Saga.MongoDB.MongoDbSagaOptions.ConnectionString.set -> void
+Excalibur.Saga.MongoDB.MongoDbSagaOptions.ConnectTimeoutSeconds.get -> int
+Excalibur.Saga.MongoDB.MongoDbSagaOptions.ConnectTimeoutSeconds.set -> void
+Excalibur.Saga.MongoDB.MongoDbSagaOptions.DatabaseName.get -> string!
+Excalibur.Saga.MongoDB.MongoDbSagaOptions.DatabaseName.set -> void
+Excalibur.Saga.MongoDB.MongoDbSagaOptions.MaxPoolSize.get -> int
+Excalibur.Saga.MongoDB.MongoDbSagaOptions.MaxPoolSize.set -> void
+Excalibur.Saga.MongoDB.MongoDbSagaOptions.MongoDbSagaOptions() -> void
+Excalibur.Saga.MongoDB.MongoDbSagaOptions.ServerSelectionTimeoutSeconds.get -> int
+Excalibur.Saga.MongoDB.MongoDbSagaOptions.ServerSelectionTimeoutSeconds.set -> void
+Excalibur.Saga.MongoDB.MongoDbSagaOptions.UseSsl.get -> bool
+Excalibur.Saga.MongoDB.MongoDbSagaOptions.UseSsl.set -> void
+Excalibur.Saga.MongoDB.MongoDbSagaOptions.Validate() -> void
+Excalibur.Saga.MongoDB.MongoDbSagaStore
+Excalibur.Saga.MongoDB.MongoDbSagaStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Saga.MongoDB.MongoDbSagaStore.LoadAsync<TSagaState>(System.Guid sagaId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TSagaState?>!
+Excalibur.Saga.MongoDB.MongoDbSagaStore.MongoDbSagaStore(Microsoft.Extensions.Options.IOptions<Excalibur.Saga.MongoDB.MongoDbSagaOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.MongoDB.MongoDbSagaStore!>! logger, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer) -> void
+Excalibur.Saga.MongoDB.MongoDbSagaStore.MongoDbSagaStore(MongoDB.Driver.IMongoClient! client, Microsoft.Extensions.Options.IOptions<Excalibur.Saga.MongoDB.MongoDbSagaOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Saga.MongoDB.MongoDbSagaStore!>! logger, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer) -> void
+Excalibur.Saga.MongoDB.MongoDbSagaStore.SaveAsync<TSagaState>(TSagaState! sagaState, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Microsoft.Extensions.DependencyInjection.MongoDbSagaExtensions
+Microsoft.Extensions.DependencyInjection.SagaBuilderMongoDbExtensions
+static Microsoft.Extensions.DependencyInjection.MongoDbSagaExtensions.AddMongoDbSagaStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! databaseName = "excalibur", string! collectionName = "sagas") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MongoDbSagaExtensions.AddMongoDbSagaStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Saga.MongoDB.MongoDbSagaOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.MongoDbSagaExtensions.AddMongoDbSagaStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, MongoDB.Driver.IMongoClient!>! clientFactory, System.Action<Excalibur.Saga.MongoDB.MongoDbSagaOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.SagaBuilderMongoDbExtensions.UseMongoDB(this Excalibur.Saga.DependencyInjection.ISagaBuilder! builder, System.Action<Excalibur.Saga.MongoDB.MongoDbSagaOptions!>? configure = null) -> Excalibur.Saga.DependencyInjection.ISagaBuilder!

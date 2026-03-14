@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// <summary>
 /// Represents exchange configuration.
 /// </summary>
-public sealed record ExchangeConfiguration(
+internal sealed record ExchangeConfiguration(
 	string Name,
 	string Type,
 	bool Durable,

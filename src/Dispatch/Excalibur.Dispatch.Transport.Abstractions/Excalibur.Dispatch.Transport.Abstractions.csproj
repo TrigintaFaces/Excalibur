@@ -31,6 +31,16 @@
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests.Unit" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests.Integration" />
     <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Transport.Abstractions.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Observability.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Messaging.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Conformance" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Testing.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Contract.Tests" />
+    <InternalsVisibleTo Include="Tests.Shared" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Testing" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
   <ItemGroup>
     <AdditionalFiles Include="PublicAPI.Shipped.txt" />

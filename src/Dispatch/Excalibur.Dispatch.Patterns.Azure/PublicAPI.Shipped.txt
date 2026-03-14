@@ -1,1 +1,10 @@
 #nullable enable
+Excalibur.Dispatch.Patterns.ClaimCheck.AzureBlobClaimCheckProvider
+Excalibur.Dispatch.Patterns.ClaimCheck.AzureBlobClaimCheckProvider.AzureBlobClaimCheckProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Patterns.ClaimCheck.AzureBlobClaimCheckProvider!>! logger) -> void
+Excalibur.Dispatch.Patterns.ClaimCheck.AzureBlobClaimCheckProvider.DeleteAsync(Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference! reference, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Patterns.ClaimCheck.AzureBlobClaimCheckProvider.RetrieveAsync(Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference! reference, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Dispatch.Patterns.ClaimCheck.AzureBlobClaimCheckProvider.ShouldUseClaimCheck(byte[]! payload) -> bool
+Excalibur.Dispatch.Patterns.ClaimCheck.AzureBlobClaimCheckProvider.StoreAsync(byte[]! payload, System.Threading.CancellationToken cancellationToken, Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckMetadata? metadata = null) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckReference!>!
+Microsoft.Extensions.DependencyInjection.AzurePatternsServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.AzurePatternsServiceCollectionExtensions.AddAzureBlobClaimCheck(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AzurePatternsServiceCollectionExtensions.AddAzureBlobClaimCheck(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Patterns.ClaimCheck.ClaimCheckOptions!>! configureOptions, bool enableCleanup) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

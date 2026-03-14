@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <param name="options"> The scheduler options. </param>
 /// <param name="scheduler"> The AWS Scheduler client. </param>
 /// <param name="logger"> The logger. </param>
-public class EventBridgeMessageScheduler(
+internal class EventBridgeMessageScheduler(
 	IOptions<EventBridgeSchedulerOptions> options,
 	IAmazonScheduler scheduler,
 	ILogger<EventBridgeMessageScheduler> logger) : IMessageScheduler

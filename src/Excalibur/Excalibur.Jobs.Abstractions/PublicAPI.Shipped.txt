@@ -1,1 +1,72 @@
 #nullable enable
+Excalibur.Jobs.Abstractions.Coordination.IDistributedJobLock
+Excalibur.Jobs.Abstractions.Coordination.IDistributedJobLock.AcquiredAt.get -> System.DateTimeOffset
+Excalibur.Jobs.Abstractions.Coordination.IDistributedJobLock.ExpiresAt.get -> System.DateTimeOffset
+Excalibur.Jobs.Abstractions.Coordination.IDistributedJobLock.ExtendAsync(System.TimeSpan additionalDuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Jobs.Abstractions.Coordination.IDistributedJobLock.InstanceId.get -> string!
+Excalibur.Jobs.Abstractions.Coordination.IDistributedJobLock.IsValid.get -> bool
+Excalibur.Jobs.Abstractions.Coordination.IDistributedJobLock.JobKey.get -> string!
+Excalibur.Jobs.Abstractions.Coordination.IDistributedJobLock.ReleaseAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.Abstractions.Coordination.IJobDistributor
+Excalibur.Jobs.Abstractions.Coordination.IJobDistributor.DistributeJobAsync(string! jobKey, object! jobData, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
+Excalibur.Jobs.Abstractions.Coordination.IJobDistributor.ReportJobCompletionAsync(string! jobKey, string! instanceId, bool success, object? result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.Abstractions.Coordination.IJobLockProvider
+Excalibur.Jobs.Abstractions.Coordination.IJobLockProvider.TryAcquireLockAsync(string! jobKey, System.TimeSpan lockDuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Jobs.Abstractions.Coordination.IDistributedJobLock?>!
+Excalibur.Jobs.Abstractions.Coordination.IJobRegistry
+Excalibur.Jobs.Abstractions.Coordination.IJobRegistry.GetActiveInstancesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Jobs.Abstractions.Coordination.JobInstanceInfo!>!>!
+Excalibur.Jobs.Abstractions.Coordination.IJobRegistry.RegisterInstanceAsync(string! instanceId, Excalibur.Jobs.Abstractions.Coordination.JobInstanceInfo! instanceInfo, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.Abstractions.Coordination.IJobRegistry.UnregisterInstanceAsync(string! instanceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.Abstractions.Coordination.ILeadershipToken
+Excalibur.Jobs.Abstractions.Coordination.ILeadershipToken.AcquiredAt.get -> System.DateTimeOffset
+Excalibur.Jobs.Abstractions.Coordination.ILeadershipToken.ExpiresAt.get -> System.DateTimeOffset
+Excalibur.Jobs.Abstractions.Coordination.ILeadershipToken.ExtendAsync(System.TimeSpan additionalDuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Jobs.Abstractions.Coordination.ILeadershipToken.IsValid.get -> bool
+Excalibur.Jobs.Abstractions.Coordination.ILeadershipToken.LeaderInstanceId.get -> string!
+Excalibur.Jobs.Abstractions.Coordination.ILeadershipToken.ReleaseAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceCapabilities
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceCapabilities.CanProcess(string! jobType) -> bool
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceCapabilities.JobInstanceCapabilities(int maxConcurrentJobs, System.Collections.Generic.IEnumerable<string!>! supportedJobTypes) -> void
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceCapabilities.MaxConcurrentJobs.get -> int
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceCapabilities.Priority.get -> int
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceCapabilities.Priority.set -> void
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceCapabilities.SupportedJobTypes.get -> System.Collections.Generic.IReadOnlySet<string!>!
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceCapabilities.Tags.get -> System.Collections.Generic.ISet<string!>!
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceInfo
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceInfo.ActiveJobCount.get -> int
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceInfo.ActiveJobCount.set -> void
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceInfo.Capabilities.get -> Excalibur.Jobs.Abstractions.Coordination.JobInstanceCapabilities!
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceInfo.HostName.get -> string!
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceInfo.InstanceId.get -> string!
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceInfo.IsHealthy(System.TimeSpan heartbeatTimeout) -> bool
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceInfo.JobInstanceInfo(string! instanceId, string! hostName, Excalibur.Jobs.Abstractions.Coordination.JobInstanceCapabilities! capabilities) -> void
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceInfo.LastHeartbeat.get -> System.DateTimeOffset
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceInfo.LastHeartbeat.set -> void
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceInfo.Metadata.get -> string?
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceInfo.Metadata.set -> void
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceInfo.RegisteredAt.get -> System.DateTimeOffset
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceInfo.Status.get -> Excalibur.Jobs.Abstractions.Coordination.JobInstanceStatus
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceInfo.Status.set -> void
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceInfo.UpdateHeartbeat() -> void
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceStatus
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceStatus.Active = 0 -> Excalibur.Jobs.Abstractions.Coordination.JobInstanceStatus
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceStatus.Draining = 1 -> Excalibur.Jobs.Abstractions.Coordination.JobInstanceStatus
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceStatus.Failed = 3 -> Excalibur.Jobs.Abstractions.Coordination.JobInstanceStatus
+Excalibur.Jobs.Abstractions.Coordination.JobInstanceStatus.Inactive = 2 -> Excalibur.Jobs.Abstractions.Coordination.JobInstanceStatus
+Excalibur.Jobs.Abstractions.IBackgroundJob
+Excalibur.Jobs.Abstractions.IBackgroundJob.ExecuteAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.Abstractions.IBackgroundJob<TContext>
+Excalibur.Jobs.Abstractions.IBackgroundJob<TContext>.ExecuteAsync(TContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.Abstractions.IConfigurableJob<TConfig>
+Excalibur.Jobs.Abstractions.IJobConfig
+Excalibur.Jobs.Abstractions.IJobConfig.CronSchedule.get -> string!
+Excalibur.Jobs.Abstractions.IJobConfig.CronSchedule.init -> void
+Excalibur.Jobs.Abstractions.IJobConfig.DegradedThreshold.get -> System.TimeSpan
+Excalibur.Jobs.Abstractions.IJobConfig.DegradedThreshold.init -> void
+Excalibur.Jobs.Abstractions.IJobConfig.Disabled.get -> bool
+Excalibur.Jobs.Abstractions.IJobConfig.Disabled.init -> void
+Excalibur.Jobs.Abstractions.IJobConfig.JobGroup.get -> string!
+Excalibur.Jobs.Abstractions.IJobConfig.JobGroup.init -> void
+Excalibur.Jobs.Abstractions.IJobConfig.JobName.get -> string!
+Excalibur.Jobs.Abstractions.IJobConfig.JobName.init -> void
+Excalibur.Jobs.Abstractions.IJobConfig.UnhealthyThreshold.get -> System.TimeSpan
+Excalibur.Jobs.Abstractions.IJobConfig.UnhealthyThreshold.init -> void

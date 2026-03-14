@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Caching;
 /// <summary>
 /// Global string encoding cache for common values.
 /// </summary>
-public static class GlobalStringCache
+internal static class GlobalStringCache
 {
 	private static readonly Lazy<StringEncodingCache> _instance = new(static () => new StringEncodingCache(2000));
 

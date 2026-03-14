@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <param name="logger"> The logger. </param>
 /// <param name="snsClient"> The SNS client. </param>
 /// <param name="testTopicArn"> Optional test topic ARN for health checks. </param>
-public sealed class AwsSnsHealthChecker(
+internal sealed class AwsSnsHealthChecker(
 	ILogger<AwsSnsHealthChecker> logger,
 	IAmazonSimpleNotificationService snsClient,
 	string? testTopicArn = null) : IHealthCheck

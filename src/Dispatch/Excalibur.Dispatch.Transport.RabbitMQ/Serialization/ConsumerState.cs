@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// <summary>
 /// Represents consumer state.
 /// </summary>
-public sealed record ConsumerState(
+internal sealed record ConsumerState(
 	string ConsumerTag,
 	string QueueName,
 	bool AutoAck,

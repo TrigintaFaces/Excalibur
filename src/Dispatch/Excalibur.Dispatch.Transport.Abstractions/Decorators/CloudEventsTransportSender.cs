@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Transport.Decorators;
 /// Decorates an <see cref="ITransportSender"/> to convert outgoing messages to CloudEvents format
 /// using an <see cref="ICloudEventMapper{TransportMessage}"/>.
 /// </summary>
-public sealed class CloudEventsTransportSender : DelegatingTransportSender
+internal sealed class CloudEventsTransportSender : DelegatingTransportSender
 {
 	private readonly ICloudEventMapper<TransportMessage> _mapper;
 	private readonly Func<TransportMessage, CloudEvent> _cloudEventFactory;

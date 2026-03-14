@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Transport.Decorators;
 /// Records <c>dispatch.transport.messages.received</c>, <c>dispatch.transport.messages.acknowledged</c>,
 /// <c>dispatch.transport.messages.rejected</c>, and <c>dispatch.transport.receive.duration</c>.
 /// </summary>
-public sealed class TelemetryTransportReceiver : DelegatingTransportReceiver
+internal sealed class TelemetryTransportReceiver : DelegatingTransportReceiver
 {
 	private readonly Counter<long> _receivedCounter;
 	private readonly Counter<long> _acknowledgedCounter;

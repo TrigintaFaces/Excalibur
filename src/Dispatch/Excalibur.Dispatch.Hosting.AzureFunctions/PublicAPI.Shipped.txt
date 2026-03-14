@@ -1,1 +1,42 @@
 #nullable enable
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.ActivityCompleted = 50304 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.ActivityFailed = 50305 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.ActivityStarted = 50303 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.AppInsightsEnabled = 50264 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.AzureSdkWarmupCompleted = 50262 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.AzureSdkWarmupFailed = 50263 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.AzureSdkWarmupStarting = 50261 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.ColdInstanceDetected = 50253 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.ColdStartOptimizationCompleted = 50251 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.ColdStartOptimizationDisabled = 50255 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.ColdStartOptimizationStarted = 50250 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.ConfiguringAppInsights = 50210 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.ConfiguringDurableFunctions = 50212 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.ConfiguringHost = 50203 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.ConfiguringMetrics = 50211 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.ConfiguringServices = 50200 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.ExecutingHandler = 50205 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.ExecutionCancelled = 50207 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.ExecutionTimedOut = 50208 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.HandlerExecuted = 50206 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.HandlerFailed = 50209 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.HostConfigured = 50204 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.JitWarmupCompleted = 50266 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.JitWarmupFailed = 50267 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.JitWarmupStarting = 50265 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.OrchestrationCompleted = 50301 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.OrchestrationFailed = 50302 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.OrchestrationStarted = 50300 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.PremiumPlanActive = 50254 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.ServicesConfigured = 50201 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.ServicesWarmedUp = 50257 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.SingletonWarmupCompleted = 50259 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.SingletonWarmupFailed = 50260 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.SingletonWarmupStarting = 50258 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.SupportNotAvailable = 50202 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.WarmingUpServices = 50256 -> int
+const Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId.WarmInstanceDetected = 50252 -> int
+Excalibur.Dispatch.Hosting.AzureFunctions.AzureFunctionsEventId
+Microsoft.Extensions.DependencyInjection.AzureFunctionsServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.AzureFunctionsServiceCollectionExtensions.AddAzureFunctionsServerless(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AzureFunctionsServiceCollectionExtensions.AddAzureFunctionsServerless(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Hosting.Serverless.ServerlessHostOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

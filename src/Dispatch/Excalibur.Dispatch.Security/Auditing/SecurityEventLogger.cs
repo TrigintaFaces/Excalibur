@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Security;
 /// Provides centralized security event logging for audit trails and compliance. All security-related events are logged through this service
 /// for consistent tracking.
 /// </summary>
-public sealed partial class SecurityEventLogger : ISecurityEventLogger, IHostedService, IDisposable
+internal sealed partial class SecurityEventLogger : ISecurityEventLogger, IHostedService, IDisposable
 {
 	private readonly ILogger<SecurityEventLogger> _logger;
 	private readonly ISecurityEventStore _eventStore;

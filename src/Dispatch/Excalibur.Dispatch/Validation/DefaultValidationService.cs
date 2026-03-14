@@ -23,7 +23,7 @@ namespace Excalibur.Dispatch.Validation;
 /// <remarks> Initializes a new instance of the <see cref="DefaultValidationService" /> class. </remarks>
 /// <param name="options"> The validation options. </param>
 /// <param name="logger"> The logger instance. </param>
-public sealed partial class DefaultValidationService(IOptions<ValidationOptions> options, ILogger<DefaultValidationService> logger)
+internal sealed partial class DefaultValidationService(IOptions<ValidationOptions> options, ILogger<DefaultValidationService> logger)
 	: IValidationService
 {
 	private readonly ValidationOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));

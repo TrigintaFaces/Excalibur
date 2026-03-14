@@ -1,1 +1,19 @@
 #nullable enable
+Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerJobProvider
+Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerJobProvider.DeleteJobAsync(string! jobName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerJobProvider.Dispose() -> void
+Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerJobProvider.GoogleCloudSchedulerJobProvider(Google.Cloud.Scheduler.V1.CloudSchedulerClient! schedulerClient, Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerOptions! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerJobProvider!>! logger) -> void
+Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerJobProvider.ScheduleJobAsync<TJob>(string! jobName, string! cronExpression, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerOptions
+Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerOptions.GoogleCloudSchedulerOptions() -> void
+Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerOptions.LocationId.get -> string!
+Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerOptions.LocationId.set -> void
+Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerOptions.ProjectId.get -> string!
+Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerOptions.ProjectId.set -> void
+Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerOptions.TargetUrl.get -> string!
+Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerOptions.TargetUrl.set -> void
+Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerOptions.TimeZone.get -> string!
+Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerOptions.TimeZone.set -> void
+Microsoft.Extensions.DependencyInjection.GoogleCloudJobsServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.GoogleCloudJobsServiceCollectionExtensions.AddGoogleCloudScheduler(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+virtual Excalibur.Jobs.GoogleCloud.GoogleCloudSchedulerJobProvider.Dispose(bool disposing) -> void

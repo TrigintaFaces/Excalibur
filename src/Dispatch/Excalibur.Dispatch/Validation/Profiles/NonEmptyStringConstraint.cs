@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Validation;
 /// <remarks> Initializes a new instance of the <see cref="NonEmptyStringConstraint" /> class. </remarks>
 /// <param name="fieldName"> The name of the field to validate. </param>
 /// <param name="errorMessage"> The error message to display when validation fails. </param>
-public sealed class NonEmptyStringConstraint(string fieldName, string errorMessage) : BaseFieldConstraint(fieldName, errorMessage)
+internal sealed class NonEmptyStringConstraint(string fieldName, string errorMessage) : BaseFieldConstraint(fieldName, errorMessage)
 {
 	/// <summary>
 	/// Determines whether the field contains a non-empty string value.

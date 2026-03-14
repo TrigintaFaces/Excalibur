@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Transport;
 /// <summary>
 /// Memory channel message pump implementation.
 /// </summary>
-public class MessagePump : IChannelMessagePump
+internal class MessagePump : IChannelMessagePump
 {
 	private readonly Channel<MessageEnvelope> _messageChannel;
 	private readonly Channel<MessageEnvelope> _channel;

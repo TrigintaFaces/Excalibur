@@ -25,7 +25,7 @@ namespace Excalibur.Dispatch.Transport.Decorators;
 /// <c>dispatch.transport.handler.errors</c>, <c>dispatch.transport.handler.duration</c>.
 /// </para>
 /// </remarks>
-public sealed class TelemetryTransportSubscriber : DelegatingTransportSubscriber
+internal sealed class TelemetryTransportSubscriber : DelegatingTransportSubscriber
 {
 	private readonly Counter<long> _receivedCounter;
 	private readonly Counter<long> _acknowledgedCounter;

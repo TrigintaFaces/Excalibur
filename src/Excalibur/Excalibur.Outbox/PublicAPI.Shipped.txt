@@ -1,1 +1,479 @@
 #nullable enable
+const Excalibur.Outbox.Diagnostics.BackgroundServiceActivitySource.SourceName = "Excalibur.Dispatch.BackgroundServices" -> string!
+const Excalibur.Outbox.Diagnostics.BackgroundServiceActivitySource.SourceVersion = "1.0.0" -> string!
+const Excalibur.Outbox.Diagnostics.BackgroundServiceMetrics.MeterName = "Excalibur.Dispatch.BackgroundServices" -> string!
+const Excalibur.Outbox.Diagnostics.BackgroundServiceMetrics.MeterVersion = "1.0.0" -> string!
+const Excalibur.Outbox.Diagnostics.BackgroundServiceOperations.Dispatch = "dispatch" -> string!
+const Excalibur.Outbox.Diagnostics.BackgroundServiceOperations.Pending = "pending" -> string!
+const Excalibur.Outbox.Diagnostics.BackgroundServiceOperations.Retry = "retry" -> string!
+const Excalibur.Outbox.Diagnostics.BackgroundServiceOperations.Scheduled = "scheduled" -> string!
+const Excalibur.Outbox.Diagnostics.BackgroundServiceResults.Empty = "empty" -> string!
+const Excalibur.Outbox.Diagnostics.BackgroundServiceResults.Error = "error" -> string!
+const Excalibur.Outbox.Diagnostics.BackgroundServiceResults.Partial = "partial" -> string!
+const Excalibur.Outbox.Diagnostics.BackgroundServiceResults.Success = "success" -> string!
+const Excalibur.Outbox.Diagnostics.BackgroundServiceTypes.Cdc = "cdc" -> string!
+const Excalibur.Outbox.Diagnostics.BackgroundServiceTypes.Inbox = "inbox" -> string!
+const Excalibur.Outbox.Diagnostics.BackgroundServiceTypes.Outbox = "outbox" -> string!
+const Excalibur.Outbox.Diagnostics.OutboxEventId.CosmosDbChangeFeedBatchReceived = 133205 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.CosmosDbChangeFeedStarting = 133203 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.CosmosDbChangeFeedStopping = 133204 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.CosmosDbOutboxOperationCompleted = 133201 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.CosmosDbOutboxOperationFailed = 133202 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.CosmosDbOutboxStoreCreated = 133101 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.CosmosDbOutboxStoreInitializing = 133200 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.CouldNotResolveMessageType = 130204 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.DispatchingOutboxRecord = 131214 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.DynamoDbOutboxOperationCompleted = 133301 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.DynamoDbOutboxOperationFailed = 133302 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.DynamoDbOutboxStoreCreated = 133102 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.DynamoDbOutboxStoreInitializing = 133300 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.DynamoDbStreamsBatchReceived = 133305 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.DynamoDbStreamsStarting = 133303 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.DynamoDbStreamsStopping = 133304 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.ErrorDispatchingOutboxRecord = 131217 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.FailedToDeserializeMessage = 130205 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.FirestoreListenerBatchReceived = 133405 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.FirestoreListenerStarting = 133403 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.FirestoreListenerStopping = 133404 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.FirestoreOutboxOperationCompleted = 133401 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.FirestoreOutboxOperationFailed = 133402 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.FirestoreOutboxStoreCreated = 133103 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.FirestoreOutboxStoreInitializing = 133400 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxBackgroundServiceDrainTimeout = 132005 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxCircuitBreakerOpen = 132218 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxCleanupCompleted = 134004 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxConsumerCanceled = 132207 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxConsumerDisposalRequested = 132205 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxConsumerError = 132208 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxConsumerExiting = 132206 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxConsumerNotCompleted = 132214 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxConsumerTimeout = 132215 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxDispatchError = 132212 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxDispatchingMessage = 132210 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxDispatchSuccess = 132211 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxDisposeError = 132216 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxDisposingResources = 132213 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxDuplicateDetected = 132003 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxEnqueuingBatch = 132201 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxEntryExpired = 132103 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxIdempotencyCheckFailed = 132101 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxIdempotencyCheckPassed = 132100 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxMessageAcknowledged = 132004 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxMessageProcessed = 132002 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxMessageReceived = 132001 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxMessageRoutedToDlq = 132217 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxMessageStored = 132102 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxNoRecord = 132200 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxProcessingComplete = 132209 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxProducerCanceled = 132202 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxProducerCompleted = 132204 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxProducerError = 132203 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxRetryWithBackoff = 132219 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.InboxServiceCreated = 132000 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.MarkedOutboxRecordSent = 131216 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.MessageInboxDispatchCompleted = 132401 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.MessageInboxDispatchStarting = 132400 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.MessageOutboxError = 130201 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.MessageOutboxStarted = 130200 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.MessageOutboxStopped = 130202 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.NoMessagesToSave = 130203 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxBackgroundProcessedPending = 131304 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxBackgroundProcessedScheduled = 131305 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxBackgroundRetriedFailed = 131306 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxBackgroundServiceDisabled = 131300 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxBackgroundServiceDrainTimeout = 131307 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxBackgroundServiceError = 131302 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxBackgroundServiceStarting = 131301 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxBackgroundServiceStopped = 131303 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxBatchProcessingCompleted = 131003 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxBatchProcessingStarted = 131002 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxBatchSizeConfigured = 130103 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxBatchStored = 130004 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxCircuitBreakerOpen = 131220 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxCleanupCompleted = 134001 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxCleanupStarted = 134000 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxConfigurationLoaded = 130100 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxConsumerCanceled = 131211 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxConsumerExiting = 131210 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxConsumerNotCompleted = 131202 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxConsumerTimeoutDuringDisposal = 131203 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxDispatchFailed = 131200 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxDisposalRequestedExitingData = 131218 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxDisposingResources = 131201 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxEnqueuingBatchRecords = 131206 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxErrorDisposingAsyncResources = 131204 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxErrorInConsumerLoop = 131212 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxErrorInProducerLoop = 131208 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxLockAcquired = 131104 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxLockReleased = 131105 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxMessageAcknowledged = 131103 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxMessageDeadLettered = 131102 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxMessageDeleted = 133003 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxMessageFailed = 130003 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxMessageMarkedProcessed = 133002 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxMessagePublished = 130002 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxMessageRetrying = 131101 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxMessageRetryScheduled = 131100 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxMessageRoutedToDlq = 131219 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxMessagesPurged = 134002 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxMessagesRetrieved = 133001 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxMessageStored = 130001 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxProcessingCompleted = 131213 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxProcessingCycleCompleted = 131004 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxProcessorStarted = 131000 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxProcessorStopped = 131001 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxProducerCanceled = 131207 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxProducerCompleted = 131209 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxProducerIdleExiting = 131205 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxPublisherConfigured = 130101 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxRetentionPolicyApplied = 134003 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxRetryPolicyConfigured = 130102 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxRetryWithBackoff = 131221 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxServiceCreated = 130000 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxStoreCreated = 133000 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.OutboxTransactionalFallback = 131222 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.SqlServerOutboxStoreCreated = 133100 -> int
+const Excalibur.Outbox.Diagnostics.OutboxEventId.SuccessfullyDispatchedOutboxRecord = 131215 -> int
+Excalibur.Dispatch.Delivery.CompositeDeduplicationStrategy
+Excalibur.Dispatch.Delivery.CompositeDeduplicationStrategy.CompositeDeduplicationStrategy(Excalibur.Dispatch.Abstractions.IDeduplicationStrategy! primary, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDeduplicationStrategy!>! secondary, Excalibur.Dispatch.Options.Delivery.DeduplicationOptions! options) -> void
+Excalibur.Dispatch.Delivery.CompositeDeduplicationStrategy.DefaultExpiration.get -> System.TimeSpan
+Excalibur.Dispatch.Delivery.CompositeDeduplicationStrategy.GenerateDeduplicationId(string! messageBody, System.Collections.Generic.IDictionary<string!, object!>? messageAttributes = null) -> string!
+Excalibur.Dispatch.Delivery.CompositeDeduplicationStrategy.GenerateIdAsync(string! messageBody, System.Collections.Generic.IDictionary<string!, object!>? messageAttributes, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Dispatch.Delivery.CompositeDeduplicationStrategy.IsDuplicateAsync(string! deduplicationId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Delivery.CompositeDeduplicationStrategy.MarkAsProcessedAsync(string! deduplicationId, System.TimeSpan? expiration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Delivery.CompositeDeduplicationStrategy.RemoveAsync(string! deduplicationId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Delivery.ContentHashDeduplicationStrategy
+Excalibur.Dispatch.Delivery.ContentHashDeduplicationStrategy.ContentHashDeduplicationStrategy(Excalibur.Dispatch.Delivery.IDeduplicationStore! store, Excalibur.Dispatch.Options.Delivery.DeduplicationOptions! options) -> void
+Excalibur.Dispatch.Delivery.ContentHashDeduplicationStrategy.DefaultExpiration.get -> System.TimeSpan
+Excalibur.Dispatch.Delivery.ContentHashDeduplicationStrategy.GenerateDeduplicationId(string! messageBody, System.Collections.Generic.IDictionary<string!, object!>? messageAttributes = null) -> string!
+Excalibur.Dispatch.Delivery.ContentHashDeduplicationStrategy.GenerateIdAsync(string! messageBody, System.Collections.Generic.IDictionary<string!, object!>? messageAttributes, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Dispatch.Delivery.ContentHashDeduplicationStrategy.IsDuplicateAsync(string! deduplicationId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Delivery.ContentHashDeduplicationStrategy.MarkAsProcessedAsync(string! deduplicationId, System.TimeSpan? expiration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Delivery.ContentHashDeduplicationStrategy.RemoveAsync(string! deduplicationId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Delivery.DeduplicationContext
+Excalibur.Dispatch.Delivery.DeduplicationContext.CorrelationId.get -> string?
+Excalibur.Dispatch.Delivery.DeduplicationContext.CorrelationId.init -> void
+Excalibur.Dispatch.Delivery.DeduplicationContext.DeduplicationContext() -> void
+Excalibur.Dispatch.Delivery.DeduplicationContext.MessageType.get -> string?
+Excalibur.Dispatch.Delivery.DeduplicationContext.MessageType.init -> void
+Excalibur.Dispatch.Delivery.DeduplicationContext.PartitionKey.get -> string?
+Excalibur.Dispatch.Delivery.DeduplicationContext.PartitionKey.init -> void
+Excalibur.Dispatch.Delivery.DeduplicationContext.ProcessorId.get -> string!
+Excalibur.Dispatch.Delivery.DeduplicationContext.ProcessorId.init -> void
+Excalibur.Dispatch.Delivery.DeduplicationContext.Source.get -> string?
+Excalibur.Dispatch.Delivery.DeduplicationContext.Source.init -> void
+Excalibur.Dispatch.Delivery.DeduplicationContext.Tags.get -> System.Collections.Generic.Dictionary<string!, string!>!
+Excalibur.Dispatch.Delivery.DeduplicationContext.Tags.init -> void
+Excalibur.Dispatch.Delivery.DeduplicationResult
+Excalibur.Dispatch.Delivery.DeduplicationResult.DeduplicationResult() -> void
+Excalibur.Dispatch.Delivery.DeduplicationResult.FirstSeenAt.get -> System.DateTimeOffset?
+Excalibur.Dispatch.Delivery.DeduplicationResult.FirstSeenAt.set -> void
+Excalibur.Dispatch.Delivery.DeduplicationResult.IsDuplicate.get -> bool
+Excalibur.Dispatch.Delivery.DeduplicationResult.IsDuplicate.set -> void
+Excalibur.Dispatch.Delivery.DeduplicationResult.ProcessedBy.get -> string?
+Excalibur.Dispatch.Delivery.DeduplicationResult.ProcessedBy.set -> void
+Excalibur.Dispatch.Delivery.DeduplicationStrategy
+Excalibur.Dispatch.Delivery.DeduplicationStrategy.Composite = 2 -> Excalibur.Dispatch.Delivery.DeduplicationStrategy
+Excalibur.Dispatch.Delivery.DeduplicationStrategy.ContentHash = 1 -> Excalibur.Dispatch.Delivery.DeduplicationStrategy
+Excalibur.Dispatch.Delivery.DeduplicationStrategy.MessageId = 0 -> Excalibur.Dispatch.Delivery.DeduplicationStrategy
+Excalibur.Dispatch.Delivery.IDeduplicationStore
+Excalibur.Dispatch.Delivery.IDeduplicationStore.AddAsync(string! messageId, System.TimeSpan? expiry, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Delivery.IDeduplicationStore.CheckAndMarkAsync(string! messageId, Excalibur.Dispatch.Delivery.DeduplicationContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Delivery.DeduplicationResult!>!
+Excalibur.Dispatch.Delivery.IDeduplicationStore.ClearExpiredAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Dispatch.Delivery.IDeduplicationStore.ContainsAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Delivery.IDeduplicationStore.RemoveAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Delivery.InboxMessage
+Excalibur.Dispatch.Delivery.InboxMessage.Attempts.get -> int
+Excalibur.Dispatch.Delivery.InboxMessage.Attempts.set -> void
+Excalibur.Dispatch.Delivery.InboxMessage.DispatcherId.get -> string?
+Excalibur.Dispatch.Delivery.InboxMessage.DispatcherId.set -> void
+Excalibur.Dispatch.Delivery.InboxMessage.DispatcherTimeout.get -> System.DateTimeOffset?
+Excalibur.Dispatch.Delivery.InboxMessage.DispatcherTimeout.set -> void
+Excalibur.Dispatch.Delivery.InboxMessage.ExpiresAt.get -> System.DateTimeOffset?
+Excalibur.Dispatch.Delivery.InboxMessage.ExpiresAt.set -> void
+Excalibur.Dispatch.Delivery.InboxMessage.ExternalMessageId.get -> string!
+Excalibur.Dispatch.Delivery.InboxMessage.ExternalMessageId.init -> void
+Excalibur.Dispatch.Delivery.InboxMessage.InboxMessage() -> void
+Excalibur.Dispatch.Delivery.InboxMessage.InboxMessage(string! externalMessageId, string! messageType, string! messageMetadata, string! messageBody, System.DateTimeOffset receivedAt) -> void
+Excalibur.Dispatch.Delivery.InboxMessage.InboxMessage(string! externalMessageId, string! messageType, string! messageMetadata, string! messageBody, System.DateTimeOffset receivedAt, int attempts, string? dispatcherId, System.DateTimeOffset? dispatcherTimeout) -> void
+Excalibur.Dispatch.Delivery.InboxMessage.InboxMessage(string! externalMessageId, string! messageType, string! messageMetadata, string! messageBody, System.DateTimeOffset receivedAt, System.DateTimeOffset? expiresAt) -> void
+Excalibur.Dispatch.Delivery.InboxMessage.MessageBody.get -> string!
+Excalibur.Dispatch.Delivery.InboxMessage.MessageBody.init -> void
+Excalibur.Dispatch.Delivery.InboxMessage.MessageMetadata.get -> string!
+Excalibur.Dispatch.Delivery.InboxMessage.MessageMetadata.init -> void
+Excalibur.Dispatch.Delivery.InboxMessage.MessageType.get -> string!
+Excalibur.Dispatch.Delivery.InboxMessage.MessageType.init -> void
+Excalibur.Dispatch.Delivery.InboxMessage.ReceivedAt.get -> System.DateTimeOffset
+Excalibur.Dispatch.Delivery.InboxMessage.ReceivedAt.init -> void
+Excalibur.Dispatch.Delivery.InboxProcessor
+Excalibur.Dispatch.Delivery.InboxProcessor.DispatchPendingMessagesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Dispatch.Delivery.InboxProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Delivery.InboxProcessor.InboxProcessor(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Delivery.InboxOptions!>! options, Excalibur.Dispatch.Abstractions.IInboxStore! inboxStore, System.IServiceProvider! serviceProvider, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Delivery.InboxProcessor!>! logger, Microsoft.ApplicationInsights.TelemetryClient? telemetryClient = null, Excalibur.Dispatch.Abstractions.Serialization.ISerializer? internalSerializer = null, Excalibur.Dispatch.ErrorHandling.IDeadLetterQueue? deadLetterQueue = null, Excalibur.Dispatch.Resilience.ITransportCircuitBreakerRegistry? circuitBreakerRegistry = null, Excalibur.Dispatch.Resilience.IBackoffCalculator? backoffCalculator = null, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Delivery.DeliveryGuaranteeOptions!>? deliveryGuaranteeOptions = null) -> void
+Excalibur.Dispatch.Delivery.InboxProcessor.Init(string! dispatcherId) -> void
+Excalibur.Dispatch.Delivery.InboxService
+Excalibur.Dispatch.Delivery.InboxService.InboxService(Excalibur.Dispatch.Abstractions.IInbox! inbox, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Delivery.InboxService!>! logger, Excalibur.Outbox.Health.BackgroundServiceHealthState? healthState = null, int drainTimeoutSeconds = 30) -> void
+Excalibur.Dispatch.Delivery.MessageInbox
+Excalibur.Dispatch.Delivery.MessageInbox.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Delivery.MessageInbox.MessageInbox(Excalibur.Dispatch.Abstractions.IInboxStore! inboxStore, Excalibur.Dispatch.Abstractions.IInboxProcessor! processor, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer? payloadSerializer, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Delivery.InboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Delivery.MessageInbox!>! logger) -> void
+Excalibur.Dispatch.Delivery.MessageInbox.MessageInbox(Excalibur.Dispatch.Abstractions.IInboxStore! inboxStore, Excalibur.Dispatch.Abstractions.IInboxProcessor! processor, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Delivery.InboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Delivery.MessageInbox!>! logger) -> void
+Excalibur.Dispatch.Delivery.MessageInbox.RunInboxDispatchAsync(string! dispatcherId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Dispatch.Delivery.MessageInbox.SaveMessageAsync<TMessage>(TMessage message, string! externalId, Excalibur.Dispatch.Abstractions.IMessageMetadata! metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Delivery.MessageOutbox
+Excalibur.Dispatch.Delivery.MessageOutbox.Dispose() -> void
+Excalibur.Dispatch.Delivery.MessageOutbox.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Delivery.MessageOutbox.GetPendingMessagesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDispatchMessage!>!>!
+Excalibur.Dispatch.Delivery.MessageOutbox.MessageOutbox(Excalibur.Dispatch.Abstractions.IOutboxStore! outboxStore, Excalibur.Dispatch.Abstractions.IOutboxProcessor! outboxProcessor, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Delivery.OutboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Delivery.MessageOutbox!>! logger) -> void
+Excalibur.Dispatch.Delivery.MessageOutbox.RunOutboxDispatchAsync(string! dispatcherId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Dispatch.Delivery.MessageOutbox.SaveEventsAsync(System.Collections.Generic.IReadOnlyCollection<Excalibur.Dispatch.Abstractions.IIntegrationEvent!>! integrationEvents, Excalibur.Dispatch.Abstractions.IMessageMetadata! metadata, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Delivery.MessageOutbox.SaveMessagesAsync(System.Collections.Generic.ICollection<Excalibur.Dispatch.Abstractions.IOutboxMessage!>! outboxMessages, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Dispatch.Delivery.MessageOutbox.SignalNewMessage() -> void
+Excalibur.Dispatch.Delivery.OutboxExtensions
+Excalibur.Dispatch.Delivery.OutboxMessage
+Excalibur.Dispatch.Delivery.OutboxMessage.Attempts.get -> int
+Excalibur.Dispatch.Delivery.OutboxMessage.Attempts.set -> void
+Excalibur.Dispatch.Delivery.OutboxMessage.CreatedAt.get -> System.DateTimeOffset
+Excalibur.Dispatch.Delivery.OutboxMessage.CreatedAt.init -> void
+Excalibur.Dispatch.Delivery.OutboxMessage.DispatcherId.get -> string?
+Excalibur.Dispatch.Delivery.OutboxMessage.DispatcherId.set -> void
+Excalibur.Dispatch.Delivery.OutboxMessage.DispatcherTimeout.get -> System.DateTimeOffset?
+Excalibur.Dispatch.Delivery.OutboxMessage.DispatcherTimeout.set -> void
+Excalibur.Dispatch.Delivery.OutboxMessage.ExpiresAt.get -> System.DateTimeOffset?
+Excalibur.Dispatch.Delivery.OutboxMessage.ExpiresAt.set -> void
+Excalibur.Dispatch.Delivery.OutboxMessage.MessageBody.get -> string!
+Excalibur.Dispatch.Delivery.OutboxMessage.MessageBody.init -> void
+Excalibur.Dispatch.Delivery.OutboxMessage.MessageId.get -> string!
+Excalibur.Dispatch.Delivery.OutboxMessage.MessageId.init -> void
+Excalibur.Dispatch.Delivery.OutboxMessage.MessageMetadata.get -> string!
+Excalibur.Dispatch.Delivery.OutboxMessage.MessageMetadata.init -> void
+Excalibur.Dispatch.Delivery.OutboxMessage.MessageType.get -> string!
+Excalibur.Dispatch.Delivery.OutboxMessage.MessageType.init -> void
+Excalibur.Dispatch.Delivery.OutboxMessage.OutboxMessage() -> void
+Excalibur.Dispatch.Delivery.OutboxMessage.OutboxMessage(string! messageId, string! messageType, string! messageMetadata, string! messageBody, System.DateTimeOffset createdAt) -> void
+Excalibur.Dispatch.Delivery.OutboxMessage.OutboxMessage(string! messageId, string! messageType, string! messageMetadata, string! messageBody, System.DateTimeOffset createdAt, int attempts, string? dispatcherId, System.DateTimeOffset? dispatcherTimeout) -> void
+Excalibur.Dispatch.Delivery.OutboxMessage.OutboxMessage(string! messageId, string! messageType, string! messageMetadata, string! messageBody, System.DateTimeOffset createdAt, System.DateTimeOffset? expiresAt) -> void
+Excalibur.Dispatch.Delivery.OutboxMessageType
+Excalibur.Dispatch.Delivery.OutboxMessageType.Command = 1 -> Excalibur.Dispatch.Delivery.OutboxMessageType
+Excalibur.Dispatch.Delivery.OutboxMessageType.Document = 3 -> Excalibur.Dispatch.Delivery.OutboxMessageType
+Excalibur.Dispatch.Delivery.OutboxMessageType.Event = 2 -> Excalibur.Dispatch.Delivery.OutboxMessageType
+Excalibur.Dispatch.Delivery.OutboxMessageType.Scheduled = 4 -> Excalibur.Dispatch.Delivery.OutboxMessageType
+Excalibur.Dispatch.Delivery.OutboxMessageType.Unknown = 0 -> Excalibur.Dispatch.Delivery.OutboxMessageType
+Excalibur.Dispatch.Delivery.OutboxProcessor
+Excalibur.Dispatch.Delivery.OutboxProcessor.DispatchPendingMessagesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Dispatch.Delivery.OutboxProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Delivery.OutboxProcessor.Init(string! dispatcherId) -> void
+Excalibur.Dispatch.Delivery.OutboxProcessor.OutboxProcessor(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Delivery.OutboxOptions!>! options, Excalibur.Dispatch.Abstractions.IOutboxStore! outboxStore, Excalibur.Dispatch.Serialization.DispatchJsonSerializer! serializer, System.IServiceProvider! serviceProvider, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Delivery.OutboxProcessor!>! logger, Microsoft.ApplicationInsights.TelemetryClient? telemetryClient = null, Excalibur.Dispatch.Abstractions.Serialization.ISerializer? internalSerializer = null, Excalibur.Dispatch.ErrorHandling.IDeadLetterQueue? deadLetterQueue = null, Excalibur.Dispatch.Resilience.ITransportCircuitBreakerRegistry? circuitBreakerRegistry = null, Excalibur.Dispatch.Resilience.IBackoffCalculator? backoffCalculator = null, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Options.Delivery.DeliveryGuaranteeOptions!>? deliveryGuaranteeOptions = null) -> void
+Excalibur.Dispatch.Delivery.OutboxService
+Excalibur.Dispatch.Delivery.OutboxService.OutboxService(Excalibur.Dispatch.Abstractions.IOutboxDispatcher! outbox) -> void
+Excalibur.Outbox.Diagnostics.BackgroundServiceActivitySource
+Excalibur.Outbox.Diagnostics.BackgroundServiceMetrics
+Excalibur.Outbox.Diagnostics.BackgroundServiceOperations
+Excalibur.Outbox.Diagnostics.BackgroundServiceResults
+Excalibur.Outbox.Diagnostics.BackgroundServiceTypes
+Excalibur.Outbox.Diagnostics.OutboxEventId
+Excalibur.Outbox.Health.BackgroundServiceHealthState
+Excalibur.Outbox.Health.BackgroundServiceHealthState.BackgroundServiceHealthState() -> void
+Excalibur.Outbox.Health.BackgroundServiceHealthState.IsRunning.get -> bool
+Excalibur.Outbox.Health.BackgroundServiceHealthState.LastActivityTime.get -> System.DateTimeOffset?
+Excalibur.Outbox.Health.BackgroundServiceHealthState.MarkStarted() -> void
+Excalibur.Outbox.Health.BackgroundServiceHealthState.MarkStopped() -> void
+Excalibur.Outbox.Health.BackgroundServiceHealthState.RecordCycle(int processedCount, int failedCount) -> void
+Excalibur.Outbox.Health.BackgroundServiceHealthState.TotalCycles.get -> long
+Excalibur.Outbox.Health.BackgroundServiceHealthState.TotalFailed.get -> long
+Excalibur.Outbox.Health.BackgroundServiceHealthState.TotalProcessed.get -> long
+Excalibur.Outbox.Health.InboxHealthCheck
+Excalibur.Outbox.Health.InboxHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+Excalibur.Outbox.Health.InboxHealthCheck.InboxHealthCheck(Excalibur.Outbox.Health.BackgroundServiceHealthState! state, Microsoft.Extensions.Options.IOptions<Excalibur.Outbox.Health.InboxHealthCheckOptions!>! options) -> void
+Excalibur.Outbox.Health.InboxHealthCheckOptions
+Excalibur.Outbox.Health.InboxHealthCheckOptions.DegradedInactivityTimeout.get -> System.TimeSpan
+Excalibur.Outbox.Health.InboxHealthCheckOptions.DegradedInactivityTimeout.set -> void
+Excalibur.Outbox.Health.InboxHealthCheckOptions.InboxHealthCheckOptions() -> void
+Excalibur.Outbox.Health.InboxHealthCheckOptions.UnhealthyInactivityTimeout.get -> System.TimeSpan
+Excalibur.Outbox.Health.InboxHealthCheckOptions.UnhealthyInactivityTimeout.set -> void
+Excalibur.Outbox.Health.OutboxHealthCheck
+Excalibur.Outbox.Health.OutboxHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+Excalibur.Outbox.Health.OutboxHealthCheck.OutboxHealthCheck(Excalibur.Outbox.Health.BackgroundServiceHealthState! state, Microsoft.Extensions.Options.IOptions<Excalibur.Outbox.Health.OutboxHealthCheckOptions!>! options) -> void
+Excalibur.Outbox.Health.OutboxHealthCheckOptions
+Excalibur.Outbox.Health.OutboxHealthCheckOptions.DegradedFailureRatePercent.get -> double
+Excalibur.Outbox.Health.OutboxHealthCheckOptions.DegradedFailureRatePercent.set -> void
+Excalibur.Outbox.Health.OutboxHealthCheckOptions.DegradedInactivityTimeout.get -> System.TimeSpan
+Excalibur.Outbox.Health.OutboxHealthCheckOptions.DegradedInactivityTimeout.set -> void
+Excalibur.Outbox.Health.OutboxHealthCheckOptions.OutboxHealthCheckOptions() -> void
+Excalibur.Outbox.Health.OutboxHealthCheckOptions.UnhealthyFailureRatePercent.get -> double
+Excalibur.Outbox.Health.OutboxHealthCheckOptions.UnhealthyFailureRatePercent.set -> void
+Excalibur.Outbox.Health.OutboxHealthCheckOptions.UnhealthyInactivityTimeout.get -> System.TimeSpan
+Excalibur.Outbox.Health.OutboxHealthCheckOptions.UnhealthyInactivityTimeout.set -> void
+Excalibur.Outbox.IInboxOptionsBuilder
+Excalibur.Outbox.IInboxOptionsBuilder.Build() -> Excalibur.Outbox.InboxOptions!
+Excalibur.Outbox.IInboxOptionsBuilder.DisableBatchDatabaseOperations() -> Excalibur.Outbox.IInboxOptionsBuilder!
+Excalibur.Outbox.IInboxOptionsBuilder.EnableDynamicBatchSizing(int minBatchSize = 10, int maxBatchSize = 1000) -> Excalibur.Outbox.IInboxOptionsBuilder!
+Excalibur.Outbox.IInboxOptionsBuilder.WithBatchProcessingTimeout(System.TimeSpan timeout) -> Excalibur.Outbox.IInboxOptionsBuilder!
+Excalibur.Outbox.IInboxOptionsBuilder.WithConsumerBatchSize(int batchSize) -> Excalibur.Outbox.IInboxOptionsBuilder!
+Excalibur.Outbox.IInboxOptionsBuilder.WithDefaultMessageTtl(System.TimeSpan? ttl) -> Excalibur.Outbox.IInboxOptionsBuilder!
+Excalibur.Outbox.IInboxOptionsBuilder.WithMaxAttempts(int maxAttempts) -> Excalibur.Outbox.IInboxOptionsBuilder!
+Excalibur.Outbox.IInboxOptionsBuilder.WithParallelism(int maxDegree) -> Excalibur.Outbox.IInboxOptionsBuilder!
+Excalibur.Outbox.IInboxOptionsBuilder.WithPerRunTotal(int total) -> Excalibur.Outbox.IInboxOptionsBuilder!
+Excalibur.Outbox.IInboxOptionsBuilder.WithProducerBatchSize(int batchSize) -> Excalibur.Outbox.IInboxOptionsBuilder!
+Excalibur.Outbox.IInboxOptionsBuilder.WithQueueCapacity(int capacity) -> Excalibur.Outbox.IInboxOptionsBuilder!
+Excalibur.Outbox.Inbox.DeduplicatorStatistics
+Excalibur.Outbox.Inbox.DeduplicatorStatistics.AverageAge.get -> System.TimeSpan
+Excalibur.Outbox.Inbox.DeduplicatorStatistics.AverageAge.init -> void
+Excalibur.Outbox.Inbox.DeduplicatorStatistics.DeduplicatorStatistics() -> void
+Excalibur.Outbox.Inbox.DeduplicatorStatistics.ExpiredEntries.get -> int
+Excalibur.Outbox.Inbox.DeduplicatorStatistics.ExpiredEntries.init -> void
+Excalibur.Outbox.Inbox.DeduplicatorStatistics.NewestEntry.get -> System.DateTimeOffset
+Excalibur.Outbox.Inbox.DeduplicatorStatistics.NewestEntry.init -> void
+Excalibur.Outbox.Inbox.DeduplicatorStatistics.OldestEntry.get -> System.DateTimeOffset
+Excalibur.Outbox.Inbox.DeduplicatorStatistics.OldestEntry.init -> void
+Excalibur.Outbox.Inbox.DeduplicatorStatistics.TotalEntries.get -> int
+Excalibur.Outbox.Inbox.DeduplicatorStatistics.TotalEntries.init -> void
+Excalibur.Outbox.InboxBatchOptions
+Excalibur.Outbox.InboxBatchOptions.ConsumerBatchSize.get -> int
+Excalibur.Outbox.InboxBatchOptions.EnableBatchDatabaseOperations.get -> bool
+Excalibur.Outbox.InboxBatchOptions.EnableDynamicBatchSizing.get -> bool
+Excalibur.Outbox.InboxBatchOptions.MaxBatchSize.get -> int
+Excalibur.Outbox.InboxBatchOptions.MinBatchSize.get -> int
+Excalibur.Outbox.InboxBatchOptions.ProducerBatchSize.get -> int
+Excalibur.Outbox.InboxOptions
+Excalibur.Outbox.InboxOptions.Batch.get -> Excalibur.Outbox.InboxBatchOptions!
+Excalibur.Outbox.InboxOptions.BatchProcessingTimeout.get -> System.TimeSpan
+Excalibur.Outbox.InboxOptions.DefaultMessageTtl.get -> System.TimeSpan?
+Excalibur.Outbox.InboxOptions.MaxAttempts.get -> int
+Excalibur.Outbox.InboxOptions.ParallelProcessingDegree.get -> int
+Excalibur.Outbox.InboxOptions.PerRunTotal.get -> int
+Excalibur.Outbox.InboxOptions.Preset.get -> Excalibur.Outbox.InboxPreset
+Excalibur.Outbox.InboxOptions.QueueCapacity.get -> int
+Excalibur.Outbox.InboxPreset
+Excalibur.Outbox.InboxPreset.Balanced = 1 -> Excalibur.Outbox.InboxPreset
+Excalibur.Outbox.InboxPreset.Custom = 3 -> Excalibur.Outbox.InboxPreset
+Excalibur.Outbox.InboxPreset.HighReliability = 2 -> Excalibur.Outbox.InboxPreset
+Excalibur.Outbox.InboxPreset.HighThroughput = 0 -> Excalibur.Outbox.InboxPreset
+Excalibur.Outbox.IOutboxBuilder
+Excalibur.Outbox.IOutboxBuilder.EnableBackgroundProcessing() -> Excalibur.Outbox.IOutboxBuilder!
+Excalibur.Outbox.IOutboxBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Outbox.IOutboxBuilder.WithCleanup(System.Action<Excalibur.Outbox.IOutboxCleanupBuilder!>! configure) -> Excalibur.Outbox.IOutboxBuilder!
+Excalibur.Outbox.IOutboxBuilder.WithProcessing(System.Action<Excalibur.Outbox.IOutboxProcessingBuilder!>! configure) -> Excalibur.Outbox.IOutboxBuilder!
+Excalibur.Outbox.IOutboxCleanupBuilder
+Excalibur.Outbox.IOutboxCleanupBuilder.CleanupInterval(System.TimeSpan interval) -> Excalibur.Outbox.IOutboxCleanupBuilder!
+Excalibur.Outbox.IOutboxCleanupBuilder.EnableAutoCleanup(bool enable = true) -> Excalibur.Outbox.IOutboxCleanupBuilder!
+Excalibur.Outbox.IOutboxCleanupBuilder.RetentionPeriod(System.TimeSpan period) -> Excalibur.Outbox.IOutboxCleanupBuilder!
+Excalibur.Outbox.IOutboxOptionsBuilder
+Excalibur.Outbox.IOutboxOptionsBuilder.Build() -> Excalibur.Outbox.OutboxOptions!
+Excalibur.Outbox.IOutboxOptionsBuilder.DisableAutomaticCleanup() -> Excalibur.Outbox.IOutboxOptionsBuilder!
+Excalibur.Outbox.IOutboxOptionsBuilder.EnableBackgroundProcessing(bool enable = true) -> Excalibur.Outbox.IOutboxOptionsBuilder!
+Excalibur.Outbox.IOutboxOptionsBuilder.WithBatchSize(int batchSize) -> Excalibur.Outbox.IOutboxOptionsBuilder!
+Excalibur.Outbox.IOutboxOptionsBuilder.WithCleanupInterval(System.TimeSpan interval) -> Excalibur.Outbox.IOutboxOptionsBuilder!
+Excalibur.Outbox.IOutboxOptionsBuilder.WithMaxRetries(int maxRetries) -> Excalibur.Outbox.IOutboxOptionsBuilder!
+Excalibur.Outbox.IOutboxOptionsBuilder.WithParallelism(int maxDegree) -> Excalibur.Outbox.IOutboxOptionsBuilder!
+Excalibur.Outbox.IOutboxOptionsBuilder.WithPollingInterval(System.TimeSpan interval) -> Excalibur.Outbox.IOutboxOptionsBuilder!
+Excalibur.Outbox.IOutboxOptionsBuilder.WithProcessorId(string! processorId) -> Excalibur.Outbox.IOutboxOptionsBuilder!
+Excalibur.Outbox.IOutboxOptionsBuilder.WithRetentionPeriod(System.TimeSpan period) -> Excalibur.Outbox.IOutboxOptionsBuilder!
+Excalibur.Outbox.IOutboxOptionsBuilder.WithRetryDelay(System.TimeSpan delay) -> Excalibur.Outbox.IOutboxOptionsBuilder!
+Excalibur.Outbox.IOutboxProcessingBuilder
+Excalibur.Outbox.IOutboxProcessingBuilder.BatchSize(int size) -> Excalibur.Outbox.IOutboxProcessingBuilder!
+Excalibur.Outbox.IOutboxProcessingBuilder.EnableParallelProcessing(int maxDegreeOfParallelism = 4) -> Excalibur.Outbox.IOutboxProcessingBuilder!
+Excalibur.Outbox.IOutboxProcessingBuilder.MaxRetryCount(int count) -> Excalibur.Outbox.IOutboxProcessingBuilder!
+Excalibur.Outbox.IOutboxProcessingBuilder.PollingInterval(System.TimeSpan interval) -> Excalibur.Outbox.IOutboxProcessingBuilder!
+Excalibur.Outbox.IOutboxProcessingBuilder.ProcessorId(string! processorId) -> Excalibur.Outbox.IOutboxProcessingBuilder!
+Excalibur.Outbox.IOutboxProcessingBuilder.RetryDelay(System.TimeSpan delay) -> Excalibur.Outbox.IOutboxProcessingBuilder!
+Excalibur.Outbox.MultiTransport.IMultiTransportOutboxStore
+Excalibur.Outbox.MultiTransport.IMultiTransportOutboxStore.GetRegisteredTransports() -> System.Collections.Generic.IReadOnlyList<string!>!
+Excalibur.Outbox.MultiTransport.IMultiTransportOutboxStore.PublishToTransportAsync(string! transportName, Excalibur.Dispatch.Abstractions.OutboundMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.MultiTransport.IMultiTransportOutboxStore.PublishToTransportsAsync(System.Collections.Generic.IReadOnlyList<string!>! transportNames, Excalibur.Dispatch.Abstractions.OutboundMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.MultiTransport.MultiTransportOutboxOptions
+Excalibur.Outbox.MultiTransport.MultiTransportOutboxOptions.DefaultTransport.get -> string!
+Excalibur.Outbox.MultiTransport.MultiTransportOutboxOptions.DefaultTransport.set -> void
+Excalibur.Outbox.MultiTransport.MultiTransportOutboxOptions.MultiTransportOutboxOptions() -> void
+Excalibur.Outbox.MultiTransport.MultiTransportOutboxOptions.RequireExplicitBindings.get -> bool
+Excalibur.Outbox.MultiTransport.MultiTransportOutboxOptions.RequireExplicitBindings.set -> void
+Excalibur.Outbox.MultiTransport.MultiTransportOutboxOptions.TransportBindings.get -> System.Collections.Generic.Dictionary<string!, string!>!
+Excalibur.Outbox.MultiTransport.MultiTransportOutboxStore
+Excalibur.Outbox.MultiTransport.MultiTransportOutboxStore.EnqueueAsync(Excalibur.Dispatch.Abstractions.IDispatchMessage! message, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.MultiTransport.MultiTransportOutboxStore.GetRegisteredTransports() -> System.Collections.Generic.IReadOnlyList<string!>!
+Excalibur.Outbox.MultiTransport.MultiTransportOutboxStore.GetUnsentMessagesAsync(int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.OutboundMessage!>!>
+Excalibur.Outbox.MultiTransport.MultiTransportOutboxStore.MarkFailedAsync(string! messageId, string! errorMessage, int retryCount, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.MultiTransport.MultiTransportOutboxStore.MarkSentAsync(string! messageId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.MultiTransport.MultiTransportOutboxStore.MultiTransportOutboxStore(Excalibur.Dispatch.Abstractions.IOutboxStore! innerStore, Microsoft.Extensions.Options.IOptions<Excalibur.Outbox.MultiTransport.MultiTransportOutboxOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Outbox.MultiTransport.MultiTransportOutboxStore!>! logger) -> void
+Excalibur.Outbox.MultiTransport.MultiTransportOutboxStore.PublishToTransportAsync(string! transportName, Excalibur.Dispatch.Abstractions.OutboundMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.MultiTransport.MultiTransportOutboxStore.PublishToTransportsAsync(System.Collections.Generic.IReadOnlyList<string!>! transportNames, Excalibur.Dispatch.Abstractions.OutboundMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.MultiTransport.MultiTransportOutboxStore.StageMessageAsync(Excalibur.Dispatch.Abstractions.OutboundMessage! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Outbox.Outbox.OutboxBackgroundService
+Excalibur.Outbox.Outbox.OutboxBackgroundService.OutboxBackgroundService(Excalibur.Dispatch.Abstractions.IOutboxPublisher! publisher, Microsoft.Extensions.Options.IOptions<Excalibur.Outbox.Outbox.OutboxProcessingOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Outbox.Outbox.OutboxBackgroundService!>! logger, Excalibur.Outbox.Health.BackgroundServiceHealthState? healthState = null) -> void
+Excalibur.Outbox.Outbox.OutboxProcessingOptions
+Excalibur.Outbox.Outbox.OutboxProcessingOptions.DrainTimeout.get -> System.TimeSpan
+Excalibur.Outbox.Outbox.OutboxProcessingOptions.DrainTimeoutSeconds.get -> int
+Excalibur.Outbox.Outbox.OutboxProcessingOptions.DrainTimeoutSeconds.set -> void
+Excalibur.Outbox.Outbox.OutboxProcessingOptions.Enabled.get -> bool
+Excalibur.Outbox.Outbox.OutboxProcessingOptions.Enabled.set -> void
+Excalibur.Outbox.Outbox.OutboxProcessingOptions.MaxRetries.get -> int
+Excalibur.Outbox.Outbox.OutboxProcessingOptions.MaxRetries.set -> void
+Excalibur.Outbox.Outbox.OutboxProcessingOptions.OutboxProcessingOptions() -> void
+Excalibur.Outbox.Outbox.OutboxProcessingOptions.PollingInterval.get -> System.TimeSpan
+Excalibur.Outbox.Outbox.OutboxProcessingOptions.PollingInterval.set -> void
+Excalibur.Outbox.Outbox.OutboxProcessingOptions.ProcessScheduledMessages.get -> bool
+Excalibur.Outbox.Outbox.OutboxProcessingOptions.ProcessScheduledMessages.set -> void
+Excalibur.Outbox.Outbox.OutboxProcessingOptions.RetryFailedMessages.get -> bool
+Excalibur.Outbox.Outbox.OutboxProcessingOptions.RetryFailedMessages.set -> void
+Excalibur.Outbox.OutboxBulkCleanupAdapter
+Excalibur.Outbox.OutboxBulkCleanupAdapter.BulkCleanupFailedMessagesAsync(int maxRetries, System.DateTimeOffset olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Excalibur.Outbox.OutboxBulkCleanupAdapter.BulkCleanupSentMessagesAsync(System.DateTimeOffset olderThan, int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<int>
+Excalibur.Outbox.OutboxBulkCleanupAdapter.OutboxBulkCleanupAdapter(Excalibur.Dispatch.Abstractions.IOutboxStoreAdmin! admin, Microsoft.Extensions.Logging.ILogger<Excalibur.Outbox.OutboxBulkCleanupAdapter!>! logger) -> void
+Excalibur.Outbox.OutboxCleanupOptions
+Excalibur.Outbox.OutboxCleanupOptions.CleanupInterval.get -> System.TimeSpan
+Excalibur.Outbox.OutboxCleanupOptions.EnableAutomaticCleanup.get -> bool
+Excalibur.Outbox.OutboxCleanupOptions.MessageRetentionPeriod.get -> System.TimeSpan
+Excalibur.Outbox.OutboxOptions
+Excalibur.Outbox.OutboxOptions.BatchSize.get -> int
+Excalibur.Outbox.OutboxOptions.Cleanup.get -> Excalibur.Outbox.OutboxCleanupOptions!
+Excalibur.Outbox.OutboxOptions.EnableBackgroundProcessing.get -> bool
+Excalibur.Outbox.OutboxOptions.EnableParallelProcessing.get -> bool
+Excalibur.Outbox.OutboxOptions.MaxDegreeOfParallelism.get -> int
+Excalibur.Outbox.OutboxOptions.PollingInterval.get -> System.TimeSpan
+Excalibur.Outbox.OutboxOptions.Preset.get -> Excalibur.Outbox.OutboxPreset
+Excalibur.Outbox.OutboxOptions.ProcessorId.get -> string?
+Excalibur.Outbox.OutboxOptions.Retry.get -> Excalibur.Outbox.OutboxRetryOptions!
+Excalibur.Outbox.OutboxPreset
+Excalibur.Outbox.OutboxPreset.Balanced = 1 -> Excalibur.Outbox.OutboxPreset
+Excalibur.Outbox.OutboxPreset.Custom = 3 -> Excalibur.Outbox.OutboxPreset
+Excalibur.Outbox.OutboxPreset.HighReliability = 2 -> Excalibur.Outbox.OutboxPreset
+Excalibur.Outbox.OutboxPreset.HighThroughput = 0 -> Excalibur.Outbox.OutboxPreset
+Excalibur.Outbox.OutboxRetryOptions
+Excalibur.Outbox.OutboxRetryOptions.MaxRetryCount.get -> int
+Excalibur.Outbox.OutboxRetryOptions.RetryDelay.get -> System.TimeSpan
+Microsoft.Extensions.DependencyInjection.BackgroundProcessorHealthChecksExtensions
+Microsoft.Extensions.DependencyInjection.MultiTransportOutboxServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.OutboxBulkCleanupServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.OutboxExcaliburBuilderExtensions
+Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions
+override Excalibur.Dispatch.Delivery.InboxService.ExecuteAsync(System.Threading.CancellationToken stoppingToken) -> System.Threading.Tasks.Task!
+override Excalibur.Dispatch.Delivery.InboxService.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override Excalibur.Dispatch.Delivery.OutboxService.ExecuteAsync(System.Threading.CancellationToken stoppingToken) -> System.Threading.Tasks.Task!
+override Excalibur.Dispatch.Delivery.OutboxService.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+override Excalibur.Outbox.Outbox.OutboxBackgroundService.ExecuteAsync(System.Threading.CancellationToken stoppingToken) -> System.Threading.Tasks.Task!
+override Excalibur.Outbox.Outbox.OutboxBackgroundService.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+static Excalibur.Dispatch.Delivery.OutboxExtensions.MessageBatchSize(this Excalibur.Dispatch.Options.Delivery.OutboxOptions! options) -> int
+static Excalibur.Outbox.Diagnostics.BackgroundServiceActivitySource.StartDrain(string! serviceType) -> System.Diagnostics.Activity?
+static Excalibur.Outbox.Diagnostics.BackgroundServiceActivitySource.StartProcessingCycle(string! serviceType, string! operation) -> System.Diagnostics.Activity?
+static Excalibur.Outbox.Diagnostics.BackgroundServiceMetrics.RecordMessagesFailed(string! serviceType, string! operation, long count) -> void
+static Excalibur.Outbox.Diagnostics.BackgroundServiceMetrics.RecordMessagesProcessed(string! serviceType, string! operation, long count) -> void
+static Excalibur.Outbox.Diagnostics.BackgroundServiceMetrics.RecordProcessingCycle(string! serviceType, string! result) -> void
+static Excalibur.Outbox.Diagnostics.BackgroundServiceMetrics.RecordProcessingDuration(string! serviceType, double durationMs) -> void
+static Excalibur.Outbox.Diagnostics.BackgroundServiceMetrics.RecordProcessingError(string! serviceType, string! errorType) -> void
+static Excalibur.Outbox.InboxOptions.Balanced() -> Excalibur.Outbox.IInboxOptionsBuilder!
+static Excalibur.Outbox.InboxOptions.Custom() -> Excalibur.Outbox.IInboxOptionsBuilder!
+static Excalibur.Outbox.InboxOptions.HighReliability() -> Excalibur.Outbox.IInboxOptionsBuilder!
+static Excalibur.Outbox.InboxOptions.HighThroughput() -> Excalibur.Outbox.IInboxOptionsBuilder!
+static Excalibur.Outbox.OutboxOptions.Balanced() -> Excalibur.Outbox.IOutboxOptionsBuilder!
+static Excalibur.Outbox.OutboxOptions.Custom() -> Excalibur.Outbox.IOutboxOptionsBuilder!
+static Excalibur.Outbox.OutboxOptions.HighReliability() -> Excalibur.Outbox.IOutboxOptionsBuilder!
+static Excalibur.Outbox.OutboxOptions.HighThroughput() -> Excalibur.Outbox.IOutboxOptionsBuilder!
+static Microsoft.Extensions.DependencyInjection.BackgroundProcessorHealthChecksExtensions.AddInboxHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, System.Action<Excalibur.Outbox.Health.InboxHealthCheckOptions!>? configure = null, string! name = "inbox", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.BackgroundProcessorHealthChecksExtensions.AddOutboxHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, System.Action<Excalibur.Outbox.Health.OutboxHealthCheckOptions!>? configure = null, string! name = "outbox", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!
+static Microsoft.Extensions.DependencyInjection.MultiTransportOutboxServiceCollectionExtensions.AddMultiTransportOutbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Outbox.MultiTransport.MultiTransportOutboxOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OutboxBulkCleanupServiceCollectionExtensions.AddOutboxBulkCleanup(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OutboxExcaliburBuilderExtensions.AddOutbox(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder, System.Action<Excalibur.Outbox.IOutboxBuilder!>! configure) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
+static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions.AddExcaliburOutbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions.AddExcaliburOutbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Outbox.OutboxOptions! options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions.AddExcaliburOutbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Outbox.IOutboxBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions.AddInboxHostedService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions.AddOutboxHostedService(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OutboxServiceCollectionExtensions.HasExcaliburOutbox(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> bool

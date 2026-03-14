@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// Hosted service for SQS channel processor.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="SqsChannelProcessorHostedService" /> class. </remarks>
-public partial class SqsChannelProcessorHostedService(
+internal partial class SqsChannelProcessorHostedService(
 	ISqsChannelProcessor processor,
 	ILogger<SqsChannelProcessorHostedService> logger) : BackgroundService
 {

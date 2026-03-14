@@ -26,7 +26,7 @@ namespace Excalibur.Dispatch.Delivery.Pipeline;
 /// <item>Fast path bypasses chain execution when no middleware applies</item>
 /// </list>
 /// </remarks>
-public sealed class DispatchMiddlewareInvoker : IDispatchMiddlewareInvoker
+internal sealed class DispatchMiddlewareInvoker : IDispatchMiddlewareInvoker
 {
 	private readonly MiddlewareChainBuilder _chainBuilder;
 	private readonly int _pipelineSignature;

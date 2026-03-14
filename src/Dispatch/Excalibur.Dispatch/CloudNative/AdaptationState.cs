@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.CloudNative;
 /// <summary>
 /// State of adaptation for adaptive patterns.
 /// </summary>
-public enum AdaptationState
+internal enum AdaptationState
 {
 	/// <summary>
 	/// System is stable and no adaptation is currently needed.

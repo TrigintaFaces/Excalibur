@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Processes messages from streaming pull connections efficiently.
 /// </summary>
-public sealed class MessageStreamProcessor : IAsyncDisposable
+internal sealed class MessageStreamProcessor : IAsyncDisposable
 {
 	private readonly ILogger<MessageStreamProcessor> _logger;
 	private readonly StreamingPullOptions _options;

@@ -24,7 +24,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// AWS SQS implementation of <see cref="ICloudEventMapper{TTransportMessage}" /> that supports both structured and binary CloudEvents encodings.
 /// </summary>
-public sealed class AwsSqsCloudEventAdapter : ICloudEventMapper<SendMessageRequest>
+internal sealed class AwsSqsCloudEventAdapter : ICloudEventMapper<SendMessageRequest>
 {
 	private const string CloudEventsStructuredContentType = "application/cloudevents+json";
 	private const string StructuredContentTypeAttribute = "contentType";

@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// In-memory implementation of schema registry with HTTP backend support.
 /// </summary>
-public sealed class PubSubSchemaRegistry : ISchemaRegistry, IDisposable
+internal sealed class PubSubSchemaRegistry : ISchemaRegistry, IDisposable
 {
 	private readonly IOptions<PubSubSerializationOptions> _options;
 	private readonly ILogger<PubSubSchemaRegistry> _logger;

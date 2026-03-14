@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Routing.Strategies;
 /// <remarks> Initializes a new instance of the <see cref="ConsistentHashLoadBalancer" /> class. </remarks>
 /// <param name="logger"> The logger instance. </param>
 /// <param name="virtualNodesPerRoute"> Number of virtual nodes per route. </param>
-public partial class ConsistentHashLoadBalancer(
+internal partial class ConsistentHashLoadBalancer(
 	ILogger<ConsistentHashLoadBalancer> logger,
 	int virtualNodesPerRoute = 150) : ILoadBalancingStrategy
 {

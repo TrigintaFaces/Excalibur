@@ -41,7 +41,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// See the pluggable serialization architecture documentation.
 /// </para>
 /// </remarks>
-public sealed partial class KafkaMessageBus(
+internal sealed partial class KafkaMessageBus(
 		IProducer<string, byte[]> producer,
 		IPayloadSerializer serializer,
 		KafkaOptions options,

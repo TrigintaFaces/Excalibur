@@ -12,6 +12,14 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Excalibur.Dispatch.Hosting.Serverless.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Hosting.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Hosting.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Functional" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Tests.Smoke" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Hosting.AwsLambda" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Hosting.AzureFunctions" />
+    <InternalsVisibleTo Include="Excalibur.Dispatch.Hosting.GoogleCloudFunctions" />
+    <InternalsVisibleTo Include="DynamicProxyGenAssembly2" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />

@@ -31,7 +31,7 @@ public sealed class RabbitMqCloudEventOptionsShould
 
 		// Assert - Exchange sub-options
 		options.Exchange.DefaultExchange.ShouldBe("cloudevents");
-		options.Exchange.ExchangeType.ShouldBe(RabbitMqExchangeType.Topic);
+		options.Exchange.ExchangeType.ShouldBe(RabbitMQExchangeType.Topic);
 		options.Exchange.RoutingStrategy.ShouldBe(RabbitMqRoutingStrategy.EventType);
 		options.Exchange.DurableExchanges.ShouldBeTrue();
 		options.Exchange.EnablePublisherConfirms.ShouldBeTrue();
@@ -65,7 +65,7 @@ public sealed class RabbitMqCloudEventOptionsShould
 			Exchange =
 			{
 				DefaultExchange = "my-exchange",
-				ExchangeType = RabbitMqExchangeType.Fanout,
+				ExchangeType = RabbitMQExchangeType.Fanout,
 				RoutingStrategy = RabbitMqRoutingStrategy.Subject,
 				DurableExchanges = false,
 				EnablePublisherConfirms = false,
@@ -97,7 +97,7 @@ public sealed class RabbitMqCloudEventOptionsShould
 
 		// Assert - Exchange sub-options
 		options.Exchange.DefaultExchange.ShouldBe("my-exchange");
-		options.Exchange.ExchangeType.ShouldBe(RabbitMqExchangeType.Fanout);
+		options.Exchange.ExchangeType.ShouldBe(RabbitMQExchangeType.Fanout);
 		options.Exchange.RoutingStrategy.ShouldBe(RabbitMqRoutingStrategy.Subject);
 		options.Exchange.DurableExchanges.ShouldBeFalse();
 		options.Exchange.EnablePublisherConfirms.ShouldBeFalse();

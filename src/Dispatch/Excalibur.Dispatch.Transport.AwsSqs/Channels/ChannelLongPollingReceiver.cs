@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Optimized long polling implementation for AWS SQS using channels. Reduces API calls while maintaining high throughput.
 /// </summary>
-public sealed partial class ChannelLongPollingReceiver : IAsyncDisposable
+internal sealed partial class ChannelLongPollingReceiver : IAsyncDisposable
 {
 	private readonly IAmazonSQS _sqsClient;
 	private readonly LongPollingOptions _options;

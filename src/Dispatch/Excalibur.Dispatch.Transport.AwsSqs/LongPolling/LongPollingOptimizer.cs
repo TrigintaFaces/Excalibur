@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Orchestrates long polling optimization for multiple SQS queues.
 /// </summary>
-public sealed partial class LongPollingOptimizer : IDisposable
+internal sealed partial class LongPollingOptimizer : IDisposable
 {
 	private readonly ILongPollingReceiver _receiver;
 	private readonly ILongPollingStrategy _strategy;

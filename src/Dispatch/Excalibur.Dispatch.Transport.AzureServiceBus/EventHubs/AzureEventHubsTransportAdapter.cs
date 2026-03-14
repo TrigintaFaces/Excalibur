@@ -25,7 +25,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// For publishing messages, the adapter uses AzureEventHubMessageBus.
 /// </para>
 /// </remarks>
-public sealed partial class AzureEventHubsTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
+internal sealed partial class AzureEventHubsTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
 {
 	/// <summary>
 	/// The default transport name for Azure Event Hubs adapters.
@@ -426,7 +426,7 @@ public sealed partial class AzureEventHubsTransportAdapter : ITransportAdapter, 
 /// <summary>
 /// Configuration options for the Azure Event Hubs transport adapter.
 /// </summary>
-public sealed class AzureEventHubsTransportAdapterOptions
+internal sealed class AzureEventHubsTransportAdapterOptions
 {
 	/// <summary>
 	/// Gets or sets the name of this transport adapter instance.

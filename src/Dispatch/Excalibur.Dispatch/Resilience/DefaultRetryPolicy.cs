@@ -28,7 +28,7 @@ namespace Excalibur.Dispatch.Resilience;
 /// </list>
 /// </para>
 /// </remarks>
-public sealed partial class DefaultRetryPolicy : IRetryPolicy
+internal sealed partial class DefaultRetryPolicy : IRetryPolicy
 {
 	private readonly RetryPolicyOptions _options;
 	private readonly IBackoffCalculator _backoff;

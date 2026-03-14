@@ -1,1 +1,217 @@
 #nullable enable
+const Excalibur.Cdc.CdcReasonCodes.BackupRestore = "BACKUP_RESTORE" -> string!
+const Excalibur.Cdc.CdcReasonCodes.CdcReenabled = "CDC_REENABLED" -> string!
+const Excalibur.Cdc.CdcReasonCodes.PartitionChanged = "PARTITION_CHANGED" -> string!
+const Excalibur.Cdc.CdcReasonCodes.PositionOutOfRange = "POSITION_OUT_OF_RANGE" -> string!
+const Excalibur.Cdc.CdcReasonCodes.PositionPurged = "POSITION_PURGED" -> string!
+const Excalibur.Cdc.CdcReasonCodes.SourceDropped = "SOURCE_DROPPED" -> string!
+const Excalibur.Cdc.CdcReasonCodes.SourceRenamed = "SOURCE_RENAMED" -> string!
+const Excalibur.Cdc.CdcReasonCodes.StreamInvalidated = "STREAM_INVALIDATED" -> string!
+const Excalibur.Cdc.CdcReasonCodes.TokenExpired = "TOKEN_EXPIRED" -> string!
+const Excalibur.Cdc.CdcReasonCodes.Unknown = "UNKNOWN" -> string!
+const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceDisabled = 3100 -> int
+const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceDrainTimeout = 3105 -> int
+const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceError = 3102 -> int
+const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceProcessedChanges = 3104 -> int
+const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceStarting = 3101 -> int
+const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.CdcBackgroundServiceStopped = 3103 -> int
+const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.InMemoryCdcProcessingBatch = 3106 -> int
+const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.InMemoryCdcProcessingComplete = 3108 -> int
+const Excalibur.Cdc.Diagnostics.CdcProcessingEventId.InMemoryCdcProcessingError = 3107 -> int
+Excalibur.Cdc.CdcChangeType
+Excalibur.Cdc.CdcChangeType.Delete = 3 -> Excalibur.Cdc.CdcChangeType
+Excalibur.Cdc.CdcChangeType.Drop = 7 -> Excalibur.Cdc.CdcChangeType
+Excalibur.Cdc.CdcChangeType.DropDatabase = 8 -> Excalibur.Cdc.CdcChangeType
+Excalibur.Cdc.CdcChangeType.Insert = 1 -> Excalibur.Cdc.CdcChangeType
+Excalibur.Cdc.CdcChangeType.Invalidate = 6 -> Excalibur.Cdc.CdcChangeType
+Excalibur.Cdc.CdcChangeType.None = 0 -> Excalibur.Cdc.CdcChangeType
+Excalibur.Cdc.CdcChangeType.Rename = 9 -> Excalibur.Cdc.CdcChangeType
+Excalibur.Cdc.CdcChangeType.Replace = 4 -> Excalibur.Cdc.CdcChangeType
+Excalibur.Cdc.CdcChangeType.Truncate = 5 -> Excalibur.Cdc.CdcChangeType
+Excalibur.Cdc.CdcChangeType.Update = 2 -> Excalibur.Cdc.CdcChangeType
+Excalibur.Cdc.CdcDataChange
+Excalibur.Cdc.CdcDataChange.CdcDataChange() -> void
+Excalibur.Cdc.CdcDataChange.ColumnName.get -> string!
+Excalibur.Cdc.CdcDataChange.ColumnName.init -> void
+Excalibur.Cdc.CdcDataChange.DataType.get -> System.Type?
+Excalibur.Cdc.CdcDataChange.DataType.init -> void
+Excalibur.Cdc.CdcDataChange.NewValue.get -> object?
+Excalibur.Cdc.CdcDataChange.NewValue.init -> void
+Excalibur.Cdc.CdcDataChange.OldValue.get -> object?
+Excalibur.Cdc.CdcDataChange.OldValue.init -> void
+Excalibur.Cdc.CdcOptions
+Excalibur.Cdc.CdcOptions.CdcOptions() -> void
+Excalibur.Cdc.CdcOptions.EnableBackgroundProcessing.get -> bool
+Excalibur.Cdc.CdcOptions.EnableBackgroundProcessing.set -> void
+Excalibur.Cdc.CdcOptions.EnableStructuredLogging.get -> bool
+Excalibur.Cdc.CdcOptions.EnableStructuredLogging.set -> void
+Excalibur.Cdc.CdcOptions.MaxRecoveryAttempts.get -> int
+Excalibur.Cdc.CdcOptions.MaxRecoveryAttempts.set -> void
+Excalibur.Cdc.CdcOptions.OnPositionReset.get -> Excalibur.Cdc.CdcPositionResetHandler?
+Excalibur.Cdc.CdcOptions.OnPositionReset.set -> void
+Excalibur.Cdc.CdcOptions.RecoveryAttemptDelay.get -> System.TimeSpan
+Excalibur.Cdc.CdcOptions.RecoveryAttemptDelay.set -> void
+Excalibur.Cdc.CdcOptions.RecoveryStrategy.get -> Excalibur.Cdc.StalePositionRecoveryStrategy
+Excalibur.Cdc.CdcOptions.RecoveryStrategy.set -> void
+Excalibur.Cdc.CdcOptions.TrackedTables.get -> System.Collections.Generic.List<Excalibur.Cdc.CdcTableTrackingOptions!>!
+Excalibur.Cdc.CdcOptions.Validate() -> void
+Excalibur.Cdc.CdcPositionResetEventArgs
+Excalibur.Cdc.CdcPositionResetEventArgs.AdditionalContext.get -> System.Collections.Generic.IDictionary<string!, object!>?
+Excalibur.Cdc.CdcPositionResetEventArgs.AdditionalContext.init -> void
+Excalibur.Cdc.CdcPositionResetEventArgs.AttemptNumber.get -> int
+Excalibur.Cdc.CdcPositionResetEventArgs.AttemptNumber.init -> void
+Excalibur.Cdc.CdcPositionResetEventArgs.CaptureInstance.get -> string!
+Excalibur.Cdc.CdcPositionResetEventArgs.CaptureInstance.init -> void
+Excalibur.Cdc.CdcPositionResetEventArgs.CdcPositionResetEventArgs() -> void
+Excalibur.Cdc.CdcPositionResetEventArgs.DatabaseName.get -> string!
+Excalibur.Cdc.CdcPositionResetEventArgs.DatabaseName.init -> void
+Excalibur.Cdc.CdcPositionResetEventArgs.DetectedAt.get -> System.DateTimeOffset
+Excalibur.Cdc.CdcPositionResetEventArgs.DetectedAt.init -> void
+Excalibur.Cdc.CdcPositionResetEventArgs.EarliestAvailablePosition.get -> byte[]?
+Excalibur.Cdc.CdcPositionResetEventArgs.EarliestAvailablePosition.init -> void
+Excalibur.Cdc.CdcPositionResetEventArgs.LatestAvailablePosition.get -> byte[]?
+Excalibur.Cdc.CdcPositionResetEventArgs.LatestAvailablePosition.init -> void
+Excalibur.Cdc.CdcPositionResetEventArgs.NewPosition.get -> byte[]?
+Excalibur.Cdc.CdcPositionResetEventArgs.NewPosition.init -> void
+Excalibur.Cdc.CdcPositionResetEventArgs.OriginalException.get -> System.Exception?
+Excalibur.Cdc.CdcPositionResetEventArgs.OriginalException.init -> void
+Excalibur.Cdc.CdcPositionResetEventArgs.ProcessorId.get -> string!
+Excalibur.Cdc.CdcPositionResetEventArgs.ProcessorId.init -> void
+Excalibur.Cdc.CdcPositionResetEventArgs.ProviderType.get -> string!
+Excalibur.Cdc.CdcPositionResetEventArgs.ProviderType.init -> void
+Excalibur.Cdc.CdcPositionResetEventArgs.ReasonCode.get -> string!
+Excalibur.Cdc.CdcPositionResetEventArgs.ReasonCode.init -> void
+Excalibur.Cdc.CdcPositionResetEventArgs.ReasonMessage.get -> string!
+Excalibur.Cdc.CdcPositionResetEventArgs.ReasonMessage.init -> void
+Excalibur.Cdc.CdcPositionResetEventArgs.StalePosition.get -> byte[]?
+Excalibur.Cdc.CdcPositionResetEventArgs.StalePosition.init -> void
+Excalibur.Cdc.CdcPositionResetEventArgs.Strategy.get -> Excalibur.Cdc.StalePositionRecoveryStrategy
+Excalibur.Cdc.CdcPositionResetEventArgs.Strategy.init -> void
+Excalibur.Cdc.CdcPositionResetHandler
+Excalibur.Cdc.CdcReasonCodes
+Excalibur.Cdc.CdcTableTrackingOptions
+Excalibur.Cdc.CdcTableTrackingOptions.CaptureInstance.get -> string?
+Excalibur.Cdc.CdcTableTrackingOptions.CaptureInstance.set -> void
+Excalibur.Cdc.CdcTableTrackingOptions.CdcTableTrackingOptions() -> void
+Excalibur.Cdc.CdcTableTrackingOptions.EventMappings.get -> System.Collections.Generic.Dictionary<Excalibur.Cdc.CdcChangeType, System.Type!>!
+Excalibur.Cdc.CdcTableTrackingOptions.Filter.get -> System.Func<Excalibur.Cdc.CdcDataChange!, bool>?
+Excalibur.Cdc.CdcTableTrackingOptions.Filter.set -> void
+Excalibur.Cdc.CdcTableTrackingOptions.TableName.get -> string!
+Excalibur.Cdc.CdcTableTrackingOptions.TableName.set -> void
+Excalibur.Cdc.Diagnostics.CdcProcessingEventId
+Excalibur.Cdc.ICdcBuilder
+Excalibur.Cdc.ICdcBuilder.EnableBackgroundProcessing(bool enable = true) -> Excalibur.Cdc.ICdcBuilder!
+Excalibur.Cdc.ICdcBuilder.Services.get -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Cdc.ICdcBuilder.TrackTable(string! tableName, System.Action<Excalibur.Cdc.ICdcTableBuilder!>! configure) -> Excalibur.Cdc.ICdcBuilder!
+Excalibur.Cdc.ICdcBuilder.TrackTable<TEntity>(System.Action<Excalibur.Cdc.ICdcTableBuilder!>? configure = null) -> Excalibur.Cdc.ICdcBuilder!
+Excalibur.Cdc.ICdcBuilder.WithRecovery(System.Action<Excalibur.Cdc.ICdcRecoveryBuilder!>! configure) -> Excalibur.Cdc.ICdcBuilder!
+Excalibur.Cdc.ICdcRecoveryBuilder
+Excalibur.Cdc.ICdcRecoveryBuilder.AttemptDelay(System.TimeSpan delay) -> Excalibur.Cdc.ICdcRecoveryBuilder!
+Excalibur.Cdc.ICdcRecoveryBuilder.EnableStructuredLogging(bool enable = true) -> Excalibur.Cdc.ICdcRecoveryBuilder!
+Excalibur.Cdc.ICdcRecoveryBuilder.MaxAttempts(int count) -> Excalibur.Cdc.ICdcRecoveryBuilder!
+Excalibur.Cdc.ICdcRecoveryBuilder.OnPositionReset(Excalibur.Cdc.CdcPositionResetHandler! handler) -> Excalibur.Cdc.ICdcRecoveryBuilder!
+Excalibur.Cdc.ICdcRecoveryBuilder.Strategy(Excalibur.Cdc.StalePositionRecoveryStrategy strategy) -> Excalibur.Cdc.ICdcRecoveryBuilder!
+Excalibur.Cdc.ICdcTableBuilder
+Excalibur.Cdc.ICdcTableBuilder.CaptureInstance(string! name) -> Excalibur.Cdc.ICdcTableBuilder!
+Excalibur.Cdc.ICdcTableBuilder.MapAll<TEvent>() -> Excalibur.Cdc.ICdcTableBuilder!
+Excalibur.Cdc.ICdcTableBuilder.MapDelete<TEvent>() -> Excalibur.Cdc.ICdcTableBuilder!
+Excalibur.Cdc.ICdcTableBuilder.MapInsert<TEvent>() -> Excalibur.Cdc.ICdcTableBuilder!
+Excalibur.Cdc.ICdcTableBuilder.MapUpdate<TEvent>() -> Excalibur.Cdc.ICdcTableBuilder!
+Excalibur.Cdc.ICdcTableBuilder.WithFilter(System.Func<Excalibur.Cdc.CdcDataChange!, bool>! predicate) -> Excalibur.Cdc.ICdcTableBuilder!
+Excalibur.Cdc.InMemory.CdcBuilderInMemoryExtensions
+Excalibur.Cdc.InMemory.IInMemoryCdcBuilder
+Excalibur.Cdc.InMemory.IInMemoryCdcBuilder.AutoFlush(bool autoFlush = true) -> Excalibur.Cdc.InMemory.IInMemoryCdcBuilder!
+Excalibur.Cdc.InMemory.IInMemoryCdcBuilder.BatchSize(int size) -> Excalibur.Cdc.InMemory.IInMemoryCdcBuilder!
+Excalibur.Cdc.InMemory.IInMemoryCdcBuilder.PreserveHistory(bool preserveHistory = true) -> Excalibur.Cdc.InMemory.IInMemoryCdcBuilder!
+Excalibur.Cdc.InMemory.IInMemoryCdcBuilder.ProcessorId(string! processorId) -> Excalibur.Cdc.InMemory.IInMemoryCdcBuilder!
+Excalibur.Cdc.InMemory.IInMemoryCdcProcessor
+Excalibur.Cdc.InMemory.IInMemoryCdcProcessor.ProcessChangesAsync(System.Func<Excalibur.Cdc.InMemory.InMemoryCdcChange!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! changeHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Cdc.InMemory.IInMemoryCdcStore
+Excalibur.Cdc.InMemory.IInMemoryCdcStore.AddChange(Excalibur.Cdc.InMemory.InMemoryCdcChange! change) -> void
+Excalibur.Cdc.InMemory.IInMemoryCdcStore.AddChanges(System.Collections.Generic.IEnumerable<Excalibur.Cdc.InMemory.InMemoryCdcChange!>! changes) -> void
+Excalibur.Cdc.InMemory.IInMemoryCdcStore.Clear() -> void
+Excalibur.Cdc.InMemory.IInMemoryCdcStore.GetHistory() -> System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.InMemory.InMemoryCdcChange!>!
+Excalibur.Cdc.InMemory.IInMemoryCdcStore.GetPendingChanges(int maxCount) -> System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.InMemory.InMemoryCdcChange!>!
+Excalibur.Cdc.InMemory.IInMemoryCdcStore.GetPendingCount() -> int
+Excalibur.Cdc.InMemory.IInMemoryCdcStore.MarkAsProcessed(System.Collections.Generic.IEnumerable<Excalibur.Cdc.InMemory.InMemoryCdcChange!>! changes) -> void
+Excalibur.Cdc.InMemory.InMemoryCdcChange
+Excalibur.Cdc.InMemory.InMemoryCdcChange.Changes.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.CdcDataChange!>!
+Excalibur.Cdc.InMemory.InMemoryCdcChange.Changes.init -> void
+Excalibur.Cdc.InMemory.InMemoryCdcChange.ChangeType.get -> Excalibur.Cdc.CdcChangeType
+Excalibur.Cdc.InMemory.InMemoryCdcChange.ChangeType.init -> void
+Excalibur.Cdc.InMemory.InMemoryCdcChange.InMemoryCdcChange() -> void
+Excalibur.Cdc.InMemory.InMemoryCdcChange.Metadata.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>?
+Excalibur.Cdc.InMemory.InMemoryCdcChange.Metadata.init -> void
+Excalibur.Cdc.InMemory.InMemoryCdcChange.TableName.get -> string!
+Excalibur.Cdc.InMemory.InMemoryCdcChange.TableName.init -> void
+Excalibur.Cdc.InMemory.InMemoryCdcChange.Timestamp.get -> System.DateTimeOffset
+Excalibur.Cdc.InMemory.InMemoryCdcChange.Timestamp.init -> void
+Excalibur.Cdc.InMemory.InMemoryCdcOptions
+Excalibur.Cdc.InMemory.InMemoryCdcOptions.AutoFlush.get -> bool
+Excalibur.Cdc.InMemory.InMemoryCdcOptions.AutoFlush.set -> void
+Excalibur.Cdc.InMemory.InMemoryCdcOptions.BatchSize.get -> int
+Excalibur.Cdc.InMemory.InMemoryCdcOptions.BatchSize.set -> void
+Excalibur.Cdc.InMemory.InMemoryCdcOptions.InMemoryCdcOptions() -> void
+Excalibur.Cdc.InMemory.InMemoryCdcOptions.PreserveHistory.get -> bool
+Excalibur.Cdc.InMemory.InMemoryCdcOptions.PreserveHistory.set -> void
+Excalibur.Cdc.InMemory.InMemoryCdcOptions.ProcessorId.get -> string!
+Excalibur.Cdc.InMemory.InMemoryCdcOptions.ProcessorId.set -> void
+Excalibur.Cdc.InMemory.InMemoryCdcOptions.Validate() -> void
+Excalibur.Cdc.InMemory.InMemoryCdcProcessor
+Excalibur.Cdc.InMemory.InMemoryCdcProcessor.Dispose() -> void
+Excalibur.Cdc.InMemory.InMemoryCdcProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Cdc.InMemory.InMemoryCdcProcessor.InMemoryCdcProcessor(Excalibur.Cdc.InMemory.IInMemoryCdcStore! store, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.InMemory.InMemoryCdcOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.InMemory.InMemoryCdcProcessor!>! logger) -> void
+Excalibur.Cdc.InMemory.InMemoryCdcProcessor.ProcessChangesAsync(System.Func<Excalibur.Cdc.InMemory.InMemoryCdcChange!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! changeHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Cdc.InMemory.InMemoryCdcStore
+Excalibur.Cdc.InMemory.InMemoryCdcStore.AddChange(Excalibur.Cdc.InMemory.InMemoryCdcChange! change) -> void
+Excalibur.Cdc.InMemory.InMemoryCdcStore.AddChanges(System.Collections.Generic.IEnumerable<Excalibur.Cdc.InMemory.InMemoryCdcChange!>! changes) -> void
+Excalibur.Cdc.InMemory.InMemoryCdcStore.Clear() -> void
+Excalibur.Cdc.InMemory.InMemoryCdcStore.GetHistory() -> System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.InMemory.InMemoryCdcChange!>!
+Excalibur.Cdc.InMemory.InMemoryCdcStore.GetPendingChanges(int maxCount) -> System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.InMemory.InMemoryCdcChange!>!
+Excalibur.Cdc.InMemory.InMemoryCdcStore.GetPendingCount() -> int
+Excalibur.Cdc.InMemory.InMemoryCdcStore.InMemoryCdcStore() -> void
+Excalibur.Cdc.InMemory.InMemoryCdcStore.InMemoryCdcStore(Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.InMemory.InMemoryCdcOptions!>! options) -> void
+Excalibur.Cdc.InMemory.InMemoryCdcStore.MarkAsProcessed(System.Collections.Generic.IEnumerable<Excalibur.Cdc.InMemory.InMemoryCdcChange!>! changes) -> void
+Excalibur.Cdc.Processing.CdcProcessingHostedService
+Excalibur.Cdc.Processing.CdcProcessingHostedService.CdcProcessingHostedService(Excalibur.Cdc.Processing.ICdcBackgroundProcessor! processor, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.Processing.CdcProcessingOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.Processing.CdcProcessingHostedService!>! logger) -> void
+Excalibur.Cdc.Processing.CdcProcessingHostedService.ConsecutiveErrors.get -> int
+Excalibur.Cdc.Processing.CdcProcessingHostedService.IsHealthy.get -> bool
+Excalibur.Cdc.Processing.CdcProcessingHostedService.LastSuccessfulProcessing.get -> System.DateTimeOffset
+Excalibur.Cdc.Processing.CdcProcessingOptions
+Excalibur.Cdc.Processing.CdcProcessingOptions.CdcProcessingOptions() -> void
+Excalibur.Cdc.Processing.CdcProcessingOptions.DrainTimeout.get -> System.TimeSpan
+Excalibur.Cdc.Processing.CdcProcessingOptions.DrainTimeoutSeconds.get -> int
+Excalibur.Cdc.Processing.CdcProcessingOptions.DrainTimeoutSeconds.set -> void
+Excalibur.Cdc.Processing.CdcProcessingOptions.Enabled.get -> bool
+Excalibur.Cdc.Processing.CdcProcessingOptions.Enabled.set -> void
+Excalibur.Cdc.Processing.CdcProcessingOptions.PollingInterval.get -> System.TimeSpan
+Excalibur.Cdc.Processing.CdcProcessingOptions.PollingInterval.set -> void
+Excalibur.Cdc.Processing.CdcProcessingOptions.UnhealthyThreshold.get -> int
+Excalibur.Cdc.Processing.CdcProcessingOptions.UnhealthyThreshold.set -> void
+Excalibur.Cdc.Processing.CdcProcessingOptionsValidator
+Excalibur.Cdc.Processing.CdcProcessingOptionsValidator.CdcProcessingOptionsValidator() -> void
+Excalibur.Cdc.Processing.CdcProcessingOptionsValidator.Validate(string? name, Excalibur.Cdc.Processing.CdcProcessingOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
+Excalibur.Cdc.Processing.ICdcBackgroundProcessor
+Excalibur.Cdc.Processing.ICdcBackgroundProcessor.ProcessChangesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Cdc.StalePositionRecoveryStrategy
+Excalibur.Cdc.StalePositionRecoveryStrategy.FallbackToEarliest = 1 -> Excalibur.Cdc.StalePositionRecoveryStrategy
+Excalibur.Cdc.StalePositionRecoveryStrategy.FallbackToLatest = 2 -> Excalibur.Cdc.StalePositionRecoveryStrategy
+Excalibur.Cdc.StalePositionRecoveryStrategy.InvokeCallback = 3 -> Excalibur.Cdc.StalePositionRecoveryStrategy
+Excalibur.Cdc.StalePositionRecoveryStrategy.Throw = 0 -> Excalibur.Cdc.StalePositionRecoveryStrategy
+Microsoft.Extensions.DependencyInjection.CdcExcaliburBuilderExtensions
+Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions
+override Excalibur.Cdc.CdcDataChange.ToString() -> string!
+override Excalibur.Cdc.CdcPositionResetEventArgs.ToString() -> string!
+override Excalibur.Cdc.InMemory.InMemoryCdcChange.ToString() -> string!
+override Excalibur.Cdc.Processing.CdcProcessingHostedService.ExecuteAsync(System.Threading.CancellationToken stoppingToken) -> System.Threading.Tasks.Task!
+override Excalibur.Cdc.Processing.CdcProcessingHostedService.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+static Excalibur.Cdc.CdcReasonCodes.IsRecoverable(string? reasonCode) -> bool
+static Excalibur.Cdc.InMemory.CdcBuilderInMemoryExtensions.UseInMemory(this Excalibur.Cdc.ICdcBuilder! builder, Excalibur.Cdc.InMemory.IInMemoryCdcStore! store, System.Action<Excalibur.Cdc.InMemory.IInMemoryCdcBuilder!>? configure = null) -> Excalibur.Cdc.ICdcBuilder!
+static Excalibur.Cdc.InMemory.CdcBuilderInMemoryExtensions.UseInMemory(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.InMemory.IInMemoryCdcBuilder!>? configure = null) -> Excalibur.Cdc.ICdcBuilder!
+static Excalibur.Cdc.InMemory.InMemoryCdcChange.Delete(string! tableName, params Excalibur.Cdc.CdcDataChange![]! changes) -> Excalibur.Cdc.InMemory.InMemoryCdcChange!
+static Excalibur.Cdc.InMemory.InMemoryCdcChange.Insert(string! tableName, params Excalibur.Cdc.CdcDataChange![]! changes) -> Excalibur.Cdc.InMemory.InMemoryCdcChange!
+static Excalibur.Cdc.InMemory.InMemoryCdcChange.Update(string! tableName, params Excalibur.Cdc.CdcDataChange![]! changes) -> Excalibur.Cdc.InMemory.InMemoryCdcChange!
+static Microsoft.Extensions.DependencyInjection.CdcExcaliburBuilderExtensions.AddCdc(this Excalibur.Hosting.Builders.IExcaliburBuilder! builder, System.Action<Excalibur.Cdc.ICdcBuilder!>! configure) -> Excalibur.Hosting.Builders.IExcaliburBuilder!
+static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.AddCdcProcessor(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.AddCdcProcessor(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.ICdcBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.HasCdcProcessor(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> bool

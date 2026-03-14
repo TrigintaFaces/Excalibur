@@ -1,1 +1,9 @@
 #nullable enable
+const Excalibur.Jobs.DataProcessing.DataProcessingJob.JobConfigSectionName = "Jobs:DataProcessingJob" -> string!
+Excalibur.Jobs.DataProcessing.DataProcessingJob
+Excalibur.Jobs.DataProcessing.DataProcessingJob.DataProcessingJob(Excalibur.Data.DataProcessing.IDataOrchestrationManager! dataOrchestrationManager, Excalibur.Jobs.Core.JobHeartbeatTracker! heartbeatTracker, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.DataProcessing.DataProcessingJob!>! logger) -> void
+Excalibur.Jobs.DataProcessing.DataProcessingJob.Execute(Quartz.IJobExecutionContext! context) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.DataProcessing.DataProcessingJobConfig
+Excalibur.Jobs.DataProcessing.DataProcessingJobConfig.DataProcessingJobConfig() -> void
+static Excalibur.Jobs.DataProcessing.DataProcessingJob.ConfigureHealthChecks(Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! healthChecks, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> void
+static Excalibur.Jobs.DataProcessing.DataProcessingJob.ConfigureJob(Quartz.IServiceCollectionQuartzConfigurator! configurator, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> void

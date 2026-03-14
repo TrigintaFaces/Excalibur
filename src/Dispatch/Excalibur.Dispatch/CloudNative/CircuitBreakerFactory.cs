@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.CloudNative;
 /// </summary>
 /// <param name="defaultOptions">The default circuit breaker options to apply when none are specified.</param>
 /// <param name="logger">The logger used for circuit breaker lifecycle events.</param>
-public sealed partial class CircuitBreakerFactory(
+internal sealed partial class CircuitBreakerFactory(
 	CircuitBreakerOptions? defaultOptions = null,
 	ILogger<CircuitBreakerFactory>? logger = null) : ICircuitBreakerFactory, IAsyncDisposable
 {

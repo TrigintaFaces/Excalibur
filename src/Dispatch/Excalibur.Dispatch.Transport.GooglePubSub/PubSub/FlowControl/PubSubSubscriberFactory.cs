@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <remarks> Initializes a new instance of the <see cref="PubSubSubscriberFactory" /> class. </remarks>
 /// <param name="flowControlOptions"> The flow control options. </param>
 /// <param name="loggerFactory"> The logger factory. </param>
-public partial class PubSubSubscriberFactory(
+internal partial class PubSubSubscriberFactory(
 	IOptions<PubSubFlowControlOptions> flowControlOptions,
 	ILoggerFactory loggerFactory)
 {

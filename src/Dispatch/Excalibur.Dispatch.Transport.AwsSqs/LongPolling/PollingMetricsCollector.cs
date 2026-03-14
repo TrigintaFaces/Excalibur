@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Collects and reports metrics for long polling operations.
 /// </summary>
-public sealed class PollingMetricsCollector : IPollingMetricsCollector, IDisposable
+internal sealed class PollingMetricsCollector : IPollingMetricsCollector, IDisposable
 {
 	private readonly ILogger<PollingMetricsCollector> _logger;
 	private readonly ConcurrentBag<MetricData> _metrics;

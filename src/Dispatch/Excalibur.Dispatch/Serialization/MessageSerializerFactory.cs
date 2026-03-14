@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Serialization;
 /// </summary>
 /// <param name="provider"> The service provider for resolving serializer instances. </param>
 /// <param name="options"> Configuration options containing serializer version mappings. </param>
-public sealed class MessageSerializerFactory(
+internal sealed class MessageSerializerFactory(
 	IServiceProvider provider,
 	IOptions<MessageSerializerOptions> options)
 {

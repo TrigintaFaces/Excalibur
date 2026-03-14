@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Batch processor that adaptively switches between parallel and ordered processing based on message characteristics and system performance.
 /// </summary>
-public class AdaptiveBatchProcessor : BatchProcessorBase
+internal class AdaptiveBatchProcessor : BatchProcessorBase
 {
 	private readonly Func<ReceivedMessage, CancellationToken, Task<object>> _messageProcessor;
 	private readonly IOptions<BatchConfiguration> _options;

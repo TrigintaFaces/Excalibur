@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Channels;
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="TimerWaitStrategy" /> class. </remarks>
 /// <param name="delayMilliseconds"> The delay in milliseconds between checks. </param>
-public sealed class TimerWaitStrategy(int delayMilliseconds = 10) : WaitStrategyBase
+internal sealed class TimerWaitStrategy(int delayMilliseconds = 10) : WaitStrategyBase
 {
 	private readonly int _delayMilliseconds = delayMilliseconds > 0
 		? delayMilliseconds

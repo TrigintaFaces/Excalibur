@@ -24,7 +24,7 @@ namespace Excalibur.Dispatch.Resilience.Polly;
 /// <c>ExponentialBackoffCalculator</c> which has no external dependencies.
 /// </para>
 /// </remarks>
-public sealed class PollyBackoffCalculatorAdapter : IBackoffCalculator
+internal sealed class PollyBackoffCalculatorAdapter : IBackoffCalculator
 {
 	// Constants for decorrelated jitter algorithm (from Polly's implementation)
 	private const double RpScalingFactor = 1.0 / 1.4;

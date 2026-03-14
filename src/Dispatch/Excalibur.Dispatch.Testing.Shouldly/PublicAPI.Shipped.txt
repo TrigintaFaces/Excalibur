@@ -1,1 +1,20 @@
 #nullable enable
+Excalibur.Dispatch.Testing.DispatchTestingShouldlyExtensions
+static Excalibur.Dispatch.Testing.DispatchTestingShouldlyExtensions.SagaShouldBeActive(this Excalibur.Dispatch.Abstractions.Messaging.ISaga! saga) -> void
+static Excalibur.Dispatch.Testing.DispatchTestingShouldlyExtensions.SagaShouldBeCompleted(this Excalibur.Dispatch.Abstractions.Messaging.ISaga! saga) -> void
+static Excalibur.Dispatch.Testing.DispatchTestingShouldlyExtensions.SagaShouldBeInState(this Excalibur.Dispatch.Abstractions.Messaging.ISaga! saga, bool expectedCompleted) -> void
+static Excalibur.Dispatch.Testing.DispatchTestingShouldlyExtensions.SagaShouldHaveState<TSagaState>(this Excalibur.Dispatch.Abstractions.Messaging.ISaga<TSagaState!>! saga, System.Func<TSagaState!, bool>! statePredicate) -> void
+static Excalibur.Dispatch.Testing.DispatchTestingShouldlyExtensions.ShouldHaveAcknowledged(this Excalibur.Dispatch.Testing.Transport.InMemoryTransportReceiver! receiver, int expectedCount) -> void
+static Excalibur.Dispatch.Testing.DispatchTestingShouldlyExtensions.ShouldHaveCompleted(this Excalibur.Dispatch.Abstractions.IMessageResult! result) -> void
+static Excalibur.Dispatch.Testing.DispatchTestingShouldlyExtensions.ShouldHaveDispatched<TMessage>(this Excalibur.Dispatch.Testing.Tracking.IDispatchedMessageLog! log) -> void
+static Excalibur.Dispatch.Testing.DispatchTestingShouldlyExtensions.ShouldHaveDispatched<TMessage>(this Excalibur.Dispatch.Testing.Tracking.IDispatchedMessageLog! log, int expectedCount) -> void
+static Excalibur.Dispatch.Testing.DispatchTestingShouldlyExtensions.ShouldHaveDispatchedCount(this Excalibur.Dispatch.Testing.Tracking.IDispatchedMessageLog! log, int expectedTotal) -> void
+static Excalibur.Dispatch.Testing.DispatchTestingShouldlyExtensions.ShouldHaveFailed(this Excalibur.Dispatch.Abstractions.IMessageResult! result) -> void
+static Excalibur.Dispatch.Testing.DispatchTestingShouldlyExtensions.ShouldHaveFailedWithError(this Excalibur.Dispatch.Abstractions.IMessageResult! result, string? expectedSubstring = null) -> void
+static Excalibur.Dispatch.Testing.DispatchTestingShouldlyExtensions.ShouldHavePublished<TMessage>(this Excalibur.Dispatch.Testing.DispatchTestHarness! harness) -> void
+static Excalibur.Dispatch.Testing.DispatchTestingShouldlyExtensions.ShouldHavePublished<TMessage>(this Excalibur.Dispatch.Testing.DispatchTestHarness! harness, int expectedCount) -> void
+static Excalibur.Dispatch.Testing.DispatchTestingShouldlyExtensions.ShouldHaveRejected(this Excalibur.Dispatch.Testing.Transport.InMemoryTransportReceiver! receiver, int expectedCount) -> void
+static Excalibur.Dispatch.Testing.DispatchTestingShouldlyExtensions.ShouldHaveSent(this Excalibur.Dispatch.Testing.Transport.InMemoryTransportSender! sender, int expectedCount) -> void
+static Excalibur.Dispatch.Testing.DispatchTestingShouldlyExtensions.ShouldHaveSentMessageMatching(this Excalibur.Dispatch.Testing.Transport.InMemoryTransportSender! sender, System.Func<Excalibur.Dispatch.Transport.TransportMessage!, bool>! predicate) -> void
+static Excalibur.Dispatch.Testing.DispatchTestingShouldlyExtensions.ShouldHaveSentTo(this Excalibur.Dispatch.Testing.Transport.InMemoryTransportSender! sender, string! expectedDestination) -> void
+static Excalibur.Dispatch.Testing.DispatchTestingShouldlyExtensions.ShouldNotHaveDispatched<TMessage>(this Excalibur.Dispatch.Testing.Tracking.IDispatchedMessageLog! log) -> void

@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Validation.Context;
 /// </remarks>
 /// <remarks> Initializes a new instance of the <see cref="TraceContextValidator" /> class. </remarks>
 /// <param name="logger"> The logger for diagnostic output. </param>
-public sealed partial class TraceContextValidator(ILogger<TraceContextValidator> logger) : IContextValidator
+internal sealed partial class TraceContextValidator(ILogger<TraceContextValidator> logger) : IContextValidator
 {
 	private readonly ILogger<TraceContextValidator> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 

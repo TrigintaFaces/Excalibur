@@ -1,1 +1,305 @@
 #nullable enable
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ActivityGroupAllGrantsDeleted = 103963 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ActivityGroupGrantInserted = 103961 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ActivityGroupGrantsDeletedByUser = 103962 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ActivityGroupServiceInitialized = 103960 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.BatchGetExecuted = 103204 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.BatchWriteExecuted = 103205 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CapacityUnitsConsumed = 103500 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcBatchReceived = 103422 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcIteratorExpired = 103425 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcPositionConfirmed = 103423 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcPositionDataMissing = 103441 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcPositionDeleted = 103445 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcPositionLoaded = 103443 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcPositionNotFound = 103440 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcPositionParseFailed = 103442 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcPositionSaved = 103444 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcProcessingError = 103426 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcProcessorStarting = 103420 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcProcessorStopping = 103421 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcShardsDiscovered = 103424 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CdcStateStoreError = 103446 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ClientCreated = 103000 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ClientDisposed = 103001 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ConditionalCheckFailed = 103600 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.CredentialsConfigured = 103004 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.DaxCacheHit = 103503 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.DaxCacheMiss = 103504 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.DynamoDbException = 103604 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.EndpointOverrideConfigured = 103003 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.FilterExpressionApplied = 103305 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.GlobalSecondaryIndexCreated = 103104 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.GrantDeleted = 103482 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.GrantRevoked = 103483 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.GrantSaved = 103481 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.GrantServiceInitialized = 103480 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.HealthCheckCompleted = 103801 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.HealthCheckFailed = 103802 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.HealthCheckStarted = 103800 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.InboxCleanupComplete = 103955 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.InboxMessageAlreadyProcessed = 103951 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.InboxMessageCompleted = 103952 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.InboxMessageProcessingError = 103953 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.InboxMessageStored = 103950 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.InboxMessageStoringError = 103954 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ItemDeleted = 103203 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ItemGet = 103201 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ItemNotFound = 103601 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ItemPut = 103200 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ItemUpdated = 103202 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.OnDemandModeActive = 103502 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.OperationCompletedWithCapacity = 103702 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.OperationFailed = 103703 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.OutboxCleanedUp = 103494 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.OutboxConcurrencyConflict = 103495 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.OutboxMessageEnqueued = 103491 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.OutboxMessageFailed = 103493 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.OutboxMessageSent = 103492 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.OutboxMessageStaged = 103490 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.PaginationContinued = 103304 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ProviderDisposing = 103701 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ProviderInitializing = 103700 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ProvisionedThroughputExceeded = 103501 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.QueryExecuted = 103301 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.QueryExecuting = 103300 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.RegionConfigured = 103002 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.SagaLoaded = 103471 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.SagaSaved = 103472 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.SagaStoreInitialized = 103470 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ScanExecuted = 103303 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ScanExecuting = 103302 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ShardIteratorObtained = 103402 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.SnapshotDeleted = 103464 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.SnapshotDeletedOlderThan = 103465 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.SnapshotRetrieved = 103463 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.SnapshotSaved = 103461 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.SnapshotSkipped = 103462 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.SnapshotStoreInitialized = 103460 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.StreamEnabled = 103400 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.StreamProcessingCompleted = 103403 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.StreamRecordRead = 103401 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.StreamsReceivedBatch = 103902 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.StreamsStarting = 103900 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.StreamsStopping = 103901 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.TableCreated = 103100 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.TableDeleted = 103102 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.TableDescribed = 103101 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.TableThroughputUpdated = 103103 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.TransactGetExecuted = 103207 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.TransactionConflict = 103602 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.TransactWriteExecuted = 103206 -> int
+const Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId.ValidationException = 103603 -> int
+Excalibur.Data.DynamoDb.Authorization.DynamoDbActivityGroupGrantStore
+Excalibur.Data.DynamoDb.Authorization.DynamoDbActivityGroupGrantStore.DeleteActivityGroupGrantsByUserIdAsync(string! userId, string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Data.DynamoDb.Authorization.DynamoDbActivityGroupGrantStore.DeleteAllActivityGroupGrantsAsync(string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Data.DynamoDb.Authorization.DynamoDbActivityGroupGrantStore.Dispose() -> void
+Excalibur.Data.DynamoDb.Authorization.DynamoDbActivityGroupGrantStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.DynamoDb.Authorization.DynamoDbActivityGroupGrantStore.DynamoDbActivityGroupGrantStore(Amazon.DynamoDBv2.IAmazonDynamoDB! client, Microsoft.Extensions.Options.IOptions<Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.DynamoDb.Authorization.DynamoDbActivityGroupGrantStore!>! logger) -> void
+Excalibur.Data.DynamoDb.Authorization.DynamoDbActivityGroupGrantStore.DynamoDbActivityGroupGrantStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.DynamoDb.Authorization.DynamoDbActivityGroupGrantStore!>! logger) -> void
+Excalibur.Data.DynamoDb.Authorization.DynamoDbActivityGroupGrantStore.GetDistinctActivityGroupGrantUserIdsAsync(string! grantType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
+Excalibur.Data.DynamoDb.Authorization.DynamoDbActivityGroupGrantStore.InitializeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.DynamoDb.Authorization.DynamoDbActivityGroupGrantStore.InsertActivityGroupGrantAsync(string! userId, string! fullName, string? tenantId, string! grantType, string! qualifier, System.DateTimeOffset? expiresOn, string! grantedBy, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions.ActivityGroupsTableName.get -> string!
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions.ActivityGroupsTableName.set -> void
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions.Connection.get -> Excalibur.Data.DynamoDb.DynamoDbConnectionOptions!
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions.Connection.set -> void
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions.CreateTableIfNotExists.get -> bool
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions.CreateTableIfNotExists.set -> void
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions.DynamoDbAuthorizationOptions() -> void
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions.GetRegionEndpoint() -> Amazon.RegionEndpoint?
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions.GrantsTableName.get -> string!
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions.GrantsTableName.set -> void
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions.MaxRetryAttempts.get -> int
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions.MaxRetryAttempts.set -> void
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions.TimeoutInSeconds.get -> int
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions.TimeoutInSeconds.set -> void
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions.UseConsistentReads.get -> bool
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions.UseConsistentReads.set -> void
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions.UserIndexName.get -> string!
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions.UserIndexName.set -> void
+Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions.Validate() -> void
+Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore
+Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.DeleteGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, string? revokedBy, System.DateTimeOffset? revokedOn, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.Dispose() -> void
+Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.DynamoDbGrantStore(Amazon.DynamoDBv2.IAmazonDynamoDB! client, Microsoft.Extensions.Options.IOptions<Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore!>! logger) -> void
+Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.DynamoDbGrantStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore!>! logger) -> void
+Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.FindUserGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyDictionary<string!, object!>!>!
+Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.GetAllGrantsAsync(string! userId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Abstractions.Authorization.Grant!>!>!
+Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.GetGrantAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.A3.Abstractions.Authorization.Grant?>!
+Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.GetMatchingGrantsAsync(string? userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.A3.Abstractions.Authorization.Grant!>!>!
+Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.GetService(System.Type! serviceType) -> object?
+Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.GrantExistsAsync(string! userId, string! tenantId, string! grantType, string! qualifier, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.InitializeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.DynamoDb.Authorization.DynamoDbGrantStore.SaveGrantAsync(Excalibur.A3.Abstractions.Authorization.Grant! grant, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Data.DynamoDb.Caching.DaxCacheOptions
+Excalibur.Data.DynamoDb.Caching.DaxCacheOptions.CacheItemTtl.get -> System.TimeSpan
+Excalibur.Data.DynamoDb.Caching.DaxCacheOptions.CacheItemTtl.set -> void
+Excalibur.Data.DynamoDb.Caching.DaxCacheOptions.ClusterEndpoint.get -> string!
+Excalibur.Data.DynamoDb.Caching.DaxCacheOptions.ClusterEndpoint.set -> void
+Excalibur.Data.DynamoDb.Caching.DaxCacheOptions.ConnectionTimeout.get -> System.TimeSpan
+Excalibur.Data.DynamoDb.Caching.DaxCacheOptions.ConnectionTimeout.set -> void
+Excalibur.Data.DynamoDb.Caching.DaxCacheOptions.DaxCacheOptions() -> void
+Excalibur.Data.DynamoDb.Caching.DaxCacheOptions.ReadConsistency.get -> Excalibur.Data.DynamoDb.Caching.DaxReadConsistency
+Excalibur.Data.DynamoDb.Caching.DaxCacheOptions.ReadConsistency.set -> void
+Excalibur.Data.DynamoDb.Caching.DaxCacheOptions.RequestTimeout.get -> System.TimeSpan
+Excalibur.Data.DynamoDb.Caching.DaxCacheOptions.RequestTimeout.set -> void
+Excalibur.Data.DynamoDb.Caching.DaxReadConsistency
+Excalibur.Data.DynamoDb.Caching.DaxReadConsistency.Eventual = 0 -> Excalibur.Data.DynamoDb.Caching.DaxReadConsistency
+Excalibur.Data.DynamoDb.Caching.DaxReadConsistency.Strong = 1 -> Excalibur.Data.DynamoDb.Caching.DaxReadConsistency
+Excalibur.Data.DynamoDb.Caching.IDaxCacheProvider
+Excalibur.Data.DynamoDb.Caching.IDaxCacheProvider.GetItemAsync<T>(string! tableName, string! partitionKey, string? sortKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<T?>!
+Excalibur.Data.DynamoDb.Caching.IDaxCacheProvider.InvalidateAsync(string! tableName, string! partitionKey, string? sortKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.DynamoDb.Caching.IDaxCacheProvider.PutItemAsync<T>(string! tableName, string! partitionKey, string? sortKey, T! item, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.DynamoDb.Diagnostics.DataDynamoDbEventId
+Excalibur.Data.DynamoDb.DynamoDbAttributeValueConverter
+Excalibur.Data.DynamoDb.DynamoDbConnectionOptions
+Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.AccessKey.get -> string?
+Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.AccessKey.set -> void
+Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.DynamoDbConnectionOptions() -> void
+Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.MaxRetryAttempts.get -> int
+Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.MaxRetryAttempts.set -> void
+Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.ReadCapacityUnits.get -> int?
+Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.ReadCapacityUnits.set -> void
+Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.Region.get -> string?
+Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.Region.set -> void
+Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.SecretKey.get -> string?
+Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.SecretKey.set -> void
+Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.ServiceUrl.get -> string?
+Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.ServiceUrl.set -> void
+Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.TimeoutInSeconds.get -> int
+Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.TimeoutInSeconds.set -> void
+Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.WriteCapacityUnits.get -> int?
+Excalibur.Data.DynamoDb.DynamoDbConnectionOptions.WriteCapacityUnits.set -> void
+Excalibur.Data.DynamoDb.DynamoDbHealthCheck
+Excalibur.Data.DynamoDb.DynamoDbHealthCheck.CheckHealthAsync(Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult>!
+Excalibur.Data.DynamoDb.DynamoDbHealthCheck.DynamoDbHealthCheck(Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider! provider, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.DynamoDb.DynamoDbHealthCheck!>! logger) -> void
+Excalibur.Data.DynamoDb.DynamoDbOptions
+Excalibur.Data.DynamoDb.DynamoDbOptions.Connection.get -> Excalibur.Data.DynamoDb.DynamoDbConnectionOptions!
+Excalibur.Data.DynamoDb.DynamoDbOptions.Connection.set -> void
+Excalibur.Data.DynamoDb.DynamoDbOptions.DefaultPartitionKeyAttribute.get -> string!
+Excalibur.Data.DynamoDb.DynamoDbOptions.DefaultPartitionKeyAttribute.set -> void
+Excalibur.Data.DynamoDb.DynamoDbOptions.DefaultSortKeyAttribute.get -> string!
+Excalibur.Data.DynamoDb.DynamoDbOptions.DefaultSortKeyAttribute.set -> void
+Excalibur.Data.DynamoDb.DynamoDbOptions.DefaultTableName.get -> string?
+Excalibur.Data.DynamoDb.DynamoDbOptions.DefaultTableName.set -> void
+Excalibur.Data.DynamoDb.DynamoDbOptions.DynamoDbOptions() -> void
+Excalibur.Data.DynamoDb.DynamoDbOptions.EnableStreams.get -> bool
+Excalibur.Data.DynamoDb.DynamoDbOptions.EnableStreams.set -> void
+Excalibur.Data.DynamoDb.DynamoDbOptions.GetRegionEndpoint() -> Amazon.RegionEndpoint?
+Excalibur.Data.DynamoDb.DynamoDbOptions.Name.get -> string!
+Excalibur.Data.DynamoDb.DynamoDbOptions.Name.set -> void
+Excalibur.Data.DynamoDb.DynamoDbOptions.StreamViewType.get -> string!
+Excalibur.Data.DynamoDb.DynamoDbOptions.StreamViewType.set -> void
+Excalibur.Data.DynamoDb.DynamoDbOptions.UseConsistentReads.get -> bool
+Excalibur.Data.DynamoDb.DynamoDbOptions.UseConsistentReads.set -> void
+Excalibur.Data.DynamoDb.DynamoDbOptions.Validate() -> void
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.Client.get -> Amazon.DynamoDBv2.IAmazonDynamoDB?
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.CloudProvider.get -> Excalibur.Data.Abstractions.CloudNative.CloudProviderType
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.ConnectionString.get -> string!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.CreateAsync<TDocument>(TDocument! document, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudOperationResult<TDocument!>!>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.CreateChangeFeedSubscriptionAsync<TDocument>(string! containerName, Excalibur.Data.Abstractions.CloudNative.IChangeFeedOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.IChangeFeedSubscription<TDocument!>!>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.CreateTransactionScope(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted, System.TimeSpan? timeout = null) -> Excalibur.Data.Abstractions.Persistence.ITransactionScope!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.DeleteAsync(string! id, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, string? etag, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudOperationResult!>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.Dispose() -> void
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.DocumentStoreType.get -> string!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.DynamoDbPersistenceProvider(Amazon.DynamoDBv2.IAmazonDynamoDB! client, Microsoft.Extensions.Options.IOptions<Excalibur.Data.DynamoDb.DynamoDbOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider!>! logger) -> void
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.DynamoDbPersistenceProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Data.DynamoDb.DynamoDbOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider!>! logger) -> void
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.ExecuteAggregationAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, TResult>! aggregationRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.ExecuteAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.ExecuteBatchAsync(Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Collections.Generic.IEnumerable<Excalibur.Data.Abstractions.CloudNative.ICloudBatchOperation!>! operations, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudBatchResult!>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.ExecuteBulkDocumentAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, TResult>! bulkDocumentRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.ExecuteDocumentAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, TResult>! documentRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.ExecuteDocumentBatchAsync<TConnection>(System.Collections.Generic.IEnumerable<Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, object!>!>! documentRequests, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<object!>!>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.ExecuteDocumentInTransactionAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, TResult>! documentRequest, Excalibur.Data.Abstractions.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.ExecuteIndexOperationAsync<TConnection>(Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, string!>! indexRequest, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.ExecuteInTransactionAsync<TConnection, TResult>(Excalibur.Data.Abstractions.IDataRequest<TConnection, TResult>! request, Excalibur.Data.Abstractions.Persistence.ITransactionScope! transactionScope, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.GetByIdAsync<TDocument>(string! id, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, Excalibur.Data.Abstractions.CloudNative.IConsistencyOptions? consistencyOptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TDocument?>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.GetCollectionInfoAsync(string! collectionName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.GetConnectionPoolStatsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>?>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.GetDocumentStoreStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.GetMetricsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IDictionary<string!, object!>!>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.GetService(System.Type! serviceType) -> object?
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.GetSupportedOperationTypes() -> System.Collections.Generic.IEnumerable<string!>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.InitializeAsync(Excalibur.Data.Abstractions.Persistence.IPersistenceOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.InitializeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.IsAvailable.get -> bool
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.Name.get -> string!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.ProviderType.get -> string!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.QueryAsync<TDocument>(string! queryText, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.Collections.Generic.IDictionary<string!, object!>? parameters, Excalibur.Data.Abstractions.CloudNative.IConsistencyOptions? consistencyOptions, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudQueryResult<TDocument!>!>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.RetryPolicy.get -> Excalibur.Data.Abstractions.Resilience.IDataRequestRetryPolicy!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.SupportsChangeFeed.get -> bool
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.SupportsMultiRegionWrites.get -> bool
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.TestConnectionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.UpdateAsync<TDocument>(TDocument! document, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, string? etag, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Data.Abstractions.CloudNative.CloudOperationResult<TDocument!>!>!
+Excalibur.Data.DynamoDb.DynamoDbPersistenceProvider.ValidateDocumentRequest<TConnection, TResult>(Excalibur.Data.Abstractions.IDocumentDataRequest<TConnection, TResult>! documentRequest) -> bool
+Excalibur.Data.DynamoDb.DynamoDbStreamEvent<TDocument>
+Excalibur.Data.DynamoDb.DynamoDbStreamEvent<TDocument>.ContinuationToken.get -> string!
+Excalibur.Data.DynamoDb.DynamoDbStreamEvent<TDocument>.Document.get -> TDocument?
+Excalibur.Data.DynamoDb.DynamoDbStreamEvent<TDocument>.DocumentId.get -> string!
+Excalibur.Data.DynamoDb.DynamoDbStreamEvent<TDocument>.DynamoDbStreamEvent(Excalibur.Data.Abstractions.CloudNative.ChangeFeedEventType eventType, TDocument? document, string! documentId, Excalibur.Data.Abstractions.CloudNative.IPartitionKey! partitionKey, System.DateTimeOffset timestamp, string! continuationToken, long sequenceNumber) -> void
+Excalibur.Data.DynamoDb.DynamoDbStreamEvent<TDocument>.EventType.get -> Excalibur.Data.Abstractions.CloudNative.ChangeFeedEventType
+Excalibur.Data.DynamoDb.DynamoDbStreamEvent<TDocument>.PartitionKey.get -> Excalibur.Data.Abstractions.CloudNative.IPartitionKey!
+Excalibur.Data.DynamoDb.DynamoDbStreamEvent<TDocument>.SequenceNumber.get -> long
+Excalibur.Data.DynamoDb.DynamoDbStreamEvent<TDocument>.Timestamp.get -> System.DateTimeOffset
+Excalibur.Data.DynamoDb.DynamoDbStreamsSubscription<TDocument>
+Excalibur.Data.DynamoDb.DynamoDbStreamsSubscription<TDocument>.CurrentContinuationToken.get -> string?
+Excalibur.Data.DynamoDb.DynamoDbStreamsSubscription<TDocument>.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.DynamoDb.DynamoDbStreamsSubscription<TDocument>.DynamoDbStreamsSubscription(Amazon.DynamoDBv2.IAmazonDynamoDB! client, Amazon.DynamoDBStreams.IAmazonDynamoDBStreams! streamsClient, string! tableName, Excalibur.Data.Abstractions.CloudNative.IChangeFeedOptions! options, Microsoft.Extensions.Logging.ILogger! logger) -> void
+Excalibur.Data.DynamoDb.DynamoDbStreamsSubscription<TDocument>.IsActive.get -> bool
+Excalibur.Data.DynamoDb.DynamoDbStreamsSubscription<TDocument>.ReadChangesAsync(System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.Data.Abstractions.CloudNative.IChangeFeedEvent<TDocument!>!>!
+Excalibur.Data.DynamoDb.DynamoDbStreamsSubscription<TDocument>.StartAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.DynamoDb.DynamoDbStreamsSubscription<TDocument>.StopAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Data.DynamoDb.DynamoDbStreamsSubscription<TDocument>.SubscriptionId.get -> string!
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore.DeleteSnapshotsAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore.DeleteSnapshotsOlderThanAsync(string! aggregateId, string! aggregateType, long olderThanVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore.Dispose() -> void
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore.DynamoDbSnapshotStore(Amazon.DynamoDBv2.IAmazonDynamoDB! client, Microsoft.Extensions.Options.IOptions<Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore!>! logger) -> void
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore.DynamoDbSnapshotStore(Microsoft.Extensions.Options.IOptions<Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore!>! logger) -> void
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore.GetLatestSnapshotAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.Domain.Model.ISnapshot?>
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore.InitializeAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStore.SaveSnapshotAsync(Excalibur.Domain.Model.ISnapshot! snapshot, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.Connection.get -> Excalibur.Data.DynamoDb.DynamoDbConnectionOptions!
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.Connection.set -> void
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.CreateTableIfNotExists.get -> bool
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.CreateTableIfNotExists.set -> void
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.DefaultTtlSeconds.get -> int
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.DefaultTtlSeconds.set -> void
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.DynamoDbSnapshotStoreOptions() -> void
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.GetRegionEndpoint() -> Amazon.RegionEndpoint?
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.MaxRetryAttempts.get -> int
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.MaxRetryAttempts.set -> void
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.TableName.get -> string!
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.TableName.set -> void
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.TimeoutInSeconds.get -> int
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.TimeoutInSeconds.set -> void
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.TtlAttributeName.get -> string!
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.TtlAttributeName.set -> void
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.UseConsistentReads.get -> bool
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.UseConsistentReads.set -> void
+Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions.Validate() -> void
+Microsoft.Extensions.DependencyInjection.A3BuilderDynamoDbExtensions
+Microsoft.Extensions.DependencyInjection.DaxCacheServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.DynamoDbAuthorizationExtensions
+Microsoft.Extensions.DependencyInjection.DynamoDbServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.DynamoDbSnapshotStoreExtensions
+static Excalibur.Data.DynamoDb.DynamoDbAttributeValueConverter.ToAttributeValueMap(System.Collections.Generic.Dictionary<string!, Amazon.DynamoDBStreams.Model.AttributeValue!>? streamValues) -> System.Collections.Generic.Dictionary<string!, Amazon.DynamoDBv2.Model.AttributeValue!>?
+static Microsoft.Extensions.DependencyInjection.A3BuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.A3.IA3Builder! builder, System.Action<Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions!>! configure) -> Excalibur.A3.IA3Builder!
+static Microsoft.Extensions.DependencyInjection.DaxCacheServiceCollectionExtensions.AddDynamoDbDaxCaching(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.DynamoDb.Caching.DaxCacheOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DynamoDbAuthorizationExtensions.AddDynamoDbActivityGroupGrantStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DynamoDbAuthorizationExtensions.AddDynamoDbAuthorization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! serviceUrl, string! grantsTableName = "authorization_grants", string! activityGroupsTableName = "authorization_activity_groups") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DynamoDbAuthorizationExtensions.AddDynamoDbAuthorization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DynamoDbAuthorizationExtensions.AddDynamoDbGrantStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.DynamoDb.Authorization.DynamoDbAuthorizationOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DynamoDbServiceCollectionExtensions.AddDynamoDb(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DynamoDbServiceCollectionExtensions.AddDynamoDb(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! sectionName) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DynamoDbServiceCollectionExtensions.AddDynamoDb(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.DynamoDb.DynamoDbOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DynamoDbServiceCollectionExtensions.AddDynamoDbWithClient(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.DynamoDb.DynamoDbOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DynamoDbSnapshotStoreExtensions.AddDynamoDbSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DynamoDbSnapshotStoreExtensions.AddDynamoDbSnapshotStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Data.DynamoDb.Snapshots.DynamoDbSnapshotStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

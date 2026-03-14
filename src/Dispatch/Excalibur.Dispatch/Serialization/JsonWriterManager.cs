@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Serialization;
 /// <summary>
 /// Manages pooled JSON writers for message serialization with integrated buffer management.
 /// </summary>
-public sealed class JsonWriterManager
+internal sealed class JsonWriterManager
 {
 	private readonly JsonWriterOptions _defaultOptions;
 

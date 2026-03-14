@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Factory for creating streaming pull managers.
 /// </summary>
-public interface IStreamingPullManagerFactory
+internal interface IStreamingPullManagerFactory
 {
 	/// <summary>
 	/// Creates a new streaming pull manager.

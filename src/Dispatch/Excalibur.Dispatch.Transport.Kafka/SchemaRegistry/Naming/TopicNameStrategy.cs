@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// Example: For topic "orders", value subject is "orders-value".
 /// </para>
 /// </remarks>
-public sealed class TopicNameStrategy : ISubjectNameStrategy
+internal sealed class TopicNameStrategy : ISubjectNameStrategy
 {
 	/// <inheritdoc/>
 	public string GetValueSubject(string topic, Type messageType)

@@ -27,7 +27,7 @@ namespace Excalibur.Dispatch.Buffers;
 /// </code>
 /// </para>
 /// </remarks>
-public readonly struct RentedBuffer : IDisposable, IEquatable<RentedBuffer>
+internal readonly struct RentedBuffer : IDisposable, IEquatable<RentedBuffer>
 {
 	private readonly ArrayPool<byte>? _arrayPool;
 	private readonly Pooling.MessageBufferPool? _messageBufferPool;

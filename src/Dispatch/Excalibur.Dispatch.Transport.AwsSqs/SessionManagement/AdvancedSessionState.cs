@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Represents advanced session state information.
 /// </summary>
-public sealed class AdvancedSessionState
+internal sealed class AdvancedSessionState
 {
 	/// <summary>
 	/// Gets or sets the session identifier.

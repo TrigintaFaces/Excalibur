@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Transport.Decorators;
 /// Records <c>dispatch.transport.messages.sent</c>, <c>dispatch.transport.messages.send_failed</c>,
 /// <c>dispatch.transport.send.duration</c>, and <c>dispatch.transport.batch.size</c>.
 /// </summary>
-public sealed class TelemetryTransportSender : DelegatingTransportSender
+internal sealed class TelemetryTransportSender : DelegatingTransportSender
 {
 	private readonly Counter<long> _sentCounter;
 	private readonly Counter<long> _failedCounter;

@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Comprehensive telemetry provider for Google Cloud Pub/Sub operations. Handles metrics, distributed tracing, and Cloud Monitoring integration.
 /// </summary>
-public sealed class PubSubTelemetryEnhanced : IDisposable
+internal sealed class PubSubTelemetryEnhanced : IDisposable
 {
 	/// <summary>
 	/// Trace context propagation.

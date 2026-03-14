@@ -24,7 +24,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 ///   <item><description><c>type</c> value is a valid JSON Schema type</description></item>
 /// </list>
 /// </remarks>
-public sealed class JsonSchemaValidator : ISchemaValidator
+internal sealed class JsonSchemaValidator : ISchemaValidator
 {
 	private static readonly HashSet<string> ValidTypes = new(StringComparer.OrdinalIgnoreCase)
 	{

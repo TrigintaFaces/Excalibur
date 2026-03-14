@@ -1,1 +1,12 @@
 #nullable enable
+Excalibur.Jobs.Redis.Coordination.RedisJobCoordinator
+Excalibur.Jobs.Redis.Coordination.RedisJobCoordinator.DistributeJobAsync(string! jobKey, object! jobData, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string?>!
+Excalibur.Jobs.Redis.Coordination.RedisJobCoordinator.GetActiveInstancesAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<Excalibur.Jobs.Abstractions.Coordination.JobInstanceInfo!>!>!
+Excalibur.Jobs.Redis.Coordination.RedisJobCoordinator.RedisJobCoordinator(StackExchange.Redis.IDatabase! database, Microsoft.Extensions.Logging.ILogger<Excalibur.Jobs.Redis.Coordination.RedisJobCoordinator!>! logger, string! keyPrefix = "excalibur:jobs:") -> void
+Excalibur.Jobs.Redis.Coordination.RedisJobCoordinator.RegisterInstanceAsync(string! instanceId, Excalibur.Jobs.Abstractions.Coordination.JobInstanceInfo! instanceInfo, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.Redis.Coordination.RedisJobCoordinator.ReportJobCompletionAsync(string! jobKey, string! instanceId, bool success, object? result, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Jobs.Redis.Coordination.RedisJobCoordinator.TryAcquireLockAsync(string! jobKey, System.TimeSpan lockDuration, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Jobs.Abstractions.Coordination.IDistributedJobLock?>!
+Excalibur.Jobs.Redis.Coordination.RedisJobCoordinator.UnregisterInstanceAsync(string! instanceId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Microsoft.Extensions.DependencyInjection.CoordinationServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.CoordinationServiceCollectionExtensions.AddJobCoordinationRedis(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, StackExchange.Redis.IConnectionMultiplexer! connectionMultiplexer, string! keyPrefix = "excalibur:jobs:") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.CoordinationServiceCollectionExtensions.AddJobCoordinationRedis(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, string! keyPrefix = "excalibur:jobs:") -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Caching;
 /// <summary>
 /// High-performance cache for UTF-8 string encoding/decoding operations. Implements PROF-003 optimization: String encoding cache (5-8% CPU improvement).
 /// </summary>
-public sealed class Utf8StringCache : IDisposable
+internal sealed class Utf8StringCache : IDisposable
 {
 	/// <summary>
 	/// Shared Meter for Utf8StringCache telemetry.

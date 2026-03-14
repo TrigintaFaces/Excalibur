@@ -31,7 +31,7 @@ namespace Excalibur.Dispatch.Routing.Policies;
 /// </remarks>
 /// <param name="options">The routing policy options.</param>
 /// <param name="logger">The logger for diagnostic output.</param>
-public sealed partial class RoutingPolicyFileLoader(
+internal sealed partial class RoutingPolicyFileLoader(
 	IOptions<RoutingPolicyOptions> options,
 	ILogger<RoutingPolicyFileLoader> logger) : IDisposable
 {

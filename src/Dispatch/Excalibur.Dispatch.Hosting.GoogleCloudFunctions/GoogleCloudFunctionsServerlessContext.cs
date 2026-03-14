@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Hosting.GoogleCloud;
 /// <summary>
 /// Google Cloud Functions specific implementation of serverless context.
 /// </summary>
-public class GoogleCloudFunctionsServerlessContext : ServerlessContextBase
+internal class GoogleCloudFunctionsServerlessContext : ServerlessContextBase
 {
 #if GOOGLE_CLOUD_FUNCTIONS_SUPPORT
     private readonly HttpContext? _typedHttpContext;

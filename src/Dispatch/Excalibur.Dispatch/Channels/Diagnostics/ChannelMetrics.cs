@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Channels.Diagnostics;
 /// <summary>
 /// Channel performance metrics.
 /// </summary>
-public sealed class ChannelMetrics
+internal sealed class ChannelMetrics
 {
 	/// <summary>
 	/// Gets the throughput of the channel in messages per second.

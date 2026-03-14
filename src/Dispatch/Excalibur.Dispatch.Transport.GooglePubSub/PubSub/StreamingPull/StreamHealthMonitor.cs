@@ -31,7 +31,7 @@ public sealed class UnhealthyStreamEventArgs(string streamId) : EventArgs
 /// <summary>
 /// Monitors the health of streaming pull connections and manages reconnection.
 /// </summary>
-public sealed partial class StreamHealthMonitor : IDisposable
+internal sealed partial class StreamHealthMonitor : IDisposable
 {
 	private readonly ILogger<StreamHealthMonitor> _logger;
 	private readonly StreamingPullOptions _options;

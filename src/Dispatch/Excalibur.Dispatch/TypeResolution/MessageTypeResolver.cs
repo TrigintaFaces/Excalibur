@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.TypeResolution;
 /// <summary>
 /// Type resolver implementation that uses the MessageTypeRegistry.
 /// </summary>
-public sealed class MessageTypeResolver : ITypeResolver
+internal sealed class MessageTypeResolver : ITypeResolver
 {
 	/// <summary>
 	/// Initializes static members of the <see cref="MessageTypeResolver"/> class.

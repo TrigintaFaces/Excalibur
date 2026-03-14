@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Transport.Decorators;
 /// Uses an <see cref="ICloudEventMapper{TransportReceivedMessage}"/> to detect CloudEvents mode and extract
 /// the original message payload. Non-CloudEvents messages pass through unchanged.
 /// </remarks>
-public sealed class CloudEventsTransportReceiver : DelegatingTransportReceiver
+internal sealed class CloudEventsTransportReceiver : DelegatingTransportReceiver
 {
 	private readonly ICloudEventMapper<TransportReceivedMessage> _mapper;
 	private readonly Func<TransportReceivedMessage, TransportReceivedMessage>? _unwrapper;

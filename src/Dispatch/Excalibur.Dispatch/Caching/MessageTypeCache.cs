@@ -15,7 +15,7 @@ namespace Excalibur.Dispatch.Caching;
 /// High-performance cache for message type metadata that eliminates runtime reflection and string allocations in hot paths. Uses frozen
 /// collections for maximum lookup performance.
 /// </summary>
-public static class MessageTypeCache
+internal static class MessageTypeCache
 {
 #if NET9_0_OR_GREATER
 

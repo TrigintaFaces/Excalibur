@@ -38,7 +38,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// See the pluggable serialization architecture documentation.
 /// </para>
 /// </remarks>
-public sealed partial class RabbitMqMessageBus(
+internal sealed partial class RabbitMqMessageBus(
 	IChannel channel,
 	IPayloadSerializer serializer,
 	RabbitMqOptions options,

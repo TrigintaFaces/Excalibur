@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// <summary>
 /// Represents queue configuration.
 /// </summary>
-public sealed record QueueConfiguration(
+internal sealed record QueueConfiguration(
 	string Name,
 	bool Durable,
 	bool Exclusive,

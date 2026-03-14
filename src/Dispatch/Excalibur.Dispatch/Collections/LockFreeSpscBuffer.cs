@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Collections;
 /// Lock-free single producer single consumer buffer implementation.
 /// </summary>
 /// <typeparam name="T"> The type of elements in the buffer. </typeparam>
-public sealed class LockFreeSpscBuffer<T>
+internal sealed class LockFreeSpscBuffer<T>
 {
 	private readonly T[] _buffer;
 	private readonly int _mask;

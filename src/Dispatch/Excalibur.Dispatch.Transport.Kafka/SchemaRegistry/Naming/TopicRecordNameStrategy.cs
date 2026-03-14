@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// subject is "orders-MyApp.Events.OrderCreated".
 /// </para>
 /// </remarks>
-public sealed class TopicRecordNameStrategy : ISubjectNameStrategy
+internal sealed class TopicRecordNameStrategy : ISubjectNameStrategy
 {
 	/// <inheritdoc/>
 	public string GetValueSubject(string topic, Type messageType)

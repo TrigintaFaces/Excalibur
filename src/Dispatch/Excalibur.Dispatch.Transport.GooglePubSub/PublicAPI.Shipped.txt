@@ -1,1 +1,1685 @@
 #nullable enable
+abstract Excalibur.Dispatch.Transport.Google.PoisonDetectionRuleBase.GetConfidence(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception! exception, Excalibur.Dispatch.Transport.Google.MessageFailureHistory! history) -> double
+abstract Excalibur.Dispatch.Transport.Google.PoisonDetectionRuleBase.GetReason(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception! exception, Excalibur.Dispatch.Transport.Google.MessageFailureHistory! history) -> string!
+abstract Excalibur.Dispatch.Transport.Google.PoisonDetectionRuleBase.IsPoison(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception! exception, Excalibur.Dispatch.Transport.Google.MessageFailureHistory! history) -> bool
+const Excalibur.Dispatch.Transport.Google.GooglePubSubTelemetry.ActivitySourceName = "Excalibur.Dispatch.Transport.GooglePubSub" -> string!
+const Excalibur.Dispatch.Transport.Google.GooglePubSubTelemetry.Tags.BatchSize = "messaging.batch.message_count" -> string!
+const Excalibur.Dispatch.Transport.Google.GooglePubSubTelemetry.Tags.ErrorType = "error.type" -> string!
+const Excalibur.Dispatch.Transport.Google.GooglePubSubTelemetry.Tags.MessageId = "messaging.message_id" -> string!
+const Excalibur.Dispatch.Transport.Google.GooglePubSubTelemetry.Tags.OrderingKey = "messaging.ordering_key" -> string!
+const Excalibur.Dispatch.Transport.Google.GooglePubSubTelemetry.Tags.ProjectId = "gcp.project_id" -> string!
+const Excalibur.Dispatch.Transport.Google.GooglePubSubTelemetry.Tags.Subscription = "messaging.destination" -> string!
+const Excalibur.Dispatch.Transport.Google.GooglePubSubTelemetry.Tags.Topic = "messaging.destination_kind" -> string!
+const Excalibur.Dispatch.Transport.Google.GooglePubSubTelemetry.Tags.WorkerId = "messaging.worker_id" -> string!
+const Excalibur.Dispatch.Transport.Google.GooglePubSubTelemetry.TelemetryMetrics.ActiveWorkers = "pubsub.worker.active_count" -> string!
+const Excalibur.Dispatch.Transport.Google.GooglePubSubTelemetry.TelemetryMetrics.MessagesEnqueued = "pubsub.messages.enqueued" -> string!
+const Excalibur.Dispatch.Transport.Google.GooglePubSubTelemetry.TelemetryMetrics.MessagesFailed = "pubsub.messages.failed" -> string!
+const Excalibur.Dispatch.Transport.Google.GooglePubSubTelemetry.TelemetryMetrics.MessagesProcessed = "pubsub.messages.processed" -> string!
+const Excalibur.Dispatch.Transport.Google.GooglePubSubTelemetry.TelemetryMetrics.ProcessingTime = "pubsub.message.processing_time" -> string!
+const Excalibur.Dispatch.Transport.Google.GooglePubSubTelemetry.TelemetryMetrics.QueueTime = "pubsub.message.queue_time" -> string!
+const Excalibur.Dispatch.Transport.Google.GooglePubSubTelemetry.TelemetryMetrics.WorkerUtilization = "pubsub.worker.utilization" -> string!
+const Excalibur.Dispatch.Transport.Google.GooglePubSubTelemetry.Version = "1.0.0" -> string!
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.AckDeadlineExtended = 23120 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.AckDeadlineExtensionFailed = 23121 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.AcknowledgmentError = 23114 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.AdaptiveBatchingApplied = 23402 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.AdaptiveBatchResult = 23422 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.AdaptiveBatchSizeAdjusted = 23424 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.AdaptiveFlowControlLimit = 23420 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.AdaptiveMemoryPressure = 23421 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.AdaptiveStrategyReset = 23423 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.BatchAckDeadlineModified = 23413 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.BatchAcknowledged = 23411 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.BatchAcknowledgmentsFailed = 23412 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.BatchProduced = 23111 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.BatchReceiveCompleted = 23401 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.BatchReceiveStarted = 23400 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.BatchSizeAdjusted = 23403 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.ChannelReceiverStarting = 23100 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.ChannelReceiverStopping = 23101 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.CircuitBreakerOpened = 23724 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.CircuitBreakerReset = 23725 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.ConnectionError = 23803 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.ConsumptionStarted = 23110 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeadLetterMessageReprocessed = 23719 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeadLetterMessagesReprocessed = 23717 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeadLetterMessagesRetrieved = 23715 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeadLetterMetadataDeserializeFailed = 23718 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeadLetterParseFailed = 23714 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeadLetterPolicyConfigured = 23710 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeadLetterProcessed = 23701 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeadLetterPublishError = 23115 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeadLetterQueuePurged = 23704 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeadLetterReprocessFailed = 23716 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeadLetterSubscriptionNotFound = 23711 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DeserializationError = 23802 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.DestinationValidationFailed = 23821 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.ExceptionCausedDeadLettering = 23713 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.FlowControlApplied = 23500 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.FlowControlledSubscriberCreated = 23510 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.FlowControlPreventedReceive = 23410 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.FlowControlReleased = 23501 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.HealthCheckError = 23217 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.HealthCheckFailed = 23820 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.HighAckFailureRate = 23215 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.HighErrorRate = 23214 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.MaxDeliveryAttemptsReached = 23703 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.MessageAcknowledged = 23103 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.MessageBrokerDisposed = 23031 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.MessageBrokerDisposing = 23030 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.MessageBusInitializing = 23000 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.MessageBusStarting = 23001 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.MessageBusStopping = 23002 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.MessageConversionError = 23112 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.MessageMovedToDeadLetter = 23712 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.MessageNacked = 23104 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.MessagePublished = 23012 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.MessageReceived = 23102 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.MessagesAcknowledged = 23113 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.MovedToDeadLetter = 23700 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingEnabled = 23302 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingKeyAssigned = 23300 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingKeyCleanupCompleted = 23324 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingKeyFailed = 23322 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingKeyProcessed = 23301 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingKeyReset = 23323 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingManagerInitialized = 23320 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingMessageProcessingError = 23316 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingProcessorShutdown = 23311 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingProcessorShutdownTimeout = 23312 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingProcessorStarted = 23310 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingQueueRemoved = 23318 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingWorkerError = 23315 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingWorkerStarted = 23313 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OrderingWorkerStopped = 23314 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OutOfOrderDetected = 23303 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OutOfSequenceMessage = 23321 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.OutstandingMessagesLimit = 23503 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.ParallelMessageProcessingError = 23616 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.ParallelOrderingKeyAssigned = 23617 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.ParallelProcessingCompleted = 23601 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.ParallelProcessingStarted = 23600 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.ParallelProcessorShutdown = 23611 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.ParallelProcessorShutdownTimeout = 23612 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.ParallelProcessorStarted = 23610 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.ParallelWorkerError = 23615 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.ParallelWorkerStarted = 23613 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.ParallelWorkerStopped = 23614 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.PublishedEvent = 23021 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.PublisherBatchPublishFailed = 23831 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.PublisherChannelError = 23832 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.PublisherCreated = 23003 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.PublisherError = 23800 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.PublisherPublishFailed = 23830 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.RetryAdaptedHighSuccessRate = 23722 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.RetryAdaptedLowSuccessRate = 23721 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.RetryAttemptLogged = 23720 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.RetryPolicyApplied = 23702 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.RetryWarning = 23723 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SentAction = 23020 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SentDocument = 23022 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.StreamConnected = 23211 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.StreamDisconnected = 23212 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.StreamError = 23210 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.StreamHealthCheck = 23202 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.StreamHealthDegraded = 23203 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.StreamIdle = 23213 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.StreamingPullConnectionStarted = 23122 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.StreamingPullReconnecting = 23123 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.StreamingPullStarted = 23200 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.StreamingPullStopped = 23201 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.StreamReconnecting = 23204 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SubscriberAcknowledgeBatchFailed = 23812 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SubscriberAcknowledgeFailed = 23811 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SubscriberChannelReaderError = 23817 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SubscriberConsumeLoopError = 23815 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SubscriberCreated = 23004 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SubscriberDisposed = 23818 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SubscriberError = 23801 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SubscriberEventSourceSubscribed = 23814 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SubscriberFactoryCreated = 23502 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SubscriberMessageProcessingError = 23511 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SubscriberModifyVisibilityFailed = 23813 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SubscriberNotFound = 23816 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SubscriberReceiveFailed = 23810 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.SubscriptionCreated = 23011 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TaskCleanupCancelled = 23221 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TaskCleanupDisposed = 23222 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TaskCleanupFailed = 23220 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TopicCreated = 23010 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportAdapterMessageProcessingFailed = 23054 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportAdapterReceivingMessage = 23052 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportAdapterSendFailed = 23055 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportAdapterSendingMessage = 23053 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportAdapterStarting = 23050 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportAdapterStopping = 23051 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportReceiverAcknowledgeError = 23913 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportReceiverDisposed = 23917 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportReceiverMessageAcknowledged = 23912 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportReceiverMessageReceived = 23910 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportReceiverMessageRejected = 23914 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportReceiverMessageRejectedRequeue = 23915 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportReceiverReceiveError = 23911 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportReceiverRejectError = 23916 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportSenderBatchSendFailed = 23903 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportSenderBatchSent = 23902 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportSenderDisposed = 23904 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportSenderMessageSent = 23900 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportSenderSendFailed = 23901 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportSubscriberDisposed = 23927 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportSubscriberError = 23925 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportSubscriberMessageAcknowledged = 23922 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportSubscriberMessageReceived = 23921 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportSubscriberMessageRejected = 23923 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportSubscriberMessageRequeued = 23924 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportSubscriberStarted = 23920 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.TransportSubscriberStopped = 23926 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.UnhealthyStreamsFound = 23216 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.UnorderedMessageError = 23317 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.WorkerThreadStarted = 23602 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId.WorkerThreadStopped = 23603 -> int
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubTelemetryConstants.ActivitySourceName = "Excalibur.Dispatch.Transport.GooglePubSub" -> string!
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubTelemetryConstants.MeterName = "Excalibur.Dispatch.Transport.GooglePubSub" -> string!
+const Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubTelemetryConstants.Version = "1.0.0" -> string!
+const Microsoft.Extensions.DependencyInjection.GooglePubSubTransportServiceCollectionExtensions.DefaultTransportName = "google-pubsub" -> string!
+Excalibur.Dispatch.Transport.Google.AckDeadlineExtensionEventArgs
+Excalibur.Dispatch.Transport.Google.AckDeadlineExtensionEventArgs.AckDeadlineExtensionEventArgs(string! ackId, int extensionSeconds) -> void
+Excalibur.Dispatch.Transport.Google.AckDeadlineExtensionEventArgs.AckId.get -> string!
+Excalibur.Dispatch.Transport.Google.AckDeadlineExtensionEventArgs.ExtensionSeconds.get -> int
+Excalibur.Dispatch.Transport.Google.AckError
+Excalibur.Dispatch.Transport.Google.AckError.AckError(string! AckId, string! Message, System.Exception? Exception = null) -> void
+Excalibur.Dispatch.Transport.Google.AckError.AckId.get -> string!
+Excalibur.Dispatch.Transport.Google.AckError.AckId.init -> void
+Excalibur.Dispatch.Transport.Google.AckError.Exception.get -> System.Exception?
+Excalibur.Dispatch.Transport.Google.AckError.Exception.init -> void
+Excalibur.Dispatch.Transport.Google.AckError.Message.get -> string!
+Excalibur.Dispatch.Transport.Google.AckError.Message.init -> void
+Excalibur.Dispatch.Transport.Google.AcknowledgmentBatcherOptions
+Excalibur.Dispatch.Transport.Google.AcknowledgmentBatcherOptions.AcknowledgmentBatcherOptions() -> void
+Excalibur.Dispatch.Transport.Google.AcknowledgmentBatcherOptions.BatchSize.get -> int
+Excalibur.Dispatch.Transport.Google.AcknowledgmentBatcherOptions.BatchSize.set -> void
+Excalibur.Dispatch.Transport.Google.AcknowledgmentBatcherOptions.DeadlineWarningThreshold.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.AcknowledgmentBatcherOptions.DeadlineWarningThreshold.set -> void
+Excalibur.Dispatch.Transport.Google.AcknowledgmentBatcherOptions.FlushInterval.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.AcknowledgmentBatcherOptions.FlushInterval.set -> void
+Excalibur.Dispatch.Transport.Google.AcknowledgmentMetrics
+Excalibur.Dispatch.Transport.Google.AcknowledgmentMetrics.AcknowledgmentMetrics() -> void
+Excalibur.Dispatch.Transport.Google.AcknowledgmentMetrics.AverageBatchTime.get -> double
+Excalibur.Dispatch.Transport.Google.AcknowledgmentMetrics.TotalAcknowledged.get -> long
+Excalibur.Dispatch.Transport.Google.AcknowledgmentMetrics.TotalBatches.get -> long
+Excalibur.Dispatch.Transport.Google.AcknowledgmentMetrics.TotalDeadlineWarnings.get -> long
+Excalibur.Dispatch.Transport.Google.AcknowledgmentMetrics.TotalErrors.get -> long
+Excalibur.Dispatch.Transport.Google.AcknowledgmentMetrics.TotalQueued.get -> long
+Excalibur.Dispatch.Transport.Google.AdaptiveBatchingStrategy
+Excalibur.Dispatch.Transport.Google.AdaptiveBatchingStrategy.AdaptiveBatchingStrategy(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Transport.Google.BatchConfiguration!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Transport.Google.AdaptiveBatchingStrategy!>! logger) -> void
+Excalibur.Dispatch.Transport.Google.AdaptiveBatchingStrategy.DetermineNextBatchSize(Excalibur.Dispatch.Transport.Google.BatchingContext! context) -> int
+Excalibur.Dispatch.Transport.Google.AdaptiveBatchingStrategy.GetStatistics() -> Excalibur.Dispatch.Transport.Google.AdaptiveStrategyStatistics!
+Excalibur.Dispatch.Transport.Google.AdaptiveBatchingStrategy.RecordBatchResult(Excalibur.Dispatch.Transport.Google.BatchResult! result) -> void
+Excalibur.Dispatch.Transport.Google.AdaptiveBatchingStrategy.Reset() -> void
+Excalibur.Dispatch.Transport.Google.AdaptiveStrategyStatistics
+Excalibur.Dispatch.Transport.Google.AdaptiveStrategyStatistics.AdaptiveStrategyStatistics() -> void
+Excalibur.Dispatch.Transport.Google.AdaptiveStrategyStatistics.Aggressiveness.get -> double
+Excalibur.Dispatch.Transport.Google.AdaptiveStrategyStatistics.Aggressiveness.set -> void
+Excalibur.Dispatch.Transport.Google.AdaptiveStrategyStatistics.AverageProcessingTime.get -> double
+Excalibur.Dispatch.Transport.Google.AdaptiveStrategyStatistics.AverageProcessingTime.set -> void
+Excalibur.Dispatch.Transport.Google.AdaptiveStrategyStatistics.AverageThroughput.get -> double
+Excalibur.Dispatch.Transport.Google.AdaptiveStrategyStatistics.AverageThroughput.set -> void
+Excalibur.Dispatch.Transport.Google.AdaptiveStrategyStatistics.CurrentBatchSize.get -> int
+Excalibur.Dispatch.Transport.Google.AdaptiveStrategyStatistics.CurrentBatchSize.set -> void
+Excalibur.Dispatch.Transport.Google.AdaptiveStrategyStatistics.RecentResults.get -> System.Collections.Generic.List<Excalibur.Dispatch.Transport.Google.BatchResult!>!
+Excalibur.Dispatch.Transport.Google.AdaptiveStrategyStatistics.RecentResults.set -> void
+Excalibur.Dispatch.Transport.Google.AdaptiveStrategyStatistics.StableIterations.get -> int
+Excalibur.Dispatch.Transport.Google.AdaptiveStrategyStatistics.StableIterations.set -> void
+Excalibur.Dispatch.Transport.Google.BackoffOptions
+Excalibur.Dispatch.Transport.Google.BackoffOptions.BackoffOptions() -> void
+Excalibur.Dispatch.Transport.Google.BackoffOptions.InitialDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.BackoffOptions.InitialDelay.set -> void
+Excalibur.Dispatch.Transport.Google.BackoffOptions.MaxAttempts.get -> int
+Excalibur.Dispatch.Transport.Google.BackoffOptions.MaxAttempts.set -> void
+Excalibur.Dispatch.Transport.Google.BackoffOptions.MaxDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.BackoffOptions.MaxDelay.set -> void
+Excalibur.Dispatch.Transport.Google.BackoffOptions.Multiplier.get -> double
+Excalibur.Dispatch.Transport.Google.BackoffOptions.Multiplier.set -> void
+Excalibur.Dispatch.Transport.Google.BackoffType
+Excalibur.Dispatch.Transport.Google.BackoffType.Constant = 0 -> Excalibur.Dispatch.Transport.Google.BackoffType
+Excalibur.Dispatch.Transport.Google.BackoffType.DecorrelatedJitter = 3 -> Excalibur.Dispatch.Transport.Google.BackoffType
+Excalibur.Dispatch.Transport.Google.BackoffType.Exponential = 2 -> Excalibur.Dispatch.Transport.Google.BackoffType
+Excalibur.Dispatch.Transport.Google.BackoffType.Linear = 1 -> Excalibur.Dispatch.Transport.Google.BackoffType
+Excalibur.Dispatch.Transport.Google.BatchAckStrategy
+Excalibur.Dispatch.Transport.Google.BatchAckStrategy.BatchComplete = 1 -> Excalibur.Dispatch.Transport.Google.BatchAckStrategy
+Excalibur.Dispatch.Transport.Google.BatchAckStrategy.Individual = 2 -> Excalibur.Dispatch.Transport.Google.BatchAckStrategy
+Excalibur.Dispatch.Transport.Google.BatchAckStrategy.Manual = 3 -> Excalibur.Dispatch.Transport.Google.BatchAckStrategy
+Excalibur.Dispatch.Transport.Google.BatchAckStrategy.OnSuccess = 0 -> Excalibur.Dispatch.Transport.Google.BatchAckStrategy
+Excalibur.Dispatch.Transport.Google.BatchConfiguration
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.AckDeadlineSeconds.get -> int
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.AckDeadlineSeconds.set -> void
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.AckStrategy.get -> Excalibur.Dispatch.Transport.Google.BatchAckStrategy
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.AckStrategy.set -> void
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.BatchConfiguration() -> void
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.Clone() -> Excalibur.Dispatch.Transport.Google.BatchConfiguration!
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.ConcurrentBatchProcessors.get -> int
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.ConcurrentBatchProcessors.set -> void
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.EnableAdaptiveBatching.get -> bool
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.EnableAdaptiveBatching.set -> void
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.EnableMetricsCompression.get -> bool
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.EnableMetricsCompression.set -> void
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.MaxBatchSizeBytes.get -> long
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.MaxBatchSizeBytes.set -> void
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.MaxBatchWaitTime.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.MaxBatchWaitTime.set -> void
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.MaxMessagesPerBatch.get -> int
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.MaxMessagesPerBatch.set -> void
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.MinMessagesPerBatch.get -> int
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.MinMessagesPerBatch.set -> void
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.PreserveMessageOrder.get -> bool
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.PreserveMessageOrder.set -> void
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.TargetBatchProcessingTime.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.TargetBatchProcessingTime.set -> void
+Excalibur.Dispatch.Transport.Google.BatchConfiguration.Validate() -> void
+Excalibur.Dispatch.Transport.Google.BatchingContext
+Excalibur.Dispatch.Transport.Google.BatchingContext.AverageMessageSize.get -> double
+Excalibur.Dispatch.Transport.Google.BatchingContext.AverageMessageSize.set -> void
+Excalibur.Dispatch.Transport.Google.BatchingContext.BatchingContext() -> void
+Excalibur.Dispatch.Transport.Google.BatchingContext.FlowControlQuota.get -> int
+Excalibur.Dispatch.Transport.Google.BatchingContext.FlowControlQuota.set -> void
+Excalibur.Dispatch.Transport.Google.BatchingContext.MemoryPressure.get -> double
+Excalibur.Dispatch.Transport.Google.BatchingContext.MemoryPressure.set -> void
+Excalibur.Dispatch.Transport.Google.BatchingContext.ProcessingRate.get -> double
+Excalibur.Dispatch.Transport.Google.BatchingContext.ProcessingRate.set -> void
+Excalibur.Dispatch.Transport.Google.BatchingContext.QueueDepth.get -> int
+Excalibur.Dispatch.Transport.Google.BatchingContext.QueueDepth.set -> void
+Excalibur.Dispatch.Transport.Google.BatchingContext.Timestamp.get -> System.DateTimeOffset
+Excalibur.Dispatch.Transport.Google.BatchingContext.Timestamp.set -> void
+Excalibur.Dispatch.Transport.Google.BatchMetadata
+Excalibur.Dispatch.Transport.Google.BatchMetadata.BatchMetadata() -> void
+Excalibur.Dispatch.Transport.Google.BatchMetadata.EffectiveBatchSize.get -> int
+Excalibur.Dispatch.Transport.Google.BatchMetadata.EffectiveBatchSize.set -> void
+Excalibur.Dispatch.Transport.Google.BatchMetadata.FlowControlApplied.get -> bool
+Excalibur.Dispatch.Transport.Google.BatchMetadata.FlowControlApplied.set -> void
+Excalibur.Dispatch.Transport.Google.BatchMetadata.Properties.get -> System.Collections.Generic.Dictionary<string!, object!>!
+Excalibur.Dispatch.Transport.Google.BatchMetadata.Properties.set -> void
+Excalibur.Dispatch.Transport.Google.BatchMetadata.PullDurationMs.get -> double
+Excalibur.Dispatch.Transport.Google.BatchMetadata.PullDurationMs.set -> void
+Excalibur.Dispatch.Transport.Google.BatchProcessingResult
+Excalibur.Dispatch.Transport.Google.BatchProcessingResult.Batch.get -> Excalibur.Dispatch.Transport.Google.MessageBatch!
+Excalibur.Dispatch.Transport.Google.BatchProcessingResult.BatchProcessingResult(Excalibur.Dispatch.Transport.Google.MessageBatch! batch, System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Transport.Google.ProcessedMessage!>! successfulMessages, System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Transport.Google.FailedMessage!>! failedMessages, System.TimeSpan processingDuration) -> void
+Excalibur.Dispatch.Transport.Google.BatchProcessingResult.FailedMessages.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Transport.Google.FailedMessage!>!
+Excalibur.Dispatch.Transport.Google.BatchProcessingResult.IsFullySuccessful.get -> bool
+Excalibur.Dispatch.Transport.Google.BatchProcessingResult.ProcessingDuration.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.BatchProcessingResult.SuccessfulMessages.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Transport.Google.ProcessedMessage!>!
+Excalibur.Dispatch.Transport.Google.BatchProcessingResult.SuccessRate.get -> double
+Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder
+Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder.ConfigureOptions(System.Action<Excalibur.Dispatch.Transport.Google.BatchConfiguration!>! configure) -> Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder!
+Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder.IntegrateWithFlowControl() -> Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder!
+Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder.UseAdaptiveBatching() -> Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder!
+Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder.UseCustomBatching<TStrategy>() -> Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder!
+Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder.UseSizeBoundBatching() -> Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder!
+Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder.UseTimeBoundBatching() -> Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder!
+Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder.WithAdaptiveProcessing(System.Func<Google.Cloud.PubSub.V1.ReceivedMessage!, System.Threading.CancellationToken, System.Threading.Tasks.Task<object!>!>! messageProcessor) -> Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder!
+Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder.WithMetrics(string? meterName = null) -> Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder!
+Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder.WithOrderedProcessing(System.Func<Google.Cloud.PubSub.V1.ReceivedMessage!, System.Threading.CancellationToken, System.Threading.Tasks.Task<object!>!>! messageProcessor) -> Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder!
+Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder.WithParallelProcessing(System.Func<Google.Cloud.PubSub.V1.ReceivedMessage!, System.Threading.CancellationToken, System.Threading.Tasks.Task<object!>!>! messageProcessor) -> Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder!
+Excalibur.Dispatch.Transport.Google.BatchResult
+Excalibur.Dispatch.Transport.Google.BatchResult.BatchResult() -> void
+Excalibur.Dispatch.Transport.Google.BatchResult.BatchSize.get -> int
+Excalibur.Dispatch.Transport.Google.BatchResult.BatchSize.set -> void
+Excalibur.Dispatch.Transport.Google.BatchResult.FailureCount.get -> int
+Excalibur.Dispatch.Transport.Google.BatchResult.FailureCount.set -> void
+Excalibur.Dispatch.Transport.Google.BatchResult.ProcessingDuration.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.BatchResult.ProcessingDuration.set -> void
+Excalibur.Dispatch.Transport.Google.BatchResult.SuccessCount.get -> int
+Excalibur.Dispatch.Transport.Google.BatchResult.SuccessCount.set -> void
+Excalibur.Dispatch.Transport.Google.BatchResult.TotalBytes.get -> long
+Excalibur.Dispatch.Transport.Google.BatchResult.TotalBytes.set -> void
+Excalibur.Dispatch.Transport.Google.BatchResult.WasFlowControlled.get -> bool
+Excalibur.Dispatch.Transport.Google.BatchResult.WasFlowControlled.set -> void
+Excalibur.Dispatch.Transport.Google.CloudEventTransportOptions
+Excalibur.Dispatch.Transport.Google.CloudEventTransportOptions.CloudEventTransportOptions() -> void
+Excalibur.Dispatch.Transport.Google.CloudEventTransportOptions.CloudMonitoringPrefix.get -> string!
+Excalibur.Dispatch.Transport.Google.CloudEventTransportOptions.CloudMonitoringPrefix.set -> void
+Excalibur.Dispatch.Transport.Google.CloudEventTransportOptions.CompressionThreshold.get -> int
+Excalibur.Dispatch.Transport.Google.CloudEventTransportOptions.CompressionThreshold.set -> void
+Excalibur.Dispatch.Transport.Google.CloudEventTransportOptions.EnableCloudMonitoring.get -> bool
+Excalibur.Dispatch.Transport.Google.CloudEventTransportOptions.EnableCloudMonitoring.set -> void
+Excalibur.Dispatch.Transport.Google.CloudEventTransportOptions.EnableCompression.get -> bool
+Excalibur.Dispatch.Transport.Google.CloudEventTransportOptions.EnableCompression.set -> void
+Excalibur.Dispatch.Transport.Google.CorrelationId
+Excalibur.Dispatch.Transport.Google.CorrelationId.CorrelationId() -> void
+Excalibur.Dispatch.Transport.Google.CorrelationId.Value.get -> string!
+Excalibur.Dispatch.Transport.Google.CorrelationId.Value.set -> void
+Excalibur.Dispatch.Transport.Google.CustomPatternRule
+Excalibur.Dispatch.Transport.Google.CustomPatternRule.CustomPatternRule(string! name, System.Func<Google.Cloud.PubSub.V1.PubsubMessage!, System.Exception!, Excalibur.Dispatch.Transport.Google.MessageFailureHistory!, bool>! predicate, System.Func<Google.Cloud.PubSub.V1.PubsubMessage!, System.Exception!, Excalibur.Dispatch.Transport.Google.MessageFailureHistory!, double>! confidenceCalculator, System.Func<Google.Cloud.PubSub.V1.PubsubMessage!, System.Exception!, Excalibur.Dispatch.Transport.Google.MessageFailureHistory!, string!>! reasonProvider) -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterAction
+Excalibur.Dispatch.Transport.Google.DeadLetterAction.Acknowledge = 0 -> Excalibur.Dispatch.Transport.Google.DeadLetterAction
+Excalibur.Dispatch.Transport.Google.DeadLetterAction.Archive = 3 -> Excalibur.Dispatch.Transport.Google.DeadLetterAction
+Excalibur.Dispatch.Transport.Google.DeadLetterAction.Reject = 1 -> Excalibur.Dispatch.Transport.Google.DeadLetterAction
+Excalibur.Dispatch.Transport.Google.DeadLetterAction.Retry = 2 -> Excalibur.Dispatch.Transport.Google.DeadLetterAction
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.DeadLetterAnalytics() -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.ErrorReasons.get -> System.Collections.Generic.Dictionary<string!, int>!
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.ErrorReasons.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.FirstSeen.get -> System.DateTimeOffset
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.FirstSeen.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.HourlyDistribution.get -> System.Collections.Generic.Dictionary<int, int>!
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.HourlyDistribution.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.LastSeen.get -> System.DateTimeOffset
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.LastSeen.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.LastUpdated.get -> System.DateTimeOffset
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.LastUpdated.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.MessagesByErrorType.get -> System.Collections.Generic.Dictionary<string!, long>!
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.MessagesByErrorType.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.MessageType.get -> string!
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.MessageType.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.NewestMessageTimestamp.get -> System.DateTimeOffset?
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.NewestMessageTimestamp.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.OldestMessageTimestamp.get -> System.DateTimeOffset?
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.OldestMessageTimestamp.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.OriginalTopics.get -> System.Collections.Generic.Dictionary<string!, int>!
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.OriginalTopics.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.TotalDeadLetters.get -> long
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.TotalDeadLetters.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.TotalMessages.get -> long
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics.TotalMessages.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalyticsOptions
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalyticsOptions.BatchSize.get -> int
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalyticsOptions.BatchSize.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalyticsOptions.CollectionInterval.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalyticsOptions.CollectionInterval.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalyticsOptions.DeadLetterAnalyticsOptions() -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalyticsOptions.DeadLetterSubscription.get -> Google.Cloud.PubSub.V1.SubscriptionName?
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalyticsOptions.DeadLetterSubscription.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalyticsOptions.Enabled.get -> bool
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalyticsOptions.Enabled.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalyticsOptions.EnableDetailedLogging.get -> bool
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalyticsOptions.EnableDetailedLogging.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalyticsOptions.ReportingInterval.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.DeadLetterAnalyticsOptions.ReportingInterval.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterFilter
+Excalibur.Dispatch.Transport.Google.DeadLetterFilter.AttributeFilters.get -> System.Collections.Generic.Dictionary<string!, string!>!
+Excalibur.Dispatch.Transport.Google.DeadLetterFilter.AttributeFilters.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterFilter.DeadLetterFilter() -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterFilter.Matches(Excalibur.Dispatch.Transport.Google.PubSubMessage! message, Excalibur.Dispatch.Transport.Google.PoisonReason reason) -> bool
+Excalibur.Dispatch.Transport.Google.DeadLetterFilter.MaxAge.get -> System.TimeSpan?
+Excalibur.Dispatch.Transport.Google.DeadLetterFilter.MaxAge.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterFilter.MessageType.get -> string?
+Excalibur.Dispatch.Transport.Google.DeadLetterFilter.MessageType.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterFilter.MinAge.get -> System.TimeSpan?
+Excalibur.Dispatch.Transport.Google.DeadLetterFilter.MinAge.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterFilter.Reason.get -> Excalibur.Dispatch.Transport.Google.PoisonReason?
+Excalibur.Dispatch.Transport.Google.DeadLetterFilter.Reason.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterMetadata
+Excalibur.Dispatch.Transport.Google.DeadLetterMetadata.DeadLetterMetadata(int DeliveryAttempts, string! LastErrorReason, System.DateTimeOffset FirstFailureTime, System.DateTimeOffset LastFailureTime, string? OriginalTopic = null) -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterMetadata.DeliveryAttempts.get -> int
+Excalibur.Dispatch.Transport.Google.DeadLetterMetadata.DeliveryAttempts.init -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterMetadata.FirstFailureTime.get -> System.DateTimeOffset
+Excalibur.Dispatch.Transport.Google.DeadLetterMetadata.FirstFailureTime.init -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterMetadata.LastErrorReason.get -> string!
+Excalibur.Dispatch.Transport.Google.DeadLetterMetadata.LastErrorReason.init -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterMetadata.LastFailureTime.get -> System.DateTimeOffset
+Excalibur.Dispatch.Transport.Google.DeadLetterMetadata.LastFailureTime.init -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterMetadata.OriginalTopic.get -> string?
+Excalibur.Dispatch.Transport.Google.DeadLetterMetadata.OriginalTopic.init -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterMonitoringOptions
+Excalibur.Dispatch.Transport.Google.DeadLetterMonitoringOptions.AlertThresholdMessageAge.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.DeadLetterMonitoringOptions.AlertThresholdMessageAge.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterMonitoringOptions.AlertThresholdMessageCount.get -> int
+Excalibur.Dispatch.Transport.Google.DeadLetterMonitoringOptions.AlertThresholdMessageCount.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterMonitoringOptions.DeadLetterMonitoringOptions() -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterMonitoringOptions.EnableMonitoring.get -> bool
+Excalibur.Dispatch.Transport.Google.DeadLetterMonitoringOptions.EnableMonitoring.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterMonitoringOptions.MonitoringInterval.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.DeadLetterMonitoringOptions.MonitoringInterval.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions.AutoCreateDeadLetterResources.get -> bool
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions.AutoCreateDeadLetterResources.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions.DeadLetterOptions() -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions.DeadLetterRetentionDuration.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions.DeadLetterRetentionDuration.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions.DeadLetterSubscriptionName.get -> Google.Cloud.PubSub.V1.SubscriptionName?
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions.DeadLetterSubscriptionName.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions.DeadLetterTopicName.get -> Google.Cloud.PubSub.V1.TopicName?
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions.DeadLetterTopicName.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions.DefaultMaxDeliveryAttempts.get -> int
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions.DefaultMaxDeliveryAttempts.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions.Monitoring.get -> Excalibur.Dispatch.Transport.Google.DeadLetterMonitoringOptions!
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions.Monitoring.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions.NonRetryableReasons.get -> System.Collections.Generic.HashSet<string!>!
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions.PreserveMessageOrdering.get -> bool
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions.PreserveMessageOrdering.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions.Retry.get -> Excalibur.Dispatch.Transport.Google.DeadLetterRetryOptions!
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions.Retry.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterOptions.Validate() -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder
+Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder.AddPoisonRule(Excalibur.Dispatch.Transport.Google.IPoisonDetectionRule! rule) -> Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder!
+Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder.AddRetryStrategy(string! messageType, Excalibur.Dispatch.Transport.Google.RetryStrategy! strategy) -> Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder!
+Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder.WithAnalytics(System.Action<Excalibur.Dispatch.Transport.Google.DeadLetterAnalyticsOptions!>? configure = null) -> Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder!
+Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder.WithDeadLetterTopic(string! projectId, string! topicName) -> Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder!
+Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder.WithOptions(System.Action<Excalibur.Dispatch.Transport.Google.DeadLetterOptions!>! configure) -> Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder!
+Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder.WithoutPoisonDetection() -> Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder!
+Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder.WithoutRetryPolicies() -> Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder!
+Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder.WithPoisonDetection(System.Action<Excalibur.Dispatch.Transport.Google.PoisonDetectionOptions!>! configure) -> Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder!
+Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder.WithRetryPolicies(System.Action<Excalibur.Dispatch.Transport.Google.RetryPolicyOptions!>! configure) -> Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder!
+Excalibur.Dispatch.Transport.Google.DeadLetterRetryOptions
+Excalibur.Dispatch.Transport.Google.DeadLetterRetryOptions.AutomaticRetryBatchSize.get -> int
+Excalibur.Dispatch.Transport.Google.DeadLetterRetryOptions.AutomaticRetryBatchSize.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterRetryOptions.AutomaticRetryInterval.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.DeadLetterRetryOptions.AutomaticRetryInterval.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterRetryOptions.DeadLetterRetryOptions() -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterRetryOptions.EnableAutomaticRetry.get -> bool
+Excalibur.Dispatch.Transport.Google.DeadLetterRetryOptions.EnableAutomaticRetry.set -> void
+Excalibur.Dispatch.Transport.Google.DeadLetterRetryOptions.EnableCompression.get -> bool
+Excalibur.Dispatch.Transport.Google.DeadLetterRetryOptions.EnableCompression.set -> void
+Excalibur.Dispatch.Transport.Google.FailedMessage
+Excalibur.Dispatch.Transport.Google.FailedMessage.AckId.get -> string!
+Excalibur.Dispatch.Transport.Google.FailedMessage.Error.get -> System.Exception!
+Excalibur.Dispatch.Transport.Google.FailedMessage.FailedMessage(string! messageId, string! ackId, System.Exception! error, bool shouldRetry = true, System.TimeSpan? retryDelay = null) -> void
+Excalibur.Dispatch.Transport.Google.FailedMessage.MessageId.get -> string!
+Excalibur.Dispatch.Transport.Google.FailedMessage.RetryDelay.get -> System.TimeSpan?
+Excalibur.Dispatch.Transport.Google.FailedMessage.ShouldRetry.get -> bool
+Excalibur.Dispatch.Transport.Google.FailureRecord
+Excalibur.Dispatch.Transport.Google.FailureRecord.Exception.get -> System.Exception!
+Excalibur.Dispatch.Transport.Google.FailureRecord.Exception.set -> void
+Excalibur.Dispatch.Transport.Google.FailureRecord.ExceptionType.get -> string!
+Excalibur.Dispatch.Transport.Google.FailureRecord.ExceptionType.set -> void
+Excalibur.Dispatch.Transport.Google.FailureRecord.FailureRecord() -> void
+Excalibur.Dispatch.Transport.Google.FailureRecord.Message.get -> string!
+Excalibur.Dispatch.Transport.Google.FailureRecord.Message.set -> void
+Excalibur.Dispatch.Transport.Google.FailureRecord.StackTraceHash.get -> string!
+Excalibur.Dispatch.Transport.Google.FailureRecord.StackTraceHash.set -> void
+Excalibur.Dispatch.Transport.Google.FailureRecord.Timestamp.get -> System.DateTimeOffset
+Excalibur.Dispatch.Transport.Google.FailureRecord.Timestamp.set -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.AvailableCapacity.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.ByteProcessingRate.get -> double
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.BytesProcessed.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.BytesReceived.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.CurrentOutstandingBytes.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.CurrentOutstandingMessages.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.ErrorRate.get -> double
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.FlowControlMetrics() -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.FlowControlPauses.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.GetSnapshot() -> Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot!
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.MaxConcurrency.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.MaxConcurrency.set -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.MaxOutstandingMessages.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.MaxOutstandingMessages.set -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.MessageProcessingRate.get -> double
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.MessagesProcessed.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.MessagesReceived.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.OutstandingMessages.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.ProcessingErrors.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.RecordFlowControlPause() -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.RecordMessageProcessed(long sizeInBytes) -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.RecordMessageReceived(long sizeInBytes) -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.RecordProcessingError(long sizeInBytes) -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.Reset() -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.TimeSinceReset.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.FlowControlMetrics.UtilizationPercentage.get -> double
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.ByteProcessingRate.get -> double
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.ByteProcessingRate.set -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.BytesProcessed.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.BytesProcessed.set -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.BytesReceived.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.BytesReceived.set -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.CurrentOutstandingBytes.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.CurrentOutstandingBytes.set -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.CurrentOutstandingMessages.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.CurrentOutstandingMessages.set -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.ErrorRate.get -> double
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.ErrorRate.set -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.FlowControlMetricsSnapshot() -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.FlowControlPauses.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.FlowControlPauses.set -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.MessageProcessingRate.get -> double
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.MessageProcessingRate.set -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.MessagesProcessed.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.MessagesProcessed.set -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.MessagesReceived.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.MessagesReceived.set -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.ProcessingErrors.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.ProcessingErrors.set -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.SnapshotTime.get -> System.DateTimeOffset
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.SnapshotTime.set -> void
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.UtilizationPercentage.get -> double
+Excalibur.Dispatch.Transport.Google.FlowControlMetricsSnapshot.UtilizationPercentage.set -> void
+Excalibur.Dispatch.Transport.Google.FlowControlOptions
+Excalibur.Dispatch.Transport.Google.FlowControlOptions.FlowControlOptions() -> void
+Excalibur.Dispatch.Transport.Google.FlowControlOptions.LimitExceededBehavior.get -> bool
+Excalibur.Dispatch.Transport.Google.FlowControlOptions.LimitExceededBehavior.set -> void
+Excalibur.Dispatch.Transport.Google.FlowControlOptions.MaxOutstandingBytes.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlOptions.MaxOutstandingBytes.set -> void
+Excalibur.Dispatch.Transport.Google.FlowControlOptions.MaxOutstandingMessages.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlOptions.MaxOutstandingMessages.set -> void
+Excalibur.Dispatch.Transport.Google.FlowControlState
+Excalibur.Dispatch.Transport.Google.FlowControlState.CurrentOutstandingBytes.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlState.CurrentOutstandingBytes.init -> void
+Excalibur.Dispatch.Transport.Google.FlowControlState.CurrentOutstandingMessages.get -> int
+Excalibur.Dispatch.Transport.Google.FlowControlState.CurrentOutstandingMessages.init -> void
+Excalibur.Dispatch.Transport.Google.FlowControlState.FlowControlState(int MaxOutstandingMessages, long MaxOutstandingBytes, int CurrentOutstandingMessages, long CurrentOutstandingBytes, bool IsFlowControlActive) -> void
+Excalibur.Dispatch.Transport.Google.FlowControlState.IsFlowControlActive.get -> bool
+Excalibur.Dispatch.Transport.Google.FlowControlState.IsFlowControlActive.init -> void
+Excalibur.Dispatch.Transport.Google.FlowControlState.MaxOutstandingBytes.get -> long
+Excalibur.Dispatch.Transport.Google.FlowControlState.MaxOutstandingBytes.init -> void
+Excalibur.Dispatch.Transport.Google.FlowControlState.MaxOutstandingMessages.get -> int
+Excalibur.Dispatch.Transport.Google.FlowControlState.MaxOutstandingMessages.init -> void
+Excalibur.Dispatch.Transport.Google.ForEach
+Excalibur.Dispatch.Transport.Google.GoogleEmulatorOptions
+Excalibur.Dispatch.Transport.Google.GoogleEmulatorOptions.EmulatorHost.get -> string?
+Excalibur.Dispatch.Transport.Google.GoogleEmulatorOptions.EmulatorHost.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleEmulatorOptions.GoogleEmulatorOptions() -> void
+Excalibur.Dispatch.Transport.Google.GoogleEmulatorOptions.UseEmulator.get -> bool
+Excalibur.Dispatch.Transport.Google.GoogleEmulatorOptions.UseEmulator.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleMonitoring
+Excalibur.Dispatch.Transport.Google.GoogleMonitoring.MetricDescriptor
+Excalibur.Dispatch.Transport.Google.GoogleMonitoring.MetricDescriptor.Description.get -> string!
+Excalibur.Dispatch.Transport.Google.GoogleMonitoring.MetricDescriptor.Description.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleMonitoring.MetricDescriptor.DisplayName.get -> string!
+Excalibur.Dispatch.Transport.Google.GoogleMonitoring.MetricDescriptor.DisplayName.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleMonitoring.MetricDescriptor.MetricDescriptor() -> void
+Excalibur.Dispatch.Transport.Google.GoogleMonitoring.MetricDescriptor.Type.get -> string!
+Excalibur.Dispatch.Transport.Google.GoogleMonitoring.MetricDescriptor.Type.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleProviderOptions
+Excalibur.Dispatch.Transport.Google.GoogleProviderOptions.Emulator.get -> Excalibur.Dispatch.Transport.Google.GoogleEmulatorOptions!
+Excalibur.Dispatch.Transport.Google.GoogleProviderOptions.Emulator.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleProviderOptions.FlowControl.get -> Excalibur.Dispatch.Transport.Google.FlowControlOptions!
+Excalibur.Dispatch.Transport.Google.GoogleProviderOptions.FlowControl.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleProviderOptions.GoogleProviderOptions() -> void
+Excalibur.Dispatch.Transport.Google.GoogleProviderOptions.ProjectId.get -> string!
+Excalibur.Dispatch.Transport.Google.GoogleProviderOptions.ProjectId.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleProviderOptions.PubSubRetryOptions.get -> Excalibur.Dispatch.Transport.Google.PubSubRetryOptions!
+Excalibur.Dispatch.Transport.Google.GoogleProviderOptions.PubSubRetryOptions.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleProviderOptions.RequestTimeout.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.GoogleProviderOptions.RequestTimeout.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleProviderOptions.Subscription.get -> Excalibur.Dispatch.Transport.Google.GoogleSubscriptionOptions!
+Excalibur.Dispatch.Transport.Google.GoogleProviderOptions.Subscription.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleProviderOptions.ValidateOnStartup.get -> bool
+Excalibur.Dispatch.Transport.Google.GoogleProviderOptions.ValidateOnStartup.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.AckDeadline.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.AckDeadline.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.DefaultSubscription.get -> string?
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.DefaultSubscription.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.DefaultTopic.get -> string?
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.DefaultTopic.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.EnableDeduplication.get -> bool
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.EnableDeduplication.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.GooglePubSubCloudEventOptions() -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.MaxMessageSizeBytes.get -> long
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.MaxMessageSizeBytes.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.ProjectId.get -> string?
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.ProjectId.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.RetryPolicy.get -> Excalibur.Dispatch.Transport.Google.GooglePubSubRetryPolicy!
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.RetryPolicy.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.Transport.get -> Excalibur.Dispatch.Transport.Google.CloudEventTransportOptions!
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.Transport.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.UseExactlyOnceDelivery.get -> bool
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.UseExactlyOnceDelivery.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.UseOrderingKeys.get -> bool
+Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions.UseOrderingKeys.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubMessageBus
+Excalibur.Dispatch.Transport.Google.GooglePubSubMessageBus.GooglePubSubMessageBus(Google.Cloud.PubSub.V1.PublisherClient! client, Excalibur.Dispatch.Abstractions.Serialization.IPayloadSerializer! serializer, Excalibur.Dispatch.Transport.Google.GooglePubSubOptions! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Transport.Google.GooglePubSubMessageBus!>! logger) -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchAction! action, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Transport.Google.GooglePubSubMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchDocument! doc, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Transport.Google.GooglePubSubMessageBus.PublishAsync(Excalibur.Dispatch.Abstractions.IDispatchEvent! evt, Excalibur.Dispatch.Abstractions.IMessageContext! context, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Transport.Google.GooglePubSubOptions
+Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.Compression.get -> Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions!
+Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.EnableEncryption.get -> bool
+Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.EnableEncryption.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.GooglePubSubOptions() -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.MaxConcurrentMessages.get -> int
+Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.MaxConcurrentMessages.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.ProjectId.get -> string!
+Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.ProjectId.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.Subscriber.get -> Excalibur.Dispatch.Transport.Google.PubSubSubscriberOptions!
+Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.Subscriber.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.SubscriptionId.get -> string!
+Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.SubscriptionId.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.SubscriptionName.get -> string!
+Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.Telemetry.get -> Excalibur.Dispatch.Transport.Google.PubSubTelemetryOptions!
+Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.Telemetry.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.TopicId.get -> string!
+Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.TopicId.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubOptions.TopicName.get -> string!
+Excalibur.Dispatch.Transport.Google.GooglePubSubOptionsExtensions
+Excalibur.Dispatch.Transport.Google.GooglePubSubRetryPolicy
+Excalibur.Dispatch.Transport.Google.GooglePubSubRetryPolicy.DelayMultiplier.get -> double
+Excalibur.Dispatch.Transport.Google.GooglePubSubRetryPolicy.DelayMultiplier.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubRetryPolicy.GooglePubSubRetryPolicy() -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubRetryPolicy.InitialDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.GooglePubSubRetryPolicy.InitialDelay.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubRetryPolicy.MaxDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.GooglePubSubRetryPolicy.MaxDelay.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubRetryPolicy.MaxRetryAttempts.get -> int
+Excalibur.Dispatch.Transport.Google.GooglePubSubRetryPolicy.MaxRetryAttempts.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubRetryPolicy.UseJitter.get -> bool
+Excalibur.Dispatch.Transport.Google.GooglePubSubRetryPolicy.UseJitter.set -> void
+Excalibur.Dispatch.Transport.Google.GooglePubSubTelemetry
+Excalibur.Dispatch.Transport.Google.GooglePubSubTelemetry.Tags
+Excalibur.Dispatch.Transport.Google.GooglePubSubTelemetry.TelemetryMetrics
+Excalibur.Dispatch.Transport.Google.GoogleSubscriptionOptions
+Excalibur.Dispatch.Transport.Google.GoogleSubscriptionOptions.AckDeadline.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.GoogleSubscriptionOptions.AckDeadline.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleSubscriptionOptions.AutoCreateResources.get -> bool
+Excalibur.Dispatch.Transport.Google.GoogleSubscriptionOptions.AutoCreateResources.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleSubscriptionOptions.EnableExactlyOnceDelivery.get -> bool
+Excalibur.Dispatch.Transport.Google.GoogleSubscriptionOptions.EnableExactlyOnceDelivery.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleSubscriptionOptions.EnableMessageOrdering.get -> bool
+Excalibur.Dispatch.Transport.Google.GoogleSubscriptionOptions.EnableMessageOrdering.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleSubscriptionOptions.GoogleSubscriptionOptions() -> void
+Excalibur.Dispatch.Transport.Google.GoogleSubscriptionOptions.MaxMessages.get -> int
+Excalibur.Dispatch.Transport.Google.GoogleSubscriptionOptions.MaxMessages.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions
+Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.BatchSize.get -> int
+Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.BatchSize.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.EnableCloudMonitoring.get -> bool
+Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.EnableCloudMonitoring.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.EnableCloudTrace.get -> bool
+Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.EnableCloudTrace.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.ExportInterval.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.ExportInterval.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.GoogleTelemetryOptions() -> void
+Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.Labels.get -> System.Collections.Generic.Dictionary<string!, string!>!
+Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.MetricPrefix.get -> string!
+Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.MetricPrefix.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.ProjectId.get -> string!
+Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.ProjectId.set -> void
+Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.ResourceType.get -> string!
+Excalibur.Dispatch.Transport.Google.GoogleTelemetryOptions.ResourceType.set -> void
+Excalibur.Dispatch.Transport.Google.GrpcCoreAdapter
+Excalibur.Dispatch.Transport.Google.HistogramSnapshot
+Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Count.get -> long
+Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Count.set -> void
+Excalibur.Dispatch.Transport.Google.HistogramSnapshot.HistogramSnapshot() -> void
+Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Max.get -> long
+Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Max.set -> void
+Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Mean.get -> long
+Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Mean.set -> void
+Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Min.get -> long
+Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Min.set -> void
+Excalibur.Dispatch.Transport.Google.HistogramSnapshot.P95.get -> long
+Excalibur.Dispatch.Transport.Google.HistogramSnapshot.P95.set -> void
+Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Sum.get -> long
+Excalibur.Dispatch.Transport.Google.HistogramSnapshot.Sum.set -> void
+Excalibur.Dispatch.Transport.Google.IAcknowledgmentBatcher
+Excalibur.Dispatch.Transport.Google.IAcknowledgmentBatcher.AddAcknowledgmentAsync(string! ackId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Transport.Google.IAcknowledgmentBatcher.AddAcknowledgmentsAsync(System.Collections.Generic.IEnumerable<string!>! ackIds, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Transport.Google.IAcknowledgmentBatcher.FlushAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Transport.Google.IAcknowledgmentBatcher.GetMetrics() -> Excalibur.Dispatch.Transport.Google.AcknowledgmentMetrics!
+Excalibur.Dispatch.Transport.Google.IBatchingStrategy
+Excalibur.Dispatch.Transport.Google.IBatchingStrategy.DetermineNextBatchSize(Excalibur.Dispatch.Transport.Google.BatchingContext! context) -> int
+Excalibur.Dispatch.Transport.Google.IBatchingStrategy.RecordBatchResult(Excalibur.Dispatch.Transport.Google.BatchResult! result) -> void
+Excalibur.Dispatch.Transport.Google.IBatchingStrategy.Reset() -> void
+Excalibur.Dispatch.Transport.Google.IBatchProcessor
+Excalibur.Dispatch.Transport.Google.IBatchProcessor.ProcessAsync(Excalibur.Dispatch.Transport.Google.MessageBatch! batch, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.Google.BatchProcessingResult!>!
+Excalibur.Dispatch.Transport.Google.IBatchProcessor.ProcessMultipleAsync(System.Collections.Generic.IAsyncEnumerable<Excalibur.Dispatch.Transport.Google.MessageBatch!>! batches, int maxConcurrency, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.Dispatch.Transport.Google.BatchProcessingResult!>!
+Excalibur.Dispatch.Transport.Google.IBatchReceiver
+Excalibur.Dispatch.Transport.Google.IBatchReceiver.ReceiveBatchAsync(Google.Cloud.PubSub.V1.SubscriptionName! subscriptionName, int maxMessages, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.Google.MessageBatch!>!
+Excalibur.Dispatch.Transport.Google.IBatchReceiver.ReceiveBatchesAsync(Google.Cloud.PubSub.V1.SubscriptionName! subscriptionName, int batchCount, System.Threading.CancellationToken cancellationToken) -> System.Collections.Generic.IAsyncEnumerable<Excalibur.Dispatch.Transport.Google.MessageBatch!>!
+Excalibur.Dispatch.Transport.Google.IDeadLetterAnalyticsService
+Excalibur.Dispatch.Transport.Google.IDeadLetterAnalyticsService.GetAnalyticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.Google.DeadLetterAnalytics!>!
+Excalibur.Dispatch.Transport.Google.IDeadLetterAnalyticsService.RecordDeadLetterAsync(string! messageId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics
+Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics.BatchCompleted(int size, System.TimeSpan duration) -> void
+Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics.BatchCreated(int size) -> void
+Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics.ConnectionClosed() -> void
+Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics.ConnectionCreated() -> void
+Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics.MessageDequeued(System.TimeSpan queueTime) -> void
+Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics.MessageEnqueued() -> void
+Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics.MessageFailed() -> void
+Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics.MessageProcessed(System.TimeSpan duration) -> void
+Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics.RecordFlowControl(int permits, int bytes) -> void
+Excalibur.Dispatch.Transport.Google.IOrderingKeyProcessor
+Excalibur.Dispatch.Transport.Google.IOrderingKeyProcessor.GetStatistics() -> Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics!
+Excalibur.Dispatch.Transport.Google.IPoisonDetectionRule
+Excalibur.Dispatch.Transport.Google.IPoisonDetectionRule.GetConfidence(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception! exception, Excalibur.Dispatch.Transport.Google.MessageFailureHistory! history) -> double
+Excalibur.Dispatch.Transport.Google.IPoisonDetectionRule.GetReason(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception! exception, Excalibur.Dispatch.Transport.Google.MessageFailureHistory! history) -> string!
+Excalibur.Dispatch.Transport.Google.IPoisonDetectionRule.IsPoison(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception! exception, Excalibur.Dispatch.Transport.Google.MessageFailureHistory! history) -> bool
+Excalibur.Dispatch.Transport.Google.IPoisonDetectionRule.Name.get -> string!
+Excalibur.Dispatch.Transport.Google.IPoisonMessageDetector
+Excalibur.Dispatch.Transport.Google.IPoisonMessageDetector.GetFailureCount(string! messageId) -> int
+Excalibur.Dispatch.Transport.Google.IPoisonMessageDetector.IsPoisonMessage(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception! exception) -> bool
+Excalibur.Dispatch.Transport.Google.IPoisonMessageDetector.RecordFailureAsync(string! messageId, System.Exception! exception) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Transport.Google.IPoisonMessageDetector.ResetFailureCountAsync(string! messageId) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Transport.Google.IPubSubDeadLetterHandler
+Excalibur.Dispatch.Transport.Google.IPubSubDeadLetterHandler.HandleDeadLetterAsync(Excalibur.Dispatch.Transport.Google.PubSubMessage! message, Excalibur.Dispatch.Transport.Google.PoisonReason reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.Google.DeadLetterAction>!
+Excalibur.Dispatch.Transport.Google.IPubSubSchemaManager
+Excalibur.Dispatch.Transport.Google.IPubSubSchemaManager.CreateSchemaAsync(string! schemaId, string! definition, string! schemaType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.Google.PubSubSchemaInfo!>!
+Excalibur.Dispatch.Transport.Google.IPubSubSchemaManager.UpdateSchemaAsync(string! schemaId, string! definition, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.Google.PubSubSchemaInfo!>!
+Excalibur.Dispatch.Transport.Google.IPubSubSchemaManager.ValidateSchemaAsync(string! definition, string! schemaType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.Google.SchemaValidationResult!>!
+Excalibur.Dispatch.Transport.Google.IRetryPolicyManager
+Excalibur.Dispatch.Transport.Google.IRetryPolicyManager.ExecuteWithRetryAsync<TResult>(string! messageType, System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<TResult>!>! action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Dispatch.Transport.Google.IRetryPolicyManager.GetRetryPolicy(string! messageType) -> Polly.IAsyncPolicy!
+Excalibur.Dispatch.Transport.Google.IRetryPolicyManager.GetStatistics() -> Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics!
+Excalibur.Dispatch.Transport.Google.IRetryPolicyManager.ShouldRetry(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception! exception) -> bool
+Excalibur.Dispatch.Transport.Google.ISchemaRegistry
+Excalibur.Dispatch.Transport.Google.ISchemaRegistry.GetSchemaAsync(System.Type! messageType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.Google.SchemaMetadata?>!
+Excalibur.Dispatch.Transport.Google.ISchemaRegistry.RegisterSchemaAsync(System.Type! messageType, string! schema, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.Google.SchemaMetadata!>!
+Excalibur.Dispatch.Transport.Google.ISchemaRegistry.ValidateAsync(object! message, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Transport.Google.ITelemetryIntegration
+Excalibur.Dispatch.Transport.Google.ITelemetryIntegration.RecordMetric(string! metricName, double value, System.Collections.Generic.IDictionary<string!, object?>? tags = null) -> void
+Excalibur.Dispatch.Transport.Google.ITelemetryIntegration.StartActivity(string! activityName) -> System.IDisposable?
+Excalibur.Dispatch.Transport.Google.IWorkDistributionStrategy
+Excalibur.Dispatch.Transport.Google.IWorkDistributionStrategy.RecordCompletion(int workerId, System.TimeSpan duration) -> void
+Excalibur.Dispatch.Transport.Google.IWorkDistributionStrategy.SelectWorker(Excalibur.Dispatch.Transport.Google.WorkDistributionContext! context) -> int
+Excalibur.Dispatch.Transport.Google.LabelDescriptor
+Excalibur.Dispatch.Transport.Google.LabelDescriptor.Description.get -> string!
+Excalibur.Dispatch.Transport.Google.LabelDescriptor.Description.set -> void
+Excalibur.Dispatch.Transport.Google.LabelDescriptor.Key.get -> string!
+Excalibur.Dispatch.Transport.Google.LabelDescriptor.Key.set -> void
+Excalibur.Dispatch.Transport.Google.LabelDescriptor.LabelDescriptor() -> void
+Excalibur.Dispatch.Transport.Google.LabelDescriptor.LabelValueTypes
+Excalibur.Dispatch.Transport.Google.LabelDescriptor.LabelValueTypes.ValueType
+Excalibur.Dispatch.Transport.Google.LabelDescriptor.LabelValueTypes.ValueType.Bool = 1 -> Excalibur.Dispatch.Transport.Google.LabelDescriptor.LabelValueTypes.ValueType
+Excalibur.Dispatch.Transport.Google.LabelDescriptor.LabelValueTypes.ValueType.Int64 = 2 -> Excalibur.Dispatch.Transport.Google.LabelDescriptor.LabelValueTypes.ValueType
+Excalibur.Dispatch.Transport.Google.LabelDescriptor.LabelValueTypes.ValueType.String = 0 -> Excalibur.Dispatch.Transport.Google.LabelDescriptor.LabelValueTypes.ValueType
+Excalibur.Dispatch.Transport.Google.LabelDescriptor.ValueType.get -> Excalibur.Dispatch.Transport.Google.LabelDescriptor.LabelValueTypes.ValueType
+Excalibur.Dispatch.Transport.Google.LabelDescriptor.ValueType.set -> void
+Excalibur.Dispatch.Transport.Google.LeastLoadedDistributionStrategy
+Excalibur.Dispatch.Transport.Google.LeastLoadedDistributionStrategy.LeastLoadedDistributionStrategy() -> void
+Excalibur.Dispatch.Transport.Google.LeastLoadedDistributionStrategy.RecordCompletion(int workerId, System.TimeSpan duration) -> void
+Excalibur.Dispatch.Transport.Google.LeastLoadedDistributionStrategy.SelectWorker(Excalibur.Dispatch.Transport.Google.WorkDistributionContext! context) -> int
+Excalibur.Dispatch.Transport.Google.MessageBatch
+Excalibur.Dispatch.Transport.Google.MessageBatch.Count.get -> int
+Excalibur.Dispatch.Transport.Google.MessageBatch.GetAckIds() -> System.Collections.Generic.IEnumerable<string!>!
+Excalibur.Dispatch.Transport.Google.MessageBatch.MessageBatch(System.Collections.Generic.IReadOnlyList<Google.Cloud.PubSub.V1.ReceivedMessage!>! messages, string! subscriptionName, long totalSizeBytes, Excalibur.Dispatch.Transport.Google.BatchMetadata? metadata = null) -> void
+Excalibur.Dispatch.Transport.Google.MessageBatch.Messages.get -> System.Collections.Generic.IReadOnlyList<Google.Cloud.PubSub.V1.ReceivedMessage!>!
+Excalibur.Dispatch.Transport.Google.MessageBatch.Metadata.get -> Excalibur.Dispatch.Transport.Google.BatchMetadata!
+Excalibur.Dispatch.Transport.Google.MessageBatch.ReceivedAt.get -> System.DateTimeOffset
+Excalibur.Dispatch.Transport.Google.MessageBatch.SubscriptionName.get -> string!
+Excalibur.Dispatch.Transport.Google.MessageBatch.TotalSizeBytes.get -> long
+Excalibur.Dispatch.Transport.Google.MessageEnqueuedEventArgs
+Excalibur.Dispatch.Transport.Google.MessageEnqueuedEventArgs.MessageEnqueuedEventArgs(string! streamId, string! messageId) -> void
+Excalibur.Dispatch.Transport.Google.MessageEnqueuedEventArgs.MessageId.get -> string!
+Excalibur.Dispatch.Transport.Google.MessageEnqueuedEventArgs.StreamId.get -> string!
+Excalibur.Dispatch.Transport.Google.MessageFailureHistory
+Excalibur.Dispatch.Transport.Google.MessageFailureHistory.Failures.get -> System.Collections.Generic.List<Excalibur.Dispatch.Transport.Google.FailureRecord!>!
+Excalibur.Dispatch.Transport.Google.MessageFailureHistory.LastFailureTime.get -> System.DateTimeOffset
+Excalibur.Dispatch.Transport.Google.MessageFailureHistory.LastFailureTime.set -> void
+Excalibur.Dispatch.Transport.Google.MessageFailureHistory.MessageFailureHistory(string! messageId) -> void
+Excalibur.Dispatch.Transport.Google.MessageFailureHistory.MessageId.get -> string!
+Excalibur.Dispatch.Transport.Google.MessageProcessedEventArgs
+Excalibur.Dispatch.Transport.Google.MessageProcessedEventArgs.Duration.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.MessageProcessedEventArgs.Error.get -> System.Exception?
+Excalibur.Dispatch.Transport.Google.MessageProcessedEventArgs.MessageId.get -> string!
+Excalibur.Dispatch.Transport.Google.MessageProcessedEventArgs.MessageProcessedEventArgs(string! messageId, bool success, System.TimeSpan duration, System.Exception? error = null) -> void
+Excalibur.Dispatch.Transport.Google.MessageProcessedEventArgs.Success.get -> bool
+Excalibur.Dispatch.Transport.Google.Metric
+Excalibur.Dispatch.Transport.Google.Metric.Metric() -> void
+Excalibur.Dispatch.Transport.Google.Metric.Name.get -> string!
+Excalibur.Dispatch.Transport.Google.Metric.Name.set -> void
+Excalibur.Dispatch.Transport.Google.Metric.Tags.get -> System.Collections.Generic.Dictionary<string!, object?>!
+Excalibur.Dispatch.Transport.Google.Metric.Tags.set -> void
+Excalibur.Dispatch.Transport.Google.Metric.Timestamp.get -> System.DateTimeOffset
+Excalibur.Dispatch.Transport.Google.Metric.Timestamp.set -> void
+Excalibur.Dispatch.Transport.Google.Metric.Value.get -> double
+Excalibur.Dispatch.Transport.Google.Metric.Value.set -> void
+Excalibur.Dispatch.Transport.Google.MetricDescriptor
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.Description.get -> string!
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.Description.set -> void
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.DisplayName.get -> string!
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.DisplayName.set -> void
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.Labels.get -> System.Collections.Generic.List<Excalibur.Dispatch.Transport.Google.LabelDescriptor!>!
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptor() -> void
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.MetricKind
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.MetricKind.Cumulative = 3 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.MetricKind
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.MetricKind.Delta = 2 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.MetricKind
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.MetricKind.Gauge = 1 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.MetricKind
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.MetricKind.Unspecified = 0 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.MetricKind
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType.Bool = 1 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType.Distribution = 5 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType.Double = 3 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType.Int64 = 2 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType.Money = 6 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType.String = 4 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType.Unspecified = 0 -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricKind.get -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.MetricKind
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricKind.set -> void
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.Type.get -> string!
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.Type.set -> void
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.Unit.get -> string!
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.Unit.set -> void
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.ValueType.get -> Excalibur.Dispatch.Transport.Google.MetricDescriptor.MetricDescriptorTypes.ValueType
+Excalibur.Dispatch.Transport.Google.MetricDescriptor.ValueType.set -> void
+Excalibur.Dispatch.Transport.Google.OrderedProcessingResult
+Excalibur.Dispatch.Transport.Google.OrderedProcessingResult.OrderedProcessingResult() -> void
+Excalibur.Dispatch.Transport.Google.OrderedProcessingResult.ProcessingTime.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.OrderedProcessingResult.ProcessingTime.init -> void
+Excalibur.Dispatch.Transport.Google.OrderedProcessingResult.QueueTime.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.OrderedProcessingResult.QueueTime.init -> void
+Excalibur.Dispatch.Transport.Google.OrderedProcessingResult.Success.get -> bool
+Excalibur.Dispatch.Transport.Google.OrderedProcessingResult.Success.init -> void
+Excalibur.Dispatch.Transport.Google.OrderedProcessingResult.WasOrdered.get -> bool
+Excalibur.Dispatch.Transport.Google.OrderedProcessingResult.WasOrdered.init -> void
+Excalibur.Dispatch.Transport.Google.OrderedProcessingResult.WorkerId.get -> int
+Excalibur.Dispatch.Transport.Google.OrderedProcessingResult.WorkerId.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyInfo
+Excalibur.Dispatch.Transport.Google.OrderingKeyInfo.ExpectedSequence.get -> long
+Excalibur.Dispatch.Transport.Google.OrderingKeyInfo.ExpectedSequence.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyInfo.FailureReason.get -> string?
+Excalibur.Dispatch.Transport.Google.OrderingKeyInfo.FailureReason.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyInfo.IsFailed.get -> bool
+Excalibur.Dispatch.Transport.Google.OrderingKeyInfo.IsFailed.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyInfo.LastActivity.get -> System.DateTimeOffset
+Excalibur.Dispatch.Transport.Google.OrderingKeyInfo.LastActivity.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyInfo.LastSequence.get -> long
+Excalibur.Dispatch.Transport.Google.OrderingKeyInfo.LastSequence.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyInfo.MessageCount.get -> long
+Excalibur.Dispatch.Transport.Google.OrderingKeyInfo.MessageCount.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyInfo.OrderingKey.get -> string!
+Excalibur.Dispatch.Transport.Google.OrderingKeyInfo.OrderingKey.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyInfo.OrderingKeyInfo() -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyInfo.OutOfSequenceCount.get -> long
+Excalibur.Dispatch.Transport.Google.OrderingKeyInfo.OutOfSequenceCount.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyManager
+Excalibur.Dispatch.Transport.Google.OrderingKeyManager.CleanupInactiveStatesAsync() -> System.Threading.Tasks.Task<int>!
+Excalibur.Dispatch.Transport.Google.OrderingKeyManager.Dispose() -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyManager.GetOrderingKeyInfo(string! orderingKey) -> Excalibur.Dispatch.Transport.Google.OrderingKeyInfo?
+Excalibur.Dispatch.Transport.Google.OrderingKeyManager.GetStatistics() -> Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics!
+Excalibur.Dispatch.Transport.Google.OrderingKeyManager.MarkFailed(string! orderingKey, string! reason) -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyManager.OrderingKeyManager(Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Transport.Google.OrderingKeyManager!>! logger, Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics! metrics, System.TimeSpan? stateTimeout = null, int maxOrderingKeys = 10000) -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyManager.RecordMessage(string! orderingKey, string! messageId, long? sequenceNumber = null) -> bool
+Excalibur.Dispatch.Transport.Google.OrderingKeyManager.ResetFailedKey(string! orderingKey) -> bool
+Excalibur.Dispatch.Transport.Google.OrderingKeyMetrics
+Excalibur.Dispatch.Transport.Google.OrderingKeyMetrics.Dispose() -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyMetrics.GetStatistics() -> Excalibur.Dispatch.Transport.Google.OrderingPerformanceStatistics!
+Excalibur.Dispatch.Transport.Google.OrderingKeyMetrics.OrderingKeyMetrics() -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyMetrics.OrderingKeyMetrics(System.Diagnostics.Metrics.IMeterFactory? meterFactory) -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyMetrics.RecordInSequenceMessage() -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyMetrics.RecordOrderingKeyCreated() -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyMetrics.RecordOrderingKeyFailed() -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyMetrics.RecordOrderingKeyReset() -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyMetrics.RecordOutOfSequenceMessage(long gapSize) -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyMetrics.UpdateKeyStateCounts(int activeKeys, int failedKeys) -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions.EnableMetrics.get -> bool
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions.EnableMetrics.set -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions.EnforceStrictOrdering.get -> bool
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions.EnforceStrictOrdering.set -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions.MaxConcurrentOrderingKeys.get -> int
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions.MaxConcurrentOrderingKeys.set -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions.MaxMessagesPerOrderingKey.get -> int
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions.MaxMessagesPerOrderingKey.set -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions.MaxRetries.get -> int
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions.MaxRetries.set -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions.MessageStaleTimeout.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions.MessageStaleTimeout.set -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions.OrderingKeyOptions() -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions.QueueCleanupTimeout.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions.QueueCleanupTimeout.set -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions.RemoveEmptyQueues.get -> bool
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions.RemoveEmptyQueues.set -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions.RetryDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions.RetryDelay.set -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyOptions.Validate() -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyProcessor
+Excalibur.Dispatch.Transport.Google.OrderingKeyProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Transport.Google.OrderingKeyProcessor.GetStatistics() -> Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics!
+Excalibur.Dispatch.Transport.Google.OrderingKeyProcessor.OrderingKeyProcessor(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Transport.Google.OrderingKeyOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Transport.Google.OrderingKeyProcessor!>! logger) -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyProcessor.ProcessAsync(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Func<Google.Cloud.PubSub.V1.PubsubMessage!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! handler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Dispatch.Transport.Google.OrderingKeyState
+Excalibur.Dispatch.Transport.Google.OrderingKeyState.IsPaused.get -> bool
+Excalibur.Dispatch.Transport.Google.OrderingKeyState.IsPaused.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyState.LastMessageId.get -> string?
+Excalibur.Dispatch.Transport.Google.OrderingKeyState.LastMessageId.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyState.LastProcessedTime.get -> System.DateTimeOffset?
+Excalibur.Dispatch.Transport.Google.OrderingKeyState.LastProcessedTime.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyState.OrderingKey.get -> string!
+Excalibur.Dispatch.Transport.Google.OrderingKeyState.OrderingKey.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyState.OrderingKeyState(string! OrderingKey, bool IsPaused, int PendingCount, System.DateTimeOffset? LastProcessedTime, string? LastMessageId = null) -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyState.PendingCount.get -> int
+Excalibur.Dispatch.Transport.Google.OrderingKeyState.PendingCount.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.ActiveOrderingKeys.get -> int
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.ActiveOrderingKeys.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.AverageProcessingTime.get -> double
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.AverageProcessingTime.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.AverageQueueDepth.get -> double
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.AverageQueueDepth.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.FailedOrderingKeys.get -> int
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.FailedOrderingKeys.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.OrderingKeyStatistics() -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.QueueStatistics.get -> System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Transport.Google.QueueStatistics!>!
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.QueueStatistics.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.TotalErrors.get -> long
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.TotalErrors.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.TotalMessagesProcessed.get -> long
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.TotalMessagesProcessed.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.TotalOrderingKeys.get -> int
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.TotalOrderingKeys.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.TotalOutOfSequenceMessages.get -> long
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.TotalOutOfSequenceMessages.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.TotalProcessed.get -> long
+Excalibur.Dispatch.Transport.Google.OrderingKeyStatistics.TotalProcessed.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyWork
+Excalibur.Dispatch.Transport.Google.OrderingKeyWork.Key.get -> string!
+Excalibur.Dispatch.Transport.Google.OrderingKeyWork.Key.set -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyWork.OrderingKeyWork() -> void
+Excalibur.Dispatch.Transport.Google.OrderingKeyWork.WorkItem.get -> System.Func<System.Threading.Tasks.Task!>!
+Excalibur.Dispatch.Transport.Google.OrderingKeyWork.WorkItem.set -> void
+Excalibur.Dispatch.Transport.Google.OrderingPerformanceStatistics
+Excalibur.Dispatch.Transport.Google.OrderingPerformanceStatistics.AverageGapSize.get -> double
+Excalibur.Dispatch.Transport.Google.OrderingPerformanceStatistics.AverageGapSize.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingPerformanceStatistics.MaxGapSize.get -> double
+Excalibur.Dispatch.Transport.Google.OrderingPerformanceStatistics.MaxGapSize.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingPerformanceStatistics.OrderingPerformanceStatistics() -> void
+Excalibur.Dispatch.Transport.Google.OrderingPerformanceStatistics.P95GapSize.get -> double
+Excalibur.Dispatch.Transport.Google.OrderingPerformanceStatistics.P95GapSize.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingPerformanceStatistics.SequenceRatio.get -> double
+Excalibur.Dispatch.Transport.Google.OrderingPerformanceStatistics.SequenceRatio.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingPerformanceStatistics.TotalInSequence.get -> long
+Excalibur.Dispatch.Transport.Google.OrderingPerformanceStatistics.TotalInSequence.init -> void
+Excalibur.Dispatch.Transport.Google.OrderingPerformanceStatistics.TotalOutOfSequence.get -> long
+Excalibur.Dispatch.Transport.Google.OrderingPerformanceStatistics.TotalOutOfSequence.init -> void
+Excalibur.Dispatch.Transport.Google.ParallelFor
+Excalibur.Dispatch.Transport.Google.ParallelMessageProcessor
+Excalibur.Dispatch.Transport.Google.ParallelMessageProcessor.DegreeOfParallelism.get -> int
+Excalibur.Dispatch.Transport.Google.ParallelMessageProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Dispatch.Transport.Google.ParallelMessageProcessor.EnqueueAsync(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Func<Google.Cloud.PubSub.V1.PubsubMessage!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! handler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.Google.ProcessingResult!>!
+Excalibur.Dispatch.Transport.Google.ParallelMessageProcessor.GetWorkerStatistics() -> Excalibur.Dispatch.Transport.Google.WorkerStatistics!
+Excalibur.Dispatch.Transport.Google.ParallelMessageProcessor.ParallelMessageProcessor(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Transport.Google.GooglePubSubOptions!>! options, Excalibur.Dispatch.Transport.Google.IGooglePubSubMetrics! metrics, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Transport.Google.ParallelMessageProcessor!>! logger) -> void
+Excalibur.Dispatch.Transport.Google.ParallelMessageProcessor.PendingWorkCount.get -> int
+Excalibur.Dispatch.Transport.Google.PatternInfo
+Excalibur.Dispatch.Transport.Google.PatternInfo.LastSeen.get -> System.DateTimeOffset
+Excalibur.Dispatch.Transport.Google.PatternInfo.LastSeen.set -> void
+Excalibur.Dispatch.Transport.Google.PatternInfo.Occurrences.get -> int
+Excalibur.Dispatch.Transport.Google.PatternInfo.Occurrences.set -> void
+Excalibur.Dispatch.Transport.Google.PatternInfo.Pattern.get -> string!
+Excalibur.Dispatch.Transport.Google.PatternInfo.Pattern.set -> void
+Excalibur.Dispatch.Transport.Google.PatternInfo.PatternInfo() -> void
+Excalibur.Dispatch.Transport.Google.PerformanceStatistics
+Excalibur.Dispatch.Transport.Google.PerformanceStatistics.AverageProcessingTime.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.PerformanceStatistics.AverageProcessingTime.init -> void
+Excalibur.Dispatch.Transport.Google.PerformanceStatistics.AverageQueueTime.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.PerformanceStatistics.AverageQueueTime.init -> void
+Excalibur.Dispatch.Transport.Google.PerformanceStatistics.MessagesEnqueued.get -> long
+Excalibur.Dispatch.Transport.Google.PerformanceStatistics.MessagesEnqueued.init -> void
+Excalibur.Dispatch.Transport.Google.PerformanceStatistics.MessagesFailed.get -> long
+Excalibur.Dispatch.Transport.Google.PerformanceStatistics.MessagesFailed.init -> void
+Excalibur.Dispatch.Transport.Google.PerformanceStatistics.MessagesProcessed.get -> long
+Excalibur.Dispatch.Transport.Google.PerformanceStatistics.MessagesProcessed.init -> void
+Excalibur.Dispatch.Transport.Google.PerformanceStatistics.P95ProcessingTime.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.PerformanceStatistics.P95ProcessingTime.init -> void
+Excalibur.Dispatch.Transport.Google.PerformanceStatistics.P95QueueTime.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.PerformanceStatistics.P95QueueTime.init -> void
+Excalibur.Dispatch.Transport.Google.PerformanceStatistics.PerformanceStatistics() -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionOptions
+Excalibur.Dispatch.Transport.Google.PoisonDetectionOptions.ConsistentExceptionThreshold.get -> double
+Excalibur.Dispatch.Transport.Google.PoisonDetectionOptions.ConsistentExceptionThreshold.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionOptions.HistoryRetentionPeriod.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.PoisonDetectionOptions.HistoryRetentionPeriod.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionOptions.LoopDetectionThreshold.get -> int
+Excalibur.Dispatch.Transport.Google.PoisonDetectionOptions.LoopDetectionThreshold.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionOptions.MaxFailuresBeforePoison.get -> int
+Excalibur.Dispatch.Transport.Google.PoisonDetectionOptions.MaxFailuresBeforePoison.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionOptions.PoisonDetectionOptions() -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionOptions.RapidFailureCount.get -> int
+Excalibur.Dispatch.Transport.Google.PoisonDetectionOptions.RapidFailureCount.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionOptions.RapidFailureWindow.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.PoisonDetectionOptions.RapidFailureWindow.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionOptions.TimeoutThreshold.get -> double
+Excalibur.Dispatch.Transport.Google.PoisonDetectionOptions.TimeoutThreshold.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionResult
+Excalibur.Dispatch.Transport.Google.PoisonDetectionResult.DetectionResults.get -> System.Collections.Generic.List<Excalibur.Dispatch.Transport.Google.RuleDetectionResult!>!
+Excalibur.Dispatch.Transport.Google.PoisonDetectionResult.DetectionResults.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionResult.FailureCount.get -> int
+Excalibur.Dispatch.Transport.Google.PoisonDetectionResult.FailureCount.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionResult.IsPoison.get -> bool
+Excalibur.Dispatch.Transport.Google.PoisonDetectionResult.IsPoison.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionResult.MessageId.get -> string!
+Excalibur.Dispatch.Transport.Google.PoisonDetectionResult.MessageId.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionResult.Metadata.get -> System.Collections.Generic.Dictionary<string!, string!>!
+Excalibur.Dispatch.Transport.Google.PoisonDetectionResult.Metadata.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionResult.PoisonDetectionResult() -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionResult.Recommendation.get -> Excalibur.Dispatch.Transport.Google.PoisonRecommendation!
+Excalibur.Dispatch.Transport.Google.PoisonDetectionResult.Recommendation.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionRuleBase
+Excalibur.Dispatch.Transport.Google.PoisonDetectionRuleBase.GetConfidence(object! message, System.Exception! exception, object! history) -> double
+Excalibur.Dispatch.Transport.Google.PoisonDetectionRuleBase.IsPoison(object! message, System.Exception! exception, object! history) -> bool
+Excalibur.Dispatch.Transport.Google.PoisonDetectionRuleBase.Name.get -> string!
+Excalibur.Dispatch.Transport.Google.PoisonDetectionRuleBase.PoisonDetectionRuleBase(string! name) -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionStatistics
+Excalibur.Dispatch.Transport.Google.PoisonDetectionStatistics.DetectedPatterns.get -> System.Collections.Generic.List<Excalibur.Dispatch.Transport.Google.PatternInfo!>!
+Excalibur.Dispatch.Transport.Google.PoisonDetectionStatistics.DetectedPatterns.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionStatistics.MultipleFailuresCount.get -> int
+Excalibur.Dispatch.Transport.Google.PoisonDetectionStatistics.MultipleFailuresCount.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionStatistics.PoisonDetectionStatistics() -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionStatistics.RecentFailures.get -> int
+Excalibur.Dispatch.Transport.Google.PoisonDetectionStatistics.RecentFailures.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionStatistics.TotalFailures.get -> int
+Excalibur.Dispatch.Transport.Google.PoisonDetectionStatistics.TotalFailures.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonDetectionStatistics.TotalTrackedMessages.get -> int
+Excalibur.Dispatch.Transport.Google.PoisonDetectionStatistics.TotalTrackedMessages.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonReason
+Excalibur.Dispatch.Transport.Google.PoisonReason.InvalidFormat = 3 -> Excalibur.Dispatch.Transport.Google.PoisonReason
+Excalibur.Dispatch.Transport.Google.PoisonReason.MaxDeliveryAttemptsExceeded = 0 -> Excalibur.Dispatch.Transport.Google.PoisonReason
+Excalibur.Dispatch.Transport.Google.PoisonReason.MessageExpired = 4 -> Excalibur.Dispatch.Transport.Google.PoisonReason
+Excalibur.Dispatch.Transport.Google.PoisonReason.ProcessingTimeout = 1 -> Excalibur.Dispatch.Transport.Google.PoisonReason
+Excalibur.Dispatch.Transport.Google.PoisonReason.UnhandledException = 2 -> Excalibur.Dispatch.Transport.Google.PoisonReason
+Excalibur.Dispatch.Transport.Google.PoisonReason.Unknown = 99 -> Excalibur.Dispatch.Transport.Google.PoisonReason
+Excalibur.Dispatch.Transport.Google.PoisonRecommendation
+Excalibur.Dispatch.Transport.Google.PoisonRecommendation.Action.get -> Excalibur.Dispatch.Transport.Google.RecommendedAction
+Excalibur.Dispatch.Transport.Google.PoisonRecommendation.Action.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonRecommendation.PoisonRecommendation() -> void
+Excalibur.Dispatch.Transport.Google.PoisonRecommendation.Reason.get -> string!
+Excalibur.Dispatch.Transport.Google.PoisonRecommendation.Reason.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonRecommendation.RetryDelay.get -> System.TimeSpan?
+Excalibur.Dispatch.Transport.Google.PoisonRecommendation.RetryDelay.set -> void
+Excalibur.Dispatch.Transport.Google.PoisonRecommendation.SuggestedFix.get -> string?
+Excalibur.Dispatch.Transport.Google.PoisonRecommendation.SuggestedFix.set -> void
+Excalibur.Dispatch.Transport.Google.PolicyStatistic
+Excalibur.Dispatch.Transport.Google.PolicyStatistic.AverageDuration.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.PolicyStatistic.AverageDuration.set -> void
+Excalibur.Dispatch.Transport.Google.PolicyStatistic.FailedAttempts.get -> long
+Excalibur.Dispatch.Transport.Google.PolicyStatistic.FailedAttempts.set -> void
+Excalibur.Dispatch.Transport.Google.PolicyStatistic.PolicyKey.get -> string!
+Excalibur.Dispatch.Transport.Google.PolicyStatistic.PolicyKey.set -> void
+Excalibur.Dispatch.Transport.Google.PolicyStatistic.PolicyStatistic() -> void
+Excalibur.Dispatch.Transport.Google.PolicyStatistic.SuccessfulAttempts.get -> long
+Excalibur.Dispatch.Transport.Google.PolicyStatistic.SuccessfulAttempts.set -> void
+Excalibur.Dispatch.Transport.Google.PolicyStatistic.SuccessRate.get -> double
+Excalibur.Dispatch.Transport.Google.PolicyStatistic.SuccessRate.set -> void
+Excalibur.Dispatch.Transport.Google.PolicyStatistic.TotalAttempts.get -> long
+Excalibur.Dispatch.Transport.Google.PolicyStatistic.TotalAttempts.set -> void
+Excalibur.Dispatch.Transport.Google.ProcessedMessage
+Excalibur.Dispatch.Transport.Google.ProcessedMessage.AckId.get -> string!
+Excalibur.Dispatch.Transport.Google.ProcessedMessage.Duration.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.ProcessedMessage.MessageId.get -> string!
+Excalibur.Dispatch.Transport.Google.ProcessedMessage.ProcessedMessage(string! messageId, string! ackId, object! result, System.TimeSpan duration) -> void
+Excalibur.Dispatch.Transport.Google.ProcessedMessage.Result.get -> object!
+Excalibur.Dispatch.Transport.Google.ProcessingResult
+Excalibur.Dispatch.Transport.Google.ProcessingResult.ProcessingResult() -> void
+Excalibur.Dispatch.Transport.Google.ProcessingResult.ProcessingTime.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.ProcessingResult.ProcessingTime.init -> void
+Excalibur.Dispatch.Transport.Google.ProcessingResult.Success.get -> bool
+Excalibur.Dispatch.Transport.Google.ProcessingResult.Success.init -> void
+Excalibur.Dispatch.Transport.Google.ProcessingResult.WorkerId.get -> int
+Excalibur.Dispatch.Transport.Google.ProcessingResult.WorkerId.init -> void
+Excalibur.Dispatch.Transport.Google.ProcessorStatistics
+Excalibur.Dispatch.Transport.Google.ProcessorStatistics.ActiveProcessingThreads.get -> int
+Excalibur.Dispatch.Transport.Google.ProcessorStatistics.ActiveProcessingThreads.set -> void
+Excalibur.Dispatch.Transport.Google.ProcessorStatistics.IsShuttingDown.get -> bool
+Excalibur.Dispatch.Transport.Google.ProcessorStatistics.IsShuttingDown.set -> void
+Excalibur.Dispatch.Transport.Google.ProcessorStatistics.MaxQueueCapacity.get -> int
+Excalibur.Dispatch.Transport.Google.ProcessorStatistics.MaxQueueCapacity.set -> void
+Excalibur.Dispatch.Transport.Google.ProcessorStatistics.ProcessorStatistics() -> void
+Excalibur.Dispatch.Transport.Google.ProcessorStatistics.QueuedMessages.get -> int
+Excalibur.Dispatch.Transport.Google.ProcessorStatistics.QueuedMessages.set -> void
+Excalibur.Dispatch.Transport.Google.ProjectName
+Excalibur.Dispatch.Transport.Google.ProjectName.ProjectId.get -> string!
+Excalibur.Dispatch.Transport.Google.ProjectName.ProjectId.set -> void
+Excalibur.Dispatch.Transport.Google.ProjectName.ProjectName() -> void
+Excalibur.Dispatch.Transport.Google.ProjectName.ToProjectName() -> Excalibur.Dispatch.Transport.Google.ProjectName!
+Excalibur.Dispatch.Transport.Google.ProtobufExtensions
+Excalibur.Dispatch.Transport.Google.PubSubBufferOptions
+Excalibur.Dispatch.Transport.Google.PubSubBufferOptions.InitialBufferSize.get -> int
+Excalibur.Dispatch.Transport.Google.PubSubBufferOptions.InitialBufferSize.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubBufferOptions.MaxBufferSize.get -> int
+Excalibur.Dispatch.Transport.Google.PubSubBufferOptions.MaxBufferSize.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubBufferOptions.MaxBuffersPerBucket.get -> int
+Excalibur.Dispatch.Transport.Google.PubSubBufferOptions.MaxBuffersPerBucket.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubBufferOptions.PubSubBufferOptions() -> void
+Excalibur.Dispatch.Transport.Google.PubSubCacheOptions
+Excalibur.Dispatch.Transport.Google.PubSubCacheOptions.CacheDuration.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.PubSubCacheOptions.CacheDuration.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubCacheOptions.EnableMessageCaching.get -> bool
+Excalibur.Dispatch.Transport.Google.PubSubCacheOptions.EnableMessageCaching.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubCacheOptions.PubSubCacheOptions() -> void
+Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions
+Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions.Algorithm.get -> Excalibur.Dispatch.Abstractions.Serialization.CompressionAlgorithm
+Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions.Algorithm.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions.CompressAlreadyCompressedContent.get -> bool
+Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions.CompressAlreadyCompressedContent.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions.CompressedContentTypes.get -> System.Collections.Generic.List<string!>!
+Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions.EnableAutoDetection.get -> bool
+Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions.EnableAutoDetection.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions.Enabled.get -> bool
+Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions.Enabled.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions.IsAlreadyCompressedContentType(string? contentType) -> bool
+Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions.PubSubCompressionOptions() -> void
+Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions.ShouldCompress(int payloadSize, string? contentType = null) -> bool
+Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions.ThresholdBytes.get -> int
+Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions.ThresholdBytes.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubDeadLetterQueueManager
+Excalibur.Dispatch.Transport.Google.PubSubDeadLetterQueueManager.ConfigureDeadLetterPolicyAsync(Google.Cloud.PubSub.V1.SubscriptionName! subscription, Google.Cloud.PubSub.V1.TopicName! deadLetterTopic, int maxDeliveryAttempts, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Google.Cloud.PubSub.V1.DeadLetterPolicy!>!
+Excalibur.Dispatch.Transport.Google.PubSubDeadLetterQueueManager.Dispose() -> void
+Excalibur.Dispatch.Transport.Google.PubSubDeadLetterQueueManager.GetDeadLetterMessagesAsync(int maxMessages, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Transport.DeadLetterMessage!>!>!
+Excalibur.Dispatch.Transport.Google.PubSubDeadLetterQueueManager.GetStatisticsAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.DeadLetterStatistics!>!
+Excalibur.Dispatch.Transport.Google.PubSubDeadLetterQueueManager.MoveToDeadLetterAsync(Excalibur.Dispatch.Transport.TransportMessage! message, string! reason, System.Exception? exception, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<string!>!
+Excalibur.Dispatch.Transport.Google.PubSubDeadLetterQueueManager.PubSubDeadLetterQueueManager(Google.Cloud.PubSub.V1.SubscriberServiceApiClient! subscriberClient, Google.Cloud.PubSub.V1.PublisherServiceApiClient! publisherClient, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Transport.Google.DeadLetterOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Transport.Google.PubSubDeadLetterQueueManager!>! logger) -> void
+Excalibur.Dispatch.Transport.Google.PubSubDeadLetterQueueManager.PurgeDeadLetterQueueAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Dispatch.Transport.Google.PubSubDeadLetterQueueManager.ReprocessDeadLetterMessagesAsync(System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Transport.DeadLetterMessage!>! messages, Excalibur.Dispatch.Transport.ReprocessOptions! options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Transport.ReprocessResult!>!
+Excalibur.Dispatch.Transport.Google.PubSubFilterOptions
+Excalibur.Dispatch.Transport.Google.PubSubFilterOptions.Enabled.get -> bool
+Excalibur.Dispatch.Transport.Google.PubSubFilterOptions.Enabled.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubFilterOptions.FilterExpression.get -> string?
+Excalibur.Dispatch.Transport.Google.PubSubFilterOptions.FilterExpression.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubFilterOptions.PubSubFilterOptions() -> void
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.AdaptationInterval.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.AdaptationInterval.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.EnableAdaptiveFlowControl.get -> bool
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.EnableAdaptiveFlowControl.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.MaxOutstandingByteCount.get -> long
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.MaxOutstandingByteCount.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.MaxOutstandingElementCount.get -> int
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.MaxOutstandingElementCount.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.MemoryPressureThreshold.get -> double
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.MemoryPressureThreshold.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.MinOutstandingByteCount.get -> long
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.MinOutstandingByteCount.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.MinOutstandingElementCount.get -> int
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.MinOutstandingElementCount.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.PubSubFlowControlOptions() -> void
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.ScaleDownFactor.get -> double
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.ScaleDownFactor.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.ScaleUpFactor.get -> double
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.ScaleUpFactor.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.TargetUtilizationPercentage.get -> double
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.TargetUtilizationPercentage.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubFlowControlOptions.Validate() -> void
+Excalibur.Dispatch.Transport.Google.PubSubMessage
+Excalibur.Dispatch.Transport.Google.PubSubMessage.AckId.get -> string!
+Excalibur.Dispatch.Transport.Google.PubSubMessage.AckId.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubMessage.Attributes.get -> System.Collections.Generic.Dictionary<string!, string!>!
+Excalibur.Dispatch.Transport.Google.PubSubMessage.Attributes.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubMessage.Data.get -> byte[]!
+Excalibur.Dispatch.Transport.Google.PubSubMessage.Data.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubMessage.MessageId.get -> string!
+Excalibur.Dispatch.Transport.Google.PubSubMessage.MessageId.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubMessage.PublishTime.get -> System.DateTimeOffset
+Excalibur.Dispatch.Transport.Google.PubSubMessage.PublishTime.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubMessage.PubSubMessage() -> void
+Excalibur.Dispatch.Transport.Google.PubSubMessageJsonContext
+Excalibur.Dispatch.Transport.Google.PubSubRetryOptions
+Excalibur.Dispatch.Transport.Google.PubSubRetryOptions.InitialRetryDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.PubSubRetryOptions.InitialRetryDelay.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubRetryOptions.MaxRetryDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.PubSubRetryOptions.MaxRetryDelay.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubRetryOptions.PubSubRetryOptions() -> void
+Excalibur.Dispatch.Transport.Google.PubSubRetryOptions.RetryDelayMultiplier.get -> double
+Excalibur.Dispatch.Transport.Google.PubSubRetryOptions.RetryDelayMultiplier.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubRetryOptions.TotalTimeout.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.PubSubRetryOptions.TotalTimeout.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSchemaInfo
+Excalibur.Dispatch.Transport.Google.PubSubSchemaInfo.CreatedAt.get -> System.DateTimeOffset
+Excalibur.Dispatch.Transport.Google.PubSubSchemaInfo.CreatedAt.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSchemaInfo.Definition.get -> string!
+Excalibur.Dispatch.Transport.Google.PubSubSchemaInfo.Definition.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSchemaInfo.Name.get -> string!
+Excalibur.Dispatch.Transport.Google.PubSubSchemaInfo.Name.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSchemaInfo.PubSubSchemaInfo() -> void
+Excalibur.Dispatch.Transport.Google.PubSubSchemaInfo.RevisionId.get -> string!
+Excalibur.Dispatch.Transport.Google.PubSubSchemaInfo.RevisionId.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSchemaInfo.SchemaType.get -> string!
+Excalibur.Dispatch.Transport.Google.PubSubSchemaInfo.SchemaType.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.Buffer.get -> Excalibur.Dispatch.Transport.Google.PubSubBufferOptions!
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.Buffer.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.Cache.get -> Excalibur.Dispatch.Transport.Google.PubSubCacheOptions!
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.Cache.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.Compression.get -> Excalibur.Dispatch.Transport.Google.PubSubCompressionOptions!
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.Compression.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.EnableSchemaValidation.get -> bool
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.EnableSchemaValidation.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.EnableSourceGeneration.get -> bool
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.EnableSourceGeneration.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.Format.get -> Excalibur.Dispatch.Abstractions.Serialization.SerializationFormat
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.Format.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.PubSubSerializationOptions() -> void
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.SchemaRegistryUrl.get -> System.Uri?
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.SchemaRegistryUrl.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.SkipValidation.get -> bool
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.SkipValidation.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.UseFullTypeNames.get -> bool
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.UseFullTypeNames.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSerializationOptions.Validate() -> void
+Excalibur.Dispatch.Transport.Google.PubSubSubscriberOptions
+Excalibur.Dispatch.Transport.Google.PubSubSubscriberOptions.AckDeadlineSeconds.get -> int
+Excalibur.Dispatch.Transport.Google.PubSubSubscriberOptions.AckDeadlineSeconds.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSubscriberOptions.DeadLetterTopicId.get -> string?
+Excalibur.Dispatch.Transport.Google.PubSubSubscriberOptions.DeadLetterTopicId.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSubscriberOptions.EnableAutoAckExtension.get -> bool
+Excalibur.Dispatch.Transport.Google.PubSubSubscriberOptions.EnableAutoAckExtension.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSubscriberOptions.EnableDeadLetterTopic.get -> bool
+Excalibur.Dispatch.Transport.Google.PubSubSubscriberOptions.EnableDeadLetterTopic.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSubscriberOptions.MaxConcurrentAcks.get -> int
+Excalibur.Dispatch.Transport.Google.PubSubSubscriberOptions.MaxConcurrentAcks.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSubscriberOptions.MaxPullMessages.get -> int
+Excalibur.Dispatch.Transport.Google.PubSubSubscriberOptions.MaxPullMessages.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubSubscriberOptions.PubSubSubscriberOptions() -> void
+Excalibur.Dispatch.Transport.Google.PubSubTelemetry
+Excalibur.Dispatch.Transport.Google.PubSubTelemetryOptions
+Excalibur.Dispatch.Transport.Google.PubSubTelemetryOptions.EnableOpenTelemetry.get -> bool
+Excalibur.Dispatch.Transport.Google.PubSubTelemetryOptions.EnableOpenTelemetry.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubTelemetryOptions.EnableTracePropagation.get -> bool
+Excalibur.Dispatch.Transport.Google.PubSubTelemetryOptions.EnableTracePropagation.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubTelemetryOptions.ExportToCloudMonitoring.get -> bool
+Excalibur.Dispatch.Transport.Google.PubSubTelemetryOptions.ExportToCloudMonitoring.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubTelemetryOptions.IncludeMessageAttributesInTraces.get -> bool
+Excalibur.Dispatch.Transport.Google.PubSubTelemetryOptions.IncludeMessageAttributesInTraces.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubTelemetryOptions.OtlpEndpoint.get -> string?
+Excalibur.Dispatch.Transport.Google.PubSubTelemetryOptions.OtlpEndpoint.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubTelemetryOptions.PubSubTelemetryOptions() -> void
+Excalibur.Dispatch.Transport.Google.PubSubTelemetryOptions.TelemetryExportIntervalSeconds.get -> int
+Excalibur.Dispatch.Transport.Google.PubSubTelemetryOptions.TelemetryExportIntervalSeconds.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubTelemetryOptions.TelemetryResourceLabels.get -> System.Collections.Generic.Dictionary<string!, string!>!
+Excalibur.Dispatch.Transport.Google.PubSubTelemetryOptions.TelemetryResourceLabels.set -> void
+Excalibur.Dispatch.Transport.Google.PubSubTelemetryOptions.TracingSamplingRatio.get -> double
+Excalibur.Dispatch.Transport.Google.PubSubTelemetryOptions.TracingSamplingRatio.set -> void
+Excalibur.Dispatch.Transport.Google.QueueStatistics
+Excalibur.Dispatch.Transport.Google.QueueStatistics.ErrorCount.get -> long
+Excalibur.Dispatch.Transport.Google.QueueStatistics.ErrorCount.init -> void
+Excalibur.Dispatch.Transport.Google.QueueStatistics.IsProcessing.get -> bool
+Excalibur.Dispatch.Transport.Google.QueueStatistics.IsProcessing.init -> void
+Excalibur.Dispatch.Transport.Google.QueueStatistics.OrderingKey.get -> string!
+Excalibur.Dispatch.Transport.Google.QueueStatistics.OrderingKey.init -> void
+Excalibur.Dispatch.Transport.Google.QueueStatistics.ProcessedCount.get -> long
+Excalibur.Dispatch.Transport.Google.QueueStatistics.ProcessedCount.init -> void
+Excalibur.Dispatch.Transport.Google.QueueStatistics.QueueDepth.get -> int
+Excalibur.Dispatch.Transport.Google.QueueStatistics.QueueDepth.init -> void
+Excalibur.Dispatch.Transport.Google.QueueStatistics.QueueStatistics() -> void
+Excalibur.Dispatch.Transport.Google.RecommendedAction
+Excalibur.Dispatch.Transport.Google.RecommendedAction.DeadLetter = 1 -> Excalibur.Dispatch.Transport.Google.RecommendedAction
+Excalibur.Dispatch.Transport.Google.RecommendedAction.Quarantine = 2 -> Excalibur.Dispatch.Transport.Google.RecommendedAction
+Excalibur.Dispatch.Transport.Google.RecommendedAction.Retry = 0 -> Excalibur.Dispatch.Transport.Google.RecommendedAction
+Excalibur.Dispatch.Transport.Google.RecommendedAction.Skip = 3 -> Excalibur.Dispatch.Transport.Google.RecommendedAction
+Excalibur.Dispatch.Transport.Google.RetryPolicy
+Excalibur.Dispatch.Transport.Google.RetryPolicy.BackoffMultiplier.get -> double
+Excalibur.Dispatch.Transport.Google.RetryPolicy.BackoffMultiplier.init -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicy.ExponentialBackoff.get -> bool
+Excalibur.Dispatch.Transport.Google.RetryPolicy.ExponentialBackoff.init -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicy.InitialDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.RetryPolicy.InitialDelay.init -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicy.MaxAttempts.get -> int
+Excalibur.Dispatch.Transport.Google.RetryPolicy.MaxAttempts.init -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicy.MaxDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.RetryPolicy.MaxDelay.init -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicy.RetryPolicy(int MaxAttempts, System.TimeSpan InitialDelay, System.TimeSpan MaxDelay, double BackoffMultiplier, bool ExponentialBackoff = true) -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicyManager
+Excalibur.Dispatch.Transport.Google.RetryPolicyManager.CreateAdaptivePolicy(string! policyKey) -> Polly.IAsyncPolicy!
+Excalibur.Dispatch.Transport.Google.RetryPolicyManager.ExecuteWithRetryAsync<TResult>(string! messageType, System.Func<System.Threading.CancellationToken, System.Threading.Tasks.Task<TResult>!>! action, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<TResult>!
+Excalibur.Dispatch.Transport.Google.RetryPolicyManager.GetRetryPolicy(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception? lastException = null) -> Polly.IAsyncPolicy!
+Excalibur.Dispatch.Transport.Google.RetryPolicyManager.GetRetryPolicy(string! messageType) -> Polly.IAsyncPolicy!
+Excalibur.Dispatch.Transport.Google.RetryPolicyManager.GetStatistics() -> Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics!
+Excalibur.Dispatch.Transport.Google.RetryPolicyManager.RecordRetryAttempt(string! messageId, string! policyKey, int attemptNumber, System.TimeSpan duration, bool success) -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicyManager.RetryPolicyManager(Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Transport.Google.RetryPolicyManager!>! logger, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Transport.Google.RetryPolicyOptions!>! options) -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicyManager.ShouldRetry(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception! exception) -> bool
+Excalibur.Dispatch.Transport.Google.RetryPolicyOptions
+Excalibur.Dispatch.Transport.Google.RetryPolicyOptions.CustomStrategies.get -> System.Collections.Generic.Dictionary<string!, Excalibur.Dispatch.Transport.Google.RetryStrategy!>!
+Excalibur.Dispatch.Transport.Google.RetryPolicyOptions.DefaultStrategy.get -> Excalibur.Dispatch.Transport.Google.RetryStrategy!
+Excalibur.Dispatch.Transport.Google.RetryPolicyOptions.DefaultStrategy.set -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicyOptions.EnableAdaptiveRetries.get -> bool
+Excalibur.Dispatch.Transport.Google.RetryPolicyOptions.EnableAdaptiveRetries.set -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicyOptions.ResourceExhaustionStrategy.get -> Excalibur.Dispatch.Transport.Google.RetryStrategy!
+Excalibur.Dispatch.Transport.Google.RetryPolicyOptions.ResourceExhaustionStrategy.set -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicyOptions.RetryPolicyOptions() -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicyOptions.TimeoutStrategy.get -> Excalibur.Dispatch.Transport.Google.RetryStrategy!
+Excalibur.Dispatch.Transport.Google.RetryPolicyOptions.TimeoutStrategy.set -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicyOptions.TransientErrorStrategy.get -> Excalibur.Dispatch.Transport.Google.RetryStrategy!
+Excalibur.Dispatch.Transport.Google.RetryPolicyOptions.TransientErrorStrategy.set -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics
+Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.AverageRetryCount.get -> double
+Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.AverageRetryCount.set -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.FailedAttempts.get -> long
+Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.FailedAttempts.set -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.LastUpdated.get -> System.DateTime
+Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.LastUpdated.set -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.PolicyCount.get -> int
+Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.PolicyCount.set -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.PolicyStatistics.get -> System.Collections.Generic.List<Excalibur.Dispatch.Transport.Google.PolicyStatistic!>!
+Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.PolicyStatistics.set -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.RetryPolicyStatistics() -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.SuccessfulAttempts.get -> long
+Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.SuccessfulAttempts.set -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.SuccessRate.get -> double
+Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.SuccessRate.set -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.TotalAttempts.get -> long
+Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.TotalAttempts.set -> void
+Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.TotalRetryAttempts.get -> long
+Excalibur.Dispatch.Transport.Google.RetryPolicyStatistics.TotalRetryAttempts.set -> void
+Excalibur.Dispatch.Transport.Google.RetryStrategy
+Excalibur.Dispatch.Transport.Google.RetryStrategy.BackoffType.get -> Excalibur.Dispatch.Transport.Google.BackoffType
+Excalibur.Dispatch.Transport.Google.RetryStrategy.BackoffType.set -> void
+Excalibur.Dispatch.Transport.Google.RetryStrategy.CircuitBreakerDuration.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.RetryStrategy.CircuitBreakerDuration.set -> void
+Excalibur.Dispatch.Transport.Google.RetryStrategy.CircuitBreakerEnabled.get -> bool
+Excalibur.Dispatch.Transport.Google.RetryStrategy.CircuitBreakerEnabled.set -> void
+Excalibur.Dispatch.Transport.Google.RetryStrategy.CircuitBreakerThreshold.get -> int
+Excalibur.Dispatch.Transport.Google.RetryStrategy.CircuitBreakerThreshold.set -> void
+Excalibur.Dispatch.Transport.Google.RetryStrategy.InitialDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.RetryStrategy.InitialDelay.set -> void
+Excalibur.Dispatch.Transport.Google.RetryStrategy.JitterEnabled.get -> bool
+Excalibur.Dispatch.Transport.Google.RetryStrategy.JitterEnabled.set -> void
+Excalibur.Dispatch.Transport.Google.RetryStrategy.MaxDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.RetryStrategy.MaxDelay.set -> void
+Excalibur.Dispatch.Transport.Google.RetryStrategy.MaxRetryAttempts.get -> int
+Excalibur.Dispatch.Transport.Google.RetryStrategy.MaxRetryAttempts.set -> void
+Excalibur.Dispatch.Transport.Google.RetryStrategy.RetryStrategy() -> void
+Excalibur.Dispatch.Transport.Google.RoundRobinDistributionStrategy
+Excalibur.Dispatch.Transport.Google.RoundRobinDistributionStrategy.RecordCompletion(int workerId, System.TimeSpan duration) -> void
+Excalibur.Dispatch.Transport.Google.RoundRobinDistributionStrategy.RoundRobinDistributionStrategy() -> void
+Excalibur.Dispatch.Transport.Google.RoundRobinDistributionStrategy.SelectWorker(Excalibur.Dispatch.Transport.Google.WorkDistributionContext! context) -> int
+Excalibur.Dispatch.Transport.Google.RuleDetectionResult
+Excalibur.Dispatch.Transport.Google.RuleDetectionResult.Confidence.get -> double
+Excalibur.Dispatch.Transport.Google.RuleDetectionResult.Confidence.set -> void
+Excalibur.Dispatch.Transport.Google.RuleDetectionResult.Reason.get -> string!
+Excalibur.Dispatch.Transport.Google.RuleDetectionResult.Reason.set -> void
+Excalibur.Dispatch.Transport.Google.RuleDetectionResult.RuleDetectionResult() -> void
+Excalibur.Dispatch.Transport.Google.RuleDetectionResult.RuleName.get -> string!
+Excalibur.Dispatch.Transport.Google.RuleDetectionResult.RuleName.set -> void
+Excalibur.Dispatch.Transport.Google.SchemaDefinition
+Excalibur.Dispatch.Transport.Google.SchemaDefinition.Definition.get -> string!
+Excalibur.Dispatch.Transport.Google.SchemaDefinition.Definition.init -> void
+Excalibur.Dispatch.Transport.Google.SchemaDefinition.Metadata.get -> System.Collections.Generic.Dictionary<string!, string!>?
+Excalibur.Dispatch.Transport.Google.SchemaDefinition.Metadata.init -> void
+Excalibur.Dispatch.Transport.Google.SchemaDefinition.SchemaDefinition(string! SchemaId, string! SchemaType, string! Definition, System.Collections.Generic.Dictionary<string!, string!>? Metadata = null) -> void
+Excalibur.Dispatch.Transport.Google.SchemaDefinition.SchemaId.get -> string!
+Excalibur.Dispatch.Transport.Google.SchemaDefinition.SchemaId.init -> void
+Excalibur.Dispatch.Transport.Google.SchemaDefinition.SchemaType.get -> string!
+Excalibur.Dispatch.Transport.Google.SchemaDefinition.SchemaType.init -> void
+Excalibur.Dispatch.Transport.Google.SchemaMetadata
+Excalibur.Dispatch.Transport.Google.SchemaMetadata.Format.get -> Excalibur.Dispatch.Abstractions.Serialization.SerializationFormat
+Excalibur.Dispatch.Transport.Google.SchemaMetadata.Format.set -> void
+Excalibur.Dispatch.Transport.Google.SchemaMetadata.Metadata.get -> System.Collections.Generic.Dictionary<string!, string!>!
+Excalibur.Dispatch.Transport.Google.SchemaMetadata.Metadata.set -> void
+Excalibur.Dispatch.Transport.Google.SchemaMetadata.RegisteredAt.get -> System.DateTimeOffset
+Excalibur.Dispatch.Transport.Google.SchemaMetadata.RegisteredAt.set -> void
+Excalibur.Dispatch.Transport.Google.SchemaMetadata.Schema.get -> string!
+Excalibur.Dispatch.Transport.Google.SchemaMetadata.Schema.set -> void
+Excalibur.Dispatch.Transport.Google.SchemaMetadata.SchemaMetadata() -> void
+Excalibur.Dispatch.Transport.Google.SchemaMetadata.TypeName.get -> string!
+Excalibur.Dispatch.Transport.Google.SchemaMetadata.TypeName.set -> void
+Excalibur.Dispatch.Transport.Google.SchemaMetadata.Version.get -> int
+Excalibur.Dispatch.Transport.Google.SchemaMetadata.Version.set -> void
+Excalibur.Dispatch.Transport.Google.SchemaValidationResult
+Excalibur.Dispatch.Transport.Google.SchemaValidationResult.Diagnostics.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Excalibur.Dispatch.Transport.Google.SchemaValidationResult.Diagnostics.set -> void
+Excalibur.Dispatch.Transport.Google.SchemaValidationResult.IsValid.get -> bool
+Excalibur.Dispatch.Transport.Google.SchemaValidationResult.IsValid.set -> void
+Excalibur.Dispatch.Transport.Google.SchemaValidationResult.SchemaValidationResult() -> void
+Excalibur.Dispatch.Transport.Google.SerializationStatistics
+Excalibur.Dispatch.Transport.Google.SerializationStatistics.ArrayPoolInUse.get -> long
+Excalibur.Dispatch.Transport.Google.SerializationStatistics.ArrayPoolInUse.set -> void
+Excalibur.Dispatch.Transport.Google.SerializationStatistics.AverageSerializationTimeMicros.get -> double
+Excalibur.Dispatch.Transport.Google.SerializationStatistics.AverageSerializationTimeMicros.set -> void
+Excalibur.Dispatch.Transport.Google.SerializationStatistics.SerializationStatistics() -> void
+Excalibur.Dispatch.Transport.Google.SerializationStatistics.TotalBytesSerialized.get -> long
+Excalibur.Dispatch.Transport.Google.SerializationStatistics.TotalBytesSerialized.set -> void
+Excalibur.Dispatch.Transport.Google.SerializationStatistics.TotalMessagesSerialized.get -> long
+Excalibur.Dispatch.Transport.Google.SerializationStatistics.TotalMessagesSerialized.set -> void
+Excalibur.Dispatch.Transport.Google.SerializedBatchResult
+Excalibur.Dispatch.Transport.Google.SerializedBatchResult.Failed.get -> System.Collections.Generic.List<Excalibur.Dispatch.Transport.Google.FailedMessage!>!
+Excalibur.Dispatch.Transport.Google.SerializedBatchResult.Failed.init -> void
+Excalibur.Dispatch.Transport.Google.SerializedBatchResult.Metrics.get -> System.Collections.Generic.Dictionary<string!, object!>?
+Excalibur.Dispatch.Transport.Google.SerializedBatchResult.Metrics.init -> void
+Excalibur.Dispatch.Transport.Google.SerializedBatchResult.Processed.get -> System.Collections.Generic.List<Excalibur.Dispatch.Transport.Google.ProcessedMessage!>!
+Excalibur.Dispatch.Transport.Google.SerializedBatchResult.Processed.init -> void
+Excalibur.Dispatch.Transport.Google.SerializedBatchResult.SerializedBatchResult(System.Collections.Generic.List<Excalibur.Dispatch.Transport.Google.ProcessedMessage!>! Processed, System.Collections.Generic.List<Excalibur.Dispatch.Transport.Google.FailedMessage!>! Failed, System.TimeSpan TotalDuration, System.Collections.Generic.Dictionary<string!, object!>? Metrics = null) -> void
+Excalibur.Dispatch.Transport.Google.SerializedBatchResult.TotalDuration.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.SerializedBatchResult.TotalDuration.init -> void
+Excalibur.Dispatch.Transport.Google.SingleChannelPool
+Excalibur.Dispatch.Transport.Google.SingleChannelPool.Dispose() -> void
+Excalibur.Dispatch.Transport.Google.SingleChannelPool.GetChannel() -> Grpc.Net.Client.GrpcChannel!
+Excalibur.Dispatch.Transport.Google.SingleChannelPool.SingleChannelPool(string! address) -> void
+Excalibur.Dispatch.Transport.Google.SingleChannelPool.UnderlyingChannel.get -> Grpc.Net.Client.GrpcChannel!
+Excalibur.Dispatch.Transport.Google.SizeBoundBatchingStrategy
+Excalibur.Dispatch.Transport.Google.SizeBoundBatchingStrategy.DetermineNextBatchSize(Excalibur.Dispatch.Transport.Google.BatchingContext! context) -> int
+Excalibur.Dispatch.Transport.Google.SizeBoundBatchingStrategy.RecordBatchResult(Excalibur.Dispatch.Transport.Google.BatchResult! result) -> void
+Excalibur.Dispatch.Transport.Google.SizeBoundBatchingStrategy.Reset() -> void
+Excalibur.Dispatch.Transport.Google.SizeBoundBatchingStrategy.SizeBoundBatchingStrategy(Excalibur.Dispatch.Transport.Google.BatchConfiguration! configuration) -> void
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.AcknowledgmentsFailed.get -> long
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.AcknowledgmentsFailed.set -> void
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.AcknowledgmentsSucceeded.get -> long
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.AcknowledgmentsSucceeded.set -> void
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.BytesReceived.get -> long
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.BytesReceived.set -> void
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.ConnectedTime.get -> System.DateTimeOffset
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.ConnectedTime.set -> void
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.DisconnectedTime.get -> System.DateTimeOffset
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.DisconnectedTime.set -> void
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.ErrorCount.get -> long
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.ErrorCount.set -> void
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.IsConnected.get -> bool
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.IsConnected.set -> void
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.LastError.get -> System.Exception?
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.LastError.set -> void
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.LastErrorTime.get -> System.DateTimeOffset
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.LastErrorTime.set -> void
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.LastMessageTime.get -> System.DateTimeOffset
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.LastMessageTime.set -> void
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.MessagesReceived.get -> long
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.MessagesReceived.set -> void
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.ReconnectCount.get -> int
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.ReconnectCount.set -> void
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.StreamHealthInfo(string! streamId) -> void
+Excalibur.Dispatch.Transport.Google.StreamHealthInfo.StreamId.get -> string!
+Excalibur.Dispatch.Transport.Google.StreamingPullMonitoringOptions
+Excalibur.Dispatch.Transport.Google.StreamingPullMonitoringOptions.EnableDetailedMetrics.get -> bool
+Excalibur.Dispatch.Transport.Google.StreamingPullMonitoringOptions.EnableDetailedMetrics.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullMonitoringOptions.EnableHealthMonitoring.get -> bool
+Excalibur.Dispatch.Transport.Google.StreamingPullMonitoringOptions.EnableHealthMonitoring.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullMonitoringOptions.HealthCheckInterval.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.StreamingPullMonitoringOptions.HealthCheckInterval.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullMonitoringOptions.MetricsReportingInterval.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.StreamingPullMonitoringOptions.MetricsReportingInterval.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullMonitoringOptions.StreamingPullMonitoringOptions() -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.AckExtensionThresholdPercent.get -> int
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.AckExtensionThresholdPercent.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.AutoExtendAckDeadline.get -> bool
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.AutoExtendAckDeadline.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.ConcurrentStreams.get -> int
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.ConcurrentStreams.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.EnableDetailedMetrics.get -> bool
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.EnableDetailedMetrics.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.EnableHealthMonitoring.get -> bool
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.EnableHealthMonitoring.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.HealthCheckInterval.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.HealthCheckInterval.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.MaxOutstandingBytesPerStream.get -> long
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.MaxOutstandingBytesPerStream.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.MaxOutstandingMessagesPerStream.get -> int
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.MaxOutstandingMessagesPerStream.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.MetricsReportingInterval.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.MetricsReportingInterval.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.Monitoring.get -> Excalibur.Dispatch.Transport.Google.StreamingPullMonitoringOptions!
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.Monitoring.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.ReconnectionBackoff.get -> Excalibur.Dispatch.Transport.Google.BackoffOptions!
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.ReconnectionBackoff.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.StreamAckDeadlineSeconds.get -> int
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.StreamAckDeadlineSeconds.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.StreamIdleTimeout.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.StreamIdleTimeout.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.StreamingPullOptions() -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullOptions.Validate() -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullOptionsValidator
+Excalibur.Dispatch.Transport.Google.StreamingPullOptionsValidator.StreamingPullOptionsValidator() -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullOptionsValidator.Validate(string? name, Excalibur.Dispatch.Transport.Google.StreamingPullOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
+Excalibur.Dispatch.Transport.Google.StreamingPullStatistics
+Excalibur.Dispatch.Transport.Google.StreamingPullStatistics.ActiveProcessingThreads.get -> int
+Excalibur.Dispatch.Transport.Google.StreamingPullStatistics.ActiveProcessingThreads.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullStatistics.ActiveStreamCount.get -> int
+Excalibur.Dispatch.Transport.Google.StreamingPullStatistics.ActiveStreamCount.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullStatistics.QueuedMessages.get -> int
+Excalibur.Dispatch.Transport.Google.StreamingPullStatistics.QueuedMessages.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullStatistics.StreamHealthInfos.get -> Excalibur.Dispatch.Transport.Google.StreamHealthInfo![]!
+Excalibur.Dispatch.Transport.Google.StreamingPullStatistics.StreamHealthInfos.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullStatistics.StreamingPullStatistics() -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullStatistics.TargetStreamCount.get -> int
+Excalibur.Dispatch.Transport.Google.StreamingPullStatistics.TargetStreamCount.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullStatistics.TotalBytesReceived.get -> long
+Excalibur.Dispatch.Transport.Google.StreamingPullStatistics.TotalBytesReceived.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullStatistics.TotalErrors.get -> long
+Excalibur.Dispatch.Transport.Google.StreamingPullStatistics.TotalErrors.set -> void
+Excalibur.Dispatch.Transport.Google.StreamingPullStatistics.TotalMessagesReceived.get -> long
+Excalibur.Dispatch.Transport.Google.StreamingPullStatistics.TotalMessagesReceived.set -> void
+Excalibur.Dispatch.Transport.Google.TelemetryOptions
+Excalibur.Dispatch.Transport.Google.TelemetryOptions.EnableOpenTelemetry.get -> bool
+Excalibur.Dispatch.Transport.Google.TelemetryOptions.EnableOpenTelemetry.set -> void
+Excalibur.Dispatch.Transport.Google.TelemetryOptions.ExportToCloudMonitoring.get -> bool
+Excalibur.Dispatch.Transport.Google.TelemetryOptions.ExportToCloudMonitoring.set -> void
+Excalibur.Dispatch.Transport.Google.TelemetryOptions.OtlpEndpoint.get -> string?
+Excalibur.Dispatch.Transport.Google.TelemetryOptions.OtlpEndpoint.set -> void
+Excalibur.Dispatch.Transport.Google.TelemetryOptions.TelemetryOptions() -> void
+Excalibur.Dispatch.Transport.Google.ThreadUtilizationMonitor
+Excalibur.Dispatch.Transport.Google.ThreadUtilizationMonitor.Dispose() -> void
+Excalibur.Dispatch.Transport.Google.ThreadUtilizationMonitor.GetUtilizationReport() -> Excalibur.Dispatch.Transport.Google.UtilizationReport!
+Excalibur.Dispatch.Transport.Google.ThreadUtilizationMonitor.RecordContextSwitch() -> void
+Excalibur.Dispatch.Transport.Google.ThreadUtilizationMonitor.RecordThreadActive(int threadId) -> void
+Excalibur.Dispatch.Transport.Google.ThreadUtilizationMonitor.RecordThreadIdle(int threadId, System.TimeSpan processingTime) -> void
+Excalibur.Dispatch.Transport.Google.ThreadUtilizationMonitor.ThreadUtilizationMonitor() -> void
+Excalibur.Dispatch.Transport.Google.TimeBoundBatchingStrategy
+Excalibur.Dispatch.Transport.Google.TimeBoundBatchingStrategy.DetermineNextBatchSize(Excalibur.Dispatch.Transport.Google.BatchingContext! context) -> int
+Excalibur.Dispatch.Transport.Google.TimeBoundBatchingStrategy.RecordBatchResult(Excalibur.Dispatch.Transport.Google.BatchResult! result) -> void
+Excalibur.Dispatch.Transport.Google.TimeBoundBatchingStrategy.Reset() -> void
+Excalibur.Dispatch.Transport.Google.TimeBoundBatchingStrategy.TimeBoundBatchingStrategy(Excalibur.Dispatch.Transport.Google.BatchConfiguration! configuration) -> void
+Excalibur.Dispatch.Transport.Google.UnhealthyStreamEventArgs
+Excalibur.Dispatch.Transport.Google.UnhealthyStreamEventArgs.StreamId.get -> string!
+Excalibur.Dispatch.Transport.Google.UnhealthyStreamEventArgs.UnhealthyStreamEventArgs(string! streamId) -> void
+Excalibur.Dispatch.Transport.Google.UtilizationReport
+Excalibur.Dispatch.Transport.Google.UtilizationReport.ActiveThreads.get -> int
+Excalibur.Dispatch.Transport.Google.UtilizationReport.ActiveThreads.init -> void
+Excalibur.Dispatch.Transport.Google.UtilizationReport.AverageProcessingTime.get -> System.TimeSpan
+Excalibur.Dispatch.Transport.Google.UtilizationReport.AverageProcessingTime.init -> void
+Excalibur.Dispatch.Transport.Google.UtilizationReport.AverageUtilization.get -> double
+Excalibur.Dispatch.Transport.Google.UtilizationReport.AverageUtilization.init -> void
+Excalibur.Dispatch.Transport.Google.UtilizationReport.ContextSwitchCount.get -> long
+Excalibur.Dispatch.Transport.Google.UtilizationReport.ContextSwitchCount.init -> void
+Excalibur.Dispatch.Transport.Google.UtilizationReport.MaxObservedThreads.get -> int
+Excalibur.Dispatch.Transport.Google.UtilizationReport.MaxObservedThreads.init -> void
+Excalibur.Dispatch.Transport.Google.UtilizationReport.TotalTasksProcessed.get -> long
+Excalibur.Dispatch.Transport.Google.UtilizationReport.TotalTasksProcessed.init -> void
+Excalibur.Dispatch.Transport.Google.UtilizationReport.TotalThreads.get -> int
+Excalibur.Dispatch.Transport.Google.UtilizationReport.TotalThreads.init -> void
+Excalibur.Dispatch.Transport.Google.UtilizationReport.UtilizationReport() -> void
+Excalibur.Dispatch.Transport.Google.WorkDistributionContext
+Excalibur.Dispatch.Transport.Google.WorkDistributionContext.MessageSize.get -> int
+Excalibur.Dispatch.Transport.Google.WorkDistributionContext.MessageSize.init -> void
+Excalibur.Dispatch.Transport.Google.WorkDistributionContext.OrderingKey.get -> string?
+Excalibur.Dispatch.Transport.Google.WorkDistributionContext.OrderingKey.init -> void
+Excalibur.Dispatch.Transport.Google.WorkDistributionContext.PendingWorkCounts.get -> int[]!
+Excalibur.Dispatch.Transport.Google.WorkDistributionContext.PendingWorkCounts.init -> void
+Excalibur.Dispatch.Transport.Google.WorkDistributionContext.TotalWorkers.get -> int
+Excalibur.Dispatch.Transport.Google.WorkDistributionContext.TotalWorkers.init -> void
+Excalibur.Dispatch.Transport.Google.WorkDistributionContext.WorkDistributionContext() -> void
+Excalibur.Dispatch.Transport.Google.WorkerStatistics
+Excalibur.Dispatch.Transport.Google.WorkerStatistics.ActiveWorkers.get -> int
+Excalibur.Dispatch.Transport.Google.WorkerStatistics.ActiveWorkers.init -> void
+Excalibur.Dispatch.Transport.Google.WorkerStatistics.AverageProcessingTime.get -> double
+Excalibur.Dispatch.Transport.Google.WorkerStatistics.AverageProcessingTime.init -> void
+Excalibur.Dispatch.Transport.Google.WorkerStatistics.ErrorCount.get -> long
+Excalibur.Dispatch.Transport.Google.WorkerStatistics.ErrorCount.init -> void
+Excalibur.Dispatch.Transport.Google.WorkerStatistics.PendingWork.get -> int
+Excalibur.Dispatch.Transport.Google.WorkerStatistics.PendingWork.init -> void
+Excalibur.Dispatch.Transport.Google.WorkerStatistics.ProcessedCount.get -> long
+Excalibur.Dispatch.Transport.Google.WorkerStatistics.ProcessedCount.init -> void
+Excalibur.Dispatch.Transport.Google.WorkerStatistics.TotalWorkers.get -> int
+Excalibur.Dispatch.Transport.Google.WorkerStatistics.TotalWorkers.init -> void
+Excalibur.Dispatch.Transport.Google.WorkerStatistics.WorkerStatistics() -> void
+Excalibur.Dispatch.Transport.Google.WorkStealingDistributionStrategy
+Excalibur.Dispatch.Transport.Google.WorkStealingDistributionStrategy.RecordCompletion(int workerId, System.TimeSpan duration) -> void
+Excalibur.Dispatch.Transport.Google.WorkStealingDistributionStrategy.SelectWorker(Excalibur.Dispatch.Transport.Google.WorkDistributionContext! context) -> int
+Excalibur.Dispatch.Transport.Google.WorkStealingDistributionStrategy.WorkStealingDistributionStrategy() -> void
+Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubEventId
+Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubTelemetryConstants
+Microsoft.Extensions.DependencyInjection.DeadLetterServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.DispatchBuilderGooglePubSubExtensions
+Microsoft.Extensions.DependencyInjection.GoogleCloudEventsServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.AckDeadlineSeconds.get -> int
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.AckDeadlineSeconds.set -> void
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.CloudEventOptions.get -> Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions?
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.CloudEventOptions.set -> void
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.DeadLetterTopicId.get -> string?
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.DeadLetterTopicId.set -> void
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.EnableAutoAckExtension.get -> bool
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.EnableAutoAckExtension.set -> void
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.EnableDeadLetterTopic.get -> bool
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.EnableDeadLetterTopic.set -> void
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.EnableOpenTelemetry.get -> bool
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.EnableOpenTelemetry.set -> void
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.GooglePubSubTransportOptions() -> void
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.MaxConcurrentMessages.get -> int
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.MaxConcurrentMessages.set -> void
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.MaxPullMessages.get -> int
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.MaxPullMessages.set -> void
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.Name.get -> string?
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.Name.set -> void
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.ProjectId.get -> string?
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.ProjectId.set -> void
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.SubscriptionId.get -> string?
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.SubscriptionId.set -> void
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.TopicId.get -> string?
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.TopicId.set -> void
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions.TopicMappings.get -> System.Collections.Generic.Dictionary<System.Type!, string!>!
+Microsoft.Extensions.DependencyInjection.GooglePubSubTransportServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder
+Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder.ConfigureCloudEvents(System.Action<Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder!
+Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder.ConfigureOptions(System.Action<Microsoft.Extensions.DependencyInjection.GooglePubSubTransportOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder!
+Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder.EnableDeadLetter(string! deadLetterTopicId) -> Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder!
+Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder.MapTopic<T>(string! topicId) -> Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder!
+Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder.ProjectId(string! projectId) -> Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder!
+Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder.SubscriptionId(string! subscriptionId) -> Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder!
+Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder.TopicId(string! topicId) -> Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder!
+Microsoft.Extensions.DependencyInjection.OrderingKeyServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.PubSubBatchReceivingServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.PubSubFilterServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.PubSubSchemaServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.PubSubStreamingPullServiceCollectionExtensions
+Microsoft.Extensions.DependencyInjection.StreamingPullHealthCheckExtensions
+override Excalibur.Dispatch.Transport.Google.AcknowledgmentMetrics.ToString() -> string!
+override Excalibur.Dispatch.Transport.Google.CorrelationId.ToString() -> string!
+override Excalibur.Dispatch.Transport.Google.CustomPatternRule.GetConfidence(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception! exception, Excalibur.Dispatch.Transport.Google.MessageFailureHistory! history) -> double
+override Excalibur.Dispatch.Transport.Google.CustomPatternRule.GetReason(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception! exception, Excalibur.Dispatch.Transport.Google.MessageFailureHistory! history) -> string!
+override Excalibur.Dispatch.Transport.Google.CustomPatternRule.IsPoison(Google.Cloud.PubSub.V1.PubsubMessage! message, System.Exception! exception, Excalibur.Dispatch.Transport.Google.MessageFailureHistory! history) -> bool
+override Excalibur.Dispatch.Transport.Google.ProjectName.ToString() -> string!
+static Excalibur.Dispatch.Transport.Google.CorrelationId.FromString(string! value) -> Excalibur.Dispatch.Transport.Google.CorrelationId!
+static Excalibur.Dispatch.Transport.Google.CorrelationId.implicit operator Excalibur.Dispatch.Transport.Google.CorrelationId!(string! value) -> Excalibur.Dispatch.Transport.Google.CorrelationId!
+static Excalibur.Dispatch.Transport.Google.CorrelationId.implicit operator string!(Excalibur.Dispatch.Transport.Google.CorrelationId! correlationId) -> string!
+static Excalibur.Dispatch.Transport.Google.CorrelationId.New() -> Excalibur.Dispatch.Transport.Google.CorrelationId!
+static Excalibur.Dispatch.Transport.Google.ForEach.Execute<T>(System.Collections.Generic.IEnumerable<T>! source, System.Action<T>! body) -> void
+static Excalibur.Dispatch.Transport.Google.GooglePubSubOptionsExtensions.WithTelemetry(this Excalibur.Dispatch.Transport.Google.GooglePubSubOptions! options, System.Action<Excalibur.Dispatch.Transport.Google.TelemetryOptions!>! configure) -> Excalibur.Dispatch.Transport.Google.GooglePubSubOptions!
+static Excalibur.Dispatch.Transport.Google.GrpcCoreAdapter.Create(string! address) -> Excalibur.Dispatch.Transport.Google.SingleChannelPool!
+static Excalibur.Dispatch.Transport.Google.ParallelFor.Each(int fromInclusive, int toExclusive, System.Action<int>! body) -> void
+static Excalibur.Dispatch.Transport.Google.ProjectName.FromProject(string! projectId) -> Excalibur.Dispatch.Transport.Google.ProjectName!
+static Excalibur.Dispatch.Transport.Google.ProjectName.FromProjectId(string! projectId) -> Excalibur.Dispatch.Transport.Google.ProjectName!
+static Excalibur.Dispatch.Transport.Google.ProjectName.implicit operator Excalibur.Dispatch.Transport.Google.ProjectName!(string! projectId) -> Excalibur.Dispatch.Transport.Google.ProjectName!
+static Excalibur.Dispatch.Transport.Google.ProjectName.implicit operator string!(Excalibur.Dispatch.Transport.Google.ProjectName! projectName) -> string!
+static Excalibur.Dispatch.Transport.Google.ProtobufExtensions.ToDateTimeOffset(object! timestamp) -> System.DateTimeOffset
+static Excalibur.Dispatch.Transport.Google.ProtobufExtensions.ToTimestamp(this System.DateTimeOffset dateTime) -> object!
+static Excalibur.Dispatch.Transport.Google.PubSubTelemetry.CreatePubSubActivitySource(string! name, string! version = "1.0.0") -> System.Diagnostics.ActivitySource!
+static Excalibur.Dispatch.Transport.Google.PubSubTelemetry.CreatePubSubMeter(string! name, string! version = "1.0.0") -> System.Diagnostics.Metrics.Meter!
+static Excalibur.Dispatch.Transport.Google.PubSubTelemetry.FormatSubscriptionName(string! subscription) -> string!
+static Excalibur.Dispatch.Transport.Google.PubSubTelemetry.FormatTopicName(string! topic) -> string!
+static Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubTelemetryConstants.SharedActivitySource.get -> System.Diagnostics.ActivitySource!
+static Excalibur.Dispatch.Transport.GooglePubSub.GooglePubSubTelemetryConstants.SharedMeter.get -> System.Diagnostics.Metrics.Meter!
+static Microsoft.Extensions.DependencyInjection.DeadLetterServiceCollectionExtensions.AddCustomRetryStrategy(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! messageType, Excalibur.Dispatch.Transport.Google.RetryStrategy! strategy) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DeadLetterServiceCollectionExtensions.AddDeadLetterAnalytics(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Google.DeadLetterAnalyticsOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DeadLetterServiceCollectionExtensions.AddGooglePubSubDeadLetterQueue(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Google.DeadLetterQueueBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DeadLetterServiceCollectionExtensions.AddOptimizedDeadLetterQueue(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DeadLetterServiceCollectionExtensions.AddOptimizedDeadLetterQueue(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Google.DeadLetterOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DeadLetterServiceCollectionExtensions.AddPoisonDetectionRule(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.Transport.Google.IPoisonDetectionRule! rule) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DeadLetterServiceCollectionExtensions.AddPoisonMessageDetection(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Google.PoisonDetectionOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DeadLetterServiceCollectionExtensions.AddRetryPolicies(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Google.RetryPolicyOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DeadLetterServiceCollectionExtensions.ConfigureDeadLetterDestination(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! projectId, string! deadLetterTopicName, string? deadLetterSubscriptionName = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.DispatchBuilderGooglePubSubExtensions.UseGooglePubSub(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, string! name, System.Action<Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.DispatchBuilderGooglePubSubExtensions.UseGooglePubSub(this Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder! builder, System.Action<Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder!>! configure) -> Excalibur.Dispatch.Abstractions.Configuration.IDispatchBuilder!
+static Microsoft.Extensions.DependencyInjection.GoogleCloudEventsServiceCollectionExtensions.AddGoogleCloudEventValidation(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, bool enableDoDCompliance = true) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GoogleCloudEventsServiceCollectionExtensions.UseCloudEvents(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GoogleCloudEventsServiceCollectionExtensions.UseCloudEventsForPubSub(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Google.GooglePubSubCloudEventOptions!>? configurePubSub = null, System.Action<Excalibur.Dispatch.Options.CloudEvents.CloudEventOptions!>? configureGeneral = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GooglePubSubTransportServiceCollectionExtensions.AddGooglePubSubTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.GooglePubSubTransportServiceCollectionExtensions.AddGooglePubSubTransport(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Microsoft.Extensions.DependencyInjection.IGooglePubSubTransportBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OrderingKeyServiceCollectionExtensions.AddGooglePubSubOrderingKey(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.OrderingKeyServiceCollectionExtensions.AddGooglePubSubOrderingKey(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Google.OrderingKeyOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PubSubBatchReceivingServiceCollectionExtensions.AddBatchProcessor<TProcessor>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PubSubBatchReceivingServiceCollectionExtensions.AddPubSubBatchReceiving(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Google.BatchReceivingBuilder!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PubSubFilterServiceCollectionExtensions.AddGooglePubSubFilter(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Google.PubSubFilterOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PubSubSchemaServiceCollectionExtensions.AddGooglePubSubSchemaManager(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Func<System.IServiceProvider!, Excalibur.Dispatch.Transport.Google.IPubSubSchemaManager!>! factory) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PubSubSchemaServiceCollectionExtensions.AddGooglePubSubSchemaManager<TImplementation>(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PubSubStreamingPullServiceCollectionExtensions.AddGooglePubSubStreamingPull(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.PubSubStreamingPullServiceCollectionExtensions.AddGooglePubSubStreamingPull(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Transport.Google.StreamingPullOptions!>! configureOptions) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.StreamingPullHealthCheckExtensions.AddStreamingPullHealthCheck(this Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder! builder, string! name = "streaming-pull", Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus? failureStatus = null, System.Collections.Generic.IEnumerable<string!>? tags = null) -> Microsoft.Extensions.DependencyInjection.IHealthChecksBuilder!

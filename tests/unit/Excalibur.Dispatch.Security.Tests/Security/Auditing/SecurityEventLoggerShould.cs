@@ -57,10 +57,11 @@ public sealed class SecurityEventLoggerShould : IAsyncDisposable
 	}
 
 	[Fact]
-	public void BePublicAndSealed()
+	public void BeInternalAndSealed()
 	{
 		// Assert
-		typeof(SecurityEventLogger).IsPublic.ShouldBeTrue();
+		typeof(SecurityEventLogger).IsPublic.ShouldBeFalse();
+		typeof(SecurityEventLogger).IsNotPublic.ShouldBeTrue();
 		typeof(SecurityEventLogger).IsSealed.ShouldBeTrue();
 	}
 

@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// <param name="Value"> The message payload. </param>
 /// <param name="Headers"> The message headers. </param>
 /// <param name="Timestamp"> The message timestamp. </param>
-public sealed record KafkaMessage(
+internal sealed record KafkaMessage(
 	string Topic,
 	int Partition,
 	long Offset,

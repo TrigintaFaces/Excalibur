@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Serialization;
 /// </para>
 /// <para> See the pluggable serialization architecture documentation. </para>
 /// </remarks>
-public sealed class SerializerRegistry : ISerializerRegistry
+internal sealed class SerializerRegistry : ISerializerRegistry
 {
 	private readonly ConcurrentDictionary<byte, ISerializer> _serializersById = new();
 	private readonly ConcurrentDictionary<string, byte> _idsByName = new(StringComparer.Ordinal);

@@ -30,7 +30,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// ASP.NET Core health checks and the <c>MultiTransportHealthCheck</c>.
 /// </para>
 /// </remarks>
-public sealed partial class GooglePubSubTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
+internal sealed partial class GooglePubSubTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
 {
 	/// <summary>
 	/// The default transport name for Google Pub/Sub adapters.
@@ -410,7 +410,7 @@ public sealed partial class GooglePubSubTransportAdapter : ITransportAdapter, IT
 /// <summary>
 /// Configuration options for the Google Pub/Sub transport adapter.
 /// </summary>
-public sealed class GooglePubSubTransportAdapterOptions
+internal sealed class GooglePubSubTransportAdapterOptions
 {
 	/// <summary>
 	/// Gets or sets the name of this transport adapter instance.
@@ -452,7 +452,7 @@ public sealed class GooglePubSubTransportAdapterOptions
 /// <summary>
 /// Extension methods for configuring <see cref="GooglePubSubTransportAdapterOptions"/>.
 /// </summary>
-public static class GooglePubSubTransportAdapterOptionsExtensions
+internal static class GooglePubSubTransportAdapterOptionsExtensions
 {
 	/// <summary>
 	/// Maps a message type to a specific topic name.

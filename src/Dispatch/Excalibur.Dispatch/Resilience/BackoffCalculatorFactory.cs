@@ -9,7 +9,7 @@ namespace Excalibur.Dispatch.Resilience;
 /// <summary>
 /// Factory for creating backoff calculators based on strategy configuration.
 /// </summary>
-public static class BackoffCalculatorFactory
+internal static class BackoffCalculatorFactory
 {
 	/// <summary>
 	/// Creates a backoff calculator based on the specified strategy.

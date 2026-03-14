@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// </summary>
 [RequiresDynamicCode("Uses reflection-based serialization via MakeGenericMethod")]
 [RequiresUnreferencedCode("Uses reflection-based serialization that may require unreferenced types")]
-public sealed class PubSubBatchSerializer : IDisposable
+internal sealed class PubSubBatchSerializer : IDisposable
 {
 	private readonly DispatchJsonSerializer _serializer;
 	private readonly IOptions<PubSubSerializationOptions> _options;

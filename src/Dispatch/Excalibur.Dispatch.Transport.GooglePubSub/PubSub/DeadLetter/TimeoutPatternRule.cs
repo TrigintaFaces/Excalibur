@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// Detects timeout-related poison messages.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="TimeoutPatternRule" /> class. </remarks>
-public sealed class TimeoutPatternRule(string name, double timeoutThreshold) : PoisonDetectionRuleBase(name)
+internal sealed class TimeoutPatternRule(string name, double timeoutThreshold) : PoisonDetectionRuleBase(name)
 {
 	private static readonly string[] TimeoutIndicators =
 	[

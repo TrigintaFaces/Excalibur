@@ -13,7 +13,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Collects metrics for batch message receiving operations.
 /// </summary>
-public sealed class BatchMetricsCollector : IDisposable
+internal sealed class BatchMetricsCollector : IDisposable
 {
 	private readonly Meter _meter;
 	private volatile bool _disposed;

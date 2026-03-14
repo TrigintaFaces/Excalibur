@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Serialization;
 /// - Pre-warming strategies for different workloads
 /// - Zero-allocation pool operations in hot paths.
 /// </remarks>
-public sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
+internal sealed class Utf8JsonWriterPool : IUtf8JsonWriterPool, IDisposable
 {
 	/// <summary>
 	/// The meter name for Utf8JsonWriterPool telemetry.

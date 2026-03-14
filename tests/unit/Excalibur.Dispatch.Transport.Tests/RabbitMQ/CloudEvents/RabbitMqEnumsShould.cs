@@ -10,11 +10,11 @@ namespace Excalibur.Dispatch.Transport.Tests.RabbitMQ.CloudEvents;
 public sealed class RabbitMqEnumsShould
 {
 	[Theory]
-	[InlineData(RabbitMqExchangeType.Direct, 0)]
-	[InlineData(RabbitMqExchangeType.Topic, 1)]
-	[InlineData(RabbitMqExchangeType.Fanout, 2)]
-	[InlineData(RabbitMqExchangeType.Headers, 3)]
-	public void HaveCorrectExchangeTypeValues(RabbitMqExchangeType type, int expected)
+	[InlineData(RabbitMQExchangeType.Direct, 0)]
+	[InlineData(RabbitMQExchangeType.Topic, 1)]
+	[InlineData(RabbitMQExchangeType.Fanout, 2)]
+	[InlineData(RabbitMQExchangeType.Headers, 3)]
+	public void HaveCorrectExchangeTypeValues(RabbitMQExchangeType type, int expected)
 	{
 		((int)type).ShouldBe(expected);
 	}
@@ -22,7 +22,7 @@ public sealed class RabbitMqEnumsShould
 	[Fact]
 	public void HaveAllExchangeTypeMembers()
 	{
-		Enum.GetValues<RabbitMqExchangeType>().Length.ShouldBe(4);
+		Enum.GetValues<RabbitMQExchangeType>().Length.ShouldBe(4);
 	}
 
 	[Theory]

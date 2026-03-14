@@ -7,7 +7,7 @@ using RabbitMQ.Client;
 
 namespace Excalibur.Dispatch.Transport.RabbitMQ;
 
-public sealed partial class RabbitMqTopologyInitializer
+internal sealed partial class RabbitMqTopologyInitializer
 {
 	private const string QuorumQueueType = "quorum";
 	private const string QueueTypeKey = "x-queue-type";
@@ -138,12 +138,12 @@ public sealed partial class RabbitMqTopologyInitializer
 
 	private string ResolveExchangeType()
 	{
-		var exchangeType = _cloudEventOptions?.Exchange.ExchangeType ?? RabbitMqExchangeType.Topic;
+		var exchangeType = _cloudEventOptions?.Exchange.ExchangeType ?? RabbitMQExchangeType.Topic;
 		return exchangeType switch
 		{
-			RabbitMqExchangeType.Direct => ExchangeType.Direct,
-			RabbitMqExchangeType.Fanout => ExchangeType.Fanout,
-			RabbitMqExchangeType.Headers => ExchangeType.Headers,
+			RabbitMQExchangeType.Direct => ExchangeType.Direct,
+			RabbitMQExchangeType.Fanout => ExchangeType.Fanout,
+			RabbitMQExchangeType.Headers => ExchangeType.Headers,
 			_ => ExchangeType.Topic,
 		};
 	}

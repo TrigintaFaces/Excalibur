@@ -24,7 +24,7 @@ namespace Excalibur.Dispatch.Transport.RabbitMQ;
 /// <summary>
 /// Default implementation of RabbitMQ CloudEvent adapter.
 /// </summary>
-public sealed class RabbitMqCloudEventAdapter : IRabbitMqCloudEventAdapter
+internal sealed class RabbitMqCloudEventAdapter : IRabbitMqCloudEventAdapter
 {
 	private const string StructuredContentType = "application/cloudevents+json";
 	private const string ContentTypeHeader = "Content-Type";

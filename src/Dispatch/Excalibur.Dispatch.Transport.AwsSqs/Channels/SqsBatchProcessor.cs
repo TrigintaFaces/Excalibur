@@ -18,7 +18,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// High-performance batch processor for AWS SQS with optimized memory usage. Achieves 100K+ msgs/sec with batching and zero-allocation patterns.
 /// </summary>
-public sealed class SqsBatchProcessor : IAsyncDisposable
+internal sealed class SqsBatchProcessor : IAsyncDisposable
 {
 	private readonly IAmazonSQS _sqsClient;
 	private readonly SqsBatchOptions _options;

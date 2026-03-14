@@ -1,1 +1,196 @@
 #nullable enable
+const Excalibur.Cdc.Firestore.FirestoreStalePositionDetector.GrpcAborted = 10 -> int
+const Excalibur.Cdc.Firestore.FirestoreStalePositionDetector.GrpcCancelled = 1 -> int
+const Excalibur.Cdc.Firestore.FirestoreStalePositionDetector.GrpcDeadlineExceeded = 4 -> int
+const Excalibur.Cdc.Firestore.FirestoreStalePositionDetector.GrpcInternal = 13 -> int
+const Excalibur.Cdc.Firestore.FirestoreStalePositionDetector.GrpcNotFound = 5 -> int
+const Excalibur.Cdc.Firestore.FirestoreStalePositionDetector.GrpcPermissionDenied = 7 -> int
+const Excalibur.Cdc.Firestore.FirestoreStalePositionDetector.GrpcResourceExhausted = 8 -> int
+const Excalibur.Cdc.Firestore.FirestoreStalePositionDetector.GrpcUnavailable = 14 -> int
+const Excalibur.Cdc.Firestore.FirestoreStalePositionReasonCodes.Aborted = "FIRESTORE_ABORTED" -> string!
+const Excalibur.Cdc.Firestore.FirestoreStalePositionReasonCodes.Cancelled = "FIRESTORE_CANCELLED" -> string!
+const Excalibur.Cdc.Firestore.FirestoreStalePositionReasonCodes.DeadlineExceeded = "FIRESTORE_DEADLINE_EXCEEDED" -> string!
+const Excalibur.Cdc.Firestore.FirestoreStalePositionReasonCodes.Internal = "FIRESTORE_INTERNAL" -> string!
+const Excalibur.Cdc.Firestore.FirestoreStalePositionReasonCodes.NotFound = "FIRESTORE_NOT_FOUND" -> string!
+const Excalibur.Cdc.Firestore.FirestoreStalePositionReasonCodes.PermissionDenied = "FIRESTORE_PERMISSION_DENIED" -> string!
+const Excalibur.Cdc.Firestore.FirestoreStalePositionReasonCodes.ResourceExhausted = "FIRESTORE_RESOURCE_EXHAUSTED" -> string!
+const Excalibur.Cdc.Firestore.FirestoreStalePositionReasonCodes.Unavailable = "FIRESTORE_UNAVAILABLE" -> string!
+const Excalibur.Cdc.Firestore.FirestoreStalePositionReasonCodes.Unknown = "FIRESTORE_UNKNOWN" -> string!
+Excalibur.Cdc.Firestore.CdcBuilderFirestoreExtensions
+Excalibur.Cdc.Firestore.FirestoreCdcOptions
+Excalibur.Cdc.Firestore.FirestoreCdcOptions.ChannelCapacity.get -> int
+Excalibur.Cdc.Firestore.FirestoreCdcOptions.ChannelCapacity.set -> void
+Excalibur.Cdc.Firestore.FirestoreCdcOptions.CollectionPath.get -> string!
+Excalibur.Cdc.Firestore.FirestoreCdcOptions.CollectionPath.set -> void
+Excalibur.Cdc.Firestore.FirestoreCdcOptions.FirestoreCdcOptions() -> void
+Excalibur.Cdc.Firestore.FirestoreCdcOptions.MaxBatchSize.get -> int
+Excalibur.Cdc.Firestore.FirestoreCdcOptions.MaxBatchSize.set -> void
+Excalibur.Cdc.Firestore.FirestoreCdcOptions.MaxWaitTime.get -> System.TimeSpan
+Excalibur.Cdc.Firestore.FirestoreCdcOptions.MaxWaitTime.set -> void
+Excalibur.Cdc.Firestore.FirestoreCdcOptions.PollInterval.get -> System.TimeSpan
+Excalibur.Cdc.Firestore.FirestoreCdcOptions.PollInterval.set -> void
+Excalibur.Cdc.Firestore.FirestoreCdcOptions.ProcessorName.get -> string!
+Excalibur.Cdc.Firestore.FirestoreCdcOptions.ProcessorName.set -> void
+Excalibur.Cdc.Firestore.FirestoreCdcOptions.StartPosition.get -> Excalibur.Cdc.Firestore.FirestoreCdcPosition?
+Excalibur.Cdc.Firestore.FirestoreCdcOptions.StartPosition.set -> void
+Excalibur.Cdc.Firestore.FirestoreCdcOptions.UseCollectionGroup.get -> bool
+Excalibur.Cdc.Firestore.FirestoreCdcOptions.UseCollectionGroup.set -> void
+Excalibur.Cdc.Firestore.FirestoreCdcOptions.Validate() -> void
+Excalibur.Cdc.Firestore.FirestoreCdcPosition
+Excalibur.Cdc.Firestore.FirestoreCdcPosition.CollectionPath.get -> string!
+Excalibur.Cdc.Firestore.FirestoreCdcPosition.Equals(Excalibur.Cdc.Firestore.FirestoreCdcPosition? other) -> bool
+Excalibur.Cdc.Firestore.FirestoreCdcPosition.IsAfterPosition(System.DateTimeOffset docUpdateTime, string! docId) -> bool
+Excalibur.Cdc.Firestore.FirestoreCdcPosition.IsBeginning.get -> bool
+Excalibur.Cdc.Firestore.FirestoreCdcPosition.LastDocumentId.get -> string?
+Excalibur.Cdc.Firestore.FirestoreCdcPosition.ToBase64() -> string!
+Excalibur.Cdc.Firestore.FirestoreCdcPosition.ToBytes() -> byte[]!
+Excalibur.Cdc.Firestore.FirestoreCdcPosition.UpdateTime.get -> System.DateTimeOffset?
+Excalibur.Cdc.Firestore.FirestoreCdcPosition.WithCollectionPath(string! collectionPath) -> Excalibur.Cdc.Firestore.FirestoreCdcPosition!
+Excalibur.Cdc.Firestore.FirestoreCdcPosition.WithDocument(System.DateTimeOffset updateTime, string! documentId) -> Excalibur.Cdc.Firestore.FirestoreCdcPosition!
+Excalibur.Cdc.Firestore.FirestoreCdcProcessor
+Excalibur.Cdc.Firestore.FirestoreCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.Firestore.FirestoreCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.Firestore.FirestoreCdcProcessor.Dispose() -> void
+Excalibur.Cdc.Firestore.FirestoreCdcProcessor.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Cdc.Firestore.FirestoreCdcProcessor.FirestoreCdcProcessor(Google.Cloud.Firestore.FirestoreDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.Firestore.FirestoreCdcOptions!>! options, Excalibur.Cdc.Firestore.IFirestoreCdcStateStore! stateStore, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.Firestore.FirestoreCdcProcessor!>! logger) -> void
+Excalibur.Cdc.Firestore.FirestoreCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.Firestore.FirestoreCdcPosition!>!
+Excalibur.Cdc.Firestore.FirestoreCdcProcessor.ProcessBatchAsync(System.Func<Excalibur.Cdc.Firestore.FirestoreDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Cdc.Firestore.FirestoreCdcProcessor.StartAsync(System.Func<Excalibur.Cdc.Firestore.FirestoreDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions
+Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.AlwaysInvokeCallbackOnReset.get -> bool
+Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.AlwaysInvokeCallbackOnReset.init -> void
+Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.AutoReconnectOnDisconnect.get -> bool
+Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.AutoReconnectOnDisconnect.init -> void
+Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.MaxRecoveryAttempts.get -> int
+Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.MaxRecoveryAttempts.init -> void
+Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.MaxUnavailableWaitTime.get -> System.TimeSpan
+Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.MaxUnavailableWaitTime.init -> void
+Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.OnPositionReset.get -> Excalibur.Cdc.CdcPositionResetHandler?
+Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.OnPositionReset.init -> void
+Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.ReconnectionTimeout.get -> System.TimeSpan
+Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.ReconnectionTimeout.init -> void
+Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.RecoveryAttemptDelay.get -> System.TimeSpan
+Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.RecoveryAttemptDelay.init -> void
+Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.RecoveryStrategy.get -> Excalibur.Cdc.StalePositionRecoveryStrategy
+Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.RecoveryStrategy.init -> void
+Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.RetryOnPermissionDenied.get -> bool
+Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.RetryOnPermissionDenied.init -> void
+Excalibur.Cdc.Firestore.FirestoreCdcRecoveryOptions.Validate() -> void
+Excalibur.Cdc.Firestore.FirestoreCdcStateEntry
+Excalibur.Cdc.Firestore.FirestoreCdcStateEntry.EventCount.get -> long
+Excalibur.Cdc.Firestore.FirestoreCdcStateEntry.EventCount.set -> void
+Excalibur.Cdc.Firestore.FirestoreCdcStateEntry.FirestoreCdcStateEntry() -> void
+Excalibur.Cdc.Firestore.FirestoreCdcStateEntry.PositionData.get -> string!
+Excalibur.Cdc.Firestore.FirestoreCdcStateEntry.PositionData.set -> void
+Excalibur.Cdc.Firestore.FirestoreCdcStateEntry.ProcessorName.get -> string!
+Excalibur.Cdc.Firestore.FirestoreCdcStateEntry.ProcessorName.set -> void
+Excalibur.Cdc.Firestore.FirestoreCdcStateEntry.UpdatedAt.get -> System.DateTimeOffset
+Excalibur.Cdc.Firestore.FirestoreCdcStateEntry.UpdatedAt.set -> void
+Excalibur.Cdc.Firestore.FirestoreCdcStateStore
+Excalibur.Cdc.Firestore.FirestoreCdcStateStore.DeletePositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.Firestore.FirestoreCdcStateStore.Dispose() -> void
+Excalibur.Cdc.Firestore.FirestoreCdcStateStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Cdc.Firestore.FirestoreCdcStateStore.FirestoreCdcStateStore(Google.Cloud.Firestore.FirestoreDb! db, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.Firestore.FirestoreCdcStateStore!>! logger) -> void
+Excalibur.Cdc.Firestore.FirestoreCdcStateStore.FirestoreCdcStateStore(Google.Cloud.Firestore.FirestoreDb! db, Microsoft.Extensions.Options.IOptions<Excalibur.Cdc.Firestore.FirestoreCdcStateStoreOptions!>! options, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.Firestore.FirestoreCdcStateStore!>! logger) -> void
+Excalibur.Cdc.Firestore.FirestoreCdcStateStore.FirestoreCdcStateStore(Google.Cloud.Firestore.FirestoreDb! db, string! collectionName, Microsoft.Extensions.Logging.ILogger<Excalibur.Cdc.Firestore.FirestoreCdcStateStore!>! logger) -> void
+Excalibur.Cdc.Firestore.FirestoreCdcStateStore.GetPositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.Firestore.FirestoreCdcPosition?>!
+Excalibur.Cdc.Firestore.FirestoreCdcStateStore.SavePositionAsync(string! processorName, Excalibur.Cdc.Firestore.FirestoreCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.Firestore.FirestoreCdcStateStoreOptions
+Excalibur.Cdc.Firestore.FirestoreCdcStateStoreOptions.CollectionName.get -> string!
+Excalibur.Cdc.Firestore.FirestoreCdcStateStoreOptions.CollectionName.set -> void
+Excalibur.Cdc.Firestore.FirestoreCdcStateStoreOptions.FirestoreCdcStateStoreOptions() -> void
+Excalibur.Cdc.Firestore.FirestoreCdcStateStoreOptions.Validate() -> void
+Excalibur.Cdc.Firestore.FirestoreCdcStateStoreOptionsValidator
+Excalibur.Cdc.Firestore.FirestoreCdcStateStoreOptionsValidator.FirestoreCdcStateStoreOptionsValidator() -> void
+Excalibur.Cdc.Firestore.FirestoreCdcStateStoreOptionsValidator.Validate(string? name, Excalibur.Cdc.Firestore.FirestoreCdcStateStoreOptions! options) -> Microsoft.Extensions.Options.ValidateOptionsResult!
+Excalibur.Cdc.Firestore.FirestoreDataChangeEvent
+Excalibur.Cdc.Firestore.FirestoreDataChangeEvent.ChangeType.get -> Excalibur.Cdc.Firestore.FirestoreDataChangeType
+Excalibur.Cdc.Firestore.FirestoreDataChangeEvent.ChangeType.init -> void
+Excalibur.Cdc.Firestore.FirestoreDataChangeEvent.CollectionPath.get -> string!
+Excalibur.Cdc.Firestore.FirestoreDataChangeEvent.CollectionPath.init -> void
+Excalibur.Cdc.Firestore.FirestoreDataChangeEvent.CreateTime.get -> System.DateTimeOffset?
+Excalibur.Cdc.Firestore.FirestoreDataChangeEvent.CreateTime.init -> void
+Excalibur.Cdc.Firestore.FirestoreDataChangeEvent.DocumentData.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object!>?
+Excalibur.Cdc.Firestore.FirestoreDataChangeEvent.DocumentData.init -> void
+Excalibur.Cdc.Firestore.FirestoreDataChangeEvent.DocumentId.get -> string!
+Excalibur.Cdc.Firestore.FirestoreDataChangeEvent.DocumentId.init -> void
+Excalibur.Cdc.Firestore.FirestoreDataChangeEvent.FirestoreDataChangeEvent() -> void
+Excalibur.Cdc.Firestore.FirestoreDataChangeEvent.Position.get -> Excalibur.Cdc.Firestore.FirestoreCdcPosition!
+Excalibur.Cdc.Firestore.FirestoreDataChangeEvent.Position.init -> void
+Excalibur.Cdc.Firestore.FirestoreDataChangeEvent.Timestamp.get -> System.DateTimeOffset
+Excalibur.Cdc.Firestore.FirestoreDataChangeEvent.Timestamp.init -> void
+Excalibur.Cdc.Firestore.FirestoreDataChangeEvent.UpdateTime.get -> System.DateTimeOffset?
+Excalibur.Cdc.Firestore.FirestoreDataChangeEvent.UpdateTime.init -> void
+Excalibur.Cdc.Firestore.FirestoreDataChangeType
+Excalibur.Cdc.Firestore.FirestoreDataChangeType.Added = 0 -> Excalibur.Cdc.Firestore.FirestoreDataChangeType
+Excalibur.Cdc.Firestore.FirestoreDataChangeType.Modified = 1 -> Excalibur.Cdc.Firestore.FirestoreDataChangeType
+Excalibur.Cdc.Firestore.FirestoreDataChangeType.Removed = 2 -> Excalibur.Cdc.Firestore.FirestoreDataChangeType
+Excalibur.Cdc.Firestore.FirestoreDataChangeTypeExtensions
+Excalibur.Cdc.Firestore.FirestoreStalePositionDetector
+Excalibur.Cdc.Firestore.FirestoreStalePositionException
+Excalibur.Cdc.Firestore.FirestoreStalePositionException.CollectionPath.get -> string?
+Excalibur.Cdc.Firestore.FirestoreStalePositionException.DocumentId.get -> string?
+Excalibur.Cdc.Firestore.FirestoreStalePositionException.EventArgs.get -> Excalibur.Cdc.CdcPositionResetEventArgs?
+Excalibur.Cdc.Firestore.FirestoreStalePositionException.FirestoreStalePositionException() -> void
+Excalibur.Cdc.Firestore.FirestoreStalePositionException.FirestoreStalePositionException(Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs) -> void
+Excalibur.Cdc.Firestore.FirestoreStalePositionException.FirestoreStalePositionException(string! message) -> void
+Excalibur.Cdc.Firestore.FirestoreStalePositionException.FirestoreStalePositionException(string! message, Excalibur.Cdc.CdcPositionResetEventArgs! eventArgs) -> void
+Excalibur.Cdc.Firestore.FirestoreStalePositionException.FirestoreStalePositionException(string! message, System.Exception! innerException) -> void
+Excalibur.Cdc.Firestore.FirestoreStalePositionException.GrpcStatusCode.get -> int?
+Excalibur.Cdc.Firestore.FirestoreStalePositionException.ProcessorId.get -> string?
+Excalibur.Cdc.Firestore.FirestoreStalePositionException.ProjectId.get -> string?
+Excalibur.Cdc.Firestore.FirestoreStalePositionException.ReasonCode.get -> string?
+Excalibur.Cdc.Firestore.FirestoreStalePositionException.StalePositionBytes.get -> byte[]?
+Excalibur.Cdc.Firestore.FirestoreStalePositionReasonCodes
+Excalibur.Cdc.Firestore.IFirestoreCdcProcessor
+Excalibur.Cdc.Firestore.IFirestoreCdcProcessor.ConfirmPositionAsync(Excalibur.Cdc.Firestore.FirestoreCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.Firestore.IFirestoreCdcProcessor.GetCurrentPositionAsync(System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.Firestore.FirestoreCdcPosition!>!
+Excalibur.Cdc.Firestore.IFirestoreCdcProcessor.ProcessBatchAsync(System.Func<Excalibur.Cdc.Firestore.FirestoreDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.Cdc.Firestore.IFirestoreCdcProcessor.StartAsync(System.Func<Excalibur.Cdc.Firestore.FirestoreDataChangeEvent!, System.Threading.CancellationToken, System.Threading.Tasks.Task!>! eventHandler, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.Firestore.IFirestoreCdcStateStore
+Excalibur.Cdc.Firestore.IFirestoreCdcStateStore.DeletePositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.Firestore.IFirestoreCdcStateStore.GetPositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.Firestore.FirestoreCdcPosition?>!
+Excalibur.Cdc.Firestore.IFirestoreCdcStateStore.SavePositionAsync(string! processorName, Excalibur.Cdc.Firestore.FirestoreCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.Firestore.InMemoryFirestoreCdcStateStore
+Excalibur.Cdc.Firestore.InMemoryFirestoreCdcStateStore.Clear() -> void
+Excalibur.Cdc.Firestore.InMemoryFirestoreCdcStateStore.DeletePositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Excalibur.Cdc.Firestore.InMemoryFirestoreCdcStateStore.Dispose() -> void
+Excalibur.Cdc.Firestore.InMemoryFirestoreCdcStateStore.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Cdc.Firestore.InMemoryFirestoreCdcStateStore.GetAllPositions() -> System.Collections.Generic.IReadOnlyDictionary<string!, Excalibur.Cdc.Firestore.FirestoreCdcStateEntry!>!
+Excalibur.Cdc.Firestore.InMemoryFirestoreCdcStateStore.GetPositionAsync(string! processorName, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Cdc.Firestore.FirestoreCdcPosition?>!
+Excalibur.Cdc.Firestore.InMemoryFirestoreCdcStateStore.InMemoryFirestoreCdcStateStore() -> void
+Excalibur.Cdc.Firestore.InMemoryFirestoreCdcStateStore.SavePositionAsync(string! processorName, Excalibur.Cdc.Firestore.FirestoreCdcPosition! position, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+Microsoft.Extensions.DependencyInjection.FirestoreCdcServiceCollectionExtensions
+override Excalibur.Cdc.Firestore.FirestoreCdcPosition.Equals(Excalibur.Dispatch.Abstractions.ChangePosition? other) -> bool
+override Excalibur.Cdc.Firestore.FirestoreCdcPosition.Equals(object? obj) -> bool
+override Excalibur.Cdc.Firestore.FirestoreCdcPosition.GetHashCode() -> int
+override Excalibur.Cdc.Firestore.FirestoreCdcPosition.IsValid.get -> bool
+override Excalibur.Cdc.Firestore.FirestoreCdcPosition.Timestamp.get -> System.DateTimeOffset?
+override Excalibur.Cdc.Firestore.FirestoreCdcPosition.ToString() -> string!
+override Excalibur.Cdc.Firestore.FirestoreCdcPosition.ToToken() -> string!
+static Excalibur.Cdc.Firestore.CdcBuilderFirestoreExtensions.UseFirestore(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.Firestore.FirestoreCdcOptions!>! configure) -> Excalibur.Cdc.ICdcBuilder!
+static Excalibur.Cdc.Firestore.CdcBuilderFirestoreExtensions.UseFirestore(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.Firestore.FirestoreCdcOptions!>! configureCdc, System.Action<Excalibur.Cdc.Firestore.FirestoreCdcStateStoreOptions!>! configureStateStore) -> Excalibur.Cdc.ICdcBuilder!
+static Excalibur.Cdc.Firestore.FirestoreCdcPosition.Beginning(string! collectionPath) -> Excalibur.Cdc.Firestore.FirestoreCdcPosition!
+static Excalibur.Cdc.Firestore.FirestoreCdcPosition.FromBase64(string! base64) -> Excalibur.Cdc.Firestore.FirestoreCdcPosition!
+static Excalibur.Cdc.Firestore.FirestoreCdcPosition.FromBytes(byte[]! bytes) -> Excalibur.Cdc.Firestore.FirestoreCdcPosition!
+static Excalibur.Cdc.Firestore.FirestoreCdcPosition.FromUpdateTime(string! collectionPath, System.DateTimeOffset updateTime, string? lastDocumentId) -> Excalibur.Cdc.Firestore.FirestoreCdcPosition!
+static Excalibur.Cdc.Firestore.FirestoreCdcPosition.Now(string! collectionPath) -> Excalibur.Cdc.Firestore.FirestoreCdcPosition!
+static Excalibur.Cdc.Firestore.FirestoreCdcPosition.TryFromBase64(string? base64, out Excalibur.Cdc.Firestore.FirestoreCdcPosition? position) -> bool
+static Excalibur.Cdc.Firestore.FirestoreDataChangeEvent.CreateAdded(Excalibur.Cdc.Firestore.FirestoreCdcPosition! position, string! collectionPath, string! documentId, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? documentData, System.DateTimeOffset timestamp, System.DateTimeOffset? updateTime, System.DateTimeOffset? createTime) -> Excalibur.Cdc.Firestore.FirestoreDataChangeEvent!
+static Excalibur.Cdc.Firestore.FirestoreDataChangeEvent.CreateModified(Excalibur.Cdc.Firestore.FirestoreCdcPosition! position, string! collectionPath, string! documentId, System.Collections.Generic.IReadOnlyDictionary<string!, object!>? documentData, System.DateTimeOffset timestamp, System.DateTimeOffset? updateTime, System.DateTimeOffset? createTime) -> Excalibur.Cdc.Firestore.FirestoreDataChangeEvent!
+static Excalibur.Cdc.Firestore.FirestoreDataChangeEvent.CreateRemoved(Excalibur.Cdc.Firestore.FirestoreCdcPosition! position, string! collectionPath, string! documentId, System.DateTimeOffset timestamp) -> Excalibur.Cdc.Firestore.FirestoreDataChangeEvent!
+static Excalibur.Cdc.Firestore.FirestoreDataChangeTypeExtensions.ToCdcChangeType(this Excalibur.Cdc.Firestore.FirestoreDataChangeType changeType) -> Excalibur.Cdc.CdcChangeType
+static Excalibur.Cdc.Firestore.FirestoreStalePositionDetector.CreateEventArgs(System.Exception! exception, string! processorId, Excalibur.Cdc.Firestore.FirestoreCdcPosition? stalePosition = null, Excalibur.Cdc.Firestore.FirestoreCdcPosition? newPosition = null, string? projectId = null, string? collectionPath = null, string? documentId = null) -> Excalibur.Cdc.CdcPositionResetEventArgs!
+static Excalibur.Cdc.Firestore.FirestoreStalePositionDetector.GetReasonCode(Grpc.Core.RpcException? exception) -> string!
+static Excalibur.Cdc.Firestore.FirestoreStalePositionDetector.GetStalePositionStatusCode(System.Exception? exception) -> int?
+static Excalibur.Cdc.Firestore.FirestoreStalePositionDetector.IsStalePositionException(System.Exception? exception) -> bool
+static Excalibur.Cdc.Firestore.FirestoreStalePositionDetector.IsStalePositionStatusCode(Grpc.Core.StatusCode statusCode) -> bool
+static Excalibur.Cdc.Firestore.FirestoreStalePositionDetector.IsStalePositionStatusCode(int statusCode) -> bool
+static Excalibur.Cdc.Firestore.FirestoreStalePositionDetector.StalePositionStatusCodes.get -> System.Collections.Generic.IReadOnlySet<int>!
+static Excalibur.Cdc.Firestore.FirestoreStalePositionReasonCodes.FromErrorMessage(string? errorMessage) -> string!
+static Excalibur.Cdc.Firestore.FirestoreStalePositionReasonCodes.FromGrpcStatusCode(int statusCode) -> string!
+static Microsoft.Extensions.DependencyInjection.FirestoreCdcServiceCollectionExtensions.AddFirestoreCdc(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.FirestoreCdcServiceCollectionExtensions.AddFirestoreCdc(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfiguration! configuration, string! sectionName) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.FirestoreCdcServiceCollectionExtensions.AddFirestoreCdc(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.Firestore.FirestoreCdcOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.FirestoreCdcServiceCollectionExtensions.AddFirestoreCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! collectionName, System.Action<Excalibur.Cdc.Firestore.FirestoreCdcStateStoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.FirestoreCdcServiceCollectionExtensions.AddFirestoreCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.Firestore.FirestoreCdcStateStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.FirestoreCdcServiceCollectionExtensions.AddInMemoryFirestoreCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

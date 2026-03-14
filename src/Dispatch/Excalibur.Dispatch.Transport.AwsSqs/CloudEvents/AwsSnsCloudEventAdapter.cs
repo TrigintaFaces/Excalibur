@@ -23,7 +23,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// AWS SNS implementation of <see cref="ICloudEventMapper{TTransportMessage}" />.
 /// </summary>
-public sealed class AwsSnsCloudEventAdapter : ICloudEventMapper<PublishRequest>
+internal sealed class AwsSnsCloudEventAdapter : ICloudEventMapper<PublishRequest>
 {
 	private const string CloudEventsStructuredContentType = "application/cloudevents+json";
 	private const string StructuredContentTypeAttribute = "contentType";

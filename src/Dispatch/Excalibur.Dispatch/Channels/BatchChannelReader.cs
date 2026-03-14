@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Channels;
 /// <summary>
 /// Channel reader that batches items for improved throughput.
 /// </summary>
-public sealed class BatchChannelReader<T>(ChannelReader<T> reader, int batchSize, TimeSpan batchTimeout)
+internal sealed class BatchChannelReader<T>(ChannelReader<T> reader, int batchSize, TimeSpan batchTimeout)
 {
 	private readonly ChannelReader<T> _reader = reader ?? throw new ArgumentNullException(nameof(reader));
 	private readonly int _batchSize = batchSize > 0 ? batchSize : throw new ArgumentOutOfRangeException(nameof(batchSize));

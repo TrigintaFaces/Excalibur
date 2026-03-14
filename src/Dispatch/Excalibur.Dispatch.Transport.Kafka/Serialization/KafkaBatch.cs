@@ -11,6 +11,6 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// </summary>
 /// <param name="Messages"> The collection of Kafka messages in the batch. </param>
 /// <param name="Metadata"> The batch metadata. </param>
-public sealed record KafkaBatch(
+internal sealed record KafkaBatch(
 	Collection<KafkaMessage> Messages,
 	BatchMetadata Metadata);

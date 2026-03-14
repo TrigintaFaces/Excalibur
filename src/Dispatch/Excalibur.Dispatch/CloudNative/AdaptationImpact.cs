@@ -7,7 +7,7 @@ namespace Excalibur.Dispatch.CloudNative;
 /// <summary>
 /// Impact level of an adaptation.
 /// </summary>
-public enum AdaptationImpact
+internal enum AdaptationImpact
 {
 	/// <summary>
 	/// Small adjustment with minimal impact on behavior.

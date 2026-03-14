@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// Detects poison messages based on consistent exception patterns.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="ConsistentExceptionRule" /> class. </remarks>
-public sealed class ConsistentExceptionRule(string name, double consistencyThreshold) : PoisonDetectionRuleBase(name)
+internal sealed class ConsistentExceptionRule(string name, double consistencyThreshold) : PoisonDetectionRuleBase(name)
 {
 	/// <inheritdoc />
 	public override bool IsPoison(PubsubMessage message, Exception exception, MessageFailureHistory history)

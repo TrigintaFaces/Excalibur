@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Decorators;
 /// The transport implementation reads <see cref="TransportTelemetryConstants.PropertyKeys.ScheduledTime"/>
 /// and maps it to the native scheduling concept (Azure ScheduledEnqueueTime, Google publish time, etc.).
 /// </summary>
-public sealed class SchedulingTransportSender : DelegatingTransportSender
+internal sealed class SchedulingTransportSender : DelegatingTransportSender
 {
 	private readonly Func<TransportMessage, DateTimeOffset?> _timeSelector;
 

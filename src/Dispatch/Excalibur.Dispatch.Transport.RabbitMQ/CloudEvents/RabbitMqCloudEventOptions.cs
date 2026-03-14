@@ -23,7 +23,7 @@ public sealed class RabbitMqCloudEventExchangeOptions
 	/// <value>
 	/// The exchange type for CloudEvent publishing.
 	/// </value>
-	public RabbitMqExchangeType ExchangeType { get; set; } = RabbitMqExchangeType.Topic;
+	public RabbitMQExchangeType ExchangeType { get; set; } = RabbitMQExchangeType.Topic;
 
 	/// <summary>
 	/// Gets or sets the routing key strategy for CloudEvents.

@@ -25,7 +25,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Maps CloudEvents to Google Pub/Sub <see cref="PubsubMessage" /> instances and vice versa.
 /// </summary>
-public sealed class GooglePubSubCloudEventAdapter : ICloudEventMapper<PubsubMessage>
+internal sealed class GooglePubSubCloudEventAdapter : ICloudEventMapper<PubsubMessage>
 {
 	private const string CloudEventsStructuredContentType = "application/cloudevents+json";
 	private const string StructuredContentTypeAttribute = "content-type";

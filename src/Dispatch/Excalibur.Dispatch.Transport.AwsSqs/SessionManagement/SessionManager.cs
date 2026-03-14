@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <remarks> Initializes a new instance of the <see cref="SessionManager" /> class. </remarks>
 /// <param name="sessionStore"> The session store. </param>
 /// <param name="logger"> The logger. </param>
-public sealed class SessionManager(ISessionStore sessionStore, ILogger<SessionManager> logger) : ISessionManager
+internal sealed class SessionManager(ISessionStore sessionStore, ILogger<SessionManager> logger) : ISessionManager
 {
 	private readonly ISessionStore _sessionStore = sessionStore ?? throw new ArgumentNullException(nameof(sessionStore));
 	private readonly ILogger<SessionManager> _logger = logger ?? throw new ArgumentNullException(nameof(logger));

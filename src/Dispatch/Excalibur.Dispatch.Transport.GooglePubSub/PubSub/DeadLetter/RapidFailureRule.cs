@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// Detects poison messages based on rapid failure rate.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="RapidFailureRule" /> class. </remarks>
-public sealed class RapidFailureRule(string name, int failureCount, TimeSpan timeWindow) : PoisonDetectionRuleBase(name)
+internal sealed class RapidFailureRule(string name, int failureCount, TimeSpan timeWindow) : PoisonDetectionRuleBase(name)
 {
 	/// <inheritdoc />
 	public override bool IsPoison(PubsubMessage message, Exception exception, MessageFailureHistory history)

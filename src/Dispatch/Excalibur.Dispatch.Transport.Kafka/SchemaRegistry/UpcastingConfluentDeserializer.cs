@@ -22,7 +22,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// to automatically migrate messages through intermediate versions (e.g., V1 → V2 → V3).
 /// </para>
 /// </remarks>
-public sealed class UpcastingConfluentDeserializer : IConfluentFormatDeserializer
+internal sealed class UpcastingConfluentDeserializer : IConfluentFormatDeserializer
 {
 	private readonly IConfluentFormatDeserializer _inner;
 	private readonly IUpcastingPipeline _upcastingPipeline;

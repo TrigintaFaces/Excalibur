@@ -24,7 +24,7 @@ namespace Excalibur.Dispatch.Validation.Context;
 /// <remarks> Initializes a new instance of the <see cref="DefaultContextValidator" /> class. </remarks>
 /// <param name="logger"> The logger for diagnostic output. </param>
 /// <param name="options"> Configuration options for validation. </param>
-public sealed partial class DefaultContextValidator(
+internal sealed partial class DefaultContextValidator(
 	ILogger<DefaultContextValidator> logger,
 	IOptions<ContextValidationOptions> options) : IContextValidator
 {

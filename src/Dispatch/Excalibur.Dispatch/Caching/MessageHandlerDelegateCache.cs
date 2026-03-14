@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Caching;
 /// Cached delegate factory for message handlers.
 /// </summary>
 /// <typeparam name="TMessage"> The message type handled by the cached delegates. </typeparam>
-public sealed class MessageHandlerDelegateCache<TMessage>
+internal sealed class MessageHandlerDelegateCache<TMessage>
 {
 	private readonly ConcurrentDictionary<Type, Func<TMessage, Task>> _asyncHandlers = new();
 	private readonly ConcurrentDictionary<Type, Func<TMessage, ValueTask>> _valueTaskHandlers = new();

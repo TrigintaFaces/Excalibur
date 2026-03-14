@@ -25,7 +25,7 @@ namespace Excalibur.Dispatch.Transport.Azure;
 /// For publishing messages, the adapter uses AzureServiceBusMessageBus.
 /// </para>
 /// </remarks>
-public sealed partial class AzureServiceBusTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
+internal sealed partial class AzureServiceBusTransportAdapter : ITransportAdapter, ITransportHealthChecker, IAsyncDisposable
 {
 	/// <summary>
 	/// The default transport name for Azure Service Bus adapters.
@@ -426,7 +426,7 @@ public sealed partial class AzureServiceBusTransportAdapter : ITransportAdapter,
 /// <summary>
 /// Configuration options for the Azure Service Bus transport adapter.
 /// </summary>
-public sealed class AzureServiceBusTransportAdapterOptions
+internal sealed class AzureServiceBusTransportAdapterOptions
 {
 	/// <summary>
 	/// Gets or sets the name of this transport adapter instance.

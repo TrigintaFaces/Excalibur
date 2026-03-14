@@ -1,1 +1,17 @@
 #nullable enable
+Excalibur.EventSourcing.InMemory.EventSourcingBuilderInMemoryExtensions
+Excalibur.EventSourcing.InMemory.InMemoryEventStore
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.AppendAsync(string! aggregateId, string! aggregateType, System.Collections.Generic.IEnumerable<Excalibur.Dispatch.Abstractions.IDomainEvent!>! events, long expectedVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Excalibur.EventSourcing.Abstractions.AppendResult!>
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.Clear() -> void
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.EraseEventsAsync(string! aggregateId, string! aggregateType, System.Guid erasureRequestId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<int>!
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.GetEventCount() -> int
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.GetUndispatchedEventCount() -> int
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.GetUndispatchedEventsAsync(int batchSize, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.InMemoryEventStore() -> void
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.IsErasedAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.LoadAsync(string! aggregateId, string! aggregateType, long fromVersion, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.LoadAsync(string! aggregateId, string! aggregateType, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<System.Collections.Generic.IReadOnlyList<Excalibur.EventSourcing.Abstractions.StoredEvent!>!>
+Excalibur.EventSourcing.InMemory.InMemoryEventStore.MarkEventAsDispatchedAsync(string! eventId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask
+Microsoft.Extensions.DependencyInjection.InMemoryEventSourcingServiceCollectionExtensions
+static Excalibur.EventSourcing.InMemory.EventSourcingBuilderInMemoryExtensions.UseInMemory(this Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder! builder) -> Excalibur.EventSourcing.DependencyInjection.IEventSourcingBuilder!
+static Microsoft.Extensions.DependencyInjection.InMemoryEventSourcingServiceCollectionExtensions.AddInMemoryEventStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

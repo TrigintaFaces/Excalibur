@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.Delivery;
 /// <summary>
 /// Default implementation of middleware applicability strategy.
 /// </summary>
-public sealed class DefaultMiddlewareApplicabilityStrategy : IMiddlewareApplicabilityStrategy
+internal sealed class DefaultMiddlewareApplicabilityStrategy : IMiddlewareApplicabilityStrategy
 {
 	/// <summary>
 	/// Determines the message kinds for a given message type.

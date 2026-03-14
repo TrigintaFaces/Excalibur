@@ -14,7 +14,7 @@ namespace Excalibur.Dispatch.Transport.Aws;
 /// <summary>
 /// Implements an adaptive long polling strategy that adjusts wait times based on message flow patterns.
 /// </summary>
-public sealed class AdaptiveLongPollingStrategy : ILongPollingStrategy, IDisposable
+internal sealed class AdaptiveLongPollingStrategy : ILongPollingStrategy, IDisposable
 {
 	private readonly LongPollingConfiguration _configuration;
 	private readonly ConcurrentQueue<ReceiveRecord> _receiveHistory;

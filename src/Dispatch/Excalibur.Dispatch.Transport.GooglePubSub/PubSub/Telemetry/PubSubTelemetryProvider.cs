@@ -28,7 +28,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <summary>
 /// Provides comprehensive telemetry for Google Pub/Sub operations with OpenTelemetry and Cloud Monitoring integration.
 /// </summary>
-public sealed class PubSubTelemetryProvider : IDisposable
+internal sealed class PubSubTelemetryProvider : IDisposable
 {
 	private readonly ILogger<PubSubTelemetryProvider> _logger;
 	private readonly GooglePubSubOptions _options;

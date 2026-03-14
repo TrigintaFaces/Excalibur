@@ -11,7 +11,7 @@ namespace Excalibur.Dispatch.Resilience.Polly;
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="BulkheadManager" /> class. </remarks>
 /// <param name="logger">The logger instance for logging bulkhead operations.</param>
-public sealed class BulkheadManager(ILogger<BulkheadManager> logger)
+internal sealed class BulkheadManager(ILogger<BulkheadManager> logger)
 {
 	private readonly Dictionary<string, IBulkheadPolicy> _bulkheads = [];
 	private readonly ILogger<BulkheadManager> _logger = logger ?? throw new ArgumentNullException(nameof(logger));

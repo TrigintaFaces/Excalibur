@@ -25,7 +25,7 @@ namespace Excalibur.Dispatch.Transport.Kafka;
 /// Default implementation of Kafka CloudEvent adapter that maps <see cref="CloudEvent" /> instances to <see cref="Message{TKey, TValue}" />
 /// payloads and restores them back while preserving Dispatch envelope metadata.
 /// </summary>
-public sealed partial class KafkaCloudEventAdapter : IKafkaCloudEventAdapter
+internal sealed partial class KafkaCloudEventAdapter : IKafkaCloudEventAdapter
 {
 	private const string StructuredContentType = "application/cloudevents+json";
 	private const string ContentTypeHeader = "Content-Type";

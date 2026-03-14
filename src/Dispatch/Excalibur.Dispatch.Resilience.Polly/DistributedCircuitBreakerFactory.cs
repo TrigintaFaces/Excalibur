@@ -16,7 +16,7 @@ namespace Excalibur.Dispatch.Resilience.Polly;
 /// <param name="cache">The distributed cache used for state coordination.</param>
 /// <param name="options">The distributed circuit breaker options.</param>
 /// <param name="loggerFactory">The logger factory used to create circuit breaker loggers.</param>
-public sealed class DistributedCircuitBreakerFactory(
+internal sealed class DistributedCircuitBreakerFactory(
 	IDistributedCache cache,
 	IOptions<DistributedCircuitBreakerOptions> options,
 	ILoggerFactory loggerFactory)

@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Collections;
 /// Lock-free multiple producer single consumer buffer implementation.
 /// </summary>
 /// <typeparam name="T"> The type of elements in the buffer. </typeparam>
-public sealed class LockFreeMpscBuffer<T>
+internal sealed class LockFreeMpscBuffer<T>
 {
 	private volatile Node _head;
 

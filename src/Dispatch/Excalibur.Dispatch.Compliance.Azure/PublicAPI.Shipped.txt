@@ -1,1 +1,89 @@
 #nullable enable
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyCreated = 92614 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyNotFound = 92611 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyNotFoundForDeletion = 92618 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyNotFoundForSuspension = 92620 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyRotated = 92613 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyRotationFailed = 92615 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyRotationUnexpectedError = 92616 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyScheduledForDeletion = 92617 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeySuspended = 92619 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.KeyVersionNotFound = 92612 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.ProviderDisposed = 92621 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.ProviderInitialized = 92610 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId.StandardTierWarning = 92622 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.KeyUnwrapFailed = 92634 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.KeyUnwrapped = 92633 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.KeyWrapFailed = 92632 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.KeyWrapped = 92631 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.RsaKeyWrapperDisposed = 92635 -> int
+const Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId.RsaKeyWrapperInitialized = 92630 -> int
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultEventId
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.AzureKeyVaultOptions() -> void
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.Credential.get -> Azure.Core.TokenCredential?
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.Credential.set -> void
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.DefaultKeySizeBits.get -> int
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.DefaultKeySizeBits.set -> void
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.EnableDetailedTelemetry.get -> bool
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.EnableDetailedTelemetry.set -> void
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.KeyNamePrefix.get -> string!
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.KeyNamePrefix.set -> void
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.MetadataCacheDuration.get -> System.TimeSpan
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.MetadataCacheDuration.set -> void
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.RequirePremiumTier.get -> bool
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.RequirePremiumTier.set -> void
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.Retry.get -> Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultRetryOptions!
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.Retry.set -> void
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.UseSoftwareKeys.get -> bool
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.UseSoftwareKeys.set -> void
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.VaultUri.get -> System.Uri?
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.VaultUri.set -> void
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.WarnOnStandardTierInProduction.get -> bool
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions.WarnOnStandardTierInProduction.set -> void
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultProvider
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultProvider.AzureKeyVaultProvider(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions!>! options, Microsoft.Extensions.Caching.Memory.IMemoryCache! cache, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultProvider!>! logger) -> void
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultProvider.DeleteKeyAsync(string! keyId, int retentionDays, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultProvider.Dispose() -> void
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultProvider.GetActiveKeyAsync(string? purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.KeyMetadata?>!
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultProvider.GetCryptographyClientAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Azure.Security.KeyVault.Keys.Cryptography.CryptographyClient!>!
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultProvider.GetKeyAsync(string! keyId, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.KeyMetadata?>!
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultProvider.GetKeyVersionAsync(string! keyId, int version, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.KeyMetadata?>!
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultProvider.ListKeysAsync(Excalibur.Dispatch.Compliance.KeyStatus? status, string? purpose, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<Excalibur.Dispatch.Compliance.KeyMetadata!>!>!
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultProvider.RotateKeyAsync(string! keyId, Excalibur.Dispatch.Compliance.EncryptionAlgorithm algorithm, string? purpose, System.DateTimeOffset? expiresAt, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Excalibur.Dispatch.Compliance.KeyRotationResult!>!
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultProvider.SuspendKeyAsync(string! keyId, string! reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<bool>!
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultRetryOptions
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultRetryOptions.AzureKeyVaultRetryOptions() -> void
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultRetryOptions.EnableRetry.get -> bool
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultRetryOptions.EnableRetry.set -> void
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultRetryOptions.MaxRetryAttempts.get -> int
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultRetryOptions.MaxRetryAttempts.set -> void
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultRetryOptions.RetryDelay.get -> System.TimeSpan
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultRetryOptions.RetryDelay.set -> void
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultRsaKeyWrapper
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultRsaKeyWrapper.AzureKeyVaultRsaKeyWrapper(Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Compliance.Azure.RsaKeyWrappingOptions!>! options, Microsoft.Extensions.Options.IOptions<Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions!>! vaultOptions, Microsoft.Extensions.Logging.ILogger<Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultRsaKeyWrapper!>! logger) -> void
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultRsaKeyWrapper.Dispose() -> void
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultRsaKeyWrapper.UnwrapKeyAsync(byte[]! wrappedKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultRsaKeyWrapper.WrapKeyAsync(byte[]! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Dispatch.Compliance.Azure.AzureRsaKeyWrappingEventId
+Excalibur.Dispatch.Compliance.Azure.IAzureRsaKeyWrapper
+Excalibur.Dispatch.Compliance.Azure.IAzureRsaKeyWrapper.UnwrapKeyAsync(byte[]! wrappedKey, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Dispatch.Compliance.Azure.IAzureRsaKeyWrapper.WrapKeyAsync(byte[]! key, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<byte[]!>!
+Excalibur.Dispatch.Compliance.Azure.RsaKeyWrappingOptions
+Excalibur.Dispatch.Compliance.Azure.RsaKeyWrappingOptions.Algorithm.get -> Excalibur.Dispatch.Compliance.Azure.RsaWrappingAlgorithm
+Excalibur.Dispatch.Compliance.Azure.RsaKeyWrappingOptions.Algorithm.set -> void
+Excalibur.Dispatch.Compliance.Azure.RsaKeyWrappingOptions.KeyName.get -> string?
+Excalibur.Dispatch.Compliance.Azure.RsaKeyWrappingOptions.KeyName.set -> void
+Excalibur.Dispatch.Compliance.Azure.RsaKeyWrappingOptions.KeyVaultUrl.get -> System.Uri?
+Excalibur.Dispatch.Compliance.Azure.RsaKeyWrappingOptions.KeyVaultUrl.set -> void
+Excalibur.Dispatch.Compliance.Azure.RsaKeyWrappingOptions.KeyVersion.get -> string?
+Excalibur.Dispatch.Compliance.Azure.RsaKeyWrappingOptions.KeyVersion.set -> void
+Excalibur.Dispatch.Compliance.Azure.RsaKeyWrappingOptions.RsaKeyWrappingOptions() -> void
+Excalibur.Dispatch.Compliance.Azure.RsaWrappingAlgorithm
+Excalibur.Dispatch.Compliance.Azure.RsaWrappingAlgorithm.RsaOaep = 0 -> Excalibur.Dispatch.Compliance.Azure.RsaWrappingAlgorithm
+Excalibur.Dispatch.Compliance.Azure.RsaWrappingAlgorithm.RsaOaep256 = 1 -> Excalibur.Dispatch.Compliance.Azure.RsaWrappingAlgorithm
+Microsoft.Extensions.DependencyInjection.AzureKeyVaultServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.AzureKeyVaultServiceCollectionExtensions.AddAzureKeyVaultKeyManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions! options) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AzureKeyVaultServiceCollectionExtensions.AddAzureKeyVaultKeyManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, Microsoft.Extensions.Configuration.IConfigurationSection! configurationSection) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AzureKeyVaultServiceCollectionExtensions.AddAzureKeyVaultKeyManagement(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Compliance.Azure.AzureKeyVaultOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Microsoft.Extensions.DependencyInjection.AzureKeyVaultServiceCollectionExtensions.AddAzureKeyVaultRsaKeyWrapping(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Dispatch.Compliance.Azure.RsaKeyWrappingOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

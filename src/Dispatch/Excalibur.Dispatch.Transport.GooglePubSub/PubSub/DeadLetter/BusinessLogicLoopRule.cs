@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// Detects business logic loop patterns.
 /// </summary>
 /// <remarks> Initializes a new instance of the <see cref="BusinessLogicLoopRule" /> class. </remarks>
-public sealed class BusinessLogicLoopRule(string name, int loopThreshold) : PoisonDetectionRuleBase(name)
+internal sealed class BusinessLogicLoopRule(string name, int loopThreshold) : PoisonDetectionRuleBase(name)
 {
 	/// <inheritdoc />
 	public override bool IsPoison(PubsubMessage message, Exception exception, MessageFailureHistory history)

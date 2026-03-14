@@ -10,7 +10,7 @@ namespace Excalibur.Dispatch.Transport.Decorators;
 /// The transport implementation reads <see cref="TransportTelemetryConstants.PropertyKeys.OrderingKey"/>
 /// and maps it to the native ordering concept (Kafka message key, AWS MessageGroupId, Azure SessionId, etc.).
 /// </summary>
-public sealed class OrderingTransportSender : DelegatingTransportSender
+internal sealed class OrderingTransportSender : DelegatingTransportSender
 {
 	private readonly Func<TransportMessage, string?> _keySelector;
 

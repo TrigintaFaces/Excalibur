@@ -28,7 +28,7 @@ namespace Excalibur.Dispatch.Messaging;
 /// <param name="activator"> Service responsible for creating instances of message handlers. </param>
 /// <param name="invoker"> Service responsible for invoking handler methods with appropriate parameters. </param>
 /// <param name="logger"> Logger for capturing message bus operations and diagnostics. </param>
-public sealed partial class LocalMessageBus(
+internal sealed partial class LocalMessageBus(
 	IServiceProvider provider,
 	IHandlerRegistry registry,
 	IHandlerActivator activator,

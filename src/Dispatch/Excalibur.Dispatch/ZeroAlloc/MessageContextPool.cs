@@ -12,7 +12,7 @@ namespace Excalibur.Dispatch.ZeroAlloc;
 /// <summary>
 /// Provides a pool of reusable message context instances.
 /// </summary>
-public sealed class MessageContextPool : IMessageContextPool
+internal sealed class MessageContextPool : IMessageContextPool
 {
 	private const int ThreadLocalCacheSize = 4;
 	[ThreadStatic] private static PooledMessageContext?[]? s_threadLocalCache;

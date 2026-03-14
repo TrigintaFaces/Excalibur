@@ -17,7 +17,7 @@ namespace Excalibur.Dispatch.ZeroAlloc;
 /// Contexts obtained from this factory should be returned to the pool after use via
 /// <see cref="IMessageContextPool.ReturnToPool"/> for optimal memory efficiency.
 /// </remarks>
-public sealed class PooledMessageContextFactory(IMessageContextPool pool) : IMessageContextFactory
+internal sealed class PooledMessageContextFactory(IMessageContextPool pool) : IMessageContextFactory
 {
 	private readonly IMessageContextPool _pool = pool ?? throw new ArgumentNullException(nameof(pool));
 

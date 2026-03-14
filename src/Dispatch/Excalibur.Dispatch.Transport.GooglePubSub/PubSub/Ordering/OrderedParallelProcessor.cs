@@ -20,7 +20,7 @@ namespace Excalibur.Dispatch.Transport.Google;
 /// <param name="orderingKeyManager"> The ordering key manager. </param>
 /// <param name="orderingMetrics"> Ordering metrics collector. </param>
 /// <param name="logger"> Logger instance. </param>
-public sealed class OrderedParallelProcessor(
+internal sealed class OrderedParallelProcessor(
 	ParallelMessageProcessor parallelProcessor,
 	OrderingKeyManager orderingKeyManager,
 	OrderingKeyMetrics orderingMetrics,
