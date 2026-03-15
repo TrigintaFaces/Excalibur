@@ -4,3 +4,4 @@
 using Xunit;
 
 [assembly: AssemblyTrait("Category", "Unit")]
+[assembly: CollectionBehavior(DisableTestParallelization = true)]

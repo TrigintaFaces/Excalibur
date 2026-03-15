@@ -71,18 +71,41 @@ public sealed class StreamingDocumentHandlerShould
 		var document = new TestCsvDocument(["A", "B", "C"]);
 		var context = CreateTestContext(provider);
 
-		// Act - verify items come through incrementally
-		var receivedTimestamps = new List<DateTime>();
-		await foreach (var row in dispatcher.DispatchStreamingAsync<TestCsvDocument, TestDataRow>(
-			document, context, CancellationToken.None))
+		// Act - verify the first item is observable before the stream completes
+		var firstItemReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var receivedRows = new List<TestDataRow>();
+		var receiveTask = Task.Run(async () =>
 		{
-			receivedTimestamps.Add(DateTime.UtcNow);
+			await foreach (var row in dispatcher.DispatchStreamingAsync<TestCsvDocument, TestDataRow>(
+				document, context, CancellationToken.None))
+			{
+				lock (receivedRows)
+				{
+					receivedRows.Add(row);
+					if (receivedRows.Count == 1)
+					{
+						firstItemReceived.TrySetResult();
+					}
+				}
+			}
+		});
+
+		await firstItemReceived.Task.WaitAsync(TimeSpan.FromSeconds(1));
+
+		// Assert - the consumer should have observed the first item while the stream is still active
+		lock (receivedRows)
+		{
+			receivedRows.Count.ShouldBe(1);
 		}
 
-		// Assert - items should have been received at different times
-		receivedTimestamps.Count.ShouldBe(3);
-		// The delayed handler adds 10ms between items
-		(receivedTimestamps[2] - receivedTimestamps[0]).TotalMilliseconds.ShouldBeGreaterThan(15);
+		receiveTask.IsCompleted.ShouldBeFalse();
+
+		await receiveTask;
+
+		lock (receivedRows)
+		{
+			receivedRows.Count.ShouldBe(3);
+		}
 	}
 
 	[Fact]
@@ -287,7 +310,7 @@ file sealed class DelayedStreamingHandler : IStreamingDocumentHandler<TestCsvDoc
 	{
 		foreach (var row in document.Rows)
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(10, cancellationToken).ConfigureAwait(false);
+			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(25, cancellationToken).ConfigureAwait(false);
 			yield return new TestDataRow(row);
 		}
 	}

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -18,8 +18,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\src\Dispatch\Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
-    <ProjectReference Include="..\\..\\Shared\\Tests.Shared\Tests.Shared.csproj" />
-    <!-- Reference residual project for Versioning/TestData types -->
-    <ProjectReference Include="..\Excalibur.Dispatch.Tests\Excalibur.Dispatch.Tests.csproj" />
+    <ProjectReference Include="..\..\Shared\Tests.Shared\Tests.Shared.csproj" />
   </ItemGroup>
 </Project>

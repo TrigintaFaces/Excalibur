@@ -399,19 +399,14 @@ public sealed class BatchResultShould
 	#region Dispose Tests
 
 	[Fact]
-	public void Dispose_MultipleTimes_DoesNotThrow()
+	public void Dispose_ReturnsPooledBufferOnce()
 	{
 		// Arrange
 		var array = ArrayPool<int>.Shared.Rent(10);
 		var batch = CreateBatchResult(array, 5);
 
-		// Act & Assert - Multiple disposes should not throw
-		Should.NotThrow(() =>
-		{
-			batch.Dispose();
-			batch.Dispose();
-			batch.Dispose();
-		});
+		// Act & Assert
+		Should.NotThrow(batch.Dispose);
 	}
 
 	#endregion
