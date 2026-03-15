@@ -30,7 +30,7 @@ namespace Excalibur.Dispatch.Abstractions {
 	[GeneratedCode("System.Resources.Tools.StronglyTypedResourceBuilder", "17.0.0.0")]
 	[DebuggerNonUserCode()]
 	[CompilerGenerated()]
-	public sealed class ErrorMessages {
+	internal sealed class ErrorMessages {
 
 		private static ResourceManager resourceMan;
 
@@ -40,14 +40,14 @@ namespace Excalibur.Dispatch.Abstractions {
 		/// Initializes a new instance of the <see cref="ErrorMessages"/> class.
 		/// </summary>
 		[SuppressMessage("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode")]
-		public ErrorMessages() {
+		internal ErrorMessages() {
 		}
 
 /// <summary>
 /// Returns the cached ResourceManager instance used by this class.
 /// </summary>
 		[EditorBrowsable(EditorBrowsableState.Advanced)]
-		public static ResourceManager ResourceManager {
+		internal static ResourceManager ResourceManager {
 			get {
 				if (ReferenceEquals(resourceMan, null)) {
 					ResourceManager temp = new ResourceManager("Excalibur.Dispatch.Abstractions.Resources.ErrorMessages", typeof(ErrorMessages).Assembly);
@@ -62,7 +62,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// resource lookups using this strongly typed resource class.
 /// </summary>
 		[EditorBrowsable(EditorBrowsableState.Advanced)]
-		public static CultureInfo Culture {
+		internal static CultureInfo Culture {
 			get {
 				return resourceCulture;
 			}
@@ -75,7 +75,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Access denied for message type {0}: {1}.
 /// </summary>
 		/// <value>The current <see cref="AccessDeniedForMessageType"/> value.</value>
-		public static string AccessDeniedForMessageType {
+		internal static string AccessDeniedForMessageType {
 			get {
 				return ResourceManager.GetString("AccessDeniedForMessageType", resourceCulture);
 			}
@@ -85,7 +85,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Acquisition timeout must be positive..
 /// </summary>
 		/// <value>The current <see cref="AcquisitionTimeoutMustBePositive"/> value.</value>
-		public static string AcquisitionTimeoutMustBePositive {
+		internal static string AcquisitionTimeoutMustBePositive {
 			get {
 				return ResourceManager.GetString("AcquisitionTimeoutMustBePositive", resourceCulture);
 			}
@@ -95,7 +95,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Action dispatch failed.
 /// </summary>
 		/// <value>The current <see cref="ActionDispatchFailed"/> value.</value>
-		public static string ActionDispatchFailed {
+		internal static string ActionDispatchFailed {
 			get {
 				return ResourceManager.GetString("ActionDispatchFailed", resourceCulture);
 			}
@@ -105,7 +105,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Algorithm {0} is not supported.
 /// </summary>
 		/// <value>The current <see cref="AlgorithmNotSupported"/> value.</value>
-		public static string AlgorithmNotSupported {
+		internal static string AlgorithmNotSupported {
 			get {
 				return ResourceManager.GetString("AlgorithmNotSupported", resourceCulture);
 			}
@@ -115,7 +115,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Algorithm {0} is not supported by this implementation.
 /// </summary>
 		/// <value>The current <see cref="AlgorithmNotSupportedByImplementation"/> value.</value>
-		public static string AlgorithmNotSupportedByImplementation {
+		internal static string AlgorithmNotSupportedByImplementation {
 			get {
 				return ResourceManager.GetString("AlgorithmNotSupportedByImplementation", resourceCulture);
 			}
@@ -125,7 +125,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to anonymous.
 /// </summary>
 		/// <value>The current <see cref="Anonymous"/> value.</value>
-		public static string Anonymous {
+		internal static string Anonymous {
 			get {
 				return ResourceManager.GetString("Anonymous", resourceCulture);
 			}
@@ -135,7 +135,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to ApiKey.
 /// </summary>
 		/// <value>The current <see cref="ApiKey"/> value.</value>
-		public static string ApiKey {
+		internal static string ApiKey {
 			get {
 				return ResourceManager.GetString("ApiKey", resourceCulture);
 			}
@@ -145,7 +145,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Argument must be positive.
 /// </summary>
 		/// <value>The current <see cref="ArgumentMustBePositive"/> value.</value>
-		public static string ArgumentMustBePositive {
+		internal static string ArgumentMustBePositive {
 			get {
 				return ResourceManager.GetString("ArgumentMustBePositive", resourceCulture);
 			}
@@ -155,7 +155,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to At least one branch must be specified for multi-conditional step..
 /// </summary>
 		/// <value>The current <see cref="AtLeastOneBranchMustBeSpecified"/> value.</value>
-		public static string AtLeastOneBranchMustBeSpecified {
+		internal static string AtLeastOneBranchMustBeSpecified {
 			get {
 				return ResourceManager.GetString("AtLeastOneBranchMustBeSpecified", resourceCulture);
 			}
@@ -165,7 +165,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to At least one bucket boundary is required..
 /// </summary>
 		/// <value>The current <see cref="AtLeastOneBucketBoundaryIsRequired"/> value.</value>
-		public static string AtLeastOneBucketBoundaryIsRequired {
+		internal static string AtLeastOneBucketBoundaryIsRequired {
 			get {
 				return ResourceManager.GetString("AtLeastOneBucketBoundaryIsRequired", resourceCulture);
 			}
@@ -175,7 +175,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to At least one bucket boundary is required..
 /// </summary>
 		/// <value>The current <see cref="AtLeastOneBucketBoundaryRequired"/> value.</value>
-		public static string AtLeastOneBucketBoundaryRequired {
+		internal static string AtLeastOneBucketBoundaryRequired {
 			get {
 				return ResourceManager.GetString("AtLeastOneBucketBoundaryRequired", resourceCulture);
 			}
@@ -185,7 +185,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to At least one destination must be specified..
 /// </summary>
 		/// <value>The current <see cref="AtLeastOneDestinationMustBeSpecified"/> value.</value>
-		public static string AtLeastOneDestinationMustBeSpecified {
+		internal static string AtLeastOneDestinationMustBeSpecified {
 			get {
 				return ResourceManager.GetString("AtLeastOneDestinationMustBeSpecified", resourceCulture);
 			}
@@ -195,7 +195,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to At least one handler is required.
 /// </summary>
 		/// <value>The current <see cref="AtLeastOneHandlerIsRequired"/> value.</value>
-		public static string AtLeastOneHandlerIsRequired {
+		internal static string AtLeastOneHandlerIsRequired {
 			get {
 				return ResourceManager.GetString("AtLeastOneHandlerIsRequired", resourceCulture);
 			}
@@ -205,7 +205,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Attempted to mark already processed message {0} as processed.
 /// </summary>
 		/// <value>The current <see cref="AttemptedToMarkAlreadyProcessedMessageAsProcessed"/> value.</value>
-		public static string AttemptedToMarkAlreadyProcessedMessageAsProcessed {
+		internal static string AttemptedToMarkAlreadyProcessedMessageAsProcessed {
 			get {
 				return ResourceManager.GetString("AttemptedToMarkAlreadyProcessedMessageAsProcessed", resourceCulture);
 			}
@@ -215,7 +215,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Attempted to mark non-existent message {0} as failed.
 /// </summary>
 		/// <value>The current <see cref="AttemptedToMarkNonExistentMessageAsFailed"/> value.</value>
-		public static string AttemptedToMarkNonExistentMessageAsFailed {
+		internal static string AttemptedToMarkNonExistentMessageAsFailed {
 			get {
 				return ResourceManager.GetString("AttemptedToMarkNonExistentMessageAsFailed", resourceCulture);
 			}
@@ -225,7 +225,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Attempted to mark non-existent message {0} as processed.
 /// </summary>
 		/// <value>The current <see cref="AttemptedToMarkNonExistentMessageAsProcessed"/> value.</value>
-		public static string AttemptedToMarkNonExistentMessageAsProcessed {
+		internal static string AttemptedToMarkNonExistentMessageAsProcessed {
 			get {
 				return ResourceManager.GetString("AttemptedToMarkNonExistentMessageAsProcessed", resourceCulture);
 			}
@@ -235,7 +235,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Attempted to return array that was not rented from this pool.
 /// </summary>
 		/// <value>The current <see cref="AttemptedToReturnArrayNotRentedFromThisPool"/> value.</value>
-		public static string AttemptedToReturnArrayNotRentedFromThisPool {
+		internal static string AttemptedToReturnArrayNotRentedFromThisPool {
 			get {
 				return ResourceManager.GetString("AttemptedToReturnArrayNotRentedFromThisPool", resourceCulture);
 			}
@@ -245,7 +245,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Attempted to return object that was not rented from pool.
 /// </summary>
 		/// <value>The current <see cref="AttemptedToReturnObjectNotRentedFromPool"/> value.</value>
-		public static string AttemptedToReturnObjectNotRentedFromPool {
+		internal static string AttemptedToReturnObjectNotRentedFromPool {
 			get {
 				return ResourceManager.GetString("AttemptedToReturnObjectNotRentedFromPool", resourceCulture);
 			}
@@ -255,7 +255,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Attempted to run {0} without calling {1}..
 /// </summary>
 		/// <value>The current <see cref="AttemptedToRunWithoutCallingInit"/> value.</value>
-		public static string AttemptedToRunWithoutCallingInit {
+		internal static string AttemptedToRunWithoutCallingInit {
 			get {
 				return ResourceManager.GetString("AttemptedToRunWithoutCallingInit", resourceCulture);
 			}
@@ -265,7 +265,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to AUDIT: Message payload - MessageId: {MessageId}, Payload: {Payload}.
 /// </summary>
 		/// <value>The current <see cref="AuditMessagePayload"/> value.</value>
-		public static string AuditMessagePayload {
+		internal static string AuditMessagePayload {
 			get {
 				return ResourceManager.GetString("AuditMessagePayload", resourceCulture);
 			}
@@ -275,7 +275,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to AUDIT: Message payload too large - MessageId: {MessageId}, Size: {PayloadSize} bytes.
 /// </summary>
 		/// <value>The current <see cref="AuditMessagePayloadTooLarge"/> value.</value>
-		public static string AuditMessagePayloadTooLarge {
+		internal static string AuditMessagePayloadTooLarge {
 			get {
 				return ResourceManager.GetString("AuditMessagePayloadTooLarge", resourceCulture);
 			}
@@ -285,7 +285,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Authentication failed.
 /// </summary>
 		/// <value>The current <see cref="AuthenticationFailed"/> value.</value>
-		public static string AuthenticationFailed {
+		internal static string AuthenticationFailed {
 			get {
 				return ResourceManager.GetString("AuthenticationFailed", resourceCulture);
 			}
@@ -295,7 +295,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Authentication failed due to unexpected error.
 /// </summary>
 		/// <value>The current <see cref="AuthenticationFailedDueToUnexpectedError"/> value.</value>
-		public static string AuthenticationFailedDueToUnexpectedError {
+		internal static string AuthenticationFailedDueToUnexpectedError {
 			get {
 				return ResourceManager.GetString("AuthenticationFailedDueToUnexpectedError", resourceCulture);
 			}
@@ -305,7 +305,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Authentication failed for message {0}.
 /// </summary>
 		/// <value>The current <see cref="AuthenticationFailedForMessageType"/> value.</value>
-		public static string AuthenticationFailedForMessageType {
+		internal static string AuthenticationFailedForMessageType {
 			get {
 				return ResourceManager.GetString("AuthenticationFailedForMessageType", resourceCulture);
 			}
@@ -315,7 +315,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to auth.message_type.
 /// </summary>
 		/// <value>The current <see cref="AuthenticationMessageType"/> value.</value>
-		public static string AuthenticationMessageType {
+		internal static string AuthenticationMessageType {
 			get {
 				return ResourceManager.GetString("AuthenticationMessageType", resourceCulture);
 			}
@@ -325,7 +325,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Authentication required but no credentials provided.
 /// </summary>
 		/// <value>The current <see cref="AuthenticationRequiredButNoCredentialsProvided"/> value.</value>
-		public static string AuthenticationRequiredButNoCredentialsProvided {
+		internal static string AuthenticationRequiredButNoCredentialsProvided {
 			get {
 				return ResourceManager.GetString("AuthenticationRequiredButNoCredentialsProvided", resourceCulture);
 			}
@@ -335,7 +335,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Authentication required but no token found for message {0}.
 /// </summary>
 		/// <value>The current <see cref="AuthenticationRequiredButNoTokenFound"/> value.</value>
-		public static string AuthenticationRequiredButNoTokenFound {
+		internal static string AuthenticationRequiredButNoTokenFound {
 			get {
 				return ResourceManager.GetString("AuthenticationRequiredButNoTokenFound", resourceCulture);
 			}
@@ -345,7 +345,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to auth.scheme.
 /// </summary>
 		/// <value>The current <see cref="AuthenticationScheme"/> value.</value>
-		public static string AuthenticationScheme {
+		internal static string AuthenticationScheme {
 			get {
 				return ResourceManager.GetString("AuthenticationScheme", resourceCulture);
 			}
@@ -355,7 +355,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to auth.succeeded.
 /// </summary>
 		/// <value>The current <see cref="AuthenticationSucceeded"/> value.</value>
-		public static string AuthenticationSucceeded {
+		internal static string AuthenticationSucceeded {
 			get {
 				return ResourceManager.GetString("AuthenticationSucceeded", resourceCulture);
 			}
@@ -365,7 +365,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to auth.user_id.
 /// </summary>
 		/// <value>The current <see cref="AuthenticationUserId"/> value.</value>
-		public static string AuthenticationUserId {
+		internal static string AuthenticationUserId {
 			get {
 				return ResourceManager.GetString("AuthenticationUserId", resourceCulture);
 			}
@@ -375,7 +375,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Authorization.
 /// </summary>
 		/// <value>The current <see cref="Authorization"/> value.</value>
-		public static string Authorization {
+		internal static string Authorization {
 			get {
 				return ResourceManager.GetString("Authorization", resourceCulture);
 			}
@@ -385,7 +385,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Authorization failed for message {MessageType} with subject {Subject}: {Reason}.
 /// </summary>
 		/// <value>The current <see cref="AuthorizationFailedForMessage"/> value.</value>
-		public static string AuthorizationFailedForMessage {
+		internal static string AuthorizationFailedForMessage {
 			get {
 				return ResourceManager.GetString("AuthorizationFailedForMessage", resourceCulture);
 			}
@@ -395,7 +395,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Authorization succeeded for message {MessageType} with subject {Subject}.
 /// </summary>
 		/// <value>The current <see cref="AuthorizationSucceededForMessage"/> value.</value>
-		public static string AuthorizationSucceededForMessage {
+		internal static string AuthorizationSucceededForMessage {
 			get {
 				return ResourceManager.GetString("AuthorizationSucceededForMessage", resourceCulture);
 			}
@@ -405,7 +405,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to AWS Lambda support is not available. Ensure Amazon.Lambda.Core package is installed..
 /// </summary>
 		/// <value>The current <see cref="AwsLambdaSupportNotAvailable"/> value.</value>
-		public static string AwsLambdaSupportNotAvailable {
+		internal static string AwsLambdaSupportNotAvailable {
 			get {
 				return ResourceManager.GetString("AwsLambdaSupportNotAvailable", resourceCulture);
 			}
@@ -415,7 +415,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to AWS SecretsManager KeyId is required.
 /// </summary>
 		/// <value>The current <see cref="AwsSecretsManagerKeyIdRequired"/> value.</value>
-		public static string AwsSecretsManagerKeyIdRequired {
+		internal static string AwsSecretsManagerKeyIdRequired {
 			get {
 				return ResourceManager.GetString("AwsSecretsManagerKeyIdRequired", resourceCulture);
 			}
@@ -425,7 +425,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Azure Functions support is not available. Ensure Microsoft.Azure.Functions.Worker package is installed..
 /// </summary>
 		/// <value>The current <see cref="AzureFunctionsSupportNotAvailable"/> value.</value>
-		public static string AzureFunctionsSupportNotAvailable {
+		internal static string AzureFunctionsSupportNotAvailable {
 			get {
 				return ResourceManager.GetString("AzureFunctionsSupportNotAvailable", resourceCulture);
 			}
@@ -435,7 +435,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to batch.duration_ms.
 /// </summary>
 		/// <value>The current <see cref="BatchDurationMs"/> value.</value>
-		public static string BatchDurationMs {
+		internal static string BatchDurationMs {
 			get {
 				return ResourceManager.GetString("BatchDurationMs", resourceCulture);
 			}
@@ -445,7 +445,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Batch handler {0} failed for {1} messages.
 /// </summary>
 		/// <value>The current <see cref="BatchHandlerFailedForMessages"/> value.</value>
-		public static string BatchHandlerFailedForMessages {
+		internal static string BatchHandlerFailedForMessages {
 			get {
 				return ResourceManager.GetString("BatchHandlerFailedForMessages", resourceCulture);
 			}
@@ -455,7 +455,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Batch handler {0} processed {1} messages.
 /// </summary>
 		/// <value>The current <see cref="BatchHandlerProcessedMessages"/> value.</value>
-		public static string BatchHandlerProcessedMessages {
+		internal static string BatchHandlerProcessedMessages {
 			get {
 				return ResourceManager.GetString("BatchHandlerProcessedMessages", resourceCulture);
 			}
@@ -465,7 +465,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to batching.added.
 /// </summary>
 		/// <value>The current <see cref="BatchingAdded"/> value.</value>
-		public static string BatchingAdded {
+		internal static string BatchingAdded {
 			get {
 				return ResourceManager.GetString("BatchingAdded", resourceCulture);
 			}
@@ -475,7 +475,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to batching.batch_size.
 /// </summary>
 		/// <value>The current <see cref="BatchingBatchSize"/> value.</value>
-		public static string BatchingBatchSize {
+		internal static string BatchingBatchSize {
 			get {
 				return ResourceManager.GetString("BatchingBatchSize", resourceCulture);
 			}
@@ -485,7 +485,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to batching.enabled.
 /// </summary>
 		/// <value>The current <see cref="BatchingEnabled"/> value.</value>
-		public static string BatchingEnabled {
+		internal static string BatchingEnabled {
 			get {
 				return ResourceManager.GetString("BatchingEnabled", resourceCulture);
 			}
@@ -495,7 +495,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to batching.key.
 /// </summary>
 		/// <value>The current <see cref="BatchingKey"/> value.</value>
-		public static string BatchingKey {
+		internal static string BatchingKey {
 			get {
 				return ResourceManager.GetString("BatchingKey", resourceCulture);
 			}
@@ -505,7 +505,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to BatchingMiddleware.Invoke.
 /// </summary>
 		/// <value>The current <see cref="BatchingMiddlewareInvoke"/> value.</value>
-		public static string BatchingMiddlewareInvoke {
+		internal static string BatchingMiddlewareInvoke {
 			get {
 				return ResourceManager.GetString("BatchingMiddlewareInvoke", resourceCulture);
 			}
@@ -515,7 +515,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to BatchingMiddleware.ProcessBatch.
 /// </summary>
 		/// <value>The current <see cref="BatchingMiddlewareProcessBatch"/> value.</value>
-		public static string BatchingMiddlewareProcessBatch {
+		internal static string BatchingMiddlewareProcessBatch {
 			get {
 				return ResourceManager.GetString("BatchingMiddlewareProcessBatch", resourceCulture);
 			}
@@ -525,7 +525,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to batching.trigger.
 /// </summary>
 		/// <value>The current <see cref="BatchingTrigger"/> value.</value>
-		public static string BatchingTrigger {
+		internal static string BatchingTrigger {
 			get {
 				return ResourceManager.GetString("BatchingTrigger", resourceCulture);
 			}
@@ -535,7 +535,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to batch.key.
 /// </summary>
 		/// <value>The current <see cref="BatchKey"/> value.</value>
-		public static string BatchKey {
+		internal static string BatchKey {
 			get {
 				return ResourceManager.GetString("BatchKey", resourceCulture);
 			}
@@ -545,7 +545,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to BatchProcessingError.
 /// </summary>
 		/// <value>The current <see cref="BatchProcessingError"/> value.</value>
-		public static string BatchProcessingError {
+		internal static string BatchProcessingError {
 			get {
 				return ResourceManager.GetString("BatchProcessingError", resourceCulture);
 			}
@@ -555,7 +555,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Batch Processing Failed.
 /// </summary>
 		/// <value>The current <see cref="BatchProcessingFailed"/> value.</value>
-		public static string BatchProcessingFailed {
+		internal static string BatchProcessingFailed {
 			get {
 				return ResourceManager.GetString("BatchProcessingFailed", resourceCulture);
 			}
@@ -565,7 +565,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Batch {0} reached size threshold {1}, processing immediately.
 /// </summary>
 		/// <value>The current <see cref="BatchReachedSizeThresholdProcessingImmediately"/> value.</value>
-		public static string BatchReachedSizeThresholdProcessingImmediately {
+		internal static string BatchReachedSizeThresholdProcessingImmediately {
 			get {
 				return ResourceManager.GetString("BatchReachedSizeThresholdProcessingImmediately", resourceCulture);
 			}
@@ -575,7 +575,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to batch.size.
 /// </summary>
 		/// <value>The current <see cref="BatchSize"/> value.</value>
-		public static string BatchSize {
+		internal static string BatchSize {
 			get {
 				return ResourceManager.GetString("BatchSize", resourceCulture);
 			}
@@ -585,7 +585,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Batch size limit exceeded at event {0}.
 /// </summary>
 		/// <value>The current <see cref="BatchSizeLimitExceededAtEvent"/> value.</value>
-		public static string BatchSizeLimitExceededAtEvent {
+		internal static string BatchSizeLimitExceededAtEvent {
 			get {
 				return ResourceManager.GetString("BatchSizeLimitExceededAtEvent", resourceCulture);
 			}
@@ -595,7 +595,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to batch.success.
 /// </summary>
 		/// <value>The current <see cref="BatchSuccess"/> value.</value>
-		public static string BatchSuccess {
+		internal static string BatchSuccess {
 			get {
 				return ResourceManager.GetString("BatchSuccess", resourceCulture);
 			}
@@ -605,7 +605,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Batch timeout must be positive.
 /// </summary>
 		/// <value>The current <see cref="BatchTimeoutMustBePositive"/> value.</value>
-		public static string BatchTimeoutMustBePositive {
+		internal static string BatchTimeoutMustBePositive {
 			get {
 				return ResourceManager.GetString("BatchTimeoutMustBePositive", resourceCulture);
 			}
@@ -615,7 +615,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Batch timeout should be less than cleanup interval.
 /// </summary>
 		/// <value>The current <see cref="BatchTimeoutShouldBeLessThanCleanupInterval"/> value.</value>
-		public static string BatchTimeoutShouldBeLessThanCleanupInterval {
+		internal static string BatchTimeoutShouldBeLessThanCleanupInterval {
 			get {
 				return ResourceManager.GetString("BatchTimeoutShouldBeLessThanCleanupInterval", resourceCulture);
 			}
@@ -625,7 +625,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Batch timeout should be significantly less than cleanup interval.
 /// </summary>
 		/// <value>The current <see cref="BatchTimeoutShouldBeSignificantlyLessThanCleanupInterval"/> value.</value>
-		public static string BatchTimeoutShouldBeSignificantlyLessThanCleanupInterval {
+		internal static string BatchTimeoutShouldBeSignificantlyLessThanCleanupInterval {
 			get {
 				return ResourceManager.GetString("BatchTimeoutShouldBeSignificantlyLessThanCleanupInterval", resourceCulture);
 			}
@@ -635,7 +635,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Bearer.
 /// </summary>
 		/// <value>The current <see cref="Bearer"/> value.</value>
-		public static string Bearer {
+		internal static string Bearer {
 			get {
 				return ResourceManager.GetString("Bearer", resourceCulture);
 			}
@@ -645,7 +645,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Binding name is required.
 /// </summary>
 		/// <value>The current <see cref="BindingNameIsRequired"/> value.</value>
-		public static string BindingNameIsRequired {
+		internal static string BindingNameIsRequired {
 			get {
 				return ResourceManager.GetString("BindingNameIsRequired", resourceCulture);
 			}
@@ -655,7 +655,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Branch evaluator must be specified for multi-conditional step..
 /// </summary>
 		/// <value>The current <see cref="BranchEvaluatorMustBeSpecified"/> value.</value>
-		public static string BranchEvaluatorMustBeSpecified {
+		internal static string BranchEvaluatorMustBeSpecified {
 			get {
 				return ResourceManager.GetString("BranchEvaluatorMustBeSpecified", resourceCulture);
 			}
@@ -665,7 +665,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Branch key cannot be null or whitespace..
 /// </summary>
 		/// <value>The current <see cref="BranchKeyCannotBeNullOrWhitespace"/> value.</value>
-		public static string BranchKeyCannotBeNullOrWhitespace {
+		internal static string BranchKeyCannotBeNullOrWhitespace {
 			get {
 				return ResourceManager.GetString("BranchKeyCannotBeNullOrWhitespace", resourceCulture);
 			}
@@ -675,7 +675,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Bulk Operation Failed.
 /// </summary>
 		/// <value>The current <see cref="BulkOperationFailed"/> value.</value>
-		public static string BulkOperationFailed {
+		internal static string BulkOperationFailed {
 			get {
 				return ResourceManager.GetString("BulkOperationFailed", resourceCulture);
 			}
@@ -685,7 +685,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Bulk operation failed: {0}.
 /// </summary>
 		/// <value>The current <see cref="BulkOperationFailedDetail"/> value.</value>
-		public static string BulkOperationFailedDetail {
+		internal static string BulkOperationFailedDetail {
 			get {
 				return ResourceManager.GetString("BulkOperationFailedDetail", resourceCulture);
 			}
@@ -695,7 +695,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cache refresh interval must be positive.
 /// </summary>
 		/// <value>The current <see cref="CacheRefreshIntervalMustBePositive"/> value.</value>
-		public static string CacheRefreshIntervalMustBePositive {
+		internal static string CacheRefreshIntervalMustBePositive {
 			get {
 				return ResourceManager.GetString("CacheRefreshIntervalMustBePositive", resourceCulture);
 			}
@@ -705,7 +705,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cannot access value of a faulted result..
 /// </summary>
 		/// <value>The current <see cref="CannotAccessValueOfFaultedResult"/> value.</value>
-		public static string CannotAccessValueOfFaultedResult {
+		internal static string CannotAccessValueOfFaultedResult {
 			get {
 				return ResourceManager.GetString("CannotAccessValueOfFaultedResult", resourceCulture);
 			}
@@ -715,7 +715,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cannot convert null to Money..
 /// </summary>
 		/// <value>The current <see cref="CannotConvertNullToMoney"/> value.</value>
-		public static string CannotConvertNullToMoney {
+		internal static string CannotConvertNullToMoney {
 			get {
 				return ResourceManager.GetString("CannotConvertNullToMoney", resourceCulture);
 			}
@@ -725,7 +725,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cannot convert {0} to Money..
 /// </summary>
 		/// <value>The current <see cref="CannotConvertTypeToMoney"/> value.</value>
-		public static string CannotConvertTypeToMoney {
+		internal static string CannotConvertTypeToMoney {
 			get {
 				return ResourceManager.GetString("CannotConvertTypeToMoney", resourceCulture);
 			}
@@ -735,7 +735,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cannot deserialize content without a serializer..
 /// </summary>
 		/// <value>The current <see cref="CannotDeserializeContentWithoutSerializer"/> value.</value>
-		public static string CannotDeserializeContentWithoutSerializer {
+		internal static string CannotDeserializeContentWithoutSerializer {
 			get {
 				return ResourceManager.GetString("CannotDeserializeContentWithoutSerializer", resourceCulture);
 			}
@@ -745,7 +745,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cannot divide money by zero..
 /// </summary>
 		/// <value>The current <see cref="CannotDivideMoneyByZero"/> value.</value>
-		public static string CannotDivideMoneyByZero {
+		internal static string CannotDivideMoneyByZero {
 			get {
 				return ResourceManager.GetString("CannotDivideMoneyByZero", resourceCulture);
 			}
@@ -755,7 +755,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cannot process message without identifier, skipping inbox processing.
 /// </summary>
 		/// <value>The current <see cref="CannotProcessMessageWithoutIdentifierSkippingInboxProcessing"/> value.</value>
-		public static string CannotProcessMessageWithoutIdentifierSkippingInboxProcessing {
+		internal static string CannotProcessMessageWithoutIdentifierSkippingInboxProcessing {
 			get {
 				return ResourceManager.GetString("CannotProcessMessageWithoutIdentifierSkippingInboxProcessing", resourceCulture);
 			}
@@ -765,7 +765,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cannot replay message {0}: Deserialized object is not IDispatchMessage.
 /// </summary>
 		/// <value>The current <see cref="CannotReplayMessageNotDispatchMessage"/> value.</value>
-		public static string CannotReplayMessageNotDispatchMessage {
+		internal static string CannotReplayMessageNotDispatchMessage {
 			get {
 				return ResourceManager.GetString("CannotReplayMessageNotDispatchMessage", resourceCulture);
 			}
@@ -775,7 +775,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cannot replay message {0}: Type {1} not found.
 /// </summary>
 		/// <value>The current <see cref="CannotReplayMessageTypeNotFound"/> value.</value>
-		public static string CannotReplayMessageTypeNotFound {
+		internal static string CannotReplayMessageTypeNotFound {
 			get {
 				return ResourceManager.GetString("CannotReplayMessageTypeNotFound", resourceCulture);
 			}
@@ -785,7 +785,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cannot schedule message in the past.
 /// </summary>
 		/// <value>The current <see cref="CannotScheduleMessageInPast"/> value.</value>
-		public static string CannotScheduleMessageInPast {
+		internal static string CannotScheduleMessageInPast {
 			get {
 				return ResourceManager.GetString("CannotScheduleMessageInPast", resourceCulture);
 			}
@@ -795,7 +795,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cannot schedule a message in the past..
 /// </summary>
 		/// <value>The current <see cref="CannotScheduleMessageInThePast"/> value.</value>
-		public static string CannotScheduleMessageInThePast {
+		internal static string CannotScheduleMessageInThePast {
 			get {
 				return ResourceManager.GetString("CannotScheduleMessageInThePast", resourceCulture);
 			}
@@ -805,7 +805,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cannot schedule messages more than {0} in the future.
 /// </summary>
 		/// <value>The current <see cref="CannotScheduleMessagesTooFarInFuture"/> value.</value>
-		public static string CannotScheduleMessagesTooFarInFuture {
+		internal static string CannotScheduleMessagesTooFarInFuture {
 			get {
 				return ResourceManager.GetString("CannotScheduleMessagesTooFarInFuture", resourceCulture);
 			}
@@ -815,7 +815,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cannot start processing; no valid minimum LSN found in CDC tables..
 /// </summary>
 		/// <value>The current <see cref="CannotStartProcessingNoValidMinimumLsnFound"/> value.</value>
-		public static string CannotStartProcessingNoValidMinimumLsnFound {
+		internal static string CannotStartProcessingNoValidMinimumLsnFound {
 			get {
 				return ResourceManager.GetString("CannotStartProcessingNoValidMinimumLsnFound", resourceCulture);
 			}
@@ -825,7 +825,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Capacity must be at least 1.
 /// </summary>
 		/// <value>The current <see cref="CapacityMustBeAtLeastOne"/> value.</value>
-		public static string CapacityMustBeAtLeastOne {
+		internal static string CapacityMustBeAtLeastOne {
 			get {
 				return ResourceManager.GetString("CapacityMustBeAtLeastOne", resourceCulture);
 			}
@@ -835,7 +835,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Capacity must be at least 2.
 /// </summary>
 		/// <value>The current <see cref="CapacityMustBeAtLeastTwo"/> value.</value>
-		public static string CapacityMustBeAtLeastTwo {
+		internal static string CapacityMustBeAtLeastTwo {
 			get {
 				return ResourceManager.GetString("CapacityMustBeAtLeastTwo", resourceCulture);
 			}
@@ -845,7 +845,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to CDC Processor is already running..
 /// </summary>
 		/// <value>The current <see cref="CdcProcessorIsAlreadyRunning"/> value.</value>
-		public static string CdcProcessorIsAlreadyRunning {
+		internal static string CdcProcessorIsAlreadyRunning {
 			get {
 				return ResourceManager.GetString("CdcProcessorIsAlreadyRunning", resourceCulture);
 			}
@@ -855,7 +855,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Certificate.
 /// </summary>
 		/// <value>The current <see cref="Certificate"/> value.</value>
-		public static string Certificate {
+		internal static string Certificate {
 			get {
 				return ResourceManager.GetString("Certificate", resourceCulture);
 			}
@@ -865,7 +865,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Certificate User.
 /// </summary>
 		/// <value>The current <see cref="CertificateUser"/> value.</value>
-		public static string CertificateUser {
+		internal static string CertificateUser {
 			get {
 				return ResourceManager.GetString("CertificateUser", resourceCulture);
 			}
@@ -875,7 +875,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Checkpoint {0} not found.
 /// </summary>
 		/// <value>The current <see cref="CheckpointNotFound"/> value.</value>
-		public static string CheckpointNotFound {
+		internal static string CheckpointNotFound {
 			get {
 				return ResourceManager.GetString("CheckpointNotFound", resourceCulture);
 			}
@@ -885,7 +885,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Consecutive failures: {0}.
 /// </summary>
 		/// <value>The current <see cref="CircuitBreakerConsecutiveFailures"/> value.</value>
-		public static string CircuitBreakerConsecutiveFailures {
+		internal static string CircuitBreakerConsecutiveFailures {
 			get {
 				return ResourceManager.GetString("CircuitBreakerConsecutiveFailures", resourceCulture);
 			}
@@ -895,7 +895,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Manual reset.
 /// </summary>
 		/// <value>The current <see cref="CircuitBreakerManualReset"/> value.</value>
-		public static string CircuitBreakerManualReset {
+		internal static string CircuitBreakerManualReset {
 			get {
 				return ResourceManager.GetString("CircuitBreakerManualReset", resourceCulture);
 			}
@@ -905,7 +905,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Recovery confirmed with {0} successes.
 /// </summary>
 		/// <value>The current <see cref="CircuitBreakerRecoveryConfirmed"/> value.</value>
-		public static string CircuitBreakerRecoveryConfirmed {
+		internal static string CircuitBreakerRecoveryConfirmed {
 			get {
 				return ResourceManager.GetString("CircuitBreakerRecoveryConfirmed", resourceCulture);
 			}
@@ -915,7 +915,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Testing recovery after timeout.
 /// </summary>
 		/// <value>The current <see cref="CircuitBreakerTestingRecovery"/> value.</value>
-		public static string CircuitBreakerTestingRecovery {
+		internal static string CircuitBreakerTestingRecovery {
 			get {
 				return ResourceManager.GetString("CircuitBreakerTestingRecovery", resourceCulture);
 			}
@@ -925,7 +925,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Trial success: {0}.
 /// </summary>
 		/// <value>The current <see cref="CircuitBreakerTrialSuccess"/> value.</value>
-		public static string CircuitBreakerTrialSuccess {
+		internal static string CircuitBreakerTrialSuccess {
 			get {
 				return ResourceManager.GetString("CircuitBreakerTrialSuccess", resourceCulture);
 			}
@@ -935,7 +935,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cleaned up {0} dead letter messages older than {1} days.
 /// </summary>
 		/// <value>The current <see cref="CleanedUpDeadLetterMessages"/> value.</value>
-		public static string CleanedUpDeadLetterMessages {
+		internal static string CleanedUpDeadLetterMessages {
 			get {
 				return ResourceManager.GetString("CleanedUpDeadLetterMessages", resourceCulture);
 			}
@@ -945,7 +945,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cleaned up {0} expired entries from deduplicator (remaining: {1}).
 /// </summary>
 		/// <value>The current <see cref="CleanedUpExpiredEntriesFromDeduplicator"/> value.</value>
-		public static string CleanedUpExpiredEntriesFromDeduplicator {
+		internal static string CleanedUpExpiredEntriesFromDeduplicator {
 			get {
 				return ResourceManager.GetString("CleanedUpExpiredEntriesFromDeduplicator", resourceCulture);
 			}
@@ -955,7 +955,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cleaned up {0} old dead letter messages older than {1} days.
 /// </summary>
 		/// <value>The current <see cref="CleanedUpOldDeadLetterMessages"/> value.</value>
-		public static string CleanedUpOldDeadLetterMessages {
+		internal static string CleanedUpOldDeadLetterMessages {
 			get {
 				return ResourceManager.GetString("CleanedUpOldDeadLetterMessages", resourceCulture);
 			}
@@ -965,7 +965,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cleaned up {0} old dead letter messages older than {1} days.
 /// </summary>
 		/// <value>The current <see cref="CleanedUpOldDeadLetterMessagesRetentionDays"/> value.</value>
-		public static string CleanedUpOldDeadLetterMessagesRetentionDays {
+		internal static string CleanedUpOldDeadLetterMessagesRetentionDays {
 			get {
 				return ResourceManager.GetString("CleanedUpOldDeadLetterMessagesRetentionDays", resourceCulture);
 			}
@@ -975,7 +975,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cleaned up {0} processed inbox entries older than {1}.
 /// </summary>
 		/// <value>The current <see cref="CleanedUpProcessedInboxEntries"/> value.</value>
-		public static string CleanedUpProcessedInboxEntries {
+		internal static string CleanedUpProcessedInboxEntries {
 			get {
 				return ResourceManager.GetString("CleanedUpProcessedInboxEntries", resourceCulture);
 			}
@@ -985,7 +985,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cleanup failed for pool &apos;{0}&apos;.
 /// </summary>
 		/// <value>The current <see cref="CleanupFailedForPool"/> value.</value>
-		public static string CleanupFailedForPool {
+		internal static string CleanupFailedForPool {
 			get {
 				return ResourceManager.GetString("CleanupFailedForPool", resourceCulture);
 			}
@@ -995,7 +995,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cleanup interval must be positive.
 /// </summary>
 		/// <value>The current <see cref="CleanupIntervalMustBePositive"/> value.</value>
-		public static string CleanupIntervalMustBePositive {
+		internal static string CleanupIntervalMustBePositive {
 			get {
 				return ResourceManager.GetString("CleanupIntervalMustBePositive", resourceCulture);
 			}
@@ -1005,7 +1005,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cleanup removed {0} expired connections from pool &apos;{1}&apos;.
 /// </summary>
 		/// <value>The current <see cref="CleanupRemovedExpiredConnectionsFromPool"/> value.</value>
-		public static string CleanupRemovedExpiredConnectionsFromPool {
+		internal static string CleanupRemovedExpiredConnectionsFromPool {
 			get {
 				return ResourceManager.GetString("CleanupRemovedExpiredConnectionsFromPool", resourceCulture);
 			}
@@ -1015,7 +1015,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to CommandTimeout must be greater than 0..
 /// </summary>
 		/// <value>The current <see cref="CommandTimeoutMustBeGreaterThanZero"/> value.</value>
-		public static string CommandTimeoutMustBeGreaterThanZero {
+		internal static string CommandTimeoutMustBeGreaterThanZero {
 			get {
 				return ResourceManager.GetString("CommandTimeoutMustBeGreaterThanZero", resourceCulture);
 			}
@@ -1025,7 +1025,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Completed processing batch {0} with {1} messages in {2}ms.
 /// </summary>
 		/// <value>The current <see cref="CompletedProcessingBatch"/> value.</value>
-		public static string CompletedProcessingBatch {
+		internal static string CompletedProcessingBatch {
 			get {
 				return ResourceManager.GetString("CompletedProcessingBatch", resourceCulture);
 			}
@@ -1035,7 +1035,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Completed schedule retention must be positive.
 /// </summary>
 		/// <value>The current <see cref="CompletedScheduleRetentionMustBePositive"/> value.</value>
-		public static string CompletedScheduleRetentionMustBePositive {
+		internal static string CompletedScheduleRetentionMustBePositive {
 			get {
 				return ResourceManager.GetString("CompletedScheduleRetentionMustBePositive", resourceCulture);
 			}
@@ -1045,7 +1045,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Condition must be specified for conditional step..
 /// </summary>
 		/// <value>The current <see cref="ConditionMustBeSpecified"/> value.</value>
-		public static string ConditionMustBeSpecified {
+		internal static string ConditionMustBeSpecified {
 			get {
 				return ResourceManager.GetString("ConditionMustBeSpecified", resourceCulture);
 			}
@@ -1055,7 +1055,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Configuration error occurred.
 /// </summary>
 		/// <value>The current <see cref="ConfigurationErrorOccurred"/> value.</value>
-		public static string ConfigurationErrorOccurred {
+		internal static string ConfigurationErrorOccurred {
 			get {
 				return ResourceManager.GetString("ConfigurationErrorOccurred", resourceCulture);
 			}
@@ -1065,7 +1065,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Connection failed.
 /// </summary>
 		/// <value>The current <see cref="ConnectionFailed"/> value.</value>
-		public static string ConnectionFailed {
+		internal static string ConnectionFailed {
 			get {
 				return ResourceManager.GetString("ConnectionFailed", resourceCulture);
 			}
@@ -1075,7 +1075,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Connection pool &apos;{0}&apos; disposed successfully.
 /// </summary>
 		/// <value>The current <see cref="ConnectionPoolDisposedSuccessfully"/> value.</value>
-		public static string ConnectionPoolDisposedSuccessfully {
+		internal static string ConnectionPoolDisposedSuccessfully {
 			get {
 				return ResourceManager.GetString("ConnectionPoolDisposedSuccessfully", resourceCulture);
 			}
@@ -1085,7 +1085,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Connection pool is not available..
 /// </summary>
 		/// <value>The current <see cref="ConnectionPoolIsNotAvailable"/> value.</value>
-		public static string ConnectionPoolIsNotAvailable {
+		internal static string ConnectionPoolIsNotAvailable {
 			get {
 				return ResourceManager.GetString("ConnectionPoolIsNotAvailable", resourceCulture);
 			}
@@ -1095,7 +1095,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Connection pool is not available..
 /// </summary>
 		/// <value>The current <see cref="ConnectionPoolNotAvailable"/> value.</value>
-		public static string ConnectionPoolNotAvailable {
+		internal static string ConnectionPoolNotAvailable {
 			get {
 				return ResourceManager.GetString("ConnectionPoolNotAvailable", resourceCulture);
 			}
@@ -1105,7 +1105,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Connection returned to pool &apos;{0}&apos;. Available: {1}, Active: {2}.
 /// </summary>
 		/// <value>The current <see cref="ConnectionReturnedToPool"/> value.</value>
-		public static string ConnectionReturnedToPool {
+		internal static string ConnectionReturnedToPool {
 			get {
 				return ResourceManager.GetString("ConnectionReturnedToPool", resourceCulture);
 			}
@@ -1115,7 +1115,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to ConnectionString is required for SQL Server persistence provider..
 /// </summary>
 		/// <value>The current <see cref="ConnectionStringRequiredForSqlServer"/> value.</value>
-		public static string ConnectionStringRequiredForSqlServer {
+		internal static string ConnectionStringRequiredForSqlServer {
 			get {
 				return ResourceManager.GetString("ConnectionStringRequiredForSqlServer", resourceCulture);
 			}
@@ -1125,7 +1125,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to initialize SQL Server persistence provider - connection test failed.
 /// </summary>
 		/// <value>The current <see cref="ConnectionTestFailed"/> value.</value>
-		public static string ConnectionTestFailed {
+		internal static string ConnectionTestFailed {
 			get {
 				return ResourceManager.GetString("ConnectionTestFailed", resourceCulture);
 			}
@@ -1135,7 +1135,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to ConnectionTimeout must be greater than 0..
 /// </summary>
 		/// <value>The current <see cref="ConnectionTimeoutMustBeGreaterThanZero"/> value.</value>
-		public static string ConnectionTimeoutMustBeGreaterThanZero {
+		internal static string ConnectionTimeoutMustBeGreaterThanZero {
 			get {
 				return ResourceManager.GetString("ConnectionTimeoutMustBeGreaterThanZero", resourceCulture);
 			}
@@ -1145,7 +1145,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to ConnectRetryCount must be between 0 and 255..
 /// </summary>
 		/// <value>The current <see cref="ConnectRetryCountMustBeBetween0And255"/> value.</value>
-		public static string ConnectRetryCountMustBeBetween0And255 {
+		internal static string ConnectRetryCountMustBeBetween0And255 {
 			get {
 				return ResourceManager.GetString("ConnectRetryCountMustBeBetween0And255", resourceCulture);
 			}
@@ -1155,7 +1155,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to ConnectRetryInterval must be between 1 and 60 seconds..
 /// </summary>
 		/// <value>The current <see cref="ConnectRetryIntervalMustBeBetween1And60Seconds"/> value.</value>
-		public static string ConnectRetryIntervalMustBeBetween1And60Seconds {
+		internal static string ConnectRetryIntervalMustBeBetween1And60Seconds {
 			get {
 				return ResourceManager.GetString("ConnectRetryIntervalMustBeBetween1And60Seconds", resourceCulture);
 			}
@@ -1165,7 +1165,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Content deduplication window must be positive.
 /// </summary>
 		/// <value>The current <see cref="ContentDeduplicationWindowMustBePositive"/> value.</value>
-		public static string ContentDeduplicationWindowMustBePositive {
+		internal static string ContentDeduplicationWindowMustBePositive {
 			get {
 				return ResourceManager.GetString("ContentDeduplicationWindowMustBePositive", resourceCulture);
 			}
@@ -1175,7 +1175,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Contention threshold must be positive.
 /// </summary>
 		/// <value>The current <see cref="ContentionThresholdMustBePositive"/> value.</value>
-		public static string ContentionThresholdMustBePositive {
+		internal static string ContentionThresholdMustBePositive {
 			get {
 				return ResourceManager.GetString("ContentionThresholdMustBePositive", resourceCulture);
 			}
@@ -1185,7 +1185,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Context is required..
 /// </summary>
 		/// <value>The current <see cref="ContextIsRequired"/> value.</value>
-		public static string ContextIsRequired {
+		internal static string ContextIsRequired {
 			get {
 				return ResourceManager.GetString("ContextIsRequired", resourceCulture);
 			}
@@ -1195,7 +1195,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Conversion from EventStoreMessage&lt;string&gt; to EventStoreMessage&lt;TAggregateKey&gt; is not implemented..
 /// </summary>
 		/// <value>The current <see cref="ConversionFromEventStoreMessageNotImplemented"/> value.</value>
-		public static string ConversionFromEventStoreMessageNotImplemented {
+		internal static string ConversionFromEventStoreMessageNotImplemented {
 			get {
 				return ResourceManager.GetString("ConversionFromEventStoreMessageNotImplemented", resourceCulture);
 			}
@@ -1205,7 +1205,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Conversion from EventStoreMessage&lt;string&gt; to EventStoreMessage&lt;TAggregateKey&gt; is not implemented..
 /// </summary>
 		/// <value>The current <see cref="ConversionFromStringToTAggregateKeyNotImplemented"/> value.</value>
-		public static string ConversionFromStringToTAggregateKeyNotImplemented {
+		internal static string ConversionFromStringToTAggregateKeyNotImplemented {
 			get {
 				return ResourceManager.GetString("ConversionFromStringToTAggregateKeyNotImplemented", resourceCulture);
 			}
@@ -1215,7 +1215,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Corrupted fields detected: {0}.
 /// </summary>
 		/// <value>The current <see cref="CorruptedFieldsDetected"/> value.</value>
-		public static string CorruptedFieldsDetected {
+		internal static string CorruptedFieldsDetected {
 			get {
 				return ResourceManager.GetString("CorruptedFieldsDetected", resourceCulture);
 			}
@@ -1225,7 +1225,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Could not deserialize {0} as a dispatch message..
 /// </summary>
 		/// <value>The current <see cref="CouldNotDeserializeAsDispatchMessage"/> value.</value>
-		public static string CouldNotDeserializeAsDispatchMessage {
+		internal static string CouldNotDeserializeAsDispatchMessage {
 			get {
 				return ResourceManager.GetString("CouldNotDeserializeAsDispatchMessage", resourceCulture);
 			}
@@ -1235,7 +1235,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Could not deserialize {0} as a integration event..
 /// </summary>
 		/// <value>The current <see cref="CouldNotDeserializeAsIntegrationEvent"/> value.</value>
-		public static string CouldNotDeserializeAsIntegrationEvent {
+		internal static string CouldNotDeserializeAsIntegrationEvent {
 			get {
 				return ResourceManager.GetString("CouldNotDeserializeAsIntegrationEvent", resourceCulture);
 			}
@@ -1245,7 +1245,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Could not locate the generic AddTypeHandler method on SqlMapper..
 /// </summary>
 		/// <value>The current <see cref="CouldNotLocateGenericAddTypeHandlerMethod"/> value.</value>
-		public static string CouldNotLocateGenericAddTypeHandlerMethod {
+		internal static string CouldNotLocateGenericAddTypeHandlerMethod {
 			get {
 				return ResourceManager.GetString("CouldNotLocateGenericAddTypeHandlerMethod", resourceCulture);
 			}
@@ -1255,7 +1255,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Could not resolve message type {0} for message {1}.
 /// </summary>
 		/// <value>The current <see cref="CouldNotResolveMessageTypeForMessage"/> value.</value>
-		public static string CouldNotResolveMessageTypeForMessage {
+		internal static string CouldNotResolveMessageTypeForMessage {
 			get {
 				return ResourceManager.GetString("CouldNotResolveMessageTypeForMessage", resourceCulture);
 			}
@@ -1265,7 +1265,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Counter can only increase..
 /// </summary>
 		/// <value>The current <see cref="CounterCanOnlyIncrease"/> value.</value>
-		public static string CounterCanOnlyIncrease {
+		internal static string CounterCanOnlyIncrease {
 			get {
 				return ResourceManager.GetString("CounterCanOnlyIncrease", resourceCulture);
 			}
@@ -1275,7 +1275,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Count must be positive..
 /// </summary>
 		/// <value>The current <see cref="CountMustBePositive"/> value.</value>
-		public static string CountMustBePositive {
+		internal static string CountMustBePositive {
 			get {
 				return ResourceManager.GetString("CountMustBePositive", resourceCulture);
 			}
@@ -1285,7 +1285,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Created inbox entry for message {0} of type {1}.
 /// </summary>
 		/// <value>The current <see cref="CreatedInboxEntryForMessage"/> value.</value>
-		public static string CreatedInboxEntryForMessage {
+		internal static string CreatedInboxEntryForMessage {
 			get {
 				return ResourceManager.GetString("CreatedInboxEntryForMessage", resourceCulture);
 			}
@@ -1295,7 +1295,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Credential cannot be empty.
 /// </summary>
 		/// <value>The current <see cref="CredentialCannotBeEmpty"/> value.</value>
-		public static string CredentialCannotBeEmpty {
+		internal static string CredentialCannotBeEmpty {
 			get {
 				return ResourceManager.GetString("CredentialCannotBeEmpty", resourceCulture);
 			}
@@ -1305,7 +1305,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Credential length must be between 1 and 65536 characters.
 /// </summary>
 		/// <value>The current <see cref="CredentialLengthMustBeBetween1And65536Characters"/> value.</value>
-		public static string CredentialLengthMustBeBetween1And65536Characters {
+		internal static string CredentialLengthMustBeBetween1And65536Characters {
 			get {
 				return ResourceManager.GetString("CredentialLengthMustBeBetween1And65536Characters", resourceCulture);
 			}
@@ -1315,7 +1315,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cron expression cannot be null or empty..
 /// </summary>
 		/// <value>The current <see cref="CronExpressionCannotBeNullOrEmpty"/> value.</value>
-		public static string CronExpressionCannotBeNullOrEmpty {
+		internal static string CronExpressionCannotBeNullOrEmpty {
 			get {
 				return ResourceManager.GetString("CronExpressionCannotBeNullOrEmpty", resourceCulture);
 			}
@@ -1325,7 +1325,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to CronExpression must be created by this scheduler..
 /// </summary>
 		/// <value>The current <see cref="CronExpressionMustBeCreatedByThisScheduler"/> value.</value>
-		public static string CronExpressionMustBeCreatedByThisScheduler {
+		internal static string CronExpressionMustBeCreatedByThisScheduler {
 			get {
 				return ResourceManager.GetString("CronExpressionMustBeCreatedByThisScheduler", resourceCulture);
 			}
@@ -1335,7 +1335,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Custom validation failed.
 /// </summary>
 		/// <value>The current <see cref="CustomValidationFailed"/> value.</value>
-		public static string CustomValidationFailed {
+		internal static string CustomValidationFailed {
 			get {
 				return ResourceManager.GetString("CustomValidationFailed", resourceCulture);
 			}
@@ -1345,7 +1345,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Dead letter message {0} not found for replay.
 /// </summary>
 		/// <value>The current <see cref="DeadLetterMessageNotFoundForReplay"/> value.</value>
-		public static string DeadLetterMessageNotFoundForReplay {
+		internal static string DeadLetterMessageNotFoundForReplay {
 			get {
 				return ResourceManager.GetString("DeadLetterMessageNotFoundForReplay", resourceCulture);
 			}
@@ -1355,7 +1355,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Deduplication window must be positive.
 /// </summary>
 		/// <value>The current <see cref="DeduplicationWindowMustBePositive"/> value.</value>
-		public static string DeduplicationWindowMustBePositive {
+		internal static string DeduplicationWindowMustBePositive {
 			get {
 				return ResourceManager.GetString("DeduplicationWindowMustBePositive", resourceCulture);
 			}
@@ -1365,7 +1365,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to DefaultPool.
 /// </summary>
 		/// <value>The current <see cref="DefaultPool"/> value.</value>
-		public static string DefaultPool {
+		internal static string DefaultPool {
 			get {
 				return ResourceManager.GetString("DefaultPool", resourceCulture);
 			}
@@ -1375,7 +1375,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Delay must be positive.
 /// </summary>
 		/// <value>The current <see cref="DelayMustBePositive"/> value.</value>
-		public static string DelayMustBePositive {
+		internal static string DelayMustBePositive {
 			get {
 				return ResourceManager.GetString("DelayMustBePositive", resourceCulture);
 			}
@@ -1385,7 +1385,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Deleted dead letter message {0}.
 /// </summary>
 		/// <value>The current <see cref="DeletedDeadLetterMessage"/> value.</value>
-		public static string DeletedDeadLetterMessage {
+		internal static string DeletedDeadLetterMessage {
 			get {
 				return ResourceManager.GetString("DeletedDeadLetterMessage", resourceCulture);
 			}
@@ -1395,7 +1395,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Delivery count cannot be negative..
 /// </summary>
 		/// <value>The current <see cref="DeliveryCountCannotBeNegative"/> value.</value>
-		public static string DeliveryCountCannotBeNegative {
+		internal static string DeliveryCountCannotBeNegative {
 			get {
 				return ResourceManager.GetString("DeliveryCountCannotBeNegative", resourceCulture);
 			}
@@ -1405,7 +1405,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to DeserializationTimeout should be less than DispatchTimeout.
 /// </summary>
 		/// <value>The current <see cref="DeserializationTimeoutShouldBeLessThanDispatchTimeout"/> value.</value>
-		public static string DeserializationTimeoutShouldBeLessThanDispatchTimeout {
+		internal static string DeserializationTimeoutShouldBeLessThanDispatchTimeout {
 			get {
 				return ResourceManager.GetString("DeserializationTimeoutShouldBeLessThanDispatchTimeout", resourceCulture);
 			}
@@ -1415,7 +1415,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Deserialized message cannot be null.
 /// </summary>
 		/// <value>The current <see cref="DeserializedMessageCannotBeNull"/> value.</value>
-		public static string DeserializedMessageCannotBeNull {
+		internal static string DeserializedMessageCannotBeNull {
 			get {
 				return ResourceManager.GetString("DeserializedMessageCannotBeNull", resourceCulture);
 			}
@@ -1425,7 +1425,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Destination buffer too small.
 /// </summary>
 		/// <value>The current <see cref="DestinationBufferTooSmall"/> value.</value>
-		public static string DestinationBufferTooSmall {
+		internal static string DestinationBufferTooSmall {
 			get {
 				return ResourceManager.GetString("DestinationBufferTooSmall", resourceCulture);
 			}
@@ -1435,7 +1435,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Disabling schedule {0} due to missed executions.
 /// </summary>
 		/// <value>The current <see cref="DisablingScheduleDueToMissedExecutions"/> value.</value>
-		public static string DisablingScheduleDueToMissedExecutions {
+		internal static string DisablingScheduleDueToMissedExecutions {
 			get {
 				return ResourceManager.GetString("DisablingScheduleDueToMissedExecutions", resourceCulture);
 			}
@@ -1445,7 +1445,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to The IDispatchBuilder implementation does not support pipeline profiles configuration..
 /// </summary>
 		/// <value>The current <see cref="DispatchBuilderDoesNotSupportPipelineProfilesConfiguration"/> value.</value>
-		public static string DispatchBuilderDoesNotSupportPipelineProfilesConfiguration {
+		internal static string DispatchBuilderDoesNotSupportPipelineProfilesConfiguration {
 			get {
 				return ResourceManager.GetString("DispatchBuilderDoesNotSupportPipelineProfilesConfiguration", resourceCulture);
 			}
@@ -1455,7 +1455,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to The IDispatchBuilder implementation does not support pipeline profiles configuration..
 /// </summary>
 		/// <value>The current <see cref="DispatchBuilderImplementationDoesNotSupportPipelineProfiles"/> value.</value>
-		public static string DispatchBuilderImplementationDoesNotSupportPipelineProfiles {
+		internal static string DispatchBuilderImplementationDoesNotSupportPipelineProfiles {
 			get {
 				return ResourceManager.GetString("DispatchBuilderImplementationDoesNotSupportPipelineProfiles", resourceCulture);
 			}
@@ -1465,7 +1465,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Excalibur.Dispatch.Middleware.BatchingMiddleware.
 /// </summary>
 		/// <value>The current <see cref="DispatchCoreBatchingMiddleware"/> value.</value>
-		public static string DispatchCoreBatchingMiddleware {
+		internal static string DispatchCoreBatchingMiddleware {
 			get {
 				return ResourceManager.GetString("DispatchCoreBatchingMiddleware", resourceCulture);
 			}
@@ -1475,7 +1475,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to dispatch-error.
 /// </summary>
 		/// <value>The current <see cref="DispatchError"/> value.</value>
-		public static string DispatchError {
+		internal static string DispatchError {
 			get {
 				return ResourceManager.GetString("DispatchError", resourceCulture);
 			}
@@ -1485,7 +1485,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to urn:dispatch:error:internal.
 /// </summary>
 		/// <value>The current <see cref="DispatchErrorUri"/> value.</value>
-		public static string DispatchErrorUri {
+		internal static string DispatchErrorUri {
 			get {
 				return ResourceManager.GetString("DispatchErrorUri", resourceCulture);
 			}
@@ -1495,7 +1495,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to An error occurred in the Excalibur framework.
 /// </summary>
 		/// <value>The current <see cref="DispatchFrameworkError"/> value.</value>
-		public static string DispatchFrameworkError {
+		internal static string DispatchFrameworkError {
 			get {
 				return ResourceManager.GetString("DispatchFrameworkError", resourceCulture);
 			}
@@ -1505,7 +1505,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to DispatchTimeout should be less than MaxSchedulingTimeout.
 /// </summary>
 		/// <value>The current <see cref="DispatchTimeoutShouldBeLessThanMaxSchedulingTimeout"/> value.</value>
-		public static string DispatchTimeoutShouldBeLessThanMaxSchedulingTimeout {
+		internal static string DispatchTimeoutShouldBeLessThanMaxSchedulingTimeout {
 			get {
 				return ResourceManager.GetString("DispatchTimeoutShouldBeLessThanMaxSchedulingTimeout", resourceCulture);
 			}
@@ -1515,7 +1515,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Disposed connection from pool &apos;{0}&apos;.
 /// </summary>
 		/// <value>The current <see cref="DisposedConnectionFromPool"/> value.</value>
-		public static string DisposedConnectionFromPool {
+		internal static string DisposedConnectionFromPool {
 			get {
 				return ResourceManager.GetString("DisposedConnectionFromPool", resourceCulture);
 			}
@@ -1525,7 +1525,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Disposing connection pool &apos;{0}&apos;.
 /// </summary>
 		/// <value>The current <see cref="DisposingConnectionPool"/> value.</value>
-		public static string DisposingConnectionPool {
+		internal static string DisposingConnectionPool {
 			get {
 				return ResourceManager.GetString("DisposingConnectionPool", resourceCulture);
 			}
@@ -1535,7 +1535,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Duplicate detection window must be positive..
 /// </summary>
 		/// <value>The current <see cref="DuplicateDetectionWindowMustBePositive"/> value.</value>
-		public static string DuplicateDetectionWindowMustBePositive {
+		internal static string DuplicateDetectionWindowMustBePositive {
 			get {
 				return ResourceManager.GetString("DuplicateDetectionWindowMustBePositive", resourceCulture);
 			}
@@ -1545,7 +1545,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Duplicate inbox message ignored: {0}.
 /// </summary>
 		/// <value>The current <see cref="DuplicateInboxMessageIgnored"/> value.</value>
-		public static string DuplicateInboxMessageIgnored {
+		internal static string DuplicateInboxMessageIgnored {
 			get {
 				return ResourceManager.GetString("DuplicateInboxMessageIgnored", resourceCulture);
 			}
@@ -1555,7 +1555,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Endpoint pattern is required.
 /// </summary>
 		/// <value>The current <see cref="EndpointPatternIsRequired"/> value.</value>
-		public static string EndpointPatternIsRequired {
+		internal static string EndpointPatternIsRequired {
 			get {
 				return ResourceManager.GetString("EndpointPatternIsRequired", resourceCulture);
 			}
@@ -1565,7 +1565,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to EnhancedScheduledMessageService started with timezone support..
 /// </summary>
 		/// <value>The current <see cref="EnhancedScheduledMessageServiceStarted"/> value.</value>
-		public static string EnhancedScheduledMessageServiceStarted {
+		internal static string EnhancedScheduledMessageServiceStarted {
 			get {
 				return ResourceManager.GetString("EnhancedScheduledMessageServiceStarted", resourceCulture);
 			}
@@ -1575,7 +1575,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to EnhancedScheduledMessageService stopped..
 /// </summary>
 		/// <value>The current <see cref="EnhancedScheduledMessageServiceStopped"/> value.</value>
-		public static string EnhancedScheduledMessageServiceStopped {
+		internal static string EnhancedScheduledMessageServiceStopped {
 			get {
 				return ResourceManager.GetString("EnhancedScheduledMessageServiceStopped", resourceCulture);
 			}
@@ -1585,7 +1585,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Envelope does not contain a memory message.
 /// </summary>
 		/// <value>The current <see cref="EnvelopeDoesNotContainMemoryMessage"/> value.</value>
-		public static string EnvelopeDoesNotContainMemoryMessage {
+		internal static string EnvelopeDoesNotContainMemoryMessage {
 			get {
 				return ResourceManager.GetString("EnvelopeDoesNotContainMemoryMessage", resourceCulture);
 			}
@@ -1595,7 +1595,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error checking handlers for message type {0}.
 /// </summary>
 		/// <value>The current <see cref="ErrorCheckingHandlersForMessageType"/> value.</value>
-		public static string ErrorCheckingHandlersForMessageType {
+		internal static string ErrorCheckingHandlersForMessageType {
 			get {
 				return ResourceManager.GetString("ErrorCheckingHandlersForMessageType", resourceCulture);
 			}
@@ -1605,7 +1605,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error dispatching message of type {0}.
 /// </summary>
 		/// <value>The current <see cref="ErrorDispatchingMessageOfType"/> value.</value>
-		public static string ErrorDispatchingMessageOfType {
+		internal static string ErrorDispatchingMessageOfType {
 			get {
 				return ResourceManager.GetString("ErrorDispatchingMessageOfType", resourceCulture);
 			}
@@ -1615,7 +1615,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error disposing connection from pool &apos;{0}&apos;.
 /// </summary>
 		/// <value>The current <see cref="ErrorDisposingConnectionFromPool"/> value.</value>
-		public static string ErrorDisposingConnectionFromPool {
+		internal static string ErrorDisposingConnectionFromPool {
 			get {
 				return ResourceManager.GetString("ErrorDisposingConnectionFromPool", resourceCulture);
 			}
@@ -1625,7 +1625,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error during automatic deduplicator cleanup.
 /// </summary>
 		/// <value>The current <see cref="ErrorDuringAutomaticDeduplicatorCleanup"/> value.</value>
-		public static string ErrorDuringAutomaticDeduplicatorCleanup {
+		internal static string ErrorDuringAutomaticDeduplicatorCleanup {
 			get {
 				return ResourceManager.GetString("ErrorDuringAutomaticDeduplicatorCleanup", resourceCulture);
 			}
@@ -1635,7 +1635,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error during automatic inbox cleanup.
 /// </summary>
 		/// <value>The current <see cref="ErrorDuringAutomaticInboxCleanup"/> value.</value>
-		public static string ErrorDuringAutomaticInboxCleanup {
+		internal static string ErrorDuringAutomaticInboxCleanup {
 			get {
 				return ResourceManager.GetString("ErrorDuringAutomaticInboxCleanup", resourceCulture);
 			}
@@ -1645,7 +1645,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error during poison message cleanup.
 /// </summary>
 		/// <value>The current <see cref="ErrorDuringPoisonMessageCleanup"/> value.</value>
-		public static string ErrorDuringPoisonMessageCleanup {
+		internal static string ErrorDuringPoisonMessageCleanup {
 			get {
 				return ResourceManager.GetString("ErrorDuringPoisonMessageCleanup", resourceCulture);
 			}
@@ -1655,7 +1655,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error flushing batch.
 /// </summary>
 		/// <value>The current <see cref="ErrorFlushingBatch"/> value.</value>
-		public static string ErrorFlushingBatch {
+		internal static string ErrorFlushingBatch {
 			get {
 				return ResourceManager.GetString("ErrorFlushingBatch", resourceCulture);
 			}
@@ -1665,7 +1665,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error flushing expired batches.
 /// </summary>
 		/// <value>The current <see cref="ErrorFlushingExpiredBatches"/> value.</value>
-		public static string ErrorFlushingExpiredBatches {
+		internal static string ErrorFlushingExpiredBatches {
 			get {
 				return ResourceManager.GetString("ErrorFlushingExpiredBatches", resourceCulture);
 			}
@@ -1675,7 +1675,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error in message pump.
 /// </summary>
 		/// <value>The current <see cref="ErrorInMessagePump"/> value.</value>
-		public static string ErrorInMessagePump {
+		internal static string ErrorInMessagePump {
 			get {
 				return ResourceManager.GetString("ErrorInMessagePump", resourceCulture);
 			}
@@ -1685,7 +1685,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error in poison detector {0} for message {1}.
 /// </summary>
 		/// <value>The current <see cref="ErrorInPoisonDetectorForMessage"/> value.</value>
-		public static string ErrorInPoisonDetectorForMessage {
+		internal static string ErrorInPoisonDetectorForMessage {
 			get {
 				return ResourceManager.GetString("ErrorInPoisonDetectorForMessage", resourceCulture);
 			}
@@ -1695,7 +1695,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error occurred during transaction rollback for message {0}.
 /// </summary>
 		/// <value>The current <see cref="ErrorOccurredDuringTransactionRollback"/> value.</value>
-		public static string ErrorOccurredDuringTransactionRollback {
+		internal static string ErrorOccurredDuringTransactionRollback {
 			get {
 				return ResourceManager.GetString("ErrorOccurredDuringTransactionRollback", resourceCulture);
 			}
@@ -1705,7 +1705,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error processing batch of {0} items.
 /// </summary>
 		/// <value>The current <see cref="ErrorProcessingBatchOfCountItems"/> value.</value>
-		public static string ErrorProcessingBatchOfCountItems {
+		internal static string ErrorProcessingBatchOfCountItems {
 			get {
 				return ResourceManager.GetString("ErrorProcessingBatchOfCountItems", resourceCulture);
 			}
@@ -1715,7 +1715,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error processing batch of {0} items.
 /// </summary>
 		/// <value>The current <see cref="ErrorProcessingBatchOfItems"/> value.</value>
-		public static string ErrorProcessingBatchOfItems {
+		internal static string ErrorProcessingBatchOfItems {
 			get {
 				return ResourceManager.GetString("ErrorProcessingBatchOfItems", resourceCulture);
 			}
@@ -1725,7 +1725,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error processing batch of {0} messages.
 /// </summary>
 		/// <value>The current <see cref="ErrorProcessingBatchOfMessages"/> value.</value>
-		public static string ErrorProcessingBatchOfMessages {
+		internal static string ErrorProcessingBatchOfMessages {
 			get {
 				return ResourceManager.GetString("ErrorProcessingBatchOfMessages", resourceCulture);
 			}
@@ -1735,7 +1735,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error processing batch {0} with {1} messages after {2}ms.
 /// </summary>
 		/// <value>The current <see cref="ErrorProcessingBatchWithMessages"/> value.</value>
-		public static string ErrorProcessingBatchWithMessages {
+		internal static string ErrorProcessingBatchWithMessages {
 			get {
 				return ResourceManager.GetString("ErrorProcessingBatchWithMessages", resourceCulture);
 			}
@@ -1745,7 +1745,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error processing message.
 /// </summary>
 		/// <value>The current <see cref="ErrorProcessingMessage"/> value.</value>
-		public static string ErrorProcessingMessage {
+		internal static string ErrorProcessingMessage {
 			get {
 				return ResourceManager.GetString("ErrorProcessingMessage", resourceCulture);
 			}
@@ -1755,7 +1755,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error processing scheduled message {0}.
 /// </summary>
 		/// <value>The current <see cref="ErrorProcessingScheduledMessage"/> value.</value>
-		public static string ErrorProcessingScheduledMessage {
+		internal static string ErrorProcessingScheduledMessage {
 			get {
 				return ResourceManager.GetString("ErrorProcessingScheduledMessage", resourceCulture);
 			}
@@ -1765,7 +1765,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error processing scheduled messages.
 /// </summary>
 		/// <value>The current <see cref="ErrorProcessingScheduledMessages"/> value.</value>
-		public static string ErrorProcessingScheduledMessages {
+		internal static string ErrorProcessingScheduledMessages {
 			get {
 				return ResourceManager.GetString("ErrorProcessingScheduledMessages", resourceCulture);
 			}
@@ -1775,7 +1775,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error replaying dead letter message {0}.
 /// </summary>
 		/// <value>The current <see cref="ErrorReplayingDeadLetterMessage"/> value.</value>
-		public static string ErrorReplayingDeadLetterMessage {
+		internal static string ErrorReplayingDeadLetterMessage {
 			get {
 				return ResourceManager.GetString("ErrorReplayingDeadLetterMessage", resourceCulture);
 			}
@@ -1785,7 +1785,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error retrieving handler for message type {0}.
 /// </summary>
 		/// <value>The current <see cref="ErrorRetrievingHandlerForMessageType"/> value.</value>
-		public static string ErrorRetrievingHandlerForMessageType {
+		internal static string ErrorRetrievingHandlerForMessageType {
 			get {
 				return ResourceManager.GetString("ErrorRetrievingHandlerForMessageType", resourceCulture);
 			}
@@ -1795,7 +1795,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error retrieving handlers for message type {0}.
 /// </summary>
 		/// <value>The current <see cref="ErrorRetrievingHandlersForMessageType"/> value.</value>
-		public static string ErrorRetrievingHandlersForMessageType {
+		internal static string ErrorRetrievingHandlersForMessageType {
 			get {
 				return ResourceManager.GetString("ErrorRetrievingHandlersForMessageType", resourceCulture);
 			}
@@ -1805,7 +1805,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error retrieving registered message types.
 /// </summary>
 		/// <value>The current <see cref="ErrorRetrievingRegisteredMessageTypes"/> value.</value>
-		public static string ErrorRetrievingRegisteredMessageTypes {
+		internal static string ErrorRetrievingRegisteredMessageTypes {
 			get {
 				return ResourceManager.GetString("ErrorRetrievingRegisteredMessageTypes", resourceCulture);
 			}
@@ -1815,7 +1815,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error returning connection to pool &apos;{0}&apos;.
 /// </summary>
 		/// <value>The current <see cref="ErrorReturningConnectionToPool"/> value.</value>
-		public static string ErrorReturningConnectionToPool {
+		internal static string ErrorReturningConnectionToPool {
 			get {
 				return ResourceManager.GetString("ErrorReturningConnectionToPool", resourceCulture);
 			}
@@ -1825,7 +1825,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Error while processing Outbox..
 /// </summary>
 		/// <value>The current <see cref="ErrorWhileProcessingOutbox"/> value.</value>
-		public static string ErrorWhileProcessingOutbox {
+		internal static string ErrorWhileProcessingOutbox {
 			get {
 				return ResourceManager.GetString("ErrorWhileProcessingOutbox", resourceCulture);
 			}
@@ -1835,7 +1835,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Evaluating authorization for message {MessageType} with subject {Subject}.
 /// </summary>
 		/// <value>The current <see cref="EvaluatingAuthorizationForMessage"/> value.</value>
-		public static string EvaluatingAuthorizationForMessage {
+		internal static string EvaluatingAuthorizationForMessage {
 			get {
 				return ResourceManager.GetString("EvaluatingAuthorizationForMessage", resourceCulture);
 			}
@@ -1845,7 +1845,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to EventStore dispatcher {0} initialized..
 /// </summary>
 		/// <value>The current <see cref="EventStoreDispatcherInitialized"/> value.</value>
-		public static string EventStoreDispatcherInitialized {
+		internal static string EventStoreDispatcherInitialized {
 			get {
 				return ResourceManager.GetString("EventStoreDispatcherInitialized", resourceCulture);
 			}
@@ -1855,7 +1855,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Event store migration complete..
 /// </summary>
 		/// <value>The current <see cref="EventStoreMigrationComplete"/> value.</value>
-		public static string EventStoreMigrationComplete {
+		internal static string EventStoreMigrationComplete {
 			get {
 				return ResourceManager.GetString("EventStoreMigrationComplete", resourceCulture);
 			}
@@ -1865,7 +1865,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Event version cannot be negative..
 /// </summary>
 		/// <value>The current <see cref="EventVersionCannotBeNegative"/> value.</value>
-		public static string EventVersionCannotBeNegative {
+		internal static string EventVersionCannotBeNegative {
 			get {
 				return ResourceManager.GetString("EventVersionCannotBeNegative", resourceCulture);
 			}
@@ -1875,7 +1875,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Event {0} version {1} is incompatible: {2}.
 /// </summary>
 		/// <value>The current <see cref="EventVersionIsIncompatible"/> value.</value>
-		public static string EventVersionIsIncompatible {
+		internal static string EventVersionIsIncompatible {
 			get {
 				return ResourceManager.GetString("EventVersionIsIncompatible", resourceCulture);
 			}
@@ -1885,7 +1885,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Event version not specified and explicit versions are required.
 /// </summary>
 		/// <value>The current <see cref="EventVersionNotSpecifiedAndExplicitVersionsRequired"/> value.</value>
-		public static string EventVersionNotSpecifiedAndExplicitVersionsRequired {
+		internal static string EventVersionNotSpecifiedAndExplicitVersionsRequired {
 			get {
 				return ResourceManager.GetString("EventVersionNotSpecifiedAndExplicitVersionsRequired", resourceCulture);
 			}
@@ -1895,7 +1895,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Exception occurred during authorization evaluation for message {MessageType}.
 /// </summary>
 		/// <value>The current <see cref="ExceptionDuringAuthorizationEvaluation"/> value.</value>
-		public static string ExceptionDuringAuthorizationEvaluation {
+		internal static string ExceptionDuringAuthorizationEvaluation {
 			get {
 				return ResourceManager.GetString("ExceptionDuringAuthorizationEvaluation", resourceCulture);
 			}
@@ -1905,7 +1905,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Exception during light mode processing for message {0}.
 /// </summary>
 		/// <value>The current <see cref="ExceptionDuringLightModeProcessingForMessage"/> value.</value>
-		public static string ExceptionDuringLightModeProcessingForMessage {
+		internal static string ExceptionDuringLightModeProcessingForMessage {
 			get {
 				return ResourceManager.GetString("ExceptionDuringLightModeProcessingForMessage", resourceCulture);
 			}
@@ -1915,7 +1915,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Exception occurred during inbox processing for message {0}.
 /// </summary>
 		/// <value>The current <see cref="ExceptionOccurredDuringInboxProcessingForMessage"/> value.</value>
-		public static string ExceptionOccurredDuringInboxProcessingForMessage {
+		internal static string ExceptionOccurredDuringInboxProcessingForMessage {
 			get {
 				return ResourceManager.GetString("ExceptionOccurredDuringInboxProcessingForMessage", resourceCulture);
 			}
@@ -1925,7 +1925,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Execution window buffer cannot be negative.
 /// </summary>
 		/// <value>The current <see cref="ExecutionWindowBufferCannotBeNegative"/> value.</value>
-		public static string ExecutionWindowBufferCannotBeNegative {
+		internal static string ExecutionWindowBufferCannotBeNegative {
 			get {
 				return ResourceManager.GetString("ExecutionWindowBufferCannotBeNegative", resourceCulture);
 			}
@@ -1935,7 +1935,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Export timeout must be positive.
 /// </summary>
 		/// <value>The current <see cref="ExportTimeoutMustBePositive"/> value.</value>
-		public static string ExportTimeoutMustBePositive {
+		internal static string ExportTimeoutMustBePositive {
 			get {
 				return ResourceManager.GetString("ExportTimeoutMustBePositive", resourceCulture);
 			}
@@ -1945,7 +1945,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Factor must be greater than 1.
 /// </summary>
 		/// <value>The current <see cref="FactorMustBeGreaterThanOne"/> value.</value>
-		public static string FactorMustBeGreaterThanOne {
+		internal static string FactorMustBeGreaterThanOne {
 			get {
 				return ResourceManager.GetString("FactorMustBeGreaterThanOne", resourceCulture);
 			}
@@ -1955,7 +1955,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed message retention must be positive.
 /// </summary>
 		/// <value>The current <see cref="FailedMessageRetentionMustBePositive"/> value.</value>
-		public static string FailedMessageRetentionMustBePositive {
+		internal static string FailedMessageRetentionMustBePositive {
 			get {
 				return ResourceManager.GetString("FailedMessageRetentionMustBePositive", resourceCulture);
 			}
@@ -1965,7 +1965,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed schedule retention must be positive.
 /// </summary>
 		/// <value>The current <see cref="FailedScheduleRetentionMustBePositive"/> value.</value>
-		public static string FailedScheduleRetentionMustBePositive {
+		internal static string FailedScheduleRetentionMustBePositive {
 			get {
 				return ResourceManager.GetString("FailedScheduleRetentionMustBePositive", resourceCulture);
 			}
@@ -1975,7 +1975,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to acquire connection from pool &apos;{0}&apos;.
 /// </summary>
 		/// <value>The current <see cref="FailedToAcquireConnectionFromPool"/> value.</value>
-		public static string FailedToAcquireConnectionFromPool {
+		internal static string FailedToAcquireConnectionFromPool {
 			get {
 				return ResourceManager.GetString("FailedToAcquireConnectionFromPool", resourceCulture);
 			}
@@ -1985,7 +1985,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to begin batch transaction.
 /// </summary>
 		/// <value>The current <see cref="FailedToBeginBatchTransaction"/> value.</value>
-		public static string FailedToBeginBatchTransaction {
+		internal static string FailedToBeginBatchTransaction {
 			get {
 				return ResourceManager.GetString("FailedToBeginBatchTransaction", resourceCulture);
 			}
@@ -1995,7 +1995,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to check alert threshold.
 /// </summary>
 		/// <value>The current <see cref="FailedToCheckAlertThreshold"/> value.</value>
-		public static string FailedToCheckAlertThreshold {
+		internal static string FailedToCheckAlertThreshold {
 			get {
 				return ResourceManager.GetString("FailedToCheckAlertThreshold", resourceCulture);
 			}
@@ -2005,7 +2005,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to cleanup old dead letter messages.
 /// </summary>
 		/// <value>The current <see cref="FailedToCleanupOldDeadLetterMessages"/> value.</value>
-		public static string FailedToCleanupOldDeadLetterMessages {
+		internal static string FailedToCleanupOldDeadLetterMessages {
 			get {
 				return ResourceManager.GetString("FailedToCleanupOldDeadLetterMessages", resourceCulture);
 			}
@@ -2015,7 +2015,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to create connection during warm-up for pool &apos;{0}&apos;.
 /// </summary>
 		/// <value>The current <see cref="FailedToCreateConnectionDuringWarmUp"/> value.</value>
-		public static string FailedToCreateConnectionDuringWarmUp {
+		internal static string FailedToCreateConnectionDuringWarmUp {
 			get {
 				return ResourceManager.GetString("FailedToCreateConnectionDuringWarmUp", resourceCulture);
 			}
@@ -2025,7 +2025,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to create connection during warm-up for pool &apos;{0}&apos;.
 /// </summary>
 		/// <value>The current <see cref="FailedToCreateConnectionDuringWarmUpForPool"/> value.</value>
-		public static string FailedToCreateConnectionDuringWarmUpForPool {
+		internal static string FailedToCreateConnectionDuringWarmUpForPool {
 			get {
 				return ResourceManager.GetString("FailedToCreateConnectionDuringWarmUpForPool", resourceCulture);
 			}
@@ -2035,7 +2035,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to deserialize message {0} of type {1}.
 /// </summary>
 		/// <value>The current <see cref="FailedToDeserializeMessage"/> value.</value>
-		public static string FailedToDeserializeMessage {
+		internal static string FailedToDeserializeMessage {
 			get {
 				return ResourceManager.GetString("FailedToDeserializeMessage", resourceCulture);
 			}
@@ -2045,7 +2045,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to deserialize message metadata for message {0}.
 /// </summary>
 		/// <value>The current <see cref="FailedToDeserializeMessageMetadata"/> value.</value>
-		public static string FailedToDeserializeMessageMetadata {
+		internal static string FailedToDeserializeMessageMetadata {
 			get {
 				return ResourceManager.GetString("FailedToDeserializeMessageMetadata", resourceCulture);
 			}
@@ -2055,7 +2055,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to deserialize scheduled message {0}.
 /// </summary>
 		/// <value>The current <see cref="FailedToDeserializeScheduledMessage"/> value.</value>
-		public static string FailedToDeserializeScheduledMessage {
+		internal static string FailedToDeserializeScheduledMessage {
 			get {
 				return ResourceManager.GetString("FailedToDeserializeScheduledMessage", resourceCulture);
 			}
@@ -2065,7 +2065,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to find timezone {0}, using default.
 /// </summary>
 		/// <value>The current <see cref="FailedToFindTimezoneUsingDefault"/> value.</value>
-		public static string FailedToFindTimezoneUsingDefault {
+		internal static string FailedToFindTimezoneUsingDefault {
 			get {
 				return ResourceManager.GetString("FailedToFindTimezoneUsingDefault", resourceCulture);
 			}
@@ -2075,7 +2075,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to handle poison message {0}. Original reason: {1}.
 /// </summary>
 		/// <value>The current <see cref="FailedToHandlePoisonMessageOriginalReason"/> value.</value>
-		public static string FailedToHandlePoisonMessageOriginalReason {
+		internal static string FailedToHandlePoisonMessageOriginalReason {
 			get {
 				return ResourceManager.GetString("FailedToHandlePoisonMessageOriginalReason", resourceCulture);
 			}
@@ -2085,7 +2085,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to query security events from SQL database.
 /// </summary>
 		/// <value>The current <see cref="FailedToQuerySecurityEvents"/> value.</value>
-		public static string FailedToQuerySecurityEvents {
+		internal static string FailedToQuerySecurityEvents {
 			get {
 				return ResourceManager.GetString("FailedToQuerySecurityEvents", resourceCulture);
 			}
@@ -2095,7 +2095,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to query security events from audit log files.
 /// </summary>
 		/// <value>The current <see cref="FailedToQuerySecurityEventsFromAuditLogFiles"/> value.</value>
-		public static string FailedToQuerySecurityEventsFromAuditLogFiles {
+		internal static string FailedToQuerySecurityEventsFromAuditLogFiles {
 			get {
 				return ResourceManager.GetString("FailedToQuerySecurityEventsFromAuditLogFiles", resourceCulture);
 			}
@@ -2105,7 +2105,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to replay dead letter message {0}: {1}.
 /// </summary>
 		/// <value>The current <see cref="FailedToReplayDeadLetterMessage"/> value.</value>
-		public static string FailedToReplayDeadLetterMessage {
+		internal static string FailedToReplayDeadLetterMessage {
 			get {
 				return ResourceManager.GetString("FailedToReplayDeadLetterMessage", resourceCulture);
 			}
@@ -2115,7 +2115,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to retrieve secret &apos;{0}&apos; from AWS Secrets Manager.
 /// </summary>
 		/// <value>The current <see cref="FailedToRetrieveSecretFromAwsSecretsManager"/> value.</value>
-		public static string FailedToRetrieveSecretFromAwsSecretsManager {
+		internal static string FailedToRetrieveSecretFromAwsSecretsManager {
 			get {
 				return ResourceManager.GetString("FailedToRetrieveSecretFromAwsSecretsManager", resourceCulture);
 			}
@@ -2125,7 +2125,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to retrieve secret &apos;{0}&apos; from HashiCorp Vault.
 /// </summary>
 		/// <value>The current <see cref="FailedToRetrieveSecretFromHashiCorpVault"/> value.</value>
-		public static string FailedToRetrieveSecretFromHashiCorpVault {
+		internal static string FailedToRetrieveSecretFromHashiCorpVault {
 			get {
 				return ResourceManager.GetString("FailedToRetrieveSecretFromHashiCorpVault", resourceCulture);
 			}
@@ -2135,7 +2135,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to serialize message {0}.
 /// </summary>
 		/// <value>The current <see cref="FailedToSerializeMessage"/> value.</value>
-		public static string FailedToSerializeMessage {
+		internal static string FailedToSerializeMessage {
 			get {
 				return ResourceManager.GetString("FailedToSerializeMessage", resourceCulture);
 			}
@@ -2145,7 +2145,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to serialize message payload for audit log - MessageId: {MessageId}.
 /// </summary>
 		/// <value>The current <see cref="FailedToSerializeMessagePayloadForAudit"/> value.</value>
-		public static string FailedToSerializeMessagePayloadForAudit {
+		internal static string FailedToSerializeMessagePayloadForAudit {
 			get {
 				return ResourceManager.GetString("FailedToSerializeMessagePayloadForAudit", resourceCulture);
 			}
@@ -2155,7 +2155,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to store secret &apos;{0}&apos; in AWS Secrets Manager.
 /// </summary>
 		/// <value>The current <see cref="FailedToStoreSecretInAwsSecretsManager"/> value.</value>
-		public static string FailedToStoreSecretInAwsSecretsManager {
+		internal static string FailedToStoreSecretInAwsSecretsManager {
 			get {
 				return ResourceManager.GetString("FailedToStoreSecretInAwsSecretsManager", resourceCulture);
 			}
@@ -2165,7 +2165,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to store secret &apos;{0}&apos; in HashiCorp Vault.
 /// </summary>
 		/// <value>The current <see cref="FailedToStoreSecretInHashiCorpVault"/> value.</value>
-		public static string FailedToStoreSecretInHashiCorpVault {
+		internal static string FailedToStoreSecretInHashiCorpVault {
 			get {
 				return ResourceManager.GetString("FailedToStoreSecretInHashiCorpVault", resourceCulture);
 			}
@@ -2175,7 +2175,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to store security events in SQL database.
 /// </summary>
 		/// <value>The current <see cref="FailedToStoreSecurityEvents"/> value.</value>
-		public static string FailedToStoreSecurityEvents {
+		internal static string FailedToStoreSecurityEvents {
 			get {
 				return ResourceManager.GetString("FailedToStoreSecurityEvents", resourceCulture);
 			}
@@ -2185,7 +2185,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Failed to store security events to audit log files.
 /// </summary>
 		/// <value>The current <see cref="FailedToStoreSecurityEventsToAuditLogFiles"/> value.</value>
-		public static string FailedToStoreSecurityEventsToAuditLogFiles {
+		internal static string FailedToStoreSecurityEventsToAuditLogFiles {
 			get {
 				return ResourceManager.GetString("FailedToStoreSecurityEventsToAuditLogFiles", resourceCulture);
 			}
@@ -2195,7 +2195,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to First handler {0} completed for message {1} with result: {2}.
 /// </summary>
 		/// <value>The current <see cref="FirstHandlerCompletedForMessage"/> value.</value>
-		public static string FirstHandlerCompletedForMessage {
+		internal static string FirstHandlerCompletedForMessage {
 			get {
 				return ResourceManager.GetString("FirstHandlerCompletedForMessage", resourceCulture);
 			}
@@ -2205,7 +2205,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to First handler {0} failed for message {1}.
 /// </summary>
 		/// <value>The current <see cref="FirstHandlerFailedForMessage"/> value.</value>
-		public static string FirstHandlerFailedForMessage {
+		internal static string FirstHandlerFailedForMessage {
 			get {
 				return ResourceManager.GetString("FirstHandlerFailedForMessage", resourceCulture);
 			}
@@ -2215,7 +2215,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Flushing expired batch {0} with {1} messages.
 /// </summary>
 		/// <value>The current <see cref="FlushingExpiredBatch"/> value.</value>
-		public static string FlushingExpiredBatch {
+		internal static string FlushingExpiredBatch {
 			get {
 				return ResourceManager.GetString("FlushingExpiredBatch", resourceCulture);
 			}
@@ -2225,7 +2225,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Found handler {0} for message type {1}.
 /// </summary>
 		/// <value>The current <see cref="FoundHandlerForMessageType"/> value.</value>
-		public static string FoundHandlerForMessageType {
+		internal static string FoundHandlerForMessageType {
 			get {
 				return ResourceManager.GetString("FoundHandlerForMessageType", resourceCulture);
 			}
@@ -2235,7 +2235,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Found {0} handlers for message type {1}.
 /// </summary>
 		/// <value>The current <see cref="FoundHandlersForMessageType"/> value.</value>
-		public static string FoundHandlersForMessageType {
+		internal static string FoundHandlersForMessageType {
 			get {
 				return ResourceManager.GetString("FoundHandlersForMessageType", resourceCulture);
 			}
@@ -2245,7 +2245,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Found {0} missed executions for schedule {1}.
 /// </summary>
 		/// <value>The current <see cref="FoundMissedExecutionsForSchedule"/> value.</value>
-		public static string FoundMissedExecutionsForSchedule {
+		internal static string FoundMissedExecutionsForSchedule {
 			get {
 				return ResourceManager.GetString("FoundMissedExecutionsForSchedule", resourceCulture);
 			}
@@ -2255,7 +2255,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Found {0} registered message types.
 /// </summary>
 		/// <value>The current <see cref="FoundRegisteredMessageTypes"/> value.</value>
-		public static string FoundRegisteredMessageTypes {
+		internal static string FoundRegisteredMessageTypes {
 			get {
 				return ResourceManager.GetString("FoundRegisteredMessageTypes", resourceCulture);
 			}
@@ -2265,7 +2265,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to From time must be before to time.
 /// </summary>
 		/// <value>The current <see cref="FromTimeMustBeBeforeToTime"/> value.</value>
-		public static string FromTimeMustBeBeforeToTime {
+		internal static string FromTimeMustBeBeforeToTime {
 			get {
 				return ResourceManager.GetString("FromTimeMustBeBeforeToTime", resourceCulture);
 			}
@@ -2275,7 +2275,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Function context must be FunctionContext.
 /// </summary>
 		/// <value>The current <see cref="FunctionContextMustBeFunctionContext"/> value.</value>
-		public static string FunctionContextMustBeFunctionContext {
+		internal static string FunctionContextMustBeFunctionContext {
 			get {
 				return ResourceManager.GetString("FunctionContextMustBeFunctionContext", resourceCulture);
 			}
@@ -2285,7 +2285,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Function execution exceeded the available time limit.
 /// </summary>
 		/// <value>The current <see cref="FunctionExecutionTimedOut"/> value.</value>
-		public static string FunctionExecutionTimedOut {
+		internal static string FunctionExecutionTimedOut {
 			get {
 				return ResourceManager.GetString("FunctionExecutionTimedOut", resourceCulture);
 			}
@@ -2295,7 +2295,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Global position cannot be negative..
 /// </summary>
 		/// <value>The current <see cref="GlobalPositionCannotBeNegative"/> value.</value>
-		public static string GlobalPositionCannotBeNegative {
+		internal static string GlobalPositionCannotBeNegative {
 			get {
 				return ResourceManager.GetString("GlobalPositionCannotBeNegative", resourceCulture);
 			}
@@ -2305,7 +2305,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Handler {0} completed for message {1} with result: {2}.
 /// </summary>
 		/// <value>The current <see cref="HandlerCompletedForMessage"/> value.</value>
-		public static string HandlerCompletedForMessage {
+		internal static string HandlerCompletedForMessage {
 			get {
 				return ResourceManager.GetString("HandlerCompletedForMessage", resourceCulture);
 			}
@@ -2315,7 +2315,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Handler {0} failed for message {1}.
 /// </summary>
 		/// <value>The current <see cref="HandlerFailedForMessage"/> value.</value>
-		public static string HandlerFailedForMessage {
+		internal static string HandlerFailedForMessage {
 			get {
 				return ResourceManager.GetString("HandlerFailedForMessage", resourceCulture);
 			}
@@ -2325,7 +2325,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to The handler of type &apos;{0}&apos; does not specify a generic type and cannot be registered..
 /// </summary>
 		/// <value>The current <see cref="HandlerTypeDoesNotSpecifyGenericType"/> value.</value>
-		public static string HandlerTypeDoesNotSpecifyGenericType {
+		internal static string HandlerTypeDoesNotSpecifyGenericType {
 			get {
 				return ResourceManager.GetString("HandlerTypeDoesNotSpecifyGenericType", resourceCulture);
 			}
@@ -2335,7 +2335,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Health check failed for connection in pool &apos;{0}&apos;.
 /// </summary>
 		/// <value>The current <see cref="HealthCheckFailedForConnectionInPool"/> value.</value>
-		public static string HealthCheckFailedForConnectionInPool {
+		internal static string HealthCheckFailedForConnectionInPool {
 			get {
 				return ResourceManager.GetString("HealthCheckFailedForConnectionInPool", resourceCulture);
 			}
@@ -2345,7 +2345,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Health check failed for pool &apos;{0}&apos;.
 /// </summary>
 		/// <value>The current <see cref="HealthCheckFailedForPool"/> value.</value>
-		public static string HealthCheckFailedForPool {
+		internal static string HealthCheckFailedForPool {
 			get {
 				return ResourceManager.GetString("HealthCheckFailedForPool", resourceCulture);
 			}
@@ -2355,7 +2355,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Health check interval must be positive.
 /// </summary>
 		/// <value>The current <see cref="HealthCheckIntervalMustBePositive"/> value.</value>
-		public static string HealthCheckIntervalMustBePositive {
+		internal static string HealthCheckIntervalMustBePositive {
 			get {
 				return ResourceManager.GetString("HealthCheckIntervalMustBePositive", resourceCulture);
 			}
@@ -2365,7 +2365,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Idle timeout must be positive..
 /// </summary>
 		/// <value>The current <see cref="IdleTimeoutMustBePositive"/> value.</value>
-		public static string IdleTimeoutMustBePositive {
+		internal static string IdleTimeoutMustBePositive {
 			get {
 				return ResourceManager.GetString("IdleTimeoutMustBePositive", resourceCulture);
 			}
@@ -2375,7 +2375,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Inbox entry with MessageId {0} already exists.
 /// </summary>
 		/// <value>The current <see cref="InboxEntryWithMessageIdAlreadyExists"/> value.</value>
-		public static string InboxEntryWithMessageIdAlreadyExists {
+		internal static string InboxEntryWithMessageIdAlreadyExists {
 			get {
 				return ResourceManager.GetString("InboxEntryWithMessageIdAlreadyExists", resourceCulture);
 			}
@@ -2385,7 +2385,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Inbox middleware is enabled but neither IInboxStore nor IInMemoryDeduplicator is registered. Register one of these services or disable inbox middleware..
 /// </summary>
 		/// <value>The current <see cref="InboxMiddlewareEnabledButNeitherStoreNorDeduplicatorRegistered"/> value.</value>
-		public static string InboxMiddlewareEnabledButNeitherStoreNorDeduplicatorRegistered {
+		internal static string InboxMiddlewareEnabledButNeitherStoreNorDeduplicatorRegistered {
 			get {
 				return ResourceManager.GetString("InboxMiddlewareEnabledButNeitherStoreNorDeduplicatorRegistered", resourceCulture);
 			}
@@ -2395,7 +2395,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Initialized in-memory deduplicator with automatic cleanup every {0}.
 /// </summary>
 		/// <value>The current <see cref="InitializedInMemoryDeduplicatorWithAutomaticCleanup"/> value.</value>
-		public static string InitializedInMemoryDeduplicatorWithAutomaticCleanup {
+		internal static string InitializedInMemoryDeduplicatorWithAutomaticCleanup {
 			get {
 				return ResourceManager.GetString("InitializedInMemoryDeduplicatorWithAutomaticCleanup", resourceCulture);
 			}
@@ -2405,7 +2405,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Initialized in-memory deduplicator without automatic cleanup.
 /// </summary>
 		/// <value>The current <see cref="InitializedInMemoryDeduplicatorWithoutAutomaticCleanup"/> value.</value>
-		public static string InitializedInMemoryDeduplicatorWithoutAutomaticCleanup {
+		internal static string InitializedInMemoryDeduplicatorWithoutAutomaticCleanup {
 			get {
 				return ResourceManager.GetString("InitializedInMemoryDeduplicatorWithoutAutomaticCleanup", resourceCulture);
 			}
@@ -2415,7 +2415,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Initial retry delay must be positive.
 /// </summary>
 		/// <value>The current <see cref="InitialRetryDelayMustBePositive"/> value.</value>
-		public static string InitialRetryDelayMustBePositive {
+		internal static string InitialRetryDelayMustBePositive {
 			get {
 				return ResourceManager.GetString("InitialRetryDelayMustBePositive", resourceCulture);
 			}
@@ -2425,7 +2425,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to In-memory deduplicator disposed.
 /// </summary>
 		/// <value>The current <see cref="InMemoryDeduplicatorDisposed"/> value.</value>
-		public static string InMemoryDeduplicatorDisposed {
+		internal static string InMemoryDeduplicatorDisposed {
 			get {
 				return ResourceManager.GetString("InMemoryDeduplicatorDisposed", resourceCulture);
 			}
@@ -2435,7 +2435,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to In-memory inbox store disposed.
 /// </summary>
 		/// <value>The current <see cref="InMemoryInboxStoreDisposed"/> value.</value>
-		public static string InMemoryInboxStoreDisposed {
+		internal static string InMemoryInboxStoreDisposed {
 			get {
 				return ResourceManager.GetString("InMemoryInboxStoreDisposed", resourceCulture);
 			}
@@ -2445,7 +2445,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to In-memory transaction scope only supports the creating provider..
 /// </summary>
 		/// <value>The current <see cref="InMemoryTransactionScopeOnlySupportsCreatingProvider"/> value.</value>
-		public static string InMemoryTransactionScopeOnlySupportsCreatingProvider {
+		internal static string InMemoryTransactionScopeOnlySupportsCreatingProvider {
 			get {
 				return ResourceManager.GetString("InMemoryTransactionScopeOnlySupportsCreatingProvider", resourceCulture);
 			}
@@ -2455,7 +2455,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Insufficient data for batch header.
 /// </summary>
 		/// <value>The current <see cref="InsufficientDataForBatchHeader"/> value.</value>
-		public static string InsufficientDataForBatchHeader {
+		internal static string InsufficientDataForBatchHeader {
 			get {
 				return ResourceManager.GetString("InsufficientDataForBatchHeader", resourceCulture);
 			}
@@ -2465,7 +2465,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Invalid API key format.
 /// </summary>
 		/// <value>The current <see cref="InvalidApiKeyFormat"/> value.</value>
-		public static string InvalidApiKeyFormat {
+		internal static string InvalidApiKeyFormat {
 			get {
 				return ResourceManager.GetString("InvalidApiKeyFormat", resourceCulture);
 			}
@@ -2475,7 +2475,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Invoking {0} handlers for message type {1} with ID {2}.
 /// </summary>
 		/// <value>The current <see cref="InvokingHandlersForMessageType"/> value.</value>
-		public static string InvokingHandlersForMessageType {
+		internal static string InvokingHandlersForMessageType {
 			get {
 				return ResourceManager.GetString("InvokingHandlersForMessageType", resourceCulture);
 			}
@@ -2485,7 +2485,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to is_authenticated.
 /// </summary>
 		/// <value>The current <see cref="IsAuthenticated"/> value.</value>
-		public static string IsAuthenticated {
+		internal static string IsAuthenticated {
 			get {
 				return ResourceManager.GetString("IsAuthenticated", resourceCulture);
 			}
@@ -2495,7 +2495,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Key cannot be null or empty.
 /// </summary>
 		/// <value>The current <see cref="KeyCannotBeNullOrEmpty"/> value.</value>
-		public static string KeyCannotBeNullOrEmpty {
+		internal static string KeyCannotBeNullOrEmpty {
 			get {
 				return ResourceManager.GetString("KeyCannotBeNullOrEmpty", resourceCulture);
 			}
@@ -2505,7 +2505,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Lambda context must implement ILambdaContext.
 /// </summary>
 		/// <value>The current <see cref="LambdaContextMustImplementILambdaContext"/> value.</value>
-		public static string LambdaContextMustImplementILambdaContext {
+		internal static string LambdaContextMustImplementILambdaContext {
 			get {
 				return ResourceManager.GetString("LambdaContextMustImplementILambdaContext", resourceCulture);
 			}
@@ -2515,7 +2515,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Lambda execution exceeded the available time limit.
 /// </summary>
 		/// <value>The current <see cref="LambdaExecutionTimedOut"/> value.</value>
-		public static string LambdaExecutionTimedOut {
+		internal static string LambdaExecutionTimedOut {
 			get {
 				return ResourceManager.GetString("LambdaExecutionTimedOut", resourceCulture);
 			}
@@ -2525,7 +2525,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Logger is not initialized.
 /// </summary>
 		/// <value>The current <see cref="LoggerIsNotInitialized"/> value.</value>
-		public static string LoggerIsNotInitialized {
+		internal static string LoggerIsNotInitialized {
 			get {
 				return ResourceManager.GetString("LoggerIsNotInitialized", resourceCulture);
 			}
@@ -2535,7 +2535,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Mapped {0} → {1}.
 /// </summary>
 		/// <value>The current <see cref="MappedMessageKindToProfile"/> value.</value>
-		public static string MappedMessageKindToProfile {
+		internal static string MappedMessageKindToProfile {
 			get {
 				return ResourceManager.GetString("MappedMessageKindToProfile", resourceCulture);
 			}
@@ -2545,7 +2545,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Marked dead letter message {0} as replayed.
 /// </summary>
 		/// <value>The current <see cref="MarkedDeadLetterMessageAsReplayed"/> value.</value>
-		public static string MarkedDeadLetterMessageAsReplayed {
+		internal static string MarkedDeadLetterMessageAsReplayed {
 			get {
 				return ResourceManager.GetString("MarkedDeadLetterMessageAsReplayed", resourceCulture);
 			}
@@ -2555,7 +2555,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Marked message {0} as failed due to exception.
 /// </summary>
 		/// <value>The current <see cref="MarkedMessageAsFailedDueToException"/> value.</value>
-		public static string MarkedMessageAsFailedDueToException {
+		internal static string MarkedMessageAsFailedDueToException {
 			get {
 				return ResourceManager.GetString("MarkedMessageAsFailedDueToException", resourceCulture);
 			}
@@ -2565,7 +2565,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Marked message {0} as failed with error: {1}. Retry count: {2}.
 /// </summary>
 		/// <value>The current <see cref="MarkedMessageAsFailedWithError"/> value.</value>
-		public static string MarkedMessageAsFailedWithError {
+		internal static string MarkedMessageAsFailedWithError {
 			get {
 				return ResourceManager.GetString("MarkedMessageAsFailedWithError", resourceCulture);
 			}
@@ -2575,7 +2575,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Marked message {0} as processed.
 /// </summary>
 		/// <value>The current <see cref="MarkedMessageAsProcessed"/> value.</value>
-		public static string MarkedMessageAsProcessed {
+		internal static string MarkedMessageAsProcessed {
 			get {
 				return ResourceManager.GetString("MarkedMessageAsProcessed", resourceCulture);
 			}
@@ -2585,7 +2585,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Marked message {0} as processed in light mode.
 /// </summary>
 		/// <value>The current <see cref="MarkedMessageAsProcessedInLightMode"/> value.</value>
-		public static string MarkedMessageAsProcessedInLightMode {
+		internal static string MarkedMessageAsProcessedInLightMode {
 			get {
 				return ResourceManager.GetString("MarkedMessageAsProcessedInLightMode", resourceCulture);
 			}
@@ -2595,7 +2595,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Marked message {0} as processed at {1} with expiry {2}.
 /// </summary>
 		/// <value>The current <see cref="MarkedMessageAsProcessedWithExpiry"/> value.</value>
-		public static string MarkedMessageAsProcessedWithExpiry {
+		internal static string MarkedMessageAsProcessedWithExpiry {
 			get {
 				return ResourceManager.GetString("MarkedMessageAsProcessedWithExpiry", resourceCulture);
 			}
@@ -2605,7 +2605,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Max delivery count must be positive..
 /// </summary>
 		/// <value>The current <see cref="MaxDeliveryCountMustBePositive"/> value.</value>
-		public static string MaxDeliveryCountMustBePositive {
+		internal static string MaxDeliveryCountMustBePositive {
 			get {
 				return ResourceManager.GetString("MaxDeliveryCountMustBePositive", resourceCulture);
 			}
@@ -2615,7 +2615,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Maximum connection lifetime must be positive..
 /// </summary>
 		/// <value>The current <see cref="MaximumConnectionLifetimeMustBePositive"/> value.</value>
-		public static string MaximumConnectionLifetimeMustBePositive {
+		internal static string MaximumConnectionLifetimeMustBePositive {
 			get {
 				return ResourceManager.GetString("MaximumConnectionLifetimeMustBePositive", resourceCulture);
 			}
@@ -2625,7 +2625,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Maximum connections must be positive..
 /// </summary>
 		/// <value>The current <see cref="MaximumConnectionsMustBePositive"/> value.</value>
-		public static string MaximumConnectionsMustBePositive {
+		internal static string MaximumConnectionsMustBePositive {
 			get {
 				return ResourceManager.GetString("MaximumConnectionsMustBePositive", resourceCulture);
 			}
@@ -2635,7 +2635,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Maximum future schedule age must be positive.
 /// </summary>
 		/// <value>The current <see cref="MaximumFutureScheduleAgeMustBePositive"/> value.</value>
-		public static string MaximumFutureScheduleAgeMustBePositive {
+		internal static string MaximumFutureScheduleAgeMustBePositive {
 			get {
 				return ResourceManager.GetString("MaximumFutureScheduleAgeMustBePositive", resourceCulture);
 			}
@@ -2645,7 +2645,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Maximum retry attempts cannot be negative.
 /// </summary>
 		/// <value>The current <see cref="MaximumRetryAttemptsCannotBeNegative"/> value.</value>
-		public static string MaximumRetryAttemptsCannotBeNegative {
+		internal static string MaximumRetryAttemptsCannotBeNegative {
 			get {
 				return ResourceManager.GetString("MaximumRetryAttemptsCannotBeNegative", resourceCulture);
 			}
@@ -2655,7 +2655,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Maximum retry delay must be greater than initial retry delay.
 /// </summary>
 		/// <value>The current <see cref="MaximumRetryDelayMustBeGreaterThanInitial"/> value.</value>
-		public static string MaximumRetryDelayMustBeGreaterThanInitial {
+		internal static string MaximumRetryDelayMustBeGreaterThanInitial {
 			get {
 				return ResourceManager.GetString("MaximumRetryDelayMustBeGreaterThanInitial", resourceCulture);
 			}
@@ -2665,7 +2665,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Maximum retry delay must be greater than initial retry delay.
 /// </summary>
 		/// <value>The current <see cref="MaximumRetryDelayMustBeGreaterThanInitialRetryDelay"/> value.</value>
-		public static string MaximumRetryDelayMustBeGreaterThanInitialRetryDelay {
+		internal static string MaximumRetryDelayMustBeGreaterThanInitialRetryDelay {
 			get {
 				return ResourceManager.GetString("MaximumRetryDelayMustBeGreaterThanInitialRetryDelay", resourceCulture);
 			}
@@ -2675,7 +2675,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Maximum schedule age must be positive.
 /// </summary>
 		/// <value>The current <see cref="MaximumScheduleAgeMustBePositive"/> value.</value>
-		public static string MaximumScheduleAgeMustBePositive {
+		internal static string MaximumScheduleAgeMustBePositive {
 			get {
 				return ResourceManager.GetString("MaximumScheduleAgeMustBePositive", resourceCulture);
 			}
@@ -2685,7 +2685,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to MaxPoolSize must be greater than 0 when connection pooling is enabled..
 /// </summary>
 		/// <value>The current <see cref="MaxPoolSizeMustBeGreaterThanZero"/> value.</value>
-		public static string MaxPoolSizeMustBeGreaterThanZero {
+		internal static string MaxPoolSizeMustBeGreaterThanZero {
 			get {
 				return ResourceManager.GetString("MaxPoolSizeMustBeGreaterThanZero", resourceCulture);
 			}
@@ -2695,7 +2695,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to MaxResults must be greater than 0.
 /// </summary>
 		/// <value>The current <see cref="MaxResultsMustBeGreaterThanZero"/> value.</value>
-		public static string MaxResultsMustBeGreaterThanZero {
+		internal static string MaxResultsMustBeGreaterThanZero {
 			get {
 				return ResourceManager.GetString("MaxResultsMustBeGreaterThanZero", resourceCulture);
 			}
@@ -2705,7 +2705,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Max retries reached - moved to dead letter.
 /// </summary>
 		/// <value>The current <see cref="MaxRetriesReachedMovedToDeadLetter"/> value.</value>
-		public static string MaxRetriesReachedMovedToDeadLetter {
+		internal static string MaxRetriesReachedMovedToDeadLetter {
 			get {
 				return ResourceManager.GetString("MaxRetriesReachedMovedToDeadLetter", resourceCulture);
 			}
@@ -2715,7 +2715,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to MaxRetryAttempts cannot be negative..
 /// </summary>
 		/// <value>The current <see cref="MaxRetryAttemptsCannotBeNegative"/> value.</value>
-		public static string MaxRetryAttemptsCannotBeNegative {
+		internal static string MaxRetryAttemptsCannotBeNegative {
 			get {
 				return ResourceManager.GetString("MaxRetryAttemptsCannotBeNegative", resourceCulture);
 			}
@@ -2725,7 +2725,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Max spin count must be positive.
 /// </summary>
 		/// <value>The current <see cref="MaxSpinCountMustBePositive"/> value.</value>
-		public static string MaxSpinCountMustBePositive {
+		internal static string MaxSpinCountMustBePositive {
 			get {
 				return ResourceManager.GetString("MaxSpinCountMustBePositive", resourceCulture);
 			}
@@ -2735,7 +2735,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message {0} added to batch {1} (current size: {2}).
 /// </summary>
 		/// <value>The current <see cref="MessageAddedToBatch"/> value.</value>
-		public static string MessageAddedToBatch {
+		internal static string MessageAddedToBatch {
 			get {
 				return ResourceManager.GetString("MessageAddedToBatch", resourceCulture);
 			}
@@ -2745,7 +2745,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message bus already registered.
 /// </summary>
 		/// <value>The current <see cref="MessageBusAlreadyRegistered"/> value.</value>
-		public static string MessageBusAlreadyRegistered {
+		internal static string MessageBusAlreadyRegistered {
 			get {
 				return ResourceManager.GetString("MessageBusAlreadyRegistered", resourceCulture);
 			}
@@ -2755,7 +2755,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message bus is not connected.
 /// </summary>
 		/// <value>The current <see cref="MessageBusIsNotConnected"/> value.</value>
-		public static string MessageBusIsNotConnected {
+		internal static string MessageBusIsNotConnected {
 			get {
 				return ResourceManager.GetString("MessageBusIsNotConnected", resourceCulture);
 			}
@@ -2765,7 +2765,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message cannot be null.
 /// </summary>
 		/// <value>The current <see cref="MessageCannotBeNull"/> value.</value>
-		public static string MessageCannotBeNull {
+		internal static string MessageCannotBeNull {
 			get {
 				return ResourceManager.GetString("MessageCannotBeNull", resourceCulture);
 			}
@@ -2775,7 +2775,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message {0} detected as poison by {1}: {2}.
 /// </summary>
 		/// <value>The current <see cref="MessageDetectedAsPoisonByDetector"/> value.</value>
-		public static string MessageDetectedAsPoisonByDetector {
+		internal static string MessageDetectedAsPoisonByDetector {
 			get {
 				return ResourceManager.GetString("MessageDetectedAsPoisonByDetector", resourceCulture);
 			}
@@ -2785,7 +2785,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message dispatch failed.
 /// </summary>
 		/// <value>The current <see cref="MessageDispatchFailed"/> value.</value>
-		public static string MessageDispatchFailed {
+		internal static string MessageDispatchFailed {
 			get {
 				return ResourceManager.GetString("MessageDispatchFailed", resourceCulture);
 			}
@@ -2795,7 +2795,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message {0} has already been processed, skipping.
 /// </summary>
 		/// <value>The current <see cref="MessageHasAlreadyBeenProcessedSkipping"/> value.</value>
-		public static string MessageHasAlreadyBeenProcessedSkipping {
+		internal static string MessageHasAlreadyBeenProcessedSkipping {
 			get {
 				return ResourceManager.GetString("MessageHasAlreadyBeenProcessedSkipping", resourceCulture);
 			}
@@ -2805,7 +2805,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to message.id.
 /// </summary>
 		/// <value>The current <see cref="MessageId"/> value.</value>
-		public static string MessageId {
+		internal static string MessageId {
 			get {
 				return ResourceManager.GetString("MessageId", resourceCulture);
 			}
@@ -2815,7 +2815,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message ID is required.
 /// </summary>
 		/// <value>The current <see cref="MessageIdIsRequired"/> value.</value>
-		public static string MessageIdIsRequired {
+		internal static string MessageIdIsRequired {
 			get {
 				return ResourceManager.GetString("MessageIdIsRequired", resourceCulture);
 			}
@@ -2825,7 +2825,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message {0} is a duplicate (processed at {1}).
 /// </summary>
 		/// <value>The current <see cref="MessageIsADuplicate"/> value.</value>
-		public static string MessageIsADuplicate {
+		internal static string MessageIsADuplicate {
 			get {
 				return ResourceManager.GetString("MessageIsADuplicate", resourceCulture);
 			}
@@ -2835,7 +2835,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message {0} is a duplicate (processed at {1}).
 /// </summary>
 		/// <value>The current <see cref="MessageIsADuplicateProcessedAt"/> value.</value>
-		public static string MessageIsADuplicateProcessedAt {
+		internal static string MessageIsADuplicateProcessedAt {
 			get {
 				return ResourceManager.GetString("MessageIsADuplicateProcessedAt", resourceCulture);
 			}
@@ -2845,7 +2845,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message {0} is already being processed, skipping.
 /// </summary>
 		/// <value>The current <see cref="MessageIsAlreadyBeingProcessedSkipping"/> value.</value>
-		public static string MessageIsAlreadyBeingProcessedSkipping {
+		internal static string MessageIsAlreadyBeingProcessedSkipping {
 			get {
 				return ResourceManager.GetString("MessageIsAlreadyBeingProcessedSkipping", resourceCulture);
 			}
@@ -2855,7 +2855,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message {0} is a duplicate (processed at {1}).
 /// </summary>
 		/// <value>The current <see cref="MessageIsDuplicateProcessedAt"/> value.</value>
-		public static string MessageIsDuplicateProcessedAt {
+		internal static string MessageIsDuplicateProcessedAt {
 			get {
 				return ResourceManager.GetString("MessageIsDuplicateProcessedAt", resourceCulture);
 			}
@@ -2865,7 +2865,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message {0} is a duplicate, skipping.
 /// </summary>
 		/// <value>The current <see cref="MessageIsDuplicateSkipping"/> value.</value>
-		public static string MessageIsDuplicateSkipping {
+		internal static string MessageIsDuplicateSkipping {
 			get {
 				return ResourceManager.GetString("MessageIsDuplicateSkipping", resourceCulture);
 			}
@@ -2875,7 +2875,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message {0} is not a duplicate.
 /// </summary>
 		/// <value>The current <see cref="MessageIsNotADuplicate"/> value.</value>
-		public static string MessageIsNotADuplicate {
+		internal static string MessageIsNotADuplicate {
 			get {
 				return ResourceManager.GetString("MessageIsNotADuplicate", resourceCulture);
 			}
@@ -2885,7 +2885,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message {0} is not a duplicate.
 /// </summary>
 		/// <value>The current <see cref="MessageIsNotDuplicate"/> value.</value>
-		public static string MessageIsNotDuplicate {
+		internal static string MessageIsNotDuplicate {
 			get {
 				return ResourceManager.GetString("MessageIsNotDuplicate", resourceCulture);
 			}
@@ -2895,7 +2895,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message {0} is ready for processing.
 /// </summary>
 		/// <value>The current <see cref="MessageIsReadyForProcessing"/> value.</value>
-		public static string MessageIsReadyForProcessing {
+		internal static string MessageIsReadyForProcessing {
 			get {
 				return ResourceManager.GetString("MessageIsReadyForProcessing", resourceCulture);
 			}
@@ -2905,7 +2905,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message is required..
 /// </summary>
 		/// <value>The current <see cref="MessageIsRequired"/> value.</value>
-		public static string MessageIsRequired {
+		internal static string MessageIsRequired {
 			get {
 				return ResourceManager.GetString("MessageIsRequired", resourceCulture);
 			}
@@ -2915,7 +2915,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message moved to dead letter queue - max retries exceeded.
 /// </summary>
 		/// <value>The current <see cref="MessageMovedToDeadLetterQueueMaxRetriesExceeded"/> value.</value>
-		public static string MessageMovedToDeadLetterQueueMaxRetriesExceeded {
+		internal static string MessageMovedToDeadLetterQueueMaxRetriesExceeded {
 			get {
 				return ResourceManager.GetString("MessageMovedToDeadLetterQueueMaxRetriesExceeded", resourceCulture);
 			}
@@ -2925,7 +2925,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message {0} of type {1} moved to dead letter queue. Reason: {2}.
 /// </summary>
 		/// <value>The current <see cref="MessageMovedToDeadLetterQueueWithReason"/> value.</value>
-		public static string MessageMovedToDeadLetterQueueWithReason {
+		internal static string MessageMovedToDeadLetterQueueWithReason {
 			get {
 				return ResourceManager.GetString("MessageMovedToDeadLetterQueueWithReason", resourceCulture);
 			}
@@ -2935,7 +2935,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message {0} not found in inbox.
 /// </summary>
 		/// <value>The current <see cref="MessageNotFoundInInbox"/> value.</value>
-		public static string MessageNotFoundInInbox {
+		internal static string MessageNotFoundInInbox {
 			get {
 				return ResourceManager.GetString("MessageNotFoundInInbox", resourceCulture);
 			}
@@ -2945,7 +2945,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message {0} previously failed, will retry.
 /// </summary>
 		/// <value>The current <see cref="MessagePreviouslyFailedWillRetry"/> value.</value>
-		public static string MessagePreviouslyFailedWillRetry {
+		internal static string MessagePreviouslyFailedWillRetry {
 			get {
 				return ResourceManager.GetString("MessagePreviouslyFailedWillRetry", resourceCulture);
 			}
@@ -2955,7 +2955,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message {0} was processed but has expired, treating as new.
 /// </summary>
 		/// <value>The current <see cref="MessageProcessedButExpiredTreatingAsNew"/> value.</value>
-		public static string MessageProcessedButExpiredTreatingAsNew {
+		internal static string MessageProcessedButExpiredTreatingAsNew {
 			get {
 				return ResourceManager.GetString("MessageProcessedButExpiredTreatingAsNew", resourceCulture);
 			}
@@ -2965,7 +2965,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message {0} processed status: {1}.
 /// </summary>
 		/// <value>The current <see cref="MessageProcessedStatus"/> value.</value>
-		public static string MessageProcessedStatus {
+		internal static string MessageProcessedStatus {
 			get {
 				return ResourceManager.GetString("MessageProcessedStatus", resourceCulture);
 			}
@@ -2975,7 +2975,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to MessageProcessingError.
 /// </summary>
 		/// <value>The current <see cref="MessageProcessingError"/> value.</value>
-		public static string MessageProcessingError {
+		internal static string MessageProcessingError {
 			get {
 				return ResourceManager.GetString("MessageProcessingError", resourceCulture);
 			}
@@ -2985,7 +2985,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message Processing Failed.
 /// </summary>
 		/// <value>The current <see cref="MessageProcessingFailed"/> value.</value>
-		public static string MessageProcessingFailed {
+		internal static string MessageProcessingFailed {
 			get {
 				return ResourceManager.GetString("MessageProcessingFailed", resourceCulture);
 			}
@@ -2995,7 +2995,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message {0} processing failed in light mode: {1}.
 /// </summary>
 		/// <value>The current <see cref="MessageProcessingFailedInLightModeWithError"/> value.</value>
-		public static string MessageProcessingFailedInLightModeWithError {
+		internal static string MessageProcessingFailedInLightModeWithError {
 			get {
 				return ResourceManager.GetString("MessageProcessingFailedInLightModeWithError", resourceCulture);
 			}
@@ -3005,7 +3005,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Messages and contexts must have the same count.
 /// </summary>
 		/// <value>The current <see cref="MessagesAndContextsMustHaveSameCount"/> value.</value>
-		public static string MessagesAndContextsMustHaveSameCount {
+		internal static string MessagesAndContextsMustHaveSameCount {
 			get {
 				return ResourceManager.GetString("MessagesAndContextsMustHaveSameCount", resourceCulture);
 			}
@@ -3015,7 +3015,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to message.type.
 /// </summary>
 		/// <value>The current <see cref="MessageType"/> value.</value>
-		public static string MessageType {
+		internal static string MessageType {
 			get {
 				return ResourceManager.GetString("MessageType", resourceCulture);
 			}
@@ -3025,7 +3025,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message type {0} allows anonymous access.
 /// </summary>
 		/// <value>The current <see cref="MessageTypeAllowsAnonymousAccess"/> value.</value>
-		public static string MessageTypeAllowsAnonymousAccess {
+		internal static string MessageTypeAllowsAnonymousAccess {
 			get {
 				return ResourceManager.GetString("MessageTypeAllowsAnonymousAccess", resourceCulture);
 			}
@@ -3035,7 +3035,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message type {0} does not require transaction.
 /// </summary>
 		/// <value>The current <see cref="MessageTypeDoesNotRequireTransaction"/> value.</value>
-		public static string MessageTypeDoesNotRequireTransaction {
+		internal static string MessageTypeDoesNotRequireTransaction {
 			get {
 				return ResourceManager.GetString("MessageTypeDoesNotRequireTransaction", resourceCulture);
 			}
@@ -3045,7 +3045,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message type {0} has handlers: {1}.
 /// </summary>
 		/// <value>The current <see cref="MessageTypeHasHandlers"/> value.</value>
-		public static string MessageTypeHasHandlers {
+		internal static string MessageTypeHasHandlers {
 			get {
 				return ResourceManager.GetString("MessageTypeHasHandlers", resourceCulture);
 			}
@@ -3055,7 +3055,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message type is required.
 /// </summary>
 		/// <value>The current <see cref="MessageTypeIsRequired"/> value.</value>
-		public static string MessageTypeIsRequired {
+		internal static string MessageTypeIsRequired {
 			get {
 				return ResourceManager.GetString("MessageTypeIsRequired", resourceCulture);
 			}
@@ -3065,7 +3065,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message type must implement IDispatchMessage.
 /// </summary>
 		/// <value>The current <see cref="MessageTypeMustImplementIDispatchMessage"/> value.</value>
-		public static string MessageTypeMustImplementIDispatchMessage {
+		internal static string MessageTypeMustImplementIDispatchMessage {
 			get {
 				return ResourceManager.GetString("MessageTypeMustImplementIDispatchMessage", resourceCulture);
 			}
@@ -3075,7 +3075,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message type {0} is not supported for scheduling.
 /// </summary>
 		/// <value>The current <see cref="MessageTypeNotSupportedForScheduling"/> value.</value>
-		public static string MessageTypeNotSupportedForScheduling {
+		internal static string MessageTypeNotSupportedForScheduling {
 			get {
 				return ResourceManager.GetString("MessageTypeNotSupportedForScheduling", resourceCulture);
 			}
@@ -3085,7 +3085,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message type timeout for {0} cannot exceed MaxSchedulingTimeout.
 /// </summary>
 		/// <value>The current <see cref="MessageTypeTimeoutCannotExceedMaxSchedulingTimeout"/> value.</value>
-		public static string MessageTypeTimeoutCannotExceedMaxSchedulingTimeout {
+		internal static string MessageTypeTimeoutCannotExceedMaxSchedulingTimeout {
 			get {
 				return ResourceManager.GetString("MessageTypeTimeoutCannotExceedMaxSchedulingTimeout", resourceCulture);
 			}
@@ -3095,7 +3095,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message type timeout for {0} must be positive.
 /// </summary>
 		/// <value>The current <see cref="MessageTypeTimeoutMustBePositive"/> value.</value>
-		public static string MessageTypeTimeoutMustBePositive {
+		internal static string MessageTypeTimeoutMustBePositive {
 			get {
 				return ResourceManager.GetString("MessageTypeTimeoutMustBePositive", resourceCulture);
 			}
@@ -3105,7 +3105,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message {0} was processed but expired (processed at {1}), treating as new.
 /// </summary>
 		/// <value>The current <see cref="MessageWasProcessedButExpiredTreatingAsNew"/> value.</value>
-		public static string MessageWasProcessedButExpiredTreatingAsNew {
+		internal static string MessageWasProcessedButExpiredTreatingAsNew {
 			get {
 				return ResourceManager.GetString("MessageWasProcessedButExpiredTreatingAsNew", resourceCulture);
 			}
@@ -3115,7 +3115,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message {0} of type {1} will not be batched.
 /// </summary>
 		/// <value>The current <see cref="MessageWillNotBeBatched"/> value.</value>
-		public static string MessageWillNotBeBatched {
+		internal static string MessageWillNotBeBatched {
 			get {
 				return ResourceManager.GetString("MessageWillNotBeBatched", resourceCulture);
 			}
@@ -3125,7 +3125,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to A message with ID &apos;{0}&apos; already exists in the inbox..
 /// </summary>
 		/// <value>The current <see cref="MessageWithIdAlreadyExistsInInbox"/> value.</value>
-		public static string MessageWithIdAlreadyExistsInInbox {
+		internal static string MessageWithIdAlreadyExistsInInbox {
 			get {
 				return ResourceManager.GetString("MessageWithIdAlreadyExistsInInbox", resourceCulture);
 			}
@@ -3135,7 +3135,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message with ID &apos;{0}&apos; is already marked as processed..
 /// </summary>
 		/// <value>The current <see cref="MessageWithIdAlreadyMarkedAsProcessed"/> value.</value>
-		public static string MessageWithIdAlreadyMarkedAsProcessed {
+		internal static string MessageWithIdAlreadyMarkedAsProcessed {
 			get {
 				return ResourceManager.GetString("MessageWithIdAlreadyMarkedAsProcessed", resourceCulture);
 			}
@@ -3145,7 +3145,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Message with ID &apos;{0}&apos; not found in the inbox..
 /// </summary>
 		/// <value>The current <see cref="MessageWithIdNotFoundInInbox"/> value.</value>
-		public static string MessageWithIdNotFoundInInbox {
+		internal static string MessageWithIdNotFoundInInbox {
 			get {
 				return ResourceManager.GetString("MessageWithIdNotFoundInInbox", resourceCulture);
 			}
@@ -3155,7 +3155,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Messaging error occurred.
 /// </summary>
 		/// <value>The current <see cref="MessagingErrorOccurred"/> value.</value>
-		public static string MessagingErrorOccurred {
+		internal static string MessagingErrorOccurred {
 			get {
 				return ResourceManager.GetString("MessagingErrorOccurred", resourceCulture);
 			}
@@ -3165,7 +3165,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Metadata must be for a counter type..
 /// </summary>
 		/// <value>The current <see cref="MetadataMustBeForCounterType"/> value.</value>
-		public static string MetadataMustBeForCounterType {
+		internal static string MetadataMustBeForCounterType {
 			get {
 				return ResourceManager.GetString("MetadataMustBeForCounterType", resourceCulture);
 			}
@@ -3175,7 +3175,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Migrated event {0} from v{1} to v{2}.
 /// </summary>
 		/// <value>The current <see cref="MigratedEventFromCurrentToTarget"/> value.</value>
-		public static string MigratedEventFromCurrentToTarget {
+		internal static string MigratedEventFromCurrentToTarget {
 			get {
 				return ResourceManager.GetString("MigratedEventFromCurrentToTarget", resourceCulture);
 			}
@@ -3185,7 +3185,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Migrated event {0} from v{1} to v{2}.
 /// </summary>
 		/// <value>The current <see cref="MigratedEventFromVersionToVersion"/> value.</value>
-		public static string MigratedEventFromVersionToVersion {
+		internal static string MigratedEventFromVersionToVersion {
 			get {
 				return ResourceManager.GetString("MigratedEventFromVersionToVersion", resourceCulture);
 			}
@@ -3195,7 +3195,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Minimum connections cannot be negative..
 /// </summary>
 		/// <value>The current <see cref="MinimumConnectionsCannotBeNegative"/> value.</value>
-		public static string MinimumConnectionsCannotBeNegative {
+		internal static string MinimumConnectionsCannotBeNegative {
 			get {
 				return ResourceManager.GetString("MinimumConnectionsCannotBeNegative", resourceCulture);
 			}
@@ -3205,7 +3205,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Minimum connections cannot exceed maximum.
 /// </summary>
 		/// <value>The current <see cref="MinimumConnectionsCannotExceedMaximum"/> value.</value>
-		public static string MinimumConnectionsCannotExceedMaximum {
+		internal static string MinimumConnectionsCannotExceedMaximum {
 			get {
 				return ResourceManager.GetString("MinimumConnectionsCannotExceedMaximum", resourceCulture);
 			}
@@ -3215,7 +3215,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Minimum connections cannot exceed maximum connections..
 /// </summary>
 		/// <value>The current <see cref="MinimumConnectionsCannotExceedMaximumConnections"/> value.</value>
-		public static string MinimumConnectionsCannotExceedMaximumConnections {
+		internal static string MinimumConnectionsCannotExceedMaximumConnections {
 			get {
 				return ResourceManager.GetString("MinimumConnectionsCannotExceedMaximumConnections", resourceCulture);
 			}
@@ -3225,7 +3225,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Minimum length cannot be negative..
 /// </summary>
 		/// <value>The current <see cref="MinimumLengthCannotBeNegative"/> value.</value>
-		public static string MinimumLengthCannotBeNegative {
+		internal static string MinimumLengthCannotBeNegative {
 			get {
 				return ResourceManager.GetString("MinimumLengthCannotBeNegative", resourceCulture);
 			}
@@ -3235,7 +3235,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to MinPoolSize cannot be greater than MaxPoolSize..
 /// </summary>
 		/// <value>The current <see cref="MinPoolSizeCannotBeGreaterThanMaxPoolSize"/> value.</value>
-		public static string MinPoolSizeCannotBeGreaterThanMaxPoolSize {
+		internal static string MinPoolSizeCannotBeGreaterThanMaxPoolSize {
 			get {
 				return ResourceManager.GetString("MinPoolSizeCannotBeGreaterThanMaxPoolSize", resourceCulture);
 			}
@@ -3245,7 +3245,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to MinPoolSize cannot be negative..
 /// </summary>
 		/// <value>The current <see cref="MinPoolSizeCannotBeNegative"/> value.</value>
-		public static string MinPoolSizeCannotBeNegative {
+		internal static string MinPoolSizeCannotBeNegative {
 			get {
 				return ResourceManager.GetString("MinPoolSizeCannotBeNegative", resourceCulture);
 			}
@@ -3255,7 +3255,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Missing required fields: {0}.
 /// </summary>
 		/// <value>The current <see cref="MissingRequiredFields"/> value.</value>
-		public static string MissingRequiredFields {
+		internal static string MissingRequiredFields {
 			get {
 				return ResourceManager.GetString("MissingRequiredFields", resourceCulture);
 			}
@@ -3265,7 +3265,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Nested transaction scopes are not directly supported. Use savepoints instead..
 /// </summary>
 		/// <value>The current <see cref="NestedTransactionScopesNotDirectlySupported"/> value.</value>
-		public static string NestedTransactionScopesNotDirectlySupported {
+		internal static string NestedTransactionScopesNotDirectlySupported {
 			get {
 				return ResourceManager.GetString("NestedTransactionScopesNotDirectlySupported", resourceCulture);
 			}
@@ -3275,7 +3275,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to New maximum size must be positive..
 /// </summary>
 		/// <value>The current <see cref="NewMaximumSizeMustBePositive"/> value.</value>
-		public static string NewMaximumSizeMustBePositive {
+		internal static string NewMaximumSizeMustBePositive {
 			get {
 				return ResourceManager.GetString("NewMaximumSizeMustBePositive", resourceCulture);
 			}
@@ -3285,7 +3285,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Next execution for schedule {0} calculated as {1} in timezone {2}.
 /// </summary>
 		/// <value>The current <see cref="NextExecutionCalculatedForSchedule"/> value.</value>
-		public static string NextExecutionCalculatedForSchedule {
+		internal static string NextExecutionCalculatedForSchedule {
 			get {
 				return ResourceManager.GetString("NextExecutionCalculatedForSchedule", resourceCulture);
 			}
@@ -3295,7 +3295,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to No authenticated subject found.
 /// </summary>
 		/// <value>The current <see cref="NoAuthenticatedSubjectFound"/> value.</value>
-		public static string NoAuthenticatedSubjectFound {
+		internal static string NoAuthenticatedSubjectFound {
 			get {
 				return ResourceManager.GetString("NoAuthenticatedSubjectFound", resourceCulture);
 			}
@@ -3305,7 +3305,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to No authentication token found for message {0}, allowing anonymous access.
 /// </summary>
 		/// <value>The current <see cref="NoAuthenticationTokenFoundAllowingAnonymousAccess"/> value.</value>
-		public static string NoAuthenticationTokenFoundAllowingAnonymousAccess {
+		internal static string NoAuthenticationTokenFoundAllowingAnonymousAccess {
 			get {
 				return ResourceManager.GetString("NoAuthenticationTokenFoundAllowingAnonymousAccess", resourceCulture);
 			}
@@ -3315,7 +3315,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to No client certificate found in context.
 /// </summary>
 		/// <value>The current <see cref="NoClientCertificateFoundInContext"/> value.</value>
-		public static string NoClientCertificateFoundInContext {
+		internal static string NoClientCertificateFoundInContext {
 			get {
 				return ResourceManager.GetString("NoClientCertificateFoundInContext", resourceCulture);
 			}
@@ -3325,7 +3325,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to No default adapter is configured for multi-transport message bus.
 /// </summary>
 		/// <value>The current <see cref="NoDefaultAdapterConfigured"/> value.</value>
-		public static string NoDefaultAdapterConfigured {
+		internal static string NoDefaultAdapterConfigured {
 			get {
 				return ResourceManager.GetString("NoDefaultAdapterConfigured", resourceCulture);
 			}
@@ -3335,7 +3335,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to No handler found for message type {0}.
 /// </summary>
 		/// <value>The current <see cref="NoHandlerFoundForMessageType"/> value.</value>
-		public static string NoHandlerFoundForMessageType {
+		internal static string NoHandlerFoundForMessageType {
 			get {
 				return ResourceManager.GetString("NoHandlerFoundForMessageType", resourceCulture);
 			}
@@ -3345,7 +3345,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to No handlers found for message type {0} with ID {1}.
 /// </summary>
 		/// <value>The current <see cref="NoHandlersFoundForMessageType"/> value.</value>
-		public static string NoHandlersFoundForMessageType {
+		internal static string NoHandlersFoundForMessageType {
 			get {
 				return ResourceManager.GetString("NoHandlersFoundForMessageType", resourceCulture);
 			}
@@ -3355,7 +3355,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to No health checker configured.
 /// </summary>
 		/// <value>The current <see cref="NoHealthCheckerConfigured"/> value.</value>
-		public static string NoHealthCheckerConfigured {
+		internal static string NoHealthCheckerConfigured {
 			get {
 				return ResourceManager.GetString("NoHealthCheckerConfigured", resourceCulture);
 			}
@@ -3365,7 +3365,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to No inbox entry found for message {0}.
 /// </summary>
 		/// <value>The current <see cref="NoInboxEntryFoundForMessage"/> value.</value>
-		public static string NoInboxEntryFoundForMessage {
+		internal static string NoInboxEntryFoundForMessage {
 			get {
 				return ResourceManager.GetString("NoInboxEntryFoundForMessage", resourceCulture);
 			}
@@ -3375,7 +3375,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to No inbox store or deduplicator available, processing without inbox semantics.
 /// </summary>
 		/// <value>The current <see cref="NoInboxStoreOrDeduplicatorAvailableProcessingWithoutInboxSemantics"/> value.</value>
-		public static string NoInboxStoreOrDeduplicatorAvailableProcessingWithoutInboxSemantics {
+		internal static string NoInboxStoreOrDeduplicatorAvailableProcessingWithoutInboxSemantics {
 			get {
 				return ResourceManager.GetString("NoInboxStoreOrDeduplicatorAvailableProcessingWithoutInboxSemantics", resourceCulture);
 			}
@@ -3385,7 +3385,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to No messages to save to the outbox..
 /// </summary>
 		/// <value>The current <see cref="NoMessagesToSaveToOutbox"/> value.</value>
-		public static string NoMessagesToSaveToOutbox {
+		internal static string NoMessagesToSaveToOutbox {
 			get {
 				return ResourceManager.GetString("NoMessagesToSaveToOutbox", resourceCulture);
 			}
@@ -3395,7 +3395,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to No migration path from v{0} to v{1} for event {2}.
 /// </summary>
 		/// <value>The current <see cref="NoMigrationPathFromCurrentToTargetForEvent"/> value.</value>
-		public static string NoMigrationPathFromCurrentToTargetForEvent {
+		internal static string NoMigrationPathFromCurrentToTargetForEvent {
 			get {
 				return ResourceManager.GetString("NoMigrationPathFromCurrentToTargetForEvent", resourceCulture);
 			}
@@ -3405,7 +3405,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to No pipeline profiles registered. Synthesizing default profiles....
 /// </summary>
 		/// <value>The current <see cref="NoPipelineProfilesRegisteredSynthesizing"/> value.</value>
-		public static string NoPipelineProfilesRegisteredSynthesizing {
+		internal static string NoPipelineProfilesRegisteredSynthesizing {
 			get {
 				return ResourceManager.GetString("NoPipelineProfilesRegisteredSynthesizing", resourceCulture);
 			}
@@ -3415,7 +3415,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to No saga metadata configured for saga type {0}.
 /// </summary>
 		/// <value>The current <see cref="NoSagaMetadataConfiguredForSagaType"/> value.</value>
-		public static string NoSagaMetadataConfiguredForSagaType {
+		internal static string NoSagaMetadataConfiguredForSagaType {
 			get {
 				return ResourceManager.GetString("NoSagaMetadataConfiguredForSagaType", resourceCulture);
 			}
@@ -3425,7 +3425,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to No saga registered for event type {0}.
 /// </summary>
 		/// <value>The current <see cref="NoSagaRegisteredForEventType"/> value.</value>
-		public static string NoSagaRegisteredForEventType {
+		internal static string NoSagaRegisteredForEventType {
 			get {
 				return ResourceManager.GetString("NoSagaRegisteredForEventType", resourceCulture);
 			}
@@ -3435,7 +3435,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to No transport adapter configured.
 /// </summary>
 		/// <value>The current <see cref="NoTransportAdapterConfigured"/> value.</value>
-		public static string NoTransportAdapterConfigured {
+		internal static string NoTransportAdapterConfigured {
 			get {
 				return ResourceManager.GetString("NoTransportAdapterConfigured", resourceCulture);
 			}
@@ -3445,7 +3445,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to No valid events to write to audit log file.
 /// </summary>
 		/// <value>The current <see cref="NoValidEventsToWriteToAuditLogFile"/> value.</value>
-		public static string NoValidEventsToWriteToAuditLogFile {
+		internal static string NoValidEventsToWriteToAuditLogFile {
 			get {
 				return ResourceManager.GetString("NoValidEventsToWriteToAuditLogFile", resourceCulture);
 			}
@@ -3455,7 +3455,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Object leak on disposal. Object still rented by thread {0}.
 /// </summary>
 		/// <value>The current <see cref="ObjectLeakOnDisposal"/> value.</value>
-		public static string ObjectLeakOnDisposal {
+		internal static string ObjectLeakOnDisposal {
 			get {
 				return ResourceManager.GetString("ObjectLeakOnDisposal", resourceCulture);
 			}
@@ -3465,7 +3465,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Object leak on disposal: {0} still rented by thread {1}.
 /// </summary>
 		/// <value>The current <see cref="ObjectLeakOnDisposalStillRentedByThread"/> value.</value>
-		public static string ObjectLeakOnDisposalStillRentedByThread {
+		internal static string ObjectLeakOnDisposalStillRentedByThread {
 			get {
 				return ResourceManager.GetString("ObjectLeakOnDisposalStillRentedByThread", resourceCulture);
 			}
@@ -3475,7 +3475,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Operation Failed.
 /// </summary>
 		/// <value>The current <see cref="OperationFailed"/> value.</value>
-		public static string OperationFailed {
+		internal static string OperationFailed {
 			get {
 				return ResourceManager.GetString("OperationFailed", resourceCulture);
 			}
@@ -3485,7 +3485,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Operation failed: {0}.
 /// </summary>
 		/// <value>The current <see cref="OperationFailedDetail"/> value.</value>
-		public static string OperationFailedDetail {
+		internal static string OperationFailedDetail {
 			get {
 				return ResourceManager.GetString("OperationFailedDetail", resourceCulture);
 			}
@@ -3495,7 +3495,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Outbox started..
 /// </summary>
 		/// <value>The current <see cref="OutboxStarted"/> value.</value>
-		public static string OutboxStarted {
+		internal static string OutboxStarted {
 			get {
 				return ResourceManager.GetString("OutboxStarted", resourceCulture);
 			}
@@ -3505,7 +3505,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Outbox stopped..
 /// </summary>
 		/// <value>The current <see cref="OutboxStopped"/> value.</value>
-		public static string OutboxStopped {
+		internal static string OutboxStopped {
 			get {
 				return ResourceManager.GetString("OutboxStopped", resourceCulture);
 			}
@@ -3515,7 +3515,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to PacketSize must be between 512 and 32768..
 /// </summary>
 		/// <value>The current <see cref="PacketSizeMustBeBetween512And32768"/> value.</value>
-		public static string PacketSizeMustBeBetween512And32768 {
+		internal static string PacketSizeMustBeBetween512And32768 {
 			get {
 				return ResourceManager.GetString("PacketSizeMustBeBetween512And32768", resourceCulture);
 			}
@@ -3525,7 +3525,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Parallelism strategy &apos;{0}&apos; is not supported..
 /// </summary>
 		/// <value>The current <see cref="ParallelismStrategyNotSupported"/> value.</value>
-		public static string ParallelismStrategyNotSupported {
+		internal static string ParallelismStrategyNotSupported {
 			get {
 				return ResourceManager.GetString("ParallelismStrategyNotSupported", resourceCulture);
 			}
@@ -3535,7 +3535,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Percentile must be between 0 and 100.
 /// </summary>
 		/// <value>The current <see cref="PercentileMustBeBetween0And100"/> value.</value>
-		public static string PercentileMustBeBetween0And100 {
+		internal static string PercentileMustBeBetween0And100 {
 			get {
 				return ResourceManager.GetString("PercentileMustBeBetween0And100", resourceCulture);
 			}
@@ -3545,7 +3545,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Pipe completed before message could be deserialized.
 /// </summary>
 		/// <value>The current <see cref="PipeCompletedBeforeMessageCouldBeDeserialized"/> value.</value>
-		public static string PipeCompletedBeforeMessageCouldBeDeserialized {
+		internal static string PipeCompletedBeforeMessageCouldBeDeserialized {
 			get {
 				return ResourceManager.GetString("PipeCompletedBeforeMessageCouldBeDeserialized", resourceCulture);
 			}
@@ -3555,7 +3555,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Pipe completed before message could be deserialized.
 /// </summary>
 		/// <value>The current <see cref="PipeCompletedBeforeMessageDeserialized"/> value.</value>
-		public static string PipeCompletedBeforeMessageDeserialized {
+		internal static string PipeCompletedBeforeMessageDeserialized {
 			get {
 				return ResourceManager.GetString("PipeCompletedBeforeMessageDeserialized", resourceCulture);
 			}
@@ -3565,7 +3565,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Pipeline profile registry not registered. Add it via services.AddDispatchPipelines().
 /// </summary>
 		/// <value>The current <see cref="PipelineProfileRegistryNotRegistered"/> value.</value>
-		public static string PipelineProfileRegistryNotRegistered {
+		internal static string PipelineProfileRegistryNotRegistered {
 			get {
 				return ResourceManager.GetString("PipelineProfileRegistryNotRegistered", resourceCulture);
 			}
@@ -3575,7 +3575,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Pipeline synthesis failed with errors. See validation issues for details..
 /// </summary>
 		/// <value>The current <see cref="PipelineSynthesisFailedWithErrors"/> value.</value>
-		public static string PipelineSynthesisFailedWithErrors {
+		internal static string PipelineSynthesisFailedWithErrors {
 			get {
 				return ResourceManager.GetString("PipelineSynthesisFailedWithErrors", resourceCulture);
 			}
@@ -3585,7 +3585,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Pipeline synthesis warning: {0}.
 /// </summary>
 		/// <value>The current <see cref="PipelineSynthesisWarning"/> value.</value>
-		public static string PipelineSynthesisWarning {
+		internal static string PipelineSynthesisWarning {
 			get {
 				return ResourceManager.GetString("PipelineSynthesisWarning", resourceCulture);
 			}
@@ -3595,7 +3595,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Poison message alert threshold exceeded. Recent count: {0}, Threshold: {1}, Time window: {2}.
 /// </summary>
 		/// <value>The current <see cref="PoisonMessageAlertThresholdExceeded"/> value.</value>
-		public static string PoisonMessageAlertThresholdExceeded {
+		internal static string PoisonMessageAlertThresholdExceeded {
 			get {
 				return ResourceManager.GetString("PoisonMessageAlertThresholdExceeded", resourceCulture);
 			}
@@ -3605,7 +3605,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Poison message auto-cleanup is disabled.
 /// </summary>
 		/// <value>The current <see cref="PoisonMessageAutoCleanupDisabled"/> value.</value>
-		public static string PoisonMessageAutoCleanupDisabled {
+		internal static string PoisonMessageAutoCleanupDisabled {
 			get {
 				return ResourceManager.GetString("PoisonMessageAutoCleanupDisabled", resourceCulture);
 			}
@@ -3615,7 +3615,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Poison message cleanup service started. Cleanup interval: {0}, Retention period: {1}.
 /// </summary>
 		/// <value>The current <see cref="PoisonMessageCleanupServiceStarted"/> value.</value>
-		public static string PoisonMessageCleanupServiceStarted {
+		internal static string PoisonMessageCleanupServiceStarted {
 			get {
 				return ResourceManager.GetString("PoisonMessageCleanupServiceStarted", resourceCulture);
 			}
@@ -3625,7 +3625,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Poison message cleanup service stopped.
 /// </summary>
 		/// <value>The current <see cref="PoisonMessageCleanupServiceStopped"/> value.</value>
-		public static string PoisonMessageCleanupServiceStopped {
+		internal static string PoisonMessageCleanupServiceStopped {
 			get {
 				return ResourceManager.GetString("PoisonMessageCleanupServiceStopped", resourceCulture);
 			}
@@ -3635,7 +3635,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to PollInterval should be less than ScheduleRetrievalTimeout to avoid timeout conflicts.
 /// </summary>
 		/// <value>The current <see cref="PollIntervalShouldBeLessThanScheduleRetrievalTimeout"/> value.</value>
-		public static string PollIntervalShouldBeLessThanScheduleRetrievalTimeout {
+		internal static string PollIntervalShouldBeLessThanScheduleRetrievalTimeout {
 			get {
 				return ResourceManager.GetString("PollIntervalShouldBeLessThanScheduleRetrievalTimeout", resourceCulture);
 			}
@@ -3645,7 +3645,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Pool disposed. Total created: {0}, Total rented: {1}, Total returned: {2}, Leaks: {3}.
 /// </summary>
 		/// <value>The current <see cref="PoolDisposedStatistics"/> value.</value>
-		public static string PoolDisposedStatistics {
+		internal static string PoolDisposedStatistics {
 			get {
 				return ResourceManager.GetString("PoolDisposedStatistics", resourceCulture);
 			}
@@ -3655,7 +3655,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Pool is disposed.
 /// </summary>
 		/// <value>The current <see cref="PoolIsDisposed"/> value.</value>
-		public static string PoolIsDisposed {
+		internal static string PoolIsDisposed {
 			get {
 				return ResourceManager.GetString("PoolIsDisposed", resourceCulture);
 			}
@@ -3665,7 +3665,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Pool name cannot be null or empty..
 /// </summary>
 		/// <value>The current <see cref="PoolNameCannotBeNullOrEmpty"/> value.</value>
-		public static string PoolNameCannotBeNullOrEmpty {
+		internal static string PoolNameCannotBeNullOrEmpty {
 			get {
 				return ResourceManager.GetString("PoolNameCannotBeNullOrEmpty", resourceCulture);
 			}
@@ -3675,7 +3675,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Pool &apos;{0}&apos; warm-up completed: {1}/{2} connections created.
 /// </summary>
 		/// <value>The current <see cref="PoolWarmUpCompleted"/> value.</value>
-		public static string PoolWarmUpCompleted {
+		internal static string PoolWarmUpCompleted {
 			get {
 				return ResourceManager.GetString("PoolWarmUpCompleted", resourceCulture);
 			}
@@ -3685,7 +3685,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Potential array leak. Size: {0}, Duration: {1}ms, Thread: {2}.
 /// </summary>
 		/// <value>The current <see cref="PotentialArrayLeak"/> value.</value>
-		public static string PotentialArrayLeak {
+		internal static string PotentialArrayLeak {
 			get {
 				return ResourceManager.GetString("PotentialArrayLeak", resourceCulture);
 			}
@@ -3695,7 +3695,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Potential object leak detected. Object rented for {0}ms by thread {1}. Stack: {2}.
 /// </summary>
 		/// <value>The current <see cref="PotentialObjectLeakDetected"/> value.</value>
-		public static string PotentialObjectLeakDetected {
+		internal static string PotentialObjectLeakDetected {
 			get {
 				return ResourceManager.GetString("PotentialObjectLeakDetected", resourceCulture);
 			}
@@ -3705,7 +3705,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to principal.
 /// </summary>
 		/// <value>The current <see cref="Principal"/> value.</value>
-		public static string Principal {
+		internal static string Principal {
 			get {
 				return ResourceManager.GetString("Principal", resourceCulture);
 			}
@@ -3715,7 +3715,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Priority cannot be negative..
 /// </summary>
 		/// <value>The current <see cref="PriorityCannotBeNegative"/> value.</value>
-		public static string PriorityCannotBeNegative {
+		internal static string PriorityCannotBeNegative {
 			get {
 				return ResourceManager.GetString("PriorityCannotBeNegative", resourceCulture);
 			}
@@ -3725,7 +3725,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Processed message retention must be positive.
 /// </summary>
 		/// <value>The current <see cref="ProcessedMessageRetentionMustBePositive"/> value.</value>
-		public static string ProcessedMessageRetentionMustBePositive {
+		internal static string ProcessedMessageRetentionMustBePositive {
 			get {
 				return ResourceManager.GetString("ProcessedMessageRetentionMustBePositive", resourceCulture);
 			}
@@ -3735,7 +3735,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Processing batch of {0} messages across {1} types.
 /// </summary>
 		/// <value>The current <see cref="ProcessingBatchOfMessages"/> value.</value>
-		public static string ProcessingBatchOfMessages {
+		internal static string ProcessingBatchOfMessages {
 			get {
 				return ResourceManager.GetString("ProcessingBatchOfMessages", resourceCulture);
 			}
@@ -3745,7 +3745,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Processing batch {0} with {1} messages.
 /// </summary>
 		/// <value>The current <see cref="ProcessingBatchWithMessages"/> value.</value>
-		public static string ProcessingBatchWithMessages {
+		internal static string ProcessingBatchWithMessages {
 			get {
 				return ResourceManager.GetString("ProcessingBatchWithMessages", resourceCulture);
 			}
@@ -3755,7 +3755,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Processing Failed.
 /// </summary>
 		/// <value>The current <see cref="ProcessingFailed"/> value.</value>
-		public static string ProcessingFailed {
+		internal static string ProcessingFailed {
 			get {
 				return ResourceManager.GetString("ProcessingFailed", resourceCulture);
 			}
@@ -3765,7 +3765,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Processing failed - retry attempt.
 /// </summary>
 		/// <value>The current <see cref="ProcessingFailedRetryAttempt"/> value.</value>
-		public static string ProcessingFailedRetryAttempt {
+		internal static string ProcessingFailedRetryAttempt {
 			get {
 				return ResourceManager.GetString("ProcessingFailedRetryAttempt", resourceCulture);
 			}
@@ -3775,7 +3775,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Processing message {0} with inbox semantics.
 /// </summary>
 		/// <value>The current <see cref="ProcessingMessageWithInboxSemantics"/> value.</value>
-		public static string ProcessingMessageWithInboxSemantics {
+		internal static string ProcessingMessageWithInboxSemantics {
 			get {
 				return ResourceManager.GetString("ProcessingMessageWithInboxSemantics", resourceCulture);
 			}
@@ -3785,7 +3785,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to The QueueCapacity cannot be less than the ProducerBatchSize.
 /// </summary>
 		/// <value>The current <see cref="QueueCapacityCannotBeLessThanProducerBatchSize"/> value.</value>
-		public static string QueueCapacityCannotBeLessThanProducerBatchSize {
+		internal static string QueueCapacityCannotBeLessThanProducerBatchSize {
 			get {
 				return ResourceManager.GetString("QueueCapacityCannotBeLessThanProducerBatchSize", resourceCulture);
 			}
@@ -3795,7 +3795,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Redis transaction scope only supports the creating provider..
 /// </summary>
 		/// <value>The current <see cref="RedisTransactionScopeOnlySupportsCreatingProvider"/> value.</value>
-		public static string RedisTransactionScopeOnlySupportsCreatingProvider {
+		internal static string RedisTransactionScopeOnlySupportsCreatingProvider {
 			get {
 				return ResourceManager.GetString("RedisTransactionScopeOnlySupportsCreatingProvider", resourceCulture);
 			}
@@ -3805,7 +3805,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Registered synthesized profile &apos;{0}&apos;.
 /// </summary>
 		/// <value>The current <see cref="RegisteredSynthesizedProfile"/> value.</value>
-		public static string RegisteredSynthesizedProfile {
+		internal static string RegisteredSynthesizedProfile {
 			get {
 				return ResourceManager.GetString("RegisteredSynthesizedProfile", resourceCulture);
 			}
@@ -3815,7 +3815,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Remote message bus already registered.
 /// </summary>
 		/// <value>The current <see cref="RemoteMessageBusAlreadyRegistered"/> value.</value>
-		public static string RemoteMessageBusAlreadyRegistered {
+		internal static string RemoteMessageBusAlreadyRegistered {
 			get {
 				return ResourceManager.GetString("RemoteMessageBusAlreadyRegistered", resourceCulture);
 			}
@@ -3825,7 +3825,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to RequestServices has not been initialized.
 /// </summary>
 		/// <value>The current <see cref="RequestServicesNotInitialized"/> value.</value>
-		public static string RequestServicesNotInitialized {
+		internal static string RequestServicesNotInitialized {
 			get {
 				return ResourceManager.GetString("RequestServicesNotInitialized", resourceCulture);
 			}
@@ -3835,7 +3835,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Resizing pool &apos;{0}&apos; from {1} to {2} connections.
 /// </summary>
 		/// <value>The current <see cref="ResizingPoolConnections"/> value.</value>
-		public static string ResizingPoolConnections {
+		internal static string ResizingPoolConnections {
 			get {
 				return ResourceManager.GetString("ResizingPoolConnections", resourceCulture);
 			}
@@ -3845,7 +3845,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Resource cannot be null or whitespace..
 /// </summary>
 		/// <value>The current <see cref="ResourceCannotBeNullOrWhitespace"/> value.</value>
-		public static string ResourceCannotBeNullOrWhitespace {
+		internal static string ResourceCannotBeNullOrWhitespace {
 			get {
 				return ResourceManager.GetString("ResourceCannotBeNullOrWhitespace", resourceCulture);
 			}
@@ -3855,7 +3855,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Result has no value..
 /// </summary>
 		/// <value>The current <see cref="ResultHasNoValue"/> value.</value>
-		public static string ResultHasNoValue {
+		internal static string ResultHasNoValue {
 			get {
 				return ResourceManager.GetString("ResultHasNoValue", resourceCulture);
 			}
@@ -3865,7 +3865,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Retrieved {0} failed entries eligible for retry.
 /// </summary>
 		/// <value>The current <see cref="RetrievedFailedEntriesEligibleForRetry"/> value.</value>
-		public static string RetrievedFailedEntriesEligibleForRetry {
+		internal static string RetrievedFailedEntriesEligibleForRetry {
 			get {
 				return ResourceManager.GetString("RetrievedFailedEntriesEligibleForRetry", resourceCulture);
 			}
@@ -3875,7 +3875,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Retrieved inbox entry for message {0} with status {1}.
 /// </summary>
 		/// <value>The current <see cref="RetrievedInboxEntryForMessage"/> value.</value>
-		public static string RetrievedInboxEntryForMessage {
+		internal static string RetrievedInboxEntryForMessage {
 			get {
 				return ResourceManager.GetString("RetrievedInboxEntryForMessage", resourceCulture);
 			}
@@ -3885,7 +3885,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Retry attempt.
 /// </summary>
 		/// <value>The current <see cref="RetryAttempt"/> value.</value>
-		public static string RetryAttempt {
+		internal static string RetryAttempt {
 			get {
 				return ResourceManager.GetString("RetryAttempt", resourceCulture);
 			}
@@ -3895,7 +3895,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Retry delay cannot be negative.
 /// </summary>
 		/// <value>The current <see cref="RetryDelayCannotBeNegative"/> value.</value>
-		public static string RetryDelayCannotBeNegative {
+		internal static string RetryDelayCannotBeNegative {
 			get {
 				return ResourceManager.GetString("RetryDelayCannotBeNegative", resourceCulture);
 			}
@@ -3905,7 +3905,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to RetryDelayMilliseconds cannot be negative..
 /// </summary>
 		/// <value>The current <see cref="RetryDelayMillisecondsCannotBeNegative"/> value.</value>
-		public static string RetryDelayMillisecondsCannotBeNegative {
+		internal static string RetryDelayMillisecondsCannotBeNegative {
 			get {
 				return ResourceManager.GetString("RetryDelayMillisecondsCannotBeNegative", resourceCulture);
 			}
@@ -3915,7 +3915,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Saga {0} marked as completed..
 /// </summary>
 		/// <value>The current <see cref="SagaIdMarkedAsCompleted"/> value.</value>
-		public static string SagaIdMarkedAsCompleted {
+		internal static string SagaIdMarkedAsCompleted {
 			get {
 				return ResourceManager.GetString("SagaIdMarkedAsCompleted", resourceCulture);
 			}
@@ -3925,7 +3925,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Sampling ratio must be between 0 and 1.
 /// </summary>
 		/// <value>The current <see cref="SamplingRatioMustBeBetween0And1"/> value.</value>
-		public static string SamplingRatioMustBeBetween0And1 {
+		internal static string SamplingRatioMustBeBetween0And1 {
 			get {
 				return ResourceManager.GetString("SamplingRatioMustBeBetween0And1", resourceCulture);
 			}
@@ -3935,7 +3935,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to ScheduleRetrievalTimeout should be less than MaxSchedulingTimeout.
 /// </summary>
 		/// <value>The current <see cref="ScheduleRetrievalTimeoutShouldBeLessThanMaxSchedulingTimeout"/> value.</value>
-		public static string ScheduleRetrievalTimeoutShouldBeLessThanMaxSchedulingTimeout {
+		internal static string ScheduleRetrievalTimeoutShouldBeLessThanMaxSchedulingTimeout {
 			get {
 				return ResourceManager.GetString("ScheduleRetrievalTimeoutShouldBeLessThanMaxSchedulingTimeout", resourceCulture);
 			}
@@ -3945,7 +3945,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to ScheduleUpdateTimeout should be less than MaxSchedulingTimeout.
 /// </summary>
 		/// <value>The current <see cref="ScheduleUpdateTimeoutShouldBeLessThanMaxSchedulingTimeout"/> value.</value>
-		public static string ScheduleUpdateTimeoutShouldBeLessThanMaxSchedulingTimeout {
+		internal static string ScheduleUpdateTimeoutShouldBeLessThanMaxSchedulingTimeout {
 			get {
 				return ResourceManager.GetString("ScheduleUpdateTimeoutShouldBeLessThanMaxSchedulingTimeout", resourceCulture);
 			}
@@ -3955,7 +3955,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to SecurityAudit connection string is required.
 /// </summary>
 		/// <value>The current <see cref="SecurityAuditConnectionStringRequired"/> value.</value>
-		public static string SecurityAuditConnectionStringRequired {
+		internal static string SecurityAuditConnectionStringRequired {
 			get {
 				return ResourceManager.GetString("SecurityAuditConnectionStringRequired", resourceCulture);
 			}
@@ -3965,7 +3965,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Sent message retention must be positive.
 /// </summary>
 		/// <value>The current <see cref="SentMessageRetentionMustBePositive"/> value.</value>
-		public static string SentMessageRetentionMustBePositive {
+		internal static string SentMessageRetentionMustBePositive {
 			get {
 				return ResourceManager.GetString("SentMessageRetentionMustBePositive", resourceCulture);
 			}
@@ -3975,7 +3975,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Serialization error occurred.
 /// </summary>
 		/// <value>The current <see cref="SerializationErrorOccurred"/> value.</value>
-		public static string SerializationErrorOccurred {
+		internal static string SerializationErrorOccurred {
 			get {
 				return ResourceManager.GetString("SerializationErrorOccurred", resourceCulture);
 			}
@@ -3985,7 +3985,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Service name cannot be null or empty.
 /// </summary>
 		/// <value>The current <see cref="ServiceNameCannotBeNullOrEmpty"/> value.</value>
-		public static string ServiceNameCannotBeNullOrEmpty {
+		internal static string ServiceNameCannotBeNullOrEmpty {
 			get {
 				return ResourceManager.GetString("ServiceNameCannotBeNullOrEmpty", resourceCulture);
 			}
@@ -3995,7 +3995,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Service version cannot be null or empty.
 /// </summary>
 		/// <value>The current <see cref="ServiceVersionCannotBeNullOrEmpty"/> value.</value>
-		public static string ServiceVersionCannotBeNullOrEmpty {
+		internal static string ServiceVersionCannotBeNullOrEmpty {
 			get {
 				return ResourceManager.GetString("ServiceVersionCannotBeNullOrEmpty", resourceCulture);
 			}
@@ -4005,7 +4005,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to size_threshold.
 /// </summary>
 		/// <value>The current <see cref="SizeThreshold"/> value.</value>
-		public static string SizeThreshold {
+		internal static string SizeThreshold {
 			get {
 				return ResourceManager.GetString("SizeThreshold", resourceCulture);
 			}
@@ -4015,7 +4015,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Slow operation threshold must be positive.
 /// </summary>
 		/// <value>The current <see cref="SlowOperationThresholdMustBePositive"/> value.</value>
-		public static string SlowOperationThresholdMustBePositive {
+		internal static string SlowOperationThresholdMustBePositive {
 			get {
 				return ResourceManager.GetString("SlowOperationThresholdMustBePositive", resourceCulture);
 			}
@@ -4025,7 +4025,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Source and destination must have same length.
 /// </summary>
 		/// <value>The current <see cref="SourceAndDestinationMustHaveSameLength"/> value.</value>
-		public static string SourceAndDestinationMustHaveSameLength {
+		internal static string SourceAndDestinationMustHaveSameLength {
 			get {
 				return ResourceManager.GetString("SourceAndDestinationMustHaveSameLength", resourceCulture);
 			}
@@ -4035,7 +4035,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Spin count must be positive.
 /// </summary>
 		/// <value>The current <see cref="SpinCountMustBePositive"/> value.</value>
-		public static string SpinCountMustBePositive {
+		internal static string SpinCountMustBePositive {
 			get {
 				return ResourceManager.GetString("SpinCountMustBePositive", resourceCulture);
 			}
@@ -4045,7 +4045,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to SQL Server does not support document-based data requests. Use a relational data request instead..
 /// </summary>
 		/// <value>The current <see cref="SqlServerDoesNotSupportDocumentBasedDataRequests"/> value.</value>
-		public static string SqlServerDoesNotSupportDocumentBasedDataRequests {
+		internal static string SqlServerDoesNotSupportDocumentBasedDataRequests {
 			get {
 				return ResourceManager.GetString("SqlServerDoesNotSupportDocumentBasedDataRequests", resourceCulture);
 			}
@@ -4055,7 +4055,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Starting event store migration to schema version {0}.
 /// </summary>
 		/// <value>The current <see cref="StartingEventStoreMigrationToSchemaVersion"/> value.</value>
-		public static string StartingEventStoreMigrationToSchemaVersion {
+		internal static string StartingEventStoreMigrationToSchemaVersion {
 			get {
 				return ResourceManager.GetString("StartingEventStoreMigrationToSchemaVersion", resourceCulture);
 			}
@@ -4065,7 +4065,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Starting event store migration to schema version {0}.
 /// </summary>
 		/// <value>The current <see cref="StartingEventStoreMigrationToVersion"/> value.</value>
-		public static string StartingEventStoreMigrationToVersion {
+		internal static string StartingEventStoreMigrationToVersion {
 			get {
 				return ResourceManager.GetString("StartingEventStoreMigrationToVersion", resourceCulture);
 			}
@@ -4075,7 +4075,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Starting transaction for message {0} with isolation level {1}.
 /// </summary>
 		/// <value>The current <see cref="StartingTransactionForMessage"/> value.</value>
-		public static string StartingTransactionForMessage {
+		internal static string StartingTransactionForMessage {
 			get {
 				return ResourceManager.GetString("StartingTransactionForMessage", resourceCulture);
 			}
@@ -4085,7 +4085,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Start must be positive.
 /// </summary>
 		/// <value>The current <see cref="StartMustBePositive"/> value.</value>
-		public static string StartMustBePositive {
+		internal static string StartMustBePositive {
 			get {
 				return ResourceManager.GetString("StartMustBePositive", resourceCulture);
 			}
@@ -4095,7 +4095,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to StartTime cannot be greater than EndTime.
 /// </summary>
 		/// <value>The current <see cref="StartTimeCannotBeGreaterThanEndTime"/> value.</value>
-		public static string StartTimeCannotBeGreaterThanEndTime {
+		internal static string StartTimeCannotBeGreaterThanEndTime {
 			get {
 				return ResourceManager.GetString("StartTimeCannotBeGreaterThanEndTime", resourceCulture);
 			}
@@ -4105,7 +4105,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Start timestamp cannot be negative..
 /// </summary>
 		/// <value>The current <see cref="StartTimestampCannotBeNegative"/> value.</value>
-		public static string StartTimestampCannotBeNegative {
+		internal static string StartTimestampCannotBeNegative {
 			get {
 				return ResourceManager.GetString("StartTimestampCannotBeNegative", resourceCulture);
 			}
@@ -4115,7 +4115,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Stored dead letter message {0} of type {1} with reason: {2}.
 /// </summary>
 		/// <value>The current <see cref="StoredDeadLetterMessage"/> value.</value>
-		public static string StoredDeadLetterMessage {
+		internal static string StoredDeadLetterMessage {
 			get {
 				return ResourceManager.GetString("StoredDeadLetterMessage", resourceCulture);
 			}
@@ -4125,7 +4125,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Successfully authenticated principal {0} for message {1}.
 /// </summary>
 		/// <value>The current <see cref="SuccessfullyAuthenticatedPrincipalForMessage"/> value.</value>
-		public static string SuccessfullyAuthenticatedPrincipalForMessage {
+		internal static string SuccessfullyAuthenticatedPrincipalForMessage {
 			get {
 				return ResourceManager.GetString("SuccessfullyAuthenticatedPrincipalForMessage", resourceCulture);
 			}
@@ -4135,7 +4135,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Successfully processed scheduled message {0} of type {1}.
 /// </summary>
 		/// <value>The current <see cref="SuccessfullyProcessedScheduledMessage"/> value.</value>
-		public static string SuccessfullyProcessedScheduledMessage {
+		internal static string SuccessfullyProcessedScheduledMessage {
 			get {
 				return ResourceManager.GetString("SuccessfullyProcessedScheduledMessage", resourceCulture);
 			}
@@ -4145,7 +4145,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Successfully replayed dead letter message {0}.
 /// </summary>
 		/// <value>The current <see cref="SuccessfullyReplayedDeadLetterMessage"/> value.</value>
-		public static string SuccessfullyReplayedDeadLetterMessage {
+		internal static string SuccessfullyReplayedDeadLetterMessage {
 			get {
 				return ResourceManager.GetString("SuccessfullyReplayedDeadLetterMessage", resourceCulture);
 			}
@@ -4155,7 +4155,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Table name cannot be null or empty.
 /// </summary>
 		/// <value>The current <see cref="TableNameCannotBeNullOrEmpty"/> value.</value>
-		public static string TableNameCannotBeNullOrEmpty {
+		internal static string TableNameCannotBeNullOrEmpty {
 			get {
 				return ResourceManager.GetString("TableNameCannotBeNullOrEmpty", resourceCulture);
 			}
@@ -4165,7 +4165,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to tenant_id.
 /// </summary>
 		/// <value>The current <see cref="TenantId"/> value.</value>
-		public static string TenantId {
+		internal static string TenantId {
 			get {
 				return ResourceManager.GetString("TenantId", resourceCulture);
 			}
@@ -4175,7 +4175,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to TimeAwareScheduledMessageService started with timeout policies enabled..
 /// </summary>
 		/// <value>The current <see cref="TimeAwareScheduledMessageServiceStarted"/> value.</value>
-		public static string TimeAwareScheduledMessageServiceStarted {
+		internal static string TimeAwareScheduledMessageServiceStarted {
 			get {
 				return ResourceManager.GetString("TimeAwareScheduledMessageServiceStarted", resourceCulture);
 			}
@@ -4185,7 +4185,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to TimeAwareScheduledMessageService stopped..
 /// </summary>
 		/// <value>The current <see cref="TimeAwareScheduledMessageServiceStopped"/> value.</value>
-		public static string TimeAwareScheduledMessageServiceStopped {
+		internal static string TimeAwareScheduledMessageServiceStopped {
 			get {
 				return ResourceManager.GetString("TimeAwareScheduledMessageServiceStopped", resourceCulture);
 			}
@@ -4195,7 +4195,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to TimeAwareScheduledMessageService stopping due to cancellation request..
 /// </summary>
 		/// <value>The current <see cref="TimeAwareScheduledMessageServiceStopping"/> value.</value>
-		public static string TimeAwareScheduledMessageServiceStopping {
+		internal static string TimeAwareScheduledMessageServiceStopping {
 			get {
 				return ResourceManager.GetString("TimeAwareScheduledMessageServiceStopping", resourceCulture);
 			}
@@ -4205,7 +4205,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to TimeoutEscalationMultiplier must be greater than 1.0 when escalation is enabled.
 /// </summary>
 		/// <value>The current <see cref="TimeoutEscalationMultiplierMustBeGreaterThanOne"/> value.</value>
-		public static string TimeoutEscalationMultiplierMustBeGreaterThanOne {
+		internal static string TimeoutEscalationMultiplierMustBeGreaterThanOne {
 			get {
 				return ResourceManager.GetString("TimeoutEscalationMultiplierMustBeGreaterThanOne", resourceCulture);
 			}
@@ -4215,7 +4215,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Timeout occurred during scheduled message processing cycle.
 /// </summary>
 		/// <value>The current <see cref="TimeoutOccurredDuringScheduledMessageProcessing"/> value.</value>
-		public static string TimeoutOccurredDuringScheduledMessageProcessing {
+		internal static string TimeoutOccurredDuringScheduledMessageProcessing {
 			get {
 				return ResourceManager.GetString("TimeoutOccurredDuringScheduledMessageProcessing", resourceCulture);
 			}
@@ -4225,7 +4225,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Timeout occurred during scheduled message processing cycle.
 /// </summary>
 		/// <value>The current <see cref="TimeoutOccurredDuringScheduledMessageProcessingCycle"/> value.</value>
-		public static string TimeoutOccurredDuringScheduledMessageProcessingCycle {
+		internal static string TimeoutOccurredDuringScheduledMessageProcessingCycle {
 			get {
 				return ResourceManager.GetString("TimeoutOccurredDuringScheduledMessageProcessingCycle", resourceCulture);
 			}
@@ -4235,7 +4235,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Timeout occurred processing scheduled message {0}.
 /// </summary>
 		/// <value>The current <see cref="TimeoutOccurredProcessingScheduledMessage"/> value.</value>
-		public static string TimeoutOccurredProcessingScheduledMessage {
+		internal static string TimeoutOccurredProcessingScheduledMessage {
 			get {
 				return ResourceManager.GetString("TimeoutOccurredProcessingScheduledMessage", resourceCulture);
 			}
@@ -4245,7 +4245,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Top poison message type: {0} with {1} occurrences.
 /// </summary>
 		/// <value>The current <see cref="TopPoisonMessageType"/> value.</value>
-		public static string TopPoisonMessageType {
+		internal static string TopPoisonMessageType {
 			get {
 				return ResourceManager.GetString("TopPoisonMessageType", resourceCulture);
 			}
@@ -4255,7 +4255,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Top poison reason: {0} with {1} occurrences.
 /// </summary>
 		/// <value>The current <see cref="TopPoisonReason"/> value.</value>
-		public static string TopPoisonReason {
+		internal static string TopPoisonReason {
 			get {
 				return ResourceManager.GetString("TopPoisonReason", resourceCulture);
 			}
@@ -4265,7 +4265,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Transaction committed successfully for message {0}.
 /// </summary>
 		/// <value>The current <see cref="TransactionCommittedSuccessfully"/> value.</value>
-		public static string TransactionCommittedSuccessfully {
+		internal static string TransactionCommittedSuccessfully {
 			get {
 				return ResourceManager.GetString("TransactionCommittedSuccessfully", resourceCulture);
 			}
@@ -4275,7 +4275,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Transaction rolled back due to exception during message processing for {0}.
 /// </summary>
 		/// <value>The current <see cref="TransactionRolledBackDueToExceptionDuringProcessing"/> value.</value>
-		public static string TransactionRolledBackDueToExceptionDuringProcessing {
+		internal static string TransactionRolledBackDueToExceptionDuringProcessing {
 			get {
 				return ResourceManager.GetString("TransactionRolledBackDueToExceptionDuringProcessing", resourceCulture);
 			}
@@ -4285,7 +4285,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Transaction rolled back due to unsuccessful result for message {0}.
 /// </summary>
 		/// <value>The current <see cref="TransactionRolledBackDueToUnsuccessfulResult"/> value.</value>
-		public static string TransactionRolledBackDueToUnsuccessfulResult {
+		internal static string TransactionRolledBackDueToUnsuccessfulResult {
 			get {
 				return ResourceManager.GetString("TransactionRolledBackDueToUnsuccessfulResult", resourceCulture);
 			}
@@ -4295,7 +4295,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Transport name is required.
 /// </summary>
 		/// <value>The current <see cref="TransportNameIsRequired"/> value.</value>
-		public static string TransportNameIsRequired {
+		internal static string TransportNameIsRequired {
 			get {
 				return ResourceManager.GetString("TransportNameIsRequired", resourceCulture);
 			}
@@ -4305,7 +4305,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Trimmed {0} oldest entries due to max entries limit ({1}).
 /// </summary>
 		/// <value>The current <see cref="TrimmedOldestEntriesDueToMaxEntriesLimit"/> value.</value>
-		public static string TrimmedOldestEntriesDueToMaxEntriesLimit {
+		internal static string TrimmedOldestEntriesDueToMaxEntriesLimit {
 			get {
 				return ResourceManager.GetString("TrimmedOldestEntriesDueToMaxEntriesLimit", resourceCulture);
 			}
@@ -4315,7 +4315,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Trimmed {0} oldest entries due to max entries limit ({1}).
 /// </summary>
 		/// <value>The current <see cref="TrimmedOldestEntriesDueToMaxLimit"/> value.</value>
-		public static string TrimmedOldestEntriesDueToMaxLimit {
+		internal static string TrimmedOldestEntriesDueToMaxLimit {
 			get {
 				return ResourceManager.GetString("TrimmedOldestEntriesDueToMaxLimit", resourceCulture);
 			}
@@ -4325,7 +4325,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Type {0} does not implement {1}.
 /// </summary>
 		/// <value>The current <see cref="TypeDoesNotImplementInterface"/> value.</value>
-		public static string TypeDoesNotImplementInterface {
+		internal static string TypeDoesNotImplementInterface {
 			get {
 				return ResourceManager.GetString("TypeDoesNotImplementInterface", resourceCulture);
 			}
@@ -4335,7 +4335,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Type {0} must implement {1}.
 /// </summary>
 		/// <value>The current <see cref="TypeMustImplementInterface"/> value.</value>
-		public static string TypeMustImplementInterface {
+		internal static string TypeMustImplementInterface {
 			get {
 				return ResourceManager.GetString("TypeMustImplementInterface", resourceCulture);
 			}
@@ -4345,7 +4345,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Type &apos;{0}&apos; not found in registry.
 /// </summary>
 		/// <value>The current <see cref="TypeNotFoundInRegistry"/> value.</value>
-		public static string TypeNotFoundInRegistry {
+		internal static string TypeNotFoundInRegistry {
 			get {
 				return ResourceManager.GetString("TypeNotFoundInRegistry", resourceCulture);
 			}
@@ -4355,7 +4355,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Unable to decrypt payload with any registered key.
 /// </summary>
 		/// <value>The current <see cref="UnableToDecryptPayloadWithAnyRegisteredKey"/> value.</value>
-		public static string UnableToDecryptPayloadWithAnyRegisteredKey {
+		internal static string UnableToDecryptPayloadWithAnyRegisteredKey {
 			get {
 				return ResourceManager.GetString("UnableToDecryptPayloadWithAnyRegisteredKey", resourceCulture);
 			}
@@ -4365,7 +4365,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Unexpected error during authentication for message {0}.
 /// </summary>
 		/// <value>The current <see cref="UnexpectedErrorDuringAuthentication"/> value.</value>
-		public static string UnexpectedErrorDuringAuthentication {
+		internal static string UnexpectedErrorDuringAuthentication {
 			get {
 				return ResourceManager.GetString("UnexpectedErrorDuringAuthentication", resourceCulture);
 			}
@@ -4375,7 +4375,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Unified connection pool &apos;{0}&apos; initialized for {1} with min={2}, max={3}.
 /// </summary>
 		/// <value>The current <see cref="UnifiedConnectionPoolInitialized"/> value.</value>
-		public static string UnifiedConnectionPoolInitialized {
+		internal static string UnifiedConnectionPoolInitialized {
 			get {
 				return ResourceManager.GetString("UnifiedConnectionPoolInitialized", resourceCulture);
 			}
@@ -4385,7 +4385,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Unknown message type {0} for scheduled dispatch.
 /// </summary>
 		/// <value>The current <see cref="UnknownMessageTypeForScheduledDispatch"/> value.</value>
-		public static string UnknownMessageTypeForScheduledDispatch {
+		internal static string UnknownMessageTypeForScheduledDispatch {
 			get {
 				return ResourceManager.GetString("UnknownMessageTypeForScheduledDispatch", resourceCulture);
 			}
@@ -4395,7 +4395,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Unknown scheduled message type {0} for message {1}.
 /// </summary>
 		/// <value>The current <see cref="UnknownScheduledMessageType"/> value.</value>
-		public static string UnknownScheduledMessageType {
+		internal static string UnknownScheduledMessageType {
 			get {
 				return ResourceManager.GetString("UnknownScheduledMessageType", resourceCulture);
 			}
@@ -4405,7 +4405,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Unknown version status for event {0} version {1}.
 /// </summary>
 		/// <value>The current <see cref="UnknownVersionStatusForEvent"/> value.</value>
-		public static string UnknownVersionStatusForEvent {
+		internal static string UnknownVersionStatusForEvent {
 			get {
 				return ResourceManager.GetString("UnknownVersionStatusForEvent", resourceCulture);
 			}
@@ -4415,7 +4415,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Unsupported channel mode: {0}.
 /// </summary>
 		/// <value>The current <see cref="UnsupportedChannelMode"/> value.</value>
-		public static string UnsupportedChannelMode {
+		internal static string UnsupportedChannelMode {
 			get {
 				return ResourceManager.GetString("UnsupportedChannelMode", resourceCulture);
 			}
@@ -4425,7 +4425,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to user_id.
 /// </summary>
 		/// <value>The current <see cref="UserId"/> value.</value>
-		public static string UserId {
+		internal static string UserId {
 			get {
 				return ResourceManager.GetString("UserId", resourceCulture);
 			}
@@ -4435,7 +4435,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Use the single parameter constructor for specific keys..
 /// </summary>
 		/// <value>The current <see cref="UseSingleParameterConstructorForSpecificKeys"/> value.</value>
-		public static string UseSingleParameterConstructorForSpecificKeys {
+		internal static string UseSingleParameterConstructorForSpecificKeys {
 			get {
 				return ResourceManager.GetString("UseSingleParameterConstructorForSpecificKeys", resourceCulture);
 			}
@@ -4445,7 +4445,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Use StructValidationResult for failed results.
 /// </summary>
 		/// <value>The current <see cref="UseStructValidationResultForFailedResults"/> value.</value>
-		public static string UseStructValidationResultForFailedResults {
+		internal static string UseStructValidationResultForFailedResults {
 			get {
 				return ResourceManager.GetString("UseStructValidationResultForFailedResults", resourceCulture);
 			}
@@ -4455,7 +4455,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Using cached authentication for token.
 /// </summary>
 		/// <value>The current <see cref="UsingCachedAuthenticationForToken"/> value.</value>
-		public static string UsingCachedAuthenticationForToken {
+		internal static string UsingCachedAuthenticationForToken {
 			get {
 				return ResourceManager.GetString("UsingCachedAuthenticationForToken", resourceCulture);
 			}
@@ -4465,7 +4465,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Validation error.
 /// </summary>
 		/// <value>The current <see cref="ValidationError"/> value.</value>
-		public static string ValidationError {
+		internal static string ValidationError {
 			get {
 				return ResourceManager.GetString("ValidationError", resourceCulture);
 			}
@@ -4475,7 +4475,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Validation failed.
 /// </summary>
 		/// <value>The current <see cref="ValidationFailed"/> value.</value>
-		public static string ValidationFailed {
+		internal static string ValidationFailed {
 			get {
 				return ResourceManager.GetString("ValidationFailed", resourceCulture);
 			}
@@ -4485,7 +4485,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Validation failed for message type {0}: {1}.
 /// </summary>
 		/// <value>The current <see cref="ValidationFailedForMessageType"/> value.</value>
-		public static string ValidationFailedForMessageType {
+		internal static string ValidationFailedForMessageType {
 			get {
 				return ResourceManager.GetString("ValidationFailedForMessageType", resourceCulture);
 			}
@@ -4495,7 +4495,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to ValueStopwatch has not been started. Use StartNew() first..
 /// </summary>
 		/// <value>The current <see cref="ValueStopwatchNotStarted"/> value.</value>
-		public static string ValueStopwatchNotStarted {
+		internal static string ValueStopwatchNotStarted {
 			get {
 				return ResourceManager.GetString("ValueStopwatchNotStarted", resourceCulture);
 			}
@@ -4505,7 +4505,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Vault token is required.
 /// </summary>
 		/// <value>The current <see cref="VaultTokenRequired"/> value.</value>
-		public static string VaultTokenRequired {
+		internal static string VaultTokenRequired {
 			get {
 				return ResourceManager.GetString("VaultTokenRequired", resourceCulture);
 			}
@@ -4515,7 +4515,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Vault URL is required.
 /// </summary>
 		/// <value>The current <see cref="VaultUrlRequired"/> value.</value>
-		public static string VaultUrlRequired {
+		internal static string VaultUrlRequired {
 			get {
 				return ResourceManager.GetString("VaultUrlRequired", resourceCulture);
 			}
@@ -4525,7 +4525,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to 1.0.0.
 /// </summary>
 		/// <value>The current <see cref="Version"/> value.</value>
-		public static string Version {
+		internal static string Version {
 			get {
 				return ResourceManager.GetString("Version", resourceCulture);
 			}
@@ -4535,7 +4535,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to View '{0}' is already registered..
 /// </summary>
 		/// <value>The current <see cref="ViewAlreadyRegistered"/> value.</value>
-		public static string ViewAlreadyRegistered {
+		internal static string ViewAlreadyRegistered {
 			get {
 				return ResourceManager.GetString("ViewAlreadyRegistered", resourceCulture);
 			}
@@ -4545,7 +4545,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to View '{0}' is not registered..
 /// </summary>
 		/// <value>The current <see cref="ViewNotRegistered"/> value.</value>
-		public static string ViewNotRegistered {
+		internal static string ViewNotRegistered {
 			get {
 				return ResourceManager.GetString("ViewNotRegistered", resourceCulture);
 			}
@@ -4555,7 +4555,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Warming up pool &apos;{0}&apos; with {1} connections.
 /// </summary>
 		/// <value>The current <see cref="WarmingUpPoolWithConnections"/> value.</value>
-		public static string WarmingUpPoolWithConnections {
+		internal static string WarmingUpPoolWithConnections {
 			get {
 				return ResourceManager.GetString("WarmingUpPoolWithConnections", resourceCulture);
 			}
@@ -4565,7 +4565,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Width must be positive.
 /// </summary>
 		/// <value>The current <see cref="WidthMustBePositive"/> value.</value>
-		public static string WidthMustBePositive {
+		internal static string WidthMustBePositive {
 			get {
 				return ResourceManager.GetString("WidthMustBePositive", resourceCulture);
 			}
@@ -4575,7 +4575,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to X-API-Key.
 /// </summary>
 		/// <value>The current <see cref="XApiKey"/> value.</value>
-		public static string XApiKey {
+		internal static string XApiKey {
 			get {
 				return ResourceManager.GetString("XApiKey", resourceCulture);
 			}
@@ -4585,7 +4585,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to An unexpected error occurred..
 /// </summary>
 		/// <value>The current <see cref="UnexpectedErrorOccurred"/> value.</value>
-		public static string UnexpectedErrorOccurred {
+		internal static string UnexpectedErrorOccurred {
 			get {
 				return ResourceManager.GetString("UnexpectedErrorOccurred", resourceCulture);
 			}
@@ -4595,7 +4595,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Status code must be between 100 and 599..
 /// </summary>
 		/// <value>The current <see cref="StatusCodeMustBeBetween100And599"/> value.</value>
-		public static string StatusCodeMustBeBetween100And599 {
+		internal static string StatusCodeMustBeBetween100And599 {
 			get {
 				return ResourceManager.GetString("StatusCodeMustBeBetween100And599", resourceCulture);
 			}
@@ -4605,7 +4605,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cannot deserialize empty payload..
 /// </summary>
 		/// <value>The current <see cref="CannotDeserializeEmptyPayload"/> value.</value>
-		public static string CannotDeserializeEmptyPayload {
+		internal static string CannotDeserializeEmptyPayload {
 			get {
 				return ResourceManager.GetString("CannotDeserializeEmptyPayload", resourceCulture);
 			}
@@ -4615,7 +4615,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Cannot extract key: both Before and After are null..
 /// </summary>
 		/// <value>The current <see cref="CannotExtractKeyBothBeforeAndAfterNull"/> value.</value>
-		public static string CannotExtractKeyBothBeforeAndAfterNull {
+		internal static string CannotExtractKeyBothBeforeAndAfterNull {
 			get {
 				return ResourceManager.GetString("CannotExtractKeyBothBeforeAndAfterNull", resourceCulture);
 			}
@@ -4625,7 +4625,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Maximum connection use count must be positive..
 /// </summary>
 		/// <value>The current <see cref="MaximumConnectionUseCountMustBePositive"/> value.</value>
-		public static string MaximumConnectionUseCountMustBePositive {
+		internal static string MaximumConnectionUseCountMustBePositive {
 			get {
 				return ResourceManager.GetString("MaximumConnectionUseCountMustBePositive", resourceCulture);
 			}
@@ -4635,7 +4635,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Object must be of type ValueStopwatch.
 /// </summary>
 		/// <value>The current <see cref="ObjectMustBeOfTypeValueStopwatch"/> value.</value>
-		public static string ObjectMustBeOfTypeValueStopwatch {
+		internal static string ObjectMustBeOfTypeValueStopwatch {
 			get {
 				return ResourceManager.GetString("ObjectMustBeOfTypeValueStopwatch", resourceCulture);
 			}
@@ -4645,7 +4645,7 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to The destination array is not large enough..
 /// </summary>
 		/// <value>The current <see cref="DestinationArrayIsNotLargeEnough"/> value.</value>
-		public static string DestinationArrayIsNotLargeEnough {
+		internal static string DestinationArrayIsNotLargeEnough {
 			get {
 				return ResourceManager.GetString("DestinationArrayIsNotLargeEnough", resourceCulture);
 			}
@@ -4655,10 +4655,11 @@ namespace Excalibur.Dispatch.Abstractions {
 /// Looks up a localized string similar to Type name cannot be null or empty.
 /// </summary>
 		/// <value>The current <see cref="TypeNameCannotBeNullOrEmpty"/> value.</value>
-		public static string TypeNameCannotBeNullOrEmpty {
+		internal static string TypeNameCannotBeNullOrEmpty {
 			get {
 				return ResourceManager.GetString("TypeNameCannotBeNullOrEmpty", resourceCulture);
 			}
 		}
 	}
 }
+
