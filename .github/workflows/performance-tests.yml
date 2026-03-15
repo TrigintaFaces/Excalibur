@@ -128,18 +128,27 @@ jobs:
           $filter = "${{ github.event.inputs.benchmark_filter || '*HotPath*' }}"
           Write-Host "Running hot path benchmarks with filter: $filter" -ForegroundColor Green
 
-          dotnet run --project benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj `
-            --configuration Release `
-            --no-build `
-            -- --filter $filter `
-               --memory true `
-               --disasm true `
-               --profiler ETW `
-               --exporters json html csv `
-               --artifacts ./BenchmarkDotNet.Artifacts `
-               --iterationCount 3 `
-               --warmupCount 1 `
-               --job short
+          $benchmarkArgs = @(
+            "run",
+            "--project", "benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj",
+            "--configuration", "Release",
+            "--no-build",
+            "--",
+            "--filter", $filter,
+            "--memory", "true",
+            "--disasm", "true",
+            "--exporters", "json", "html", "csv",
+            "--artifacts", "./BenchmarkDotNet.Artifacts",
+            "--iterationCount", "3",
+            "--warmupCount", "1",
+            "--job", "short"
+          )
+
+          if ("${{ matrix.os }}" -eq "windows-latest") {
+            $benchmarkArgs += @("--profiler", "ETW")
+          }
+
+          & dotnet $benchmarkArgs
 
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
