@@ -36,7 +36,7 @@ public sealed class ProgressDocumentHandlerShould
 		var progressReports = new List<DocumentProgress>();
 		var completedObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		var progress = new Progress<DocumentProgress>(p =>
+		var progress = new InlineProgress<DocumentProgress>(p =>
 		{
 			progressReports.Add(p);
 			if (p.PercentComplete >= 100.0)
@@ -77,7 +77,7 @@ public sealed class ProgressDocumentHandlerShould
 		var progressReports = new List<DocumentProgress>();
 		var completedObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		var progress = new Progress<DocumentProgress>(p =>
+		var progress = new InlineProgress<DocumentProgress>(p =>
 		{
 			progressReports.Add(p);
 			if (p.PercentComplete >= 100.0)
@@ -120,7 +120,7 @@ public sealed class ProgressDocumentHandlerShould
 		var progressReports = new List<DocumentProgress>();
 		var completedObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		var progress = new Progress<DocumentProgress>(p =>
+		var progress = new InlineProgress<DocumentProgress>(p =>
 		{
 			progressReports.Add(p);
 			if (p.PercentComplete >= 100.0)
@@ -153,7 +153,7 @@ public sealed class ProgressDocumentHandlerShould
 
 		var document = new TestProgressDocument(10);
 		var context = CreateTestContext(provider);
-		var progress = new Progress<DocumentProgress>(_ => { });
+		var progress = new InlineProgress<DocumentProgress>(_ => { });
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<InvalidOperationException>(async () =>
@@ -179,7 +179,7 @@ public sealed class ProgressDocumentHandlerShould
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 		var context = CreateTestContext(provider);
-		var progress = new Progress<DocumentProgress>(_ => { });
+		var progress = new InlineProgress<DocumentProgress>(_ => { });
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<ArgumentNullException>(async () =>
@@ -206,7 +206,7 @@ public sealed class ProgressDocumentHandlerShould
 		var dispatcher = provider.GetRequiredService<IProgressDispatcher>();
 
 		var document = new TestProgressDocument(10);
-		var progress = new Progress<DocumentProgress>(_ => { });
+		var progress = new InlineProgress<DocumentProgress>(_ => { });
 
 		// Act & Assert
 		var exception = await Should.ThrowAsync<ArgumentNullException>(async () =>
@@ -268,7 +268,7 @@ public sealed class ProgressDocumentHandlerShould
 		using var cts = new CancellationTokenSource();
 
 		// Cancel deterministically on first observed progress to avoid timing-based flakiness under CI load.
-		var progress = new Progress<DocumentProgress>(p =>
+		var progress = new InlineProgress<DocumentProgress>(p =>
 		{
 			lock (progressReports)
 			{
@@ -322,7 +322,7 @@ public sealed class ProgressDocumentHandlerShould
 		var progressReports = new List<DocumentProgress>();
 		var progressObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		var progress = new Progress<DocumentProgress>(p =>
+		var progress = new InlineProgress<DocumentProgress>(p =>
 		{
 			progressReports.Add(p);
 			progressObserved.TrySetResult();
@@ -364,7 +364,7 @@ public sealed class ProgressDocumentHandlerShould
 		var progressReports = new List<DocumentProgress>();
 		var completedObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		var progress = new Progress<DocumentProgress>(p =>
+		var progress = new InlineProgress<DocumentProgress>(p =>
 		{
 			progressReports.Add(p);
 			if (p.PercentComplete >= 100.0)
@@ -409,7 +409,7 @@ public sealed class ProgressDocumentHandlerShould
 		var progressReports = new List<DocumentProgress>();
 		var completedObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-		var progress = new Progress<DocumentProgress>(p =>
+		var progress = new InlineProgress<DocumentProgress>(p =>
 		{
 			progressReports.Add(p);
 			if (p.PercentComplete >= 100.0)
@@ -448,7 +448,7 @@ public sealed class ProgressDocumentHandlerShould
 
 		var document = new TestProgressDocument(5);
 		var context = CreateTestContext(provider);
-		var progress = new Progress<DocumentProgress>(_ => { });
+		var progress = new InlineProgress<DocumentProgress>(_ => { });
 
 		// Act
 		await dispatcher.DispatchWithProgressAsync(document, context, progress, CancellationToken.None);
@@ -512,5 +512,10 @@ public sealed class ProgressDocumentHandlerShould
 	private static IMessageContext CreateTestContext(IServiceProvider provider)
 	{
 		return DispatchContextInitializer.CreateDefaultContext(provider);
+	}
+
+	private sealed class InlineProgress<T>(Action<T> handler) : IProgress<T>
+	{
+		public void Report(T value) => handler(value);
 	}
 }
