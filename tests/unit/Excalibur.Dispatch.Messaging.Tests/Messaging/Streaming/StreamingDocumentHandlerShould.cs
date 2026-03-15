@@ -60,10 +60,12 @@ public sealed class StreamingDocumentHandlerShould
 		_ = services.AddLogging();
 		_ = services.AddDispatch(_ => { });
 
-		// Register the delayed streaming handler
-		_ = services.AddScoped<DelayedStreamingHandler>();
+		// Gate: handler blocks after yielding item 1 until the test signals it
+		var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+		// Register the gated streaming handler
 		_ = services.AddScoped<IStreamingDocumentHandler<TestCsvDocument, TestDataRow>>(
-			sp => sp.GetRequiredService<DelayedStreamingHandler>());
+			_ => new GatedStreamingHandler(gate));
 
 		await using var provider = services.BuildServiceProvider();
 		var dispatcher = provider.GetRequiredService<IStreamingDispatcher>();
@@ -90,15 +92,18 @@ public sealed class StreamingDocumentHandlerShould
 			}
 		});
 
-		await firstItemReceived.Task.WaitAsync(TimeSpan.FromSeconds(1));
+		await firstItemReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-		// Assert - the consumer should have observed the first item while the stream is still active
+		// Assert - exactly 1 item received because the handler is blocked on the gate
 		lock (receivedRows)
 		{
 			receivedRows.Count.ShouldBe(1);
 		}
 
 		receiveTask.IsCompleted.ShouldBeFalse();
+
+		// Release the gate so the handler yields the remaining items
+		gate.TrySetResult();
 
 		await receiveTask;
 
@@ -300,17 +305,36 @@ public sealed class StreamingDocumentHandlerShould
 }
 
 /// <summary>
-/// Test handler that introduces delays to verify incremental streaming.
+/// Test handler that uses an explicit gate to verify incremental streaming.
+/// Yields the first item immediately, then blocks on a <see cref="TaskCompletionSource"/>
+/// gate before yielding subsequent items. This eliminates timing-dependent races.
 /// </summary>
-file sealed class DelayedStreamingHandler : IStreamingDocumentHandler<TestCsvDocument, TestDataRow>
+file sealed class GatedStreamingHandler : IStreamingDocumentHandler<TestCsvDocument, TestDataRow>
 {
+	private readonly TaskCompletionSource _gate;
+
+	public GatedStreamingHandler(TaskCompletionSource gate)
+	{
+		_gate = gate;
+	}
+
 	public async IAsyncEnumerable<TestDataRow> HandleAsync(
 		TestCsvDocument document,
 		[EnumeratorCancellation] CancellationToken cancellationToken)
 	{
+		var first = true;
 		foreach (var row in document.Rows)
 		{
-			await global::Tests.Shared.Infrastructure.TestTiming.PauseAsync(25, cancellationToken).ConfigureAwait(false);
+			if (first)
+			{
+				first = false;
+			}
+			else
+			{
+				// Block until the test signals the gate
+				await _gate.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+			}
+
 			yield return new TestDataRow(row);
 		}
 	}

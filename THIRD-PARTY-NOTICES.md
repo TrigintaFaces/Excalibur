@@ -16,7 +16,7 @@ It is generated from project files; licenses remain with their respective owners
 | Amazon.Lambda.Serialization.SystemTextJson | 2.4.4 |
 | Amazon.Lambda.SNSEvents | 2.1.0 |
 | Amazon.Lambda.SQSEvents | 2.2.0 |
-| Amazon.Lambda.TestUtilities | 2.0.0 |
+| Amazon.Lambda.TestUtilities | 3.0.0 |
 | Apache.Avro | 1.12.0 |
 | Asp.Versioning.Mvc | 8.0.0 |
 | Asp.Versioning.Mvc.ApiExplorer | 8.0.0 |
