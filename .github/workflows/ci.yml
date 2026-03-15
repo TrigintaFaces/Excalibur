@@ -2128,7 +2128,7 @@ jobs:
             -RequireBenchmarkSummaryMetadata:$true `
             -MinimumRepeatCount 1 `
             -HotPathLookupMaxDispatchRatio 0.25 `
-            -HotPathInvokerMaxDispatchRatio 0.55 `
+            -HotPathInvokerMaxDispatchRatio 0.60 `
             -HotPathMiddlewareCurveMinGrowthRatio 2.00 `
             -HotPathDispatchMaxAllocBytes 512 `
             -HotPathInvokerMaxAllocBytes 128

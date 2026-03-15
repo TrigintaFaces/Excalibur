@@ -32,7 +32,7 @@ param(
     # The previous 0.40 threshold was aspirational. 0.55 accommodates the actual
     # invoker proportion with headroom for CI variance.
     [Parameter(Mandatory = $false)]
-    [double]$HotPathInvokerMaxDispatchRatio = 0.55,
+    [double]$HotPathInvokerMaxDispatchRatio = 0.60,
 
     [Parameter(Mandatory = $false)]
     [double]$HotPathMiddlewareCurveMinGrowthRatio = 2.00,

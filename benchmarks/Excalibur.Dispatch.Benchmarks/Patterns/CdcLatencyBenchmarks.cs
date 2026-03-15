@@ -28,6 +28,8 @@ namespace Excalibur.Dispatch.Benchmarks.Patterns;
 [SimpleJob(RuntimeMoniker.HostProcess, invocationCount: 1, iterationCount: 3)]
 public class CdcLatencyBenchmarks
 {
+	private static readonly TimeSpan BenchmarkTimeout = TimeSpan.FromSeconds(5);
+
 	private Channel<TestChangeEvent>? _channel;
 	private TestChangeEvent[]? _preAllocatedEvents;
 
@@ -85,10 +87,11 @@ public class CdcLatencyBenchmarks
 	[Benchmark(Baseline = true)]
 	public async Task<int> DequeueBatch()
 	{
+		using var cts = new CancellationTokenSource(BenchmarkTimeout);
 		var batch = await ChannelBatchUtilities.DequeueBatchAsync(
-			_channel.Reader,
+			_channel!.Reader,
 			BatchSize,
-			CancellationToken.None);
+			cts.Token);
 
 		return batch.Length;
 	}
@@ -99,10 +102,11 @@ public class CdcLatencyBenchmarks
 	[Benchmark]
 	public async Task<int> DequeueAndProcessBatch()
 	{
+		using var cts = new CancellationTokenSource(BenchmarkTimeout);
 		var batch = await ChannelBatchUtilities.DequeueBatchAsync(
-			_channel.Reader,
+			_channel!.Reader,
 			BatchSize,
-			CancellationToken.None);
+			cts.Token);
 
 		// Simulate processing (LSN tracking, event handling)
 		var processed = 0;
@@ -155,10 +159,11 @@ public class CdcLatencyBenchmarks
 		}
 
 		// Consumer: read batch
+		using var cts = new CancellationTokenSource(BenchmarkTimeout);
 		var batch = await ChannelBatchUtilities.DequeueBatchAsync(
-			_channel.Reader,
+			_channel!.Reader,
 			BatchSize,
-			CancellationToken.None);
+			cts.Token);
 
 		return batch.Length;
 	}
@@ -187,12 +192,13 @@ public class CdcLatencyBenchmarks
 	public async Task<bool> EventDrivenWait()
 	{
 		// Ensure channel has data
-		if (_channel.Reader.Count == 0)
+		if (_channel!.Reader.Count == 0)
 		{
-			await _channel.Writer.WriteAsync(_preAllocatedEvents[0]);
+			await _channel.Writer.WriteAsync(_preAllocatedEvents![0]);
 		}
 
-		return await _channel.Reader.WaitToReadAsync(CancellationToken.None);
+		using var cts = new CancellationTokenSource(BenchmarkTimeout);
+		return await _channel.Reader.WaitToReadAsync(cts.Token);
 	}
 
 	private static TestChangeEvent CreateTestChangeEvent(int index)

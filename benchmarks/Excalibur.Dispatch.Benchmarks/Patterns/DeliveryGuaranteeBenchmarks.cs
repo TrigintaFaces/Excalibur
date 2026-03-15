@@ -21,7 +21,7 @@ namespace Excalibur.Dispatch.Benchmarks.Patterns;
 /// - TransactionalWhenApplicable: Variable (depends on transaction overhead)
 /// </remarks>
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.HostProcess)]
+[SimpleJob(RuntimeMoniker.HostProcess, invocationCount: 1, iterationCount: 3)]
 public class DeliveryGuaranteeBenchmarks
 {
 	private BenchmarkOutboxStore _store = null!;

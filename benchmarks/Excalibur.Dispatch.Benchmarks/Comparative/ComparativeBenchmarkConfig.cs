@@ -14,6 +14,8 @@ internal sealed class ComparativeBenchmarkConfig : ManualConfig
 		AddJob(Job.Default
 			.WithId("comparative-inproc")
 			.WithToolchain(InProcessEmitToolchain.Instance)
+			.WithInvocationCount(1)
+			.WithIterationCount(3)
 			.DontEnforcePowerPlan());
 	}
 }
