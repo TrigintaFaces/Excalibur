@@ -140,8 +140,7 @@ jobs:
             "--exporters", "json", "html", "csv",
             "--artifacts", "./BenchmarkDotNet.Artifacts",
             "--iterationCount", "3",
-            "--warmupCount", "1",
-            "--job", "short"
+            "--warmupCount", "1"
           )
 
           if ("${{ matrix.os }}" -eq "windows-latest") {

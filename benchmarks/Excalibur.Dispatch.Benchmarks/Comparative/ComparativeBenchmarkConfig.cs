@@ -13,6 +13,7 @@ internal sealed class ComparativeBenchmarkConfig : ManualConfig
 	{
 		AddJob(Job.Default
 			.WithId("comparative-inproc")
-			.WithToolchain(InProcessEmitToolchain.Instance));
+			.WithToolchain(InProcessEmitToolchain.Instance)
+			.DontEnforcePowerPlan());
 	}
 }

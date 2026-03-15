@@ -18,7 +18,8 @@ internal sealed class DiagnosticsBenchmarkConfig : ManualConfig
 			.WithLaunchCount(1)
 			.WithWarmupCount(3)
 			.WithIterationCount(8)
-			.WithUnrollFactor(1);
+			.WithUnrollFactor(1)
+			.DontEnforcePowerPlan();
 
 	public DiagnosticsBenchmarkConfig()
 	{
