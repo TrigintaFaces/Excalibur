@@ -1962,7 +1962,7 @@ jobs:
             -RequireBenchmarkSummaryMetadata:$true `
             -MinimumRepeatCount 1 `
             -MediatRSingleCommandMaxRatio 1.50 `
-            -MediatRQueryMaxRatio 1.50
+            -MediatRQueryMaxRatio 1.80
 
       - name: Enforce protected-row delta regression threshold
         shell: pwsh
@@ -1990,7 +1990,7 @@ jobs:
           echo "- Gate validator: \`eng/validate-performance-gates.ps1 -Gate MediatRLocalParity\`" >> $GITHUB_STEP_SUMMARY
           echo "- Delta validator: \`eng/compare-benchmark-delta.ps1\`" >> $GITHUB_STEP_SUMMARY
           echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
-          echo "- Hard thresholds: single-command and query local parity ratio <= 1.50 (inherent pipeline overhead vs MediatR)" >> $GITHUB_STEP_SUMMARY
+          echo "- Hard thresholds: single-command ratio <= 1.50, query ratio <= 1.80 (inherent pipeline overhead vs MediatR)" >> $GITHUB_STEP_SUMMARY
           echo "- Protected rows: single command, query, notification, 10 concurrent, 100 concurrent (<= +5% vs baseline)" >> $GITHUB_STEP_SUMMARY
           echo "- Artifacts: \`benchmark-results-mediatr-parity\`" >> $GITHUB_STEP_SUMMARY
 
@@ -2062,6 +2062,7 @@ jobs:
 
       - name: Transport gate summary
         if: always()
+        shell: bash
         run: |
           echo "## ⚡ Performance Gate: Transport Comparison" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

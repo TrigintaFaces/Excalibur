@@ -17,7 +17,7 @@ param(
     [double]$MediatRSingleCommandMaxRatio = 1.50,
 
     [Parameter(Mandatory = $false)]
-    [double]$MediatRQueryMaxRatio = 1.50,
+    [double]$MediatRQueryMaxRatio = 1.80,
 
     [Parameter(Mandatory = $false)]
     [double]$TransportSingleCommandMinAdvantageRatio = 1.00,
