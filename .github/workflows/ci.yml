@@ -2919,7 +2919,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Ensure CI triage labels exist
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const labels = [
@@ -2944,7 +2944,7 @@ jobs:
             }
 
       - name: Apply labels based on CI job results
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const labels = [];

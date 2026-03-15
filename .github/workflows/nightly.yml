@@ -314,7 +314,7 @@ jobs:
 
       - name: Create GitHub issue on failure
         if: steps.results.outputs.status == 'failed'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const failures = '${{ steps.results.outputs.failures }}';
