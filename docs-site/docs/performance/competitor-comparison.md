@@ -40,7 +40,7 @@ All comparisons use lean `AddDispatch()` registration with no middleware enabled
 | In-process parity (MassTransit Mediator) | Dispatch ~13.2-72.5x faster |
 | In-process parity (MassTransit full bus) | **Dispatch ~390x faster on single command** |
 | Pipeline parity (3 middleware each) | MediatR ~2.3x faster; Wolverine ~1.2x faster; Dispatch ~7.1x faster than MassTransit |
-| Queued/bus end-to-end parity | Wolverine ~6.96 μs, MassTransit ~27.96 μs (Dispatch remote NA -- see notes) |
+| Queued/bus end-to-end parity | **Dispatch ~44.60 μs, ~3.1x faster than Wolverine on single command**; Wolverine ~138.58 μs; MassTransit ~401.93 μs |
 
 ## Track A: In-Process Parity
 
@@ -120,14 +120,14 @@ Each framework configured with 3 passthrough middleware/behaviors that mirror ea
 
 ### Dispatch vs Wolverine vs MassTransit (queued end-to-end parity)
 
-| Scenario | Wolverine | MassTransit | Relative Result |
-|----------|-----------|-------------|-----------------|
-| Queued command end-to-end | 6.958 μs / 5.51 KB | 27.960 μs / 21.62 KB | Wolverine ~4.0x faster than MassTransit |
-| Queued event fan-out end-to-end | 6.867 μs / 5.48 KB | 30.658 μs / 38.48 KB | Wolverine ~4.5x faster than MassTransit |
-| Queued commands end-to-end (10 concurrent) | 67.391 μs / 55.56 KB | 165.167 μs / 213.98 KB | Wolverine ~2.5x faster than MassTransit |
+| Scenario | Dispatch (remote) | Wolverine | MassTransit | Relative Result |
+|----------|-------------------|-----------|-------------|-----------------|
+| Queued command end-to-end | 44.60 μs / 1.47 KB | 138.58 μs / 12.59 KB | 401.93 μs / 29.15 KB | **Dispatch ~3.1x faster than Wolverine, ~9.0x faster than MassTransit** |
+| Queued event fan-out end-to-end | 168.73 μs / 1.39 KB | 119.97 μs / 12.60 KB | 462.12 μs / 46.02 KB | Wolverine ~1.4x faster; **Dispatch ~2.7x faster than MassTransit** |
+| Queued commands end-to-end (10 concurrent) | 181.33 μs / 16.11 KB | 406.08 μs / 62.96 KB | 1,282.10 μs / 224.70 KB | **Dispatch ~2.2x faster than Wolverine, ~7.1x faster than MassTransit** |
 
-:::note Dispatch remote benchmarks
-Dispatch remote route benchmarks returned NA in this run due to benchmark harness issues with the in-process transport adapter. The in-process parity numbers (Track A) remain the primary comparison for framework overhead.
+:::note Track C methodology
+Track C benchmarks use `InvocationCount=1`, `UnrollFactor=1`, `IterationCount=3` with `InProcessEmitToolchain`. Error margins are higher with fewer iterations; treat relative ratios as directional rather than precise.
 :::
 
 :::warning Interpretation Guardrail

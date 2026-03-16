@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // Licensed under MIT. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics;
 using System.Threading.Channels;
 
 using BenchmarkDotNet.Attributes;
@@ -72,16 +73,18 @@ public class CdcLatencyBenchmarks
 		while (_channel.Reader.TryRead(out _))
 		{ }
 
-		// Fill channel with batch size + buffer
+		// Fill channel with batch size + buffer, guaranteeing all writes succeed
 		var eventsToWrite = Math.Min(BatchSize * 2, _preAllocatedEvents.Length);
 		for (var i = 0; i < eventsToWrite; i++)
 		{
-			_ = _channel.Writer.TryWrite(_preAllocatedEvents[i]);
+			if (!_channel.Writer.TryWrite(_preAllocatedEvents[i]))
+			{
+				_channel.Writer.WriteAsync(_preAllocatedEvents[i]).AsTask().GetAwaiter().GetResult();
+			}
 		}
 
-		// Allow runtime a scheduling quantum to flush channel writes
-		// before the benchmark method reads -- prevents CI-only race on shared runners
-		Thread.Sleep(10);
+		Debug.Assert(_channel.Reader.Count >= BatchSize,
+			$"Channel has {_channel.Reader.Count} items, expected >= {BatchSize}");
 	}
 
 	/// <summary>

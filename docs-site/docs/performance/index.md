@@ -42,11 +42,12 @@ Results: `benchmarks/runs/BenchmarkDotNet.Artifacts/results/`
 
 ## Comparison Snapshot
 
-| Track | Status |
-|------|--------|
+| Track | Summary |
+|------|---------|
 | MediatR in-process parity | MediatR ~1.4x faster on standard command; Dispatch ultra-local ~1.5x faster; notification within 1.2x |
 | Wolverine in-process parity | **Dispatch ~2.8x faster on command, ~54x on notifications** |
 | MassTransit mediator in-process parity | Dispatch ~13.2x faster on single command |
+| Queued/bus end-to-end parity | **Dispatch ~3.1x faster than Wolverine, ~9.0x faster than MassTransit** on single queued command |
 
 See [Competitor Comparison](./competitor-comparison.md) for full tables and methodology notes.
 
@@ -95,7 +96,7 @@ Five micro-optimizations targeting the dispatch hot path:
 
 | Optimization | Pattern |
 |-------------|---------|
-| Dual-write elimination in `RoutingDecisionAccessor` | Single-write via `CachedRoutingDecision` field |
+| Dual-write elimination in `RoutingDecisionAccessor` | Single-write via `CachedRoutingDecision` field with Features dictionary fallback |
 | `RoutingDecision.Local` singleton | Cached static property (like `Task.CompletedTask`) |
 | Lock removal on `MessageContext.Success` | Volatile fields + `AggressiveInlining` |
 | Single-lookup `GetOrCreateFeature` | `TryGetValue` + direct store |

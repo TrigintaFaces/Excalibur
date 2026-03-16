@@ -32,7 +32,9 @@ internal static class RoutingDecisionAccessor
 	{
 		if (context is MessageContext mc)
 		{
-			return mc.CachedRoutingDecision;
+			// Fast path: check cached field first, fall back to Features dictionary
+			// so routing decisions set via the public API (GetOrCreateRoutingFeature) are still visible.
+			return mc.CachedRoutingDecision ?? context.GetRoutingFeature()?.RoutingDecision;
 		}
 
 		return context.GetRoutingFeature()?.RoutingDecision;

@@ -254,9 +254,9 @@ public sealed class RoutingDecisionAccessorShould
 	}
 
 	[Fact]
-	public void PublicSetRoutingFeature_ShouldNotPopulateCachedField()
+	public void FallBackToFeaturesDictionary_WhenCachedFieldIsNull_ForMessageContext()
 	{
-		// Arrange -- set via public Features dict (bypasses accessor)
+		// Arrange -- set via public Features dict (bypasses cached field)
 		var message = A.Fake<IDispatchMessage>();
 		var services = A.Fake<IServiceProvider>();
 		var context = new MessageContext(message, services);
@@ -264,14 +264,15 @@ public sealed class RoutingDecisionAccessorShould
 		var feature = context.GetOrCreateRoutingFeature();
 		feature.RoutingDecision = TestDecision;
 
-		// Act -- fast path reads cached field, which was NOT set
+		// Act -- fast path checks cached field first, then falls back to Features dictionary
 		var fromFastPath = RoutingDecisionAccessor.GetRoutingDecisionFast(context);
 
-		// Assert -- cached field is null (feature dict was set directly, not via accessor)
-		// This is expected -- the accessor only populates cache when SetRoutingDecision is used
-		fromFastPath.ShouldBeNull("CachedRoutingDecision is only populated by SetRoutingDecision");
+		// Assert -- fast path returns the decision set via public API (Features dictionary fallback)
+		// Fixed in S649 I.1: cached field is a perf optimization, not a behavior gate.
+		// Routing decisions set via GetOrCreateRoutingFeature() are now visible to the pipeline.
+		fromFastPath.ShouldBeSameAs(TestDecision);
 
-		// But slow public path should work
+		// Public path also works
 		var fromPublic = context.GetRoutingDecision();
 		fromPublic.ShouldBeSameAs(TestDecision);
 	}

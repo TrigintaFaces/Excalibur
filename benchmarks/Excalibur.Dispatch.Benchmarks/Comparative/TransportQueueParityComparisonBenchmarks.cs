@@ -10,6 +10,7 @@ using Excalibur.Dispatch.Abstractions.Delivery;
 using Excalibur.Dispatch.Abstractions.Features;
 using Excalibur.Dispatch.Abstractions.Routing;
 using Excalibur.Dispatch.Abstractions.Transport;
+using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Delivery;
 
 using MassTransit;
@@ -61,6 +62,11 @@ public class TransportQueueParityComparisonBenchmarks
 		var dispatchServices = new ServiceCollection();
 		_ = dispatchServices.AddLogging();
 		_ = dispatchServices.AddBenchmarkDispatch();
+
+		// Register handlers for benchmark message types -- pipeline requires handler resolution
+		_ = dispatchServices.AddHandler<DispatchQueuedCommandMessage, DispatchQueuedCommandHandler>();
+		_ = dispatchServices.AddHandler<DispatchQueuedEventMessage, DispatchQueuedEventHandler1>();
+		_ = dispatchServices.AddHandler<DispatchQueuedEventMessage, DispatchQueuedEventHandler2>();
 
 		_dispatchQueueBus = new DispatchQueuedParityMessageBus();
 		_ = dispatchServices.AddRemoteMessageBus("dispatch-queued", _ => _dispatchQueueBus);
@@ -412,6 +418,48 @@ internal static class DispatchQueuedBenchmarkCompletionTracker
 	public static void Reset()
 	{
 		Pending.Clear();
+	}
+}
+
+/// <summary>
+/// Dispatch handler for DispatchQueuedCommandMessage.
+/// Pass-through handler -- completion is signaled by the message bus.
+/// </summary>
+internal sealed class DispatchQueuedCommandHandler : IDispatchHandler<DispatchQueuedCommandMessage>
+{
+	private static readonly Task<IMessageResult> SuccessResult = Task.FromResult(MessageResult.Success());
+
+	public Task<IMessageResult> HandleAsync(DispatchQueuedCommandMessage message, DispatchMessageContext context, CancellationToken cancellationToken)
+	{
+		// Simulate minimal processing (same as Wolverine/MassTransit handlers)
+		_ = message.Value * 2;
+		return SuccessResult;
+	}
+}
+
+/// <summary>
+/// Dispatch handler 1 for DispatchQueuedEventMessage (fan-out, matches 2-handler pattern).
+/// </summary>
+internal sealed class DispatchQueuedEventHandler1 : IDispatchHandler<DispatchQueuedEventMessage>
+{
+	private static readonly Task<IMessageResult> SuccessResult = Task.FromResult(MessageResult.Success());
+
+	public Task<IMessageResult> HandleAsync(DispatchQueuedEventMessage message, DispatchMessageContext context, CancellationToken cancellationToken)
+	{
+		return SuccessResult;
+	}
+}
+
+/// <summary>
+/// Dispatch handler 2 for DispatchQueuedEventMessage (fan-out, matches 2-handler pattern).
+/// </summary>
+internal sealed class DispatchQueuedEventHandler2 : IDispatchHandler<DispatchQueuedEventMessage>
+{
+	private static readonly Task<IMessageResult> SuccessResult = Task.FromResult(MessageResult.Success());
+
+	public Task<IMessageResult> HandleAsync(DispatchQueuedEventMessage message, DispatchMessageContext context, CancellationToken cancellationToken)
+	{
+		return SuccessResult;
 	}
 }
 
