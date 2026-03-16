@@ -51,7 +51,7 @@ jobs:
       sample_count: ${{ steps.list.outputs.sample_count }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
@@ -93,7 +93,7 @@ jobs:
         sample: ${{ fromJson(needs.enumerate-samples.outputs.samples) }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
