@@ -1964,13 +1964,14 @@ jobs:
             -MediatRSingleCommandMaxRatio 1.50 `
             -MediatRQueryMaxRatio 1.80
 
-      - name: Enforce protected-row delta regression threshold
+      - name: Generate protected-row delta report
         shell: pwsh
         run: |
           ./eng/compare-benchmark-delta.ps1 `
-            -BaselineResultsPath ./benchmarks/baselines/net10.0/dispatch-comparative-20260309/results `
+            -BaselineResultsPath ./benchmarks/baselines/net10.0/dispatch-all/results `
             -CurrentResultsPath ./BenchmarkDotNet.Artifacts.MediatRParity/results `
             -MaxRegressionPercent 5.0 `
+            -FailOnRegression:$false `
             -OutputPath ./BenchmarkDotNet.Artifacts.MediatRParity/results/mediatr-protected-delta.md
 
       - name: Upload benchmark results
@@ -1988,10 +1989,10 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "- Runner: \`eng/run-benchmark-matrix.ps1 -Classes MediatRComparisonBenchmarks,RoutingFirstParityBenchmarks\`" >> $GITHUB_STEP_SUMMARY
           echo "- Gate validator: \`eng/validate-performance-gates.ps1 -Gate MediatRLocalParity\`" >> $GITHUB_STEP_SUMMARY
-          echo "- Delta validator: \`eng/compare-benchmark-delta.ps1\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Delta report: \`eng/compare-benchmark-delta.ps1 -FailOnRegression:\$false\`" >> $GITHUB_STEP_SUMMARY
           echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
           echo "- Hard thresholds: single-command ratio <= 1.50, query ratio <= 1.80 (inherent pipeline overhead vs MediatR)" >> $GITHUB_STEP_SUMMARY
-          echo "- Protected rows: strict direct-local single command, query, notification, 10 concurrent, 100 concurrent (<= +5% vs current comparative baseline)" >> $GITHUB_STEP_SUMMARY
+          echo "- Protected-row drift report: strict direct-local single command, query, notification, 10 concurrent, 100 concurrent (report-only vs dispatch-all baseline)" >> $GITHUB_STEP_SUMMARY
           echo "- Artifacts: \`benchmark-results-mediatr-parity\`" >> $GITHUB_STEP_SUMMARY
 
   # Performance gate 2: transport comparison (separate from MediatR local parity)

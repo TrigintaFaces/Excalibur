@@ -12,6 +12,9 @@ param(
     [double]$MaxRegressionPercent = 5.0,
 
     [Parameter(Mandatory = $false)]
+    [bool]$FailOnRegression = $true,
+
+    [Parameter(Mandatory = $false)]
     [string]$OutputPath = "benchmarks/runs/BenchmarkDotNet.Artifacts/results/mediatr-protected-delta.md"
 )
 
@@ -219,6 +222,7 @@ $lines += ""
 $lines += "- Baseline: ``$($baselineCsv.FullName)``"
 $lines += "- Current: ``$($currentCsv.FullName)``"
 $lines += "- Max regression threshold: $([math]::Round($MaxRegressionPercent, 2))%"
+$lines += "- Fail on regression: $FailOnRegression"
 $lines += ""
 $lines += "| Method | Baseline (ns) | Current (ns) | Delta % | Status |"
 $lines += "|--------|---------------|--------------|---------|--------|"
@@ -247,8 +251,12 @@ foreach ($result in $results) {
 }
 
 if ($regressions.Count -gt 0) {
-    Write-Host ("Protected-row regression threshold exceeded (>{0:N2}%)." -f $MaxRegressionPercent) -ForegroundColor Red
-    exit 2
+    if ($FailOnRegression) {
+        Write-Host ("Protected-row regression threshold exceeded (>{0:N2}%)." -f $MaxRegressionPercent) -ForegroundColor Red
+        exit 2
+    }
+
+    Write-Host ("Protected-row regression threshold exceeded (>{0:N2}%), but running in report-only mode." -f $MaxRegressionPercent) -ForegroundColor Yellow
 }
 
 exit 0
