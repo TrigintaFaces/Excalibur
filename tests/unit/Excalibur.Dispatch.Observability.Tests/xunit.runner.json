@@ -6,7 +6,7 @@
   "methodDisplay": "classAndMethod",
   "diagnosticMessages": false,
   "internalDiagnosticMessages": false,
-  "preEnumerateTheories": true,
+  "preEnumerateTheories": false,
   "shadowCopy": false,
   "stopOnFail": false,
   "longRunningTestSeconds": 60
