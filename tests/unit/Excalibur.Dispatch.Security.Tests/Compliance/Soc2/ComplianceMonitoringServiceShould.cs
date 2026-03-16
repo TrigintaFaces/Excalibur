@@ -412,13 +412,17 @@ public sealed class ComplianceMonitoringServiceShould
 	{
 		// Arrange
 		var callCount = 0;
-		var statusChangeObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var secondCycleObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var statusChangeObserved = 0;
 		_ = A.CallTo(() => _fakeComplianceService.GetComplianceStatusAsync(
 				A<string>._,
 				A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
-				callCount++;
+				if (Interlocked.Increment(ref callCount) >= 2)
+				{
+					secondCycleObserved.TrySetResult();
+				}
 				return callCount == 1
 					? CreateFullyCompliantStatus()
 					: CreateNonCompliantStatus();
@@ -426,7 +430,7 @@ public sealed class ComplianceMonitoringServiceShould
 		_ = A.CallTo(() => _fakeAlertHandler.HandleStatusChangeAsync(
 				A<ComplianceStatusChangeNotification>.That.Matches(n => !n.IsCompliant),
 				A<CancellationToken>._))
-			.Invokes(() => statusChangeObserved.TrySetResult());
+			.Invokes(() => Interlocked.Exchange(ref statusChangeObserved, 1));
 
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
 		var cts = new CancellationTokenSource();
@@ -434,8 +438,13 @@ public sealed class ComplianceMonitoringServiceShould
 		// Act
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-			statusChangeObserved.Task,
+			secondCycleObserved.Task,
 			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+		var observed = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => Volatile.Read(ref statusChangeObserved) == 1,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)),
+			TimeSpan.FromMilliseconds(20),
+			CancellationToken.None);
 		cts.Cancel();
 
 		try
@@ -448,6 +457,7 @@ public sealed class ComplianceMonitoringServiceShould
 		}
 
 		// Assert
+		observed.ShouldBeTrue();
 		_ = A.CallTo(() => _fakeAlertHandler.HandleStatusChangeAsync(
 				A<ComplianceStatusChangeNotification>.That.Matches(n => !n.IsCompliant),
 				A<CancellationToken>._))
@@ -459,13 +469,17 @@ public sealed class ComplianceMonitoringServiceShould
 	{
 		// Arrange
 		var callCount = 0;
-		var statusChangeObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var secondCycleObserved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+		var statusChangeObserved = 0;
 		_ = A.CallTo(() => _fakeComplianceService.GetComplianceStatusAsync(
 				A<string>._,
 				A<CancellationToken>._))
 			.ReturnsLazily(() =>
 			{
-				callCount++;
+				if (Interlocked.Increment(ref callCount) >= 2)
+				{
+					secondCycleObserved.TrySetResult();
+				}
 				return callCount == 1
 					? CreateNonCompliantStatus()
 					: CreateFullyCompliantStatus();
@@ -473,7 +487,7 @@ public sealed class ComplianceMonitoringServiceShould
 		_ = A.CallTo(() => _fakeAlertHandler.HandleStatusChangeAsync(
 				A<ComplianceStatusChangeNotification>.That.Matches(n => n.IsCompliant),
 				A<CancellationToken>._))
-			.Invokes(() => statusChangeObserved.TrySetResult());
+			.Invokes(() => Interlocked.Exchange(ref statusChangeObserved, 1));
 
 		var sut = new ComplianceMonitoringService(_fakeScopeFactory, _fakeOptions, _fakeLogger);
 		var cts = new CancellationTokenSource();
@@ -481,8 +495,13 @@ public sealed class ComplianceMonitoringServiceShould
 		// Act
 		await sut.StartAsync(cts.Token);
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
-			statusChangeObserved.Task,
+			secondCycleObserved.Task,
 			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)));
+		var observed = await global::Tests.Shared.Infrastructure.WaitHelpers.WaitUntilAsync(
+			() => Volatile.Read(ref statusChangeObserved) == 1,
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(5)),
+			TimeSpan.FromMilliseconds(20),
+			CancellationToken.None);
 		cts.Cancel();
 
 		try
@@ -495,6 +514,7 @@ public sealed class ComplianceMonitoringServiceShould
 		}
 
 		// Assert
+		observed.ShouldBeTrue();
 		_ = A.CallTo(() => _fakeAlertHandler.HandleStatusChangeAsync(
 				A<ComplianceStatusChangeNotification>.That.Matches(n => n.IsCompliant),
 				A<CancellationToken>._))
