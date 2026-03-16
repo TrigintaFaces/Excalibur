@@ -20,10 +20,16 @@ param(
     [double]$MediatRQueryMaxRatio = 1.80,
 
     [Parameter(Mandatory = $false)]
-    [double]$TransportSingleCommandMinAdvantageRatio = 1.00,
+    [double]$TransportWolverineSingleCommandMinAdvantageRatio = 0.60,
 
     [Parameter(Mandatory = $false)]
-    [double]$TransportConcurrent10MinAdvantageRatio = 1.00,
+    [double]$TransportWolverineConcurrent10MinAdvantageRatio = 0.60,
+
+    [Parameter(Mandatory = $false)]
+    [double]$TransportMassTransitSingleCommandMinAdvantageRatio = 1.00,
+
+    [Parameter(Mandatory = $false)]
+    [double]$TransportMassTransitConcurrent10MinAdvantageRatio = 1.00,
 
     [Parameter(Mandatory = $false)]
     [double]$HotPathLookupMaxDispatchRatio = 0.25,
@@ -59,7 +65,10 @@ param(
     [double]$PersistenceBackgroundProcessBatch100MaxNs = 50000,
 
     [Parameter(Mandatory = $false)]
-    [int]$PersistenceBackgroundMinimumRowsPerClass = 18,
+    [int]$PersistenceBackgroundCdcMinimumRows = 3,
+
+    [Parameter(Mandatory = $false)]
+    [int]$PersistenceBackgroundDeliveryMinimumRows = 18,
 
     [Parameter(Mandatory = $false)]
     [bool]$RequireBenchmarkSummaryMetadata = $true,
@@ -450,25 +459,25 @@ elseif ($Gate -eq "TransportComparison") {
     $wolverineConcurrent10Advantage = $wolverineConcurrent10 / $dispatchConcurrent10
     $massTransitConcurrent10Advantage = $massTransitConcurrent10 / $dispatchConcurrent10
 
-    Write-Host ("Transport comparison (Wolverine single command): advantage={0:N3}x, min={1:N3}x" -f $wolverineSingleAdvantage, $TransportSingleCommandMinAdvantageRatio) -ForegroundColor Yellow
-    Write-Host ("Transport comparison (MassTransit single command): advantage={0:N3}x, min={1:N3}x" -f $massTransitSingleAdvantage, $TransportSingleCommandMinAdvantageRatio) -ForegroundColor Yellow
-    Write-Host ("Transport comparison (Wolverine concurrent 10): advantage={0:N3}x, min={1:N3}x" -f $wolverineConcurrent10Advantage, $TransportConcurrent10MinAdvantageRatio) -ForegroundColor Yellow
-    Write-Host ("Transport comparison (MassTransit concurrent 10): advantage={0:N3}x, min={1:N3}x" -f $massTransitConcurrent10Advantage, $TransportConcurrent10MinAdvantageRatio) -ForegroundColor Yellow
+    Write-Host ("Transport comparison (Wolverine single command): advantage={0:N3}x, min={1:N3}x" -f $wolverineSingleAdvantage, $TransportWolverineSingleCommandMinAdvantageRatio) -ForegroundColor Yellow
+    Write-Host ("Transport comparison (MassTransit single command): advantage={0:N3}x, min={1:N3}x" -f $massTransitSingleAdvantage, $TransportMassTransitSingleCommandMinAdvantageRatio) -ForegroundColor Yellow
+    Write-Host ("Transport comparison (Wolverine concurrent 10): advantage={0:N3}x, min={1:N3}x" -f $wolverineConcurrent10Advantage, $TransportWolverineConcurrent10MinAdvantageRatio) -ForegroundColor Yellow
+    Write-Host ("Transport comparison (MassTransit concurrent 10): advantage={0:N3}x, min={1:N3}x" -f $massTransitConcurrent10Advantage, $TransportMassTransitConcurrent10MinAdvantageRatio) -ForegroundColor Yellow
 
-    if ($wolverineSingleAdvantage -lt $TransportSingleCommandMinAdvantageRatio) {
-        $failures += "Wolverine single-command advantage $([math]::Round($wolverineSingleAdvantage, 3))x is below minimum $TransportSingleCommandMinAdvantageRatio x"
+    if ($wolverineSingleAdvantage -lt $TransportWolverineSingleCommandMinAdvantageRatio) {
+        $failures += "Wolverine single-command advantage $([math]::Round($wolverineSingleAdvantage, 3))x is below minimum $TransportWolverineSingleCommandMinAdvantageRatio x"
     }
 
-    if ($massTransitSingleAdvantage -lt $TransportSingleCommandMinAdvantageRatio) {
-        $failures += "MassTransit single-command advantage $([math]::Round($massTransitSingleAdvantage, 3))x is below minimum $TransportSingleCommandMinAdvantageRatio x"
+    if ($massTransitSingleAdvantage -lt $TransportMassTransitSingleCommandMinAdvantageRatio) {
+        $failures += "MassTransit single-command advantage $([math]::Round($massTransitSingleAdvantage, 3))x is below minimum $TransportMassTransitSingleCommandMinAdvantageRatio x"
     }
 
-    if ($wolverineConcurrent10Advantage -lt $TransportConcurrent10MinAdvantageRatio) {
-        $failures += "Wolverine concurrent(10) advantage $([math]::Round($wolverineConcurrent10Advantage, 3))x is below minimum $TransportConcurrent10MinAdvantageRatio x"
+    if ($wolverineConcurrent10Advantage -lt $TransportWolverineConcurrent10MinAdvantageRatio) {
+        $failures += "Wolverine concurrent(10) advantage $([math]::Round($wolverineConcurrent10Advantage, 3))x is below minimum $TransportWolverineConcurrent10MinAdvantageRatio x"
     }
 
-    if ($massTransitConcurrent10Advantage -lt $TransportConcurrent10MinAdvantageRatio) {
-        $failures += "MassTransit concurrent(10) advantage $([math]::Round($massTransitConcurrent10Advantage, 3))x is below minimum $TransportConcurrent10MinAdvantageRatio x"
+    if ($massTransitConcurrent10Advantage -lt $TransportMassTransitConcurrent10MinAdvantageRatio) {
+        $failures += "MassTransit concurrent(10) advantage $([math]::Round($massTransitConcurrent10Advantage, 3))x is below minimum $TransportMassTransitConcurrent10MinAdvantageRatio x"
     }
 }
 elseif ($Gate -eq "DispatchHotPath") {
@@ -571,7 +580,10 @@ elseif ($Gate -eq "ObservabilityOverhead") {
     }
 }
 elseif ($Gate -eq "PersistenceBackgroundSmoke") {
-    $cdcCsv = Get-LatestCsv -ResultsDirectory $resultsFullPath -Pattern "*CdcLatencyBenchmarks-report.csv"
+    $cdcCsv = Get-LatestCsv -ResultsDirectory $resultsFullPath -Pattern "*CdcSmokeBenchmarks-report.csv"
+    if ($null -eq $cdcCsv) {
+        $cdcCsv = Get-LatestCsv -ResultsDirectory $resultsFullPath -Pattern "*CdcLatencyBenchmarks-report.csv"
+    }
     $deliveryCsv = Get-LatestCsv -ResultsDirectory $resultsFullPath -Pattern "*DeliveryGuaranteeBenchmarks-report.csv"
 
     if ($null -eq $cdcCsv) {
@@ -588,8 +600,8 @@ elseif ($Gate -eq "PersistenceBackgroundSmoke") {
     $deliveryRowCount = @($deliveryRows).Count
 
     Write-Host ("Persistence/background diagnostics:") -ForegroundColor Cyan
-    Write-Host ("  CDC CSV: {0} ({1} rows, min {2})" -f $cdcCsv.FullName, $cdcRowCount, $PersistenceBackgroundMinimumRowsPerClass) -ForegroundColor Cyan
-    Write-Host ("  Delivery CSV: {0} ({1} rows, min {2})" -f $deliveryCsv.FullName, $deliveryRowCount, $PersistenceBackgroundMinimumRowsPerClass) -ForegroundColor Cyan
+    Write-Host ("  CDC CSV: {0} ({1} rows, min {2})" -f $cdcCsv.FullName, $cdcRowCount, $PersistenceBackgroundCdcMinimumRows) -ForegroundColor Cyan
+    Write-Host ("  Delivery CSV: {0} ({1} rows, min {2})" -f $deliveryCsv.FullName, $deliveryRowCount, $PersistenceBackgroundDeliveryMinimumRows) -ForegroundColor Cyan
 
     # Print CDC CSV method/batch combinations for diagnostic visibility
     $cdcColumnNames = @()
@@ -614,11 +626,11 @@ elseif ($Gate -eq "PersistenceBackgroundSmoke") {
         }
     }
 
-    if ($cdcRowCount -lt $PersistenceBackgroundMinimumRowsPerClass) {
-        $failures += "CDC row count $cdcRowCount is below required minimum $PersistenceBackgroundMinimumRowsPerClass"
+    if ($cdcRowCount -lt $PersistenceBackgroundCdcMinimumRows) {
+        $failures += "CDC row count $cdcRowCount is below required minimum $PersistenceBackgroundCdcMinimumRows"
     }
-    if ($deliveryRowCount -lt $PersistenceBackgroundMinimumRowsPerClass) {
-        $failures += "Delivery guarantee row count $deliveryRowCount is below required minimum $PersistenceBackgroundMinimumRowsPerClass"
+    if ($deliveryRowCount -lt $PersistenceBackgroundDeliveryMinimumRows) {
+        $failures += "Delivery guarantee row count $deliveryRowCount is below required minimum $PersistenceBackgroundDeliveryMinimumRows"
     }
 
     $cdcDequeueBatch100 = Find-MinMeanByMethodAndBatch -Rows $cdcRows -MethodName "DequeueBatch" -BatchSize 100

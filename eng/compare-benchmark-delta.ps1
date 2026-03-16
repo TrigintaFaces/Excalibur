@@ -131,26 +131,63 @@ $baselineRows = Import-Csv -Path $baselineCsv.FullName
 $currentRows = Import-Csv -Path $currentCsv.FullName
 
 $protectedRows = @(
-    "Dispatch: Single command handler",
-    "Dispatch: Query with return value",
-    "Dispatch: Notification to 3 handlers",
-    "Dispatch: 10 concurrent commands",
-    "Dispatch: 100 concurrent commands"
+    @{
+        DisplayName = "Dispatch: Single command strict direct-local"
+        Aliases = @(
+            "Dispatch: Single command strict direct-local",
+            "Dispatch: Single command handler"
+        )
+    },
+    @{
+        DisplayName = "Dispatch: Query with return value"
+        Aliases = @(
+            "Dispatch: Query with return value"
+        )
+    },
+    @{
+        DisplayName = "Dispatch: Notification to 3 handlers"
+        Aliases = @(
+            "Dispatch: Notification to 3 handlers"
+        )
+    },
+    @{
+        DisplayName = "Dispatch: 10 concurrent commands"
+        Aliases = @(
+            "Dispatch: 10 concurrent commands"
+        )
+    },
+    @{
+        DisplayName = "Dispatch: 100 concurrent commands"
+        Aliases = @(
+            "Dispatch: 100 concurrent commands"
+        )
+    }
 )
 
 $results = @()
 $regressions = @()
 
-foreach ($methodName in $protectedRows) {
-    $baselineNs = Get-MeanNsByMethod -Rows $baselineRows -MethodName $methodName
-    $currentNs = Get-MeanNsByMethod -Rows $currentRows -MethodName $methodName
+foreach ($protectedRow in $protectedRows) {
+    $methodName = $protectedRow.DisplayName
+    $baselineNs = $null
+    $currentNs = $null
+
+    foreach ($alias in $protectedRow.Aliases) {
+        if ($null -eq $baselineNs) {
+            $baselineNs = Get-MeanNsByMethod -Rows $baselineRows -MethodName $alias
+        }
+
+        if ($null -eq $currentNs) {
+            $currentNs = Get-MeanNsByMethod -Rows $currentRows -MethodName $alias
+        }
+    }
 
     if ($null -eq $baselineNs) {
-        throw "Baseline row '$methodName' was not found in $($baselineCsv.FullName)"
+        throw "Baseline row '$methodName' was not found in $($baselineCsv.FullName). Aliases: $($protectedRow.Aliases -join ', ')"
     }
 
     if ($null -eq $currentNs) {
-        throw "Current row '$methodName' was not found in $($currentCsv.FullName)"
+        throw "Current row '$methodName' was not found in $($currentCsv.FullName). Aliases: $($protectedRow.Aliases -join ', ')"
     }
 
     $deltaPercent = (($currentNs - $baselineNs) / $baselineNs) * 100.0

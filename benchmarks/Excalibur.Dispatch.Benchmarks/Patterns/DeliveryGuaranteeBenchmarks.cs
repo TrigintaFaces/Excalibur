@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
 
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Options.Delivery;
@@ -21,7 +20,7 @@ namespace Excalibur.Dispatch.Benchmarks.Patterns;
 /// - TransactionalWhenApplicable: Variable (depends on transaction overhead)
 /// </remarks>
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.HostProcess, invocationCount: 1, iterationCount: 3)]
+[Config(typeof(PatternsBenchmarkConfig))]
 public class DeliveryGuaranteeBenchmarks
 {
 	private BenchmarkOutboxStore _store = null!;

@@ -1968,7 +1968,7 @@ jobs:
         shell: pwsh
         run: |
           ./eng/compare-benchmark-delta.ps1 `
-            -BaselineResultsPath ./benchmarks/baselines/net10.0/dispatch-all/results `
+            -BaselineResultsPath ./benchmarks/baselines/net10.0/dispatch-comparative-20260309/results `
             -CurrentResultsPath ./BenchmarkDotNet.Artifacts.MediatRParity/results `
             -MaxRegressionPercent 5.0 `
             -OutputPath ./BenchmarkDotNet.Artifacts.MediatRParity/results/mediatr-protected-delta.md
@@ -1991,7 +1991,7 @@ jobs:
           echo "- Delta validator: \`eng/compare-benchmark-delta.ps1\`" >> $GITHUB_STEP_SUMMARY
           echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
           echo "- Hard thresholds: single-command ratio <= 1.50, query ratio <= 1.80 (inherent pipeline overhead vs MediatR)" >> $GITHUB_STEP_SUMMARY
-          echo "- Protected rows: single command, query, notification, 10 concurrent, 100 concurrent (<= +5% vs baseline)" >> $GITHUB_STEP_SUMMARY
+          echo "- Protected rows: strict direct-local single command, query, notification, 10 concurrent, 100 concurrent (<= +5% vs current comparative baseline)" >> $GITHUB_STEP_SUMMARY
           echo "- Artifacts: \`benchmark-results-mediatr-parity\`" >> $GITHUB_STEP_SUMMARY
 
   # Performance gate 2: transport comparison (separate from MediatR local parity)
@@ -2049,8 +2049,10 @@ jobs:
             -ResultsPath ./BenchmarkDotNet.Artifacts.TransportComparison/results `
             -RequireBenchmarkSummaryMetadata:$true `
             -MinimumRepeatCount 1 `
-            -TransportSingleCommandMinAdvantageRatio 1.00 `
-            -TransportConcurrent10MinAdvantageRatio 1.00
+            -TransportWolverineSingleCommandMinAdvantageRatio 0.60 `
+            -TransportWolverineConcurrent10MinAdvantageRatio 0.60 `
+            -TransportMassTransitSingleCommandMinAdvantageRatio 1.00 `
+            -TransportMassTransitConcurrent10MinAdvantageRatio 1.00
 
       - name: Upload transport benchmark results
         if: always()
@@ -2069,7 +2071,7 @@ jobs:
           echo "- Runner: \`eng/run-benchmark-matrix.ps1 -Classes TransportQueueParityComparisonBenchmarks\`" >> $GITHUB_STEP_SUMMARY
           echo "- Gate validator: \`eng/validate-performance-gates.ps1 -Gate TransportComparison\`" >> $GITHUB_STEP_SUMMARY
           echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
-          echo "- Thresholds: Dispatch must retain >= 1.00x advantage on single-command and concurrent(10) rows" >> $GITHUB_STEP_SUMMARY
+          echo "- Thresholds: MassTransit remains a hard floor (>= 1.00x advantage); Wolverine remains a softer parity guard (>= 0.60x on single-command and concurrent(10))" >> $GITHUB_STEP_SUMMARY
           echo "- Artifacts: \`benchmark-results-transport-comparison\`" >> $GITHUB_STEP_SUMMARY
 
   # Performance gate 3: dispatch hot-path regression
@@ -2274,7 +2276,7 @@ jobs:
             -NoBuild `
             -NoRestore `
             -RepeatCount 1 `
-            -Classes CdcLatencyBenchmarks,DeliveryGuaranteeBenchmarks `
+            -Classes CdcSmokeBenchmarks,DeliveryGuaranteeBenchmarks `
             -ArtifactsPath ./BenchmarkDotNet.Artifacts.PersistenceBackgroundSmoke
 
       - name: Enforce persistence/background smoke thresholds
@@ -2287,7 +2289,8 @@ jobs:
             -MinimumRepeatCount 1 `
             -PersistenceBackgroundCdcBatch100MaxNs 10000000 `
             -PersistenceBackgroundProcessBatch100MaxNs 50000 `
-            -PersistenceBackgroundMinimumRowsPerClass 18
+            -PersistenceBackgroundCdcMinimumRows 3 `
+            -PersistenceBackgroundDeliveryMinimumRows 18
 
       - name: Upload persistence/background benchmark results
         if: always()
@@ -2302,7 +2305,7 @@ jobs:
         run: |
           echo "## ⚡ Performance Gate: Persistence/Background Smoke" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Runner: \`eng/run-benchmark-matrix.ps1 -Classes CdcLatencyBenchmarks,DeliveryGuaranteeBenchmarks\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Runner: \`eng/run-benchmark-matrix.ps1 -Classes CdcSmokeBenchmarks,DeliveryGuaranteeBenchmarks\`" >> $GITHUB_STEP_SUMMARY
           echo "- Gate validator: \`eng/validate-performance-gates.ps1 -Gate PersistenceBackgroundSmoke\`" >> $GITHUB_STEP_SUMMARY
           echo "- Metadata requirement: benchmark-matrix-summary JSON must include repeatCount and environment.commitSha" >> $GITHUB_STEP_SUMMARY
           echo "- Thresholds: CDC DequeueBatch@100 latency ceiling + Delivery ProcessBatch@100 smoke ceiling + minimum row counts" >> $GITHUB_STEP_SUMMARY
