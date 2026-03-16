@@ -15,6 +15,7 @@ internal sealed class ComparativeBenchmarkConfig : ManualConfig
 			.WithId("comparative-inproc")
 			.WithToolchain(InProcessEmitToolchain.Instance)
 			.WithInvocationCount(1)
+			.WithUnrollFactor(1)
 			.WithIterationCount(3)
 			.DontEnforcePowerPlan());
 	}

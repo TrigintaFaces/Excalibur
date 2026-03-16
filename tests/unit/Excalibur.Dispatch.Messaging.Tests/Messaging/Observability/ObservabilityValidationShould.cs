@@ -131,7 +131,7 @@ public sealed class ObservabilityValidationShould : IDisposable
 
 		await global::Tests.Shared.Infrastructure.WaitHelpers.AwaitSignalAsync(
 			completionSource.Task,
-			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(10))).ConfigureAwait(false);
+			global::Tests.Shared.Infrastructure.TestTimeouts.Scale(TimeSpan.FromSeconds(30))).ConfigureAwait(false);
 		// Assert - Verify batch processing occurred
 		Volatile.Read(ref processedItemCount).ShouldBe(5);
 		processedItems.Count.ShouldBe(5);

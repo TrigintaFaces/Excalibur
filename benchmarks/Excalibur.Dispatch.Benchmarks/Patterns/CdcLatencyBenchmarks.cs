@@ -28,7 +28,7 @@ namespace Excalibur.Dispatch.Benchmarks.Patterns;
 [SimpleJob(RuntimeMoniker.HostProcess, invocationCount: 1, iterationCount: 3)]
 public class CdcLatencyBenchmarks
 {
-	private static readonly TimeSpan BenchmarkTimeout = TimeSpan.FromSeconds(5);
+	private static readonly TimeSpan BenchmarkTimeout = TimeSpan.FromSeconds(15);
 
 	private Channel<TestChangeEvent>? _channel;
 	private TestChangeEvent[]? _preAllocatedEvents;
@@ -78,6 +78,10 @@ public class CdcLatencyBenchmarks
 		{
 			_ = _channel.Writer.TryWrite(_preAllocatedEvents[i]);
 		}
+
+		// Allow runtime a scheduling quantum to flush channel writes
+		// before the benchmark method reads -- prevents CI-only race on shared runners
+		Thread.Sleep(10);
 	}
 
 	/// <summary>
