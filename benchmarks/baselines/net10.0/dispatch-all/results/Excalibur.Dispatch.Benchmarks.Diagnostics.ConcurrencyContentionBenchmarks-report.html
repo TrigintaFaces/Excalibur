@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Diagnostics.ConcurrencyContentionBenchmarks-20260316-234013</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7922)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.103
+  [Host] : .NET 10.0.3 (10.0.3, 10.0.326.7603), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=diag-default  PowerPlanMode=00000000-0000-0000-0000-000000000000  Toolchain=InProcessEmitToolchain  
+IterationCount=8  LaunchCount=1  UnrollFactor=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                        </th><th>WorkerCount</th><th>OperationsPerWorker</th><th>Mean </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Parallel throughput ops/sec&#39;</td><td>1</td><td>256</td><td>79.41 &mu;s</td><td>0.875 &mu;s</td><td>0.312 &mu;s</td><td>1.00</td><td>0.01</td><td>9.2773</td><td>-</td><td>171.52 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Parallel dispatch p95 latency (ns)&#39;</td><td>1</td><td>256</td><td>79.65 &mu;s</td><td>1.019 &mu;s</td><td>0.533 &mu;s</td><td>1.00</td><td>0.01</td><td>9.2773</td><td>-</td><td>171.52 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Parallel throughput ops/sec&#39;</td><td>2</td><td>256</td><td>90.69 &mu;s</td><td>1.192 &mu;s</td><td>0.624 &mu;s</td><td>1.00</td><td>0.01</td><td>18.6768</td><td>0.1221</td><td>342.7 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Parallel dispatch p95 latency (ns)&#39;</td><td>2</td><td>256</td><td>90.69 &mu;s</td><td>1.981 &mu;s</td><td>1.036 &mu;s</td><td>1.00</td><td>0.01</td><td>18.6768</td><td>0.1221</td><td>342.7 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Parallel throughput ops/sec&#39;</td><td>4</td><td>256</td><td>106.41 &mu;s</td><td>2.546 &mu;s</td><td>1.331 &mu;s</td><td>1.00</td><td>0.02</td><td>37.3535</td><td>0.6104</td><td>684.94 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Parallel dispatch p95 latency (ns)&#39;</td><td>4</td><td>256</td><td>112.16 &mu;s</td><td>7.617 &mu;s</td><td>3.984 &mu;s</td><td>1.05</td><td>0.04</td><td>37.3535</td><td>0.6104</td><td>684.94 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Parallel throughput ops/sec&#39;</td><td>8</td><td>256</td><td>274.59 &mu;s</td><td>5.807 &mu;s</td><td>2.578 &mu;s</td><td>1.00</td><td>0.01</td><td>74.7070</td><td>1.9531</td><td>1369.42 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Parallel dispatch p95 latency (ns)&#39;</td><td>8</td><td>256</td><td>287.82 &mu;s</td><td>21.491 &mu;s</td><td>11.240 &mu;s</td><td>1.05</td><td>0.04</td><td>74.7070</td><td>1.9531</td><td>1369.43 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Parallel throughput ops/sec&#39;</td><td>16</td><td>256</td><td>585.47 &mu;s</td><td>10.229 &mu;s</td><td>4.542 &mu;s</td><td>1.00</td><td>0.01</td><td>149.4141</td><td>7.8125</td><td>2738.39 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Parallel dispatch p95 latency (ns)&#39;</td><td>16</td><td>256</td><td>591.14 &mu;s</td><td>15.472 &mu;s</td><td>8.092 &mu;s</td><td>1.01</td><td>0.01</td><td>149.4141</td><td>7.8125</td><td>2738.4 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Parallel throughput ops/sec&#39;</td><td>32</td><td>256</td><td>1,239.40 &mu;s</td><td>60.564 &mu;s</td><td>26.891 &mu;s</td><td>1.00</td><td>0.03</td><td>300.7813</td><td>27.3438</td><td>5476.3 KB</td><td>1.00</td>
+</tr><tr><td>&#39;Parallel dispatch p95 latency (ns)&#39;</td><td>32</td><td>256</td><td>1,229.13 &mu;s</td><td>25.456 &mu;s</td><td>13.314 &mu;s</td><td>0.99</td><td>0.02</td><td>300.7813</td><td>27.3438</td><td>5476.31 KB</td><td>1.00</td>
+</tr></tbody></table>
+</body>
+</html>

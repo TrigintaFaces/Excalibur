@@ -70,6 +70,13 @@ internal sealed partial class LocalMessageBus(
 	private readonly ConcurrentDictionary<Type, Func<object>> _noContextResolverCache = new();
 	private readonly ConcurrentDictionary<Type, Func<IMessageContext, IServiceProvider, object>> _contextResolverCache = new();
 
+	// PERF: ThreadStatic one-element cache for direct action dispatch plan lookups.
+	// Eliminates FrozenDictionary hash computation (~5-10ns) on repeated same-type dispatches.
+	[ThreadStatic] private static LocalMessageBus? s_cachedPlanBus;
+	[ThreadStatic] private static Type? s_cachedPlanType;
+	[ThreadStatic] private static DirectActionDispatchPlan s_cachedPlan;
+	[ThreadStatic] private static bool s_cachedPlanValid;
+
 	private readonly IServiceProviderIsService? _serviceProviderIsService =
 		provider.GetService(typeof(IServiceProviderIsService)) as IServiceProviderIsService;
 
@@ -940,8 +947,21 @@ internal sealed partial class LocalMessageBus(
 		Type actionType,
 		out DirectActionDispatchPlan resolvedPlan)
 	{
+		// PERF: ThreadStatic one-element cache for repeated same-type dispatches.
+		if (ReferenceEquals(s_cachedPlanBus, this) &&
+		    ReferenceEquals(s_cachedPlanType, actionType) &&
+		    s_cachedPlanValid)
+		{
+			resolvedPlan = s_cachedPlan;
+			return true;
+		}
+
 		if (_frozenDirectActionPlanMap.TryGetValue(actionType, out var frozen))
 		{
+			s_cachedPlanBus = this;
+			s_cachedPlanType = actionType;
+			s_cachedPlan = frozen;
+			s_cachedPlanValid = true;
 			resolvedPlan = frozen;
 			return true;
 		}
@@ -958,6 +978,10 @@ internal sealed partial class LocalMessageBus(
 			return false;
 		}
 
+		s_cachedPlanBus = this;
+		s_cachedPlanType = actionType;
+		s_cachedPlan = plan.Value;
+		s_cachedPlanValid = true;
 		resolvedPlan = plan.Value;
 		return true;
 	}

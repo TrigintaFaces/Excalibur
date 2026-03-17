@@ -71,11 +71,13 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 	/// </summary>
 	internal RoutingDecision? CachedRoutingDecision;
 
+	private static readonly IServiceProvider SharedEmptyServiceProvider = new EmptyServiceProvider();
+
 	/// <summary>
 	/// Parameterless constructor for object pooling.
 	/// </summary>
 	public MessageContext()
-		: this(EmptyMessage.Instance, new EmptyServiceProvider())
+		: this(EmptyMessage.Instance, SharedEmptyServiceProvider)
 	{
 	}
 
@@ -316,6 +318,16 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 	}
 
 	/// <summary>
+	/// Gets a value indicating whether any features have been set on this context.
+	/// Used by fast-path accessors to avoid triggering <see cref="EnsureFeatures()"/> allocation.
+	/// </summary>
+	internal bool HasFeatures
+	{
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		get => _features is not null;
+	}
+
+	/// <summary>
 	/// Marks this context for lazy CorrelationId generation (PERF-6).
 	/// </summary>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -375,11 +387,29 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 		_items?.Clear();
 		_features?.Clear();
 
-		// PERF-5/6: Reset lazy ID generation
-		_messageIdGuid = Guid.Empty;
-		_messageId = null;
-		_messageIdWasExplicitlySet = false;
-		_correlationId = null;
+		// PERF-5/6: Reset lazy ID generation.
+		// Guard writes to avoid unnecessary cache-line dirtying when fields are already at defaults.
+		if (_messageIdGuid != Guid.Empty)
+		{
+			_messageIdGuid = Guid.Empty;
+		}
+
+		if (_messageId is not null)
+		{
+			_messageId = null;
+		}
+
+		if (_messageIdWasExplicitlySet)
+		{
+			_messageIdWasExplicitlySet = false;
+		}
+
+		if (_correlationId is not null)
+		{
+			_correlationId = null;
+		}
+
+		// These bools were set during InitializeDirectLocalContext, always reset them.
 		_correlationIdLazyEnabled = false;
 		_correlationIdWasExplicitlySet = false;
 		_causationId = null;
@@ -388,31 +418,64 @@ public class MessageContext(IDispatchMessage message, IServiceProvider requestSe
 
 		Message = null;
 		Result = null;
-		Metadata = null;
 
-		_versionMetadata = DefaultVersionMetadata;
-		_validationResult = DefaultValidationResult;
-		_authorizationResult = DefaultAuthorizationResult;
+		if (Metadata is not null)
+		{
+			Metadata = null;
+		}
 
-		if (_defaultServiceProvider != null)
+		// PERF: Skip volatile writes when values are already at their defaults.
+		// On the direct-local fast path, these fields are never modified during dispatch,
+		// so the volatile write overhead is wasted.
+		if (!ReferenceEquals(_versionMetadata, DefaultVersionMetadata))
+		{
+			_versionMetadata = DefaultVersionMetadata;
+		}
+
+		if (!ReferenceEquals(_validationResult, DefaultValidationResult))
+		{
+			_validationResult = DefaultValidationResult;
+		}
+
+		if (!ReferenceEquals(_authorizationResult, DefaultAuthorizationResult))
+		{
+			_authorizationResult = DefaultAuthorizationResult;
+		}
+
+		if (_defaultServiceProvider != null && !ReferenceEquals(_requestServices, _defaultServiceProvider))
 		{
 			_requestServices = _defaultServiceProvider;
 		}
 
-		_pipelineFinalHandler = null;
-		_pipelineTypedFinalHandler = null;
+		if (_pipelineFinalHandler is not null)
+		{
+			_pipelineFinalHandler = null;
+		}
 
-		CachedRoutingDecision = null;
+		if (_pipelineTypedFinalHandler is not null)
+		{
+			_pipelineTypedFinalHandler = null;
+		}
+
+		if (CachedRoutingDecision is not null)
+		{
+			CachedRoutingDecision = null;
+		}
 	}
 
 	/// <summary>
 	/// Initializes the context with a service provider after being retrieved from the pool.
 	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public void Initialize(IServiceProvider requestServices)
 	{
 		ArgumentNullException.ThrowIfNull(requestServices);
-		RequestServices = requestServices;
-		_defaultServiceProvider = requestServices;
+		// PERF: Skip re-assignment if the provider hasn't changed (common case for recycled contexts).
+		if (!ReferenceEquals(_requestServices, requestServices))
+		{
+			_requestServices = requestServices;
+			_defaultServiceProvider = requestServices;
+		}
 	}
 
 	/// <summary>

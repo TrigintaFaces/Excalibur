@@ -32,9 +32,27 @@ internal static class RoutingDecisionAccessor
 	{
 		if (context is MessageContext mc)
 		{
-			// Fast path: check cached field first, fall back to Features dictionary
-			// so routing decisions set via the public API (GetOrCreateRoutingFeature) are still visible.
-			return mc.CachedRoutingDecision ?? context.GetRoutingFeature()?.RoutingDecision;
+			// Fast path: check cached field first. If no cached decision and no features
+			// have been set, skip the Features dictionary access entirely to avoid allocating
+			// the lazy features dictionary (~80B saved per fresh-context dispatch).
+			if (mc.CachedRoutingDecision is { } cached)
+			{
+				return cached;
+			}
+
+			if (mc.HasFeatures)
+			{
+				var featureDecision = context.GetRoutingFeature()?.RoutingDecision;
+				if (featureDecision is not null)
+				{
+					// PERF: Promote to cached field so subsequent accesses skip the Features dict.
+					mc.CachedRoutingDecision = featureDecision;
+				}
+
+				return featureDecision;
+			}
+
+			return null;
 		}
 
 		return context.GetRoutingFeature()?.RoutingDecision;

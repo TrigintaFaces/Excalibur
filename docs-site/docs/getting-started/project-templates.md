@@ -59,7 +59,7 @@ dotnet run
 - ASP.NET Core Web API with controllers
 - Dispatch registration via `AddDispatch()` unified builder
 - Sample `CreateOrderAction` / `GetOrderAction` with working handler implementations
-- `InMemoryOrderStore` demonstrating a replaceable persistence pattern
+- `InMemoryOrderStore` as a demo-only placeholder (replace with `IDataRequest`/`IDb` or `IEventSourcedRepository` in production)
 - Transport selection via `--Transport` option
 - `appsettings.json` with transport configuration
 
@@ -85,7 +85,7 @@ dotnet run
 - Minimal API endpoints using `app.MapPost`/`app.MapGet` (no controllers)
 - Dispatch registration via `AddDispatch()` unified builder
 - Sample `CreateOrderAction` / `GetOrderAction` with working handler implementations
-- `InMemoryOrderStore` demonstrating a replaceable persistence pattern
+- `InMemoryOrderStore` as a demo-only placeholder (replace with `IDataRequest`/`IDb` or `IEventSourcedRepository` in production)
 - Transport selection via `--Transport` option (all 6 transports supported)
 
 ```bash
