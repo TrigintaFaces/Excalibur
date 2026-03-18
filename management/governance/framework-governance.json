@@ -367,6 +367,11 @@
         "timeoutSeconds": null
       },
       {
+        "project": "samples/01-getting-started/DataAccessIntro/DataAccessIntro.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
         "project": "samples/01-getting-started/InteractiveDemo/InteractiveDemo.csproj",
         "mode": "build",
         "timeoutSeconds": null
@@ -547,12 +552,27 @@
         "timeoutSeconds": null
       },
       {
+        "project": "samples/09-advanced/InboxIdempotency/InboxIdempotency.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
         "project": "samples/09-advanced/JobWorkerSample/JobWorkerSample.csproj",
         "mode": "build",
         "timeoutSeconds": null
       },
       {
         "project": "samples/09-advanced/LeaderElection/LeaderElection.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/MultiDatabase/MultiDatabase.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/ProductionPipeline/ProductionPipeline.csproj",
         "mode": "build",
         "timeoutSeconds": null
       },
@@ -578,6 +598,11 @@
       },
       {
         "project": "samples/09-advanced/StreamingHandlers/StreamingHandlers.csproj",
+        "mode": "build",
+        "timeoutSeconds": null
+      },
+      {
+        "project": "samples/09-advanced/TransactionalHandlers/TransactionalHandlers.csproj",
         "mode": "build",
         "timeoutSeconds": null
       },

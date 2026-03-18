@@ -199,7 +199,7 @@ builder.Services.AddDispatch(dispatch =>
 
 ### Hot-Path Profile
 
-Zero-middleware profile for ultra-low-latency message processing. Correlation and context management is handled directly in the Dispatcher, allowing maximum throughput with zero allocation overhead.
+Zero-middleware profile for ultra-low-latency message processing. Correlation and context management is handled directly in the Dispatcher, allowing maximum throughput with near-zero allocation overhead (24 B per dispatch, verified by [benchmark](/docs/performance/competitor-comparison)).
 
 **Middleware:** None (handled at Dispatcher level)
 

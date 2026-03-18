@@ -303,9 +303,9 @@ services.AddDispatch()
     });
 ```
 
-## Zero-Allocation Serialization
+## Pool-Backed Serialization
 
-For high-throughput event sourcing scenarios, `IEventSerializer` provides Span-based overloads via `EventSerializerExtensions` that use `ArrayPool<byte>` to eliminate allocations during serialization.
+For high-throughput event sourcing scenarios, `IEventSerializer` provides Span-based overloads via `EventSerializerExtensions` that use `ArrayPool<byte>` to minimize allocations during serialization.
 
 ### When to Use
 
@@ -323,7 +323,7 @@ Span-based overloads are extension methods on `IEventSerializer`:
 ```csharp
 public static class EventSerializerExtensions
 {
-    // Serialize to pre-allocated span (zero-allocation)
+    // Serialize to pre-allocated span (pool-backed, low-allocation)
     public static int SerializeEvent(this IEventSerializer s, IDomainEvent evt, Span<byte> buffer);
 
     // Deserialize from span
@@ -343,7 +343,7 @@ var serializer = serviceProvider.GetRequiredService<IEventSerializer>();
 // 2. Estimate buffer size
 var size = serializer.GetEventSize(domainEvent);
 
-// 3. Rent buffer from pool (zero allocation)
+// 3. Rent buffer from pool (pool-backed, low-allocation)
 var buffer = ArrayPool<byte>.Shared.Rent(size);
 try
 {
@@ -421,7 +421,7 @@ public class HighPerformanceEventStore : IEventStore
 ```csharp
 IEventSerializer serializer = ...;
 
-// Span-based API via extension (zero-allocation)
+// Span-based API via extension (pool-backed, low-allocation)
 int written = serializer.SerializeEvent(evt, buffer.AsSpan());
 
 // Core byte[] API (always available)

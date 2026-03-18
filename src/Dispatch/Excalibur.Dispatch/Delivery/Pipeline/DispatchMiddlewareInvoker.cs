@@ -4,6 +4,7 @@
 using System.Runtime.CompilerServices;
 
 using Excalibur.Dispatch.Abstractions;
+using Excalibur.Dispatch.Routing;
 
 namespace Excalibur.Dispatch.Delivery.Pipeline;
 
@@ -33,6 +34,11 @@ internal sealed class DispatchMiddlewareInvoker : IDispatchMiddlewareInvoker
 	private readonly int _middlewareCount;
 	private volatile bool _autoFrozen;
 
+	// PERF-T3: Global bypass flag computed at construction time. When all registered middleware
+	// is routing-only (or none applies), CanBypassFor() can return true instantly without
+	// the FrozenDictionary chain lookup (~1-3μs saved per dispatch).
+	private readonly bool _hasAnyNonRoutingMiddleware;
+
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DispatchMiddlewareInvoker"/> class.
 	/// </summary>
@@ -46,6 +52,10 @@ internal sealed class DispatchMiddlewareInvoker : IDispatchMiddlewareInvoker
 		_chainBuilder = new MiddlewareChainBuilder(middlewareArray, applicabilityStrategy);
 		_pipelineSignature = _chainBuilder.PipelineSignature;
 		_middlewareCount = middlewareArray.Length;
+
+		// PERF-T3: Pre-compute whether any non-routing middleware exists. If all middleware
+		// is routing-only, CanBypassFor() can skip the chain lookup entirely.
+		_hasAnyNonRoutingMiddleware = middlewareArray.Any(m => m is not RoutingMiddleware);
 	}
 
 	/// <summary>
@@ -66,6 +76,13 @@ internal sealed class DispatchMiddlewareInvoker : IDispatchMiddlewareInvoker
 		ArgumentNullException.ThrowIfNull(messageType);
 
 		if (_middlewareCount == 0)
+		{
+			return true;
+		}
+
+		// PERF-T3: Global fast-exit when all middleware is routing-only.
+		// A single volatile bool read (~1ns) avoids the FrozenDictionary chain lookup (~3-5μs).
+		if (!_hasAnyNonRoutingMiddleware)
 		{
 			return true;
 		}
@@ -109,6 +126,12 @@ internal sealed class DispatchMiddlewareInvoker : IDispatchMiddlewareInvoker
 
 		// Fast path for no middleware - returns ValueTask directly (no Task allocation)
 		if (_middlewareCount == 0)
+		{
+			return nextDelegate(message, context, cancellationToken);
+		}
+
+		// PERF-T3: Fast path when all middleware is routing-only — skip chain lookup entirely.
+		if (!_hasAnyNonRoutingMiddleware)
 		{
 			return nextDelegate(message, context, cancellationToken);
 		}

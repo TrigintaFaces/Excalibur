@@ -206,6 +206,9 @@ The example above is a complete, production-ready Dispatch application. **You do
 
 | If you need... | Next step |
 |----------------|-----------|
+| A hands-on walkthrough? | Try the [Order System Tutorial](./order-system-tutorial.md) — build a complete API in 15 minutes. |
+| Event sourcing? | Continue to [Event-Sourced Order System](./event-sourcing-tutorial.md) — add aggregates, event store, and projections. |
+| Security and compliance? | Continue to [Secure Order System](./secure-order-tutorial.md) — add authorization, audit logging, and structured commands. |
 | Just dispatching? | **You're done.** See [Dispatch Only](./dispatch-only.md) for a focused reference. |
 | Input validation? | Add [FluentValidation middleware](../middleware/validation.md) |
 | Event sourcing? | Continue to [Event Sourcing](../event-sourcing/index.md) |

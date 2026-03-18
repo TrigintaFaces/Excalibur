@@ -44,12 +44,9 @@ WarmPath numbers reflect what users experience in production; ColdPath numbers c
 
 | Track | Summary |
 |------|---------|
-| In-process parity (MediatR) | Near parity on standard command (~0.95x); **Dispatch ultra-local ~1.4x faster**; **Dispatch wins 100-concurrent** |
-| In-process parity (Wolverine InvokeAsync) | **Dispatch ~3.7x faster on command, ~34x on notifications** |
-| In-process parity (MassTransit Mediator) | **Dispatch ~26x-255x faster** |
-| In-process parity (MassTransit full bus) | **Dispatch ~460x faster on single command** |
-| Pipeline parity (3 middleware each) | MediatR ~2.4x faster; Dispatch ~= Wolverine; **Dispatch ~6.9x faster than MassTransit** |
-| Queued/bus end-to-end parity | **Dispatch 1.16 μs, ~3.3x faster than Wolverine, ~19.9x faster than MassTransit** |
+| In-process parity (MediatR) | MediatR ~1.3x faster standard; **Dispatch ultra-local ~1.3x faster**; **Dispatch allocates 6.3x less on ultra-local** |
+| In-process parity (Wolverine InvokeAsync) | **Dispatch ~2.6x faster on command, ~61x on notifications** |
+| Pipeline parity (3 middleware each) | MediatR ~2.7x faster; Dispatch ~1.2x faster than Wolverine; **Dispatch ~6.8x faster than MassTransit** |
 
 ## Track A: In-Process Parity
 
@@ -57,60 +54,28 @@ WarmPath numbers reflect what users experience in production; ColdPath numbers c
 
 | Scenario | Dispatch | MediatR | Relative Result |
 |----------|----------|---------|-----------------|
-| Single command handler | 41.43 ns / 168 B | 43.79 ns / 152 B | **Dispatch ~1.05x faster** |
-| Single command direct-local | 41.27 ns / 168 B | 43.79 ns / 152 B | **Dispatch ~1.06x faster** |
-| Single command ultra-local | 31.81 ns / 24 B | 43.79 ns / 152 B | **Dispatch ~1.4x faster**; Dispatch allocates ~6.3x less |
-| Singleton-promoted command | 32.01 ns / 24 B | 43.79 ns / 152 B | **Dispatch ~1.4x faster**; Dispatch allocates ~6.3x less |
-| Notification to 3 handlers | 112.92 ns / 240 B | 94.37 ns / 616 B | MediatR ~1.2x faster; **Dispatch allocates ~2.6x less** |
-| Query with return value | 52.89 ns / 264 B | 50.23 ns / 296 B | Near parity (~1.05x) |
-| Query with return (typed API) | 54.93 ns / 360 B | 50.23 ns / 296 B | Near parity (~1.09x) |
-| Query ultra-local | 53.36 ns / 192 B | 50.23 ns / 296 B | Near parity; Dispatch allocates ~1.5x less |
-| Query singleton-promoted | 52.97 ns / 192 B | 50.23 ns / 296 B | Near parity; Dispatch allocates ~1.5x less |
-| 10 concurrent commands | 562.00 ns / 1,360 B | 526.07 ns / 1,856 B | Near parity; **Dispatch allocates ~1.4x less** |
-| 100 concurrent commands | 4,524 ns / 12,160 B | 5,135 ns / 17,064 B | **Dispatch ~1.13x faster**; **Dispatch allocates ~1.4x less** |
+| Single command handler | 54.07 ns / 240 B | 41.37 ns / 152 B | MediatR ~1.3x faster |
+| Single command direct-local | 53.69 ns / 240 B | 41.37 ns / 152 B | MediatR ~1.3x faster |
+| Single command ultra-local | 31.11 ns / 24 B | 41.37 ns / 152 B | **Dispatch ~1.3x faster**; Dispatch allocates ~6.3x less |
+| Singleton-promoted command | 31.39 ns / 24 B | 41.37 ns / 152 B | **Dispatch ~1.3x faster**; Dispatch allocates ~6.3x less |
+| Notification to 3 handlers | 109.69 ns / 240 B | 89.17 ns / 616 B | MediatR ~1.2x faster; **Dispatch allocates ~2.6x less** |
+| Query with return value | 65.97 ns / 336 B | 43.00 ns / 296 B | MediatR ~1.5x faster |
+| Query with return (typed API) | 74.26 ns / 432 B | 43.00 ns / 296 B | MediatR ~1.7x faster |
+| Query ultra-local | 48.48 ns / 192 B | 43.00 ns / 296 B | Near parity; Dispatch allocates ~1.5x less |
+| Query singleton-promoted | 51.92 ns / 192 B | 43.00 ns / 296 B | Near parity; Dispatch allocates ~1.5x less |
+| 10 concurrent commands | 699.40 ns / 2,080 B | 460.93 ns / 1,856 B | MediatR ~1.5x faster |
+| 100 concurrent commands | 6,059 ns / 19,360 B | 4,289 ns / 17,064 B | MediatR ~1.4x faster |
 
 ### Dispatch vs Wolverine (InvokeAsync parity)
 
 | Scenario | Dispatch | Wolverine (InvokeAsync) | Relative Result |
 |----------|----------|--------------------------|-----------------|
-| Single command (local) | 50.55 ns / 192 B | 189.15 ns / 672 B | **Dispatch 3.7x faster** |
-| Single command (ultra-local) | 40.57 ns / 48 B | 189.15 ns / 672 B | **Dispatch 4.7x faster** |
-| Notification to 2 handlers | 115.79 ns / 288 B | 3,986.93 ns / 4,512 B | **Dispatch 34.4x faster** |
-| Query with return | 63.26 ns / 384 B | 252.46 ns / 936 B | **Dispatch 4.0x faster** |
-| 10 concurrent commands | 643.40 ns / 1,600 B | 2,050.55 ns / 6,928 B | **Dispatch 3.2x faster** |
-| 100 concurrent commands | 5,422 ns / 14,560 B | 19,674 ns / 68,128 B | **Dispatch 3.6x faster** |
-
-### Dispatch vs Wolverine (Full: InvokeAsync + SendAsync)
-
-| Scenario | Dispatch | Wolverine InvokeAsync | Wolverine SendAsync | Relative Result |
-|----------|----------|----------------------|---------------------|-----------------|
-| Single command | 51.44 ns / 192 B | 342.08 ns / 688 B | 7,486.56 ns / 4,512 B | **Dispatch 6.7x faster (invoke), 145.6x faster (send)** |
-| Single command (ultra-local) | 38.00 ns / 48 B | 342.08 ns / 688 B | - | **Dispatch 9.0x faster (invoke)** |
-| Event to 2 handlers | 209.58 ns / 288 B | - | 7,544.87 ns / 4,512 B | **Dispatch 36.0x faster (publish)** |
-| Query with return | 120.07 ns / 384 B | 450.98 ns / 936 B | - | **Dispatch 3.8x faster** |
-| 10 concurrent commands | 1,024 ns / 1,600 B | 3,570 ns / 7,088 B | - | **Dispatch 3.5x faster** |
-| 100 concurrent commands | 9,813 ns / 14,560 B | 36,062 ns / 69,728 B | - | **Dispatch 3.7x faster** |
-| Batch queries (10) | 1,313 ns / 3,160 B | 4,526 ns / 8,312 B | - | **Dispatch 3.4x faster** |
-
-### Dispatch vs MassTransit Mediator (in-process)
-
-| Scenario | Dispatch | MassTransit Mediator | Relative Result |
-|----------|----------|----------------------|-----------------|
-| Single command | 48.04 ns / 192 B | 1,241.95 ns / 3,544 B | **Dispatch ~25.9x faster** |
-| Notification to 2 consumers | 129.13 ns / 376 B | 1,685.68 ns / 4,176 B | **Dispatch ~13.1x faster** |
-| Query with return | 60.67 ns / 384 B | 15,451 ns / 11,651 B | **Dispatch ~254.7x faster** |
-| 10 concurrent commands | 638.12 ns / 1,600 B | 12,383 ns / 35,648 B | **Dispatch ~19.4x faster** |
-| 100 concurrent commands | 5,317 ns / 14,560 B | 121,138 ns / 355,329 B | **Dispatch ~22.8x faster** |
-
-### Dispatch vs MassTransit (full bus)
-
-| Scenario | Dispatch | MassTransit | Relative Result |
-|----------|----------|-------------|-----------------|
-| Single command | 47.99 ns / 192 B | 22,056 ns / 22,126 B | **Dispatch ~460x faster** |
-| Event to 2 handlers | 116.24 ns / 288 B | 24,034 ns / 39,408 B | **Dispatch ~206.8x faster** |
-| 10 concurrent commands | 638.28 ns / 1,600 B | 127,921 ns / 219,086 B | **Dispatch ~200.4x faster** |
-| 100 concurrent commands | 5,317 ns / 14,560 B | 1,138,993 ns / 2,185,767 B | **Dispatch ~214.3x faster** |
-| Batch send (10) | 424.30 ns / 1,200 B | 130,188 ns / 219,323 B | **Dispatch ~306.9x faster** |
+| Single command (local) | 70.35 ns / 264 B | 183.56 ns / 672 B | **Dispatch 2.6x faster** |
+| Single command (ultra-local) | 39.43 ns / 48 B | 183.56 ns / 672 B | **Dispatch 4.7x faster** |
+| Notification to 2 handlers | 116.38 ns / 288 B | 7,128 ns / 5,640 B | **Dispatch 61.3x faster** |
+| Query with return | 74.15 ns / 456 B | 258.00 ns / 936 B | **Dispatch 3.5x faster** |
+| 10 concurrent commands | 828.62 ns / 2,320 B | 1,994 ns / 6,928 B | **Dispatch 2.4x faster** |
+| 100 concurrent commands | 6,474 ns / 21,760 B | 17,391 ns / 68,128 B | **Dispatch 2.7x faster** |
 
 ## Track B: Pipeline Parity (3 Middleware Each)
 
@@ -122,25 +87,37 @@ Each framework configured with 3 passthrough middleware/behaviors that mirror ea
 
 | Scenario | Dispatch | MediatR | Wolverine | MassTransit | Relative Result |
 |----------|----------|---------|-----------|-------------|-----------------|
-| 3 middleware (single) | 285.4 ns / 392 B | 119.4 ns / 680 B | 236.6 ns / 768 B | 1,974.4 ns / 4,568 B | MediatR 2.4x faster; Wolverine 1.2x faster; **Dispatch 6.9x faster than MT** |
-| 10 concurrent + 3 middleware | 2,998 ns / 3,632 B | 1,283 ns / 7,168 B | 2,430 ns / 7,888 B | 19,805 ns / 45,888 B | MediatR 2.3x faster; Dispatch ~= Wolverine; **Dispatch 6.6x faster than MT** |
+| 3 middleware (single) | 280.3 ns / 392 B | 105.2 ns / 680 B | 228.3 ns / 768 B | 1,892.8 ns / 4,568 B | MediatR 2.7x faster; **Dispatch 1.2x faster than Wolverine**; **Dispatch 6.8x faster than MT** |
+| 10 concurrent + 3 middleware | 2,868 ns / 3,632 B | 1,108 ns / 7,168 B | 2,223 ns / 7,888 B | 19,290 ns / 45,888 B | MediatR 2.6x faster; Dispatch ~1.3x slower than Wolverine; **Dispatch 6.7x faster than MT** |
 
 ## Track C: Queued/Bus End-to-End Parity
 
-### Dispatch vs Wolverine vs MassTransit (queued end-to-end parity)
-
-| Scenario | Dispatch (remote) | Wolverine | MassTransit | Relative Result |
-|----------|-------------------|-----------|-------------|-----------------|
-| Queued command end-to-end | 1.16 μs / 723 B | 3.77 μs / 4,512 B | 22.98 μs / 22,135 B | **Dispatch ~3.3x faster than Wolverine, ~19.9x faster than MassTransit** |
-| Queued event fan-out end-to-end | 1.15 μs / 726 B | 3.74 μs / 4,512 B | 25.42 μs / 39,416 B | **Dispatch ~3.3x faster than Wolverine, ~22.1x faster than MassTransit** |
-| Queued commands end-to-end (10 concurrent) | 6.35 μs / 4,395 B | 38.32 μs / 45,609 B | 131.69 μs / 219,092 B | **Dispatch ~6.0x faster than Wolverine, ~20.7x faster than MassTransit** |
-
 :::note Track C methodology
-Track C benchmarks use `InvocationCount=1`, `UnrollFactor=1`, `IterationCount=3` with `InProcessEmitToolchain`. Error margins are higher with fewer iterations; treat relative ratios as directional rather than precise.
+Track C benchmarks use `InvocationCount=1`, `UnrollFactor=1`, `IterationCount=3` with `InProcessEmitToolchain`. Error margins are higher with fewer iterations; treat relative ratios as directional rather than precise. Run `*TransportQueueParityWarmPathComparisonBenchmarks*` to regenerate.
 :::
 
 :::warning Interpretation Guardrail
 Use Track A for closest in-process handler overhead parity. Use Track B when comparing middleware/pipeline cost across frameworks. Use Track C when comparing queued/bus completion semantics.
+:::
+
+## Allocation Profiles
+
+Excalibur.Dispatch offers multiple dispatch paths with different allocation characteristics.
+
+| Profile | Allocation | Latency | When to Use |
+|---------|-----------|---------|-------------|
+| Ultra-local (pool-backed) | **24 B** | ~31 ns | Hot-path commands/queries with singleton-promoted or scoped handlers |
+| Direct-local | **240 B** | ~54 ns | Standard local dispatch with full context and middleware support |
+| Standard (with context) | **240 B** | ~54 ns | Default path for all message types |
+| Singleton-promoted | **24 B** | ~31 ns | Handlers registered as singletons via promotion |
+| Query with response | **336 B** | ~66 ns | Typed query responses |
+| Notification (3 handlers) | **240 B** | ~110 ns | Fan-out to multiple handlers |
+| MessageContext pool rent+return | **0 B** | ~9 ns | Pool infrastructure cost only |
+
+:::tip Allocation Guidance
+- **"Near-zero allocation"**: Ultra-local and singleton-promoted paths (24 B -- one small struct per dispatch)
+- **"Low-allocation"**: Standard and direct-local paths (240 B -- context + routing metadata)
+- **"Zero-allocation"**: Only the pool rent+return infrastructure itself (0 B)
 :::
 
 ## Routing-First Local + Hybrid Parity

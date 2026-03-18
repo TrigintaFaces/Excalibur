@@ -17,6 +17,7 @@ using Excalibur.Dispatch.Delivery.Pipeline;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Options.Configuration;
 using Excalibur.Dispatch.Routing;
+using Excalibur.Dispatch.Routing.Builder;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -79,6 +80,13 @@ internal sealed class Dispatcher(
 	[ThreadStatic] private static bool s_cachedDispatchInfoInitialized;
 
 	private readonly ConcurrentDictionary<Type, bool> _middlewareBypassCache = new();
+
+	// PERF-T5: Per-type routing decision cache for deterministic routers.
+	// When the router is DefaultDispatchRouter (static rules), routing decisions are identical
+	// for the same message type across dispatches. Caching eliminates ~1-2μs of router invocation
+	// per dispatch after the first call for each type.
+	private readonly ConcurrentDictionary<Type, RoutingDecision> _cachedRoutingDecisions = new();
+	private readonly bool _canCacheRoutingDecisions = dispatchRouter is DefaultDispatchRouter;
 
 	/// <summary>
 	/// Combined per-type dispatch info cache used across dispatch paths to avoid repeated type checks
@@ -1105,8 +1113,12 @@ internal sealed class Dispatcher(
 	private void InitializeDispatchContext<TMessage>(TMessage message, IMessageContext context)
 		where TMessage : IDispatchMessage
 	{
-		// Resolve transport binding before middleware so profile resolution can consider transport origin.
-		if (transportContextProvider != null)
+		// PERF-T2: Skip GetTransportBinding for outbound dispatches (no transport origin).
+		// Transport adapters set TransportBindingNameProperty on inbound messages. For outbound
+		// dispatches (the common case), the context has no items set, so the binding call would
+		// always return null after triggering a dictionary allocation (~80B wasted).
+		// For MessageContext, use TryGetItemFast to check without allocating the Items dictionary.
+		if (transportContextProvider != null && HasTransportOrigin(context))
 		{
 			var transportBinding = transportContextProvider.GetTransportBinding(context);
 			if (transportBinding != null)
@@ -1187,19 +1199,37 @@ internal sealed class Dispatcher(
 			return ValueTask.FromResult<RoutingDecision?>(existingDecision);
 		}
 
+		// PERF-T5: Check per-type routing decision cache for deterministic routers.
+		// For DefaultDispatchRouter with static rules, the routing decision for a given
+		// message type is always the same. Pre-seeding the context allows TryGetUsableRoutingDecision
+		// to fast-exit on subsequent dispatches without invoking the router.
+		if (_canCacheRoutingDecisions)
+		{
+			var messageType = typeof(TMessage).IsSealed || typeof(TMessage).IsValueType
+				? typeof(TMessage)
+				: message.GetType();
+
+			if (_cachedRoutingDecisions.TryGetValue(messageType, out var cachedDecision))
+			{
+				RoutingDecisionAccessor.SetRoutingDecision(context, cachedDecision);
+				return ValueTask.FromResult<RoutingDecision?>(cachedDecision);
+			}
+		}
+
 		if (dispatchRouter is null)
 		{
 			return ValueTask.FromResult<RoutingDecision?>(null);
 		}
 
-		return ResolveRoutingDecisionAsync(dispatchRouter, message, context, cancellationToken);
+		return ResolveAndCacheRoutingDecisionAsync(dispatchRouter, message, context, cancellationToken);
 	}
 
-	private static async ValueTask<RoutingDecision?> ResolveRoutingDecisionAsync(
+	private async ValueTask<RoutingDecision?> ResolveAndCacheRoutingDecisionAsync<TMessage>(
 		IDispatchRouter router,
-		IDispatchMessage message,
+		TMessage message,
 		IMessageContext context,
 		CancellationToken cancellationToken)
+		where TMessage : IDispatchMessage
 	{
 		var routeTask = router.RouteAsync(message, context, cancellationToken);
 		var decision = routeTask.IsCompletedSuccessfully
@@ -1207,6 +1237,18 @@ internal sealed class Dispatcher(
 			: await routeTask.ConfigureAwait(false);
 
 		RoutingDecisionAccessor.SetRoutingDecision(context, decision);
+
+		// PERF-T5: Cache successful routing decisions for deterministic routers.
+		// Only cache when router is DefaultDispatchRouter (static transport selection + endpoint routing).
+		if (_canCacheRoutingDecisions && decision.IsSuccess)
+		{
+			var messageType = typeof(TMessage).IsSealed || typeof(TMessage).IsValueType
+				? typeof(TMessage)
+				: message.GetType();
+
+			_ = _cachedRoutingDecisions.TryAdd(messageType, decision);
+		}
+
 		return decision;
 	}
 
@@ -2151,6 +2193,25 @@ internal sealed class Dispatcher(
 		/// </summary>
 		public Func<IDispatchAction, CancellationToken, ValueTask<object?>>? DirectLocalWithResponseInvoker { get; } =
 			directLocalWithResponseInvoker;
+	}
+
+	/// <summary>
+	/// Checks whether the context originates from a transport adapter (inbound message).
+	/// For MessageContext, uses TryGetItemFast to avoid allocating the Items dictionary.
+	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private static bool HasTransportOrigin(IMessageContext context)
+	{
+		// PERF-T2: For MessageContext, TryGetItemFast checks _items directly without allocation.
+		// Fresh outbound contexts have _items == null, so this returns false in ~1ns.
+		if (context is MessageContext mc)
+		{
+			return mc.TryGetItemFast(Transport.TransportContextProvider.TransportBindingNameProperty, out _);
+		}
+
+		// For non-MessageContext implementations, fall back to property check.
+		// This triggers Items dictionary allocation, but non-MessageContext is rare.
+		return context.Items.ContainsKey(Transport.TransportContextProvider.TransportBindingNameProperty);
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]

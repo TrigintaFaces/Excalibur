@@ -215,6 +215,10 @@ public sealed class DispatcherShould
             .WithReturnType<ValueTask<IMessageResult>>()
             .Returns(new ValueTask<IMessageResult>(MessageResult.Success()));
 
+        // Simulate inbound transport message by setting the binding name property.
+        // Without this, the PERF-T2 optimization correctly skips GetTransportBinding for outbound dispatches.
+        context.Items[Excalibur.Dispatch.Transport.TransportContextProvider.TransportBindingNameProperty] = "test-binding";
+
         var sut = CreateSut(transportProvider: transportProvider);
         await sut.DispatchAsync(message, context, CancellationToken.None);
 

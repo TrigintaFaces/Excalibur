@@ -30,6 +30,9 @@ const sidebars: SidebarsConfig = {
           items: [
             { type: 'doc', id: 'getting-started/dispatch-only' },
             { type: 'doc', id: 'getting-started/first-event' },
+            { type: 'doc', id: 'getting-started/order-system-tutorial' },
+            { type: 'doc', id: 'getting-started/event-sourcing-tutorial' },
+            { type: 'doc', id: 'getting-started/secure-order-tutorial' },
             { type: 'doc', id: 'getting-started/project-templates' },
             { type: 'doc', id: 'getting-started/samples' },
           ],

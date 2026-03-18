@@ -232,6 +232,20 @@ table th {
   border-color: rgba(255, 255, 255, 0.5);
 }
 
+.cta-button--github {
+  background: #24292f;
+  color: #ffffff;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  font-weight: 600;
+}
+
+.cta-button--github:hover {
+  background: #3b3f46;
+  color: #ffffff;
+  text-decoration: none;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
 /* Search bar improvements */
 .DocSearch-Button {
   border-radius: 8px !important;
@@ -454,7 +468,8 @@ table th {
     border: 2px solid currentColor;
   }
 
-  .cta-button--secondary {
+  .cta-button--secondary,
+  .cta-button--github {
     border-width: 3px;
   }
 

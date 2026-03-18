@@ -173,6 +173,10 @@ public sealed class DispatcherShould
 		var message = new FakeDispatchMessage();
 		var context = new MessageContext(message, _serviceProvider);
 
+		// Simulate inbound transport message by setting the binding name property.
+		// Without this, the PERF-T2 optimization correctly skips GetTransportBinding for outbound dispatches.
+		context.Items[Excalibur.Dispatch.Transport.TransportContextProvider.TransportBindingNameProperty] = "test-binding";
+
 		// Act
 		await dispatcher.DispatchAsync(message, context, CancellationToken.None);
 

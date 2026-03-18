@@ -19,36 +19,32 @@ Results: `benchmarks/runs/BenchmarkDotNet.Artifacts/results/`
 
 | Metric | Value | Source |
 |--------|-------|--------|
-| Dispatch single command (lean) | 41.43 ns | MediatRWarmPathComparisonBenchmarks |
-| Dispatch ultra-local API (single command) | 31.81 ns | MediatRWarmPathComparisonBenchmarks |
-| Dispatch vs MediatR single command | 41.43 ns vs 43.79 ns (**Dispatch faster**) | MediatRWarmPathComparisonBenchmarks |
-| Dispatch vs Wolverine InvokeAsync | 50.55 ns vs 189.15 ns | WolverineInProcessWarmPathComparisonBenchmarks |
-| Dispatch vs MassTransit Mediator | 48.04 ns vs 1,241.95 ns | MassTransitMediatorWarmPathComparisonBenchmarks |
-| Handler activation | 26.69 ns / 24 B | DispatchHotPathBreakdownBenchmarks |
-| Context creation | 13.23 ns / 216 B | DispatchThroughputBenchmarks |
+| Dispatch single command (standard) | 54.07 ns / 240 B | MediatRWarmPathComparisonBenchmarks |
+| Dispatch ultra-local API (single command) | 31.11 ns / 24 B | MediatRWarmPathComparisonBenchmarks |
+| Dispatch vs MediatR single command | 54.07 ns vs 41.37 ns | MediatRWarmPathComparisonBenchmarks |
+| Dispatch ultra-local vs MediatR | 31.11 ns vs 41.37 ns (**Dispatch 1.3x faster**) | MediatRWarmPathComparisonBenchmarks |
+| Dispatch vs Wolverine InvokeAsync | 70.35 ns vs 183.56 ns (**Dispatch 2.6x faster**) | WolverineInProcessWarmPathComparisonBenchmarks |
+| MessageContext pool rent+return | 9.13 ns / 0 B | MessageContextPoolBenchmarks |
+| MessageContext creation (no pool) | 10.27 ns / 216 B | MessageContextPoolBenchmarks |
 
 ## Diagnostics Baseline
 
-28 benchmark classes, 0 failures.
-
 | Metric | Value | Allocated |
 |--------|-------|-----------|
-| Single command dispatch | 41.43 ns | 168 B |
-| Query with response | 52.89 ns | 264 B |
-| FinalDispatchHandler | 94.81 ns | 296 B |
-| Handler activation | 26.69 ns | 24 B |
-| Context creation | 13.23 ns | 216 B |
-| Notification to 3 handlers | 112.92 ns | 240 B |
-| Dispatch single command (MediatR bench) | 41.43 ns | 168 B |
+| Single command dispatch (standard) | 54.07 ns | 240 B |
+| Single command dispatch (ultra-local) | 31.11 ns | 24 B |
+| Query with response | 65.97 ns | 336 B |
+| Notification to 3 handlers | 109.69 ns | 240 B |
+| Singleton-promoted command | 31.39 ns | 24 B |
+| Singleton-promoted query | 51.92 ns | 192 B |
 
 ## Comparison Snapshot
 
 | Track | Summary |
 |------|---------|
-| MediatR in-process parity | **Dispatch ~1.05x faster** on standard command; **ultra-local ~1.4x faster**; **Dispatch wins 100-concurrent and allocation** |
-| Wolverine in-process parity | **Dispatch ~3.7x faster on command, ~34x on notifications** |
-| MassTransit mediator in-process parity | **Dispatch ~26x faster on single command** |
-| Queued/bus end-to-end parity | **Dispatch ~3.3x faster than Wolverine, ~19.9x faster than MassTransit** on single queued command |
+| MediatR in-process parity | MediatR ~1.3x faster on standard; **Dispatch ultra-local ~1.3x faster**; **Dispatch allocates 6.3x less on ultra-local** |
+| Wolverine in-process parity | **Dispatch ~2.6x faster on command, ~61x on notifications** |
+| Pipeline parity (3 middleware) | MediatR ~2.7x faster; **Dispatch 1.2x faster than Wolverine**; **Dispatch 6.8x faster than MassTransit** |
 
 See [Competitor Comparison](./competitor-comparison.md) for full tables and methodology notes.
 
@@ -93,7 +89,7 @@ context.ProcessingAttempts++;
 
 ## Hot-Path Optimizations
 
-Five micro-optimizations targeting the dispatch hot path:
+Nine micro-optimizations targeting the dispatch hot path:
 
 | Optimization | Pattern |
 |-------------|---------|
@@ -101,6 +97,11 @@ Five micro-optimizations targeting the dispatch hot path:
 | `RoutingDecision.Local` singleton | Cached static property (like `Task.CompletedTask`) |
 | Lock removal on `MessageContext.Success` | Volatile fields + `AggressiveInlining` |
 | Single-lookup `GetOrCreateFeature` | `TryGetValue` + direct store |
+| Lightweight context init (Sprint 660) | Skip `GetTransportBinding` for outbound dispatches when no transport correlation needed |
+| Per-profile middleware bypass (Sprint 660) | Pre-computed `_hasAnyNonRoutingMiddleware` flag skips FrozenDictionary chain lookup |
+| Single transport bus pre-resolution (Sprint 660) | Pre-resolve single non-local bus at construction, bypass ConcurrentDictionary lookup |
+| Routing decision cache (Sprint 660) | `ConcurrentDictionary<Type, RoutingDecision>` for deterministic single-route types |
+| Combined transport fast path (Sprint 660) | All 4 optimizations compose: Wolverine parity improved from 0.59x to 2.3x on SingleCommand |
 
 ## Memory Allocation Strategy
 

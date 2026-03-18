@@ -160,44 +160,73 @@
   font-size: 0.875rem;
 }
 
-/* Comparison Section */
-.comparisonSection {
+/* Performance Showcase Section */
+.performanceSection {
   padding: 5rem 0;
 }
 
-.comparisonTable {
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
   max-width: 900px;
   margin: 0 auto;
-  overflow-x: auto;
 }
 
-.comparisonTable table {
-  width: 100%;
-  border-collapse: collapse;
+.metricCard {
+  text-align: center;
+  padding: 2rem 1.5rem;
+  border-radius: 12px;
+  background: var(--ifm-background-surface-color);
+  border: 1px solid var(--ifm-color-emphasis-200);
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.comparisonTable th,
-.comparisonTable td {
-  padding: 1rem;
-  text-align: left;
-  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+.metricCard:hover {
+  border-color: var(--dispatch-primary);
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.1);
 }
 
-.comparisonTable th {
+.metricValue {
+  font-size: 2.25rem;
+  font-weight: 800;
+  color: var(--dispatch-primary);
+  line-height: 1.2;
+  margin-bottom: 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.metricLabel {
+  font-size: 1rem;
   font-weight: 600;
-  background: rgba(0, 212, 255, 0.05);
+  margin-bottom: 0.25rem;
 }
 
-.comparisonTable th:first-child {
-  border-radius: 8px 0 0 0;
+.metricDetail {
+  font-size: 0.8125rem;
+  color: var(--ifm-font-color-secondary);
 }
 
-.comparisonTable th:last-child {
-  border-radius: 0 8px 0 0;
+.benchmarkLink {
+  text-align: center;
+  margin-top: 2rem;
+  font-size: 0.9375rem;
 }
 
-.comparisonTable td:first-child {
+.benchmarkLink a {
+  color: var(--dispatch-primary);
   font-weight: 500;
+}
+
+@media screen and (max-width: 768px) {
+  .metricsGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .metricValue {
+    font-size: 1.75rem;
+  }
 }
 
 /* CTA Section */

@@ -36,7 +36,7 @@ const announcementId = process.env.DOCS_ANNOUNCEMENT_ID?.trim() || 'docs-site-an
 
 const config: Config = {
   title: 'Excalibur + Dispatch',
-  tagline: 'Zero-allocation messaging, domain modeling, and event sourcing for .NET. Start minimal, scale up.',
+  tagline: 'Low-allocation messaging, domain modeling, and event sourcing for .NET. Start minimal, scale up.',
   favicon: 'Dispatch/favicon.svg',
 
   // Static directories - include canonical images folder from repo root
@@ -125,7 +125,7 @@ const config: Config = {
         '@context': 'https://schema.org',
         '@type': 'SoftwareSourceCode',
         name: 'Excalibur',
-        description: 'Zero-allocation .NET messaging with domain modeling and event sourcing.',
+        description: 'Low-allocation .NET messaging with domain modeling and event sourcing.',
         programmingLanguage: 'C#',
         runtimePlatform: '.NET',
         codeRepository: 'https://github.com/TrigintaFaces/Excalibur',

@@ -705,9 +705,9 @@ services.AddDispatch(dispatch =>
 });
 ```
 
-## Zero-Allocation Validation Middleware
+## Low-Allocation Validation Middleware
 
-Validates messages using a zero-allocation path for high-throughput scenarios:
+Validates messages using a low-allocation path for high-throughput scenarios:
 
 ```csharp
 services.AddDispatch(dispatch =>

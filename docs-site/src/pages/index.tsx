@@ -10,6 +10,14 @@ import styles from './index.module.css';
 
 // --- SVG Icon Components (brand cyan #00d4ff) ---
 
+function IconGitHub() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style={{ marginRight: '0.5rem', verticalAlign: 'text-bottom' }}>
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z" />
+    </svg>
+  );
+}
+
 function IconLightning() {
   return (
     <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -142,7 +150,7 @@ const features: { title: string; icon: ReactNode; description: string }[] = [
     title: 'Blazing Fast Messaging',
     icon: <IconLightning />,
     description:
-      'Zero-allocation message dispatching with minimal overhead. Built for high-throughput scenarios where every microsecond counts.',
+      'Low-allocation message dispatching with minimal overhead. Ultra-local path achieves near-zero allocation (24 B). Built for high-throughput scenarios where every microsecond counts.',
   },
   {
     title: 'Event Sourcing Built-in',
@@ -231,9 +239,10 @@ function HomepageHeader() {
               Get Started
             </Link>
             <Link
-              className="cta-button cta-button--secondary"
+              className="cta-button cta-button--github"
               href="https://github.com/TrigintaFaces/Excalibur"
             >
+              <IconGitHub />
               View on GitHub
             </Link>
           </div>
@@ -340,63 +349,36 @@ dotnet add package Excalibur.Hosting.Web`}
   );
 }
 
-function ComparisonSection() {
+function PerformanceShowcaseSection() {
+  const metrics: { value: string; label: string; detail: string }[] = [
+    { value: '~31 ns', label: 'Ultra-Local Latency', detail: '1.3x faster than MediatR' },
+    { value: '24 B', label: 'Ultra-Local Allocation', detail: 'Near-zero overhead hot path' },
+    { value: '~54 ns', label: 'Standard Dispatch', detail: 'Full context + pool per dispatch' },
+    { value: '2.6x', label: 'Faster Than Wolverine', detail: 'Single command, in-process' },
+    { value: '40,683+', label: 'Tests Passing', detail: 'Unit, integration, functional' },
+    { value: '40+', label: 'NuGet Packages', detail: 'Install only what you need' },
+  ];
+
   return (
-    <section className={styles.comparisonSection}>
+    <section className={styles.performanceSection}>
       <div className="container">
         <div className={styles.sectionHeader}>
-          <Heading as="h2">How It Compares</Heading>
-          <p>Built for performance without sacrificing developer experience</p>
+          <Heading as="h2">Performance at a Glance</Heading>
+          <p>Benchmarked on .NET 10, Intel Core i9-14900K — real numbers, no marketing claims</p>
         </div>
-        <div className={styles.comparisonTable}>
-          <table>
-            <thead>
-              <tr>
-                <th>Feature</th>
-                <th>Excalibur</th>
-                <th>MediatR</th>
-                <th>MassTransit</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Zero-allocation dispatch</td>
-                <td>✅</td>
-                <td>❌</td>
-                <td>❌</td>
-              </tr>
-              <tr>
-                <td>Event sourcing</td>
-                <td>✅ Built-in</td>
-                <td>❌</td>
-                <td>❌</td>
-              </tr>
-              <tr>
-                <td>Outbox pattern</td>
-                <td>✅ Built-in</td>
-                <td>❌</td>
-                <td>✅</td>
-              </tr>
-              <tr>
-                <td>OpenTelemetry</td>
-                <td>✅</td>
-                <td>❌</td>
-                <td>✅</td>
-              </tr>
-              <tr>
-                <td>Type-safe middleware</td>
-                <td>✅</td>
-                <td>⚠️ Limited</td>
-                <td>✅</td>
-              </tr>
-              <tr>
-                <td>Serverless support</td>
-                <td>✅</td>
-                <td>❌</td>
-                <td>⚠️ Limited</td>
-              </tr>
-            </tbody>
-          </table>
+        <div className={styles.metricsGrid}>
+          {metrics.map((m, idx) => (
+            <div key={idx} className={styles.metricCard}>
+              <div className={styles.metricValue}>{m.value}</div>
+              <div className={styles.metricLabel}>{m.label}</div>
+              <div className={styles.metricDetail}>{m.detail}</div>
+            </div>
+          ))}
+        </div>
+        <div className={styles.benchmarkLink}>
+          <Link to="/docs/performance/competitor-comparison">
+            View detailed benchmarks and methodology
+          </Link>
         </div>
       </div>
     </section>
@@ -418,9 +400,10 @@ function CTASection() {
               Read the Docs
             </Link>
             <Link
-              className="cta-button cta-button--secondary"
+              className="cta-button cta-button--github"
               href="https://github.com/TrigintaFaces/Excalibur"
             >
+              <IconGitHub />
               Star on GitHub
             </Link>
           </div>
@@ -435,14 +418,14 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title="Fast .NET Messaging Framework"
-      description="Excalibur is a high-performance .NET framework for messaging, event sourcing, CQRS, and compliance. Drop-in MediatR replacement with zero-allocation dispatch."
+      description="Excalibur is a high-performance .NET framework for messaging, event sourcing, CQRS, and compliance. Drop-in MediatR replacement with low-allocation dispatch."
     >
       <HomepageHeader />
       <main>
         <FeaturesSection />
         <DecisionMatrixSection />
         <QuickStartSection />
-        <ComparisonSection />
+        <PerformanceShowcaseSection />
         <CTASection />
       </main>
     </Layout>
