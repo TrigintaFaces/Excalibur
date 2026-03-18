@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Diagnostics.TransportAdapterPhaseBenchmarks-20260316-224101</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7922)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.103
+  [Host] : .NET 10.0.3 (10.0.3, 10.0.326.7603), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=diag-default  PowerPlanMode=00000000-0000-0000-0000-000000000000  Toolchain=InProcessEmitToolchain  
+IterationCount=8  LaunchCount=1  UnrollFactor=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                  </th><th>PayloadSizeBytes</th><th>Concurrency</th><th>Mean </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Map transport context&#39;</td><td>256</td><td>1</td><td>468.53 ns</td><td>13.633 ns</td><td>7.130 ns</td><td>1.00</td><td>0.02</td><td>0.0973</td><td>-</td><td>1848 B</td><td>1.00</td>
+</tr><tr><td>&#39;Serialize payload&#39;</td><td>256</td><td>1</td><td>190.71 ns</td><td>3.397 ns</td><td>1.777 ns</td><td>0.41</td><td>0.01</td><td>0.0241</td><td>-</td><td>456 B</td><td>0.25</td>
+</tr><tr><td>&#39;Publish to in-memory adapter&#39;</td><td>256</td><td>1</td><td>8,959.91 ns</td><td>112.663 ns</td><td>50.023 ns</td><td>19.13</td><td>0.29</td><td>-</td><td>-</td><td>216 B</td><td>0.12</td>
+</tr><tr><td>&#39;Receive + dispatch&#39;</td><td>256</td><td>1</td><td>238.00 ns</td><td>5.773 ns</td><td>3.019 ns</td><td>0.51</td><td>0.01</td><td>0.0396</td><td>-</td><td>752 B</td><td>0.41</td>
+</tr><tr><td>&#39;Publish+receive concurrent&#39;</td><td>256</td><td>1</td><td>271.69 ns</td><td>4.817 ns</td><td>2.519 ns</td><td>0.58</td><td>0.01</td><td>0.0458</td><td>-</td><td>864 B</td><td>0.47</td>
+</tr><tr><td>&#39;Ack tracking (in-memory)&#39;</td><td>256</td><td>1</td><td>50.83 ns</td><td>3.078 ns</td><td>1.610 ns</td><td>0.11</td><td>0.00</td><td>0.0042</td><td>-</td><td>80 B</td><td>0.04</td>
+</tr><tr><td>&#39;Map transport context&#39;</td><td>256</td><td>8</td><td>462.42 ns</td><td>8.501 ns</td><td>3.774 ns</td><td>1.00</td><td>0.01</td><td>0.0973</td><td>-</td><td>1848 B</td><td>1.00</td>
+</tr><tr><td>&#39;Serialize payload&#39;</td><td>256</td><td>8</td><td>197.84 ns</td><td>5.664 ns</td><td>2.962 ns</td><td>0.43</td><td>0.01</td><td>0.0241</td><td>-</td><td>456 B</td><td>0.25</td>
+</tr><tr><td>&#39;Publish to in-memory adapter&#39;</td><td>256</td><td>8</td><td>9,070.98 ns</td><td>103.198 ns</td><td>45.821 ns</td><td>19.62</td><td>0.18</td><td>-</td><td>-</td><td>216 B</td><td>0.12</td>
+</tr><tr><td>&#39;Receive + dispatch&#39;</td><td>256</td><td>8</td><td>238.56 ns</td><td>7.837 ns</td><td>4.099 ns</td><td>0.52</td><td>0.01</td><td>0.0398</td><td>-</td><td>752 B</td><td>0.41</td>
+</tr><tr><td>&#39;Publish+receive concurrent&#39;</td><td>256</td><td>8</td><td>1,950.66 ns</td><td>24.566 ns</td><td>12.848 ns</td><td>4.22</td><td>0.04</td><td>0.3052</td><td>-</td><td>5792 B</td><td>3.13</td>
+</tr><tr><td>&#39;Ack tracking (in-memory)&#39;</td><td>256</td><td>8</td><td>50.77 ns</td><td>3.257 ns</td><td>1.704 ns</td><td>0.11</td><td>0.00</td><td>0.0042</td><td>-</td><td>80 B</td><td>0.04</td>
+</tr><tr><td>&#39;Map transport context&#39;</td><td>4096</td><td>1</td><td>477.64 ns</td><td>9.567 ns</td><td>5.004 ns</td><td>1.00</td><td>0.01</td><td>0.0973</td><td>-</td><td>1848 B</td><td>1.00</td>
+</tr><tr><td>&#39;Serialize payload&#39;</td><td>4096</td><td>1</td><td>635.56 ns</td><td>35.503 ns</td><td>18.569 ns</td><td>1.33</td><td>0.04</td><td>0.2279</td><td>-</td><td>4296 B</td><td>2.32</td>
+</tr><tr><td>&#39;Publish to in-memory adapter&#39;</td><td>4096</td><td>1</td><td>9,133.52 ns</td><td>306.021 ns</td><td>135.875 ns</td><td>19.12</td><td>0.33</td><td>-</td><td>-</td><td>216 B</td><td>0.12</td>
+</tr><tr><td>&#39;Receive + dispatch&#39;</td><td>4096</td><td>1</td><td>241.58 ns</td><td>2.339 ns</td><td>1.223 ns</td><td>0.51</td><td>0.01</td><td>0.0396</td><td>-</td><td>752 B</td><td>0.41</td>
+</tr><tr><td>&#39;Publish+receive concurrent&#39;</td><td>4096</td><td>1</td><td>277.35 ns</td><td>3.097 ns</td><td>1.375 ns</td><td>0.58</td><td>0.01</td><td>0.0458</td><td>-</td><td>864 B</td><td>0.47</td>
+</tr><tr><td>&#39;Ack tracking (in-memory)&#39;</td><td>4096</td><td>1</td><td>50.65 ns</td><td>1.847 ns</td><td>0.966 ns</td><td>0.11</td><td>0.00</td><td>0.0042</td><td>-</td><td>80 B</td><td>0.04</td>
+</tr><tr><td>&#39;Map transport context&#39;</td><td>4096</td><td>8</td><td>476.47 ns</td><td>28.176 ns</td><td>14.736 ns</td><td>1.00</td><td>0.04</td><td>0.0978</td><td>0.0005</td><td>1848 B</td><td>1.00</td>
+</tr><tr><td>&#39;Serialize payload&#39;</td><td>4096</td><td>8</td><td>582.30 ns</td><td>16.833 ns</td><td>7.474 ns</td><td>1.22</td><td>0.04</td><td>0.2279</td><td>-</td><td>4296 B</td><td>2.32</td>
+</tr><tr><td>&#39;Publish to in-memory adapter&#39;</td><td>4096</td><td>8</td><td>9,011.42 ns</td><td>126.421 ns</td><td>56.131 ns</td><td>18.93</td><td>0.56</td><td>-</td><td>-</td><td>216 B</td><td>0.12</td>
+</tr><tr><td>&#39;Receive + dispatch&#39;</td><td>4096</td><td>8</td><td>236.02 ns</td><td>3.938 ns</td><td>1.748 ns</td><td>0.50</td><td>0.01</td><td>0.0396</td><td>-</td><td>752 B</td><td>0.41</td>
+</tr><tr><td>&#39;Publish+receive concurrent&#39;</td><td>4096</td><td>8</td><td>1,942.93 ns</td><td>40.273 ns</td><td>21.063 ns</td><td>4.08</td><td>0.13</td><td>0.3052</td><td>-</td><td>5792 B</td><td>3.13</td>
+</tr><tr><td>&#39;Ack tracking (in-memory)&#39;</td><td>4096</td><td>8</td><td>50.48 ns</td><td>3.716 ns</td><td>1.944 ns</td><td>0.11</td><td>0.00</td><td>0.0042</td><td>-</td><td>80 B</td><td>0.04</td>
+</tr><tr><td>&#39;Map transport context&#39;</td><td>65536</td><td>1</td><td>481.61 ns</td><td>6.621 ns</td><td>3.463 ns</td><td>1.00</td><td>0.01</td><td>0.0973</td><td>-</td><td>1848 B</td><td>1.00</td>
+</tr><tr><td>&#39;Serialize payload&#39;</td><td>65536</td><td>1</td><td>9,251.40 ns</td><td>285.547 ns</td><td>149.346 ns</td><td>19.21</td><td>0.32</td><td>3.4790</td><td>-</td><td>65736 B</td><td>35.57</td>
+</tr><tr><td>&#39;Publish to in-memory adapter&#39;</td><td>65536</td><td>1</td><td>9,065.95 ns</td><td>201.478 ns</td><td>89.457 ns</td><td>18.83</td><td>0.22</td><td>-</td><td>-</td><td>216 B</td><td>0.12</td>
+</tr><tr><td>&#39;Receive + dispatch&#39;</td><td>65536</td><td>1</td><td>236.86 ns</td><td>2.542 ns</td><td>1.128 ns</td><td>0.49</td><td>0.00</td><td>0.0396</td><td>-</td><td>752 B</td><td>0.41</td>
+</tr><tr><td>&#39;Publish+receive concurrent&#39;</td><td>65536</td><td>1</td><td>276.89 ns</td><td>18.647 ns</td><td>9.753 ns</td><td>0.57</td><td>0.02</td><td>0.0458</td><td>-</td><td>864 B</td><td>0.47</td>
+</tr><tr><td>&#39;Ack tracking (in-memory)&#39;</td><td>65536</td><td>1</td><td>50.23 ns</td><td>0.969 ns</td><td>0.430 ns</td><td>0.10</td><td>0.00</td><td>0.0042</td><td>-</td><td>80 B</td><td>0.04</td>
+</tr><tr><td>&#39;Map transport context&#39;</td><td>65536</td><td>8</td><td>470.76 ns</td><td>13.357 ns</td><td>5.931 ns</td><td>1.00</td><td>0.02</td><td>0.0973</td><td>-</td><td>1848 B</td><td>1.00</td>
+</tr><tr><td>&#39;Serialize payload&#39;</td><td>65536</td><td>8</td><td>9,127.16 ns</td><td>465.529 ns</td><td>243.481 ns</td><td>19.39</td><td>0.54</td><td>3.4790</td><td>-</td><td>65736 B</td><td>35.57</td>
+</tr><tr><td>&#39;Publish to in-memory adapter&#39;</td><td>65536</td><td>8</td><td>8,962.21 ns</td><td>122.400 ns</td><td>54.346 ns</td><td>19.04</td><td>0.25</td><td>-</td><td>-</td><td>216 B</td><td>0.12</td>
+</tr><tr><td>&#39;Receive + dispatch&#39;</td><td>65536</td><td>8</td><td>250.97 ns</td><td>9.659 ns</td><td>5.052 ns</td><td>0.53</td><td>0.01</td><td>0.0396</td><td>-</td><td>752 B</td><td>0.41</td>
+</tr><tr><td>&#39;Publish+receive concurrent&#39;</td><td>65536</td><td>8</td><td>1,955.58 ns</td><td>46.059 ns</td><td>20.450 ns</td><td>4.15</td><td>0.06</td><td>0.3052</td><td>-</td><td>5792 B</td><td>3.13</td>
+</tr><tr><td>&#39;Ack tracking (in-memory)&#39;</td><td>65536</td><td>8</td><td>49.70 ns</td><td>1.743 ns</td><td>0.912 ns</td><td>0.11</td><td>0.00</td><td>0.0042</td><td>-</td><td>80 B</td><td>0.04</td>
+</tr></tbody></table>
+</body>
+</html>

@@ -8,9 +8,9 @@
 // patterns work together in a realistic order processing workflow:
 //
 // Patterns demonstrated:
-// - Event Sourcing (OrderAggregate)
+// - Event Sourcing (OrderAggregate with IEventSourcedRepository)
 // - CQRS Commands with FluentValidation
-// - Saga Pattern (multi-step workflow orchestration)
+// - Saga Pattern (multi-step workflow orchestration with load-mutate-save)
 // - Retry with exponential backoff (payment processing)
 // - Compensation on failure (saga rollback)
 // - External service integration
@@ -25,6 +25,7 @@ using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Configuration;
 using Excalibur.Dispatch.Messaging;
 using Excalibur.Dispatch.Validation;
+using Excalibur.EventSourcing.Abstractions;
 
 using FluentValidation;
 
@@ -65,8 +66,15 @@ services.AddDispatch(dispatch =>
 // Register validators
 services.AddValidatorsFromAssemblyContaining<CreateOrderCommandValidator>();
 
-// Register in-memory order store
-services.AddSingleton<InMemoryOrderStore>();
+// Add event serializer (required for event sourcing)
+services.AddSingleton<IEventSerializer, JsonEventSerializer>();
+
+// Add Excalibur event sourcing with in-memory event store
+services.AddExcaliburEventSourcing(builder =>
+{
+	_ = builder.AddRepository<OrderAggregate, Guid>(id => new OrderAggregate(id));
+});
+services.AddInMemoryEventStore();
 
 // Register external services (mocks)
 services.AddSingleton<MockPaymentService>();
@@ -80,7 +88,7 @@ var provider = services.BuildServiceProvider();
 // Get services
 var dispatcher = provider.GetRequiredService<IDispatcher>();
 var context = DispatchContextInitializer.CreateDefaultContext(provider);
-var orderStore = provider.GetRequiredService<InMemoryOrderStore>();
+var repository = provider.GetRequiredService<IEventSourcedRepository<OrderAggregate, Guid>>();
 var paymentService = provider.GetRequiredService<MockPaymentService>();
 var inventoryService = provider.GetRequiredService<MockInventoryService>();
 
@@ -95,7 +103,8 @@ Console.WriteLine("Creating and processing a valid order through the");
 Console.WriteLine("complete workflow: Create → Validate → Pay → Ship");
 Console.WriteLine();
 
-// Create order
+// Create order with a known ID for tracking
+var orderId1 = Guid.NewGuid();
 var customerId = Guid.NewGuid();
 var items = new List<OrderLineItem>
 {
@@ -105,6 +114,7 @@ var items = new List<OrderLineItem>
 };
 
 var createCommand = new CreateOrderCommand(
+	orderId1,
 	customerId,
 	items,
 	"123 Main Street, Anytown, ST 12345, USA");
@@ -113,8 +123,8 @@ Console.WriteLine("1. Creating order...");
 var result = await dispatcher.DispatchAsync(createCommand, context, CancellationToken.None);
 PrintResult(result);
 
-// Get the created order
-var order = orderStore.GetMostRecent();
+// Load the order from repository using the known ID
+var order = await repository.GetByIdAsync(orderId1, CancellationToken.None).ConfigureAwait(false);
 if (order == null)
 {
 	Console.WriteLine("  [ERROR] Order not created!");
@@ -139,10 +149,13 @@ else
 	result = await dispatcher.DispatchAsync(processCommand, context, CancellationToken.None);
 	PrintResult(result);
 
+	// Reload order to get final state
+	order = await repository.GetByIdAsync(orderId1, CancellationToken.None).ConfigureAwait(false);
+
 	// Show final state
 	Console.WriteLine();
 	Console.WriteLine($"Final order state:");
-	Console.WriteLine($"  Status: {order.Status}");
+	Console.WriteLine($"  Status: {order!.Status}");
 	Console.WriteLine($"  Transaction: {order.TransactionId}");
 	Console.WriteLine($"  Tracking: {order.TrackingNumber} ({order.Carrier})");
 }
@@ -164,10 +177,12 @@ paymentService.Reset();
 paymentService.SimulateTransientFailures = true;
 paymentService.TransientFailureProbability = 0.5;
 
-// Create another order
+// Create another order with a known ID
+var orderId2 = Guid.NewGuid();
 var items2 = new List<OrderLineItem> { new(Guid.NewGuid(), "Smartphone Pro", 1, 999.99m) };
 
 var createCommand2 = new CreateOrderCommand(
+	orderId2,
 	Guid.NewGuid(),
 	items2,
 	"456 Oak Avenue, Somewhere, ST 67890, USA");
@@ -176,24 +191,21 @@ Console.WriteLine("1. Creating order...");
 result = await dispatcher.DispatchAsync(createCommand2, context, CancellationToken.None);
 PrintResult(result);
 
-var order2 = orderStore.GetMostRecent();
-if (order2 != null)
+Console.WriteLine();
+Console.WriteLine("2. Processing order (with simulated transient failures)...");
+
+var processCommand2 = new ProcessOrderCommand(orderId2);
+result = await dispatcher.DispatchAsync(processCommand2, context, CancellationToken.None);
+PrintResult(result);
+
+var order2 = await repository.GetByIdAsync(orderId2, CancellationToken.None).ConfigureAwait(false);
+Console.WriteLine();
+Console.WriteLine($"Final order state:");
+Console.WriteLine($"  Status: {order2!.Status}");
+if (order2.Status == OrderStatus.Shipped)
 {
-	Console.WriteLine();
-	Console.WriteLine("2. Processing order (with simulated transient failures)...");
-
-	var processCommand2 = new ProcessOrderCommand(order2.Id);
-	result = await dispatcher.DispatchAsync(processCommand2, context, CancellationToken.None);
-	PrintResult(result);
-
-	Console.WriteLine();
-	Console.WriteLine($"Final order state:");
-	Console.WriteLine($"  Status: {order2.Status}");
-	if (order2.Status == OrderStatus.Shipped)
-	{
-		Console.WriteLine($"  Transaction: {order2.TransactionId}");
-		Console.WriteLine($"  Tracking: {order2.TrackingNumber}");
-	}
+	Console.WriteLine($"  Transaction: {order2.TransactionId}");
+	Console.WriteLine($"  Tracking: {order2.TrackingNumber}");
 }
 
 // ============================================================================
@@ -210,6 +222,7 @@ Console.WriteLine();
 
 // Invalid order - empty items
 var invalidCommand = new CreateOrderCommand(
+	Guid.NewGuid(),
 	Guid.NewGuid(),
 	[], // Empty items - will fail validation
 	"Short"); // Too short - will fail validation
@@ -242,7 +255,9 @@ var items3 = new List<OrderLineItem>
 	new(unavailableProductId, "Out of Stock Item", 1, 199.99m), new(Guid.NewGuid(), "Available Item", 2, 29.99m)
 };
 
+var orderId3 = Guid.NewGuid();
 var createCommand3 = new CreateOrderCommand(
+	orderId3,
 	Guid.NewGuid(),
 	items3,
 	"789 Pine Road, Elsewhere, ST 11111, USA");
@@ -251,21 +266,18 @@ Console.WriteLine("1. Creating order with unavailable product...");
 result = await dispatcher.DispatchAsync(createCommand3, context, CancellationToken.None);
 PrintResult(result);
 
-var order3 = orderStore.GetMostRecent();
-if (order3 != null)
-{
-	Console.WriteLine();
-	Console.WriteLine("2. Processing order (will fail inventory validation)...");
+Console.WriteLine();
+Console.WriteLine("2. Processing order (will fail inventory validation)...");
 
-	var processCommand3 = new ProcessOrderCommand(order3.Id);
-	result = await dispatcher.DispatchAsync(processCommand3, context, CancellationToken.None);
-	PrintResult(result);
+var processCommand3 = new ProcessOrderCommand(orderId3);
+result = await dispatcher.DispatchAsync(processCommand3, context, CancellationToken.None);
+PrintResult(result);
 
-	Console.WriteLine();
-	Console.WriteLine($"Order state after saga failure:");
-	Console.WriteLine($"  Status: {order3.Status}");
-	Console.WriteLine($"  Failure Reason: {order3.FailureReason}");
-}
+var order3 = await repository.GetByIdAsync(orderId3, CancellationToken.None).ConfigureAwait(false);
+Console.WriteLine();
+Console.WriteLine($"Order state after saga failure:");
+Console.WriteLine($"  Status: {order3!.Status}");
+Console.WriteLine($"  Failure Reason: {order3.FailureReason}");
 
 // Clean up
 inventoryService.UnavailableProducts.Clear();
@@ -283,7 +295,9 @@ Console.WriteLine();
 
 var items4 = new List<OrderLineItem> { new(Guid.NewGuid(), "Test Product", 1, 99.99m) };
 
+var orderId4 = Guid.NewGuid();
 var createCommand4 = new CreateOrderCommand(
+	orderId4,
 	Guid.NewGuid(),
 	items4,
 	"Test Address, Test City, ST 00000, USA");
@@ -292,21 +306,18 @@ Console.WriteLine("1. Creating order...");
 result = await dispatcher.DispatchAsync(createCommand4, context, CancellationToken.None);
 PrintResult(result);
 
-var order4 = orderStore.GetMostRecent();
-if (order4 != null)
-{
-	Console.WriteLine();
-	Console.WriteLine("2. Cancelling order...");
+Console.WriteLine();
+Console.WriteLine("2. Cancelling order...");
 
-	var cancelCommand = new CancelOrderCommand(order4.Id, "Customer changed mind");
-	result = await dispatcher.DispatchAsync(cancelCommand, context, CancellationToken.None);
-	PrintResult(result);
+var cancelCommand = new CancelOrderCommand(orderId4, "Customer changed mind");
+result = await dispatcher.DispatchAsync(cancelCommand, context, CancellationToken.None);
+PrintResult(result);
 
-	Console.WriteLine();
-	Console.WriteLine($"Order state after cancellation:");
-	Console.WriteLine($"  Status: {order4.Status}");
-	Console.WriteLine($"  Reason: {order4.FailureReason}");
-}
+var order4 = await repository.GetByIdAsync(orderId4, CancellationToken.None).ConfigureAwait(false);
+Console.WriteLine();
+Console.WriteLine($"Order state after cancellation:");
+Console.WriteLine($"  Status: {order4!.Status}");
+Console.WriteLine($"  Reason: {order4.FailureReason}");
 
 // ============================================================================
 // Demo 6: Delivery Confirmation
@@ -320,18 +331,20 @@ Console.WriteLine("Completing the order lifecycle with delivery confirmation.");
 Console.WriteLine();
 
 // Use the first successful order
-if (order?.Status == OrderStatus.Shipped)
+var firstOrder = await repository.GetByIdAsync(orderId1, CancellationToken.None).ConfigureAwait(false);
+if (firstOrder?.Status == OrderStatus.Shipped)
 {
-	Console.WriteLine($"Confirming delivery for order {order.Id.ToString()[..8]}...");
+	Console.WriteLine($"Confirming delivery for order {firstOrder.Id.ToString()[..8]}...");
 
-	var confirmCommand = new ConfirmDeliveryCommand(order.Id);
+	var confirmCommand = new ConfirmDeliveryCommand(firstOrder.Id);
 	result = await dispatcher.DispatchAsync(confirmCommand, context, CancellationToken.None);
 	PrintResult(result);
 
+	firstOrder = await repository.GetByIdAsync(orderId1, CancellationToken.None).ConfigureAwait(false);
 	Console.WriteLine();
 	Console.WriteLine($"Final order state:");
-	Console.WriteLine($"  Status: {order.Status}");
-	Console.WriteLine($"  Completed At: {order.CompletedAt}");
+	Console.WriteLine($"  Status: {firstOrder!.Status}");
+	Console.WriteLine($"  Completed At: {firstOrder.CompletedAt}");
 }
 
 // ============================================================================
@@ -343,20 +356,13 @@ Console.WriteLine("  Sample Complete!");
 Console.WriteLine("=================================================");
 Console.WriteLine();
 Console.WriteLine("Patterns demonstrated:");
-Console.WriteLine("  ✓ Event Sourcing (OrderAggregate with domain events)");
+Console.WriteLine("  ✓ Event Sourcing (OrderAggregate with IEventSourcedRepository)");
 Console.WriteLine("  ✓ CQRS Commands (CreateOrder, ProcessOrder, Cancel)");
 Console.WriteLine("  ✓ FluentValidation (command validation middleware)");
-Console.WriteLine("  ✓ Saga Pattern (OrderProcessingSaga orchestration)");
+Console.WriteLine("  ✓ Saga Pattern (OrderProcessingSaga with load-mutate-save)");
 Console.WriteLine("  ✓ Retry with Backoff (transient payment failures)");
 Console.WriteLine("  ✓ Compensation (saga rollback on failure)");
 Console.WriteLine("  ✓ External Service Integration (Payment, Shipping, Inventory)");
-Console.WriteLine();
-Console.WriteLine("Production considerations:");
-Console.WriteLine("  - Use IEventSourcedRepository for aggregate persistence");
-Console.WriteLine("  - Use Excalibur.Saga for persistent saga state");
-Console.WriteLine("  - Use Excalibur.Dispatch.Resilience.Polly for resilience policies");
-Console.WriteLine("  - Use the Outbox pattern for reliable messaging");
-Console.WriteLine("  - Add projections for order read models (dashboards, queries)");
 Console.WriteLine();
 
 // ============================================================================

@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 using Excalibur.Dispatch.Abstractions.Delivery;
+using Excalibur.EventSourcing.Abstractions;
 
 using OrderProcessingSample.Domain.Aggregates;
 using OrderProcessingSample.Domain.Commands;
 using OrderProcessingSample.ExternalServices;
-using OrderProcessingSample.Handlers;
 
 namespace OrderProcessingSample.Sagas;
 
@@ -20,31 +20,34 @@ namespace OrderProcessingSample.Sagas;
 // 4. Create shipment
 // 5. Complete order
 //
+// Each step loads the aggregate fresh from the repository (load-mutate-save),
+// which is the correct production pattern for saga steps.
 // If any step fails, compensating actions are executed.
 
 /// <summary>
 /// Orchestrates the order processing workflow (saga pattern).
 /// </summary>
 /// <remarks>
-/// This is a synchronous saga for demonstration. In production, you would:
-/// - Use Excalibur.Saga for persistent saga state
-/// - Use the outbox pattern for reliable messaging
-/// - Handle partial failures with compensation
+/// Each saga step follows the load-mutate-save pattern via IEventSourcedRepository.
+/// In production, you would additionally use:
+/// - Excalibur.Saga for persistent saga state
+/// - The outbox pattern for reliable messaging
+/// - Compensation with durable state
 /// </remarks>
 public sealed class OrderProcessingSaga : IActionHandler<ProcessOrderCommand>
 {
-	private readonly InMemoryOrderStore _orderStore;
+	private readonly IEventSourcedRepository<OrderAggregate, Guid> _repository;
 	private readonly IInventoryService _inventoryService;
 	private readonly IPaymentService _paymentService;
 	private readonly IShippingService _shippingService;
 
 	public OrderProcessingSaga(
-		InMemoryOrderStore orderStore,
+		IEventSourcedRepository<OrderAggregate, Guid> repository,
 		IInventoryService inventoryService,
 		IPaymentService paymentService,
 		IShippingService shippingService)
 	{
-		_orderStore = orderStore;
+		_repository = repository ?? throw new ArgumentNullException(nameof(repository));
 		_inventoryService = inventoryService;
 		_paymentService = paymentService;
 		_shippingService = shippingService;
@@ -57,7 +60,7 @@ public sealed class OrderProcessingSaga : IActionHandler<ProcessOrderCommand>
 		Console.WriteLine($"  │ SAGA: Processing Order {action.OrderId.ToString()[..8]}                │");
 		Console.WriteLine($"  └─────────────────────────────────────────────────┘");
 
-		var order = _orderStore.GetById(action.OrderId)
+		var order = await _repository.GetByIdAsync(action.OrderId, cancellationToken).ConfigureAwait(false)
 					?? throw new InvalidOperationException($"Order {action.OrderId} not found");
 
 		var sagaState = new SagaState();
@@ -67,22 +70,22 @@ public sealed class OrderProcessingSaga : IActionHandler<ProcessOrderCommand>
 			// Step 1: Validate inventory
 			Console.WriteLine();
 			Console.WriteLine("  [Step 1/5] Validating inventory...");
-			await ValidateInventoryAsync(order, sagaState, cancellationToken).ConfigureAwait(false);
+			await ValidateInventoryAsync(action.OrderId, order, sagaState, cancellationToken).ConfigureAwait(false);
 
 			// Step 2: Reserve inventory
 			Console.WriteLine();
 			Console.WriteLine("  [Step 2/5] Reserving inventory...");
-			await ReserveInventoryAsync(order, sagaState, cancellationToken).ConfigureAwait(false);
+			await ReserveInventoryAsync(action.OrderId, order, sagaState, cancellationToken).ConfigureAwait(false);
 
 			// Step 3: Process payment (with retry)
 			Console.WriteLine();
 			Console.WriteLine("  [Step 3/5] Processing payment...");
-			await ProcessPaymentAsync(order, sagaState, cancellationToken).ConfigureAwait(false);
+			await ProcessPaymentAsync(action.OrderId, order, sagaState, cancellationToken).ConfigureAwait(false);
 
 			// Step 4: Create shipment
 			Console.WriteLine();
 			Console.WriteLine("  [Step 4/5] Creating shipment...");
-			await CreateShipmentAsync(order, sagaState, cancellationToken).ConfigureAwait(false);
+			order = await CreateShipmentAsync(action.OrderId, sagaState, cancellationToken).ConfigureAwait(false);
 
 			// Step 5: Complete (mark as shipped, awaiting delivery confirmation)
 			Console.WriteLine();
@@ -95,13 +98,14 @@ public sealed class OrderProcessingSaga : IActionHandler<ProcessOrderCommand>
 			Console.WriteLine($"  [SAGA FAILED] {ex.Message}");
 			Console.WriteLine("  [COMPENSATING] Executing compensating actions...");
 
-			await CompensateAsync(order, sagaState, cancellationToken).ConfigureAwait(false);
+			await CompensateAsync(action.OrderId, sagaState, cancellationToken).ConfigureAwait(false);
 
 			Console.WriteLine("  [COMPENSATED] Saga rolled back successfully");
 		}
 	}
 
 	private async Task ValidateInventoryAsync(
+		Guid orderId,
 		OrderAggregate order,
 		SagaState state,
 		CancellationToken cancellationToken)
@@ -115,23 +119,30 @@ public sealed class OrderProcessingSaga : IActionHandler<ProcessOrderCommand>
 
 		if (!result.IsValid)
 		{
+			// Load fresh for mutation
+			order = await _repository.GetByIdAsync(orderId, cancellationToken).ConfigureAwait(false)
+				?? throw new InvalidOperationException($"Order {orderId} not found");
+
 			order.MarkValidationFailed(string.Join(", ", result.UnavailableItems));
-			_orderStore.Save(order);
-			order.MarkEventsAsCommitted();
+			await _repository.SaveAsync(order, cancellationToken).ConfigureAwait(false);
 
 			throw new SagaFailedException(
 				$"Inventory validation failed: {string.Join(", ", result.UnavailableItems)}");
 		}
 
+		// Load fresh for mutation
+		order = await _repository.GetByIdAsync(orderId, cancellationToken).ConfigureAwait(false)
+			?? throw new InvalidOperationException($"Order {orderId} not found");
+
 		order.MarkValidated();
-		_orderStore.Save(order);
-		order.MarkEventsAsCommitted();
+		await _repository.SaveAsync(order, cancellationToken).ConfigureAwait(false);
 		state.InventoryValidated = true;
 
 		Console.WriteLine("    Inventory validation passed");
 	}
 
 	private async Task ReserveInventoryAsync(
+		Guid orderId,
 		OrderAggregate order,
 		SagaState state,
 		CancellationToken cancellationToken)
@@ -140,7 +151,7 @@ public sealed class OrderProcessingSaga : IActionHandler<ProcessOrderCommand>
 			.Select(i => (i.ProductId, i.Quantity))
 			.ToList();
 
-		var reserved = await _inventoryService.ReserveInventoryAsync(order.Id, items, cancellationToken)
+		var reserved = await _inventoryService.ReserveInventoryAsync(orderId, items, cancellationToken)
 			.ConfigureAwait(false);
 
 		if (!reserved)
@@ -153,6 +164,7 @@ public sealed class OrderProcessingSaga : IActionHandler<ProcessOrderCommand>
 	}
 
 	private async Task ProcessPaymentAsync(
+		Guid orderId,
 		OrderAggregate order,
 		SagaState state,
 		CancellationToken cancellationToken)
@@ -168,7 +180,7 @@ public sealed class OrderProcessingSaga : IActionHandler<ProcessOrderCommand>
 			try
 			{
 				var result = await _paymentService.ProcessPaymentAsync(
-						order.Id,
+						orderId,
 						order.CustomerId,
 						order.TotalAmount,
 						cancellationToken)
@@ -176,16 +188,22 @@ public sealed class OrderProcessingSaga : IActionHandler<ProcessOrderCommand>
 
 				if (!result.Success)
 				{
-					order.RecordPaymentFailure(result.ErrorMessage ?? "Unknown payment error");
-					_orderStore.Save(order);
-					order.MarkEventsAsCommitted();
+					// Load fresh for mutation
+					var freshOrder = await _repository.GetByIdAsync(orderId, cancellationToken).ConfigureAwait(false)
+						?? throw new InvalidOperationException($"Order {orderId} not found");
+
+					freshOrder.RecordPaymentFailure(result.ErrorMessage ?? "Unknown payment error");
+					await _repository.SaveAsync(freshOrder, cancellationToken).ConfigureAwait(false);
 
 					throw new SagaFailedException($"Payment failed: {result.ErrorMessage}");
 				}
 
-				order.RecordPayment(result.TransactionId, order.TotalAmount);
-				_orderStore.Save(order);
-				order.MarkEventsAsCommitted();
+				// Load fresh for mutation
+				var orderForPayment = await _repository.GetByIdAsync(orderId, cancellationToken).ConfigureAwait(false)
+					?? throw new InvalidOperationException($"Order {orderId} not found");
+
+				orderForPayment.RecordPayment(result.TransactionId, orderForPayment.TotalAmount);
+				await _repository.SaveAsync(orderForPayment, cancellationToken).ConfigureAwait(false);
 				state.PaymentProcessed = true;
 				state.TransactionId = result.TransactionId;
 
@@ -204,21 +222,27 @@ public sealed class OrderProcessingSaga : IActionHandler<ProcessOrderCommand>
 			}
 		}
 
-		order.RecordPaymentFailure($"Payment failed after {maxRetries} retries");
-		_orderStore.Save(order);
-		order.MarkEventsAsCommitted();
+		// Load fresh for mutation
+		var orderForFailure = await _repository.GetByIdAsync(orderId, cancellationToken).ConfigureAwait(false)
+			?? throw new InvalidOperationException($"Order {orderId} not found");
+
+		orderForFailure.RecordPaymentFailure($"Payment failed after {maxRetries} retries");
+		await _repository.SaveAsync(orderForFailure, cancellationToken).ConfigureAwait(false);
 
 		throw new SagaFailedException(
 			$"Payment failed after {maxRetries} retries: {lastException?.Message}");
 	}
 
-	private async Task CreateShipmentAsync(
-		OrderAggregate order,
+	private async Task<OrderAggregate> CreateShipmentAsync(
+		Guid orderId,
 		SagaState state,
 		CancellationToken cancellationToken)
 	{
+		var order = await _repository.GetByIdAsync(orderId, cancellationToken).ConfigureAwait(false)
+			?? throw new InvalidOperationException($"Order {orderId} not found");
+
 		var result = await _shippingService.CreateShipmentAsync(
-				order.Id,
+				orderId,
 				order.ShippingAddress,
 				cancellationToken)
 			.ConfigureAwait(false);
@@ -229,15 +253,15 @@ public sealed class OrderProcessingSaga : IActionHandler<ProcessOrderCommand>
 		}
 
 		order.Ship(result.TrackingNumber, result.Carrier);
-		_orderStore.Save(order);
-		order.MarkEventsAsCommitted();
+		await _repository.SaveAsync(order, cancellationToken).ConfigureAwait(false);
 		state.ShipmentCreated = true;
 
 		Console.WriteLine($"    Shipment created: {result.TrackingNumber} via {result.Carrier}");
+		return order;
 	}
 
 	private async Task CompensateAsync(
-		OrderAggregate order,
+		Guid orderId,
 		SagaState state,
 		CancellationToken cancellationToken)
 	{
@@ -249,7 +273,7 @@ public sealed class OrderProcessingSaga : IActionHandler<ProcessOrderCommand>
 		if (state.InventoryReserved)
 		{
 			Console.WriteLine("    [Compensate] Releasing inventory reservation...");
-			await _inventoryService.ReleaseInventoryAsync(order.Id, cancellationToken)
+			await _inventoryService.ReleaseInventoryAsync(orderId, cancellationToken)
 				.ConfigureAwait(false);
 		}
 
@@ -260,11 +284,11 @@ public sealed class OrderProcessingSaga : IActionHandler<ProcessOrderCommand>
 		}
 
 		// Cancel the order if not already in a terminal state
-		if (order.Status is not (OrderStatus.Cancelled or OrderStatus.ValidationFailed or OrderStatus.PaymentFailed))
+		var order = await _repository.GetByIdAsync(orderId, cancellationToken).ConfigureAwait(false);
+		if (order != null && order.Status is not (OrderStatus.Cancelled or OrderStatus.ValidationFailed or OrderStatus.PaymentFailed))
 		{
 			order.Cancel("Saga compensation");
-			_orderStore.Save(order);
-			order.MarkEventsAsCommitted();
+			await _repository.SaveAsync(order, cancellationToken).ConfigureAwait(false);
 		}
 	}
 

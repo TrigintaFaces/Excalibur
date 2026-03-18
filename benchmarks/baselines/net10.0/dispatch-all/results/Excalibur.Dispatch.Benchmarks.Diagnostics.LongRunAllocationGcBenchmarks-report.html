@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Diagnostics.LongRunAllocationGcBenchmarks-20260316-230126</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7922)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.103
+  [Host] : .NET 10.0.3 (10.0.3, 10.0.326.7603), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=diag-default  PowerPlanMode=00000000-0000-0000-0000-000000000000  Toolchain=InProcessEmitToolchain  
+IterationCount=8  LaunchCount=1  UnrollFactor=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                   </th><th>OperationCount</th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Long-run throughput (ops/sec)&#39;</td><td>10000</td><td>2.805 ms</td><td>0.0451 ms</td><td>0.0236 ms</td><td>1.00</td><td>0.01</td><td>359.3750</td><td>3.9063</td><td>6.49 MB</td><td>1.00</td>
+</tr><tr><td>&#39;Long-run window duration (ms)&#39;</td><td>10000</td><td>2.844 ms</td><td>0.0475 ms</td><td>0.0169 ms</td><td>1.01</td><td>0.01</td><td>359.3750</td><td>3.9063</td><td>6.49 MB</td><td>1.00</td>
+</tr><tr><td>&#39;Long-run latency p50 (ns)&#39;</td><td>10000</td><td>2.858 ms</td><td>0.0856 ms</td><td>0.0448 ms</td><td>1.02</td><td>0.02</td><td>359.3750</td><td>3.9063</td><td>6.49 MB</td><td>1.00</td>
+</tr><tr><td>&#39;Long-run latency p95 (ns)&#39;</td><td>10000</td><td>2.850 ms</td><td>0.0252 ms</td><td>0.0112 ms</td><td>1.02</td><td>0.01</td><td>359.3750</td><td>3.9063</td><td>6.49 MB</td><td>1.00</td>
+</tr><tr><td>&#39;Long-run latency p99 (ns)&#39;</td><td>10000</td><td>2.787 ms</td><td>0.0337 ms</td><td>0.0149 ms</td><td>0.99</td><td>0.01</td><td>359.3750</td><td>3.9063</td><td>6.49 MB</td><td>1.00</td>
+</tr><tr><td>&#39;Long-run allocated bytes/op&#39;</td><td>10000</td><td>2.756 ms</td><td>0.0268 ms</td><td>0.0119 ms</td><td>0.98</td><td>0.01</td><td>359.3750</td><td>3.9063</td><td>6.49 MB</td><td>1.00</td>
+</tr><tr><td>&#39;Long-run Gen0 collections/sec&#39;</td><td>10000</td><td>2.825 ms</td><td>0.0385 ms</td><td>0.0201 ms</td><td>1.01</td><td>0.01</td><td>359.3750</td><td>3.9063</td><td>6.49 MB</td><td>1.00</td>
+</tr><tr><td>&#39;Long-run throughput (ops/sec)&#39;</td><td>50000</td><td>14.023 ms</td><td>0.0569 ms</td><td>0.0253 ms</td><td>1.00</td><td>0.00</td><td>1796.8750</td><td>46.8750</td><td>32.44 MB</td><td>1.00</td>
+</tr><tr><td>&#39;Long-run window duration (ms)&#39;</td><td>50000</td><td>14.038 ms</td><td>0.1863 ms</td><td>0.0974 ms</td><td>1.00</td><td>0.01</td><td>1796.8750</td><td>46.8750</td><td>32.44 MB</td><td>1.00</td>
+</tr><tr><td>&#39;Long-run latency p50 (ns)&#39;</td><td>50000</td><td>14.467 ms</td><td>0.4432 ms</td><td>0.2318 ms</td><td>1.03</td><td>0.02</td><td>1796.8750</td><td>46.8750</td><td>32.44 MB</td><td>1.00</td>
+</tr><tr><td>&#39;Long-run latency p95 (ns)&#39;</td><td>50000</td><td>14.062 ms</td><td>0.2313 ms</td><td>0.1210 ms</td><td>1.00</td><td>0.01</td><td>1796.8750</td><td>46.8750</td><td>32.44 MB</td><td>1.00</td>
+</tr><tr><td>&#39;Long-run latency p99 (ns)&#39;</td><td>50000</td><td>14.056 ms</td><td>0.1182 ms</td><td>0.0618 ms</td><td>1.00</td><td>0.00</td><td>1796.8750</td><td>46.8750</td><td>32.44 MB</td><td>1.00</td>
+</tr><tr><td>&#39;Long-run allocated bytes/op&#39;</td><td>50000</td><td>14.438 ms</td><td>0.4735 ms</td><td>0.2476 ms</td><td>1.03</td><td>0.02</td><td>1796.8750</td><td>46.8750</td><td>32.44 MB</td><td>1.00</td>
+</tr><tr><td>&#39;Long-run Gen0 collections/sec&#39;</td><td>50000</td><td>13.896 ms</td><td>0.1054 ms</td><td>0.0552 ms</td><td>0.99</td><td>0.00</td><td>1796.8750</td><td>46.8750</td><td>32.44 MB</td><td>1.00</td>
+</tr><tr><td>&#39;Long-run throughput (ops/sec)&#39;</td><td>100000</td><td>28.143 ms</td><td>0.1734 ms</td><td>0.0770 ms</td><td>1.00</td><td>0.00</td><td>3593.7500</td><td>93.7500</td><td>64.88 MB</td><td>1.00</td>
+</tr><tr><td>&#39;Long-run window duration (ms)&#39;</td><td>100000</td><td>28.100 ms</td><td>0.8618 ms</td><td>0.4507 ms</td><td>1.00</td><td>0.02</td><td>3593.7500</td><td>93.7500</td><td>64.88 MB</td><td>1.00</td>
+</tr><tr><td>&#39;Long-run latency p50 (ns)&#39;</td><td>100000</td><td>27.581 ms</td><td>0.2497 ms</td><td>0.1306 ms</td><td>0.98</td><td>0.01</td><td>3593.7500</td><td>93.7500</td><td>64.88 MB</td><td>1.00</td>
+</tr><tr><td>&#39;Long-run latency p95 (ns)&#39;</td><td>100000</td><td>28.249 ms</td><td>0.3237 ms</td><td>0.1693 ms</td><td>1.00</td><td>0.01</td><td>3593.7500</td><td>93.7500</td><td>64.88 MB</td><td>1.00</td>
+</tr><tr><td>&#39;Long-run latency p99 (ns)&#39;</td><td>100000</td><td>28.602 ms</td><td>0.9365 ms</td><td>0.4898 ms</td><td>1.02</td><td>0.02</td><td>3593.7500</td><td>93.7500</td><td>64.88 MB</td><td>1.00</td>
+</tr><tr><td>&#39;Long-run allocated bytes/op&#39;</td><td>100000</td><td>28.126 ms</td><td>0.3695 ms</td><td>0.1933 ms</td><td>1.00</td><td>0.01</td><td>3593.7500</td><td>93.7500</td><td>64.88 MB</td><td>1.00</td>
+</tr><tr><td>&#39;Long-run Gen0 collections/sec&#39;</td><td>100000</td><td>28.298 ms</td><td>0.1349 ms</td><td>0.0599 ms</td><td>1.01</td><td>0.00</td><td>3593.7500</td><td>93.7500</td><td>64.88 MB</td><td>1.00</td>
+</tr></tbody></table>
+</body>
+</html>

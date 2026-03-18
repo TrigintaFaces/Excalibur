@@ -19,10 +19,11 @@ Results: `benchmarks/runs/BenchmarkDotNet.Artifacts/results/`
 
 | Metric | Value | Source |
 |--------|-------|--------|
-| Dispatch single command (lean) | 63.56 ns | MediatRComparisonBenchmarks |
-| Dispatch ultra-local API (single command) | 30.32 ns | MediatRComparisonBenchmarks |
-| Dispatch vs Wolverine InvokeAsync | 72.02 ns vs 200.31 ns | WolverineInProcessComparisonBenchmarks |
-| Dispatch vs MassTransit Mediator | 96.59 ns vs 1,276.16 ns | MassTransitMediatorComparisonBenchmarks |
+| Dispatch single command (lean) | 41.43 ns | MediatRWarmPathComparisonBenchmarks |
+| Dispatch ultra-local API (single command) | 31.81 ns | MediatRWarmPathComparisonBenchmarks |
+| Dispatch vs MediatR single command | 41.43 ns vs 43.79 ns (**Dispatch faster**) | MediatRWarmPathComparisonBenchmarks |
+| Dispatch vs Wolverine InvokeAsync | 50.55 ns vs 189.15 ns | WolverineInProcessWarmPathComparisonBenchmarks |
+| Dispatch vs MassTransit Mediator | 48.04 ns vs 1,241.95 ns | MassTransitMediatorWarmPathComparisonBenchmarks |
 | Handler activation | 26.69 ns / 24 B | DispatchHotPathBreakdownBenchmarks |
 | Context creation | 13.23 ns / 216 B | DispatchThroughputBenchmarks |
 
@@ -32,22 +33,22 @@ Results: `benchmarks/runs/BenchmarkDotNet.Artifacts/results/`
 
 | Metric | Value | Allocated |
 |--------|-------|-----------|
-| Single command dispatch | 56.95 ns | 160 B |
-| Query with response | 69.84 ns | 352 B |
+| Single command dispatch | 41.43 ns | 168 B |
+| Query with response | 52.89 ns | 264 B |
 | FinalDispatchHandler | 94.81 ns | 296 B |
 | Handler activation | 26.69 ns | 24 B |
 | Context creation | 13.23 ns | 216 B |
-| Notification to 3 handlers | 115.03 ns | 240 B |
-| Dispatch single command (MediatR bench) | 63.56 ns | 240 B |
+| Notification to 3 handlers | 112.92 ns | 240 B |
+| Dispatch single command (MediatR bench) | 41.43 ns | 168 B |
 
 ## Comparison Snapshot
 
 | Track | Summary |
 |------|---------|
-| MediatR in-process parity | MediatR ~1.4x faster on standard command; Dispatch ultra-local ~1.5x faster; notification within 1.2x |
-| Wolverine in-process parity | **Dispatch ~2.8x faster on command, ~54x on notifications** |
-| MassTransit mediator in-process parity | Dispatch ~13.2x faster on single command |
-| Queued/bus end-to-end parity | **Dispatch ~3.1x faster than Wolverine, ~9.0x faster than MassTransit** on single queued command |
+| MediatR in-process parity | **Dispatch ~1.05x faster** on standard command; **ultra-local ~1.4x faster**; **Dispatch wins 100-concurrent and allocation** |
+| Wolverine in-process parity | **Dispatch ~3.7x faster on command, ~34x on notifications** |
+| MassTransit mediator in-process parity | **Dispatch ~26x faster on single command** |
+| Queued/bus end-to-end parity | **Dispatch ~3.3x faster than Wolverine, ~19.9x faster than MassTransit** on single queued command |
 
 See [Competitor Comparison](./competitor-comparison.md) for full tables and methodology notes.
 

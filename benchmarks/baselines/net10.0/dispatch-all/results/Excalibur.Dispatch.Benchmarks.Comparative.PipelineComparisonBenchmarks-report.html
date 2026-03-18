@@ -2,7 +2,7 @@
 <html lang='en'>
 <head>
 <meta charset='utf-8' />
-<title>Excalibur.Dispatch.Benchmarks.Comparative.PipelineComparisonBenchmarks-20260202-191425</title>
+<title>Excalibur.Dispatch.Benchmarks.Comparative.PipelineComparisonBenchmarks-20260316-195017</title>
 
 <style type="text/css">
 	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
@@ -13,21 +13,26 @@
 </head>
 <body>
 <pre><code>
-BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7922)
 Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
-.NET SDK 10.0.102
-  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
-  DefaultJob : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+.NET SDK 10.0.103
+  [Host] : .NET 10.0.3 (10.0.3, 10.0.326.7603), X64 RyuJIT x86-64-v3
 </code></pre>
-<pre><code></code></pre>
+<pre><code>Job=comparative-inproc  PowerPlanMode=00000000-0000-0000-0000-000000000000  Toolchain=InProcessEmitToolchain  
+InvocationCount=1  IterationCount=3  UnrollFactor=1  
+</code></pre>
 
 <table>
-<thead><tr><th>Method                           </th><th>Mean </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+<thead><tr><th>Method                             </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Median</th><th>Ratio</th><th>RatioSD</th><th>Allocated</th><th>Alloc Ratio</th>
 </tr>
-</thead><tbody><tr><td>&#39;Dispatch: 3 middleware behaviors&#39;</td><td>2,125.4 ns</td><td>36.83 ns</td><td>34.45 ns</td><td>1.00</td><td>0.02</td><td>0.1030</td><td>1952 B</td><td>1.00</td>
-</tr><tr><td>&#39;MediatR: 3 pipeline behaviors&#39;</td><td>126.6 ns</td><td>2.45 ns</td><td>3.01 ns</td><td>0.06</td><td>0.00</td><td>0.0360</td><td>680 B</td><td>0.35</td>
-</tr><tr><td>&#39;Dispatch: 10 concurrent + 3 behaviors&#39;</td><td>21,582.3 ns</td><td>347.76 ns</td><td>325.29 ns</td><td>10.16</td><td>0.22</td><td>1.0071</td><td>19233 B</td><td>9.85</td>
-</tr><tr><td>&#39;MediatR: 10 concurrent + 3 behaviors&#39;</td><td>1,290.3 ns</td><td>20.34 ns</td><td>15.88 ns</td><td>0.61</td><td>0.01</td><td>0.3796</td><td>7168 B</td><td>3.67</td>
+</thead><tbody><tr><td>&#39;Dispatch: 3 middleware behaviors&#39;</td><td>28.50 &mu;s</td><td>50.00 &mu;s</td><td>2.740 &mu;s</td><td>27.50 &mu;s</td><td>1.01</td><td>0.12</td><td>704 B</td><td>1.00</td>
+</tr><tr><td>&#39;MediatR: 3 pipeline behaviors&#39;</td><td>13.87 &mu;s</td><td>121.38 &mu;s</td><td>6.653 &mu;s</td><td>10.80 &mu;s</td><td>0.49</td><td>0.21</td><td>6456 B</td><td>9.17</td>
+</tr><tr><td>&#39;Wolverine: 3 middleware&#39;</td><td>44.83 &mu;s</td><td>153.83 &mu;s</td><td>8.432 &mu;s</td><td>47.10 &mu;s</td><td>1.58</td><td>0.29</td><td>3456 B</td><td>4.91</td>
+</tr><tr><td>&#39;MassTransit: 3 consume filters&#39;</td><td>121.43 &mu;s</td><td>233.71 &mu;s</td><td>12.810 &mu;s</td><td>120.00 &mu;s</td><td>4.29</td><td>0.52</td><td>11032 B</td><td>15.67</td>
+</tr><tr><td>&#39;Dispatch: 10 concurrent + 3 behaviors&#39;</td><td>61.90 &mu;s</td><td>72.88 &mu;s</td><td>3.995 &mu;s</td><td>63.90 &mu;s</td><td>2.18</td><td>0.21</td><td>10280 B</td><td>14.60</td>
+</tr><tr><td>&#39;MediatR: 10 concurrent + 3 behaviors&#39;</td><td>41.43 &mu;s</td><td>132.77 &mu;s</td><td>7.278 &mu;s</td><td>43.00 &mu;s</td><td>1.46</td><td>0.25</td><td>7808 B</td><td>11.09</td>
+</tr><tr><td>&#39;Wolverine: 10 concurrent + 3 middleware&#39;</td><td>41.70 &mu;s</td><td>62.43 &mu;s</td><td>3.422 &mu;s</td><td>43.10 &mu;s</td><td>1.47</td><td>0.16</td><td>10576 B</td><td>15.02</td>
+</tr><tr><td>&#39;MassTransit: 10 concurrent + 3 filters&#39;</td><td>192.37 &mu;s</td><td>378.69 &mu;s</td><td>20.757 &mu;s</td><td>183.40 &mu;s</td><td>6.79</td><td>0.84</td><td>52832 B</td><td>75.05</td>
 </tr></tbody></table>
 </body>
 </html>

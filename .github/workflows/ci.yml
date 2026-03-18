@@ -1286,7 +1286,7 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           token: ${{ github.token }}
       - name: Download unit coverage artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: code-coverage-unit-*
           path: cov
@@ -1442,7 +1442,7 @@ jobs:
         run: |
           printf '[]' > changed-files.json
       - name: Download head coverage artifacts (all shards)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: code-coverage-unit-*
           path: head-cov
@@ -1698,7 +1698,7 @@ jobs:
           token: ${{ github.token }}
 
       - name: Download coverage artifacts (all shards)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: code-coverage-*
           path: coverage
@@ -2400,7 +2400,7 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Download test results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ matrix.report.artifact }}
           path: test-results
