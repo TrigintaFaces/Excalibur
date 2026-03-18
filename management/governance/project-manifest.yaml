@@ -16,6 +16,7 @@ projects:
   - path: benchmarks/Excalibur.Dispatch.Benchmarks/Excalibur.Dispatch.Benchmarks.csproj
   - path: benchmarks/Excalibur.Dispatch.Core.Tests.Performance/Excalibur.Dispatch.Core.Tests.Performance.csproj
   - path: load-tests/Excalibur.Dispatch.LoadTests/Excalibur.Dispatch.LoadTests.csproj
+  - path: samples/01-getting-started/DataAccessIntro/DataAccessIntro.csproj
   - path: samples/01-getting-started/DispatchOnly/Excalibur.DispatchOnly.csproj
   - path: samples/01-getting-started/EventSourcingIntro/EventSourcingIntro.csproj
   - path: samples/01-getting-started/HelloDispatch/HelloDispatch.csproj
@@ -54,14 +55,18 @@ projects:
   - path: samples/09-advanced/CosmosDbEventStore/CosmosDbEventStore.csproj
   - path: samples/09-advanced/EventUpcasting/EventUpcasting.csproj
   - path: samples/09-advanced/FluentValidationSample/FluentValidationSample.csproj
+  - path: samples/09-advanced/InboxIdempotency/InboxIdempotency.csproj
   - path: samples/09-advanced/JobWorkerSample/JobWorkerSample.csproj
   - path: samples/09-advanced/LeaderElection/LeaderElection.csproj
   - path: samples/09-advanced/MinimalJobSample/MinimalJobSample.csproj
+  - path: samples/09-advanced/MultiDatabase/MultiDatabase.csproj
+  - path: samples/09-advanced/ProductionPipeline/ProductionPipeline.csproj
   - path: samples/09-advanced/ProjectionsSample/ProjectionsSample.csproj
   - path: samples/09-advanced/SessionManagement/SessionManagementExample.csproj
   - path: samples/09-advanced/SnapshotStrategies/SnapshotStrategies.csproj
   - path: samples/09-advanced/SqlServerEventStore/SqlServerEventStore.csproj
   - path: samples/09-advanced/StreamingHandlers/StreamingHandlers.csproj
+  - path: samples/09-advanced/TransactionalHandlers/TransactionalHandlers.csproj
   - path: samples/09-advanced/Versioning.Examples/EcommerceOrderVersioning/EcommerceOrderVersioning.csproj
   - path: samples/09-advanced/Versioning.Examples/IntegrationEventVersioning/IntegrationEventVersioning.csproj
   - path: samples/09-advanced/Versioning.Examples/UserProfileVersioning/UserProfileVersioning.csproj

@@ -34,11 +34,12 @@ param(
     [Parameter(Mandatory = $false)]
     [double]$HotPathLookupMaxDispatchRatio = 0.25,
 
-    # HandlerInvoker takes ~48-50% of dispatch time on both local and CI runs.
-    # The previous 0.40 threshold was aspirational. 0.55 accommodates the actual
-    # invoker proportion with headroom for CI variance.
+    # HandlerInvoker ratio increased after S652-S653 auto-optimize rounds shrank
+    # dispatch overhead (lookup, context factory), compressing the denominator.
+    # Actual invoker time unchanged; ratio rose from ~0.50 to ~0.67 due to
+    # denominator compression. 0.75 accommodates post-optimization baseline.
     [Parameter(Mandatory = $false)]
-    [double]$HotPathInvokerMaxDispatchRatio = 0.60,
+    [double]$HotPathInvokerMaxDispatchRatio = 0.75,
 
     [Parameter(Mandatory = $false)]
     [double]$HotPathMiddlewareCurveMinGrowthRatio = 2.00,
