@@ -45,7 +45,11 @@ internal sealed class MessageContextPool : IMessageContextPool
 			// Thread-local cache is [ThreadStatic] (shared across all pool instances).
 			// Re-initialize RequestServices to this pool's service provider to prevent
 			// cross-pool contamination when multiple pools exist (e.g., in test suites).
-			context.RequestServices = _serviceProvider;
+			// PERF: Skip volatile write when the provider hasn't changed (common single-pool case).
+			if (!ReferenceEquals(context.RequestServices, _serviceProvider))
+			{
+				context.RequestServices = _serviceProvider;
+			}
 			return context;
 		}
 
@@ -101,11 +105,8 @@ internal sealed class MessageContextPool : IMessageContextPool
 	{
 		public void Initialize(IDispatchMessage message) => Message = message;
 
-		public new void Reset()
-		{
-			base.Reset();
-			Message = null;
-			Result = null;
-		}
+		// PERF: base.Reset() already sets Message = null and Result = null,
+		// so no need to repeat those assignments here.
+		public new void Reset() => base.Reset();
 	}
 }

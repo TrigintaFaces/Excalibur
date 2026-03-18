@@ -1,29 +1,27 @@
 ```
 
-BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7922)
 Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
-.NET SDK 10.0.102
-  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
-  DefaultJob : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+.NET SDK 10.0.103
+  [Host] : .NET 10.0.3 (10.0.3, 10.0.326.7603), X64 RyuJIT x86-64-v3
 
+Job=comparative-inproc  PowerPlanMode=00000000-0000-0000-0000-000000000000  Toolchain=InProcessEmitToolchain  
+InvocationCount=1  IterationCount=3  UnrollFactor=1  
 
 ```
-| Method                                    | Mean            | Error         | StdDev        | Median          | Ratio    | RatioSD | Gen0   | Allocated | Alloc Ratio |
-|------------------------------------------ |----------------:|--------------:|--------------:|----------------:|---------:|--------:|-------:|----------:|------------:|
-| &#39;Dispatch: Single command&#39;                |      1,819.0 ns |      34.50 ns |      42.37 ns |      1,804.5 ns |     1.00 |    0.03 | 0.0839 |    1608 B |        1.00 |
-| &#39;Wolverine: Single command (InvokeAsync)&#39; |        201.7 ns |       2.55 ns |       2.26 ns |        201.5 ns |     0.11 |    0.00 | 0.0355 |     672 B |        0.42 |
-| &#39;Wolverine: Single command (SendAsync)&#39;   | 15,589,384.8 ns | 194,166.78 ns | 181,623.72 ns | 15,663,659.4 ns | 8,574.73 |  214.45 |      - |    5800 B |        3.61 |
-| &#39;Dispatch: Event to 2 handlers&#39;           |      3,797.3 ns |      78.39 ns |     209.23 ns |      3,721.5 ns |     2.09 |    0.12 | 0.1564 |    2960 B |        1.84 |
-| &#39;Wolverine: Event publish&#39;                | 15,536,860.7 ns | 213,649.86 ns | 199,848.21 ns | 15,597,242.2 ns | 8,545.84 |  218.43 |      - |    5781 B |        3.60 |
-| &#39;Dispatch: 10 concurrent commands&#39;        |     18,064.9 ns |     317.90 ns |     366.10 ns |     17,946.6 ns |     9.94 |    0.30 | 0.8240 |   15793 B |        9.82 |
-| &#39;Wolverine: 10 concurrent commands&#39;       |      2,479.1 ns |      76.07 ns |     224.31 ns |      2,427.5 ns |     1.36 |    0.13 | 0.3662 |    6928 B |        4.31 |
-| &#39;Dispatch: Query with return value&#39;       |        370.8 ns |      19.47 ns |      57.42 ns |        358.3 ns |     0.20 |    0.03 | 0.0429 |     808 B |        0.50 |
-| &#39;Wolverine: Query with return value&#39;      |              NA |            NA |            NA |              NA |        ? |       ? |     NA |        NA |           ? |
-| &#39;Dispatch: 100 concurrent commands&#39;       |    193,652.7 ns |   5,398.85 ns |  15,576.92 ns |    189,501.7 ns |   106.52 |    8.85 | 7.8125 |  156203 B |       97.14 |
-| &#39;Wolverine: 100 concurrent commands&#39;      |     21,696.8 ns |     427.56 ns |     843.96 ns |     21,822.9 ns |    11.93 |    0.53 | 3.6011 |   68128 B |       42.37 |
-| &#39;Dispatch: Batch queries (10)&#39;            |      2,975.0 ns |      54.52 ns |     140.74 ns |      2,975.2 ns |     1.64 |    0.09 | 0.4120 |    7792 B |        4.85 |
-| &#39;Wolverine: Batch queries (10)&#39;           |              NA |            NA |            NA |              NA |        ? |       ? |     NA |        NA |           ? |
-
-Benchmarks with issues:
-  WolverineComparisonBenchmarks.'Wolverine: Query with return value': DefaultJob
-  WolverineComparisonBenchmarks.'Wolverine: Batch queries (10)': DefaultJob
+| Method                                    | Mean       | Error      | StdDev     | Median     | Ratio | RatioSD | Allocated | Alloc Ratio |
+|------------------------------------------ |-----------:|-----------:|-----------:|-----------:|------:|--------:|----------:|------------:|
+| &#39;Dispatch: Single command&#39;                |  14.733 μs | 202.056 μs | 11.0753 μs |   9.000 μs |  1.36 |    1.16 |     192 B |        1.00 |
+| &#39;Dispatch: Single command (ultra-local)&#39;  |   3.033 μs |   5.267 μs |  0.2887 μs |   3.200 μs |  0.28 |    0.13 |      48 B |        0.25 |
+| &#39;Wolverine: Single command (InvokeAsync)&#39; |  40.633 μs | 111.127 μs |  6.0913 μs |  44.100 μs |  3.76 |    1.82 |    1312 B |        6.83 |
+| &#39;Wolverine: Single command (SendAsync)&#39;   |  72.300 μs | 498.588 μs | 27.3293 μs |  67.800 μs |  6.68 |    3.91 |   11472 B |       59.75 |
+| &#39;Dispatch: Event to 2 handlers&#39;           |  18.733 μs |  17.999 μs |  0.9866 μs |  19.200 μs |  1.73 |    0.81 |    7344 B |       38.25 |
+| &#39;Wolverine: Event publish&#39;                |  96.267 μs | 236.925 μs | 12.9867 μs |  92.200 μs |  8.90 |    4.28 |   10408 B |       54.21 |
+| &#39;Dispatch: 10 concurrent commands&#39;        |  21.633 μs |  16.951 μs |  0.9292 μs |  21.900 μs |  2.00 |    0.93 |    7936 B |       41.33 |
+| &#39;Wolverine: 10 concurrent commands&#39;       |  40.667 μs | 293.386 μs | 16.0815 μs |  38.800 μs |  3.76 |    2.24 |   10784 B |       56.17 |
+| &#39;Dispatch: Query with return value&#39;       |  12.200 μs |  33.788 μs |  1.8520 μs |  12.900 μs |  1.13 |    0.55 |     672 B |        3.50 |
+| &#39;Wolverine: Query with return value&#39;      |  33.250 μs |  78.829 μs |  4.3209 μs |  34.150 μs |  3.07 |    1.47 |    3960 B |       20.62 |
+| &#39;Dispatch: 100 concurrent commands&#39;       |  37.367 μs |  22.811 μs |  1.2503 μs |  37.400 μs |  3.45 |    1.60 |   17200 B |       89.58 |
+| &#39;Wolverine: 100 concurrent commands&#39;      | 138.867 μs | 184.779 μs | 10.1283 μs | 135.700 μs | 12.84 |    6.01 |   77072 B |      401.42 |
+| &#39;Dispatch: Batch queries (10)&#39;            |  21.467 μs |  34.823 μs |  1.9088 μs |  22.200 μs |  1.98 |    0.93 |   10216 B |       53.21 |
+| &#39;Wolverine: Batch queries (10)&#39;           |  32.167 μs |  45.803 μs |  2.5106 μs |  32.800 μs |  2.97 |    1.40 |   13592 B |       70.79 |

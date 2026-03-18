@@ -46,6 +46,10 @@ public sealed partial class FinalDispatchHandler(
 	private readonly IMessageBus? _cachedLocalBus = ResolveLocalBus(busProvider);
 	private readonly bool _localRetriesEnabled = ResolveLocalRetriesEnabled(busOptionsMap, retryPolicy);
 
+	// PERF: Pre-resolved bus + policy cache for single-target dispatch.
+	// Avoids ConcurrentDictionary lookup + policy computation on every dispatch.
+	private readonly ConcurrentDictionary<string, (IMessageBus Bus, bool UseNoOpPolicy)> _resolvedBusCache = new(StringComparer.OrdinalIgnoreCase);
+
 	/// <summary>
 	/// Publishes the provided message to the message bus determined by routing.
 	/// </summary>
@@ -546,38 +550,48 @@ public sealed partial class FinalDispatchHandler(
 		}
 	}
 
-	private async ValueTask<IMessageResult> HandleSingleTargetAsync(
+	// PERF: Non-async wrapper avoids state machine allocation when the bus completes synchronously.
+	// The async slow path is split into HandleSingleTargetSlowAsync.
+	private ValueTask<IMessageResult> HandleSingleTargetAsync(
 		IDispatchMessage message,
 		IMessageContext context,
 		string busName,
 		RoutingDecision? routingDecision,
 		CancellationToken cancellationToken)
 	{
-		if (!busProvider.TryGet(busName, out var resolvedBus) || resolvedBus is null)
+		// PERF: Cache bus + policy resolution per bus name. Bus registrations are immutable
+		// after startup, so caching eliminates 2 ConcurrentDictionary lookups + policy
+		// computation per dispatch.
+		if (!_resolvedBusCache.TryGetValue(busName, out var cached))
 		{
-			LogNoMessageBusFound(_logger, busName);
-			var problemDetails = new MessageProblemDetails
+			if (!busProvider.TryGet(busName, out var freshBus) || freshBus is null)
 			{
-				Type = ProblemDetailsTypes.Routing,
-				Title = "Routing failed",
-				Status = 404,
-				Detail = $"No message bus registered for '{busName}'",
-				Instance = Guid.NewGuid().ToString(),
-			};
+				LogNoMessageBusFound(_logger, busName);
+				var problemDetails = new MessageProblemDetails
+				{
+					Type = ProblemDetailsTypes.Routing,
+					Title = "Routing failed",
+					Status = 404,
+					Detail = $"No message bus registered for '{busName}'",
+					Instance = Guid.NewGuid().ToString(),
+				};
 
-			return new Messaging.MessageResult(
-				succeeded: false,
-				problemDetails: problemDetails,
-				routingDecision: routingDecision,
-				validationResult: context.ValidationResult() as IValidationResult,
-				authorizationResult: context.AuthorizationResult() as IAuthorizationResult);
+				return new ValueTask<IMessageResult>(new Messaging.MessageResult(
+					succeeded: false,
+					problemDetails: problemDetails,
+					routingDecision: routingDecision,
+					validationResult: context.ValidationResult() as IValidationResult,
+					authorizationResult: context.AuthorizationResult() as IAuthorizationResult));
+			}
+
+			_ = busOptionsMap.TryGetValue(busName, out var opts);
+			var isNoOp = !(opts?.EnableRetries == true && retryPolicy != null);
+			cached = (freshBus, isNoOp);
+			_ = _resolvedBusCache.TryAdd(busName, cached);
 		}
 
-		_ = busOptionsMap.TryGetValue(busName, out var options);
-		var policy = options?.EnableRetries == true && retryPolicy != null
-			? retryPolicy
-			: NoOpRetryPolicy.Instance;
-		var useNoOpPolicy = policy is NoOpRetryPolicy;
+		var resolvedBus = cached.Bus;
+		var useNoOpPolicy = cached.UseNoOpPolicy;
 
 		try
 		{
@@ -593,35 +607,21 @@ public sealed partial class FinalDispatchHandler(
 						var publishTask = resolvedBus.PublishAsync(action, context, cancellationToken);
 						if (!publishTask.IsCompletedSuccessfully)
 						{
-							await publishTask.ConfigureAwait(false);
+							return HandleSingleTargetActionSlowAsync(
+								publishTask, action, context, routingDecision, actionResultType);
 						}
 					}
 
-					return CreateActionDispatchResult(
+					return new ValueTask<IMessageResult>(CreateActionDispatchResult(
 						action,
 						context,
 						routingDecision,
 						actionResultType,
-						hasContextResult);
+						hasContextResult));
 				}
 
-				async Task<IMessageResult> ExecuteActionAsync(CancellationToken ct)
-				{
-					var hasContextResult = HasContextResult(context);
-					if (!hasContextResult)
-					{
-						await resolvedBus.PublishAsync(action, context, ct).ConfigureAwait(false);
-					}
-
-					return CreateActionDispatchResult(
-						action,
-						context,
-						routingDecision,
-						actionResultType,
-						hasContextResult);
-				}
-
-				return await policy.ExecuteAsync(ExecuteActionAsync, cancellationToken).ConfigureAwait(false);
+				return HandleSingleTargetActionWithRetryAsync(
+					resolvedBus, action, context, routingDecision, actionResultType, retryPolicy!, cancellationToken);
 			}
 
 			if (message is IDispatchEvent dispatchEvent)
@@ -631,16 +631,14 @@ public sealed partial class FinalDispatchHandler(
 					var publishTask = resolvedBus.PublishAsync(dispatchEvent, context, cancellationToken);
 					if (!publishTask.IsCompletedSuccessfully)
 					{
-						await publishTask.ConfigureAwait(false);
+						return HandleSingleTargetEventSlowAsync(publishTask, context, routingDecision);
 					}
 
-					return CreateSuccessResult(context, routingDecision);
+					return new ValueTask<IMessageResult>(CreateSuccessResult(context, routingDecision));
 				}
 
-				await policy.ExecuteAsync(
-					ct => resolvedBus.PublishAsync(dispatchEvent, context, ct),
-					cancellationToken).ConfigureAwait(false);
-				return CreateSuccessResult(context, routingDecision);
+				return HandleSingleTargetEventWithRetryAsync(
+					resolvedBus, dispatchEvent, context, routingDecision, retryPolicy!, cancellationToken);
 			}
 
 			if (message is IDispatchDocument document)
@@ -650,16 +648,14 @@ public sealed partial class FinalDispatchHandler(
 					var publishTask = resolvedBus.PublishAsync(document, context, cancellationToken);
 					if (!publishTask.IsCompletedSuccessfully)
 					{
-						await publishTask.ConfigureAwait(false);
+						return HandleSingleTargetDocumentSlowAsync(publishTask, context, routingDecision);
 					}
 
-					return CreateSuccessResult(context, routingDecision);
+					return new ValueTask<IMessageResult>(CreateSuccessResult(context, routingDecision));
 				}
 
-				await policy.ExecuteAsync(
-					ct => resolvedBus.PublishAsync(document, context, ct),
-					cancellationToken).ConfigureAwait(false);
-				return CreateSuccessResult(context, routingDecision);
+				return HandleSingleTargetDocumentWithRetryAsync(
+					resolvedBus, document, context, routingDecision, retryPolicy!, cancellationToken);
 			}
 		}
 		catch (Exception ex)
@@ -675,12 +671,12 @@ public sealed partial class FinalDispatchHandler(
 				Instance = Guid.NewGuid().ToString(),
 			};
 
-			return new Messaging.MessageResult(
+			return new ValueTask<IMessageResult>(new Messaging.MessageResult(
 				succeeded: false,
 				problemDetails: problemDetails,
 				routingDecision: routingDecision,
 				validationResult: context.ValidationResult() as IValidationResult,
-				authorizationResult: context.AuthorizationResult() as IAuthorizationResult);
+				authorizationResult: context.AuthorizationResult() as IAuthorizationResult));
 		}
 
 		var unsupported = new MessageProblemDetails
@@ -692,21 +688,188 @@ public sealed partial class FinalDispatchHandler(
 			Instance = Guid.NewGuid().ToString(),
 		};
 
-		return new Messaging.MessageResult(
+		return new ValueTask<IMessageResult>(new Messaging.MessageResult(
 			succeeded: false,
 			problemDetails: unsupported,
 			routingDecision: RoutingDecisionAccessor.GetRoutingDecisionFast(context),
+			validationResult: context.ValidationResult() as IValidationResult,
+			authorizationResult: context.AuthorizationResult() as IAuthorizationResult));
+	}
+
+	// PERF: Async slow-path helpers for HandleSingleTargetAsync, split to avoid state machine on sync completion.
+	private async ValueTask<IMessageResult> HandleSingleTargetActionSlowAsync(
+		Task publishTask,
+		IDispatchAction action,
+		IMessageContext context,
+		RoutingDecision? routingDecision,
+		Type? actionResultType)
+	{
+		try
+		{
+			await publishTask.ConfigureAwait(false);
+			return CreateActionDispatchResult(action, context, routingDecision, actionResultType, hadContextResultBeforeDispatch: false);
+		}
+		catch (Exception ex)
+		{
+			return CreateSingleTargetErrorResult(ex, context, routingDecision);
+		}
+	}
+
+	private async ValueTask<IMessageResult> HandleSingleTargetActionWithRetryAsync(
+		IMessageBus resolvedBus,
+		IDispatchAction action,
+		IMessageContext context,
+		RoutingDecision? routingDecision,
+		Type? actionResultType,
+		IRetryPolicy policy,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			async Task<IMessageResult> ExecuteActionAsync(CancellationToken ct)
+			{
+				var hasContextResult = HasContextResult(context);
+				if (!hasContextResult)
+				{
+					await resolvedBus.PublishAsync(action, context, ct).ConfigureAwait(false);
+				}
+
+				return CreateActionDispatchResult(action, context, routingDecision, actionResultType, hasContextResult);
+			}
+
+			return await policy.ExecuteAsync(ExecuteActionAsync, cancellationToken).ConfigureAwait(false);
+		}
+		catch (Exception ex)
+		{
+			return CreateSingleTargetErrorResult(ex, context, routingDecision);
+		}
+	}
+
+	private async ValueTask<IMessageResult> HandleSingleTargetEventSlowAsync(
+		Task publishTask,
+		IMessageContext context,
+		RoutingDecision? routingDecision)
+	{
+		try
+		{
+			await publishTask.ConfigureAwait(false);
+			return CreateSuccessResult(context, routingDecision);
+		}
+		catch (Exception ex)
+		{
+			return CreateSingleTargetErrorResult(ex, context, routingDecision);
+		}
+	}
+
+	private async ValueTask<IMessageResult> HandleSingleTargetEventWithRetryAsync(
+		IMessageBus resolvedBus,
+		IDispatchEvent dispatchEvent,
+		IMessageContext context,
+		RoutingDecision? routingDecision,
+		IRetryPolicy policy,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			await policy.ExecuteAsync(
+				ct => resolvedBus.PublishAsync(dispatchEvent, context, ct),
+				cancellationToken).ConfigureAwait(false);
+			return CreateSuccessResult(context, routingDecision);
+		}
+		catch (Exception ex)
+		{
+			return CreateSingleTargetErrorResult(ex, context, routingDecision);
+		}
+	}
+
+	private async ValueTask<IMessageResult> HandleSingleTargetDocumentSlowAsync(
+		Task publishTask,
+		IMessageContext context,
+		RoutingDecision? routingDecision)
+	{
+		try
+		{
+			await publishTask.ConfigureAwait(false);
+			return CreateSuccessResult(context, routingDecision);
+		}
+		catch (Exception ex)
+		{
+			return CreateSingleTargetErrorResult(ex, context, routingDecision);
+		}
+	}
+
+	private async ValueTask<IMessageResult> HandleSingleTargetDocumentWithRetryAsync(
+		IMessageBus resolvedBus,
+		IDispatchDocument document,
+		IMessageContext context,
+		RoutingDecision? routingDecision,
+		IRetryPolicy policy,
+		CancellationToken cancellationToken)
+	{
+		try
+		{
+			await policy.ExecuteAsync(
+				ct => resolvedBus.PublishAsync(document, context, ct),
+				cancellationToken).ConfigureAwait(false);
+			return CreateSuccessResult(context, routingDecision);
+		}
+		catch (Exception ex)
+		{
+			return CreateSingleTargetErrorResult(ex, context, routingDecision);
+		}
+	}
+
+	private IMessageResult CreateSingleTargetErrorResult(
+		Exception ex,
+		IMessageContext context,
+		RoutingDecision? routingDecision)
+	{
+		LogUnhandledExceptionDuringDispatch(_logger, ex.GetType().Name, ex);
+
+		var problemDetails = new MessageProblemDetails
+		{
+			Type = ProblemDetailsTypes.HandlerError,
+			Title = "Final dispatch failed",
+			Status = 500,
+			Detail = ex.Message,
+			Instance = Guid.NewGuid().ToString(),
+		};
+
+		return new Messaging.MessageResult(
+			succeeded: false,
+			problemDetails: problemDetails,
+			routingDecision: routingDecision,
 			validationResult: context.ValidationResult() as IValidationResult,
 			authorizationResult: context.AuthorizationResult() as IAuthorizationResult);
 	}
 
 	private static IMessageResult CreateSuccessResult(IMessageContext context, RoutingDecision? routingDecision)
 	{
+		// PERF: Fast path for MessageContext — skip dictionary lookups entirely when no
+		// validation, authorization, or cache hit was set (the common case for remote dispatch).
+		if (context is MessageContext messageContext)
+		{
+			var hasCacheHit = messageContext.TryGetItemFast(CacheHitContextKey, out var cacheVal) && cacheVal is true;
+			var hasValidation = messageContext.TryGetItemFast(ValidationResultPropertyKey, out _);
+			var hasAuthorization = messageContext.TryGetItemFast(AuthorizationResultPropertyKey, out _);
+
+			if (!hasValidation && !hasAuthorization)
+			{
+				return hasCacheHit ? SimpleMessageResult.SuccessCacheHitResult : SimpleMessageResult.SuccessResult;
+			}
+
+			return Abstractions.MessageResult.Success(
+				routingDecision,
+				hasValidation ? context.ValidationResult() : null,
+				hasAuthorization ? context.AuthorizationResult() : null,
+				hasCacheHit);
+		}
+
 		var cacheHit = IsCacheHit(context);
 		var validationResult = context.ValidationResult();
 		var authorizationResult = context.AuthorizationResult();
 
-		if (routingDecision is null && validationResult is null && authorizationResult is null)
+		if (validationResult is null && authorizationResult is null)
 		{
 			return cacheHit ? SimpleMessageResult.SuccessCacheHitResult : SimpleMessageResult.SuccessResult;
 		}

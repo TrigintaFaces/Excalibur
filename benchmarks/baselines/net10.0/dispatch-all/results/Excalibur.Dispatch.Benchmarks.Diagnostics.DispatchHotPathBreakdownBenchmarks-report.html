@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Diagnostics.DispatchHotPathBreakdownBenchmarks-20260316-215512</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7922)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.103
+  [Host] : .NET 10.0.3 (10.0.3, 10.0.326.7603), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=diag-default  PowerPlanMode=00000000-0000-0000-0000-000000000000  Toolchain=InProcessEmitToolchain  
+IterationCount=8  LaunchCount=1  UnrollFactor=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                                     </th><th>Mean</th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Dispatcher: Single command&#39;</td><td>52.961 ns</td><td>1.1545 ns</td><td>0.6038 ns</td><td>1.00</td><td>0.02</td><td>0.0085</td><td>160 B</td><td>1.00</td>
+</tr><tr><td>&#39;Dispatcher: Query with response&#39;</td><td>67.111 ns</td><td>4.8347 ns</td><td>2.5287 ns</td><td>1.27</td><td>0.05</td><td>0.0186</td><td>352 B</td><td>2.20</td>
+</tr><tr><td>&#39;MiddlewareInvoker: Direct invoke&#39;</td><td>46.897 ns</td><td>3.2384 ns</td><td>1.4379 ns</td><td>0.89</td><td>0.03</td><td>0.0148</td><td>280 B</td><td>1.75</td>
+</tr><tr><td>&#39;FinalDispatchHandler: Action&#39;</td><td>91.581 ns</td><td>3.5286 ns</td><td>1.5667 ns</td><td>1.73</td><td>0.03</td><td>0.0156</td><td>296 B</td><td>1.85</td>
+</tr><tr><td>&#39;LocalMessageBus: Send action&#39;</td><td>71.446 ns</td><td>1.0660 ns</td><td>0.5576 ns</td><td>1.35</td><td>0.02</td><td>0.0080</td><td>152 B</td><td>0.95</td>
+</tr><tr><td>&#39;HandlerActivator: Activate&#39;</td><td>23.481 ns</td><td>0.8989 ns</td><td>0.4701 ns</td><td>0.44</td><td>0.01</td><td>0.0013</td><td>24 B</td><td>0.15</td>
+</tr><tr><td>&#39;HandlerActivator: Activate (precreated context)&#39;</td><td>19.150 ns</td><td>0.2723 ns</td><td>0.1209 ns</td><td>0.36</td><td>0.00</td><td>0.0013</td><td>24 B</td><td>0.15</td>
+</tr><tr><td>&#39;HandlerInvoker: Invoke&#39;</td><td>51.122 ns</td><td>1.0770 ns</td><td>0.4782 ns</td><td>0.97</td><td>0.01</td><td>0.0034</td><td>64 B</td><td>0.40</td>
+</tr><tr><td>&#39;HandlerRegistry: Lookup&#39;</td><td>8.240 ns</td><td>0.4219 ns</td><td>0.1873 ns</td><td>0.16</td><td>0.00</td><td>-</td><td>-</td><td>0.00</td>
+</tr></tbody></table>
+</body>
+</html>
