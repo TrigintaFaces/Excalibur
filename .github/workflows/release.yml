@@ -454,7 +454,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: packages-ubuntu-latest
           path: packages
@@ -545,14 +545,14 @@ jobs:
           fetch-depth: 0
 
       - name: Download all packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: packages-*
           path: all-packages/
           merge-multiple: true
 
       - name: Download SBOM artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: release-cyclonedx-sbom
           path: sbom/
@@ -674,7 +674,7 @@ jobs:
       url: https://www.nuget.org/profiles/TrigintaFaces
     steps:
       - name: Download packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: packages-ubuntu-latest
           path: packages
