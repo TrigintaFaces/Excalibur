@@ -107,7 +107,7 @@ public static class CdcBuilderSqlServerExtensions
 		// Delegate to the connection factory overload — connections are created
 		// at resolution time from IOptions<SqlServerCdcOptions>.ConnectionString,
 		// keeping connection creation deferred and consistent with the factory overload.
-		RegisterCdcServices(builder, sp =>
+		RegisterCdcServices(builder, sqlOptions, sp =>
 		{
 			var opts = sp.GetRequiredService<IOptions<SqlServerCdcOptions>>();
 			return () => new SqlConnection(opts.Value.ConnectionString);
@@ -189,17 +189,34 @@ public static class CdcBuilderSqlServerExtensions
 			opt.TableName = sqlOptions.StateTableName;
 		});
 
-		RegisterCdcServices(builder, connectionFactory);
+		RegisterCdcServices(builder, sqlOptions, connectionFactory);
 
 		return builder;
 	}
 
 	private static void RegisterCdcServices(
 		ICdcBuilder builder,
+		SqlServerCdcOptions sqlOptions,
 		Func<IServiceProvider, Func<SqlConnection>> connectionFactory)
 	{
 		// Register default CdcRecoveryOptions if not already registered
 		builder.Services.TryAddSingleton(Options.Create(new CdcRecoveryOptions()));
+
+		// Auto-register IDatabaseConfig when configured via the builder.
+		// TryAdd ensures manual registration still takes precedence.
+		if (sqlOptions.HasDatabaseConfig)
+		{
+			builder.Services.TryAddSingleton<IDatabaseConfig>(new DatabaseConfig
+			{
+				DatabaseName = sqlOptions.DatabaseName!,
+				DatabaseConnectionIdentifier = sqlOptions.DatabaseConnectionIdentifier
+					?? $"cdc-{sqlOptions.DatabaseName}",
+				StateConnectionIdentifier = sqlOptions.StateConnectionIdentifier
+					?? $"state-{sqlOptions.DatabaseName}",
+				CaptureInstances = sqlOptions.CaptureInstances ?? [],
+				StopOnMissingTableHandler = sqlOptions.StopOnMissingTableHandler
+			});
+		}
 
 		// Register SQL Server CDC state store with factory
 		builder.Services.TryAddSingleton<ICdcStateStore>(sp =>

@@ -769,44 +769,37 @@ internal sealed class Dispatcher(
 			cancellationToken.ThrowIfCancellationRequested();
 		}
 
+		var previous = PushAmbientContext(context);
+
 		try
 		{
 			InitializeDirectLocalContext(message, context);
 
-			// PERF: Defer AsyncLocal write — invoke handler first. If handler completes synchronously
-			// (the common case for local handlers), we skip the expensive AsyncLocal read+write+restore
-			// entirely (saves ~200-400ns per dispatch). Only pay the AsyncLocal cost on the async path.
 			var invocation = noResponseInvoker(action, cancellationToken);
 
 			if (invocation.IsCompletedSuccessfully)
 			{
-				// Synchronous completion: no AsyncLocal touched at all.
+				PopAmbientContext(previous);
 				task = DirectLocalSuccessResultTask;
 				return true;
 			}
 
-			// Handler went async — now we need ambient context for cross-thread propagation.
-			// Set it before entering the async continuation so the awaited code sees it.
-			if (_ambientContextFlowEnabled)
-			{
-				var previous = MessageContextHolder.Current;
-				MessageContextHolder.Current = context;
-				task = AwaitDirectLocalNoResponseAndRestoreContextAsync(invocation, context, previous);
-			}
-			else
-			{
-				task = AwaitDirectLocalNoResponseAsync(invocation, context);
-			}
+			// Handler went async — ambient context already set by PushAmbientContext.
+			// Pop here (same EC where Push happened) before entering async continuation.
+			PopAmbientContext(previous);
+			task = AwaitDirectLocalNoResponseAsync(invocation, context);
 
 			return true;
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
+			PopAmbientContext(previous);
 			task = CancelledResultTask;
 			return true;
 		}
 		catch (Exception ex)
 		{
+			PopAmbientContext(previous);
 			task = Task.FromResult(CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed"));
 			return true;
 		}
@@ -833,41 +826,38 @@ internal sealed class Dispatcher(
 			cancellationToken.ThrowIfCancellationRequested();
 		}
 
+		var previous = PushAmbientContext(context);
+
 		try
 		{
 			InitializeDirectLocalContext(message, context);
 
-			// PERF: Defer AsyncLocal write — same optimization as TryDispatchUltraLocalNoResponseFast.
 			var invocation = withResponseInvoker(action, cancellationToken);
 
 			if (invocation.IsCompletedSuccessfully)
 			{
+				PopAmbientContext(previous);
 				TrySetContextResult(context, invocation.Result);
 				task = DirectLocalSuccessResultTask;
 				return true;
 			}
 
-			// Handler went async — set ambient context for cross-thread propagation.
-			if (_ambientContextFlowEnabled)
-			{
-				var previous = MessageContextHolder.Current;
-				MessageContextHolder.Current = context;
-				task = AwaitDirectLocalUntypedWithResponseAndRestoreContextAsync(invocation, context, previous);
-			}
-			else
-			{
-				task = AwaitDirectLocalUntypedWithResponseAsync(invocation, context);
-			}
+			// Handler went async — ambient context already set by PushAmbientContext.
+			// Pop here (same EC where Push happened) before entering async continuation.
+			PopAmbientContext(previous);
+			task = AwaitDirectLocalUntypedWithResponseAsync(invocation, context);
 
 			return true;
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
+			PopAmbientContext(previous);
 			task = CancelledResultTask;
 			return true;
 		}
 		catch (Exception ex)
 		{
+			PopAmbientContext(previous);
 			task = Task.FromResult(CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed"));
 			return true;
 		}
@@ -893,40 +883,37 @@ internal sealed class Dispatcher(
 			cancellationToken.ThrowIfCancellationRequested();
 		}
 
+		var previous = PushAmbientContext(context);
+
 		try
 		{
 			InitializeDirectLocalContext(message, context);
 
-			// PERF: Defer AsyncLocal write — same optimization as TryDispatchUltraLocalNoResponseFast.
 			var invocation = withResponseInvoker(message, cancellationToken);
 
 			if (invocation.IsCompletedSuccessfully)
 			{
+				PopAmbientContext(previous);
 				task = Task.FromResult(CreateDirectLocalTypedSuccessResult<TResponse>(invocation.Result, context));
 				return true;
 			}
 
-			// Handler went async — set ambient context for cross-thread propagation.
-			if (_ambientContextFlowEnabled)
-			{
-				var previous = MessageContextHolder.Current;
-				MessageContextHolder.Current = context;
-				task = AwaitDirectLocalWithResponseAndRestoreContextAsync<TResponse>(invocation, context, previous);
-			}
-			else
-			{
-				task = AwaitDirectLocalWithResponseAsync<TResponse>(invocation, context);
-			}
+			// Handler went async — ambient context already set by PushAmbientContext.
+			// Pop here (same EC where Push happened) before entering async continuation.
+			PopAmbientContext(previous);
+			task = AwaitDirectLocalWithResponseAsync<TResponse>(invocation, context);
 
 			return true;
 		}
 		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
 		{
+			PopAmbientContext(previous);
 			task = CancelledResultTaskCache<TResponse>.Task;
 			return true;
 		}
 		catch (Exception ex)
 		{
+			PopAmbientContext(previous);
 			task = Task.FromResult(CreateDirectLocalFailureResult<TResponse>(ex, context, "Direct local dispatch failed"));
 			return true;
 		}
@@ -1625,34 +1612,6 @@ internal sealed class Dispatcher(
 		}
 	}
 
-	/// <summary>
-	/// Awaits an async direct-local invocation and restores the ambient context afterward.
-	/// Used by the deferred-AsyncLocal optimization in TryDispatchUltraLocalNoResponseFast.
-	/// </summary>
-	private async Task<IMessageResult> AwaitDirectLocalNoResponseAndRestoreContextAsync(
-		ValueTask invocation,
-		IMessageContext context,
-		IMessageContext? previous)
-	{
-		try
-		{
-			await invocation.ConfigureAwait(false);
-			return SimpleMessageResult.SuccessResult;
-		}
-		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
-		{
-			return Messaging.MessageResult.Cancelled();
-		}
-		catch (Exception ex)
-		{
-			return CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed");
-		}
-		finally
-		{
-			MessageContextHolder.Current = previous;
-		}
-	}
-
 	private async Task<IMessageResult> AwaitDirectLocalSendNoResponseAsync(Task sendTask, IMessageContext context)
 	{
 		try
@@ -1686,34 +1645,6 @@ internal sealed class Dispatcher(
 		catch (Exception ex)
 		{
 			return CreateDirectLocalFailureResult<TResponse>(ex, context, "Direct local dispatch failed");
-		}
-	}
-
-	/// <summary>
-	/// Awaits an async direct-local typed invocation and restores the ambient context afterward.
-	/// Used by the deferred-AsyncLocal optimization in TryDispatchUltraLocalTypedFast.
-	/// </summary>
-	private async Task<IMessageResult<TResponse>> AwaitDirectLocalWithResponseAndRestoreContextAsync<TResponse>(
-		ValueTask<object?> invocation,
-		IMessageContext context,
-		IMessageContext? previous)
-	{
-		try
-		{
-			var result = await invocation.ConfigureAwait(false);
-			return CreateDirectLocalTypedSuccessResult<TResponse>(result, context);
-		}
-		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
-		{
-			return MessageResultOfT<TResponse>.Cancelled();
-		}
-		catch (Exception ex)
-		{
-			return CreateDirectLocalFailureResult<TResponse>(ex, context, "Direct local dispatch failed");
-		}
-		finally
-		{
-			MessageContextHolder.Current = previous;
 		}
 	}
 
@@ -1772,35 +1703,6 @@ internal sealed class Dispatcher(
 		catch (Exception ex)
 		{
 			return CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed");
-		}
-	}
-
-	/// <summary>
-	/// Awaits an async direct-local invocation with response and restores the ambient context afterward.
-	/// Used by the deferred-AsyncLocal optimization in TryDispatchUltraLocalUntypedResponseFast.
-	/// </summary>
-	private async Task<IMessageResult> AwaitDirectLocalUntypedWithResponseAndRestoreContextAsync(
-		ValueTask<object?> invocation,
-		IMessageContext context,
-		IMessageContext? previous)
-	{
-		try
-		{
-			var result = await invocation.ConfigureAwait(false);
-			TrySetContextResult(context, result);
-			return SimpleMessageResult.SuccessResult;
-		}
-		catch (OperationCanceledException) when (ShouldReturnCancelledResult(context))
-		{
-			return Messaging.MessageResult.Cancelled();
-		}
-		catch (Exception ex)
-		{
-			return CreateDirectLocalFailureResult(ex, context, "Direct local dispatch failed");
-		}
-		finally
-		{
-			MessageContextHolder.Current = previous;
 		}
 	}
 

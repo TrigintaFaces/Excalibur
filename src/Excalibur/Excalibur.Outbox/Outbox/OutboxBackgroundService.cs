@@ -6,6 +6,7 @@ using Excalibur.Dispatch.Abstractions.Diagnostics;
 
 using Excalibur.Outbox.Diagnostics;
 using Excalibur.Outbox.Health;
+using Excalibur.Outbox.Processing;
 
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -64,14 +65,23 @@ public class OutboxProcessingOptions
 /// Background service that processes outbox messages for reliable delivery.
 /// </summary>
 /// <remarks>
+/// <para>
 /// This service polls the outbox store for pending messages and publishes them
 /// to the message bus. It handles retries for failed messages and processes
 /// scheduled messages when they become due.
+/// </para>
+/// <para>
+/// When an <see cref="IProcessingGate"/> is registered (e.g., via
+/// <c>WithLeaderElection()</c>), the service checks the gate before each
+/// processing cycle and skips if <see cref="IProcessingGate.ShouldProcess"/>
+/// returns <see langword="false"/>.
+/// </para>
 /// </remarks>
 public partial class OutboxBackgroundService : BackgroundService
 {
 	private readonly IOutboxPublisher _publisher;
 	private readonly IOptions<OutboxProcessingOptions> _options;
+	private readonly IProcessingGate? _gate;
 	private readonly BackgroundServiceHealthState? _healthState;
 	private readonly ILogger<OutboxBackgroundService> _logger;
 
@@ -82,16 +92,19 @@ public partial class OutboxBackgroundService : BackgroundService
 	/// <param name="options">The processing options.</param>
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="healthState">Optional health state tracker for health check integration.</param>
+	/// <param name="gate">Optional processing gate (e.g., leader election) that controls whether this instance should process.</param>
 	public OutboxBackgroundService(
 		IOutboxPublisher publisher,
 		IOptions<OutboxProcessingOptions> options,
 		ILogger<OutboxBackgroundService> logger,
-		BackgroundServiceHealthState? healthState = null)
+		BackgroundServiceHealthState? healthState = null,
+		IProcessingGate? gate = null)
 	{
 		_publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_healthState = healthState;
+		_gate = gate;
 	}
 
 	/// <inheritdoc/>
@@ -130,7 +143,15 @@ public partial class OutboxBackgroundService : BackgroundService
 		{
 			try
 			{
-				await ProcessOutboxAsync(stoppingToken).ConfigureAwait(false);
+				// Check processing gate (e.g., leader election)
+				if (_gate is not null && !_gate.ShouldProcess)
+				{
+					LogSkippedNotLeader();
+				}
+				else
+				{
+					await ProcessOutboxAsync(stoppingToken).ConfigureAwait(false);
+				}
 			}
 			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
 			{
@@ -285,4 +306,8 @@ public partial class OutboxBackgroundService : BackgroundService
 	[LoggerMessage(OutboxEventId.OutboxBackgroundServiceDrainTimeout, LogLevel.Warning,
 			"Outbox background service drain timeout exceeded ({DrainTimeout}).")]
 	private partial void LogDrainTimeoutExceeded(TimeSpan drainTimeout);
+
+	[LoggerMessage(OutboxEventId.OutboxBackgroundSkippedNotLeader, LogLevel.Debug,
+			"Skipped outbox processing cycle -- not the leader.")]
+	private partial void LogSkippedNotLeader();
 }

@@ -11,7 +11,7 @@ namespace CdcEventStoreElasticsearch.Projections;
 /// <summary>
 /// Handles domain events to update the customer search projection in Elasticsearch.
 /// </summary>
-public sealed class CustomerSearchProjectionHandler
+public sealed class CustomerSearchProjectionHandler : IProjectionHandler
 {
 	private readonly IProjectionStore<CustomerSearchProjection> _projectionStore;
 	private readonly ILogger<CustomerSearchProjectionHandler> _logger;
@@ -169,7 +169,7 @@ public sealed class CustomerSearchProjectionHandler
 /// Handles domain events to update the customer tier summary projection in Elasticsearch.
 /// This is a multi-stream projection that aggregates across all customers.
 /// </summary>
-public sealed class CustomerTierSummaryProjectionHandler
+public sealed class CustomerTierSummaryProjectionHandler : IProjectionHandler
 {
 	private readonly IProjectionStore<CustomerTierSummaryProjection> _projectionStore;
 	private readonly ILogger<CustomerTierSummaryProjectionHandler> _logger;

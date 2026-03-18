@@ -68,7 +68,10 @@ services.AddCdcProcessor(cdc =>
         sql.SchemaName("Cdc")
            .StateTableName("CdcProcessingState")
            .PollingInterval(TimeSpan.FromSeconds(5))
-           .BatchSize(100);
+           .BatchSize(100)
+           .DatabaseName("OrdersDb")                   // Auto-registers IDatabaseConfig
+           .CaptureInstances("dbo_Orders", "dbo_Customers")
+           .StopOnMissingTableHandler(false);           // Skip unknown tables in production
     })
     .TrackTable("dbo.Orders", table =>
     {
@@ -200,6 +203,23 @@ public class OrderCdcHandler : IDataChangeHandler
         await _cache.InvalidateAsync($"order:{orderId}", ct);
     }
 }
+
+### Registering Data Change Handlers
+
+Register `IDataChangeHandler` implementations using assembly scanning or explicit registration:
+
+```csharp
+// Assembly scanning -- discovers all IDataChangeHandler implementations
+// ⚠️ Requires [RequiresUnreferencedCode] (not AOT-safe)
+services.AddDataChangeHandlersFromAssembly(typeof(OrderCdcHandler).Assembly);
+
+// With custom lifetime (default is Singleton)
+services.AddDataChangeHandlersFromAssembly(
+    typeof(OrderCdcHandler).Assembly,
+    ServiceLifetime.Transient);
+```
+
+Assembly scanning finds all concrete classes implementing `IDataChangeHandler` and registers them with `TryAdd` semantics. Each handler is registered both as its concrete type and as `IDataChangeHandler` for enumerable resolution.
 
 ## DataChangeEvent Structure
 
@@ -369,6 +389,47 @@ public class OrderAntiCorruptionHandler : IDataChangeHandler
         _ => "USD"
     };
 }
+```
+
+## SQL Server Builder Reference
+
+The `ISqlServerCdcBuilder` interface provides fluent configuration for SQL Server CDC:
+
+| Method | Description | Default |
+|--------|-------------|---------|
+| `SchemaName(string)` | Schema for CDC state tables | `"Cdc"` |
+| `StateTableName(string)` | Table name for processing state | `"CdcProcessingState"` |
+| `PollingInterval(TimeSpan)` | How often to poll for changes | 5 seconds |
+| `BatchSize(int)` | Changes per processing batch | 100 |
+| `CommandTimeout(TimeSpan)` | Database command timeout | 30 seconds |
+| `DatabaseName(string)` | Database name; auto-registers `IDatabaseConfig` | -- |
+| `DatabaseConnectionIdentifier(string)` | Identifier for CDC source connection | `cdc-{DatabaseName}` |
+| `StateConnectionIdentifier(string)` | Identifier for state store connection | `state-{DatabaseName}` |
+| `CaptureInstances(params string[])` | CDC capture instances to process | -- |
+| `StopOnMissingTableHandler(bool)` | Stop processing on missing handler | `true` |
+
+:::tip Auto-Registration of IDatabaseConfig
+When you call `DatabaseName()`, the builder automatically registers an `IDatabaseConfig` singleton with sensible defaults for connection identifiers. You only need to set `DatabaseConnectionIdentifier()` or `StateConnectionIdentifier()` if you want custom values. Manual `IDatabaseConfig` registration takes precedence.
+:::
+
+### Connection Factory Overload
+
+For custom connection management (e.g., pooling or dynamic connection strings):
+
+```csharp
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UseSqlServer(
+        sp => () => new SqlConnection(sp.GetRequiredService<IConfiguration>()["CdcConnectionString"]),
+        sql =>
+        {
+            sql.SchemaName("audit")
+               .BatchSize(200)
+               .DatabaseName("AuditDb");
+        })
+       .TrackTable("dbo.AuditLog", table => table.MapAll<AuditLogChangedEvent>())
+       .EnableBackgroundProcessing();
+});
 ```
 
 ## Checkpointing

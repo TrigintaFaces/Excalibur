@@ -3,11 +3,12 @@
 
 // Outbox Pattern Sample
 // =====================
-// This sample demonstrates the transactional outbox pattern for reliable message delivery:
-// - Guaranteed message delivery even if the transport fails
-// - At-least-once delivery semantics
+// This sample demonstrates the transactional outbox pattern for reliable message delivery
+// using the middleware pipeline approach:
+// - UseOutbox() middleware intercepts outgoing messages and stages them in the outbox
+// - UseInbox() middleware provides deduplication for at-least-once delivery
+// - Background processor publishes messages asynchronously
 // - Configurable retry and cleanup policies
-// - Inbox for deduplication
 //
 // Prerequisites:
 // 1. Run the sample: dotnet run
@@ -15,13 +16,9 @@
 #pragma warning disable CA1303 // Sample code uses literal strings
 #pragma warning disable CA1506 // Sample has high coupling by design
 
-using Excalibur.Inbox.InMemory;
-using Excalibur.Outbox.InMemory;
-using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Configuration;
-using Excalibur.Dispatch.Messaging;
-using Excalibur.Dispatch.Serialization;
-using Excalibur.Outbox;
+using Excalibur.Dispatch.Middleware.Inbox;
+using Excalibur.Dispatch.Middleware.Outbox;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,44 +41,55 @@ builder.Services.AddLogging(logging =>
 });
 
 // ============================================================
-// Configure Dispatch messaging
+// Configure Dispatch with Outbox + Inbox middleware pipeline
 // ============================================================
+// The middleware pipeline approach is the recommended way to configure
+// outbox and inbox. Middleware is registered in the dispatch pipeline
+// and automatically intercepts messages.
 builder.Services.AddDispatch(dispatch =>
 {
-	_ = dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+	// Add inbox middleware first -- deduplicates before processing
+	dispatch.UseInbox();
 
-	// Register JSON serializer as default (version 0)
-	_ = dispatch.AddDispatchSerializer<DispatchJsonSerializer>(version: 0);
+	// Add outbox middleware -- stages integration events for reliable delivery
+	dispatch.UseOutbox();
+
+	// Register handlers from this assembly
+	dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
 });
 
 // ============================================================
-// Configure Outbox Pattern for reliable messaging
+// Configure Outbox infrastructure (store + background processing)
 // ============================================================
-// The outbox pattern ensures messages are delivered reliably:
-// 1. Messages are stored in the outbox atomically with business data
-// 2. A background processor publishes messages asynchronously
-// 3. Failed messages are retried with exponential backoff
-// 4. Old messages are automatically cleaned up
+// The outbox builder configures the storage provider and processing behavior.
+// The UseOutbox() middleware above handles pipeline integration;
+// AddExcaliburOutbox() configures the backend infrastructure.
+builder.Services.AddExcaliburOutbox(outbox =>
+{
+	outbox.UseInMemory() // In-memory for demo; use UseSqlServer() in production
+		.WithProcessing(processing =>
+		{
+			processing.BatchSize(50)              // Process 50 messages per batch
+				.PollingInterval(TimeSpan.FromSeconds(2))  // Check for messages every 2 seconds
+				.MaxRetryCount(3)                  // Retry failed messages up to 3 times
+				.RetryDelay(TimeSpan.FromSeconds(10));      // Wait 10 seconds between retries
+		})
+		.WithCleanup(cleanup =>
+		{
+			cleanup.EnableAutoCleanup(true)
+				.RetentionPeriod(TimeSpan.FromHours(1))    // Keep messages for 1 hour (demo)
+				.CleanupInterval(TimeSpan.FromMinutes(5)); // Run cleanup every 5 minutes
+		})
+		.EnableBackgroundProcessing(); // Start the background processor hosted service
+});
 
-// Use the preset-based fluent API for OutboxOptions (ADR-098)
-// Start with a preset (Balanced, HighThroughput, HighReliability) then override specific settings
-builder.Services.AddExcaliburOutbox(
-	OutboxOptions.Balanced() // Sensible defaults for most scenarios
-		.WithBatchSize(50) // Process 50 messages per batch
-		.WithPollingInterval(TimeSpan.FromSeconds(2)) // Check for messages every 2 seconds
-		.WithMaxRetries(3) // Retry failed messages up to 3 times
-		.WithRetryDelay(TimeSpan.FromSeconds(10)) // Wait 10 seconds between retries
-		.WithRetentionPeriod(TimeSpan.FromHours(1)) // Keep messages for 1 hour (demo)
-		.WithCleanupInterval(TimeSpan.FromMinutes(5)) // Run cleanup every 5 minutes
-		.Build());
-
-// Register outbox and inbox stores (in-memory for demo)
-builder.Services.AddOutbox<InMemoryOutboxStore>();
-builder.Services.AddInbox<InMemoryInboxStore>();
-
-// Register background processing services
-builder.Services.AddOutboxHostedService(); // Processes outbox messages
-builder.Services.AddInboxHostedService(); // Deduplicates incoming messages
+// ============================================================
+// Configure Inbox infrastructure (store)
+// ============================================================
+builder.Services.AddExcaliburInbox(inbox =>
+{
+	inbox.UseInMemory(); // In-memory for demo; use UseSqlServer() in production
+});
 
 // ============================================================
 // Build and start the host
@@ -89,8 +97,6 @@ builder.Services.AddInboxHostedService(); // Deduplicates incoming messages
 using var host = builder.Build();
 
 var logger = host.Services.GetRequiredService<ILogger<Program>>();
-var dispatcher = host.Services.GetRequiredService<IDispatcher>();
-var context = DispatchContextInitializer.CreateDefaultContext();
 
 logger.LogInformation("Starting Outbox Pattern Sample...");
 logger.LogInformation("");
@@ -102,16 +108,22 @@ await host.StartAsync().ConfigureAwait(false);
 // ============================================================
 logger.LogInformation("=== Transactional Outbox Pattern Demo ===");
 logger.LogInformation("");
-logger.LogInformation("The outbox pattern ensures reliable message delivery:");
-logger.LogInformation("  1. Save message to outbox (same transaction as business data)");
-logger.LogInformation("  2. Background processor publishes messages");
-logger.LogInformation("  3. Retry on failure with configurable policy");
-logger.LogInformation("  4. Auto-cleanup of old messages");
+logger.LogInformation("Pipeline: UseInbox() -> UseOutbox() -> Handler");
+logger.LogInformation("");
+logger.LogInformation("The middleware pipeline ensures reliable message delivery:");
+logger.LogInformation("  1. UseInbox() deduplicates incoming messages by ID");
+logger.LogInformation("  2. UseOutbox() stages outgoing events in the outbox store");
+logger.LogInformation("  3. Background processor publishes staged messages");
+logger.LogInformation("  4. Failed messages are retried with configurable policy");
+logger.LogInformation("  5. Old messages are automatically cleaned up");
 logger.LogInformation("");
 
 // Simulate placing an order
 var orderId = $"ORD-{DateTime.UtcNow:yyyyMMdd}-001";
 logger.LogInformation("Placing order: {OrderId}", orderId);
+
+var dispatcher = host.Services.GetRequiredService<Excalibur.Dispatch.Abstractions.IDispatcher>();
+var context = Excalibur.Dispatch.Messaging.DispatchContextInitializer.CreateDefaultContext();
 
 var orderPlaced = new OrderPlacedEvent
 {
@@ -122,7 +134,7 @@ var orderPlaced = new OrderPlacedEvent
 };
 
 await dispatcher.DispatchAsync(orderPlaced, context, cancellationToken: default).ConfigureAwait(false);
-logger.LogInformation("  -> OrderPlacedEvent dispatched to outbox");
+logger.LogInformation("  -> OrderPlacedEvent dispatched through pipeline");
 
 await Task.Delay(500).ConfigureAwait(false);
 
@@ -132,7 +144,7 @@ await Task.Delay(500).ConfigureAwait(false);
 logger.LogInformation("");
 logger.LogInformation("=== Chained Events Demo ===");
 logger.LogInformation("");
-logger.LogInformation("Events can trigger other events, all stored reliably:");
+logger.LogInformation("Events can trigger other events, all staged reliably via UseOutbox():");
 
 // Simulate payment processing
 var paymentProcessed = new PaymentProcessedEvent
@@ -168,7 +180,7 @@ await Task.Delay(500).ConfigureAwait(false);
 logger.LogInformation("");
 logger.LogInformation("=== Batch Dispatching Demo ===");
 logger.LogInformation("");
-logger.LogInformation("Multiple messages can be dispatched and processed in batches:");
+logger.LogInformation("Multiple messages are dispatched through the pipeline and processed in batches:");
 
 for (var i = 2; i <= 5; i++)
 {
@@ -191,22 +203,20 @@ logger.LogInformation("Waiting for outbox processor to deliver messages...");
 await Task.Delay(3000).ConfigureAwait(false);
 
 // ============================================================
-// Explain configuration options
+// Explain middleware pipeline
 // ============================================================
 logger.LogInformation("");
-logger.LogInformation("=== Outbox Configuration Options ===");
+logger.LogInformation("=== Middleware Pipeline Configuration ===");
 logger.LogInformation("");
-logger.LogInformation("  | Option                    | Default    | Description                          |");
-logger.LogInformation("  |---------------------------|------------|--------------------------------------|");
-logger.LogInformation("  | BatchSize                 | 100        | Messages processed per batch         |");
-logger.LogInformation("  | PollingInterval           | 5 seconds  | Time between processing cycles       |");
-logger.LogInformation("  | MaxRetryCount             | 3          | Maximum retry attempts               |");
-logger.LogInformation("  | RetryDelay                | 5 minutes  | Delay between retries                |");
-logger.LogInformation("  | MessageRetentionPeriod    | 7 days     | How long to keep processed messages  |");
-logger.LogInformation("  | EnableAutomaticCleanup    | true       | Auto-delete old messages             |");
-logger.LogInformation("  | CleanupInterval           | 1 hour     | Time between cleanup runs            |");
-logger.LogInformation("  | EnableParallelProcessing  | false      | Process messages in parallel         |");
-logger.LogInformation("  | MaxDegreeOfParallelism    | 4          | Max parallel message handlers        |");
+logger.LogInformation("  Recommended pipeline order:");
+logger.LogInformation("    dispatch.UseSecurityStack();       // Auth, authz, tenant");
+logger.LogInformation("    dispatch.UseResilienceStack();     // Timeout, retry, circuit breaker");
+logger.LogInformation("    dispatch.UseValidationStack();     // Payload validation");
+logger.LogInformation("    dispatch.UseTransaction();         // TransactionScope");
+logger.LogInformation("    dispatch.UseInbox();               // Idempotency");
+logger.LogInformation("    dispatch.UseOutbox();              // Reliable delivery");
+logger.LogInformation("");
+logger.LogInformation("  See samples/09-advanced/ProductionPipeline for full example.");
 
 // ============================================================
 // Demonstrate failure scenario
@@ -229,42 +239,14 @@ logger.LogInformation("  -> OrderFailedEvent dispatched");
 await Task.Delay(500).ConfigureAwait(false);
 
 // ============================================================
-// Explain inbox deduplication
-// ============================================================
-logger.LogInformation("");
-logger.LogInformation("=== Inbox Deduplication ===");
-logger.LogInformation("");
-logger.LogInformation("The inbox pattern prevents duplicate message processing:");
-logger.LogInformation("  1. Each message has a unique identifier");
-logger.LogInformation("  2. Inbox tracks processed message IDs");
-logger.LogInformation("  3. Duplicate messages are silently ignored");
-logger.LogInformation("  4. Old inbox records are cleaned up automatically");
-
-// ============================================================
-// Best practices
-// ============================================================
-logger.LogInformation("");
-logger.LogInformation("=== Best Practices ===");
-logger.LogInformation("");
-logger.LogInformation("1. Store outbox messages in the SAME transaction as business data");
-logger.LogInformation("2. Use idempotent handlers for at-least-once delivery");
-logger.LogInformation("3. Monitor outbox queue depth for backpressure");
-logger.LogInformation("4. Configure retention based on compliance requirements");
-logger.LogInformation("5. Use parallel processing for high-throughput scenarios");
-
-// ============================================================
 // Production considerations
 // ============================================================
 logger.LogInformation("");
 logger.LogInformation("=== Production Considerations ===");
 logger.LogInformation("");
 logger.LogInformation("For production, replace InMemory stores with durable implementations:");
-logger.LogInformation("  - Excalibur.Outbox.SqlServer for SQL Server");
-logger.LogInformation("  - Custom implementations for other databases");
-logger.LogInformation("");
-logger.LogInformation("Example:");
-logger.LogInformation("  services.AddSqlServerOutboxStore(connectionString);");
-logger.LogInformation("  services.AddSqlServerInboxStore(connectionString);");
+logger.LogInformation("  services.AddExcaliburOutbox(outbox => outbox.UseSqlServer(connectionString));");
+logger.LogInformation("  services.AddExcaliburInbox(inbox => inbox.UseSqlServer(connectionString));");
 
 logger.LogInformation("");
 logger.LogInformation("Sample completed. Press Ctrl+C to exit...");

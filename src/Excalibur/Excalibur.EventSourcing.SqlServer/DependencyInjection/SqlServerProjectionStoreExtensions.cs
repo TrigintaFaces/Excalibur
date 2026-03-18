@@ -115,4 +115,48 @@ public static class SqlServerProjectionStoreExtensions
 
 		return services;
 	}
+
+	/// <summary>
+	/// Adds the SQL Server projection store using a typed <see cref="Excalibur.Data.Abstractions.IDb"/> marker for connection resolution.
+	/// </summary>
+	/// <typeparam name="TProjection">The projection type to store.</typeparam>
+	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.Abstractions.IDb"/>.</typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configureOptions">Optional action to further configure projection store options.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Resolves <typeparamref name="TDb"/> from DI and extracts its connection as a <see cref="SqlConnection"/>.
+	/// Eliminates the bridging ceremony:
+	/// <c>sp =&gt; () =&gt; (SqlConnection)sp.GetRequiredService&lt;TDb&gt;().Connection</c>
+	/// </para>
+	/// </remarks>
+	public static IServiceCollection AddSqlServerProjectionStore<TProjection, TDb>(
+		this IServiceCollection services,
+		Action<SqlServerProjectionStoreOptions>? configureOptions = null)
+		where TProjection : class
+		where TDb : class, Excalibur.Data.Abstractions.IDb
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		if (configureOptions is not null)
+		{
+			_ = services.Configure(configureOptions);
+		}
+
+		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>
+		{
+			var logger = sp.GetRequiredService<ILogger<SqlServerProjectionStore<TProjection>>>();
+			var optionsAccessor = sp.GetService<IOptions<SqlServerProjectionStoreOptions>>();
+			var options = optionsAccessor?.Value;
+
+			return new SqlServerProjectionStore<TProjection>(
+				() => (SqlConnection)sp.GetRequiredService<TDb>().Connection,
+				logger,
+				options?.TableName,
+				options?.JsonSerializerOptions);
+		});
+
+		return services;
+	}
 }

@@ -65,9 +65,8 @@ services.AddSingleton<IProjectionStore<CategorySummaryProjection>>(
 // Register checkpoint store (for async projection support)
 services.AddSingleton<InMemoryCheckpointStore>();
 
-// Register projection handlers
-services.AddSingleton<ProductCatalogProjectionHandler>();
-services.AddSingleton<CategorySummaryProjectionHandler>();
+// Register projection handlers (auto-discovered from assembly via IProjectionHandler marker)
+services.AddProjectionHandlersFromAssembly(typeof(Program).Assembly);
 
 var provider = services.BuildServiceProvider();
 

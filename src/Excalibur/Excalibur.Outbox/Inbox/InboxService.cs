@@ -7,6 +7,7 @@ using Excalibur.Dispatch.Abstractions.Messaging;
 
 using Excalibur.Outbox.Diagnostics;
 using Excalibur.Outbox.Health;
+using Excalibur.Outbox.Processing;
 
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -17,9 +18,18 @@ namespace Excalibur.Dispatch.Delivery;
 /// Background service that continuously processes messages from the inbox. Provides reliable message processing by running inbox dispatch
 /// operations as a long-running background service with proper lifecycle management.
 /// </summary>
+/// <remarks>
+/// <para>
+/// When an <see cref="IProcessingGate"/> is registered (e.g., via
+/// <c>WithLeaderElection()</c> on the outbox builder), the service checks the
+/// gate before dispatching and skips if <see cref="IProcessingGate.ShouldProcess"/>
+/// returns <see langword="false"/>.
+/// </para>
+/// </remarks>
 public partial class InboxService : BackgroundService
 {
 	private readonly IInbox _inbox;
+	private readonly IProcessingGate? _gate;
 	private readonly BackgroundServiceHealthState? _healthState;
 	private readonly ILogger<InboxService> _logger;
 	private readonly TimeSpan _drainTimeout;
@@ -32,15 +42,18 @@ public partial class InboxService : BackgroundService
 	/// <param name="logger">The logger instance.</param>
 	/// <param name="healthState">Optional health state tracker for health check integration.</param>
 	/// <param name="drainTimeoutSeconds">The drain timeout in seconds for graceful shutdown. Default is 30.</param>
+	/// <param name="gate">Optional processing gate (e.g., leader election) that controls whether this instance should process.</param>
 	public InboxService(
 		IInbox inbox,
 		ILogger<InboxService> logger,
 		BackgroundServiceHealthState? healthState = null,
-		int drainTimeoutSeconds = 30)
+		int drainTimeoutSeconds = 30,
+		IProcessingGate? gate = null)
 	{
 		_inbox = inbox ?? throw new ArgumentNullException(nameof(inbox));
 		_logger = logger ?? throw new ArgumentNullException(nameof(logger));
 		_healthState = healthState;
+		_gate = gate;
 		_drainTimeout = TimeSpan.FromSeconds(drainTimeoutSeconds);
 	}
 
@@ -78,6 +91,24 @@ public partial class InboxService : BackgroundService
 	/// <returns> A task that represents the long-running inbox processing operation. </returns>
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 	{
+		// Check processing gate (e.g., leader election)
+		if (_gate is not null && !_gate.ShouldProcess)
+		{
+			// Wait for leadership before starting inbox dispatch.
+			// Re-check periodically since InboxService runs as a long-lived background task.
+			while (!stoppingToken.IsCancellationRequested && !_gate.ShouldProcess)
+			{
+				try
+				{
+					await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken).ConfigureAwait(false);
+				}
+				catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+				{
+					return;
+				}
+			}
+		}
+
 		_healthState?.MarkStarted();
 
 		BackgroundServiceMetrics.RecordProcessingCycle(

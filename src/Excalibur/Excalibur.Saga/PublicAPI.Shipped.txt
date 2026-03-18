@@ -1161,3 +1161,5 @@ static Microsoft.Extensions.DependencyInjection.SagaTimeoutServiceCollectionExte
 virtual Excalibur.Saga.Orchestration.SagaBase<TSagaState>.SerializeTimeoutData<T>(T data) -> byte[]!
 virtual Excalibur.Saga.StateMachine.ProcessManager<TData>.CurrentStateName.get -> string!
 virtual Excalibur.Saga.StateMachine.ProcessManager<TData>.CurrentStateName.set -> void
+Microsoft.Extensions.DependencyInjection.SagaDefinitionServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.SagaDefinitionServiceCollectionExtensions.AddSagaDefinitionsFromAssembly(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Reflection.Assembly! assembly, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Singleton) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

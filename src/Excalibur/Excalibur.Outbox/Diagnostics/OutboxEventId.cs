@@ -124,6 +124,9 @@ public static class OutboxEventId
 	/// <summary>Outbox background service drain timeout exceeded.</summary>
 	public const int OutboxBackgroundServiceDrainTimeout = 131307;
 
+	/// <summary>Outbox background skipped processing -- not the leader.</summary>
+	public const int OutboxBackgroundSkippedNotLeader = 131308;
+
 	/// <summary>Inbox background service drain timeout exceeded.</summary>
 	public const int InboxBackgroundServiceDrainTimeout = 132005;
 

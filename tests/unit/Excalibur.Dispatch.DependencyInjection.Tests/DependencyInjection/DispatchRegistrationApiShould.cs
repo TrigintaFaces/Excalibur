@@ -435,7 +435,7 @@ public sealed class DispatchRegistrationApiShould : UnitTestBase
 		_ = services.AddDispatch(dispatch =>
 		{
 			Should.Throw<ArgumentNullException>(() => dispatch.AddHandlersFromAssembly(null!))
-				.ParamName.ShouldBe("assembly");
+				.ParamName.ShouldBe("assemblies");
 		});
 	}
 

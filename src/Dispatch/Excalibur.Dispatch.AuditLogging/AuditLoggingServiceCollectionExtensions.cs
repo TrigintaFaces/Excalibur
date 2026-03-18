@@ -70,6 +70,39 @@ public static class AuditLoggingServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds the default audit logging services with a custom audit store, optional alerting, and optional retention.
+	/// </summary>
+	/// <typeparam name="TAuditStore"> The audit store implementation type. </typeparam>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="configureAlerts"> Optional action to configure audit alert options. When null, alerting is not registered. </param>
+	/// <param name="configureRetention"> Optional action to configure audit retention options. When null, retention is not registered. </param>
+	/// <returns> The service collection for chaining. </returns>
+	public static IServiceCollection AddAuditLogging<
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+	TAuditStore>(
+		this IServiceCollection services,
+		Action<AuditAlertOptions>? configureAlerts,
+		Action<AuditRetentionOptions>? configureRetention = null)
+		where TAuditStore : class, IAuditStore
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		_ = services.AddAuditLogging<TAuditStore>();
+
+		if (configureAlerts is not null)
+		{
+			_ = services.AddAuditAlerting(configureAlerts);
+		}
+
+		if (configureRetention is not null)
+		{
+			_ = services.AddAuditRetention(configureRetention);
+		}
+
+		return services;
+	}
+
+	/// <summary>
 	/// Adds the default audit logging services with a factory-provided audit store.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>

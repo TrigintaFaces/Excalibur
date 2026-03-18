@@ -159,14 +159,16 @@ builder.Services.AddDispatch(
     typeof(IntegrationHandlers).Assembly);
 ```
 
-Or with the builder pattern:
+Or with the builder pattern using the `params Assembly[]` overload:
 
 ```csharp
 builder.Services.AddDispatch(dispatch =>
 {
-    dispatch.AddHandlersFromAssembly(typeof(DomainHandlers).Assembly);
-    dispatch.AddHandlersFromAssembly(typeof(InfrastructureHandlers).Assembly);
-    dispatch.AddHandlersFromAssembly(typeof(IntegrationHandlers).Assembly);
+    // Single call with multiple assemblies (params overload)
+    dispatch.AddHandlersFromAssembly(
+        typeof(DomainHandlers).Assembly,
+        typeof(InfrastructureHandlers).Assembly,
+        typeof(IntegrationHandlers).Assembly);
 });
 ```
 

@@ -74,4 +74,43 @@ internal sealed class SqlServerCdcBuilder : ISqlServerCdcBuilder
 		_options.CommandTimeout = timeout;
 		return this;
 	}
+
+	/// <inheritdoc/>
+	public ISqlServerCdcBuilder DatabaseName(string name)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(name);
+		_options.DatabaseName = name;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ISqlServerCdcBuilder DatabaseConnectionIdentifier(string identifier)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
+		_options.DatabaseConnectionIdentifier = identifier;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ISqlServerCdcBuilder StateConnectionIdentifier(string identifier)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(identifier);
+		_options.StateConnectionIdentifier = identifier;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ISqlServerCdcBuilder CaptureInstances(params string[] captureInstances)
+	{
+		ArgumentNullException.ThrowIfNull(captureInstances);
+		_options.CaptureInstances = captureInstances;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ISqlServerCdcBuilder StopOnMissingTableHandler(bool stop)
+	{
+		_options.StopOnMissingTableHandler = stop;
+		return this;
+	}
 }

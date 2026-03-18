@@ -13,7 +13,6 @@ using Excalibur.Dispatch.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 // ============================================================================
 // CDC Anti-Corruption Layer Example
@@ -50,10 +49,6 @@ using Microsoft.Extensions.Options;
 //
 // ============================================================================
 
-Console.WriteLine("CDC Anti-Corruption Layer Example");
-Console.WriteLine("==================================");
-Console.WriteLine();
-
 // Build the host with all services
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -66,22 +61,31 @@ builder.Services.AddDispatch(dispatch =>
 // Add CDC anti-corruption layer
 builder.Services.AddCdcAntiCorruptionLayer();
 
-// Add DataProcessing-based backfill/replay path for CDC history gaps
-builder.Services.AddSingleton<IOptions<DataProcessingConfiguration>>(
-	Options.Create(new DataProcessingConfiguration
-	{
-		QueueSize = 128,
-		ProducerBatchSize = 50,
-		ConsumerBatchSize = 20,
-	}));
+// Add DataProcessing-based backfill/replay path for CDC history gaps.
+// In production, use SqlLegacyCustomerSnapshotSource with a connection factory:
+//
+//   var legacyConnectionString = builder.Configuration.GetConnectionString("LegacyDb")
+//       ?? "Server=localhost,1433;Database=LegacyDb;...";
+//   builder.Services.AddSingleton<ILegacyCustomerSnapshotSource>(
+//       new SqlLegacyCustomerSnapshotSource(() => new SqlConnection(legacyConnectionString)));
+//
+// Each source gets its own Func<SqlConnection> factory — naturally supports multi-database
+// scenarios where processors read from different servers. ADO.NET pools connections per
+// connection string automatically. This is the same pattern used by SqlServerSnapshotStore,
+// SqlServerProjectionStore, SqlServerInboxStore, and CdcProcessor throughout the framework.
+//
+// For this demo, use the in-memory source:
 builder.Services.AddSingleton<ILegacyCustomerSnapshotSource, InMemoryLegacyCustomerSnapshotSource>();
-builder.Services.AddDataProcessor<CustomerHistoryBackfillProcessor>();
+builder.Services.AddDataProcessor<CustomerHistoryBackfillProcessor>(new DataProcessingConfiguration
+{
+	QueueSize = 128,
+	ProducerBatchSize = 50,
+	ConsumerBatchSize = 20,
+});
 builder.Services.AddRecordHandler<CustomerHistoryRecordHandler, LegacyCustomerSnapshot>();
 
-// Add example command handlers (in real app, these would be domain handlers)
-builder.Services.AddScoped<IActionHandler<SyncCustomerCommand, SyncCustomerResult>, ExampleSyncCustomerHandler>();
-builder.Services.AddScoped<IActionHandler<UpdateCustomerCommand, UpdateCustomerResult>, ExampleUpdateCustomerHandler>();
-builder.Services.AddScoped<IActionHandler<DeactivateCustomerCommand, DeactivateCustomerResult>, ExampleDeactivateCustomerHandler>();
+// Note: Command handlers (ExampleSyncCustomerHandler, etc.) are auto-discovered
+// by AddHandlersFromAssembly above — no manual registration needed.
 
 // Configure logging
 builder.Services.AddLogging(logging =>
@@ -92,48 +96,45 @@ builder.Services.AddLogging(logging =>
 
 var host = builder.Build();
 
-// Demonstrate the anti-corruption layer
-await DemonstrateAntiCorruptionLayerAsync(host.Services);
+var logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("CdcAntiCorruption");
+logger.LogInformation("CDC Anti-Corruption Layer Example");
 
-Console.WriteLine();
-Console.WriteLine("Example complete. Press any key to exit.");
-Console.ReadKey();
+// Demonstrate the anti-corruption layer
+await DemonstrateAntiCorruptionLayerAsync(host.Services, logger);
+
+logger.LogInformation("Example complete");
 
 // ============================================================================
 // Demonstration
 // ============================================================================
 
-static async Task DemonstrateAntiCorruptionLayerAsync(IServiceProvider services)
+static async Task DemonstrateAntiCorruptionLayerAsync(IServiceProvider services, ILogger logger)
 {
 	using var scope = services.CreateScope();
 	var handler = scope.ServiceProvider.GetRequiredService<IDataChangeHandler>();
 
-	Console.WriteLine("Simulating CDC events...");
-	Console.WriteLine();
+	logger.LogInformation("Simulating CDC events...");
 
 	// Simulate INSERT (legacy schema V1)
-	Console.WriteLine("1. INSERT event (Legacy V1 schema: CustomerName, CustId)");
+	logger.LogInformation("1. INSERT event (Legacy V1 schema: CustomerName, CustId)");
 	var insertEvent = CreateMockInsertEvent();
 	await handler.HandleAsync(insertEvent, CancellationToken.None);
-	Console.WriteLine();
 
 	// Simulate UPDATE (current schema)
-	Console.WriteLine("2. UPDATE event (Current schema: Name, ExternalId)");
+	logger.LogInformation("2. UPDATE event (Current schema: Name, ExternalId)");
 	var updateEvent = CreateMockUpdateEvent();
 	await handler.HandleAsync(updateEvent, CancellationToken.None);
-	Console.WriteLine();
 
 	// Simulate DELETE
-	Console.WriteLine("3. DELETE event (Soft delete → Deactivate)");
+	logger.LogInformation("3. DELETE event (Soft delete -> Deactivate)");
 	var deleteEvent = CreateMockDeleteEvent();
 	await handler.HandleAsync(deleteEvent, CancellationToken.None);
 
-	Console.WriteLine();
-	Console.WriteLine("4. CDC gap recovery (historical replay via Excalibur.Data.DataProcessing)");
-	await DemonstrateCdcHistoryReplayAsync(services);
+	logger.LogInformation("4. CDC gap recovery (historical replay via Excalibur.Data.DataProcessing)");
+	await DemonstrateCdcHistoryReplayAsync(services, logger);
 }
 
-static async Task DemonstrateCdcHistoryReplayAsync(IServiceProvider services)
+static async Task DemonstrateCdcHistoryReplayAsync(IServiceProvider services, ILogger logger)
 {
 	using var scope = services.CreateScope();
 	var processor = scope.ServiceProvider.GetRequiredService<CustomerHistoryBackfillProcessor>();
@@ -145,7 +146,7 @@ static async Task DemonstrateCdcHistoryReplayAsync(IServiceProvider services)
 			updateCompletedCount: static (_, _) => Task.CompletedTask,
 			cancellationToken: CancellationToken.None).ConfigureAwait(false);
 
-		Console.WriteLine($"   → Replayed {replayed} historical records to close missing CDC history.");
+		logger.LogInformation("Replayed {ReplayedCount} historical records to close missing CDC history", replayed);
 	}
 	finally
 	{

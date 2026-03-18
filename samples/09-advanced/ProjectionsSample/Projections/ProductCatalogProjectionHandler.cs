@@ -24,7 +24,7 @@ namespace ProjectionsSample.Projections;
 /// immediately when events are processed. For high-throughput scenarios, consider
 /// using async projections with checkpoint tracking.
 /// </remarks>
-public sealed class ProductCatalogProjectionHandler
+public sealed class ProductCatalogProjectionHandler : IProjectionHandler
 {
 	private readonly IProjectionStore<ProductCatalogProjection> _store;
 

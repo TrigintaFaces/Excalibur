@@ -172,6 +172,20 @@ services.AddElasticSearchProjectionStore<OrderSummary>(options =>
     options.NodeUri = "https://elasticsearch.example.com:9200";
     // Environment-scoped prefix → e.g. "development-projections-ordersummary"
     options.IndexPrefix = $"{builder.Environment.EnvironmentName.ToLowerInvariant()}-projections";
+    // Optional: override index name (replaces projection type name in convention)
+    // options.IndexName = "order-summaries";
+});
+
+// ElasticSearch with multi-node cluster
+services.AddElasticSearchProjectionStore<OrderSummary>(options =>
+{
+    options.NodeUris = new[]
+    {
+        new Uri("https://es-node1.example.com:9200"),
+        new Uri("https://es-node2.example.com:9200"),
+        new Uri("https://es-node3.example.com:9200"),
+    };
+    options.ConnectionPoolType = ConnectionPoolType.Static; // or Sniffing
 });
 
 // CosmosDb projection store
@@ -183,6 +197,9 @@ services.AddSqlServerProjectionStore<OrderSummary>(sqlConnectionString, options 
     options.TableName = "OrderSummaries";
 });
 
+// SQL Server projection store with typed IDb marker
+services.AddSqlServerProjectionStore<OrderSummary, IOrderDb>();
+
 // PostgreSQL projection store
 services.AddPostgresProjectionStore<OrderSummary>(pgConnectionString, options =>
 {
@@ -190,9 +207,26 @@ services.AddPostgresProjectionStore<OrderSummary>(pgConnectionString, options =>
 });
 ```
 
+### Register Projection Handlers
+
+Register projection handlers using assembly scanning or explicit registration:
+
+```csharp
+// Assembly scanning -- discovers all IProjectionHandler implementations
+// ⚠️ Requires [RequiresUnreferencedCode] (not AOT-safe)
+services.AddProjectionHandlersFromAssembly(typeof(OrderCreatedProjectionHandler).Assembly);
+
+// With custom lifetime (default is Singleton)
+services.AddProjectionHandlersFromAssembly(
+    typeof(OrderCreatedProjectionHandler).Assembly,
+    ServiceLifetime.Transient);
+```
+
+Assembly scanning finds all concrete (non-abstract, non-interface) classes implementing `IProjectionHandler` and registers them with `TryAdd` semantics -- existing registrations are not overwritten.
+
 ### Register Event Handlers
 
-Register handlers via Dispatch to process events and update projections:
+Register Dispatch event handlers to process events and update projections:
 
 ```csharp
 services.AddDispatch(builder =>

@@ -334,3 +334,20 @@ virtual Excalibur.Cdc.SqlServer.CdcRepository.Dispose(bool disposing) -> void
 virtual Excalibur.Cdc.SqlServer.CdcRepository.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
 virtual Excalibur.Cdc.SqlServer.CdcStateStore.Dispose(bool disposing) -> void
 virtual Excalibur.Cdc.SqlServer.CdcStateStore.DisposeCoreAsync() -> System.Threading.Tasks.ValueTask
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.CaptureInstances(params string![]! captureInstances) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.DatabaseConnectionIdentifier(string! identifier) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.DatabaseName(string! name) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.StateConnectionIdentifier(string! identifier) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.StopOnMissingTableHandler(bool stop) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.SqlServerCdcOptions.CaptureInstances.get -> string![]?
+Excalibur.Cdc.SqlServer.SqlServerCdcOptions.CaptureInstances.set -> void
+Excalibur.Cdc.SqlServer.SqlServerCdcOptions.DatabaseConnectionIdentifier.get -> string?
+Excalibur.Cdc.SqlServer.SqlServerCdcOptions.DatabaseConnectionIdentifier.set -> void
+Excalibur.Cdc.SqlServer.SqlServerCdcOptions.DatabaseName.get -> string?
+Excalibur.Cdc.SqlServer.SqlServerCdcOptions.DatabaseName.set -> void
+Excalibur.Cdc.SqlServer.SqlServerCdcOptions.StateConnectionIdentifier.get -> string?
+Excalibur.Cdc.SqlServer.SqlServerCdcOptions.StateConnectionIdentifier.set -> void
+Excalibur.Cdc.SqlServer.SqlServerCdcOptions.StopOnMissingTableHandler.get -> bool
+Excalibur.Cdc.SqlServer.SqlServerCdcOptions.StopOnMissingTableHandler.set -> void
+Microsoft.Extensions.DependencyInjection.DataChangeHandlerServiceCollectionExtensions
+static Microsoft.Extensions.DependencyInjection.DataChangeHandlerServiceCollectionExtensions.AddDataChangeHandlersFromAssembly(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Reflection.Assembly! assembly, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Singleton) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

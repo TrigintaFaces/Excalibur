@@ -337,6 +337,139 @@ public class AuditLoggingServiceCollectionExtensionsShould
         Should.Throw<InvalidOperationException>(() => services.UseAuditLogEncryption());
     }
 
+    #region Q.4: AddAuditLogging<TAuditStore>(configureAlerts, configureRetention)
+
+    [Fact]
+    public void Register_audit_store_with_alerts_and_retention()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // Act
+        services.AddAuditLogging<InMemoryAuditStore>(
+            configureAlerts: opts => opts.MaxAlertsPerMinute = 50,
+            configureRetention: opts => opts.CleanupInterval = TimeSpan.FromHours(2));
+
+        // Assert -- store registered
+        services.ShouldContain(d =>
+            d.ServiceType == typeof(IAuditStore) &&
+            d.ImplementationType == typeof(InMemoryAuditStore));
+
+        // Assert -- alerting registered
+        services.ShouldContain(d =>
+            d.ServiceType == typeof(IAuditAlertService));
+
+        // Assert -- retention registered
+        services.ShouldContain(d =>
+            d.ServiceType == typeof(IAuditRetentionService));
+    }
+
+    [Fact]
+    public void Register_audit_store_with_alerts_only()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // Act
+        services.AddAuditLogging<InMemoryAuditStore>(
+            configureAlerts: opts => opts.MaxAlertsPerMinute = 30);
+
+        // Assert -- store registered
+        services.ShouldContain(d =>
+            d.ServiceType == typeof(IAuditStore) &&
+            d.ImplementationType == typeof(InMemoryAuditStore));
+
+        // Assert -- alerting registered
+        services.ShouldContain(d =>
+            d.ServiceType == typeof(IAuditAlertService));
+
+        // Assert -- retention NOT registered
+        services.ShouldNotContain(d =>
+            d.ServiceType == typeof(IAuditRetentionService));
+    }
+
+    [Fact]
+    public void Register_audit_store_with_retention_only()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // Act
+        services.AddAuditLogging<InMemoryAuditStore>(
+            configureAlerts: null,
+            configureRetention: opts => opts.CleanupInterval = TimeSpan.FromHours(1));
+
+        // Assert -- store registered
+        services.ShouldContain(d =>
+            d.ServiceType == typeof(IAuditStore) &&
+            d.ImplementationType == typeof(InMemoryAuditStore));
+
+        // Assert -- alerting NOT registered
+        services.ShouldNotContain(d =>
+            d.ServiceType == typeof(IAuditAlertService));
+
+        // Assert -- retention registered
+        services.ShouldContain(d =>
+            d.ServiceType == typeof(IAuditRetentionService));
+    }
+
+    [Fact]
+    public void Register_audit_store_with_both_null_falls_back_to_base()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // Act -- both null = same as basic AddAuditLogging<T>()
+        services.AddAuditLogging<InMemoryAuditStore>(
+            configureAlerts: null,
+            configureRetention: null);
+
+        // Assert -- store registered
+        services.ShouldContain(d =>
+            d.ServiceType == typeof(IAuditStore) &&
+            d.ImplementationType == typeof(InMemoryAuditStore));
+
+        // Assert -- neither alerting nor retention registered
+        services.ShouldNotContain(d =>
+            d.ServiceType == typeof(IAuditAlertService));
+        services.ShouldNotContain(d =>
+            d.ServiceType == typeof(IAuditRetentionService));
+    }
+
+    [Fact]
+    public void Throw_argument_null_for_null_services_in_convenience_overload()
+    {
+        // Arrange
+        IServiceCollection services = null!;
+
+        // Act & Assert
+        Should.Throw<ArgumentNullException>(() =>
+            services.AddAuditLogging<InMemoryAuditStore>(
+                configureAlerts: opts => opts.MaxAlertsPerMinute = 10));
+    }
+
+    [Fact]
+    public void Return_service_collection_from_convenience_overload()
+    {
+        // Arrange
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        // Act
+        var result = services.AddAuditLogging<InMemoryAuditStore>(
+            configureAlerts: opts => opts.MaxAlertsPerMinute = 10,
+            configureRetention: opts => opts.CleanupInterval = TimeSpan.FromHours(1));
+
+        // Assert
+        result.ShouldBeSameAs(services);
+    }
+
+    #endregion
+
     private sealed class TestRoleProvider : IAuditRoleProvider
     {
         public Task<AuditLogRole> GetCurrentRoleAsync(CancellationToken cancellationToken)

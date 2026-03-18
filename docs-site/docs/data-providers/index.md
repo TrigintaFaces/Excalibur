@@ -72,8 +72,8 @@ Marker interfaces for registering separate database connections per store:
 | `ISagaDb : IDb` | Saga state persistence |
 | `IOutboxDb : IDb` | Transactional outbox |
 | `IProjectionDb : IDb` | Read-side projections (CQRS) |
-| `IDataProcessorDb : IDb` | Data processing pipeline |
-| `IDataToProcessDb : IDb` | Records awaiting processing |
+| ~~`IDataProcessorDb`~~ | **Removed** -- use `Func<IDbConnection>` factory |
+| ~~`IDataToProcessDb`~~ | **Removed** -- use `Func<IDbConnection>` factory |
 
 See [Multi-Database Support](./multi-database.md) for registration patterns and examples.
 

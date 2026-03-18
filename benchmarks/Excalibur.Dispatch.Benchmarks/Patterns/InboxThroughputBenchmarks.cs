@@ -4,14 +4,11 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 
-using Excalibur.Inbox.SqlServer;
+using Excalibur.Inbox.InMemory;
 
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
-using Testcontainers.MsSql;
 
 namespace Excalibur.Dispatch.Benchmarks.Patterns;
 
@@ -28,9 +25,7 @@ namespace Excalibur.Dispatch.Benchmarks.Patterns;
 [SimpleJob(RuntimeMoniker.HostProcess)]
 public class InboxThroughputBenchmarks
 {
-	private MsSqlContainer? _sqlContainer;
-	private SqlServerInboxStore? _inboxStore;
-	private string? _connectionString;
+	private InMemoryInboxStore? _inboxStore;
 
 	/// <summary>
 	/// Number of messages to pre-populate for throughput tests.
@@ -39,46 +34,43 @@ public class InboxThroughputBenchmarks
 	public int MessageCount { get; set; }
 
 	/// <summary>
-	/// Initialize SQL Server container and inbox store before benchmarks.
+	/// Initialize in-memory inbox store and pre-populate before benchmarks.
 	/// </summary>
 	[GlobalSetup]
-	public async Task GlobalSetup()
+	public void GlobalSetup()
 	{
-		// Start SQL Server container
-		_sqlContainer = new MsSqlBuilder()
-			.WithImage("mcr.microsoft.com/mssql/server:2022-latest")
-			.Build();
-
-		await _sqlContainer.StartAsync();
-		_connectionString = _sqlContainer.GetConnectionString();
-
-		// Create Inbox tables
-		await CreateInboxTablesAsync();
-
-		// Initialize inbox store with new API
-		var options = Microsoft.Extensions.Options.Options.Create(new SqlServerInboxOptions
+		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryInboxOptions
 		{
-			ConnectionString = _connectionString,
-			SchemaName = "dispatch",
-			TableName = "inbox"
+			MaxEntries = 0 // unlimited
 		});
-		var logger = NullLoggerFactory.Instance.CreateLogger<SqlServerInboxStore>();
-		_inboxStore = new SqlServerInboxStore(options, logger);
+		var logger = NullLoggerFactory.Instance.CreateLogger<InMemoryInboxStore>();
+		_inboxStore = new InMemoryInboxStore(options, logger);
 
 		// Pre-populate inbox with messages
-		await PopulateInboxAsync(MessageCount);
+		for (var i = 0; i < MessageCount; i++)
+		{
+			_inboxStore.CreateEntryAsync(
+				$"msg-{i}",
+				"TestHandler",
+				"TestEvent",
+				new byte[1024],
+				new Dictionary<string, object>
+				{
+					["UserId"] = "benchmark-user",
+					["TenantId"] = "benchmark-tenant",
+					["CorrelationId"] = Guid.NewGuid().ToString(),
+				},
+				CancellationToken.None).AsTask().GetAwaiter().GetResult();
+		}
 	}
 
 	/// <summary>
-	/// Cleanup SQL Server container after benchmarks.
+	/// Cleanup inbox store after benchmarks.
 	/// </summary>
 	[GlobalCleanup]
-	public async Task GlobalCleanup()
+	public void GlobalCleanup()
 	{
-		if (_sqlContainer != null)
-		{
-			await _sqlContainer.DisposeAsync();
-		}
+		_inboxStore?.Dispose();
 	}
 
 	/// <summary>
@@ -88,7 +80,7 @@ public class InboxThroughputBenchmarks
 	[Benchmark(Baseline = true)]
 	public async Task<int> GetAllEntries()
 	{
-		var entries = await _inboxStore.GetAllEntriesAsync(CancellationToken.None);
+		var entries = await _inboxStore!.GetAllEntriesAsync(CancellationToken.None).ConfigureAwait(false);
 		return entries.Count();
 	}
 
@@ -98,7 +90,7 @@ public class InboxThroughputBenchmarks
 	[Benchmark]
 	public async Task<long> GetStatistics()
 	{
-		var stats = await _inboxStore.GetStatisticsAsync(CancellationToken.None);
+		var stats = await _inboxStore!.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
 		return stats.TotalEntries;
 	}
 
@@ -109,13 +101,13 @@ public class InboxThroughputBenchmarks
 	public async Task CreateEntry()
 	{
 		var messageId = Guid.NewGuid().ToString();
-		_ = await _inboxStore.CreateEntryAsync(
+		_ = await _inboxStore!.CreateEntryAsync(
 			messageId,
 			"TestHandler",
 			"TestEvent",
 			new byte[1024],
 			new Dictionary<string, object> { ["CorrelationId"] = Guid.NewGuid().ToString() },
-			CancellationToken.None);
+			CancellationToken.None).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -125,7 +117,7 @@ public class InboxThroughputBenchmarks
 	public async Task<bool> IsAlreadyProcessed()
 	{
 		// Use a known message ID from pre-populated data
-		return await _inboxStore.IsProcessedAsync("msg-0", "TestHandler", CancellationToken.None);
+		return await _inboxStore!.IsProcessedAsync("msg-0", "TestHandler", CancellationToken.None).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -137,68 +129,15 @@ public class InboxThroughputBenchmarks
 		var messageId = Guid.NewGuid().ToString();
 
 		// Create entry
-		_ = await _inboxStore.CreateEntryAsync(
+		_ = await _inboxStore!.CreateEntryAsync(
 			messageId,
 			"TestHandler",
 			"TestEvent",
 			new byte[1024],
 			new Dictionary<string, object> { ["CorrelationId"] = Guid.NewGuid().ToString() },
-			CancellationToken.None);
+			CancellationToken.None).ConfigureAwait(false);
 
 		// Mark as processed
-		await _inboxStore.MarkProcessedAsync(messageId, "TestHandler", CancellationToken.None);
-	}
-
-	private async Task PopulateInboxAsync(int messageCount)
-	{
-		for (var i = 0; i < messageCount; i++)
-		{
-			_ = await _inboxStore.CreateEntryAsync(
-				$"msg-{i}",
-				"TestHandler",
-				"TestEvent",
-				new byte[1024],
-				new Dictionary<string, object>
-				{
-					["UserId"] = "benchmark-user",
-					["TenantId"] = "benchmark-tenant",
-					["CorrelationId"] = Guid.NewGuid().ToString(),
-				},
-				CancellationToken.None);
-		}
-	}
-
-	private async Task CreateInboxTablesAsync()
-	{
-		const string createTableSql = """
-			-- Create dispatch schema if it doesn't exist
-			IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'dispatch')
-			BEGIN
-				EXEC('CREATE SCHEMA dispatch');
-			END;
-
-			-- Create dispatch.inbox deduplication table
-			IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'inbox' AND schema_id = SCHEMA_ID('dispatch'))
-			BEGIN
-				CREATE TABLE dispatch.inbox (
-					MessageId NVARCHAR(200) NOT NULL,
-					HandlerType NVARCHAR(500) NOT NULL,
-					MessageType NVARCHAR(500) NOT NULL,
-					Payload VARBINARY(MAX) NULL,
-					Metadata NVARCHAR(MAX) NULL,
-					CreatedAt DATETIMEOFFSET NOT NULL DEFAULT SYSDATETIMEOFFSET(),
-					ProcessedAt DATETIMEOFFSET NULL,
-					FailedAt DATETIMEOFFSET NULL,
-					ErrorMessage NVARCHAR(MAX) NULL,
-					CONSTRAINT PK_dispatch_inbox PRIMARY KEY (MessageId, HandlerType)
-				);
-			END;
-			""";
-
-		await using var connection = new SqlConnection(_connectionString);
-		await connection.OpenAsync();
-
-		await using var command = new SqlCommand(createTableSql, connection);
-		_ = await command.ExecuteNonQueryAsync();
+		await _inboxStore.MarkProcessedAsync(messageId, "TestHandler", CancellationToken.None).ConfigureAwait(false);
 	}
 }

@@ -501,6 +501,105 @@ public static class SqlServerEventSourcingServiceCollectionExtensions
 		return services;
 	}
 
+	/// <summary>
+	/// Adds SQL Server event store implementation using a typed <see cref="Excalibur.Data.Abstractions.IDb"/> marker for connection resolution.
+	/// </summary>
+	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.Abstractions.IDb"/>.</typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Resolves <typeparamref name="TDb"/> from DI and extracts its <see cref="System.Data.IDbConnection"/>
+	/// as a <see cref="SqlConnection"/>. Eliminates the bridging ceremony:
+	/// <c>sp =&gt; () =&gt; (SqlConnection)sp.GetRequiredService&lt;TDb&gt;().Connection</c>
+	/// </para>
+	/// </remarks>
+	public static IServiceCollection AddSqlServerEventStore<TDb>(
+		this IServiceCollection services)
+		where TDb : class, Excalibur.Data.Abstractions.IDb
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		services.TryAddSingleton(sp =>
+			new SqlServerEventStore(
+				() => (SqlConnection)sp.GetRequiredService<TDb>().Connection,
+				sp.GetRequiredService<ILogger<SqlServerEventStore>>(),
+				sp.GetService<ISerializer>(),
+				sp.GetService<IPayloadSerializer>()));
+
+		RegisterEventStoreTelemetryWrapper(services);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds SQL Server snapshot store implementation using a typed <see cref="Excalibur.Data.Abstractions.IDb"/> marker for connection resolution.
+	/// </summary>
+	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.Abstractions.IDb"/>.</typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	public static IServiceCollection AddSqlServerSnapshotStore<TDb>(
+		this IServiceCollection services)
+		where TDb : class, Excalibur.Data.Abstractions.IDb
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		services.TryAddSingleton(sp =>
+			new SqlServerSnapshotStore(
+				() => (SqlConnection)sp.GetRequiredService<TDb>().Connection,
+				sp.GetRequiredService<ILogger<SqlServerSnapshotStore>>()));
+
+		RegisterSnapshotStoreTelemetryWrapper(services);
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds SQL Server event-sourced outbox store implementation using a typed <see cref="Excalibur.Data.Abstractions.IDb"/> marker for connection resolution.
+	/// </summary>
+	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.Abstractions.IDb"/>.</typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	public static IServiceCollection AddSqlServerOutboxStore<TDb>(
+		this IServiceCollection services)
+		where TDb : class, Excalibur.Data.Abstractions.IDb
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		services.TryAddSingleton<IEventSourcedOutboxStore>(sp =>
+			new SqlServerEventSourcedOutboxStore(
+				() => (SqlConnection)sp.GetRequiredService<TDb>().Connection,
+				sp.GetRequiredService<ILogger<SqlServerEventSourcedOutboxStore>>()));
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds all SQL Server event sourcing implementations using a typed <see cref="Excalibur.Data.Abstractions.IDb"/> marker for connection resolution.
+	/// </summary>
+	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.Abstractions.IDb"/>.</typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <returns>The service collection for method chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Convenience method that registers event store, snapshot store, and outbox store
+	/// using the typed <typeparamref name="TDb"/> marker. Health checks are not registered
+	/// as there is no connection string available.
+	/// </para>
+	/// </remarks>
+	public static IServiceCollection AddSqlServerEventSourcing<TDb>(
+		this IServiceCollection services)
+		where TDb : class, Excalibur.Data.Abstractions.IDb
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		_ = services.AddSqlServerEventStore<TDb>();
+		_ = services.AddSqlServerSnapshotStore<TDb>();
+		_ = services.AddSqlServerOutboxStore<TDb>();
+
+		return services;
+	}
+
 	private static void RegisterEventStoreTelemetryWrapper(IServiceCollection services)
 	{
 		services.TryAddSingleton<IEventStore>(sp =>

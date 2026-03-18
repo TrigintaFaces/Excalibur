@@ -589,10 +589,10 @@ public sealed class DispatcherShould
 
 			// Assert
 			result.Succeeded.ShouldBeTrue();
-			// PERF optimization (auto-optimize): sync fast path defers AsyncLocal writes.
-			// When the handler completes synchronously, ambient context is never modified --
-			// the previous ambient stays as-is. This saves ~200-400ns per dispatch.
-			capturedAmbient.ShouldBe(previousAmbient);
+			// Q.1 fix (Sprint 656): PushAmbientContext restored on fast path so handlers
+			// can read MessageContextHolder.Current during synchronous execution.
+			// Handler sees the dispatch context, and previous ambient is restored after dispatch.
+			capturedAmbient.ShouldBe(context);
 			MessageContextHolder.Current.ShouldBe(previousAmbient);
 		}
 		finally
@@ -602,7 +602,7 @@ public sealed class DispatcherShould
 	}
 
 	[Fact]
-	public async Task Skip_Ambient_Context_On_Sync_DirectLocal_FastPath_When_None_Exists()
+	public async Task Set_Ambient_Context_On_Sync_DirectLocal_FastPath_When_None_Exists()
 	{
 		// Arrange
 		var (dispatcher, localInvoker, _) = CreateTransportAwareDispatcherForFastPath();
@@ -620,9 +620,9 @@ public sealed class DispatcherShould
 
 		// Assert
 		result.Succeeded.ShouldBeTrue();
-		// PERF optimization (auto-optimize): sync fast path skips AsyncLocal entirely.
-		// Handler has direct access to context parameter -- ambient context not needed.
-		capturedAmbient.ShouldBeNull();
+		// Q.1 fix (Sprint 656): PushAmbientContext restored on fast path.
+		// Handler sees the dispatch context; after dispatch, null is restored.
+		capturedAmbient.ShouldBe(context);
 		MessageContextHolder.Current.ShouldBeNull();
 	}
 

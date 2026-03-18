@@ -6,14 +6,11 @@ using BenchmarkDotNet.Jobs;
 
 using Excalibur.Dispatch.Abstractions;
 
-using Excalibur.Outbox.SqlServer;
+using Excalibur.Outbox.InMemory;
 
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
-using Testcontainers.MsSql;
 
 namespace Excalibur.Dispatch.Benchmarks.Patterns;
 
@@ -31,79 +28,59 @@ namespace Excalibur.Dispatch.Benchmarks.Patterns;
 [SimpleJob(RuntimeMoniker.HostProcess)]
 public class OutboxStagingBenchmarks
 {
-	private MsSqlContainer? _sqlContainer;
-	private SqlServerOutboxStore? _outboxStore;
-	private string? _connectionString;
+	private InMemoryOutboxStore? _outboxStore;
 
 	/// <summary>
-	/// Initialize SQL Server container and outbox store before benchmarks.
+	/// Initialize in-memory outbox store before benchmarks.
 	/// </summary>
 	[GlobalSetup]
-	public async Task GlobalSetup()
+	public void GlobalSetup()
 	{
-		// Start SQL Server container
-		_sqlContainer = new MsSqlBuilder()
-			.WithImage("mcr.microsoft.com/mssql/server:2022-latest")
-			.Build();
-
-		await _sqlContainer.StartAsync();
-		_connectionString = _sqlContainer.GetConnectionString();
-
-		// Create outbox tables
-		await CreateOutboxTablesAsync();
-
-		// Initialize outbox store
-		var options = Microsoft.Extensions.Options.Options.Create(new SqlServerOutboxOptions
+		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryOutboxOptions
 		{
-			ConnectionString = _connectionString,
-			SchemaName = "dbo",
-			OutboxTableName = "OutboxMessages",
-			TransportsTableName = "OutboxMessageTransports"
+			MaxMessages = 0 // unlimited
 		});
-		var logger = NullLoggerFactory.Instance.CreateLogger<SqlServerOutboxStore>();
-		_outboxStore = new SqlServerOutboxStore(options, logger);
+		var logger = NullLoggerFactory.Instance.CreateLogger<InMemoryOutboxStore>();
+		_outboxStore = new InMemoryOutboxStore(options, logger);
 	}
 
 	/// <summary>
-	/// Cleanup SQL Server container after benchmarks.
+	/// Cleanup outbox store after benchmarks.
 	/// </summary>
 	[GlobalCleanup]
-	public async Task GlobalCleanup()
+	public void GlobalCleanup()
 	{
-		if (_sqlContainer != null)
-		{
-			await _sqlContainer.DisposeAsync();
-		}
+		_outboxStore?.Dispose();
 	}
 
 	/// <summary>
 	/// Benchmark: Stage a single small message (1KB payload).
 	/// </summary>
 	[Benchmark(Baseline = true)]
-	public async Task StageSingleSmall()
+	public ValueTask StageSingleSmall()
 	{
 		var message = CreateTestOutboxMessage(payloadSizeKb: 1);
-		await _outboxStore.StageMessageAsync(message, CancellationToken.None);
+		return _outboxStore!.StageMessageAsync(message, CancellationToken.None);
 	}
 
 	/// <summary>
 	/// Benchmark: Stage a medium message (10KB payload).
 	/// </summary>
 	[Benchmark]
-	public async Task StageSingleMedium()
+	public ValueTask StageSingleMedium()
 	{
 		var message = CreateTestOutboxMessage(payloadSizeKb: 10);
-		await _outboxStore.StageMessageAsync(message, CancellationToken.None);
+		return _outboxStore!.StageMessageAsync(message, CancellationToken.None);
 	}
 
 	/// <summary>
 	/// Benchmark: Stage a large message (100KB payload).
 	/// </summary>
 	[Benchmark]
-	public async Task StageSingleLarge()
+	public ValueTask StageSingleLarge()
 	{
 		var message = CreateTestOutboxMessage(payloadSizeKb: 100);
-		await _outboxStore.StageMessageAsync(message, CancellationToken.None);
+		return _outboxStore!.StageMessageAsync(message, CancellationToken.None);
 	}
 
 	/// <summary>
@@ -112,13 +89,11 @@ public class OutboxStagingBenchmarks
 	[Benchmark]
 	public async Task StageBatch10()
 	{
-		var tasks = new List<Task>(10);
 		for (var i = 0; i < 10; i++)
 		{
 			var message = CreateTestOutboxMessage(payloadSizeKb: 1);
-			tasks.Add(_outboxStore.StageMessageAsync(message, CancellationToken.None).AsTask());
+			await _outboxStore!.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(false);
 		}
-		await Task.WhenAll(tasks);
 	}
 
 	/// <summary>
@@ -127,23 +102,21 @@ public class OutboxStagingBenchmarks
 	[Benchmark]
 	public async Task StageBatch100()
 	{
-		var tasks = new List<Task>(100);
 		for (var i = 0; i < 100; i++)
 		{
 			var message = CreateTestOutboxMessage(payloadSizeKb: 1);
-			tasks.Add(_outboxStore.StageMessageAsync(message, CancellationToken.None).AsTask());
+			await _outboxStore!.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(false);
 		}
-		await Task.WhenAll(tasks);
 	}
 
 	/// <summary>
 	/// Benchmark: Stage a very large payload (1MB).
 	/// </summary>
 	[Benchmark]
-	public async Task StageLargePayload()
+	public ValueTask StageLargePayload()
 	{
 		var message = CreateTestOutboxMessage(payloadSizeKb: 1024); // 1MB
-		await _outboxStore.StageMessageAsync(message, CancellationToken.None);
+		return _outboxStore!.StageMessageAsync(message, CancellationToken.None);
 	}
 
 	private static OutboundMessage CreateTestOutboxMessage(int payloadSizeKb = 1)
@@ -161,58 +134,5 @@ public class OutboxStagingBenchmarks
 				["TenantId"] = "benchmark-tenant",
 				["CorrelationId"] = Guid.NewGuid().ToString(),
 			});
-	}
-
-	private async Task CreateOutboxTablesAsync()
-	{
-		const string createTableSql = """
-			IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'OutboxMessages' AND schema_id = SCHEMA_ID('dbo'))
-			BEGIN
-				CREATE TABLE [dbo].[OutboxMessages] (
-					[Id] NVARCHAR(200) NOT NULL PRIMARY KEY,
-					[MessageType] NVARCHAR(500) NOT NULL,
-					[Payload] VARBINARY(MAX) NOT NULL,
-					[Destination] NVARCHAR(500) NOT NULL,
-					[Headers] NVARCHAR(MAX) NULL,
-					[CreatedAt] DATETIMEOFFSET NOT NULL,
-					[SentAt] DATETIMEOFFSET NULL,
-					[FailedAt] DATETIMEOFFSET NULL,
-					[ErrorMessage] NVARCHAR(MAX) NULL,
-					[RetryCount] INT NOT NULL DEFAULT 0,
-					[NextRetryAt] DATETIMEOFFSET NULL,
-					[Status] INT NOT NULL DEFAULT 0,
-					[ScheduledAt] DATETIMEOFFSET NULL,
-					[AggregateId] NVARCHAR(200) NULL,
-					[AggregateType] NVARCHAR(500) NULL,
-					[CorrelationId] NVARCHAR(200) NULL,
-					INDEX IX_OutboxMessages_Status_CreatedAt (Status, CreatedAt),
-					INDEX IX_OutboxMessages_ScheduledAt (ScheduledAt) WHERE ScheduledAt IS NOT NULL
-				);
-			END;
-
-			IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'OutboxMessageTransports' AND schema_id = SCHEMA_ID('dbo'))
-			BEGIN
-				CREATE TABLE [dbo].[OutboxMessageTransports] (
-					[Id] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-					[MessageId] NVARCHAR(200) NOT NULL,
-					[TransportName] NVARCHAR(200) NOT NULL,
-					[Status] INT NOT NULL DEFAULT 0,
-					[SentAt] DATETIMEOFFSET NULL,
-					[FailedAt] DATETIMEOFFSET NULL,
-					[ErrorMessage] NVARCHAR(MAX) NULL,
-					[RetryCount] INT NOT NULL DEFAULT 0,
-					[NextRetryAt] DATETIMEOFFSET NULL,
-					CONSTRAINT FK_OutboxMessageTransports_Message FOREIGN KEY (MessageId) REFERENCES [dbo].[OutboxMessages](Id),
-					INDEX IX_OutboxMessageTransports_MessageId (MessageId),
-					INDEX IX_OutboxMessageTransports_Status (Status)
-				);
-			END;
-			""";
-
-		await using var connection = new SqlConnection(_connectionString);
-		await connection.OpenAsync();
-
-		await using var command = new SqlCommand(createTableSql, connection);
-		_ = await command.ExecuteNonQueryAsync();
 	}
 }

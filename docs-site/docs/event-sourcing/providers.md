@@ -60,6 +60,12 @@ services.AddSqlServerOutboxStore(connectionString);
 services.AddSqlServerEventStore(() => new SqlConnection(connectionString));
 services.AddSqlServerSnapshotStore(() => new SqlConnection(connectionString));
 services.AddSqlServerOutboxStore(() => new SqlConnection(connectionString));
+
+// With typed IDb marker (multi-database scenarios)
+services.AddSqlServerEventStore<IOrderDb>();
+services.AddSqlServerSnapshotStore<IOrderDb>();
+services.AddSqlServerOutboxStore<IOrderDb>();
+services.AddSqlServerEventSourcing<IOrderDb>(); // registers all three stores
 ```
 
 ---

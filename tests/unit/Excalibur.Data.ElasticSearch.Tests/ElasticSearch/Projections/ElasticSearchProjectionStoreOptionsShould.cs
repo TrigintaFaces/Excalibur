@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Excalibur.Data.ElasticSearch;
 using Excalibur.Data.ElasticSearch.Projections;
 
 namespace Excalibur.Data.Tests.ElasticSearch.Projections;
@@ -21,6 +22,9 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 		sut.NumberOfReplicas.ShouldBe(0);
 		sut.CreateIndexOnInitialize.ShouldBeTrue();
 		sut.RefreshInterval.ShouldBe("1s");
+		sut.IndexName.ShouldBeNull();
+		sut.NodeUris.ShouldBeNull();
+		sut.ConnectionPoolType.ShouldBe(ConnectionPoolType.Static);
 		sut.Auth.Username.ShouldBeNull();
 		sut.Auth.Password.ShouldBeNull();
 		sut.Auth.ApiKey.ShouldBeNull();
@@ -101,18 +105,98 @@ public sealed class ElasticSearchProjectionStoreOptionsShould
 	}
 
 	[Fact]
-	public void ThrowWhenIndexPrefixIsEmpty()
+	public void NotThrowWhenIndexPrefixIsEmpty()
 	{
+		// IndexPrefix is optional -- empty/whitespace prefix is valid (index name uses just the type name)
 		var sut = new ElasticSearchProjectionStoreOptions { IndexPrefix = "" };
-		Should.Throw<InvalidOperationException>(() => sut.Validate())
-			.Message.ShouldContain("IndexPrefix");
+		Should.NotThrow(() => sut.Validate());
 	}
 
 	[Fact]
-	public void ThrowWhenIndexPrefixIsWhitespace()
+	public void NotThrowWhenIndexPrefixIsWhitespace()
 	{
+		// IndexPrefix is optional -- whitespace prefix is valid (index name uses just the type name)
 		var sut = new ElasticSearchProjectionStoreOptions { IndexPrefix = "   " };
+		Should.NotThrow(() => sut.Validate());
+	}
+
+	// --- T.3: IndexName override ---
+
+	[Fact]
+	public void AllowSettingIndexName()
+	{
+		var sut = new ElasticSearchProjectionStoreOptions { IndexName = "custom-index" };
+		sut.IndexName.ShouldBe("custom-index");
+		Should.NotThrow(() => sut.Validate());
+	}
+
+	[Fact]
+	public void AllowNullIndexName()
+	{
+		var sut = new ElasticSearchProjectionStoreOptions { IndexName = null };
+		sut.IndexName.ShouldBeNull();
+		Should.NotThrow(() => sut.Validate());
+	}
+
+	// --- T.4: NodeUris + ConnectionPoolType ---
+
+	[Fact]
+	public void ValidateSuccessfullyWithMultipleNodeUris()
+	{
+		var sut = new ElasticSearchProjectionStoreOptions
+		{
+			NodeUris = new[]
+			{
+				new Uri("http://node1:9200"),
+				new Uri("http://node2:9200"),
+				new Uri("http://node3:9200"),
+			}
+		};
+		Should.NotThrow(() => sut.Validate());
+	}
+
+	[Fact]
+	public void ThrowWhenNodeUrisContainsNullUri()
+	{
+		var sut = new ElasticSearchProjectionStoreOptions
+		{
+			NodeUris = (IReadOnlyList<Uri>)new Uri[] { new Uri("http://node1:9200"), null! }
+		};
 		Should.Throw<InvalidOperationException>(() => sut.Validate())
-			.Message.ShouldContain("IndexPrefix");
+			.Message.ShouldContain("NodeUris");
+	}
+
+	[Fact]
+	public void SkipNodeUriValidationWhenNodeUrisIsSet()
+	{
+		// When NodeUris is set, NodeUri is ignored -- even if NodeUri is invalid
+		var sut = new ElasticSearchProjectionStoreOptions
+		{
+			NodeUri = "not-a-uri",
+			NodeUris = new[] { new Uri("http://node1:9200") }
+		};
+		Should.NotThrow(() => sut.Validate());
+	}
+
+	[Fact]
+	public void FallBackToNodeUriValidationWhenNodeUrisIsEmpty()
+	{
+		var sut = new ElasticSearchProjectionStoreOptions
+		{
+			NodeUri = "not-a-uri",
+			NodeUris = Array.Empty<Uri>()
+		};
+		Should.Throw<InvalidOperationException>(() => sut.Validate())
+			.Message.ShouldContain("not a valid URI");
+	}
+
+	[Fact]
+	public void AllowSettingConnectionPoolType()
+	{
+		var sut = new ElasticSearchProjectionStoreOptions
+		{
+			ConnectionPoolType = ConnectionPoolType.Sniffing
+		};
+		sut.ConnectionPoolType.ShouldBe(ConnectionPoolType.Sniffing);
 	}
 }

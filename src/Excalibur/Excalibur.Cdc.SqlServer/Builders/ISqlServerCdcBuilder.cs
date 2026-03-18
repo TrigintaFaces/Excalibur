@@ -103,4 +103,63 @@ public interface ISqlServerCdcBuilder
 	/// </para>
 	/// </remarks>
 	ISqlServerCdcBuilder CommandTimeout(TimeSpan timeout);
+
+	/// <summary>
+	/// Sets the database name for CDC processing.
+	/// </summary>
+	/// <param name="name">The database name.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="name"/> is null or whitespace.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// When set, an <see cref="IDatabaseConfig"/> is automatically registered
+	/// in the service collection, eliminating the need for manual registration.
+	/// </para>
+	/// </remarks>
+	ISqlServerCdcBuilder DatabaseName(string name);
+
+	/// <summary>
+	/// Sets the unique identifier for the CDC source database connection.
+	/// </summary>
+	/// <param name="identifier">The connection identifier.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="identifier"/> is null or whitespace.
+	/// </exception>
+	ISqlServerCdcBuilder DatabaseConnectionIdentifier(string identifier);
+
+	/// <summary>
+	/// Sets the unique identifier for the state store database connection.
+	/// </summary>
+	/// <param name="identifier">The connection identifier.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="identifier"/> is null or whitespace.
+	/// </exception>
+	ISqlServerCdcBuilder StateConnectionIdentifier(string identifier);
+
+	/// <summary>
+	/// Sets the CDC capture instances to process.
+	/// </summary>
+	/// <param name="captureInstances">The capture instance names.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="captureInstances"/> is null.
+	/// </exception>
+	ISqlServerCdcBuilder CaptureInstances(params string[] captureInstances);
+
+	/// <summary>
+	/// Sets whether processing should stop when a table handler is missing.
+	/// </summary>
+	/// <param name="stop"><see langword="true"/> to stop on missing handlers; <see langword="false"/> to skip.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Default is <see langword="true"/>. Set to <see langword="false"/> for production
+	/// scenarios where unknown tables should be silently skipped.
+	/// </para>
+	/// </remarks>
+	ISqlServerCdcBuilder StopOnMissingTableHandler(bool stop);
 }

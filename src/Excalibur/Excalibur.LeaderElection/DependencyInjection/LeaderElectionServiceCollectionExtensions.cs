@@ -4,6 +4,8 @@
 
 using Excalibur.Dispatch.LeaderElection;
 
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
 namespace Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -38,6 +40,41 @@ public static class LeaderElectionServiceCollectionExtensions
 			.Configure(configure)
 			.ValidateDataAnnotations()
 			.ValidateOnStart();
+
+		return services;
+	}
+
+	/// <summary>
+	/// Adds leader election services with a pre-built options instance.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="options">The pre-built leader election options.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// This overload registers the options via <c>IOptions&lt;T&gt;</c> using the provided
+	/// instance directly, eliminating the need for an <see cref="Action{T}"/> delegate.
+	/// Useful when options are constructed from external configuration or shared across services.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// var options = new LeaderElectionOptions
+	/// {
+	///     LeaseDuration = TimeSpan.FromSeconds(30),
+	///     RenewInterval = TimeSpan.FromSeconds(10)
+	/// };
+	/// services.AddExcaliburLeaderElection(options);
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddExcaliburLeaderElection(
+		this IServiceCollection services,
+		LeaderElectionOptions options)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(options);
+
+		services.TryAddSingleton(Microsoft.Extensions.Options.Options.Create(options));
 
 		return services;
 	}

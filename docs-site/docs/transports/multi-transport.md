@@ -49,6 +49,31 @@ builder.Services.AddRabbitMQTransport(rmq =>
 });
 ```
 
+### Bulk Routing with RouteAll
+
+For scenarios with many message types routed to the same transport, use `RouteAll`:
+
+```csharp
+dispatch.UseRouting(routing =>
+{
+    // Route multiple types in a single call
+    routing.Transport.RouteAll("kafka",
+        typeof(OrderCreatedEvent),
+        typeof(PaymentProcessedEvent),
+        typeof(ShipmentDispatchedEvent),
+        typeof(InventoryUpdatedEvent));
+
+    // Mix with individual routing
+    routing.Transport
+        .Route<AuditLogEvent>().To("rabbitmq")
+        .Default("rabbitmq");
+});
+```
+
+:::note
+`RouteAll` validates each type at registration time -- types that don't implement `IIntegrationEvent` throw `ArgumentException` immediately. This method uses reflection and carries `[RequiresUnreferencedCode]`.
+:::
+
 ## Transport Names
 
 Each transport registers with a default name. Use these names in routing rules:

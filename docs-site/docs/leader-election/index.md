@@ -47,14 +47,14 @@ Leader election ensures only one instance in a distributed system performs a spe
 ### The Leader Election Pattern
 
 ```
-Instance A ──┬── Acquires Lock ──▶ Becomes Leader ──▶ Processes Work
-             │
-Instance B ──┼── Waits ───────────▶ Standby ─────────▶ Ready to Take Over
-             │
-Instance C ──┴── Waits ───────────▶ Standby ─────────▶ Ready to Take Over
+Instance A --+-- Acquires Lock --> Becomes Leader --> Processes Work
+             |
+Instance B --+-- Waits ----------> Standby ---------> Ready to Take Over
+             |
+Instance C --+-- Waits ----------> Standby ---------> Ready to Take Over
 
 If Instance A fails:
-Instance B ──▶ Acquires Lock ──▶ Becomes Leader ──▶ Processes Work
+Instance B --> Acquires Lock --> Becomes Leader --> Processes Work
 ```
 
 ### Leader Responsibilities
@@ -169,6 +169,23 @@ services.AddExcaliburLeaderElection(le => le
 
 The builder automatically registers `LeaderElectionOptions` with `ValidateDataAnnotations` and `ValidateOnStart`.
 
+### Pre-Built Options
+
+For scenarios where options are constructed externally (e.g., from configuration or testing):
+
+```csharp
+var options = new LeaderElectionOptions
+{
+    LeaseDuration = TimeSpan.FromSeconds(30),
+    RenewInterval = TimeSpan.FromSeconds(10)
+};
+services.AddExcaliburLeaderElection(options);
+```
+
+:::note
+The pre-built options overload uses `Options.Create()` directly, which bypasses `ValidateOnStart`. Ensure your options are valid before passing them.
+:::
+
 ### Available Builder Extensions
 
 | Method | Package | Purpose |
@@ -189,6 +206,243 @@ The builder automatically registers `LeaderElectionOptions` with `ValidateDataAn
 ### Direct Registration (Legacy)
 
 Provider-specific `Add*LeaderElection` methods are still available for backward compatibility. The builder API above is preferred for new code.
+
+## When to Use Factory vs Single Registration {#factory-vs-single}
+
+Excalibur offers two ways to register leader election: a **single registration** (`ILeaderElection`) and a **factory** (`ILeaderElectionFactory`). Choose based on how many independent leadership scopes your application needs.
+
+### Single Registration
+
+Register a single `ILeaderElection` when your application has **one leadership scope** -- all background services share the same leader/follower state:
+
+```csharp
+// One leader election for the entire application
+services.AddExcaliburLeaderElection(le => le
+    .UseSqlServer(connectionString, "my-app-leader")
+    .WithHealthChecks());
+```
+
+Use cases:
+- **Simple background worker**: One app instance runs all background tasks
+- **Application-level singleton**: "This instance is the active one"
+- **Small services**: A microservice with 1-2 background jobs that should all run on the same instance
+
+```csharp
+public class MyWorker : BackgroundService
+{
+    private readonly ILeaderElection _leaderElection;
+
+    public MyWorker(ILeaderElection leaderElection)
+    {
+        _leaderElection = leaderElection;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken ct)
+    {
+        await _leaderElection.StartAsync(ct);
+
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                if (_leaderElection.IsLeader)
+                    await DoWorkAsync(ct);
+
+                await Task.Delay(TimeSpan.FromSeconds(1), ct);
+            }
+        }
+        finally
+        {
+            await _leaderElection.StopAsync(CancellationToken.None);
+        }
+    }
+}
+```
+
+### Factory Registration
+
+Register `ILeaderElectionFactory` when your application has **multiple independent leadership scopes** -- different resources can have different leaders across your instances:
+
+```csharp
+// Factory for creating per-resource elections
+services.AddExcaliburLeaderElection(le => le
+    .UseSqlServerFactory(connectionString));
+```
+
+Use cases:
+- **Independent workloads**: Outbox publishing, projection updates, and cleanup jobs should each have their own leader (Instance A leads outbox, Instance B leads projections)
+- **Shared resource protection**: Multiple resources each need exactly one writer
+- **Fine-grained load distribution**: Spread leadership across instances instead of concentrating all work on one node
+
+```csharp
+public class DistributedWorker : BackgroundService
+{
+    private readonly ILeaderElectionFactory _factory;
+
+    public DistributedWorker(ILeaderElectionFactory factory)
+    {
+        _factory = factory;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken ct)
+    {
+        // Each resource gets its own independent election
+        var outboxElection = _factory.CreateElection("outbox-processor", candidateId: null);
+        var projectionElection = _factory.CreateElection("event-projector", candidateId: null);
+        var cleanupElection = _factory.CreateElection("cleanup-job", candidateId: null);
+
+        var elections = new[] { outboxElection, projectionElection, cleanupElection };
+        await Task.WhenAll(elections.Select(e => e.StartAsync(ct)));
+
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                if (outboxElection.IsLeader)
+                    await ProcessOutboxAsync(ct);
+
+                if (projectionElection.IsLeader)
+                    await ProcessProjectionsAsync(ct);
+
+                if (cleanupElection.IsLeader)
+                    await RunCleanupAsync(ct);
+
+                await Task.Delay(TimeSpan.FromSeconds(1), ct);
+            }
+        }
+        finally
+        {
+            await Task.WhenAll(elections.Select(e => e.StopAsync(CancellationToken.None)));
+        }
+    }
+}
+```
+
+### Decision Matrix
+
+| Question | Single | Factory |
+|----------|--------|---------|
+| How many leadership scopes? | 1 | 2+ |
+| Can different instances lead different workloads? | No -- one leader does all | Yes -- each resource has its own leader |
+| Registration complexity | Lower | Slightly higher |
+| Lock count in the backend | 1 | 1 per resource |
+| Load distribution | Concentrated on leader | Spread across instances |
+
+### Shared Resource Scenarios
+
+The factory pattern is especially valuable when multiple independent resources require exclusive access. Each resource gets its own election, so leadership is distributed naturally:
+
+**Scenario: E-commerce platform with multiple background processors**
+
+```csharp
+public class ECommerceWorkerService : BackgroundService
+{
+    private readonly ILeaderElectionFactory _factory;
+    private readonly IServiceProvider _services;
+
+    public ECommerceWorkerService(
+        ILeaderElectionFactory factory,
+        IServiceProvider services)
+    {
+        _factory = factory;
+        _services = services;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken ct)
+    {
+        // Each processor contends independently for its resource lock
+        var orderOutbox = _factory.CreateElection("order-outbox", candidateId: null);
+        var inventorySync = _factory.CreateElection("inventory-sync", candidateId: null);
+        var priceUpdater = _factory.CreateElection("price-updater", candidateId: null);
+        var reportGenerator = _factory.CreateElection("daily-reports", candidateId: null);
+
+        var elections = new[]
+        {
+            orderOutbox, inventorySync, priceUpdater, reportGenerator
+        };
+
+        await Task.WhenAll(elections.Select(e => e.StartAsync(ct)));
+
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                // With 3 instances, leadership distributes across them:
+                // Instance A: order-outbox, daily-reports
+                // Instance B: inventory-sync
+                // Instance C: price-updater
+                if (orderOutbox.IsLeader)
+                    await ProcessOrderOutboxAsync(ct);
+
+                if (inventorySync.IsLeader)
+                    await SyncInventoryAsync(ct);
+
+                if (priceUpdater.IsLeader)
+                    await UpdatePricesAsync(ct);
+
+                if (reportGenerator.IsLeader)
+                    await GenerateReportsAsync(ct);
+
+                await Task.Delay(TimeSpan.FromSeconds(1), ct);
+            }
+        }
+        finally
+        {
+            await Task.WhenAll(elections.Select(e => e.StopAsync(CancellationToken.None)));
+        }
+    }
+}
+```
+
+**Scenario: Multi-tenant background processing**
+
+When each tenant's data should be processed by exactly one instance:
+
+```csharp
+public class TenantProcessorService : BackgroundService
+{
+    private readonly ILeaderElectionFactory _factory;
+    private readonly ITenantRegistry _tenants;
+
+    public TenantProcessorService(
+        ILeaderElectionFactory factory,
+        ITenantRegistry tenants)
+    {
+        _factory = factory;
+        _tenants = tenants;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken ct)
+    {
+        var tenantIds = await _tenants.GetActiveTenantIdsAsync(ct);
+        var elections = tenantIds
+            .Select(id => (
+                TenantId: id,
+                Election: _factory.CreateElection($"tenant-{id}", candidateId: null)))
+            .ToList();
+
+        await Task.WhenAll(elections.Select(e => e.Election.StartAsync(ct)));
+
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                foreach (var (tenantId, election) in elections)
+                {
+                    if (election.IsLeader)
+                        await ProcessTenantAsync(tenantId, ct);
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(5), ct);
+            }
+        }
+        finally
+        {
+            await Task.WhenAll(elections.Select(e => e.Election.StopAsync(CancellationToken.None)));
+        }
+    }
+}
+```
 
 ## Basic Usage
 
@@ -471,7 +725,7 @@ Use the factory to create election instances for specific resources:
 
 ```csharp
 var factory = serviceProvider.GetRequiredService<ILeaderElectionFactory>();
-var election = factory.CreateElection("my-resource");
+var election = factory.CreateElection("my-resource", candidateId: null);
 ```
 :::
 
@@ -631,7 +885,7 @@ public class LeadershipAwareProcessor : BackgroundService
 
 ### Multiple Leader Elections
 
-Use factory for multiple independent elections:
+Use the factory for multiple independent elections. See [When to Use Factory vs Single](#factory-vs-single) above for guidance on choosing between single registration and factory.
 
 ```csharp
 // Register factory for multiple lock resources
@@ -640,19 +894,19 @@ builder.Services.AddSqlServerLeaderElectionFactory(connectionString);
 public class MultiResourceLeaderService : BackgroundService
 {
     private readonly ILeaderElectionFactory _factory;
-    private readonly List<ILeaderElection> _elections = new();
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         // Create separate leader elections for each resource
-        var outboxElection = _factory.CreateElection("outbox-processor");
-        var projectorElection = _factory.CreateElection("event-projector");
-        var cleanupElection = _factory.CreateElection("cleanup-job");
+        // candidateId: null uses the default InstanceId from LeaderElectionOptions
+        var outboxElection = _factory.CreateElection("outbox-processor", candidateId: null);
+        var projectorElection = _factory.CreateElection("event-projector", candidateId: null);
+        var cleanupElection = _factory.CreateElection("cleanup-job", candidateId: null);
 
-        _elections.AddRange(new[] { outboxElection, projectorElection, cleanupElection });
+        var elections = new[] { outboxElection, projectorElection, cleanupElection };
 
         // Start all elections
-        await Task.WhenAll(_elections.Select(e => e.StartAsync(ct)));
+        await Task.WhenAll(elections.Select(e => e.StartAsync(ct)));
 
         try
         {
@@ -673,7 +927,7 @@ public class MultiResourceLeaderService : BackgroundService
         }
         finally
         {
-            await Task.WhenAll(_elections.Select(e => e.StopAsync(CancellationToken.None)));
+            await Task.WhenAll(elections.Select(e => e.StopAsync(CancellationToken.None)));
         }
     }
 }
@@ -833,7 +1087,8 @@ public class ProjectionWorker : BackgroundService
 
 ```csharp
 var election = _electionFactory.CreateHealthBasedElection(
-    resourceName: "critical-processor");
+    resourceName: "critical-processor",
+    candidateId: null);
 
 await election.StartAsync(ct);
 
@@ -911,4 +1166,3 @@ builder.Services.AddSqlServerLeaderElection(
 - [Kubernetes Deployment](../deployment/kubernetes.md) - Kubernetes deployment with leader election
 - [Resilience with Polly](../operations/resilience-polly.md) - Circuit breakers and retry policies
 - [Patterns Overview](../patterns/index.md) - Architectural patterns for distributed systems
-

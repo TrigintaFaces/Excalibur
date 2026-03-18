@@ -104,6 +104,33 @@ public static class SqlServerOutboxExtensions
 	}
 
 	/// <summary>
+	/// Adds SQL Server outbox store using a typed <see cref="Excalibur.Data.Abstractions.IDb"/> marker for connection resolution.
+	/// </summary>
+	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.Abstractions.IDb"/>.</typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configure">Action to configure the options (used for table names, timeouts, etc.).</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Resolves <typeparamref name="TDb"/> from DI and extracts its connection as a <see cref="SqlConnection"/>.
+	/// Eliminates the bridging ceremony:
+	/// <c>sp =&gt; () =&gt; (SqlConnection)sp.GetRequiredService&lt;TDb&gt;().Connection</c>
+	/// </para>
+	/// </remarks>
+	public static IServiceCollection AddSqlServerOutboxStore<TDb>(
+		this IServiceCollection services,
+		Action<SqlServerOutboxOptions> configure)
+		where TDb : class, Excalibur.Data.Abstractions.IDb
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		return services.AddSqlServerOutboxStore(
+			sp => () => (SqlConnection)sp.GetRequiredService<TDb>().Connection,
+			configure);
+	}
+
+	/// <summary>
 	/// Configures the dispatch builder to use SQL Server outbox store.
 	/// </summary>
 	/// <param name="builder">The dispatch builder.</param>

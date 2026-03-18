@@ -149,4 +149,53 @@ public static class DispatchBuilderExtensions
 		return builder;
 	}
 
+	/// <summary>
+	/// Add handlers from multiple assemblies with automatic discovery and DI registration.
+	/// </summary>
+	/// <param name="builder"> The dispatch builder. </param>
+	/// <param name="assemblies"> Assemblies to scan for handlers. </param>
+	/// <returns> The dispatch builder for chaining. </returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="builder"/> or <paramref name="assemblies"/> is null,
+	/// or when any element in <paramref name="assemblies"/> is null.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// This overload scans multiple assemblies using the default <see cref="ServiceLifetime.Scoped"/>
+	/// lifetime and registers handlers with the DI container. For custom lifetime or container
+	/// registration control, call the single-assembly overload per assembly.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// services.AddDispatch(dispatch =>
+	/// {
+	///     dispatch.AddHandlersFromAssembly(
+	///         typeof(OrderHandler).Assembly,
+	///         typeof(CustomerHandler).Assembly);
+	/// });
+	/// </code>
+	/// </example>
+	[RequiresUnreferencedCode("Assembly scanning uses reflection to discover handler types.")]
+	public static IDispatchBuilder AddHandlersFromAssembly(
+		this IDispatchBuilder builder,
+		params Assembly[] assemblies)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(assemblies);
+
+		for (var i = 0; i < assemblies.Length; i++)
+		{
+			if (assemblies[i] is null)
+			{
+				throw new ArgumentException(
+					$"Assembly at index {i} is null.", nameof(assemblies));
+			}
+
+			builder.AddHandlersFromAssembly(assemblies[i]);
+		}
+
+		return builder;
+	}
+
 }

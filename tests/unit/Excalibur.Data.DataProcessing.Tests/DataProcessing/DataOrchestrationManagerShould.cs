@@ -11,7 +11,7 @@ namespace Excalibur.Data.Tests.DataProcessing;
 [UnitTest]
 public sealed class DataOrchestrationManagerShould : UnitTestBase
 {
-	private readonly IDataProcessorDb _fakeDb = A.Fake<IDataProcessorDb>();
+	private readonly Func<IDbConnection> _fakeConnectionFactory = () => A.Fake<IDbConnection>();
 	private readonly IDataProcessorRegistry _fakeRegistry = A.Fake<IDataProcessorRegistry>();
 	private readonly IServiceProvider _fakeServiceProvider = A.Fake<IServiceProvider>();
 	private readonly IOptions<DataProcessingConfiguration> _fakeConfig =
@@ -23,7 +23,7 @@ public sealed class DataOrchestrationManagerShould : UnitTestBase
 	{
 		// Act
 		var manager = new DataOrchestrationManager(
-			_fakeDb, _fakeRegistry, _fakeServiceProvider, _fakeConfig, _fakeLogger);
+			_fakeConnectionFactory, _fakeRegistry, _fakeServiceProvider, _fakeConfig, _fakeLogger);
 
 		// Assert
 		manager.ShouldNotBeNull();
@@ -31,7 +31,7 @@ public sealed class DataOrchestrationManagerShould : UnitTestBase
 	}
 
 	[Fact]
-	public void Throw_WhenDb_IsNull()
+	public void Throw_WhenConnectionFactory_IsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
 			new DataOrchestrationManager(null!, _fakeRegistry, _fakeServiceProvider, _fakeConfig, _fakeLogger));
@@ -41,27 +41,27 @@ public sealed class DataOrchestrationManagerShould : UnitTestBase
 	public void Throw_WhenProcessorRegistry_IsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new DataOrchestrationManager(_fakeDb, null!, _fakeServiceProvider, _fakeConfig, _fakeLogger));
+			new DataOrchestrationManager(_fakeConnectionFactory, null!, _fakeServiceProvider, _fakeConfig, _fakeLogger));
 	}
 
 	[Fact]
 	public void Throw_WhenServiceProvider_IsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new DataOrchestrationManager(_fakeDb, _fakeRegistry, null!, _fakeConfig, _fakeLogger));
+			new DataOrchestrationManager(_fakeConnectionFactory, _fakeRegistry, null!, _fakeConfig, _fakeLogger));
 	}
 
 	[Fact]
 	public void Throw_WhenConfiguration_IsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new DataOrchestrationManager(_fakeDb, _fakeRegistry, _fakeServiceProvider, null!, _fakeLogger));
+			new DataOrchestrationManager(_fakeConnectionFactory, _fakeRegistry, _fakeServiceProvider, null!, _fakeLogger));
 	}
 
 	[Fact]
 	public void Throw_WhenLogger_IsNull()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			new DataOrchestrationManager(_fakeDb, _fakeRegistry, _fakeServiceProvider, _fakeConfig, null!));
+			new DataOrchestrationManager(_fakeConnectionFactory, _fakeRegistry, _fakeServiceProvider, _fakeConfig, null!));
 	}
 }

@@ -86,6 +86,28 @@ public static class PoisonMessageServiceCollectionExtensions
 	}
 
 	/// <summary>
+	/// Adds poison message handling services with a custom detector to the service collection.
+	/// </summary>
+	/// <typeparam name="TDetector"> The custom poison message detector type. </typeparam>
+	/// <param name="services"> The service collection. </param>
+	/// <param name="configureOptions"> Optional action to configure poison message options. </param>
+	/// <returns> The service collection for chaining. </returns>
+	public static IServiceCollection AddPoisonMessageHandling<
+		[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+	TDetector>(
+		this IServiceCollection services,
+		Action<PoisonMessageOptions>? configureOptions = null)
+		where TDetector : class, IPoisonMessageDetector
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		_ = services.AddPoisonMessageHandling(configureOptions);
+		_ = services.AddPoisonMessageDetector<TDetector>();
+
+		return services;
+	}
+
+	/// <summary>
 	/// Configures poison message handling to use an in-memory dead letter store.
 	/// </summary>
 	/// <param name="services"> The service collection. </param>

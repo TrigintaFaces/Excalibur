@@ -34,6 +34,11 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 /// <para>
 /// Supports dictionary-based filters translated to ElasticSearch Query DSL.
 /// </para>
+/// <para>
+/// Each projection type resolves its own named options instance keyed by
+/// <c>typeof(TProjection).Name</c>, allowing multiple projection stores to
+/// coexist with independent configurations.
+/// </para>
 /// </remarks>
 /// <typeparam name="TProjection">The projection type to store.</typeparam>
 public sealed partial class ElasticSearchProjectionStore<
@@ -51,6 +56,11 @@ public sealed partial class ElasticSearchProjectionStore<
 	private static readonly IReadOnlyDictionary<string, ProjectionFieldDefinition> FieldDefinitions =
 		BuildFieldDefinitions();
 
+	/// <summary>
+	/// The named options key used for this projection type.
+	/// </summary>
+	internal static readonly string OptionsName = typeof(TProjection).Name;
+
 	private readonly ElasticSearchProjectionStoreOptions _options;
 	private readonly ILogger<ElasticSearchProjectionStore<TProjection>> _logger;
 	private readonly string _projectionType;
@@ -60,45 +70,58 @@ public sealed partial class ElasticSearchProjectionStore<
 	private volatile bool _disposed;
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="ElasticSearchProjectionStore{TProjection}"/> class.
+	/// Initializes a new instance of the <see cref="ElasticSearchProjectionStore{TProjection}"/> class
+	/// using named options resolved via <see cref="IOptionsMonitor{TOptions}"/>.
 	/// </summary>
-	/// <param name="options">The projection store options.</param>
+	/// <param name="optionsMonitor">The options monitor for named options resolution.</param>
 	/// <param name="logger">The logger instance.</param>
 	public ElasticSearchProjectionStore(
-		IOptions<ElasticSearchProjectionStoreOptions> options,
+		IOptionsMonitor<ElasticSearchProjectionStoreOptions> optionsMonitor,
 		ILogger<ElasticSearchProjectionStore<TProjection>> logger)
 	{
-		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(optionsMonitor);
 		ArgumentNullException.ThrowIfNull(logger);
 
-		_options = options.Value;
+		_options = optionsMonitor.Get(OptionsName);
 		_options.Validate();
 		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
-		_indexName = $"{_options.IndexPrefix}-{_projectionType.ToLowerInvariant()}";
+		_indexName = ResolveIndexName(_options, _projectionType);
 	}
 
 	/// <summary>
-	/// Initializes a new instance of the <see cref="ElasticSearchProjectionStore{TProjection}"/> class with an existing client.
+	/// Initializes a new instance of the <see cref="ElasticSearchProjectionStore{TProjection}"/> class with an existing client
+	/// using named options resolved via <see cref="IOptionsMonitor{TOptions}"/>.
 	/// </summary>
 	/// <param name="client">An existing ElasticSearch client.</param>
-	/// <param name="options">The projection store options.</param>
+	/// <param name="optionsMonitor">The options monitor for named options resolution.</param>
 	/// <param name="logger">The logger instance.</param>
 	public ElasticSearchProjectionStore(
 		ElasticsearchClient client,
-		IOptions<ElasticSearchProjectionStoreOptions> options,
+		IOptionsMonitor<ElasticSearchProjectionStoreOptions> optionsMonitor,
 		ILogger<ElasticSearchProjectionStore<TProjection>> logger)
 	{
 		ArgumentNullException.ThrowIfNull(client);
-		ArgumentNullException.ThrowIfNull(options);
+		ArgumentNullException.ThrowIfNull(optionsMonitor);
 		ArgumentNullException.ThrowIfNull(logger);
 
 		_client = client;
-		_options = options.Value;
+		_options = optionsMonitor.Get(OptionsName);
 		_options.Validate();
 		_logger = logger;
 		_projectionType = typeof(TProjection).Name;
-		_indexName = $"{_options.IndexPrefix}-{_projectionType.ToLowerInvariant()}";
+		_indexName = ResolveIndexName(_options, _projectionType);
+	}
+
+	private static string ResolveIndexName(ElasticSearchProjectionStoreOptions options, string projectionType)
+	{
+		var name = !string.IsNullOrWhiteSpace(options.IndexName)
+			? options.IndexName
+			: projectionType.ToLowerInvariant();
+
+		return string.IsNullOrWhiteSpace(options.IndexPrefix)
+			? name
+			: $"{options.IndexPrefix}-{name}";
 	}
 
 	private enum ProjectionFieldType
@@ -682,8 +705,23 @@ public sealed partial class ElasticSearchProjectionStore<
 
 		if (_client is null)
 		{
-			var settings = new ElasticsearchClientSettings(new Uri(_options.NodeUri))
-				.RequestTimeout(TimeSpan.FromSeconds(_options.RequestTimeoutSeconds));
+			ElasticsearchClientSettings settings;
+
+			if (_options.NodeUris is { Count: > 0 } uris)
+			{
+				NodePool pool = _options.ConnectionPoolType switch
+				{
+					ConnectionPoolType.Sniffing => new SniffingNodePool(uris),
+					_ => new StaticNodePool(uris),
+				};
+				settings = new ElasticsearchClientSettings(pool)
+					.RequestTimeout(TimeSpan.FromSeconds(_options.RequestTimeoutSeconds));
+			}
+			else
+			{
+				settings = new ElasticsearchClientSettings(new Uri(_options.NodeUri))
+					.RequestTimeout(TimeSpan.FromSeconds(_options.RequestTimeoutSeconds));
+			}
 
 			if (_options.EnableDebugMode)
 			{

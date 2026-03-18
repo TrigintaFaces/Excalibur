@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Data;
+
 using Excalibur.Data.Abstractions;
 using Excalibur.Data.DataProcessing.Requests;
 using Excalibur.Dispatch.Abstractions.Messaging;
@@ -17,7 +19,7 @@ namespace Excalibur.Data.DataProcessing;
 /// </summary>
 public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 {
-	private readonly IDataProcessorDb _db;
+	private readonly Func<IDbConnection> _connectionFactory;
 
 	private readonly IDataProcessorRegistry _processorRegistry;
 
@@ -30,25 +32,25 @@ public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 	/// <summary>
 	/// Initializes a new instance of the <see cref="DataOrchestrationManager" /> class.
 	/// </summary>
-	/// <param name="db"> The database used for managing data tasks. </param>
+	/// <param name="connectionFactory"> A factory that creates database connections for data task operations. </param>
 	/// <param name="processorRegistry"> A registry for resolving processors for record types. </param>
 	/// <param name="serviceProvider"> The root service provider for creating new scopes. </param>
 	/// <param name="configuration"> Configuration options for data processing. </param>
 	/// <param name="logger"> Logger for logging messages and errors. </param>
 	public DataOrchestrationManager(
-		IDataProcessorDb db,
+		Func<IDbConnection> connectionFactory,
 		IDataProcessorRegistry processorRegistry,
 		IServiceProvider serviceProvider,
 		IOptions<DataProcessingConfiguration> configuration,
 		ILogger<DataOrchestrationManager> logger)
 	{
-		ArgumentNullException.ThrowIfNull(db);
+		ArgumentNullException.ThrowIfNull(connectionFactory);
 		ArgumentNullException.ThrowIfNull(processorRegistry);
 		ArgumentNullException.ThrowIfNull(serviceProvider);
 		ArgumentNullException.ThrowIfNull(configuration);
 		ArgumentNullException.ThrowIfNull(logger);
 
-		_db = db;
+		_connectionFactory = connectionFactory;
 		_processorRegistry = processorRegistry;
 		_serviceProvider = serviceProvider;
 		_configuration = configuration;
@@ -66,7 +68,8 @@ public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 			DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
 
-		_ = await _db.Connection.Ready().ResolveAsync(req).ConfigureAwait(false);
+		using var connection = _connectionFactory();
+		_ = await connection.Ready().ResolveAsync(req).ConfigureAwait(false);
 
 		return dataTaskId;
 	}
@@ -78,7 +81,12 @@ public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 			_configuration.Value,
 			DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
-		var requests = (await _db.Connection.Ready().ResolveAsync(req).ConfigureAwait(false)).ToList();
+
+		List<DataTaskRequest> requests;
+		using (var connection = _connectionFactory())
+		{
+			requests = (await connection.Ready().ResolveAsync(req).ConfigureAwait(false)).ToList();
+		}
 
 		if (requests.Count == 0)
 		{
@@ -140,7 +148,8 @@ public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 			DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
 
-		_ = await _db.Connection.Ready().ResolveAsync(req).ConfigureAwait(false);
+		using var connection = _connectionFactory();
+		_ = await connection.Ready().ResolveAsync(req).ConfigureAwait(false);
 	}
 
 	private async Task UpdateCompletedCountAsync(Guid dataTaskId, long complete, CancellationToken cancellationToken)
@@ -152,7 +161,8 @@ public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 			DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
 
-		var affected = await _db.Connection.Ready().ResolveAsync(req).ConfigureAwait(false);
+		using var connection = _connectionFactory();
+		var affected = await connection.Ready().ResolveAsync(req).ConfigureAwait(false);
 		if (affected == 0)
 		{
 			LogUpdateCompletedCountMismatch(dataTaskId);
@@ -167,6 +177,7 @@ public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 			DbTimeouts.RegularTimeoutSeconds,
 			cancellationToken);
 
-		_ = await _db.Connection.Ready().ResolveAsync(req).ConfigureAwait(false);
+		using var connection = _connectionFactory();
+		_ = await connection.Ready().ResolveAsync(req).ConfigureAwait(false);
 	}
 }

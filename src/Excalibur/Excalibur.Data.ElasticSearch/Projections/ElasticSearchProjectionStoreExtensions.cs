@@ -16,6 +16,13 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// <summary>
 /// Extension methods for registering ElasticSearch projection store services.
 /// </summary>
+/// <remarks>
+/// <para>
+/// Each projection type gets its own named options instance keyed by the projection type name.
+/// This allows multiple projection stores to coexist with independent configurations
+/// (different URIs, index prefixes, shard counts, etc.).
+/// </para>
+/// </remarks>
 public static class ElasticSearchProjectionStoreExtensions
 {
 	/// <summary>
@@ -33,16 +40,17 @@ public static class ElasticSearchProjectionStoreExtensions
 		ArgumentNullException.ThrowIfNull(services);
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
-		// Configure options
-		_ = services.Configure(configureOptions);
+		// Configure named options keyed by projection type name
+		var optionsName = typeof(TProjection).Name;
+		_ = services.Configure(optionsName, configureOptions);
 
-		// Register projection store
+		// Register projection store -- uses IOptionsMonitor to resolve named options
 		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>
 		{
-			var options = sp.GetRequiredService<IOptions<ElasticSearchProjectionStoreOptions>>();
+			var optionsMonitor = sp.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<ElasticSearchProjectionStore<TProjection>>>();
 
-			return new ElasticSearchProjectionStore<TProjection>(options, logger);
+			return new ElasticSearchProjectionStore<TProjection>(optionsMonitor, logger);
 		});
 
 		return services;
@@ -94,18 +102,52 @@ public static class ElasticSearchProjectionStoreExtensions
 		ArgumentNullException.ThrowIfNull(clientFactory);
 		ArgumentNullException.ThrowIfNull(configureOptions);
 
-		// Configure options
-		_ = services.Configure(configureOptions);
+		// Configure named options keyed by projection type name
+		var optionsName = typeof(TProjection).Name;
+		_ = services.Configure(optionsName, configureOptions);
 
 		// Register projection store with client factory
 		services.TryAddScoped<IProjectionStore<TProjection>>(sp =>
 		{
 			var client = clientFactory(sp);
-			var options = sp.GetRequiredService<IOptions<ElasticSearchProjectionStoreOptions>>();
+			var optionsMonitor = sp.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
 			var logger = sp.GetRequiredService<ILogger<ElasticSearchProjectionStore<TProjection>>>();
 
-			return new ElasticSearchProjectionStore<TProjection>(client, options, logger);
+			return new ElasticSearchProjectionStore<TProjection>(client, optionsMonitor, logger);
 		});
+
+		return services;
+	}
+
+	/// <summary>
+	/// Registers multiple ElasticSearch projection stores that share a common node URI,
+	/// reducing boilerplate when multiple projections target the same cluster.
+	/// </summary>
+	/// <param name="services">The service collection.</param>
+	/// <param name="nodeUri">The shared ElasticSearch node URI.</param>
+	/// <param name="configure">Action to register individual projection stores.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <example>
+	/// <code>
+	/// services.AddElasticSearchProjections("https://es.example.com:9200", projections =>
+	/// {
+	///     projections.Add&lt;OrderSummary&gt;();
+	///     projections.Add&lt;CustomerProfile&gt;(options => options.IndexPrefix = "customers");
+	///     projections.Add&lt;ProductCatalog&gt;(options => options.NumberOfShards = 3);
+	/// });
+	/// </code>
+	/// </example>
+	public static IServiceCollection AddElasticSearchProjections(
+		this IServiceCollection services,
+		string nodeUri,
+		Action<ElasticSearchProjectionRegistrar> configure)
+	{
+		ArgumentNullException.ThrowIfNull(services);
+		ArgumentException.ThrowIfNullOrWhiteSpace(nodeUri);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		var registrar = new ElasticSearchProjectionRegistrar(services, nodeUri);
+		configure(registrar);
 
 		return services;
 	}

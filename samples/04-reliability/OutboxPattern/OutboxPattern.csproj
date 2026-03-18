@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -8,13 +8,13 @@
     <Version>$(VersionPrefix)</Version>
     <PackageId>$(AssemblyName)</PackageId>
   </PropertyGroup>
-  <!-- Sprint 432 S432.4: Outbox Pattern sample -->
+  <!-- Sprint 658 S.3: Updated to use UseOutbox()/UseInbox() middleware pipeline -->
   <ItemGroup>
     <ProjectReference Include="$(DispatchSourceRoot)Excalibur.Dispatch\Excalibur.Dispatch.csproj" />
-    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Data.InMemory\Excalibur.Data.InMemory.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Outbox\Excalibur.Outbox.csproj" />
-    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Inbox.InMemory\Excalibur.Inbox.InMemory.csproj" />
     <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Outbox.InMemory\Excalibur.Outbox.InMemory.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Inbox\Excalibur.Inbox.csproj" />
+    <ProjectReference Include="$(ExcaliburSourceRoot)Excalibur.Inbox.InMemory\Excalibur.Inbox.InMemory.csproj" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
   </ItemGroup>
 </Project>

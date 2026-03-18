@@ -17,8 +17,11 @@ namespace Excalibur.Data.ElasticSearch.Projections;
 public sealed class ElasticSearchProjectionStoreOptions
 {
 	/// <summary>
-	/// Gets or sets the ElasticSearch node URI.
+	/// Gets or sets the ElasticSearch node URI for single-node configuration.
 	/// </summary>
+	/// <remarks>
+	/// Ignored when <see cref="NodeUris"/> is set with one or more URIs.
+	/// </remarks>
 	/// <value>Defaults to "http://localhost:9200".</value>
 	public string NodeUri { get; set; } = "http://localhost:9200";
 
@@ -26,8 +29,9 @@ public sealed class ElasticSearchProjectionStoreOptions
 	/// Gets or sets the index name prefix for projection indices.
 	/// </summary>
 	/// <remarks>
-	/// The full index name is composed as: <c>{IndexPrefix}-{projectionTypeName}</c>
-	/// where the projection type name is lowercased.
+	/// The full index name is composed as: <c>{IndexPrefix}-{name}</c> where <c>name</c>
+	/// is either <see cref="IndexName"/> (if set) or the lowercased projection type name.
+	/// Set to empty or whitespace to omit the prefix entirely.
 	/// </remarks>
 	/// <value>Defaults to "projections".</value>
 	public string IndexPrefix { get; set; } = "projections";
@@ -66,6 +70,37 @@ public sealed class ElasticSearchProjectionStoreOptions
 	public string RefreshInterval { get; set; } = "1s";
 
 	/// <summary>
+	/// Gets or sets the index name override for this projection store.
+	/// </summary>
+	/// <remarks>
+	/// When set, replaces the projection type name in the index naming convention.
+	/// The full index name becomes <c>{IndexPrefix}-{IndexName}</c> when both are set,
+	/// or just <c>{IndexName}</c> when <see cref="IndexPrefix"/> is empty.
+	/// When not set, the default <c>{IndexPrefix}-{projectionTypeName}</c> convention applies.
+	/// </remarks>
+	/// <value>Defaults to <see langword="null"/> (uses projection type name).</value>
+	public string? IndexName { get; set; }
+
+	/// <summary>
+	/// Gets or sets the cluster node URIs for multi-node configuration.
+	/// </summary>
+	/// <remarks>
+	/// When set with one or more URIs, overrides <see cref="NodeUri"/> and uses a
+	/// connection pool. The pool type is determined by <see cref="ConnectionPoolType"/>.
+	/// </remarks>
+	/// <value>Defaults to <see langword="null"/> (single-node via <see cref="NodeUri"/>).</value>
+	public IReadOnlyList<Uri>? NodeUris { get; set; }
+
+	/// <summary>
+	/// Gets or sets the connection pool type for multi-node clusters.
+	/// </summary>
+	/// <remarks>
+	/// Only used when <see cref="NodeUris"/> is set with one or more URIs.
+	/// </remarks>
+	/// <value>Defaults to <see cref="ElasticSearch.ConnectionPoolType.Static"/>.</value>
+	public ConnectionPoolType ConnectionPoolType { get; set; } = ConnectionPoolType.Static;
+
+	/// <summary>
 	/// Gets or sets the authentication options for the ElasticSearch connection.
 	/// </summary>
 	/// <value>Authentication options including username/password and API key.</value>
@@ -87,19 +122,29 @@ public sealed class ElasticSearchProjectionStoreOptions
 	/// <exception cref="InvalidOperationException">Thrown when required options are missing.</exception>
 	public void Validate()
 	{
-		if (string.IsNullOrWhiteSpace(NodeUri))
+		if (NodeUris is { Count: > 0 })
 		{
-			throw new InvalidOperationException("NodeUri is required.");
+			foreach (var uri in NodeUris)
+			{
+				if (uri is null || !uri.IsAbsoluteUri)
+				{
+					throw new InvalidOperationException(
+						$"All entries in NodeUris must be valid absolute URIs. Invalid: '{uri}'.");
+				}
+			}
+		}
+		else
+		{
+			if (string.IsNullOrWhiteSpace(NodeUri))
+			{
+				throw new InvalidOperationException("NodeUri is required when NodeUris is not set.");
+			}
+
+			if (!Uri.TryCreate(NodeUri, UriKind.Absolute, out _))
+			{
+				throw new InvalidOperationException($"NodeUri '{NodeUri}' is not a valid URI.");
+			}
 		}
 
-		if (string.IsNullOrWhiteSpace(IndexPrefix))
-		{
-			throw new InvalidOperationException("IndexPrefix is required.");
-		}
-
-		if (!Uri.TryCreate(NodeUri, UriKind.Absolute, out _))
-		{
-			throw new InvalidOperationException($"NodeUri '{NodeUri}' is not a valid URI.");
-		}
 	}
 }

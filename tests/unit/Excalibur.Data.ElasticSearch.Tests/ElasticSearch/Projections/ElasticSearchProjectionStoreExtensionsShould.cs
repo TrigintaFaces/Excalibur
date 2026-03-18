@@ -119,9 +119,11 @@ public sealed class ElasticSearchProjectionStoreExtensionsShould
 			o => o.IndexPrefix = "test-proj");
 
 		using var sp = services.BuildServiceProvider();
-		var options = sp.GetService<IOptions<ElasticSearchProjectionStoreOptions>>();
+		// Named options keyed by projection type name
+		var optionsMonitor = sp.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
+		var options = optionsMonitor.Get(nameof(TestProjection));
 		options.ShouldNotBeNull();
-		options.Value.IndexPrefix.ShouldBe("test-proj");
+		options.IndexPrefix.ShouldBe("test-proj");
 	}
 
 	[Fact]
@@ -131,8 +133,10 @@ public sealed class ElasticSearchProjectionStoreExtensionsShould
 		services.AddElasticSearchProjectionStore<TestProjection>("http://custom:9200");
 
 		using var sp = services.BuildServiceProvider();
-		var options = sp.GetRequiredService<IOptions<ElasticSearchProjectionStoreOptions>>();
-		options.Value.NodeUri.ShouldBe("http://custom:9200");
+		// Named options keyed by projection type name
+		var optionsMonitor = sp.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
+		var options = optionsMonitor.Get(nameof(TestProjection));
+		options.NodeUri.ShouldBe("http://custom:9200");
 	}
 
 	[Fact]
@@ -144,9 +148,11 @@ public sealed class ElasticSearchProjectionStoreExtensionsShould
 			o => o.IndexPrefix = "custom-proj");
 
 		using var sp = services.BuildServiceProvider();
-		var options = sp.GetRequiredService<IOptions<ElasticSearchProjectionStoreOptions>>();
-		options.Value.NodeUri.ShouldBe("http://custom:9200");
-		options.Value.IndexPrefix.ShouldBe("custom-proj");
+		// Named options keyed by projection type name
+		var optionsMonitor = sp.GetRequiredService<IOptionsMonitor<ElasticSearchProjectionStoreOptions>>();
+		var options = optionsMonitor.Get(nameof(TestProjection));
+		options.NodeUri.ShouldBe("http://custom:9200");
+		options.IndexPrefix.ShouldBe("custom-proj");
 	}
 
 	private sealed class TestProjection

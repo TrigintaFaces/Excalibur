@@ -10,50 +10,50 @@
 //
 // Architecture (same as background service sample):
 //
-//   ┌─────────────────────────────────────────────────────────────────────┐
-//   │                     WRITE SIDE (Event Sourcing)                     │
-//   └─────────────────────────────────────────────────────────────────────┘
+//   +---------------------------------------------------------------------+
+//   |                     WRITE SIDE (Event Sourcing)                     |
+//   +---------------------------------------------------------------------+
 //
 //   SQL Server #1 (Legacy DB)         SQL Server #2 (Event Store)
 //   Port 1433                          Port 1434
-//   ┌───────────────────┐             ┌───────────────────────────┐
-//   │  LegacyCustomers  │             │  eventsourcing.Events     │
-//   │  (CDC enabled)    │             │  eventsourcing.Snapshots  │
-//   └─────────┬─────────┘             └─────────────┬─────────────┘
-//             │                                     │
-//             │ CdcJob (Quartz.NET)                 │ Domain Events
-//             │ (Cron-scheduled)                    ▲
-//             ▼                                     │
-//   ┌─────────────────────────────────────────────────────────────────────┐
-//   │                    Anti-Corruption Layer (ACL)                       │
-//   │  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐  │
-//   │  │ LegacyCustomer  │───▶│  CdcChangeHandler│───▶│ CustomerAggregate│ │
-//   │  │    Adapter      │    │ (translate CDC   │    │ (domain logic)   │ │
-//   │  │ (schema compat) │    │  to commands)    │    │                  │ │
-//   │  └─────────────────┘    └─────────────────┘    └─────────────────┘  │
-//   └─────────────────────────────────────────────────────────────────────┘
+//   +-------------------+             +---------------------------+
+//   |  LegacyCustomers  |             |  eventsourcing.Events     |
+//   |  (CDC enabled)    |             |  eventsourcing.Snapshots  |
+//   +---------+---------+             +-------------+-------------+
+//             |                                     |
+//             | CdcJob (Quartz.NET)                 | Domain Events
+//             | (Cron-scheduled)                    ^
+//             v                                     |
+//   +---------------------------------------------------------------------+
+//   |                    Anti-Corruption Layer (ACL)                       |
+//   |  +-----------------+    +-----------------+    +-----------------+  |
+//   |  | LegacyCustomer  |--->|  CdcChangeHandler|--->| CustomerAggregate| |
+//   |  |    Adapter      |    | (translate CDC   |    | (domain logic)   | |
+//   |  | (schema compat) |    |  to commands)    |    |                  | |
+//   |  +-----------------+    +-----------------+    +-----------------+  |
+//   +---------------------------------------------------------------------+
 //
-//   ┌─────────────────────────────────────────────────────────────────────┐
-//   │                     READ SIDE (Projections)                         │
-//   └─────────────────────────────────────────────────────────────────────┘
+//   +---------------------------------------------------------------------+
+//   |                     READ SIDE (Projections)                         |
+//   +---------------------------------------------------------------------+
 //
 //                    Domain Events
-//                         │
-//                         ▼
-//             ┌─────────────────────────────┐
-//             │ Projection Job (Quartz.NET)  │
-//             │ (Cron-scheduled)             │
-//             └──────────────┬──────────────┘
-//                            │
-//                            ▼
-//   ┌─────────────────────────────────────────────────────────────────────┐
-//   │                      Elasticsearch Cluster                          │
-//   │                          Port 9200                                  │
-//   │  ┌───────────────────────┐    ┌──────────────────────────────────┐  │
-//   │  │ CustomerSearchProjection│   │ CustomerTierSummaryProjection   │  │
-//   │  │ (full-text search)     │   │ (analytics/materialized view)   │  │
-//   │  └───────────────────────┘    └──────────────────────────────────┘  │
-//   └─────────────────────────────────────────────────────────────────────┘
+//                         |
+//                         v
+//             +-----------------------------+
+//             | Projection Job (Quartz.NET)  |
+//             | (Cron-scheduled)             |
+//             +--------------+--------------+
+//                            |
+//                            v
+//   +---------------------------------------------------------------------+
+//   |                      Elasticsearch Cluster                          |
+//   |                          Port 9200                                  |
+//   |  +-----------------------+    +--------------------------------+   |
+//   |  | CustomerSearchProjection|   | CustomerTierSummaryProjection |   |
+//   |  | (full-text search)     |   | (analytics/materialized view) |   |
+//   |  +-----------------------+    +--------------------------------+   |
+//   +---------------------------------------------------------------------+
 //
 // Key Differences from Background Service Sample:
 // - Uses Quartz.NET CdcJob instead of custom BackgroundService
@@ -73,7 +73,6 @@ using CdcJobQuartz.AntiCorruption;
 using CdcJobQuartz.Infrastructure;
 using CdcJobQuartz.Projections;
 
-using Excalibur.Data.ElasticSearch.Projections;
 using Excalibur.EventSourcing.Abstractions;
 using Excalibur.Jobs.Cdc;
 
@@ -81,7 +80,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 Console.WriteLine("================================================");
 Console.WriteLine("  CDC Job with Quartz.NET Sample");
@@ -181,29 +179,27 @@ builder.Services.AddExcaliburJobHost(
 var elasticsearchUri = builder.Configuration["Elasticsearch:Uri"] ?? "http://localhost:9200";
 Console.WriteLine($"[Infrastructure] Elasticsearch: {elasticsearchUri}");
 
-builder.Services.Configure<ElasticSearchProjectionStoreOptions>(options =>
+// Register Elasticsearch projection stores using per-projection named options.
+// Each projection type gets its own isolated options (Sprint 658 fix).
+builder.Services.AddElasticSearchProjections(elasticsearchUri, projections =>
 {
-	options.NodeUri = elasticsearchUri;
-	options.IndexPrefix = "customers";
-	options.CreateIndexOnInitialize = true;
-	options.NumberOfShards = 1;
-	options.NumberOfReplicas = 0; // Dev mode - use 1+ in production
-	options.RefreshInterval = "1s";
-});
+	projections.Add<CustomerSearchProjection>(options =>
+	{
+		options.IndexPrefix = "customers";
+		options.CreateIndexOnInitialize = true;
+		options.NumberOfShards = 1;
+		options.NumberOfReplicas = 0; // Dev mode - use 1+ in production
+		options.RefreshInterval = "1s";
+	});
 
-// Register Elasticsearch projection stores
-builder.Services.AddSingleton<IProjectionStore<CustomerSearchProjection>>(sp =>
-{
-	var options = sp.GetRequiredService<IOptions<ElasticSearchProjectionStoreOptions>>();
-	var logger = sp.GetRequiredService<ILogger<ElasticSearchProjectionStore<CustomerSearchProjection>>>();
-	return new ElasticSearchProjectionStore<CustomerSearchProjection>(options, logger);
-});
-
-builder.Services.AddSingleton<IProjectionStore<CustomerTierSummaryProjection>>(sp =>
-{
-	var options = sp.GetRequiredService<IOptions<ElasticSearchProjectionStoreOptions>>();
-	var logger = sp.GetRequiredService<ILogger<ElasticSearchProjectionStore<CustomerTierSummaryProjection>>>();
-	return new ElasticSearchProjectionStore<CustomerTierSummaryProjection>(options, logger);
+	projections.Add<CustomerTierSummaryProjection>(options =>
+	{
+		options.IndexPrefix = "customers";
+		options.CreateIndexOnInitialize = true;
+		options.NumberOfShards = 1;
+		options.NumberOfReplicas = 0;
+		options.RefreshInterval = "1s";
+	});
 });
 
 // Register projection handlers

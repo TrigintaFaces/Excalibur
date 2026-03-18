@@ -777,6 +777,36 @@ services.AddDispatch(dispatch =>
 | Production | Metrics, Tracing, Retry, ExceptionMapping |
 | Full | Logging, Validation, Metrics, Tracing, Retry, ExceptionMapping |
 
+### Fine-Grained Middleware Stacks
+
+For more control, use composable stacks instead of all-or-nothing presets:
+
+```csharp
+services.AddDispatch(dispatch =>
+{
+    dispatch.AddHandlersFromAssembly(typeof(Program).Assembly);
+
+    // Compose stacks as needed
+    dispatch.UseSecurityStack()      // Authentication → Authorization → TenantIdentity
+            .UseResilienceStack()    // Timeout → Retry → CircuitBreaker
+            .UseValidationStack();   // Validation → ExceptionMapping
+});
+```
+
+| Stack | Middleware (in order) |
+|-------|----------------------|
+| `UseSecurityStack()` | AuthenticationMiddleware, AuthorizationMiddleware, TenantIdentityMiddleware |
+| `UseResilienceStack()` | TimeoutMiddleware, RetryMiddleware, CircuitBreakerMiddleware |
+| `UseValidationStack()` | ValidationMiddleware, ExceptionMappingMiddleware |
+
+Stacks can be combined freely with individual middleware. For example, use a security stack with custom logging:
+
+```csharp
+dispatch.UseSecurityStack()
+        .UseLogging()
+        .UseValidationStack();
+```
+
 ## Recommended Pipeline Order
 
 When combining multiple middleware, use this recommended order:

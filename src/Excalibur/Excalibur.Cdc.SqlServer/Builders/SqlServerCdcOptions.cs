@@ -54,6 +54,41 @@ public sealed class SqlServerCdcOptions
 	public string? ConnectionString { get; set; }
 
 	/// <summary>
+	/// Gets or sets the database name for CDC processing.
+	/// </summary>
+	/// <value>The database name, or <see langword="null"/> if not configured via the builder.</value>
+	public string? DatabaseName { get; set; }
+
+	/// <summary>
+	/// Gets or sets the unique identifier for the CDC source database connection.
+	/// </summary>
+	/// <value>The connection identifier, or <see langword="null"/> if not configured via the builder.</value>
+	public string? DatabaseConnectionIdentifier { get; set; }
+
+	/// <summary>
+	/// Gets or sets the unique identifier for the state store database connection.
+	/// </summary>
+	/// <value>The connection identifier, or <see langword="null"/> if not configured via the builder.</value>
+	public string? StateConnectionIdentifier { get; set; }
+
+	/// <summary>
+	/// Gets or sets the CDC capture instances to process.
+	/// </summary>
+	/// <value>The capture instances, or <see langword="null"/> if not configured via the builder.</value>
+	public string[]? CaptureInstances { get; set; }
+
+	/// <summary>
+	/// Gets or sets whether processing should stop when a table handler is missing.
+	/// </summary>
+	/// <value>Default is <see langword="true"/>.</value>
+	public bool StopOnMissingTableHandler { get; set; } = DatabaseConfigDefaults.CdcDefaultStopOnMissingTableHandler;
+
+	/// <summary>
+	/// Gets a value indicating whether database configuration was provided via the builder.
+	/// </summary>
+	internal bool HasDatabaseConfig => DatabaseName is not null;
+
+	/// <summary>
 	/// Validates the options and throws if invalid.
 	/// </summary>
 	public void Validate()

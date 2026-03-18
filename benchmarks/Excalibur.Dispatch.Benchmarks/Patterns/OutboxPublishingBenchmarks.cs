@@ -6,20 +6,17 @@ using BenchmarkDotNet.Jobs;
 
 using Excalibur.Dispatch.Abstractions;
 
-using Excalibur.Outbox.SqlServer;
+using Excalibur.Outbox.InMemory;
 
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-
-using Testcontainers.MsSql;
 
 namespace Excalibur.Dispatch.Benchmarks.Patterns;
 
 /// <summary>
 /// Benchmarks for outbox message publishing operations.
-/// Measures performance of reservation, deletion (publish), retries, and dead letter operations.
+/// Measures performance of staging, marking sent, full publish cycles, and batch processing.
 /// </summary>
 /// <remarks>
 /// Performance Targets (from testing-and-benchmarking-strategy-spec.md):
@@ -32,84 +29,48 @@ namespace Excalibur.Dispatch.Benchmarks.Patterns;
 [SimpleJob(RuntimeMoniker.HostProcess)]
 public class OutboxPublishingBenchmarks
 {
-	private MsSqlContainer? _sqlContainer;
-	private SqlServerOutboxStore? _outboxStore;
-	private string? _connectionString;
-	private List<string> _messageIds = new();
+	private InMemoryOutboxStore? _outboxStore;
 
 	/// <summary>
-	/// Initialize SQL Server container and outbox store before benchmarks.
+	/// Initialize in-memory outbox store before benchmarks.
 	/// </summary>
 	[GlobalSetup]
-	public async Task GlobalSetup()
+	public void GlobalSetup()
 	{
-		// Start SQL Server container
-		_sqlContainer = new MsSqlBuilder()
-			.WithImage("mcr.microsoft.com/mssql/server:2022-latest")
-			.Build();
-
-		await _sqlContainer.StartAsync();
-		_connectionString = _sqlContainer.GetConnectionString();
-
-		// Create outbox tables
-		await CreateOutboxTablesAsync();
-
-		// Initialize outbox store
-		var options = Microsoft.Extensions.Options.Options.Create(new SqlServerOutboxOptions
+		var options = Microsoft.Extensions.Options.Options.Create(new InMemoryOutboxOptions
 		{
-			ConnectionString = _connectionString,
-			SchemaName = "dbo",
-			OutboxTableName = "OutboxMessages",
-			TransportsTableName = "OutboxMessageTransports"
+			MaxMessages = 0 // unlimited
 		});
-		var logger = NullLoggerFactory.Instance.CreateLogger<SqlServerOutboxStore>();
-		_outboxStore = new SqlServerOutboxStore(options, logger);
-
-		// Pre-populate with messages to publish
-		_messageIds = await PopulateOutboxAsync(1000);
+		var logger = NullLoggerFactory.Instance.CreateLogger<InMemoryOutboxStore>();
+		_outboxStore = new InMemoryOutboxStore(options, logger);
 	}
 
 	/// <summary>
-	/// Cleanup SQL Server container after benchmarks.
+	/// Cleanup outbox store after benchmarks.
 	/// </summary>
 	[GlobalCleanup]
-	public async Task GlobalCleanup()
+	public void GlobalCleanup()
 	{
-		if (_sqlContainer != null)
-		{
-			await _sqlContainer.DisposeAsync();
-		}
+		_outboxStore?.Dispose();
 	}
 
 	/// <summary>
 	/// Benchmark: Stage a single message (outbox write).
 	/// </summary>
 	[Benchmark(Baseline = true)]
-	public async Task StageMessage()
+	public ValueTask StageMessage()
 	{
 		var message = new OutboundMessage(
 			"TestEvent",
 			new byte[1024],
 			"test-destination",
 			new Dictionary<string, object> { ["CorrelationId"] = Guid.NewGuid().ToString() });
-		await _outboxStore.StageMessageAsync(message, CancellationToken.None);
-	}
-
-	/// <summary>
-	/// Benchmark: Mark a message as sent (publish completion).
-	/// </summary>
-	[Benchmark]
-	public async Task MarkSent()
-	{
-		if (_messageIds.Count > 0)
-		{
-			var messageId = _messageIds[Random.Shared.Next(_messageIds.Count)];
-			await _outboxStore.MarkSentAsync(messageId, CancellationToken.None);
-		}
+		return _outboxStore!.StageMessageAsync(message, CancellationToken.None);
 	}
 
 	/// <summary>
 	/// Benchmark: Full publishing cycle (stage + mark sent).
+	/// Each iteration stages a fresh message to avoid already-sent errors.
 	/// </summary>
 	[Benchmark]
 	public async Task FullPublishCycle()
@@ -119,96 +80,46 @@ public class OutboxPublishingBenchmarks
 			new byte[1024],
 			"test-destination",
 			new Dictionary<string, object> { ["CorrelationId"] = Guid.NewGuid().ToString() });
-		await _outboxStore.StageMessageAsync(message, CancellationToken.None);
-		await _outboxStore.MarkSentAsync(message.Id, CancellationToken.None);
+		await _outboxStore!.StageMessageAsync(message, CancellationToken.None).ConfigureAwait(false);
+		await _outboxStore.MarkSentAsync(message.Id, CancellationToken.None).ConfigureAwait(false);
 	}
 
 	/// <summary>
-	/// Benchmark: Get and mark batch of messages as sent.
+	/// Benchmark: Stage batch then poll and mark sent.
+	/// Each iteration stages fresh messages to ensure unsent messages are available.
 	/// </summary>
 	[Benchmark]
-	public async Task<int> ProcessBatch100()
+	public async Task<int> StageThenProcessBatch100()
 	{
-		var messages = await _outboxStore.GetUnsentMessagesAsync(batchSize: 100, CancellationToken.None);
+		// Stage 100 messages
+		for (var i = 0; i < 100; i++)
+		{
+			var msg = new OutboundMessage(
+				"TestEvent",
+				new byte[1024],
+				"test-destination",
+				new Dictionary<string, object> { ["CorrelationId"] = Guid.NewGuid().ToString() });
+			await _outboxStore!.StageMessageAsync(msg, CancellationToken.None).ConfigureAwait(false);
+		}
+
+		// Poll and mark sent
+		var messages = await _outboxStore!.GetUnsentMessagesAsync(batchSize: 100, CancellationToken.None).ConfigureAwait(false);
 		var count = 0;
 		foreach (var message in messages)
 		{
-			await _outboxStore.MarkSentAsync(message.Id, CancellationToken.None);
+			await _outboxStore.MarkSentAsync(message.Id, CancellationToken.None).ConfigureAwait(false);
 			count++;
 		}
 		return count;
 	}
 
-	private async Task<List<string>> PopulateOutboxAsync(int messageCount)
+	/// <summary>
+	/// Benchmark: Get outbox statistics.
+	/// </summary>
+	[Benchmark]
+	public async Task<long> GetStatistics()
 	{
-		var ids = new List<string>(messageCount);
-		for (var i = 0; i < messageCount; i++)
-		{
-			var message = new OutboundMessage(
-				"TestEvent",
-				new byte[1024],
-				"test-destination",
-				new Dictionary<string, object>
-				{
-					["CorrelationId"] = Guid.NewGuid().ToString(),
-					["Index"] = i
-				});
-			await _outboxStore.StageMessageAsync(message, CancellationToken.None);
-			ids.Add(message.Id);
-		}
-		return ids;
-	}
-
-	private async Task CreateOutboxTablesAsync()
-	{
-		const string createTableSql = """
-			IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'OutboxMessages' AND schema_id = SCHEMA_ID('dbo'))
-			BEGIN
-				CREATE TABLE [dbo].[OutboxMessages] (
-					[Id] NVARCHAR(200) NOT NULL PRIMARY KEY,
-					[MessageType] NVARCHAR(500) NOT NULL,
-					[Payload] VARBINARY(MAX) NOT NULL,
-					[Destination] NVARCHAR(500) NOT NULL,
-					[Headers] NVARCHAR(MAX) NULL,
-					[CreatedAt] DATETIMEOFFSET NOT NULL,
-					[SentAt] DATETIMEOFFSET NULL,
-					[FailedAt] DATETIMEOFFSET NULL,
-					[ErrorMessage] NVARCHAR(MAX) NULL,
-					[RetryCount] INT NOT NULL DEFAULT 0,
-					[NextRetryAt] DATETIMEOFFSET NULL,
-					[Status] INT NOT NULL DEFAULT 0,
-					[ScheduledAt] DATETIMEOFFSET NULL,
-					[AggregateId] NVARCHAR(200) NULL,
-					[AggregateType] NVARCHAR(500) NULL,
-					[CorrelationId] NVARCHAR(200) NULL,
-					INDEX IX_OutboxMessages_Status_CreatedAt (Status, CreatedAt),
-					INDEX IX_OutboxMessages_ScheduledAt (ScheduledAt) WHERE ScheduledAt IS NOT NULL
-				);
-			END;
-
-			IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'OutboxMessageTransports' AND schema_id = SCHEMA_ID('dbo'))
-			BEGIN
-				CREATE TABLE [dbo].[OutboxMessageTransports] (
-					[Id] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-					[MessageId] NVARCHAR(200) NOT NULL,
-					[TransportName] NVARCHAR(200) NOT NULL,
-					[Status] INT NOT NULL DEFAULT 0,
-					[SentAt] DATETIMEOFFSET NULL,
-					[FailedAt] DATETIMEOFFSET NULL,
-					[ErrorMessage] NVARCHAR(MAX) NULL,
-					[RetryCount] INT NOT NULL DEFAULT 0,
-					[NextRetryAt] DATETIMEOFFSET NULL,
-					CONSTRAINT FK_OutboxMessageTransports_Message FOREIGN KEY (MessageId) REFERENCES [dbo].[OutboxMessages](Id),
-					INDEX IX_OutboxMessageTransports_MessageId (MessageId),
-					INDEX IX_OutboxMessageTransports_Status (Status)
-				);
-			END;
-			""";
-
-		await using var connection = new SqlConnection(_connectionString);
-		await connection.OpenAsync();
-
-		await using var command = new SqlCommand(createTableSql, connection);
-		_ = await command.ExecuteNonQueryAsync();
+		var stats = await _outboxStore!.GetStatisticsAsync(CancellationToken.None).ConfigureAwait(false);
+		return stats.StagedMessageCount;
 	}
 }

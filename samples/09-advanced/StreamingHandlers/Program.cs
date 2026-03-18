@@ -14,7 +14,7 @@ Console.WriteLine();
 // Build the service provider with all handlers
 var services = new ServiceCollection();
 
-// Register handlers (in a real app, use AddHandlersFromAssembly for auto-discovery)
+// Register streaming handlers (resolved by concrete type for direct demo usage)
 services.AddSingleton<CsvStreamingHandler>();
 services.AddSingleton<BatchImportHandler>();
 services.AddSingleton<RecordEnricher>();

@@ -91,6 +91,32 @@ public static class SqlServerSagaExtensions
 	}
 
 	/// <summary>
+	/// Adds SQL Server saga store using a typed <see cref="Excalibur.Data.Abstractions.IDb"/> marker for connection resolution.
+	/// </summary>
+	/// <typeparam name="TDb">The typed database marker that implements <see cref="Excalibur.Data.Abstractions.IDb"/>.</typeparam>
+	/// <param name="services">The service collection.</param>
+	/// <param name="configureOptions">Optional action to configure saga store options.</param>
+	/// <returns>The service collection for chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Resolves <typeparamref name="TDb"/> from DI and extracts its connection as a <see cref="SqlConnection"/>.
+	/// Eliminates the bridging ceremony:
+	/// <c>sp =&gt; () =&gt; (SqlConnection)sp.GetRequiredService&lt;TDb&gt;().Connection</c>
+	/// </para>
+	/// </remarks>
+	public static IServiceCollection AddSqlServerSagaStore<TDb>(
+		this IServiceCollection services,
+		Action<SqlServerSagaStoreOptions>? configureOptions = null)
+		where TDb : class, Excalibur.Data.Abstractions.IDb
+	{
+		ArgumentNullException.ThrowIfNull(services);
+
+		return services.AddSqlServerSagaStore(
+			sp => () => (SqlConnection)sp.GetRequiredService<TDb>().Connection,
+			configureOptions);
+	}
+
+	/// <summary>
 	/// Configures the dispatch builder to use SQL Server saga store.
 	/// </summary>
 	/// <param name="builder">The dispatch builder.</param>

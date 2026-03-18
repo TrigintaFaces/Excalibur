@@ -88,16 +88,6 @@ using Excalibur.Cdc.SqlServer;
 
 using Quartz;
 
-Console.WriteLine("=================================================");
-Console.WriteLine("  CDC + Event Store + Elasticsearch Sample");
-Console.WriteLine("  Production Configuration with Web API");
-Console.WriteLine("=================================================");
-Console.WriteLine();
-
-// ============================================================================
-// Build WebApplication
-// ============================================================================
-
 var builder = WebApplication.CreateBuilder(args);
 
 // ============================================================================
@@ -114,9 +104,12 @@ var eventStoreConnectionString = builder.Configuration.GetConnectionString("Even
 
 var elasticsearchUri = builder.Configuration["Elasticsearch:Uri"] ?? "http://localhost:9200";
 
-Console.WriteLine("[Infrastructure] SQL Server #1 (CDC Source): localhost:1433");
-Console.WriteLine("[Infrastructure] SQL Server #2 (Event Store): localhost:1434");
-Console.WriteLine($"[Infrastructure] Elasticsearch: {elasticsearchUri}");
+// Use the host's built-in bootstrap logger for startup messages
+var startupLogger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger("Startup");
+startupLogger.LogInformation("CDC + Event Store + Elasticsearch Sample - Production Configuration with Web API");
+startupLogger.LogInformation("SQL Server #1 (CDC Source): localhost:1433");
+startupLogger.LogInformation("SQL Server #2 (Event Store): localhost:1434");
+startupLogger.LogInformation("Elasticsearch: {ElasticsearchUri}", elasticsearchUri);
 
 // ============================================================================
 // ASP.NET Core Web API
@@ -160,12 +153,20 @@ builder.Services.AddSqlServerEventSourcing(options =>
 // CDC Processing (Fluent Builder Pattern)
 // ============================================================================
 
+// Logger for CDC recovery callback (assigned after app.Build())
+ILogger? cdcRecoveryLogger = null;
+
 // Configure CDC with fluent builder - per ADR-098 P1 (Single Entry Point)
 builder.Services.AddCdcProcessor(cdc =>
 {
 	cdc.UseSqlServer(cdcSourceConnectionString, sql =>
 		{
-			sql.PollingInterval(TimeSpan.FromSeconds(5))
+			sql.DatabaseName("LegacyDb")
+				.DatabaseConnectionIdentifier("cdc-LegacyDb")
+				.StateConnectionIdentifier("state-LegacyDb")
+				.CaptureInstances("dbo_LegacyCustomers", "dbo_LegacyOrders", "dbo_LegacyOrderItems")
+				.StopOnMissingTableHandler(false)
+				.PollingInterval(TimeSpan.FromSeconds(5))
 				.BatchSize(100);
 		})
 		.WithRecovery(recovery =>
@@ -175,10 +176,12 @@ builder.Services.AddCdcProcessor(cdc =>
 				.AttemptDelay(TimeSpan.FromSeconds(5))
 				.OnPositionReset((args, _) =>
 				{
-					Console.WriteLine(
-						$"[CDC Recovery] Position reset: Stale={FormatLsn(args.StalePosition)}, " +
-						$"New={FormatLsn(args.NewPosition)}, Reason={args.ReasonCode}, " +
-						$"CaptureInstance={args.CaptureInstance}");
+					cdcRecoveryLogger?.LogWarning(
+						"CDC position reset: Stale={StalePosition}, New={NewPosition}, Reason={ReasonCode}, CaptureInstance={CaptureInstance}",
+						FormatLsn(args.StalePosition),
+						FormatLsn(args.NewPosition),
+						args.ReasonCode,
+						args.CaptureInstance);
 					return Task.CompletedTask;
 
 					static string FormatLsn(byte[]? lsn) =>
@@ -189,10 +192,9 @@ builder.Services.AddCdcProcessor(cdc =>
 	// Note: Don't call EnableBackgroundProcessing() - we use custom service/Quartz toggle below
 });
 
-// Register CDC processor and SQL services
+// Register SQL services (CDC processor already registered above via AddCdcProcessor builder)
 builder.Services
-	.AddExcaliburSqlServices()
-	.AddCdcProcessor();
+	.AddExcaliburSqlServices();
 
 // CDC polling options (bound from configuration with defaults)
 builder.Services.Configure<CdcPollingOptions>(builder.Configuration.GetSection(CdcPollingOptions.SectionName));
@@ -226,16 +228,6 @@ builder.Services
 	.AddSingleton<IOrderLookupService, InMemoryOrderLookupService>()
 	.AddSingleton<IOrderItemLookupService, InMemoryOrderItemLookupService>();
 
-// CDC Database Configuration (required by IDataChangeEventProcessorFactory)
-builder.Services.AddSingleton<IDatabaseConfig>(_ => new SampleCdcDatabaseConfig
-{
-	DatabaseName = "LegacyDb",
-	DatabaseConnectionIdentifier = "cdc-LegacyDb",
-	StateConnectionIdentifier = "state-LegacyDb",
-	CaptureInstances = ["dbo_LegacyCustomers", "dbo_LegacyOrders", "dbo_LegacyOrderItems"],
-	StopOnMissingTableHandler = false // Production: skip unknown tables
-});
-
 // ============================================================================
 // CDC Processing Mode (Background Service or Quartz)
 // ============================================================================
@@ -244,14 +236,14 @@ var useQuartzScheduler = builder.Configuration.GetValue<bool>("Jobs:UseQuartzSch
 
 if (useQuartzScheduler)
 {
-	Console.WriteLine("[CDC] Using Quartz Scheduler mode");
+	startupLogger.LogInformation("CDC mode: Quartz Scheduler");
 
 	builder.Services.AddQuartz(q => CdcSampleJob.ConfigureJob(q, builder.Configuration));
 	builder.Services.AddQuartzHostedService(options => options.WaitForJobsToComplete = true);
 }
 else
 {
-	Console.WriteLine("[CDC] Using Background Service mode");
+	startupLogger.LogInformation("CDC mode: Background Service");
 
 	builder.Services.AddHostedService<CdcPollingBackgroundService>();
 }
@@ -298,12 +290,8 @@ builder.Services
 		options.CreateIndexOnInitialize = true;
 	});
 
-// Projection handlers
-builder.Services
-	.AddSingleton<CustomerSearchProjectionHandler>()
-	.AddSingleton<CustomerTierSummaryProjectionHandler>()
-	.AddSingleton<OrderSearchProjectionHandler>()
-	.AddSingleton<OrderAnalyticsProjectionHandler>();
+// Projection handlers (auto-discovered from assembly via IProjectionHandler marker)
+builder.Services.AddProjectionHandlersFromAssembly(typeof(Program).Assembly);
 
 // Projection processing options
 builder.Services.Configure<ProjectionOptions>(builder.Configuration.GetSection("Projections"));
@@ -315,10 +303,15 @@ builder.Services.AddHostedService<ProjectionBackgroundService>();
 // Build and Configure Application
 // ============================================================================
 
-Console.WriteLine();
-Console.WriteLine("[Startup] Building application...");
+startupLogger.LogInformation("Building application...");
 
 var app = builder.Build();
+
+// Switch to the host's logger now that the service provider is available
+var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+
+// Assign the CDC recovery logger now that the service provider is available
+cdcRecoveryLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("CdcRecovery");
 
 // Configure HTTP pipeline
 if (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Api:EnableSwagger"))
@@ -338,25 +331,12 @@ app.MapControllers();
 // Start Application
 // ============================================================================
 
-Console.WriteLine("[Startup] Starting background services and Web API...");
-Console.WriteLine();
-
-Console.WriteLine("=================================================");
-Console.WriteLine("  Application Running");
-Console.WriteLine("=================================================");
-Console.WriteLine();
-Console.WriteLine($"  CDC Processing:    {(useQuartzScheduler ? "Quartz Scheduler" : "Background Service")}");
-Console.WriteLine($"  Web API:           http://localhost:{builder.Configuration["Api:Port"] ?? "5000"}");
-Console.WriteLine($"  Swagger UI:        http://localhost:{builder.Configuration["Api:Port"] ?? "5000"}/swagger");
-Console.WriteLine();
-Console.WriteLine("API Endpoints:");
-Console.WriteLine("  GET /api/customers              - Search customers");
-Console.WriteLine("  GET /api/orders                 - Search orders");
-Console.WriteLine("  GET /api/analytics/dashboard    - Combined dashboard");
-Console.WriteLine();
-Console.WriteLine("=================================================");
-Console.WriteLine("  Ready - Press Ctrl+C to Stop");
-Console.WriteLine("=================================================");
-Console.WriteLine();
+var apiPort = builder.Configuration["Api:Port"] ?? "5000";
+logger.LogInformation(
+	"Application running. CDC={CdcMode}, API=http://localhost:{Port}, Swagger=http://localhost:{Port}/swagger",
+	useQuartzScheduler ? "Quartz" : "BackgroundService",
+	apiPort,
+	apiPort);
+logger.LogInformation("Endpoints: GET /api/customers, GET /api/orders, GET /api/analytics/dashboard");
 
 await app.RunAsync().ConfigureAwait(false);
