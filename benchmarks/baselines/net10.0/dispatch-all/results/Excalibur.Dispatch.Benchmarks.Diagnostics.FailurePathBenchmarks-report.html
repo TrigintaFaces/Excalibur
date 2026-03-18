@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Diagnostics.FailurePathBenchmarks-20260316-225033</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7922)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.103
+  [Host] : .NET 10.0.3 (10.0.3, 10.0.326.7603), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=diag-default  PowerPlanMode=00000000-0000-0000-0000-000000000000  Toolchain=InProcessEmitToolchain  
+IterationCount=8  LaunchCount=1  UnrollFactor=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                                            </th><th>Mean     </th><th>Error    </th><th>StdDev   </th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Retry: succeeds on third attempt&#39;</td><td>30,348,324.6 ns</td><td>1,180,146.38 ns</td><td>617,239.38 ns</td><td>1.000</td><td>0.03</td><td>-</td><td>-</td><td>1176 B</td><td>1.00</td>
+</tr><tr><td>&#39;Retry overhead: succeeds on third attempt (zero delay)&#39;</td><td>2,414.7 ns</td><td>52.76 ns</td><td>23.42 ns</td><td>0.000</td><td>0.00</td><td>0.0381</td><td>-</td><td>728 B</td><td>0.62</td>
+</tr><tr><td>&#39;Retry: exhausted failures&#39;</td><td>30,186,597.7 ns</td><td>1,949,479.87 ns</td><td>1,019,615.67 ns</td><td>0.995</td><td>0.04</td><td>-</td><td>-</td><td>2884 B</td><td>2.45</td>
+</tr><tr><td>&#39;Retry overhead: exhausted failures (zero delay)&#39;</td><td>6,346.4 ns</td><td>143.26 ns</td><td>63.61 ns</td><td>0.000</td><td>0.00</td><td>0.1144</td><td>-</td><td>2208 B</td><td>1.88</td>
+</tr><tr><td>&#39;Dispatch: faulting handler&#39;</td><td>1,459.8 ns</td><td>5.52 ns</td><td>2.45 ns</td><td>0.000</td><td>0.00</td><td>0.0591</td><td>-</td><td>1136 B</td><td>0.97</td>
+</tr><tr><td>&#39;Dispatch: cancellation in-flight&#39;</td><td>5,101.2 ns</td><td>94.49 ns</td><td>49.42 ns</td><td>0.000</td><td>0.00</td><td>0.1373</td><td>-</td><td>2649 B</td><td>2.25</td>
+</tr><tr><td>&#39;Dispatch: pre-canceled token&#39;</td><td>2,101.9 ns</td><td>16.63 ns</td><td>8.70 ns</td><td>0.000</td><td>0.00</td><td>0.0381</td><td>-</td><td>784 B</td><td>0.67</td>
+</tr><tr><td>&#39;Dead-letter: store message&#39;</td><td>631.5 ns</td><td>10.19 ns</td><td>4.52 ns</td><td>0.000</td><td>0.00</td><td>0.1249</td><td>0.0010</td><td>2352 B</td><td>2.00</td>
+</tr><tr><td>&#39;Dead-letter: query + replay marker&#39;</td><td>1,342.5 ns</td><td>42.13 ns</td><td>22.04 ns</td><td>0.000</td><td>0.00</td><td>0.1411</td><td>-</td><td>2664 B</td><td>2.27</td>
+</tr></tbody></table>
+</body>
+</html>

@@ -1,16 +1,21 @@
 ```
 
-BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7922)
 Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
-.NET SDK 10.0.102
-  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
-  DefaultJob : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+.NET SDK 10.0.103
+  [Host] : .NET 10.0.3 (10.0.3, 10.0.326.7603), X64 RyuJIT x86-64-v3
 
+Job=comparative-inproc  PowerPlanMode=00000000-0000-0000-0000-000000000000  Toolchain=InProcessEmitToolchain  
+InvocationCount=1  IterationCount=3  UnrollFactor=1  
 
 ```
-| Method                            | Mean       | Error     | StdDev    | Ratio | RatioSD | Gen0    | Gen1   | Allocated  | Alloc Ratio |
-|---------------------------------- |-----------:|----------:|----------:|------:|--------:|--------:|-------:|-----------:|------------:|
-| &#39;Dispatch: Container startup&#39;     |   5.855 μs | 0.1060 μs | 0.0940 μs |  1.00 |    0.02 |  1.4877 | 0.1297 |   27.45 KB |        1.00 |
-| &#39;MediatR: Container startup&#39;      | 308.318 μs | 4.4839 μs | 3.9748 μs | 52.67 |    1.04 | 78.1250 | 1.4648 | 1435.86 KB |       52.32 |
-| &#39;Dispatch: Startup + 10 handlers&#39; |   5.881 μs | 0.0437 μs | 0.0341 μs |  1.00 |    0.02 |  1.5259 | 0.1297 |   28.16 KB |        1.03 |
-| &#39;MediatR: Startup + 10 handlers&#39;  | 325.203 μs | 6.1222 μs | 6.5507 μs | 55.56 |    1.38 | 78.1250 |      - | 1435.87 KB |       52.32 |
+| Method                            | Mean     | Error    | StdDev    | Ratio | RatioSD | Allocated | Alloc Ratio |
+|---------------------------------- |---------:|---------:|----------:|------:|--------:|----------:|------------:|
+| &#39;Dispatch: Container startup&#39;     |       NA |       NA |        NA |     ? |       ? |        NA |           ? |
+| &#39;MediatR: Container startup&#39;      | 2.124 ms | 8.524 ms | 0.4672 ms |     ? |       ? |   3.07 MB |           ? |
+| &#39;Dispatch: Startup + 10 handlers&#39; |       NA |       NA |        NA |     ? |       ? |        NA |           ? |
+| &#39;MediatR: Startup + 10 handlers&#39;  | 2.063 ms | 7.860 ms | 0.4308 ms |     ? |       ? |   3.07 MB |           ? |
+
+Benchmarks with issues:
+  StartupComparisonBenchmarks.'Dispatch: Container startup': comparative-inproc(PowerPlanMode=00000000-0000-0000-0000-000000000000, Toolchain=InProcessEmitToolchain, InvocationCount=1, IterationCount=3, UnrollFactor=1)
+  StartupComparisonBenchmarks.'Dispatch: Startup + 10 handlers': comparative-inproc(PowerPlanMode=00000000-0000-0000-0000-000000000000, Toolchain=InProcessEmitToolchain, InvocationCount=1, IterationCount=3, UnrollFactor=1)

@@ -19,6 +19,10 @@ public sealed class CreateOrderCommandValidator : AbstractValidator<CreateOrderC
 {
 	public CreateOrderCommandValidator()
 	{
+		_ = RuleFor(x => x.OrderId)
+			.NotEmpty()
+			.WithMessage("Order ID is required");
+
 		_ = RuleFor(x => x.CustomerId)
 			.NotEmpty()
 			.WithMessage("Customer ID is required");

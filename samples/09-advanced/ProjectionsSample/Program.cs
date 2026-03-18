@@ -14,11 +14,13 @@
 // - Multi-stream projections - Aggregating across streams
 // - Checkpoint tracking - For async projection support
 // - Projection rebuild - Rebuilding from scratch
+// - IEventSourcedRepository - Aggregate persistence
 // ============================================================================
 
 #pragma warning disable CA1303 // Sample code uses literal strings
 #pragma warning disable CA1506 // Sample has high coupling by design
 
+using Excalibur.Dispatch.Abstractions;
 using Excalibur.EventSourcing.Abstractions;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -41,6 +43,16 @@ var services = new ServiceCollection();
 
 // Add logging
 services.AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Information));
+
+// Add event serializer (required for event sourcing)
+services.AddSingleton<IEventSerializer, JsonEventSerializer>();
+
+// Add Excalibur event sourcing with in-memory event store
+services.AddExcaliburEventSourcing(builder =>
+{
+	_ = builder.AddRepository<ProductAggregate, Guid>(id => new ProductAggregate(id));
+});
+services.AddInMemoryEventStore();
 
 // Register in-memory projection stores
 // In production, use SqlServerProjectionStore, PostgresProjectionStore, etc.
@@ -66,6 +78,7 @@ var categoryStore = provider.GetRequiredService<IProjectionStore<CategorySummary
 var checkpointStore = provider.GetRequiredService<InMemoryCheckpointStore>();
 var catalogHandler = provider.GetRequiredService<ProductCatalogProjectionHandler>();
 var categoryHandler = provider.GetRequiredService<CategorySummaryProjectionHandler>();
+var repository = provider.GetRequiredService<IEventSourcedRepository<ProductAggregate, Guid>>();
 
 // ============================================================================
 // Demo 1: Inline Projections - Synchronous Updates
@@ -91,7 +104,7 @@ var chair = ProductAggregate.Create(
 var desk = ProductAggregate.Create(
 	Guid.NewGuid(), "Standing Desk", "Furniture", 599.99m, 15);
 
-// Process events through projection handlers (inline)
+// Process events through projection handlers (inline) and save aggregates
 foreach (var evt in laptop.GetUncommittedEvents())
 {
 	await catalogHandler.HandleEventAsync(evt, CancellationToken.None);
@@ -100,6 +113,8 @@ foreach (var evt in laptop.GetUncommittedEvents())
 		await categoryHandler.HandleAsync(created, CancellationToken.None);
 	}
 }
+
+await repository.SaveAsync(laptop, CancellationToken.None).ConfigureAwait(false);
 
 foreach (var evt in phone.GetUncommittedEvents())
 {
@@ -110,6 +125,8 @@ foreach (var evt in phone.GetUncommittedEvents())
 	}
 }
 
+await repository.SaveAsync(phone, CancellationToken.None).ConfigureAwait(false);
+
 foreach (var evt in headphones.GetUncommittedEvents())
 {
 	await catalogHandler.HandleEventAsync(evt, CancellationToken.None);
@@ -118,6 +135,8 @@ foreach (var evt in headphones.GetUncommittedEvents())
 		await categoryHandler.HandleAsync(created, CancellationToken.None);
 	}
 }
+
+await repository.SaveAsync(headphones, CancellationToken.None).ConfigureAwait(false);
 
 foreach (var evt in chair.GetUncommittedEvents())
 {
@@ -128,6 +147,8 @@ foreach (var evt in chair.GetUncommittedEvents())
 	}
 }
 
+await repository.SaveAsync(chair, CancellationToken.None).ConfigureAwait(false);
+
 foreach (var evt in desk.GetUncommittedEvents())
 {
 	await catalogHandler.HandleEventAsync(evt, CancellationToken.None);
@@ -137,12 +158,7 @@ foreach (var evt in desk.GetUncommittedEvents())
 	}
 }
 
-// Mark events as committed (simulating persistence)
-laptop.MarkEventsAsCommitted();
-phone.MarkEventsAsCommitted();
-headphones.MarkEventsAsCommitted();
-chair.MarkEventsAsCommitted();
-desk.MarkEventsAsCommitted();
+await repository.SaveAsync(desk, CancellationToken.None).ConfigureAwait(false);
 
 // Query the catalog projection
 Console.WriteLine("Product Catalog Read Model:");
@@ -191,6 +207,10 @@ Console.WriteLine("When domain events occur, projections are updated to reflect"
 Console.WriteLine("the new state. Let's apply some changes...");
 Console.WriteLine();
 
+// Reload aggregates from repository for mutations (correct load-mutate-save pattern)
+laptop = await repository.GetByIdAsync(laptop.Id, CancellationToken.None).ConfigureAwait(false)
+	?? throw new InvalidOperationException("Laptop not found");
+
 // Price change
 Console.WriteLine("1. Changing laptop price from $1,299.99 to $1,099.99 (sale!)");
 laptop.ChangePrice(1099.99m);
@@ -203,7 +223,11 @@ foreach (var evt in laptop.GetUncommittedEvents())
 	}
 }
 
-laptop.MarkEventsAsCommitted();
+await repository.SaveAsync(laptop, CancellationToken.None).ConfigureAwait(false);
+
+// Reload headphones for mutation
+headphones = await repository.GetByIdAsync(headphones.Id, CancellationToken.None).ConfigureAwait(false)
+	?? throw new InvalidOperationException("Headphones not found");
 
 // Stock update
 Console.WriteLine("2. Removing 45 headphones from stock (big sale!)");
@@ -217,7 +241,11 @@ foreach (var evt in headphones.GetUncommittedEvents())
 	}
 }
 
-headphones.MarkEventsAsCommitted();
+await repository.SaveAsync(headphones, CancellationToken.None).ConfigureAwait(false);
+
+// Reload desk for mutation
+desk = await repository.GetByIdAsync(desk.Id, CancellationToken.None).ConfigureAwait(false)
+	?? throw new InvalidOperationException("Desk not found");
 
 // Add more stock
 Console.WriteLine("3. Restocking desks (+10 units)");
@@ -231,7 +259,7 @@ foreach (var evt in desk.GetUncommittedEvents())
 	}
 }
 
-desk.MarkEventsAsCommitted();
+await repository.SaveAsync(desk, CancellationToken.None).ConfigureAwait(false);
 
 Console.WriteLine();
 Console.WriteLine("Updated Product Catalog:");
@@ -383,6 +411,10 @@ Console.WriteLine("The catalog shows the product as inactive, and the category")
 Console.WriteLine("summary recalculates its statistics.");
 Console.WriteLine();
 
+// Reload chair for mutation
+chair = await repository.GetByIdAsync(chair.Id, CancellationToken.None).ConfigureAwait(false)
+	?? throw new InvalidOperationException("Chair not found");
+
 Console.WriteLine("Discontinuing the Office Chair...");
 chair.Discontinue("End of product line");
 foreach (var evt in chair.GetUncommittedEvents())
@@ -394,7 +426,7 @@ foreach (var evt in chair.GetUncommittedEvents())
 	}
 }
 
-chair.MarkEventsAsCommitted();
+await repository.SaveAsync(chair, CancellationToken.None).ConfigureAwait(false);
 
 Console.WriteLine();
 Console.WriteLine("Updated Furniture Category Summary:");
@@ -419,6 +451,7 @@ Console.WriteLine();
 Console.WriteLine("Key takeaways:");
 Console.WriteLine("  - IProjection<TKey> defines read model contract");
 Console.WriteLine("  - IProjectionStore<T> provides storage abstraction");
+Console.WriteLine("  - IEventSourcedRepository persists aggregates properly");
 Console.WriteLine("  - Inline projections update synchronously with events");
 Console.WriteLine("  - Multi-stream projections aggregate across aggregates");
 Console.WriteLine("  - Checkpoints enable async projections and rebuilds");

@@ -1,22 +1,29 @@
 ```
 
-BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7705)
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7922)
 Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
-.NET SDK 10.0.102
-  [Host]     : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
-  DefaultJob : .NET 10.0.2 (10.0.2, 10.0.225.61305), X64 RyuJIT x86-64-v3
+.NET SDK 10.0.103
+  [Host] : .NET 10.0.3 (10.0.3, 10.0.326.7603), X64 RyuJIT x86-64-v3
 
+Job=comparative-inproc  PowerPlanMode=00000000-0000-0000-0000-000000000000  Toolchain=InProcessEmitToolchain  
+InvocationCount=1  IterationCount=3  UnrollFactor=1  
 
 ```
-| Method                                 | Mean          | Error        | StdDev       | Ratio  | RatioSD | Gen0   | Gen1   | Allocated | Alloc Ratio |
-|--------------------------------------- |--------------:|-------------:|-------------:|-------:|--------:|-------:|-------:|----------:|------------:|
-| &#39;Dispatch: Single command handler&#39;     |   1,771.86 ns |    17.230 ns |    14.388 ns |   1.00 |    0.01 | 0.0820 |      - |    1576 B |        1.00 |
-| &#39;MediatR: Single command handler&#39;      |      41.29 ns |     0.685 ns |     0.641 ns |   0.02 |    0.00 | 0.0080 |      - |     152 B |        0.10 |
-| &#39;Dispatch: Notification to 3 handlers&#39; |   5,191.43 ns |   101.164 ns |   157.500 ns |   2.93 |    0.09 | 0.1907 |      - |    3712 B |        2.36 |
-| &#39;MediatR: Notification to 3 handlers&#39;  |     107.42 ns |     2.118 ns |     2.522 ns |   0.06 |    0.00 | 0.0327 |      - |     616 B |        0.39 |
-| &#39;Dispatch: Query with return value&#39;    |     278.23 ns |     4.718 ns |     5.795 ns |   0.16 |    0.00 | 0.0429 |      - |     808 B |        0.51 |
-| &#39;MediatR: Query with return value&#39;     |      51.38 ns |     0.616 ns |     0.546 ns |   0.03 |    0.00 | 0.0157 |      - |     296 B |        0.19 |
-| &#39;Dispatch: 10 concurrent commands&#39;     |  18,167.26 ns |   252.568 ns |   236.253 ns |  10.25 |    0.15 | 0.7935 |      - |   15473 B |        9.82 |
-| &#39;MediatR: 10 concurrent commands&#39;      |     517.17 ns |     8.251 ns |     7.314 ns |   0.29 |    0.00 | 0.1001 |      - |    1888 B |        1.20 |
-| &#39;Dispatch: 100 concurrent commands&#39;    | 177,226.80 ns | 1,593.466 ns | 1,412.566 ns | 100.03 |    1.10 | 8.0566 | 0.2441 |  153003 B |       97.08 |
-| &#39;MediatR: 100 concurrent commands&#39;     |   4,656.57 ns |    57.502 ns |    44.894 ns |   2.63 |    0.03 | 0.9079 |      - |   17096 B |       10.85 |
+| Method                                          | Mean      | Error     | StdDev    | Ratio | RatioSD | Allocated | Alloc Ratio |
+|------------------------------------------------ |----------:|----------:|----------:|------:|--------:|----------:|------------:|
+| &#39;Dispatch: Single command handler&#39;              |  3.833 μs |  1.053 μs | 0.0577 μs |  1.00 |    0.02 |     168 B |        1.00 |
+| &#39;Dispatch: Single command strict direct-local&#39;  |  4.167 μs | 11.586 μs | 0.6351 μs |  1.09 |    0.14 |    4872 B |       29.00 |
+| &#39;Dispatch: Single command ultra-local API&#39;      |  2.667 μs |  2.787 μs | 0.1528 μs |  0.70 |    0.04 |      72 B |        0.43 |
+| &#39;MediatR: Single command handler&#39;               |  4.300 μs |  4.827 μs | 0.2646 μs |  1.12 |    0.06 |    4872 B |       29.00 |
+| &#39;Dispatch: Notification to 3 handlers&#39;          |  6.433 μs |  9.182 μs | 0.5033 μs |  1.68 |    0.12 |    4896 B |       29.14 |
+| &#39;MediatR: Notification to 3 handlers&#39;           |  5.233 μs |  4.591 μs | 0.2517 μs |  1.37 |    0.06 |    5272 B |       31.38 |
+| &#39;Dispatch: Query with return value&#39;             |  4.167 μs |  5.267 μs | 0.2887 μs |  1.09 |    0.07 |     648 B |        3.86 |
+| &#39;Dispatch: Query with return value (typed API)&#39; |  4.450 μs |  6.578 μs | 0.3606 μs |  1.16 |    0.08 |    4008 B |       23.86 |
+| &#39;Dispatch: Query ultra-local API&#39;               |  2.967 μs |  6.407 μs | 0.3512 μs |  0.77 |    0.08 |    4848 B |       28.86 |
+| &#39;MediatR: Query with return value&#39;              |  9.833 μs | 48.623 μs | 2.6652 μs |  2.57 |    0.60 |     360 B |        2.14 |
+| &#39;Dispatch: Ultra-local singleton-promoted&#39;      |  2.567 μs |  1.053 μs | 0.0577 μs |  0.67 |    0.02 |     360 B |        2.14 |
+| &#39;Dispatch: Query singleton-promoted&#39;            |  3.233 μs |  4.591 μs | 0.2517 μs |  0.84 |    0.06 |     480 B |        2.86 |
+| &#39;Dispatch: 10 concurrent commands&#39;              |  7.767 μs |  1.053 μs | 0.0577 μs |  2.03 |    0.03 |    6016 B |       35.81 |
+| &#39;MediatR: 10 concurrent commands&#39;               |  8.400 μs | 23.717 μs | 1.3000 μs |  2.19 |    0.30 |    2496 B |       14.86 |
+| &#39;Dispatch: 100 concurrent commands&#39;             | 27.267 μs |  3.798 μs | 0.2082 μs |  7.11 |    0.10 |   13456 B |       80.10 |
+| &#39;MediatR: 100 concurrent commands&#39;              | 24.433 μs | 15.516 μs | 0.8505 μs |  6.37 |    0.21 |   28504 B |      169.67 |

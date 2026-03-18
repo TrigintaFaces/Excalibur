@@ -16,7 +16,12 @@ namespace OrderProcessingSample.Domain.Commands;
 /// <summary>
 /// Command to create a new order.
 /// </summary>
+/// <param name="OrderId">The order identifier (caller-generated for traceability).</param>
+/// <param name="CustomerId">The customer placing the order.</param>
+/// <param name="Items">The order line items.</param>
+/// <param name="ShippingAddress">The shipping address.</param>
 public sealed record CreateOrderCommand(
+	Guid OrderId,
 	Guid CustomerId,
 	IReadOnlyList<OrderLineItem> Items,
 	string ShippingAddress) : IDispatchAction;

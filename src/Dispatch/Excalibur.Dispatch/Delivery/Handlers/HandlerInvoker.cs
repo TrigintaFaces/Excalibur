@@ -71,6 +71,13 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 	private static volatile bool _precompiledProvidersInitialized;
 	private static readonly ValueTask<object?> NullResultValueTask = new(result: null);
 
+	// PERF: ThreadStatic one-element cache for the most recent invoker lookup.
+	// Eliminates ConcurrentDictionary lookup overhead (~30ns) when the same handler/message
+	// type pair is dispatched repeatedly on the same thread (common hot-path pattern).
+	[ThreadStatic] private static Type? s_cachedHandlerType;
+	[ThreadStatic] private static Type? s_cachedMessageType;
+	[ThreadStatic] private static InvokerFunc? s_cachedInvoker;
+
 	static HandlerInvoker()
 	{
 		AppDomain.CurrentDomain.AssemblyLoad += static (_, _) =>
@@ -105,11 +112,23 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 
 		var handlerType = handler.GetType();
 		var messageType = message.GetType();
+
+		// PERF: ThreadStatic one-element cache — O(1) with no synchronization.
+		if (ReferenceEquals(s_cachedHandlerType, handlerType) &&
+		    ReferenceEquals(s_cachedMessageType, messageType) &&
+		    s_cachedInvoker is { } fastInvoker)
+		{
+			return fastInvoker(handler, message, cancellationToken);
+		}
+
 		var cacheKey = (handlerType, messageType);
 
 		// Startup-known handlers bypass runtime fallback branching entirely.
 		if (_knownInvokerCache.TryGetValue(cacheKey, out var knownInvoker))
 		{
+			s_cachedHandlerType = handlerType;
+			s_cachedMessageType = messageType;
+			s_cachedInvoker = knownInvoker;
 			return knownInvoker(handler, message, cancellationToken);
 		}
 
@@ -376,8 +395,25 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 	/// For value types (bool, int, structs), boxing is unavoidable when returning as object.
 	/// We optimize by caching common boxed values like true/false.
 	/// </remarks>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	private static ValueTask<object?> ConvertTaskToObjectValueTask<T>(Task<T> task)
 	{
+		// PERF: Fast path for synchronously completed tasks avoids async state machine allocation
+		// (~96-144B) and Task<object?> wrapper (~72B). This is the common case when handlers
+		// return Task.FromResult(value).
+		if (task.IsCompletedSuccessfully)
+		{
+#pragma warning disable CA1849 // Safe: IsCompletedSuccessfully guarantees no blocking
+			var result = task.Result;
+#pragma warning restore CA1849
+			if (typeof(T) == typeof(bool))
+			{
+				return new ValueTask<object?>(result is true ? CachedTrue : CachedFalse);
+			}
+
+			return new ValueTask<object?>(result);
+		}
+
 		return new ValueTask<object?>(AwaitTaskToObjectAsync(task));
 	}
 
@@ -571,6 +607,9 @@ public sealed class HandlerInvoker : IHandlerInvoker, IValueTaskHandlerInvoker
 		_precompiledProvidersInitialized = false;
 		_precompiledProviders = [];
 		_precompiledInvokerCache.Clear();
+		s_cachedHandlerType = null;
+		s_cachedMessageType = null;
+		s_cachedInvoker = null;
 	}
 
 	private readonly record struct PrecompiledInvokerProvider(

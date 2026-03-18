@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8' />
+<title>Excalibur.Dispatch.Benchmarks.Diagnostics.CancellationCostBenchmarks-20260316-231006</title>
+
+<style type="text/css">
+	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
+	td, th { padding: 6px 13px; border: 1px solid #ddd; text-align: right; }
+	tr { background-color: #fff; border-top: 1px solid #ccc; }
+	tr:nth-child(even) { background: #f8f8f8; }
+</style>
+</head>
+<body>
+<pre><code>
+BenchmarkDotNet v0.15.4, Windows 11 (10.0.26200.7922)
+Intel Core i9-14900K 3.20GHz, 1 CPU, 32 logical and 24 physical cores
+.NET SDK 10.0.103
+  [Host] : .NET 10.0.3 (10.0.3, 10.0.326.7603), X64 RyuJIT x86-64-v3
+</code></pre>
+<pre><code>Job=diag-default  PowerPlanMode=00000000-0000-0000-0000-000000000000  Toolchain=InProcessEmitToolchain  
+IterationCount=8  LaunchCount=1  UnrollFactor=1  
+WarmupCount=3  
+</code></pre>
+
+<table>
+<thead><tr><th>Method                         </th><th>CallbackCount</th><th>Mean </th><th>Error</th><th>StdDev</th><th>Ratio</th><th>RatioSD</th><th>Gen0</th><th>Gen1</th><th>Allocated</th><th>Alloc Ratio</th>
+</tr>
+</thead><tbody><tr><td>&#39;Pre-canceled dispatch (throw path)&#39;</td><td>1</td><td>2,157.51 ns</td><td>21.699 ns</td><td>11.349 ns</td><td>1.00</td><td>0.01</td><td>0.0381</td><td>-</td><td>760 B</td><td>1.00</td>
+</tr><tr><td>&#39;Pre-canceled dispatch (result path)&#39;</td><td>1</td><td>86.57 ns</td><td>3.700 ns</td><td>1.643 ns</td><td>0.04</td><td>0.00</td><td>0.0267</td><td>-</td><td>504 B</td><td>0.66</td>
+</tr><tr><td>&#39;In-flight dispatch cancellation&#39;</td><td>1</td><td>4,367.42 ns</td><td>39.457 ns</td><td>20.637 ns</td><td>2.02</td><td>0.01</td><td>0.1221</td><td>-</td><td>2561 B</td><td>3.37</td>
+</tr><tr><td>&#39;CTS cancel callback fan-out&#39;</td><td>1</td><td>76.85 ns</td><td>1.135 ns</td><td>0.594 ns</td><td>0.04</td><td>0.00</td><td>0.0174</td><td>-</td><td>328 B</td><td>0.43</td>
+</tr><tr><td>&#39;Pre-canceled dispatch (throw path)&#39;</td><td>8</td><td>2,165.46 ns</td><td>19.977 ns</td><td>8.870 ns</td><td>1.00</td><td>0.01</td><td>0.0381</td><td>-</td><td>760 B</td><td>1.00</td>
+</tr><tr><td>&#39;Pre-canceled dispatch (result path)&#39;</td><td>8</td><td>81.40 ns</td><td>2.622 ns</td><td>1.164 ns</td><td>0.04</td><td>0.00</td><td>0.0267</td><td>-</td><td>504 B</td><td>0.66</td>
+</tr><tr><td>&#39;In-flight dispatch cancellation&#39;</td><td>8</td><td>4,391.65 ns</td><td>184.905 ns</td><td>96.709 ns</td><td>2.03</td><td>0.04</td><td>0.1297</td><td>-</td><td>2560 B</td><td>3.37</td>
+</tr><tr><td>&#39;CTS cancel callback fan-out&#39;</td><td>8</td><td>315.63 ns</td><td>17.860 ns</td><td>9.341 ns</td><td>0.15</td><td>0.00</td><td>0.0529</td><td>-</td><td>1000 B</td><td>1.32</td>
+</tr><tr><td>&#39;Pre-canceled dispatch (throw path)&#39;</td><td>32</td><td>2,115.07 ns</td><td>48.268 ns</td><td>21.431 ns</td><td>1.00</td><td>0.01</td><td>0.0381</td><td>-</td><td>760 B</td><td>1.00</td>
+</tr><tr><td>&#39;Pre-canceled dispatch (result path)&#39;</td><td>32</td><td>78.85 ns</td><td>6.128 ns</td><td>3.205 ns</td><td>0.04</td><td>0.00</td><td>0.0267</td><td>-</td><td>504 B</td><td>0.66</td>
+</tr><tr><td>&#39;In-flight dispatch cancellation&#39;</td><td>32</td><td>4,385.91 ns</td><td>38.056 ns</td><td>19.904 ns</td><td>2.07</td><td>0.02</td><td>0.1297</td><td>-</td><td>2560 B</td><td>3.37</td>
+</tr><tr><td>&#39;CTS cancel callback fan-out&#39;</td><td>32</td><td>1,107.74 ns</td><td>21.165 ns</td><td>11.070 ns</td><td>0.52</td><td>0.01</td><td>0.1755</td><td>0.0019</td><td>3304 B</td><td>4.35</td>
+</tr></tbody></table>
+</body>
+</html>
