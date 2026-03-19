@@ -24,7 +24,7 @@ public sealed class DeleteDataTask : DataRequest<int>
 	/// <param name="cancellationToken"> The cancellation token. </param>
 	public DeleteDataTask(
 		Guid dataTaskId,
-		DataProcessingConfiguration configuration,
+		DataProcessingOptions configuration,
 		int sqlTimeOutSeconds,
 		CancellationToken cancellationToken)
 	{

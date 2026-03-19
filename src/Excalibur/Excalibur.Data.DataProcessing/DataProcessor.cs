@@ -22,7 +22,7 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 	private readonly Channel<TRecord> _dataQueue;
 	private readonly int _queueSize;
 
-	private readonly DataProcessingConfiguration _configuration;
+	private readonly DataProcessingOptions _configuration;
 
 	private readonly IServiceProvider _serviceProvider;
 
@@ -53,7 +53,7 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 	/// <param name="logger"> The logger used for diagnostic information. </param>
 	protected DataProcessor(
 		IHostApplicationLifetime appLifetime,
-		IOptions<DataProcessingConfiguration> configuration,
+		IOptions<DataProcessingOptions> configuration,
 		IServiceProvider serviceProvider,
 		ILogger logger)
 	{
@@ -476,7 +476,19 @@ public abstract partial class DataProcessor<TRecord> : IDataProcessor, IRecordFe
 		ArgumentNullException.ThrowIfNull(record);
 
 		using var scope = _serviceProvider.CreateScope();
-		var handler = scope.ServiceProvider.GetService<IRecordHandler<TRecord>>();
+
+		// Use cached factory delegate if available (registered via AddRecordHandler<T,R>()),
+		// fall back to GetService for assembly-scanned handlers.
+		IRecordHandler<TRecord>? handler;
+		if (DataProcessingServiceCollectionExtensions.RecordHandlerFactories
+			.TryGetValue(typeof(TRecord), out var factory))
+		{
+			handler = (IRecordHandler<TRecord>)factory(scope.ServiceProvider);
+		}
+		else
+		{
+			handler = scope.ServiceProvider.GetService<IRecordHandler<TRecord>>();
+		}
 
 		if (handler is null)
 		{

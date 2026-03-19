@@ -63,14 +63,20 @@ services.AddCosmosDbSnapshotStore(options =>
 ### Change Data Capture
 
 ```csharp
-services.AddCosmosDbCdc(options =>
+services.AddCdcProcessor(cdc =>
 {
-    options.LeaseContainerName = "leases";
-});
-
-services.AddCosmosDbCdcStateStore(options =>
-{
-    options.ContainerName = "cdc-state";
+    cdc.UseCosmosDb(connectionString, cosmos =>
+    {
+        cosmos.DatabaseId("MyApp")
+              .ContainerId("orders")
+              .WithStateStore(stateConnectionString, state =>
+              {
+                  state.SchemaName("cdc-state")    // Maps to DatabaseId
+                       .TableName("checkpoints");   // Maps to ContainerId
+              });
+    })
+    .TrackTable("orders", t => t.MapAll<OrderChangedEvent>())
+    .EnableBackgroundProcessing();
 });
 ```
 

@@ -108,6 +108,28 @@ public sealed class CdcTableTrackingOptions
 	public Dictionary<CdcChangeType, Type> EventMappings { get; } = [];
 
 	/// <summary>
+	/// Gets the event mapper delegate factories keyed by change type.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// Populated by <c>MapInsert&lt;TEvent, TMapper&gt;()</c> and similar builder methods.
+	/// Each delegate captures the generic types at configuration time, making resolution
+	/// fully AOT-safe with no reflection at runtime.
+	/// </para>
+	/// </remarks>
+	internal Dictionary<CdcChangeType, Func<IServiceProvider, IReadOnlyList<CdcDataChange>, CdcChangeType, object>> EventMapperDelegates { get; } = [];
+
+	/// <summary>
+	/// Gets the mapper types that need DI registration, keyed by change type.
+	/// </summary>
+	internal Dictionary<CdcChangeType, Type> EventMapperTypes { get; } = [];
+
+	/// <summary>
+	/// Gets a value indicating whether any event mapper delegates have been registered.
+	/// </summary>
+	internal bool HasEventMappers => EventMapperDelegates.Count > 0;
+
+	/// <summary>
 	/// Gets or sets the filter predicate for changes.
 	/// </summary>
 	public Func<CdcDataChange, bool>? Filter { get; set; }

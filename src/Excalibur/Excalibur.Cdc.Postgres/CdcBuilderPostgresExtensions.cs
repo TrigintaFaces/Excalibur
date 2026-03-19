@@ -83,17 +83,23 @@ public static class CdcBuilderPostgresExtensions
 
 		// Create and configure Postgres options
 		var pgOptions = new PostgresCdcOptions { ConnectionString = connectionString };
-
 		var stateStoreOptions = new PostgresCdcStateStoreOptions();
 
-		if (configure is not null)
-		{
-			var pgBuilder = new PostgresCdcBuilder(pgOptions, stateStoreOptions);
-			configure(pgBuilder);
-		}
+		var pgBuilder = new PostgresCdcBuilder(pgOptions, stateStoreOptions);
+		configure?.Invoke(pgBuilder);
 
 		// Validate options
 		pgOptions.Validate();
+
+		// Apply state store configure callback if present
+		string? stateStoreBindConfigPath = null;
+		if (pgBuilder.StateStoreConfigure is not null)
+		{
+			var stateBuilder = new PostgresCdcStateStoreBuilder(stateStoreOptions);
+			pgBuilder.StateStoreConfigure(stateBuilder);
+			stateStoreBindConfigPath = stateBuilder.BindConfigurationPath;
+		}
+
 		stateStoreOptions.Validate();
 
 		// Register Postgres CDC options
@@ -112,6 +118,15 @@ public static class CdcBuilderPostgresExtensions
 			opt.RecoveryOptions = pgOptions.RecoveryOptions;
 		});
 
+		// Register source BindConfiguration if set
+		if (pgBuilder.SourceBindConfigurationPath is not null)
+		{
+			builder.Services.AddOptions<PostgresCdcOptions>()
+				.BindConfiguration(pgBuilder.SourceBindConfigurationPath)
+				.ValidateDataAnnotations()
+				.ValidateOnStart();
+		}
+
 		// Register CDC state store options
 		_ = builder.Services.Configure<PostgresCdcStateStoreOptions>(opt =>
 		{
@@ -119,15 +134,27 @@ public static class CdcBuilderPostgresExtensions
 			opt.TableName = stateStoreOptions.TableName;
 		});
 
+		// Register state store BindConfiguration if set
+		if (stateStoreBindConfigPath is not null)
+		{
+			builder.Services.AddOptions<PostgresCdcStateStoreOptions>()
+				.BindConfiguration(stateStoreBindConfigPath)
+				.ValidateDataAnnotations()
+				.ValidateOnStart();
+		}
+
 		// Register default recovery options if not already registered
 		builder.Services.TryAddSingleton(Options.Create(new PostgresCdcRecoveryOptions()));
 
+		// Determine the state connection string: WithStateStore > source
+		var effectiveStateConnectionString = pgBuilder.StateConnectionString ?? connectionString;
+
 		// Register Postgres CDC state store
+		// Uses state connection when WithStateStore was called, source otherwise (backward compat)
 		builder.Services.TryAddSingleton<IPostgresCdcStateStore>(sp =>
 		{
-			var options = sp.GetRequiredService<IOptions<PostgresCdcOptions>>();
 			var stateOptions = sp.GetRequiredService<IOptions<PostgresCdcStateStoreOptions>>();
-			return new PostgresCdcStateStore(options.Value.ConnectionString, stateOptions);
+			return new PostgresCdcStateStore(effectiveStateConnectionString, stateOptions);
 		});
 
 		// Register Postgres CDC processor
@@ -182,10 +209,16 @@ public static class CdcBuilderPostgresExtensions
 		var pgOptions = new PostgresCdcOptions();
 		var stateStoreOptions = new PostgresCdcStateStoreOptions();
 
-		if (configure is not null)
+		var pgBuilder = new PostgresCdcBuilder(pgOptions, stateStoreOptions);
+		configure?.Invoke(pgBuilder);
+
+		// Apply state store configure callback if present
+		string? stateStoreBindConfigPath = null;
+		if (pgBuilder.StateStoreConfigure is not null)
 		{
-			var pgBuilder = new PostgresCdcBuilder(pgOptions, stateStoreOptions);
-			configure(pgBuilder);
+			var stateBuilder = new PostgresCdcStateStoreBuilder(stateStoreOptions);
+			pgBuilder.StateStoreConfigure(stateBuilder);
+			stateStoreBindConfigPath = stateBuilder.BindConfigurationPath;
 		}
 
 		// Validate state store options
@@ -206,6 +239,15 @@ public static class CdcBuilderPostgresExtensions
 			opt.RecoveryOptions = pgOptions.RecoveryOptions;
 		});
 
+		// Register source BindConfiguration if set
+		if (pgBuilder.SourceBindConfigurationPath is not null)
+		{
+			builder.Services.AddOptions<PostgresCdcOptions>()
+				.BindConfiguration(pgBuilder.SourceBindConfigurationPath)
+				.ValidateDataAnnotations()
+				.ValidateOnStart();
+		}
+
 		// Register CDC state store options
 		_ = builder.Services.Configure<PostgresCdcStateStoreOptions>(opt =>
 		{
@@ -213,16 +255,29 @@ public static class CdcBuilderPostgresExtensions
 			opt.TableName = stateStoreOptions.TableName;
 		});
 
+		// Register state store BindConfiguration if set
+		if (stateStoreBindConfigPath is not null)
+		{
+			builder.Services.AddOptions<PostgresCdcStateStoreOptions>()
+				.BindConfiguration(stateStoreBindConfigPath)
+				.ValidateDataAnnotations()
+				.ValidateOnStart();
+		}
+
 		// Register default recovery options if not already registered
 		builder.Services.TryAddSingleton(Options.Create(new PostgresCdcRecoveryOptions()));
 
+		// State factory: use separate factory if WithStateStore was called
+		var stateFactory = pgBuilder.StateConnectionFactory;
+
 		// Register Postgres CDC state store with factory
+		// Uses state factory when WithStateStore was called, source factory otherwise (backward compat)
 		builder.Services.TryAddSingleton<IPostgresCdcStateStore>(sp =>
 		{
-			var factory = connectionFactory(sp);
+			var effectiveFactory = stateFactory ?? connectionFactory;
+			var factory = effectiveFactory(sp);
 			var stateOptions = sp.GetRequiredService<IOptions<PostgresCdcStateStoreOptions>>();
 
-			// Get connection string from factory connection
 			using var connection = factory();
 			return new PostgresCdcStateStore(connection.ConnectionString, stateOptions);
 		});
@@ -230,12 +285,12 @@ public static class CdcBuilderPostgresExtensions
 		// Register Postgres CDC processor with factory
 		builder.Services.TryAddSingleton<IPostgresCdcProcessor>(sp =>
 		{
-			var factory = connectionFactory(sp);
+			var sourceFactoryResult = connectionFactory(sp);
 			var stateStore = sp.GetRequiredService<IPostgresCdcStateStore>();
 			var logger = sp.GetRequiredService<ILogger<PostgresCdcProcessor>>();
 
-			// Get connection string from factory connection for options
-			using var connection = factory();
+			// Get connection string from source factory connection for options
+			using var connection = sourceFactoryResult();
 			var options = sp.GetRequiredService<IOptions<PostgresCdcOptions>>();
 
 			// Update connection string in options

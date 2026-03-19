@@ -104,6 +104,44 @@ public interface ICdcTableBuilder
 	ICdcTableBuilder MapAll<TEvent>() where TEvent : class;
 
 	/// <summary>
+	/// Maps INSERT operations to an event type with an explicit mapper.
+	/// </summary>
+	/// <typeparam name="TEvent">The event type to create for INSERT operations.</typeparam>
+	/// <typeparam name="TMapper">The mapper type that creates event instances from change data.</typeparam>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// The mapper is resolved from DI and invoked at runtime to create typed event instances.
+	/// This overload enables auto-mapping without manual <c>IDataChangeHandler</c> implementation.
+	/// </para>
+	/// </remarks>
+	ICdcTableBuilder MapInsert<TEvent, TMapper>() where TEvent : class where TMapper : class, ICdcEventMapper<TEvent>;
+
+	/// <summary>
+	/// Maps UPDATE operations to an event type with an explicit mapper.
+	/// </summary>
+	/// <typeparam name="TEvent">The event type to create for UPDATE operations.</typeparam>
+	/// <typeparam name="TMapper">The mapper type that creates event instances from change data.</typeparam>
+	/// <returns>The builder for fluent chaining.</returns>
+	ICdcTableBuilder MapUpdate<TEvent, TMapper>() where TEvent : class where TMapper : class, ICdcEventMapper<TEvent>;
+
+	/// <summary>
+	/// Maps DELETE operations to an event type with an explicit mapper.
+	/// </summary>
+	/// <typeparam name="TEvent">The event type to create for DELETE operations.</typeparam>
+	/// <typeparam name="TMapper">The mapper type that creates event instances from change data.</typeparam>
+	/// <returns>The builder for fluent chaining.</returns>
+	ICdcTableBuilder MapDelete<TEvent, TMapper>() where TEvent : class where TMapper : class, ICdcEventMapper<TEvent>;
+
+	/// <summary>
+	/// Maps ALL operations (INSERT, UPDATE, DELETE) to a single event type with an explicit mapper.
+	/// </summary>
+	/// <typeparam name="TEvent">The event type to create for all operations.</typeparam>
+	/// <typeparam name="TMapper">The mapper type that creates event instances from change data.</typeparam>
+	/// <returns>The builder for fluent chaining.</returns>
+	ICdcTableBuilder MapAll<TEvent, TMapper>() where TEvent : class where TMapper : class, ICdcEventMapper<TEvent>;
+
+	/// <summary>
 	/// Configures a filter predicate for change events.
 	/// </summary>
 	/// <param name="predicate">The predicate to filter changes.</param>

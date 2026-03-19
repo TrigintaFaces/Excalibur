@@ -26,7 +26,7 @@ public sealed class UpdateDataTaskAttempts : DataRequest<int>
 	public UpdateDataTaskAttempts(
 		Guid dataTaskId,
 		int attempts,
-		DataProcessingConfiguration configuration,
+		DataProcessingOptions configuration,
 		int sqlTimeOutSeconds,
 		CancellationToken cancellationToken)
 	{

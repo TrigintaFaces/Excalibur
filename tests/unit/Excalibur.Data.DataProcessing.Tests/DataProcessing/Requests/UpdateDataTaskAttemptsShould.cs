@@ -20,7 +20,7 @@ public sealed class UpdateDataTaskAttemptsShould
 	[Fact]
 	public void CreateWithValidParameters()
 	{
-		var config = new DataProcessingConfiguration();
+		var config = new DataProcessingOptions();
 		var request = new UpdateDataTaskAttempts(Guid.NewGuid(), 2, config, 30, CancellationToken.None);
 
 		request.Command.CommandText.ShouldNotBeNullOrWhiteSpace();
@@ -30,7 +30,7 @@ public sealed class UpdateDataTaskAttemptsShould
 	[Fact]
 	public void HaveCommandWithUpdateSql()
 	{
-		var config = new DataProcessingConfiguration();
+		var config = new DataProcessingOptions();
 		var request = new UpdateDataTaskAttempts(Guid.NewGuid(), 1, config, 30, CancellationToken.None);
 
 		request.Command.CommandText.ShouldContain("UPDATE");

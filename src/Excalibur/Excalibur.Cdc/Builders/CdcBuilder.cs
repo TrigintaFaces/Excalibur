@@ -26,6 +26,12 @@ internal sealed class CdcBuilder : ICdcBuilder
 	/// <inheritdoc/>
 	public IServiceCollection Services { get; }
 
+	/// <summary>
+	/// Gets the list of post-configure callbacks to run after <c>configure(builder)</c> completes.
+	/// Provider extensions add callbacks here that need access to the fully configured options.
+	/// </summary>
+	internal List<Action<IServiceCollection, CdcOptions>> PostConfigureCallbacks { get; } = [];
+
 	/// <inheritdoc/>
 	public ICdcBuilder TrackTable(string tableName, Action<ICdcTableBuilder> configure)
 	{

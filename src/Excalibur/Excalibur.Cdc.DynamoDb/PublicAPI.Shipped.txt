@@ -187,3 +187,13 @@ static Microsoft.Extensions.DependencyInjection.DynamoDbCdcServiceCollectionExte
 static Microsoft.Extensions.DependencyInjection.DynamoDbCdcServiceCollectionExtensions.AddDynamoDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! tableName, System.Action<Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStoreOptions!>? configure = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DynamoDbCdcServiceCollectionExtensions.AddDynamoDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.DynamoDb.DynamoDbCdcStateStoreOptions!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.DynamoDbCdcServiceCollectionExtensions.AddInMemoryDynamoDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.TableName(string! tableName) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.StreamArn(string! streamArn) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.ProcessorName(string! processorName) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.MaxBatchSize(int maxBatchSize) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.PollInterval(System.TimeSpan interval) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.WithStateStore(System.Func<System.IServiceProvider!, Amazon.DynamoDBv2.IAmazonDynamoDB!>! clientFactory) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.WithStateStore(System.Func<System.IServiceProvider!, Amazon.DynamoDBv2.IAmazonDynamoDB!>! clientFactory, System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
+Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!
+static Excalibur.Cdc.DynamoDb.CdcBuilderDynamoDbExtensions.UseDynamoDb(this Excalibur.Cdc.ICdcBuilder! builder, System.Action<Excalibur.Cdc.DynamoDb.IDynamoDbCdcBuilder!>! configure) -> Excalibur.Cdc.ICdcBuilder!

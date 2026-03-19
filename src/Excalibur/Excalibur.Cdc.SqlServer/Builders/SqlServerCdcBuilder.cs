@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Microsoft.Data.SqlClient;
+
 namespace Excalibur.Cdc.SqlServer;
 
 /// <summary>
@@ -18,6 +20,23 @@ internal sealed class SqlServerCdcBuilder : ISqlServerCdcBuilder
 	{
 		_options = options ?? throw new ArgumentNullException(nameof(options));
 	}
+
+	/// <summary>
+	/// Gets the state connection factory, if configured via <see cref="WithStateStore(string)"/>
+	/// or <see cref="WithStateStore(Func{IServiceProvider, Func{SqlConnection}})"/>.
+	/// When <see langword="null"/>, the source connection factory is used (backward compatible).
+	/// </summary>
+	internal Func<IServiceProvider, Func<SqlConnection>>? StateConnectionFactory { get; private set; }
+
+	/// <summary>
+	/// Gets the state store configure callback, if provided.
+	/// </summary>
+	internal Action<ICdcStateStoreBuilder>? StateStoreConfigure { get; private set; }
+
+	/// <summary>
+	/// Gets the source BindConfiguration section path, if set.
+	/// </summary>
+	internal string? SourceBindConfigurationPath { get; private set; }
 
 	/// <inheritdoc/>
 	public ISqlServerCdcBuilder SchemaName(string schema)
@@ -111,6 +130,69 @@ internal sealed class SqlServerCdcBuilder : ISqlServerCdcBuilder
 	public ISqlServerCdcBuilder StopOnMissingTableHandler(bool stop)
 	{
 		_options.StopOnMissingTableHandler = stop;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ISqlServerCdcBuilder WithStateStore(string connectionString)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+		StateConnectionFactory = _ => () => new SqlConnection(connectionString);
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ISqlServerCdcBuilder WithStateStore(string connectionString, Action<ICdcStateStoreBuilder> configure)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		StateConnectionFactory = _ => () => new SqlConnection(connectionString);
+		StateStoreConfigure = configure;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ISqlServerCdcBuilder WithStateStore(Func<IServiceProvider, Func<SqlConnection>> stateConnectionFactory)
+	{
+		ArgumentNullException.ThrowIfNull(stateConnectionFactory);
+
+		StateConnectionFactory = stateConnectionFactory;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ISqlServerCdcBuilder WithStateStore(
+		Func<IServiceProvider, Func<SqlConnection>> stateConnectionFactory,
+		Action<ICdcStateStoreBuilder> configure)
+	{
+		ArgumentNullException.ThrowIfNull(stateConnectionFactory);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		StateConnectionFactory = stateConnectionFactory;
+		StateStoreConfigure = configure;
+		return this;
+	}
+
+	/// <inheritdoc/>
+	public ISqlServerCdcBuilder BindConfiguration(string sectionPath)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(sectionPath);
+
+		SourceBindConfigurationPath = sectionPath;
+		return this;
+	}
+
+	/// <summary>Gets the connection string name for resolution from IConfiguration.</summary>
+	internal string? SourceConnectionStringName { get; private set; }
+
+	/// <inheritdoc/>
+	public ISqlServerCdcBuilder ConnectionStringName(string name)
+	{
+		ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+		SourceConnectionStringName = name;
 		return this;
 	}
 }

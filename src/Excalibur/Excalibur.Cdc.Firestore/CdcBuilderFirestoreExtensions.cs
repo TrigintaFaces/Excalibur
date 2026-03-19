@@ -96,4 +96,100 @@ public static class CdcBuilderFirestoreExtensions
 
 		return builder;
 	}
+
+	/// <summary>
+	/// Configures the CDC processor to use Google Cloud Firestore with fluent builder configuration.
+	/// </summary>
+	/// <param name="builder">The CDC builder.</param>
+	/// <param name="configure">Action to configure Firestore CDC settings via the fluent builder.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="builder"/> or <paramref name="configure"/> is null.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// This overload provides the fluent builder pattern with
+	/// <see cref="IFirestoreCdcBuilder.WithStateStore(string)"/>
+	/// support for configuring a separate Firestore project for state persistence.
+	/// Firestore uses project IDs instead of connection strings.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// services.AddCdcProcessor(cdc =&gt;
+	/// {
+	///     cdc.UseFirestore(firestore =&gt;
+	///     {
+	///         firestore.CollectionPath("orders")
+	///                  .ProcessorName("order-cdc")
+	///                  .MaxBatchSize(200)
+	///                  .WithStateStore("my-state-project", state =&gt;
+	///                  {
+	///                      state.TableName("cdc-positions"); // maps to CollectionName
+	///                  });
+	///     });
+	/// });
+	/// </code>
+	/// </example>
+	public static ICdcBuilder UseFirestore(
+		this ICdcBuilder builder,
+		Action<IFirestoreCdcBuilder> configure)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentNullException.ThrowIfNull(configure);
+
+		// Create and configure Firestore options
+		var firestoreOptions = new FirestoreCdcOptions();
+		var firestoreBuilder = new FirestoreCdcBuilder(firestoreOptions);
+		configure(firestoreBuilder);
+
+		// Register source CDC options
+		_ = builder.Services.AddFirestoreCdc(opt =>
+		{
+			opt.CollectionPath = firestoreOptions.CollectionPath;
+			opt.ProcessorName = firestoreOptions.ProcessorName;
+			opt.MaxBatchSize = firestoreOptions.MaxBatchSize;
+			opt.PollInterval = firestoreOptions.PollInterval;
+		});
+
+		// Register source BindConfiguration if set
+		if (firestoreBuilder.SourceBindConfigurationPath is not null)
+		{
+			builder.Services.AddOptions<FirestoreCdcOptions>()
+				.BindConfiguration(firestoreBuilder.SourceBindConfigurationPath)
+				.ValidateDataAnnotations()
+				.ValidateOnStart();
+		}
+
+		// Configure state store if WithStateStore was called
+		if (firestoreBuilder.StateProjectId is not null || firestoreBuilder.StateDbFactory is not null)
+		{
+			var stateStoreOptions = new FirestoreCdcStateStoreOptions();
+
+			// Apply state store configure callback
+			string? stateStoreBindConfigPath = null;
+			if (firestoreBuilder.StateStoreConfigure is not null)
+			{
+				var stateBuilder = new FirestoreCdcStateStoreBuilder(stateStoreOptions);
+				firestoreBuilder.StateStoreConfigure(stateBuilder);
+				stateStoreBindConfigPath = stateBuilder.BindConfigurationPath;
+			}
+
+			_ = builder.Services.AddFirestoreCdcStateStore(opt =>
+			{
+				opt.CollectionName = stateStoreOptions.CollectionName;
+			});
+
+			// Register state store BindConfiguration if set
+			if (stateStoreBindConfigPath is not null)
+			{
+				builder.Services.AddOptions<FirestoreCdcStateStoreOptions>()
+					.BindConfiguration(stateStoreBindConfigPath)
+					.ValidateDataAnnotations()
+					.ValidateOnStart();
+			}
+		}
+
+		return builder;
+	}
 }

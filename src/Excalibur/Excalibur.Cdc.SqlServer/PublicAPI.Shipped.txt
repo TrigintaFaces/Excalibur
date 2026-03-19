@@ -351,3 +351,9 @@ Excalibur.Cdc.SqlServer.SqlServerCdcOptions.StopOnMissingTableHandler.get -> boo
 Excalibur.Cdc.SqlServer.SqlServerCdcOptions.StopOnMissingTableHandler.set -> void
 Microsoft.Extensions.DependencyInjection.DataChangeHandlerServiceCollectionExtensions
 static Microsoft.Extensions.DependencyInjection.DataChangeHandlerServiceCollectionExtensions.AddDataChangeHandlersFromAssembly(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Reflection.Assembly! assembly, Microsoft.Extensions.DependencyInjection.ServiceLifetime lifetime = Microsoft.Extensions.DependencyInjection.ServiceLifetime.Singleton) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.WithStateStore(string! connectionString) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.WithStateStore(string! connectionString, System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.WithStateStore(System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! stateConnectionFactory) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.WithStateStore(System.Func<System.IServiceProvider!, System.Func<Microsoft.Data.SqlClient.SqlConnection!>!>! stateConnectionFactory, System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!
+Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder.ConnectionStringName(string! name) -> Excalibur.Cdc.SqlServer.ISqlServerCdcBuilder!

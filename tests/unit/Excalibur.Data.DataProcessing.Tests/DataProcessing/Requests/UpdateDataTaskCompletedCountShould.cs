@@ -20,7 +20,7 @@ public sealed class UpdateDataTaskCompletedCountShould
 	[Fact]
 	public void CreateWithValidParameters()
 	{
-		var config = new DataProcessingConfiguration();
+		var config = new DataProcessingOptions();
 		var request = new UpdateDataTaskCompletedCount(Guid.NewGuid(), 42, config, 30, CancellationToken.None);
 
 		request.Command.CommandText.ShouldNotBeNullOrWhiteSpace();
@@ -30,7 +30,7 @@ public sealed class UpdateDataTaskCompletedCountShould
 	[Fact]
 	public void HaveCommandWithUpdateSql()
 	{
-		var config = new DataProcessingConfiguration();
+		var config = new DataProcessingOptions();
 		var request = new UpdateDataTaskCompletedCount(Guid.NewGuid(), 100, config, 30, CancellationToken.None);
 
 		request.Command.CommandText.ShouldContain("UPDATE");

@@ -40,7 +40,7 @@ public sealed class DataProcessorShould : UnitTestBase
 		Should.Throw<ArgumentNullException>(() =>
 			new TestDataProcessor(
 				null!,
-				Microsoft.Extensions.Options.Options.Create(new DataProcessingConfiguration()),
+				Microsoft.Extensions.Options.Options.Create(new DataProcessingOptions()),
 				_fakeServiceProvider,
 				NullLogger<TestDataProcessor>.Instance));
 	}
@@ -62,7 +62,7 @@ public sealed class DataProcessorShould : UnitTestBase
 		Should.Throw<ArgumentNullException>(() =>
 			new TestDataProcessor(
 				_fakeLifetime,
-				Microsoft.Extensions.Options.Options.Create(new DataProcessingConfiguration()),
+				Microsoft.Extensions.Options.Options.Create(new DataProcessingOptions()),
 				null!,
 				NullLogger<TestDataProcessor>.Instance));
 	}
@@ -73,7 +73,7 @@ public sealed class DataProcessorShould : UnitTestBase
 		Should.Throw<ArgumentNullException>(() =>
 			new TestDataProcessor(
 				_fakeLifetime,
-				Microsoft.Extensions.Options.Options.Create(new DataProcessingConfiguration()),
+				Microsoft.Extensions.Options.Options.Create(new DataProcessingOptions()),
 				_fakeServiceProvider,
 				null!));
 	}
@@ -197,7 +197,7 @@ public sealed class DataProcessorShould : UnitTestBase
 
 	private TestDataProcessor CreateProcessor(string[] records)
 	{
-		var config = new DataProcessingConfiguration
+		var config = new DataProcessingOptions
 		{
 			QueueSize = 100,
 			ProducerBatchSize = 10,
@@ -221,7 +221,7 @@ public sealed class DataProcessorShould : UnitTestBase
 
 		public TestDataProcessor(
 			IHostApplicationLifetime appLifetime,
-			IOptions<DataProcessingConfiguration> configuration,
+			IOptions<DataProcessingOptions> configuration,
 			IServiceProvider serviceProvider,
 			ILogger logger,
 			string[]? records = null)

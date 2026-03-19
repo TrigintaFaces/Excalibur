@@ -14,8 +14,8 @@ public sealed class DataOrchestrationManagerShould : UnitTestBase
 	private readonly Func<IDbConnection> _fakeConnectionFactory = () => A.Fake<IDbConnection>();
 	private readonly IDataProcessorRegistry _fakeRegistry = A.Fake<IDataProcessorRegistry>();
 	private readonly IServiceProvider _fakeServiceProvider = A.Fake<IServiceProvider>();
-	private readonly IOptions<DataProcessingConfiguration> _fakeConfig =
-		Microsoft.Extensions.Options.Options.Create(new DataProcessingConfiguration());
+	private readonly IOptions<DataProcessingOptions> _fakeConfig =
+		Microsoft.Extensions.Options.Options.Create(new DataProcessingOptions());
 	private readonly ILogger<DataOrchestrationManager> _fakeLogger = A.Fake<ILogger<DataOrchestrationManager>>();
 
 	[Fact]

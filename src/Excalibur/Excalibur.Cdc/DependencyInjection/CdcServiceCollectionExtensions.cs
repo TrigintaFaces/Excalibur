@@ -109,6 +109,21 @@ public static class CdcServiceCollectionExtensions
 		// Validate options
 		options.Validate();
 
+		// Register mapper types in DI for tables with EventMapperDelegates.
+		foreach (var table in options.TrackedTables)
+		{
+			foreach (var (_, mapperType) in table.EventMapperTypes)
+			{
+				services.TryAddScoped(mapperType);
+			}
+		}
+
+		// Run provider post-configure callbacks (e.g., auto-mapping handler registration).
+		foreach (var callback in builder.PostConfigureCallbacks)
+		{
+			callback(services, options);
+		}
+
 		// Register the configured options
 		_ = services.AddOptions<CdcOptions>()
 			.Configure(opt =>

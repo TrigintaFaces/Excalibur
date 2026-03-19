@@ -4,6 +4,7 @@
 using Excalibur.Cdc.Processing;
 
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -77,14 +78,26 @@ public static class CdcBuilderSqlServerExtensions
 		// Create and configure SQL Server options
 		var sqlOptions = new SqlServerCdcOptions { ConnectionString = connectionString };
 
-		if (configure is not null)
-		{
-			var sqlBuilder = new SqlServerCdcBuilder(sqlOptions);
-			configure(sqlBuilder);
-		}
+		var sqlBuilder = new SqlServerCdcBuilder(sqlOptions);
+		configure?.Invoke(sqlBuilder);
 
 		// Validate options
 		sqlOptions.Validate();
+
+		// Apply state store configure callback if present
+		var stateStoreOptions = new SqlServerCdcStateStoreOptions
+		{
+			SchemaName = sqlOptions.SchemaName,
+			TableName = sqlOptions.StateTableName
+		};
+
+		string? stateStoreBindConfigPath = null;
+		if (sqlBuilder.StateStoreConfigure is not null)
+		{
+			var stateBuilder = new SqlServerCdcStateStoreBuilder(stateStoreOptions);
+			sqlBuilder.StateStoreConfigure(stateBuilder);
+			stateStoreBindConfigPath = stateBuilder.BindConfigurationPath;
+		}
 
 		// Register SQL Server CDC options
 		_ = builder.Services.Configure<SqlServerCdcOptions>(opt =>
@@ -97,21 +110,62 @@ public static class CdcBuilderSqlServerExtensions
 			opt.ConnectionString = sqlOptions.ConnectionString;
 		});
 
-		// Register CDC state store options (existing type for backward compatibility)
+		// Register source BindConfiguration if set
+		if (sqlBuilder.SourceBindConfigurationPath is not null)
+		{
+			builder.Services.AddOptions<SqlServerCdcOptions>()
+				.BindConfiguration(sqlBuilder.SourceBindConfigurationPath)
+				.ValidateDataAnnotations()
+				.ValidateOnStart();
+		}
+
+		// Register CDC state store options
 		_ = builder.Services.Configure<SqlServerCdcStateStoreOptions>(opt =>
 		{
-			opt.SchemaName = sqlOptions.SchemaName;
-			opt.TableName = sqlOptions.StateTableName;
+			opt.SchemaName = stateStoreOptions.SchemaName;
+			opt.TableName = stateStoreOptions.TableName;
 		});
 
-		// Delegate to the connection factory overload — connections are created
-		// at resolution time from IOptions<SqlServerCdcOptions>.ConnectionString,
-		// keeping connection creation deferred and consistent with the factory overload.
-		RegisterCdcServices(builder, sqlOptions, sp =>
+		// Register state store BindConfiguration if set
+		if (stateStoreBindConfigPath is not null)
 		{
-			var opts = sp.GetRequiredService<IOptions<SqlServerCdcOptions>>();
-			return () => new SqlConnection(opts.Value.ConnectionString);
-		});
+			builder.Services.AddOptions<SqlServerCdcStateStoreOptions>()
+				.BindConfiguration(stateStoreBindConfigPath)
+				.ValidateDataAnnotations()
+				.ValidateOnStart();
+		}
+
+		// Source connection factory. If ConnectionStringName was set, resolve from IConfiguration.
+		Func<IServiceProvider, Func<SqlConnection>> sourceFactory;
+		if (sqlBuilder.SourceConnectionStringName is not null)
+		{
+			var connStrName = sqlBuilder.SourceConnectionStringName;
+			sourceFactory = sp =>
+			{
+				var config = sp.GetRequiredService<IConfiguration>();
+				var resolved = config.GetConnectionString(connStrName)
+					?? throw new InvalidOperationException(
+						$"Connection string '{connStrName}' not found in IConfiguration. " +
+						$"Ensure it is defined in the ConnectionStrings section of your configuration.");
+				return () => new SqlConnection(resolved);
+			};
+		}
+		else
+		{
+			sourceFactory = sp =>
+			{
+				var opts = sp.GetRequiredService<IOptions<SqlServerCdcOptions>>();
+				return () => new SqlConnection(opts.Value.ConnectionString);
+			};
+		}
+
+		// State factory: use separate factory if WithStateStore was called, else fall back to source
+		var stateFactory = sqlBuilder.StateConnectionFactory;
+
+		RegisterCdcServices(builder, sqlOptions, sourceFactory, stateFactory);
+
+		// Register post-configure callback for auto-mapping handler registration
+		RegisterAutoMappingCallback(builder);
 
 		return builder;
 	}
@@ -155,11 +209,8 @@ public static class CdcBuilderSqlServerExtensions
 		// Create and configure SQL Server options
 		var sqlOptions = new SqlServerCdcOptions();
 
-		if (configure is not null)
-		{
-			var sqlBuilder = new SqlServerCdcBuilder(sqlOptions);
-			configure(sqlBuilder);
-		}
+		var sqlBuilder = new SqlServerCdcBuilder(sqlOptions);
+		configure?.Invoke(sqlBuilder);
 
 		// Validate options (connection string not required for factory overload)
 		if (string.IsNullOrWhiteSpace(sqlOptions.SchemaName))
@@ -172,6 +223,21 @@ public static class CdcBuilderSqlServerExtensions
 			throw new InvalidOperationException("StateTableName is required.");
 		}
 
+		// Apply state store configure callback if present
+		var stateStoreOptions = new SqlServerCdcStateStoreOptions
+		{
+			SchemaName = sqlOptions.SchemaName,
+			TableName = sqlOptions.StateTableName
+		};
+
+		string? stateStoreBindConfigPath = null;
+		if (sqlBuilder.StateStoreConfigure is not null)
+		{
+			var stateBuilder = new SqlServerCdcStateStoreBuilder(stateStoreOptions);
+			sqlBuilder.StateStoreConfigure(stateBuilder);
+			stateStoreBindConfigPath = stateBuilder.BindConfigurationPath;
+		}
+
 		// Register SQL Server CDC options
 		_ = builder.Services.Configure<SqlServerCdcOptions>(opt =>
 		{
@@ -182,22 +248,77 @@ public static class CdcBuilderSqlServerExtensions
 			opt.CommandTimeout = sqlOptions.CommandTimeout;
 		});
 
+		// Register source BindConfiguration if set
+		if (sqlBuilder.SourceBindConfigurationPath is not null)
+		{
+			builder.Services.AddOptions<SqlServerCdcOptions>()
+				.BindConfiguration(sqlBuilder.SourceBindConfigurationPath)
+				.ValidateDataAnnotations()
+				.ValidateOnStart();
+		}
+
 		// Register CDC state store options
 		_ = builder.Services.Configure<SqlServerCdcStateStoreOptions>(opt =>
 		{
-			opt.SchemaName = sqlOptions.SchemaName;
-			opt.TableName = sqlOptions.StateTableName;
+			opt.SchemaName = stateStoreOptions.SchemaName;
+			opt.TableName = stateStoreOptions.TableName;
 		});
 
-		RegisterCdcServices(builder, sqlOptions, connectionFactory);
+		// Register state store BindConfiguration if set
+		if (stateStoreBindConfigPath is not null)
+		{
+			builder.Services.AddOptions<SqlServerCdcStateStoreOptions>()
+				.BindConfiguration(stateStoreBindConfigPath)
+				.ValidateDataAnnotations()
+				.ValidateOnStart();
+		}
+
+		// State factory: use separate factory if WithStateStore was called, else fall back to source
+		var stateFactory = sqlBuilder.StateConnectionFactory;
+
+		RegisterCdcServices(builder, sqlOptions, connectionFactory, stateFactory);
+
+		// Register post-configure callback for auto-mapping handler registration
+		RegisterAutoMappingCallback(builder);
 
 		return builder;
+	}
+
+	private static void RegisterAutoMappingCallback(ICdcBuilder builder)
+	{
+		if (builder is CdcBuilder cdcBuilder)
+		{
+			cdcBuilder.PostConfigureCallbacks.Add(static (services, options) =>
+			{
+				foreach (var table in options.TrackedTables)
+				{
+					if (!table.HasEventMappers)
+					{
+						continue;
+					}
+
+					// Capture table reference for the closure.
+					// Use AddSingleton (not TryAddEnumerable) because factory-delegate
+					// registrations have implType=interface, which TryAddEnumerable
+					// treats as indistinguishable -- only one handler would register.
+					// Each table gets its own unique handler instance.
+					var capturedTable = table;
+					services.AddSingleton<IDataChangeHandler>(sp =>
+						new AutoMappingDataChangeHandler(
+							sp,
+							sp.GetRequiredService<Excalibur.Dispatch.Abstractions.IDispatcher>(),
+							capturedTable,
+							sp.GetRequiredService<ILogger<AutoMappingDataChangeHandler>>()));
+				}
+			});
+		}
 	}
 
 	private static void RegisterCdcServices(
 		ICdcBuilder builder,
 		SqlServerCdcOptions sqlOptions,
-		Func<IServiceProvider, Func<SqlConnection>> connectionFactory)
+		Func<IServiceProvider, Func<SqlConnection>> sourceConnectionFactory,
+		Func<IServiceProvider, Func<SqlConnection>>? stateConnectionFactory)
 	{
 		// Register default CdcRecoveryOptions if not already registered
 		builder.Services.TryAddSingleton(Options.Create(new CdcRecoveryOptions()));
@@ -219,30 +340,35 @@ public static class CdcBuilderSqlServerExtensions
 		}
 
 		// Register SQL Server CDC state store with factory
+		// Uses state factory when WithStateStore was called, source factory otherwise (backward compat)
 		builder.Services.TryAddSingleton<ICdcStateStore>(sp =>
 		{
-			var factory = connectionFactory(sp);
+			var effectiveFactory = stateConnectionFactory ?? sourceConnectionFactory;
+			var factory = effectiveFactory(sp);
 			var stateStoreOptions = sp.GetRequiredService<IOptions<SqlServerCdcStateStoreOptions>>();
 			return new CdcStateStore(factory(), stateStoreOptions);
 		});
 
-		// Register CDC repository with factory (both core and LSN mapping interfaces)
+		// Register CDC repository with source factory (always reads from source)
 		builder.Services.TryAddSingleton<ICdcRepository>(sp =>
 		{
-			var factory = connectionFactory(sp);
+			var factory = sourceConnectionFactory(sp);
 			return new CdcRepository(factory());
 		});
 
 		builder.Services.TryAddSingleton<ICdcRepositoryLsnMapping>(sp =>
 		{
-			var factory = connectionFactory(sp);
+			var factory = sourceConnectionFactory(sp);
 			return new CdcRepository(factory());
 		});
 
-		// Register SQL Server CDC processor with factory
+		// Register SQL Server CDC processor with dual factories
 		builder.Services.TryAddSingleton<ICdcProcessor>(sp =>
 		{
-			var factory = connectionFactory(sp);
+			var sourceFactory = sourceConnectionFactory(sp);
+			var effectiveStateFactory = stateConnectionFactory ?? sourceConnectionFactory;
+			var stateFactory = effectiveStateFactory(sp);
+
 			var stateStoreOptions = sp.GetRequiredService<IOptions<SqlServerCdcStateStoreOptions>>();
 			var appLifetime = sp.GetRequiredService<IHostApplicationLifetime>();
 			var policyFactory = sp.GetRequiredService<IDataAccessPolicyFactory>();
@@ -253,8 +379,8 @@ public static class CdcBuilderSqlServerExtensions
 									 "IDatabaseConfig is required for CdcProcessor. Register an implementation or use the " +
 									 "overload that provides database configuration.");
 
-			var cdcConnection = factory();
-			var stateStoreConnection = factory();
+			var cdcConnection = sourceFactory();
+			var stateStoreConnection = stateFactory();
 
 			return new CdcProcessor(
 				appLifetime,
@@ -269,7 +395,10 @@ public static class CdcBuilderSqlServerExtensions
 		// Register DataChangeEventProcessor for background processing adapter
 		builder.Services.TryAddSingleton<IDataChangeEventProcessor>(sp =>
 		{
-			var factory = connectionFactory(sp);
+			var sourceFactory = sourceConnectionFactory(sp);
+			var effectiveStateFactory = stateConnectionFactory ?? sourceConnectionFactory;
+			var stateFactory = effectiveStateFactory(sp);
+
 			var stateStoreOptions = sp.GetRequiredService<IOptions<SqlServerCdcStateStoreOptions>>();
 			var appLifetime = sp.GetRequiredService<IHostApplicationLifetime>();
 			var policyFactory = sp.GetRequiredService<IDataAccessPolicyFactory>();
@@ -280,8 +409,8 @@ public static class CdcBuilderSqlServerExtensions
 									 "IDatabaseConfig is required for DataChangeEventProcessor. Register an implementation or use the " +
 									 "overload that provides database configuration.");
 
-			var cdcConnection = factory();
-			var stateStoreConnection = factory();
+			var cdcConnection = sourceFactory();
+			var stateStoreConnection = stateFactory();
 
 			return new DataChangeEventProcessor(
 				appLifetime,

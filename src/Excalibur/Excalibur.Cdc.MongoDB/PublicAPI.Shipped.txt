@@ -232,3 +232,16 @@ static Microsoft.Extensions.DependencyInjection.MongoDbCdcExtensions.AddMongoDbC
 static Microsoft.Extensions.DependencyInjection.MongoDbCdcExtensions.AddMongoDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! connectionString, System.Action<Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.MongoDbCdcExtensions.AddMongoDbCdcStateStore(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.MongoDB.MongoDbCdcStateStoreOptions!>? configureOptions = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static readonly Excalibur.Cdc.MongoDB.MongoDbCdcPosition.Start -> Excalibur.Cdc.MongoDB.MongoDbCdcPosition
+Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder
+Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.ConnectionString(string! connectionString) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
+Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.DatabaseName(string! databaseName) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
+Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.CollectionNames(params string![]! collectionNames) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
+Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.ProcessorId(string! processorId) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
+Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.BatchSize(int batchSize) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
+Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.ReconnectInterval(System.TimeSpan interval) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
+Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.WithStateStore(string! connectionString) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
+Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.WithStateStore(string! connectionString, System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
+Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.WithStateStore(System.Func<System.IServiceProvider!, MongoDB.Driver.IMongoClient!>! clientFactory) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
+Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.WithStateStore(System.Func<System.IServiceProvider!, MongoDB.Driver.IMongoClient!>! clientFactory, System.Action<Excalibur.Cdc.ICdcStateStoreBuilder!>! configure) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
+Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!
+static Excalibur.Cdc.MongoDB.CdcBuilderMongoDbExtensions.UseMongoDB(this Excalibur.Cdc.ICdcBuilder! builder, string! connectionString, System.Action<Excalibur.Cdc.MongoDB.IMongoDbCdcBuilder!>? configure = null) -> Excalibur.Cdc.ICdcBuilder!

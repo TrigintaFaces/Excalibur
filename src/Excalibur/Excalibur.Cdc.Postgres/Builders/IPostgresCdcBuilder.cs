@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 The Excalibur Project
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
+using Npgsql;
+
 namespace Excalibur.Cdc.Postgres;
 
 /// <summary>
@@ -97,4 +99,92 @@ public interface IPostgresCdcBuilder
 	/// <param name="autoCreate">Whether to auto-create the slot.</param>
 	/// <returns>The builder for fluent chaining.</returns>
 	IPostgresCdcBuilder AutoCreateSlot(bool autoCreate = true);
+
+	/// <summary>
+	/// Configures a separate connection for CDC state persistence using a connection string.
+	/// </summary>
+	/// <param name="connectionString">The state store connection string.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// When omitted, the source connection is used for state persistence (backward compatible).
+	/// Follows the Microsoft Change Feed Processor pattern where lease/checkpoint storage
+	/// can be deployed to a separate database from the CDC source.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="connectionString"/> is null or whitespace.
+	/// </exception>
+	IPostgresCdcBuilder WithStateStore(string connectionString);
+
+	/// <summary>
+	/// Configures a separate connection for CDC state persistence with state store configuration.
+	/// </summary>
+	/// <param name="connectionString">The state store connection string.</param>
+	/// <param name="configure">An action to configure state store schema and table settings.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="connectionString"/> is null or whitespace.
+	/// </exception>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="configure"/> is null.
+	/// </exception>
+	IPostgresCdcBuilder WithStateStore(string connectionString, Action<ICdcStateStoreBuilder> configure);
+
+	/// <summary>
+	/// Configures a separate connection factory for CDC state persistence.
+	/// </summary>
+	/// <param name="stateConnectionFactory">A factory function that creates state store Postgres connections.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// When omitted, the source connection factory is used for state persistence (backward compatible).
+	/// Use this overload for DI-integrated scenarios where connection management is handled externally.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="stateConnectionFactory"/> is null.
+	/// </exception>
+	IPostgresCdcBuilder WithStateStore(Func<IServiceProvider, Func<NpgsqlConnection>> stateConnectionFactory);
+
+	/// <summary>
+	/// Configures a separate connection factory for CDC state persistence with state store configuration.
+	/// </summary>
+	/// <param name="stateConnectionFactory">A factory function that creates state store Postgres connections.</param>
+	/// <param name="configure">An action to configure state store schema and table settings.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="stateConnectionFactory"/> or <paramref name="configure"/> is null.
+	/// </exception>
+	IPostgresCdcBuilder WithStateStore(
+		Func<IServiceProvider, Func<NpgsqlConnection>> stateConnectionFactory,
+		Action<ICdcStateStoreBuilder> configure);
+
+	/// <summary>
+	/// Binds Postgres CDC source options from an <see cref="Microsoft.Extensions.Configuration.IConfiguration"/> section.
+	/// </summary>
+	/// <param name="sectionPath">The configuration section path (e.g., "Cdc:Source").</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <remarks>
+	/// <para>
+	/// Uses <c>OptionsBuilder&lt;T&gt;.BindConfiguration()</c> with
+	/// <c>ValidateDataAnnotations</c> and <c>ValidateOnStart</c>.
+	/// Binds <see cref="PostgresCdcOptions"/> from the specified section.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="sectionPath"/> is null or whitespace.
+	/// </exception>
+	IPostgresCdcBuilder BindConfiguration(string sectionPath);
+
+	/// <summary>
+	/// Resolves the source connection string from <c>IConfiguration.GetConnectionString(name)</c>
+	/// at registration time.
+	/// </summary>
+	/// <param name="name">The connection string name in the <c>ConnectionStrings</c> section.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="name"/> is null or whitespace.
+	/// </exception>
+	IPostgresCdcBuilder ConnectionStringName(string name);
 }

@@ -116,7 +116,7 @@ public sealed class DataProcessingServiceCollectionExtensionsShould : UnitTestBa
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var config = new DataProcessingConfiguration { QueueSize = 128 };
+		var config = new DataProcessingOptions { QueueSize = 128 };
 
 		// Act
 		services.AddDataProcessor<TestProcessor>(config);
@@ -135,7 +135,7 @@ public sealed class DataProcessingServiceCollectionExtensionsShould : UnitTestBa
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var config = new DataProcessingConfiguration
+		var config = new DataProcessingOptions
 		{
 			QueueSize = 256,
 			ProducerBatchSize = 50,
@@ -147,7 +147,7 @@ public sealed class DataProcessingServiceCollectionExtensionsShould : UnitTestBa
 
 		// Assert
 		var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<DataProcessingConfiguration>>();
+		var options = provider.GetRequiredService<IOptions<DataProcessingOptions>>();
 		options.Value.QueueSize.ShouldBe(256);
 		options.Value.ProducerBatchSize.ShouldBe(50);
 		options.Value.ConsumerBatchSize.ShouldBe(20);
@@ -158,8 +158,8 @@ public sealed class DataProcessingServiceCollectionExtensionsShould : UnitTestBa
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var configFirst = new DataProcessingConfiguration { QueueSize = 100 };
-		var configSecond = new DataProcessingConfiguration { QueueSize = 999 };
+		var configFirst = new DataProcessingOptions { QueueSize = 100 };
+		var configSecond = new DataProcessingOptions { QueueSize = 999 };
 
 		// Act - register twice with different configs
 		services.AddDataProcessor<TestProcessor>(configFirst);
@@ -167,7 +167,7 @@ public sealed class DataProcessingServiceCollectionExtensionsShould : UnitTestBa
 
 		// Assert - TryAddSingleton means first config wins
 		var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<DataProcessingConfiguration>>();
+		var options = provider.GetRequiredService<IOptions<DataProcessingOptions>>();
 		options.Value.QueueSize.ShouldBe(100);
 	}
 
@@ -175,7 +175,7 @@ public sealed class DataProcessingServiceCollectionExtensionsShould : UnitTestBa
 	public void AddDataProcessorWithConfig_ThrowsOnNullServices()
 	{
 		// Arrange
-		var config = new DataProcessingConfiguration();
+		var config = new DataProcessingOptions();
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
@@ -190,7 +190,7 @@ public sealed class DataProcessingServiceCollectionExtensionsShould : UnitTestBa
 
 		// Act & Assert
 		Should.Throw<ArgumentNullException>(() =>
-			services.AddDataProcessor<TestProcessor>((DataProcessingConfiguration)null!));
+			services.AddDataProcessor<TestProcessor>((DataProcessingOptions)null!));
 	}
 
 	[Fact]
@@ -198,7 +198,7 @@ public sealed class DataProcessingServiceCollectionExtensionsShould : UnitTestBa
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var config = new DataProcessingConfiguration();
+		var config = new DataProcessingOptions();
 
 		// Act
 		var result = services.AddDataProcessor<TestProcessor>(config);
@@ -216,9 +216,9 @@ public sealed class DataProcessingServiceCollectionExtensionsShould : UnitTestBa
 		// Act
 		services.AddDataProcessor<TestProcessor>();
 
-		// Assert - no IOptions<DataProcessingConfiguration> registered
+		// Assert - no IOptions<DataProcessingOptions> registered
 		services.ShouldNotContain(sd =>
-			sd.ServiceType == typeof(IOptions<DataProcessingConfiguration>));
+			sd.ServiceType == typeof(IOptions<DataProcessingOptions>));
 	}
 
 	// --- AddRecordHandler config overload tests (Sprint 655 P.4) ---
@@ -228,7 +228,7 @@ public sealed class DataProcessingServiceCollectionExtensionsShould : UnitTestBa
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var config = new DataProcessingConfiguration { QueueSize = 128 };
+		var config = new DataProcessingOptions { QueueSize = 128 };
 
 		// Act
 		services.AddRecordHandler<TestRecordHandler, string>(config);
@@ -245,7 +245,7 @@ public sealed class DataProcessingServiceCollectionExtensionsShould : UnitTestBa
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var config = new DataProcessingConfiguration
+		var config = new DataProcessingOptions
 		{
 			QueueSize = 256,
 			ProducerBatchSize = 50,
@@ -257,7 +257,7 @@ public sealed class DataProcessingServiceCollectionExtensionsShould : UnitTestBa
 
 		// Assert
 		var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<DataProcessingConfiguration>>();
+		var options = provider.GetRequiredService<IOptions<DataProcessingOptions>>();
 		options.Value.QueueSize.ShouldBe(256);
 		options.Value.ProducerBatchSize.ShouldBe(50);
 		options.Value.ConsumerBatchSize.ShouldBe(20);
@@ -268,8 +268,8 @@ public sealed class DataProcessingServiceCollectionExtensionsShould : UnitTestBa
 	{
 		// Arrange
 		var services = new ServiceCollection();
-		var first = new DataProcessingConfiguration { QueueSize = 100 };
-		var second = new DataProcessingConfiguration { QueueSize = 999 };
+		var first = new DataProcessingOptions { QueueSize = 100 };
+		var second = new DataProcessingOptions { QueueSize = 999 };
 
 		// Act
 		services.AddRecordHandler<TestRecordHandler, string>(first);
@@ -277,14 +277,14 @@ public sealed class DataProcessingServiceCollectionExtensionsShould : UnitTestBa
 
 		// Assert
 		var provider = services.BuildServiceProvider();
-		var options = provider.GetRequiredService<IOptions<DataProcessingConfiguration>>();
+		var options = provider.GetRequiredService<IOptions<DataProcessingOptions>>();
 		options.Value.QueueSize.ShouldBe(100);
 	}
 
 	[Fact]
 	public void AddRecordHandlerWithConfig_ThrowsOnNullServices()
 	{
-		var config = new DataProcessingConfiguration();
+		var config = new DataProcessingOptions();
 
 		Should.Throw<ArgumentNullException>(() =>
 			DataProcessingServiceCollectionExtensions.AddRecordHandler<TestRecordHandler, string>(
@@ -298,14 +298,14 @@ public sealed class DataProcessingServiceCollectionExtensionsShould : UnitTestBa
 
 		Should.Throw<ArgumentNullException>(() =>
 			services.AddRecordHandler<TestRecordHandler, string>(
-				(DataProcessingConfiguration)null!));
+				(DataProcessingOptions)null!));
 	}
 
 	[Fact]
 	public void AddRecordHandlerWithConfig_ReturnsSameServiceCollection()
 	{
 		var services = new ServiceCollection();
-		var config = new DataProcessingConfiguration();
+		var config = new DataProcessingOptions();
 
 		var result = services.AddRecordHandler<TestRecordHandler, string>(config);
 

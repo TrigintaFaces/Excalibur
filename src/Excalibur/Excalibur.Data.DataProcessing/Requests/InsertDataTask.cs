@@ -26,7 +26,7 @@ public sealed class InsertDataTask : DataRequest<int>
 	public InsertDataTask(
 		Guid dataTaskId,
 		string recordType,
-		DataProcessingConfiguration configuration,
+		DataProcessingOptions configuration,
 		int sqlTimeOutSeconds,
 		CancellationToken cancellationToken)
 	{

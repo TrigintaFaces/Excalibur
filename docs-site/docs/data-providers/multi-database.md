@@ -209,7 +209,22 @@ DataProcessor<TRecord>    <-- each subclass injects its own factory
 IRecordHandler<TRecord>   <-- resolved per-scope; processes individual records
 ```
 
-The `AddDataProcessing` method registers a single `Func<IDbConnection>` that the `DataOrchestrationManager` uses to manage data task records (insert, update, delete). Individual `DataProcessor<TRecord>` subclasses are responsible for fetching their own data from whatever database they need.
+The `AddDataProcessing` method registers the orchestration `Func<IDbConnection>` that `DataOrchestrationManager` uses to manage data task records. The factory is registered as a **keyed singleton** under `DataProcessingKeys.OrchestrationConnection` (`"Excalibur.DataProcessing.Orchestration"`). Resolve it explicitly via `[FromKeyedServices]`.
+
+Individual `DataProcessor<TRecord>` subclasses are responsible for fetching their own data from whatever database they need.
+
+:::tip Well-Known Key for Orchestration Connection
+Use `DataProcessingKeys.OrchestrationConnection` with `[FromKeyedServices]` when you need to explicitly resolve the orchestration connection factory in new code:
+
+```csharp
+public class MyService(
+    [FromKeyedServices(DataProcessingKeys.OrchestrationConnection)]
+    Func<IDbConnection> orchestrationFactory)
+{
+    // orchestrationFactory resolves to the DataProcessing orchestration database
+}
+```
+:::
 
 ### Single Database (Simple Case)
 
@@ -227,6 +242,46 @@ builder.Services.AddDataProcessing(
 
 All processors discovered via assembly scanning will use this factory (injected as `Func<IDbConnection>` via DI).
 
+### AOT-Safe Registration
+
+For AOT-safe scenarios without assembly scanning, use the explicit generic overloads:
+
+```csharp
+// Basic registration (no configuration)
+builder.Services.AddDataProcessor<MyProcessor>();
+builder.Services.AddRecordHandler<MyHandler, MyRecord>();
+
+// With inline configuration
+builder.Services.AddDataProcessor<MyProcessor>(new DataProcessingOptions
+{
+    QueueSize = 128,
+    ProducerBatchSize = 50,
+    ConsumerBatchSize = 20
+});
+
+// With IConfiguration binding (appsettings-driven)
+builder.Services.AddDataProcessor<MyProcessor>(builder.Configuration, "DataProcessing");
+builder.Services.AddRecordHandler<MyHandler, MyRecord>(builder.Configuration, "DataProcessing");
+```
+
+The `IConfiguration` overloads use `OptionsBuilder<T>.BindConfiguration()` with `ValidateDataAnnotations` and `ValidateOnStart` for fail-fast startup validation. A cross-property `IValidateOptions<DataProcessingOptions>` validator also enforces:
+- `ProducerBatchSize` must not exceed `QueueSize`
+- `ConsumerBatchSize` must not exceed `QueueSize`
+- `DispatcherTimeoutMilliseconds` must be between 1,000ms and 3,600,000ms
+
+```json
+{
+  "DataProcessing": {
+    "TableName": "DataProcessor.DataTaskRequests",
+    "QueueSize": 128,
+    "ProducerBatchSize": 50,
+    "ConsumerBatchSize": 20,
+    "MaxAttempts": 3,
+    "DispatcherTimeoutMilliseconds": 60000
+  }
+}
+```
+
 ### Multi-Database with Keyed Services (.NET 8+)
 
 When processors need different databases, use .NET 8 keyed services to register named connection factories. Each processor resolves its own factory by key.
@@ -239,6 +294,7 @@ var customersDb = builder.Configuration.GetConnectionString("CustomersDb");
 var inventoryDb = builder.Configuration.GetConnectionString("InventoryDb");
 
 // Orchestration database (for DataOrchestrationManager task tables)
+// Automatically registered as keyed singleton under DataProcessingKeys.OrchestrationConnection
 builder.Services.AddDataProcessing(
     () => new SqlConnection(orchestrationDb),
     builder.Configuration,
@@ -267,7 +323,7 @@ public class CustomerMigrationProcessor : DataProcessor<CustomerRecord>
     public CustomerMigrationProcessor(
         [FromKeyedServices("customers")] Func<IDbConnection> connectionFactory,
         IHostApplicationLifetime appLifetime,
-        IOptions<DataProcessingConfiguration> configuration,
+        IOptions<DataProcessingOptions> configuration,
         IServiceProvider serviceProvider,
         ILogger<CustomerMigrationProcessor> logger)
         : base(appLifetime, configuration, serviceProvider, logger)
@@ -294,7 +350,7 @@ public class InventorySnapshotProcessor : DataProcessor<InventoryRecord>
     public InventorySnapshotProcessor(
         [FromKeyedServices("inventory")] Func<IDbConnection> connectionFactory,
         IHostApplicationLifetime appLifetime,
-        IOptions<DataProcessingConfiguration> configuration,
+        IOptions<DataProcessingOptions> configuration,
         IServiceProvider serviceProvider,
         ILogger<InventorySnapshotProcessor> logger)
         : base(appLifetime, configuration, serviceProvider, logger)
@@ -374,7 +430,7 @@ public class CustomerMigrationProcessor : DataProcessor<CustomerRecord>
     public CustomerMigrationProcessor(
         CustomerConnectionFactory factory,
         IHostApplicationLifetime appLifetime,
-        IOptions<DataProcessingConfiguration> configuration,
+        IOptions<DataProcessingOptions> configuration,
         IServiceProvider serviceProvider,
         ILogger<CustomerMigrationProcessor> logger)
         : base(appLifetime, configuration, serviceProvider, logger)

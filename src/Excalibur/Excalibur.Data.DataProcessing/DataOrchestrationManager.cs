@@ -25,7 +25,7 @@ public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 
 	private readonly IServiceProvider _serviceProvider;
 
-	private readonly IOptions<DataProcessingConfiguration> _configuration;
+	private readonly IOptions<DataProcessingOptions> _configuration;
 
 	private readonly ILogger<DataOrchestrationManager> _logger;
 
@@ -38,10 +38,10 @@ public sealed partial class DataOrchestrationManager : IDataOrchestrationManager
 	/// <param name="configuration"> Configuration options for data processing. </param>
 	/// <param name="logger"> Logger for logging messages and errors. </param>
 	public DataOrchestrationManager(
-		Func<IDbConnection> connectionFactory,
+		[FromKeyedServices(DataProcessingKeys.OrchestrationConnection)] Func<IDbConnection> connectionFactory,
 		IDataProcessorRegistry processorRegistry,
 		IServiceProvider serviceProvider,
-		IOptions<DataProcessingConfiguration> configuration,
+		IOptions<DataProcessingOptions> configuration,
 		ILogger<DataOrchestrationManager> logger)
 	{
 		ArgumentNullException.ThrowIfNull(connectionFactory);

@@ -124,6 +124,7 @@ const sidebars: SidebarsConfig = {
             { type: 'doc', id: 'patterns/routing' },
             { type: 'doc', id: 'patterns/streaming' },
             { type: 'doc', id: 'patterns/jobs' },
+            { type: 'doc', id: 'patterns/data-processing' },
           ],
         },
         {

@@ -127,4 +127,119 @@ public static class CdcBuilderMongoDbExtensions
 
 		return builder;
 	}
+
+	/// <summary>
+	/// Configures the CDC processor to use MongoDB Change Streams with fluent builder configuration.
+	/// </summary>
+	/// <param name="builder">The CDC builder.</param>
+	/// <param name="connectionString">The MongoDB connection string for the source.</param>
+	/// <param name="configure">Action to configure MongoDB CDC settings via the fluent builder.</param>
+	/// <returns>The builder for fluent chaining.</returns>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="builder"/> is null.
+	/// </exception>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="connectionString"/> is null or whitespace.
+	/// </exception>
+	/// <remarks>
+	/// <para>
+	/// This overload provides the fluent builder pattern with <see cref="IMongoDbCdcBuilder.WithStateStore(string)"/>
+	/// support for configuring a separate MongoDB connection for state persistence.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// services.AddCdcProcessor(cdc =&gt;
+	/// {
+	///     cdc.UseMongoDB("mongodb://source:27017", mongo =&gt;
+	///     {
+	///         mongo.DatabaseName("orders-db")
+	///              .CollectionNames("orders", "order_items")
+	///              .ProcessorId("order-cdc")
+	///              .WithStateStore("mongodb://state:27017", state =&gt;
+	///              {
+	///                  state.SchemaName("cdc-state-db")   // maps to DatabaseName
+	///                       .TableName("checkpoints");     // maps to CollectionName
+	///              });
+	///     });
+	/// });
+	/// </code>
+	/// </example>
+	public static ICdcBuilder UseMongoDB(
+		this ICdcBuilder builder,
+		string connectionString,
+		Action<IMongoDbCdcBuilder>? configure = null)
+	{
+		ArgumentNullException.ThrowIfNull(builder);
+		ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+		// Create and configure MongoDB options
+		var mongoOptions = new MongoDbCdcOptions();
+		mongoOptions.Connection.ConnectionString = connectionString;
+		var mongoBuilder = new MongoDbCdcBuilder(mongoOptions);
+		configure?.Invoke(mongoBuilder);
+
+		// Register source CDC options
+		_ = builder.Services.AddMongoDbCdc(opt =>
+		{
+			opt.Connection.ConnectionString = mongoOptions.Connection.ConnectionString;
+			opt.DatabaseName = mongoOptions.DatabaseName;
+			opt.CollectionNames = mongoOptions.CollectionNames;
+			opt.ProcessorId = mongoOptions.ProcessorId;
+			opt.BatchSize = mongoOptions.BatchSize;
+			opt.ReconnectInterval = mongoOptions.ReconnectInterval;
+		});
+
+		// Register source BindConfiguration if set
+		if (mongoBuilder.SourceBindConfigurationPath is not null)
+		{
+			builder.Services.AddOptions<MongoDbCdcOptions>()
+				.BindConfiguration(mongoBuilder.SourceBindConfigurationPath)
+				.ValidateDataAnnotations()
+				.ValidateOnStart();
+		}
+
+		// Configure state store if WithStateStore was called
+		if (mongoBuilder.StateConnectionString is not null || mongoBuilder.StateClientFactory is not null)
+		{
+			var stateStoreOptions = new MongoDbCdcStateStoreOptions();
+
+			// Apply state store configure callback
+			string? stateStoreBindConfigPath = null;
+			if (mongoBuilder.StateStoreConfigure is not null)
+			{
+				var stateBuilder = new MongoDbCdcStateStoreBuilder(stateStoreOptions);
+				mongoBuilder.StateStoreConfigure(stateBuilder);
+				stateStoreBindConfigPath = stateBuilder.BindConfigurationPath;
+			}
+
+			if (mongoBuilder.StateConnectionString is not null)
+			{
+				_ = builder.Services.AddMongoDbCdcStateStore(mongoBuilder.StateConnectionString, opt =>
+				{
+					opt.DatabaseName = stateStoreOptions.DatabaseName;
+					opt.CollectionName = stateStoreOptions.CollectionName;
+				});
+			}
+			else
+			{
+				_ = builder.Services.AddMongoDbCdcStateStore(opt =>
+				{
+					opt.DatabaseName = stateStoreOptions.DatabaseName;
+					opt.CollectionName = stateStoreOptions.CollectionName;
+				});
+			}
+
+			// Register state store BindConfiguration if set
+			if (stateStoreBindConfigPath is not null)
+			{
+				builder.Services.AddOptions<MongoDbCdcStateStoreOptions>()
+					.BindConfiguration(stateStoreBindConfigPath)
+					.ValidateDataAnnotations()
+					.ValidateOnStart();
+			}
+		}
+
+		return builder;
+	}
 }

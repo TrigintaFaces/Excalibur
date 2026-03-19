@@ -37,6 +37,12 @@ public partial class ComplianceMonitoringService : BackgroundService
 	private readonly ConcurrentDictionary<string, int> _validationFailures = new();
 
 	/// <summary>
+	/// Cached alert handlers array. Built lazily on first monitoring cycle.
+	/// Alert handlers are singletons, so the cached array is valid for the process lifetime.
+	/// </summary>
+	private volatile IReadOnlyList<IComplianceAlertHandler>? _cachedAlertHandlers;
+
+	/// <summary>
 	/// Initializes a new instance of the <see cref="ComplianceMonitoringService"/> class.
 	/// </summary>
 	public ComplianceMonitoringService(
@@ -187,7 +193,8 @@ public partial class ComplianceMonitoringService : BackgroundService
 		await using var scope = _scopeFactory.CreateAsyncScope();
 
 		var complianceService = scope.ServiceProvider.GetRequiredService<ISoc2ComplianceService>();
-		var alertHandlers = scope.ServiceProvider.GetServices<IComplianceAlertHandler>().ToList();
+		var alertHandlers = _cachedAlertHandlers ??=
+			scope.ServiceProvider.GetServices<IComplianceAlertHandler>().ToArray();
 
 		// Get current compliance status
 		ComplianceStatus status;

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: LicenseRef-Excalibur-1.0 OR AGPL-3.0-or-later OR SSPL-1.0 OR Apache-2.0
 
 
+using System.Collections.Concurrent;
+
 using Excalibur.Dispatch.Abstractions;
 using Excalibur.Dispatch.Abstractions.Serialization;
 using Excalibur.Dispatch.Abstractions.Validation;
@@ -24,6 +26,7 @@ namespace Excalibur.Dispatch.Validation.FluentValidation;
 public sealed class AotFluentValidatorResolver(IServiceProvider provider) : IValidatorResolver
 {
 	private readonly IServiceProvider _provider = provider ?? throw new ArgumentNullException(nameof(provider));
+	private readonly ConcurrentDictionary<Type, object> _validatorCache = new();
 
 	/// <summary>
 	/// Attempts to validate a message using AOT-compatible validation logic.
@@ -50,7 +53,7 @@ public sealed class AotFluentValidatorResolver(IServiceProvider provider) : IVal
 	{
 		ArgumentNullException.ThrowIfNull(message);
 
-		var validators = _provider.GetServices<IValidator<TMessage>>().ToArray();
+		var validators = GetOrCacheValidators<TMessage>();
 		if (validators.Length == 0)
 		{
 			return null;
@@ -77,6 +80,23 @@ public sealed class AotFluentValidatorResolver(IServiceProvider provider) : IVal
 			.ToArray();
 
 		return SerializableValidationResult.Failed(errors);
+	}
+
+	/// <summary>
+	/// Gets or creates a cached array of validators for the specified message type.
+	/// First call per type resolves from DI; subsequent calls return the cached array.
+	/// </summary>
+	private IValidator<TMessage>[] GetOrCacheValidators<TMessage>()
+		where TMessage : IDispatchMessage
+	{
+		if (_validatorCache.TryGetValue(typeof(TMessage), out var cached))
+		{
+			return (IValidator<TMessage>[])cached;
+		}
+
+		var validators = _provider.GetServices<IValidator<TMessage>>().ToArray();
+		_validatorCache.TryAdd(typeof(TMessage), validators);
+		return validators;
 	}
 
 	/// <summary>

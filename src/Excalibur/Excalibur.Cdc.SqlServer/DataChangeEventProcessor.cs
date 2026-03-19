@@ -3,6 +3,8 @@
 
 
 
+using System.Collections.Frozen;
+
 using Excalibur.Data.SqlServer.Diagnostics;
 
 using Microsoft.Data.SqlClient;
@@ -74,25 +76,47 @@ public partial class DataChangeEventProcessor : CdcProcessor, IDataChangeEventPr
 			(changeEvent, token) => HandleCdcDataChangeEventsAsync(changeEvent, token).AsTask(),
 			cancellationToken);
 
-	private static IDataChangeHandler GetHandler(IServiceProvider serviceProvider, string tableName)
+	/// <summary>
+	/// Lazy-initialized, frozen table-to-handler map. Built once on first use, then O(1) lookups.
+	/// </summary>
+	private volatile FrozenDictionary<string, IDataChangeHandler>? _handlerMap;
+
+	private IDataChangeHandler GetHandler(IServiceProvider serviceProvider, string tableName)
 	{
 		if (string.IsNullOrWhiteSpace(tableName))
 		{
 			throw new ArgumentNullException(nameof(tableName));
 		}
 
-		var handlers = serviceProvider.GetServices<IDataChangeHandler>();
-		var matchingHandlers = handlers
-			.Where(h => h.TableNames.Contains(tableName, StringComparer.OrdinalIgnoreCase))
-			.Take(2)
-			.ToList();
+		var map = _handlerMap ??= BuildHandlerMap(serviceProvider);
 
-		return matchingHandlers.Count switch
+		if (map.TryGetValue(tableName, out var handler))
 		{
-			0 => throw new CdcMissingTableHandlerException(tableName),
-			1 => matchingHandlers[0],
-			_ => throw new CdcMultipleTableHandlerException(tableName)
-		};
+			return handler;
+		}
+
+		throw new CdcMissingTableHandlerException(tableName);
+	}
+
+	private static FrozenDictionary<string, IDataChangeHandler> BuildHandlerMap(IServiceProvider serviceProvider)
+	{
+		var handlers = serviceProvider.GetServices<IDataChangeHandler>();
+		var dict = new Dictionary<string, IDataChangeHandler>(StringComparer.OrdinalIgnoreCase);
+
+		foreach (var handler in handlers)
+		{
+			foreach (var tableName in handler.TableNames)
+			{
+				if (dict.ContainsKey(tableName))
+				{
+					throw new CdcMultipleTableHandlerException(tableName);
+				}
+
+				dict[tableName] = handler;
+			}
+		}
+
+		return dict.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 	}
 
 	/// <summary>

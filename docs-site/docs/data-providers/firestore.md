@@ -76,14 +76,18 @@ services.AddFirestoreInboxStore(options =>
 ### Change Data Capture
 
 ```csharp
-services.AddFirestoreCdc(options =>
+services.AddCdcProcessor(cdc =>
 {
-    options.CollectionPath = "orders";
-});
-
-services.AddFirestoreCdcStateStore(options =>
-{
-    options.CollectionName = "cdc-state";
+    cdc.UseFirestore(firestore =>
+    {
+        firestore.CollectionPath("orders")
+                 .WithStateStore("state-project-id", state =>
+                 {
+                     state.TableName("cdc-checkpoints");
+                 });
+    })
+    .TrackTable("orders", t => t.MapAll<OrderChangedEvent>())
+    .EnableBackgroundProcessing();
 });
 ```
 

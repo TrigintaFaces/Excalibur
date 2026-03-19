@@ -64,18 +64,19 @@ services.AddDynamoDbSnapshotStore(options =>
 ### Change Data Capture
 
 ```csharp
-services.AddDynamoDbCdc(options =>
+services.AddCdcProcessor(cdc =>
 {
-    options.StreamArn = "arn:aws:dynamodb:...";
+    cdc.UseDynamoDb(dynamo =>
+    {
+        dynamo.TableName("Orders")
+              .StreamArn("arn:aws:dynamodb:...")
+              .WithStateStore(
+                  sp => new AmazonDynamoDBClient(stateRegionEndpoint),
+                  state => state.TableName("CdcState"));
+    })
+    .TrackTable("Orders", t => t.MapAll<OrderChangedEvent>())
+    .EnableBackgroundProcessing();
 });
-
-services.AddDynamoDbCdcStateStore(options =>
-{
-    options.TableName = "CdcState";
-});
-
-// In-memory state store for testing
-services.AddInMemoryDynamoDbCdcStateStore();
 ```
 
 ### Authorization Store

@@ -215,3 +215,21 @@ static Microsoft.Extensions.DependencyInjection.CdcExcaliburBuilderExtensions.Ad
 static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.AddCdcProcessor(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.AddCdcProcessor(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Excalibur.Cdc.ICdcBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
 static Microsoft.Extensions.DependencyInjection.CdcServiceCollectionExtensions.HasCdcProcessor(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> bool
+Excalibur.Cdc.ICdcStateStoreBuilder
+Excalibur.Cdc.ICdcStateStoreBuilder.SchemaName(string! schema) -> Excalibur.Cdc.ICdcStateStoreBuilder!
+Excalibur.Cdc.ICdcStateStoreBuilder.TableName(string! tableName) -> Excalibur.Cdc.ICdcStateStoreBuilder!
+Excalibur.Cdc.ICdcStateStoreBuilder.BindConfiguration(string! sectionPath) -> Excalibur.Cdc.ICdcStateStoreBuilder!
+Excalibur.Cdc.ICdcEventMapper<TEvent>
+Excalibur.Cdc.ICdcEventMapper<TEvent>.Map(System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.CdcDataChange!>! changes, Excalibur.Cdc.CdcChangeType changeType) -> TEvent
+Excalibur.Cdc.CdcDataChangeExtensions
+static Excalibur.Cdc.CdcDataChangeExtensions.GetValue<T>(this System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.CdcDataChange!>! changes, string! columnName) -> T
+static Excalibur.Cdc.CdcDataChangeExtensions.GetOldValue<T>(this System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.CdcDataChange!>! changes, string! columnName) -> T
+static Excalibur.Cdc.CdcDataChangeExtensions.TryGetValue<T>(this System.Collections.Generic.IReadOnlyList<Excalibur.Cdc.CdcDataChange!>! changes, string! columnName, out T? value) -> bool
+Excalibur.Cdc.CdcMappingException
+Excalibur.Cdc.CdcMappingException.CdcMappingException() -> void
+Excalibur.Cdc.CdcMappingException.CdcMappingException(string! message) -> void
+Excalibur.Cdc.CdcMappingException.CdcMappingException(string! message, System.Exception! innerException) -> void
+Excalibur.Cdc.ICdcTableBuilder.MapInsert<TEvent, TMapper>() -> Excalibur.Cdc.ICdcTableBuilder!
+Excalibur.Cdc.ICdcTableBuilder.MapUpdate<TEvent, TMapper>() -> Excalibur.Cdc.ICdcTableBuilder!
+Excalibur.Cdc.ICdcTableBuilder.MapDelete<TEvent, TMapper>() -> Excalibur.Cdc.ICdcTableBuilder!
+Excalibur.Cdc.ICdcTableBuilder.MapAll<TEvent, TMapper>() -> Excalibur.Cdc.ICdcTableBuilder!

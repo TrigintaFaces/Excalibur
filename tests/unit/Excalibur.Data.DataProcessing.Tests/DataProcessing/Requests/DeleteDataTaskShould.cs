@@ -20,7 +20,7 @@ public sealed class DeleteDataTaskShould
 	[Fact]
 	public void CreateWithValidParameters()
 	{
-		var config = new DataProcessingConfiguration();
+		var config = new DataProcessingOptions();
 		var request = new DeleteDataTask(Guid.NewGuid(), config, 30, CancellationToken.None);
 
 		request.Command.CommandText.ShouldNotBeNullOrWhiteSpace();
@@ -30,7 +30,7 @@ public sealed class DeleteDataTaskShould
 	[Fact]
 	public void HaveCommandWithTableName()
 	{
-		var config = new DataProcessingConfiguration();
+		var config = new DataProcessingOptions();
 		var request = new DeleteDataTask(Guid.NewGuid(), config, 30, CancellationToken.None);
 
 		request.Command.CommandText.ShouldContain(config.TableName);
@@ -39,7 +39,7 @@ public sealed class DeleteDataTaskShould
 	[Fact]
 	public void HaveCommandWithDeleteSql()
 	{
-		var config = new DataProcessingConfiguration();
+		var config = new DataProcessingOptions();
 		var request = new DeleteDataTask(Guid.NewGuid(), config, 30, CancellationToken.None);
 
 		request.Command.CommandText.ShouldContain("DELETE");

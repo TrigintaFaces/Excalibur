@@ -69,7 +69,7 @@ public sealed class CdcBuilderProviderExtensionsShould : UnitTestBase
 	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUseDynamoDb()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			((ICdcBuilder)null!).UseDynamoDb(_ => { }));
+			((ICdcBuilder)null!).UseDynamoDb((Action<DynamoDbCdcOptions>)(_ => { })));
 	}
 
 	[Fact]
@@ -84,7 +84,7 @@ public sealed class CdcBuilderProviderExtensionsShould : UnitTestBase
 	public void ReturnSameBuilder_ForFluentChaining_UseDynamoDb()
 	{
 		var builder = new TestCdcBuilder();
-		var result = builder.UseDynamoDb(_ => { });
+		var result = builder.UseDynamoDb((Action<DynamoDbCdcOptions>)(_ => { }));
 		result.ShouldBeSameAs(builder);
 	}
 
@@ -137,7 +137,7 @@ public sealed class CdcBuilderProviderExtensionsShould : UnitTestBase
 	public void ThrowArgumentNullException_WhenBuilderIsNull_ForUseFirestore()
 	{
 		Should.Throw<ArgumentNullException>(() =>
-			((ICdcBuilder)null!).UseFirestore(_ => { }));
+			((ICdcBuilder)null!).UseFirestore((Action<FirestoreCdcOptions>)(_ => { })));
 	}
 
 	[Fact]
@@ -152,7 +152,7 @@ public sealed class CdcBuilderProviderExtensionsShould : UnitTestBase
 	public void ReturnSameBuilder_ForFluentChaining_UseFirestore()
 	{
 		var builder = new TestCdcBuilder();
-		var result = builder.UseFirestore(_ => { });
+		var result = builder.UseFirestore((Action<FirestoreCdcOptions>)(_ => { }));
 		result.ShouldBeSameAs(builder);
 	}
 

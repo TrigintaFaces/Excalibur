@@ -85,41 +85,85 @@ services.AddCdcProcessor(cdc =>
 
 ## Table Tracking with Event Mapping
 
-The recommended approach is to use the fluent builder API to configure table tracking and event mapping:
+The fluent builder API supports two approaches for mapping database changes to domain events:
 
-### Basic Table Tracking
+1. **Auto-mapping with `ICdcEventMapper`** (recommended) — provide a mapper class that creates typed events from column data. The framework handles dispatch via `IDispatcher`.
+2. **Manual `IDataChangeHandler`** — implement the handler interface directly for full control over change processing.
+
+### Auto-Mapping with ICdcEventMapper (Recommended)
+
+Define a mapper that converts CDC column data to your domain event:
 
 ```csharp
+// 1. Define the event
+public record OrderCreatedEvent(int OrderId, string CustomerId, decimal Total) : IDispatchMessage;
+
+// 2. Implement ICdcEventMapper<TEvent>
+internal sealed class OrderCreatedEventMapper : ICdcEventMapper<OrderCreatedEvent>
+{
+    public OrderCreatedEvent Map(IReadOnlyList<CdcDataChange> changes, CdcChangeType changeType)
+    {
+        return new OrderCreatedEvent(
+            OrderId: changes.GetValue<int>("OrderId"),
+            CustomerId: changes.GetValue<string>("CustomerId"),
+            Total: changes.GetValue<decimal>("Total"));
+    }
+}
+
+// 3. Register with the 2-type-param overload
 services.AddCdcProcessor(cdc =>
 {
-    cdc.UseSqlServer(connectionString)
-       .TrackTable("dbo.Orders", table =>
-       {
-           // Map all change types to a single event
-           table.MapAll<OrderChangedEvent>();
-       })
-       .EnableBackgroundProcessing();
+    cdc.UseSqlServer(connectionString, sql =>
+    {
+        sql.SchemaName("Cdc")
+           .BatchSize(100);
+    })
+    .TrackTable("dbo.Orders", table =>
+    {
+        table.MapInsert<OrderCreatedEvent, OrderCreatedEventMapper>()
+             .MapUpdate<OrderUpdatedEvent, OrderUpdatedEventMapper>()
+             .MapDelete<OrderDeletedEvent, OrderDeletedEventMapper>();
+    })
+    .EnableBackgroundProcessing();
 });
 ```
 
-### Separate Events per Change Type
+When a CDC change is detected, the framework:
+1. Resolves the `ICdcEventMapper<TEvent>` from DI
+2. Calls `mapper.Map(changes, changeType)` to create a typed event
+3. Dispatches via `IDispatcher.DispatchAsync()` if the event implements `IDispatchMessage`
+
+Use `MapAll<TEvent, TMapper>()` when a single event type handles all change types:
 
 ```csharp
-services.AddCdcProcessor(cdc =>
+.TrackTable("dbo.Orders", table =>
 {
-    cdc.UseSqlServer(connectionString)
-       .TrackTable("dbo.Orders", table =>
-       {
-           table.MapInsert<OrderCreatedEvent>()
-                .MapUpdate<OrderUpdatedEvent>()
-                .MapDelete<OrderDeletedEvent>();
-       })
-       .TrackTable("dbo.Customers", table =>
-       {
-           table.MapAll<CustomerChangedEvent>();
-       })
-       .EnableBackgroundProcessing();
-});
+    table.MapAll<OrderChangedEvent, OrderChangedEventMapper>();
+})
+```
+
+### CdcDataChangeExtensions
+
+Helper methods for extracting typed column values in mapper implementations:
+
+| Method | Description |
+|--------|-------------|
+| `changes.GetValue<T>(columnName)` | Get new value; throws `CdcMappingException` if missing |
+| `changes.GetOldValue<T>(columnName)` | Get old value (before change); throws if missing |
+| `changes.TryGetValue<T>(columnName, out value)` | Safe lookup; returns `false` if missing |
+
+### Metadata-Only Overloads
+
+The single-type-param overloads (`MapInsert<TEvent>()`, `MapAll<TEvent>()`) register event type metadata but do **not** auto-map or dispatch. Use these when you plan to process changes via a manual `IDataChangeHandler`:
+
+```csharp
+// Registers metadata only -- requires a manual IDataChangeHandler for "dbo.Orders"
+.TrackTable("dbo.Orders", table =>
+{
+    table.MapInsert<OrderCreatedEvent>()
+         .MapUpdate<OrderUpdatedEvent>()
+         .MapDelete<OrderDeletedEvent>();
+})
 ```
 
 ### Entity-Inferred Table Names
@@ -128,8 +172,10 @@ services.AddCdcProcessor(cdc =>
 services.AddCdcProcessor(cdc =>
 {
     cdc.UseSqlServer(connectionString)
-       .TrackTable<Order>(table => table.MapAll<OrderChangedEvent>())
-       .TrackTable<Customer>(table => table.MapAll<CustomerChangedEvent>())
+       .TrackTable<Order>(table =>
+           table.MapAll<OrderChangedEvent, OrderChangedEventMapper>())
+       .TrackTable<Customer>(table =>
+           table.MapAll<CustomerChangedEvent, CustomerChangedEventMapper>())
        .EnableBackgroundProcessing();
 });
 ```
@@ -407,6 +453,12 @@ The `ISqlServerCdcBuilder` interface provides fluent configuration for SQL Serve
 | `StateConnectionIdentifier(string)` | Identifier for state store connection | `state-{DatabaseName}` |
 | `CaptureInstances(params string[])` | CDC capture instances to process | -- |
 | `StopOnMissingTableHandler(bool)` | Stop processing on missing handler | `true` |
+| `ConnectionStringName(string)` | Resolve connection from `IConfiguration.GetConnectionString()` | -- |
+| `WithStateStore(string)` | Separate connection string for state persistence | Source connection |
+| `WithStateStore(string, Action<ICdcStateStoreBuilder>)` | State connection with schema/table config | Source connection |
+| `WithStateStore(Func<IServiceProvider, Func<SqlConnection>>)` | DI-integrated state connection factory | Source connection |
+| `WithStateStore(Func<...>, Action<ICdcStateStoreBuilder>)` | Factory with schema/table config | Source connection |
+| `BindConfiguration(string)` | Bind source options from `IConfiguration` section | -- |
 
 :::tip Auto-Registration of IDatabaseConfig
 When you call `DatabaseName()`, the builder automatically registers an `IDatabaseConfig` singleton with sensible defaults for connection identifiers. You only need to set `DatabaseConnectionIdentifier()` or `StateConnectionIdentifier()` if you want custom values. Manual `IDatabaseConfig` registration takes precedence.
@@ -431,6 +483,132 @@ services.AddCdcProcessor(cdc =>
        .EnableBackgroundProcessing();
 });
 ```
+
+## Separate State Store Connection
+
+By default, CDC uses the same connection for reading changes and persisting checkpoints. In production, you may want to separate these concerns — for example, when your CDC source is a read-replica that should not carry checkpoint write load, or when the state store lives on a different tier.
+
+The `WithStateStore` method follows the [Microsoft Change Feed Processor](https://learn.microsoft.com/en-us/azure/cosmos-db/nosql/change-feed-processor) pattern where lease/checkpoint storage is configured separately from the monitored source.
+
+### Connection String
+
+```csharp
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UseSqlServer(sourceConnectionString, sql =>
+    {
+        sql.WithStateStore(stateConnectionString);
+    })
+    .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
+    .EnableBackgroundProcessing();
+});
+```
+
+### Connection String with State Store Configuration
+
+```csharp
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UseSqlServer(sourceConnectionString, sql =>
+    {
+        sql.WithStateStore(stateConnectionString, state =>
+        {
+            state.SchemaName("dbo")
+                 .TableName("CdcCheckpoints");
+        });
+    })
+    .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
+    .EnableBackgroundProcessing();
+});
+```
+
+### DI-Integrated Factory
+
+For advanced scenarios (managed identity, dynamic connection strings):
+
+```csharp
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UseSqlServer(sourceConnectionString, sql =>
+    {
+        sql.WithStateStore(
+            sp => () => new SqlConnection(
+                sp.GetRequiredService<IConfiguration>().GetConnectionString("CdcState")),
+            state =>
+            {
+                state.SchemaName("cdc")
+                     .TableName("ProcessingState");
+            });
+    })
+    .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
+    .EnableBackgroundProcessing();
+});
+```
+
+### PostgreSQL
+
+The same pattern works with `IPostgresCdcBuilder`:
+
+```csharp
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UsePostgres(sourceConnectionString, pg =>
+    {
+        pg.WithStateStore(stateConnectionString, state =>
+        {
+            state.SchemaName("excalibur")
+                 .TableName("cdc_state");
+        });
+    })
+    .TrackTable("public.orders", t => t.MapAll<OrderChangedEvent>())
+    .EnableBackgroundProcessing();
+});
+```
+
+### ICdcStateStoreBuilder Reference
+
+The `Action<ICdcStateStoreBuilder>` callback configures state store persistence:
+
+| Method | Description |
+|--------|-------------|
+| `SchemaName(string)` | Database schema for the checkpoint table |
+| `TableName(string)` | Table name for checkpoint persistence |
+| `BindConfiguration(string)` | Bind state store options from an `IConfiguration` section |
+
+:::tip Backward Compatibility
+When `WithStateStore` is omitted, the source connection is used for state persistence — existing code continues to work without changes.
+:::
+
+### Configuration-Driven Setup
+
+Use `BindConfiguration` on the provider builder to bind CDC source options from `appsettings.json`:
+
+```csharp
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UseSqlServer(sourceConnectionString, sql =>
+    {
+        sql.BindConfiguration("Cdc:SqlServer");
+    })
+    .TrackTable("dbo.Orders", t => t.MapAll<OrderChangedEvent>())
+    .EnableBackgroundProcessing();
+});
+```
+
+```json
+{
+  "Cdc": {
+    "SqlServer": {
+      "SchemaName": "Cdc",
+      "StateTableName": "CdcProcessingState",
+      "PollingIntervalSeconds": 5,
+      "BatchSize": 100
+    }
+  }
+}
+```
+
+`BindConfiguration` uses `OptionsBuilder<T>.BindConfiguration()` with `ValidateDataAnnotations` and `ValidateOnStart` for fail-fast startup validation.
 
 ## Checkpointing
 
@@ -902,26 +1080,31 @@ CDC processors, outbox processors, and inbox stores are all registered as single
 
 ## Providers
 
-Excalibur CDC uses `ICdcBuilder` as its core abstraction with provider-specific builders for each database. Some providers use the builder pattern (`AddCdcProcessor` + `UseSqlServer`/`UsePostgres`), while cloud-native providers register directly via `IServiceCollection`.
+Excalibur CDC uses `ICdcBuilder` as its core abstraction with provider-specific builder interfaces for each database. All providers follow the same pattern: `AddCdcProcessor` + `UseXxx(connectionString, builder => { ... })`.
 
 ### Core Registration
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 
-// Builder pattern (SQL providers)
+// SQL providers
 services.AddCdcProcessor(cdc =>
 {
     cdc.UseSqlServer(connectionString, sql =>
     {
-        // Configure SQL Server CDC
+        sql.WithStateStore(stateConnectionString); // Optional: separate state store
     });
 });
 
-// Direct registration (cloud-native providers)
-services.AddCosmosDbCdc(options =>
+// Cloud-native providers (same builder pattern)
+services.AddCdcProcessor(cdc =>
 {
-    // Configure Cosmos DB change feed
+    cdc.UseCosmosDb(connectionString, cosmos =>
+    {
+        cosmos.DatabaseId("mydb")
+              .ContainerId("orders")
+              .WithStateStore(stateConnectionString); // Optional: separate account
+    });
 });
 ```
 
@@ -984,38 +1167,39 @@ PostgreSQL CDC uses logical replication slots and publications. Changes are stre
 Uses MongoDB Change Streams for real-time change notification.
 
 ```bash
-dotnet add package Excalibur.Data.MongoDB
+dotnet add package Excalibur.Cdc.MongoDB
 ```
 
 ```csharp
-// With options callback
-services.AddMongoDbCdc(options =>
+services.AddCdcProcessor(cdc =>
 {
-    options.ConnectionString = "mongodb://localhost:27017";
-    options.DatabaseName = "MyApp";
+    cdc.UseMongoDB(connectionString, mongo =>
+    {
+        mongo.DatabaseName("MyApp")
+             .CollectionNames("orders", "customers")
+             .ProcessorId("order-processor")
+             .BatchSize(100)
+             .ReconnectInterval(TimeSpan.FromSeconds(5));
+    })
+    .TrackTable("orders", t => t.MapAll<OrderChangedEvent>())
+    .EnableBackgroundProcessing();
 });
 
-// With connection string and processor ID
-services.AddMongoDbCdc(
-    connectionString: "mongodb://localhost:27017",
-    processorId: "order-processor",
-    configure: options =>
+// With separate state store (different MongoDB cluster)
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UseMongoDB(connectionString, mongo =>
     {
-        options.DatabaseName = "MyApp";
-    });
-```
-
-**State Store:**
-
-```csharp
-// Persistent state store
-services.AddMongoDbCdcStateStore(
-    connectionString: "mongodb://localhost:27017",
-    databaseName: "cdc",
-    collectionName: "state");
-
-// In-memory state store (development)
-services.AddInMemoryMongoDbCdcStateStore();
+        mongo.DatabaseName("MyApp")
+             .WithStateStore("mongodb://state-cluster:27017", state =>
+             {
+                 state.SchemaName("cdc")       // Maps to DatabaseName
+                      .TableName("checkpoints"); // Maps to CollectionName
+             });
+    })
+    .TrackTable("orders", t => t.MapAll<OrderChangedEvent>())
+    .EnableBackgroundProcessing();
+});
 ```
 
 MongoDB Change Streams use the oplog to push change events. The processor receives insert, update, replace, and delete notifications in real time.
@@ -1025,119 +1209,128 @@ MongoDB Change Streams use the oplog to push change events. The processor receiv
 Uses the Cosmos DB Change Feed for continuous change processing.
 
 ```bash
-dotnet add package Excalibur.Data.CosmosDb
+dotnet add package Excalibur.Cdc.CosmosDb
 ```
 
 ```csharp
-// With options callback
-services.AddCosmosDbCdc(options =>
+services.AddCdcProcessor(cdc =>
 {
-    options.ConnectionString = "AccountEndpoint=...;AccountKey=...";
-    options.DatabaseName = "MyApp";
-    options.ContainerName = "orders";
-    options.LeaseContainerName = "leases";
+    cdc.UseCosmosDb(connectionString, cosmos =>
+    {
+        cosmos.DatabaseId("MyApp")
+              .ContainerId("orders")
+              .ProcessorName("order-processor")
+              .ChangeFeed(feed => { /* configure change feed options */ });
+    })
+    .TrackTable("orders", t => t.MapAll<OrderChangedEvent>())
+    .EnableBackgroundProcessing();
 });
 
-// From configuration
-services.AddCosmosDbCdc(configuration);
-services.AddCosmosDbCdc(configuration, sectionName: "CosmosDbCdc");
-```
-
-**State Store:**
-
-```csharp
-// Cosmos DB state store
-services.AddCosmosDbCdcStateStore(options =>
+// With separate state store (different Cosmos account)
+services.AddCdcProcessor(cdc =>
 {
-    options.ConnectionString = "AccountEndpoint=...;AccountKey=...";
+    cdc.UseCosmosDb(connectionString, cosmos =>
+    {
+        cosmos.DatabaseId("MyApp")
+              .ContainerId("orders")
+              .WithStateStore("AccountEndpoint=https://state-cosmos/...;AccountKey=...", state =>
+              {
+                  state.SchemaName("cdc-state")    // Maps to DatabaseId
+                       .TableName("checkpoints");   // Maps to ContainerId
+              });
+    })
+    .TrackTable("orders", t => t.MapAll<OrderChangedEvent>())
+    .EnableBackgroundProcessing();
 });
-
-// From configuration
-services.AddCosmosDbCdcStateStore(configuration);
-
-// In-memory state store (development)
-services.AddInMemoryCosmosDbCdcStateStore();
 ```
 
-The Cosmos DB Change Feed provides ordered change notifications per logical partition. The lease container coordinates multiple processors for scale-out.
+The Cosmos DB Change Feed provides ordered change notifications per logical partition. `WithStateStore` follows Microsoft's `ChangeFeedProcessorBuilder.WithLeaseContainer()` pattern — the state store (lease container) can be in a different database or account.
 
 ### Amazon DynamoDB
 
 Uses DynamoDB Streams for change capture.
 
 ```bash
-dotnet add package Excalibur.Data.DynamoDb
+dotnet add package Excalibur.Cdc.DynamoDb
 ```
 
 ```csharp
-services.AddDynamoDbCdc(options =>
+services.AddCdcProcessor(cdc =>
 {
-    options.TableName = "Orders";
-    options.StreamViewType = DynamoDbStreamViewType.NewAndOldImages;
+    cdc.UseDynamoDb(dynamo =>
+    {
+        dynamo.TableName("Orders")
+              .ProcessorName("order-processor")
+              .MaxBatchSize(100)
+              .PollInterval(TimeSpan.FromSeconds(5));
+    })
+    .TrackTable("Orders", t => t.MapAll<OrderChangedEvent>())
+    .EnableBackgroundProcessing();
+});
+
+// With separate state store (different AWS region/account)
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UseDynamoDb(dynamo =>
+    {
+        dynamo.TableName("Orders")
+              .WithStateStore(
+                  sp => new AmazonDynamoDBClient(stateRegionEndpoint),
+                  state =>
+                  {
+                      state.TableName("cdc-checkpoints"); // Maps to DynamoDB table name
+                  });
+    })
+    .TrackTable("Orders", t => t.MapAll<OrderChangedEvent>())
+    .EnableBackgroundProcessing();
 });
 ```
 
-Available `DynamoDbStreamViewType` values:
+:::note DynamoDB has no connection string
+DynamoDB uses AWS SDK credential resolution (environment variables, IAM roles, profiles) instead of connection strings. `WithStateStore` accepts only factory overloads (`Func<IServiceProvider, IAmazonDynamoDB>`), not connection strings.
+:::
 
-| Value | Description |
-|-------|-------------|
-| `KeysOnly` | Only the key attributes of the modified item |
-| `NewImage` | The entire item as it appears after modification |
-| `OldImage` | The entire item as it appeared before modification |
-| `NewAndOldImages` | Both the new and old item images (recommended for CDC) |
-
-**State Store:**
-
-```csharp
-// DynamoDB state store
-services.AddDynamoDbCdcStateStore(
-    tableName: "cdc-state",
-    configureOptions: options =>
-    {
-        // Configure state store options
-    });
-
-// In-memory state store (development)
-services.AddInMemoryDynamoDbCdcStateStore();
-```
-
-DynamoDB Streams captures item-level changes with configurable stream view types (keys only, new image, old image, or both).
+DynamoDB Streams captures item-level changes. The processor reads from the stream and checkpoints progress to a separate DynamoDB table.
 
 ### Google Firestore
 
 Uses Firestore real-time listeners for change detection.
 
 ```bash
-dotnet add package Excalibur.Data.Firestore
+dotnet add package Excalibur.Cdc.Firestore
 ```
 
 ```csharp
-services.AddFirestoreCdc(options =>
+services.AddCdcProcessor(cdc =>
 {
-    options.ProjectId = "my-gcp-project";
-    options.CollectionPath = "orders";
+    cdc.UseFirestore(firestore =>
+    {
+        firestore.CollectionPath("orders")
+                 .ProcessorName("order-processor")
+                 .MaxBatchSize(100)
+                 .PollInterval(TimeSpan.FromSeconds(5));
+    })
+    .TrackTable("orders", t => t.MapAll<OrderChangedEvent>())
+    .EnableBackgroundProcessing();
+});
+
+// With separate state store (different GCP project)
+services.AddCdcProcessor(cdc =>
+{
+    cdc.UseFirestore(firestore =>
+    {
+        firestore.CollectionPath("orders")
+                 .WithStateStore("state-project-id", state =>
+                 {
+                     state.TableName("cdc-checkpoints"); // Maps to Firestore collection name
+                 });
+    })
+    .TrackTable("orders", t => t.MapAll<OrderChangedEvent>())
+    .EnableBackgroundProcessing();
 });
 ```
 
-**State Store:**
-
-```csharp
-// Firestore state store
-services.AddFirestoreCdcStateStore(
-    collectionName: "cdc-state",
-    configureOptions: options =>
-    {
-        // Configure state store options
-    });
-
-// Default state store
-services.AddFirestoreCdcStateStore();
-
-// In-memory state store (development)
-services.AddInMemoryFirestoreCdcStateStore();
-```
-
-Firestore uses snapshot listeners on collection references. Changes are pushed in real time with document-level granularity.
+Firestore uses snapshot listeners on collection references. Changes are pushed in real time with document-level granularity. `WithStateStore` accepts a GCP project ID (creates a separate `FirestoreDb`) or a factory (`Func<IServiceProvider, FirestoreDb>`).
 
 ### In-Memory (Testing)
 

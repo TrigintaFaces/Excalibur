@@ -18,6 +18,12 @@
     <TrimmerDefaultAction>link</TrimmerDefaultAction>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Excalibur.Cdc.SqlServer" />
+    <InternalsVisibleTo Include="Excalibur.Cdc.Postgres" />
+    <InternalsVisibleTo Include="Excalibur.Data.SqlServer.Tests" />
+    <InternalsVisibleTo Include="Excalibur.Data.Postgres.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
   <ItemGroup>

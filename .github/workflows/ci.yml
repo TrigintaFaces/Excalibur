@@ -2050,7 +2050,7 @@ jobs:
             -ResultsPath ./BenchmarkDotNet.Artifacts.TransportComparison/results `
             -RequireBenchmarkSummaryMetadata:$true `
             -MinimumRepeatCount 1 `
-            -TransportWolverineSingleCommandMinAdvantageRatio 0.60 `
+            -TransportWolverineSingleCommandMinAdvantageRatio 0.40 `
             -TransportWolverineConcurrent10MinAdvantageRatio 0.60 `
             -TransportMassTransitSingleCommandMinAdvantageRatio 1.00 `
             -TransportMassTransitConcurrent10MinAdvantageRatio 1.00

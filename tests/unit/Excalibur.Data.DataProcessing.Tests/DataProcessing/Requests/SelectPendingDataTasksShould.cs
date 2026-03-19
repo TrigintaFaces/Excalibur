@@ -20,7 +20,7 @@ public sealed class SelectPendingDataTasksShould
 	[Fact]
 	public void CreateWithValidParameters()
 	{
-		var config = new DataProcessingConfiguration();
+		var config = new DataProcessingOptions();
 		var request = new SelectPendingDataTasks(config, 30, CancellationToken.None);
 
 		request.Command.CommandText.ShouldNotBeNullOrWhiteSpace();
@@ -30,7 +30,7 @@ public sealed class SelectPendingDataTasksShould
 	[Fact]
 	public void HaveCommandWithSelectSql()
 	{
-		var config = new DataProcessingConfiguration();
+		var config = new DataProcessingOptions();
 		var request = new SelectPendingDataTasks(config, 30, CancellationToken.None);
 
 		request.Command.CommandText.ShouldContain("SELECT");
@@ -40,7 +40,7 @@ public sealed class SelectPendingDataTasksShould
 	[Fact]
 	public void HaveCommandWithAttemptsFilter()
 	{
-		var config = new DataProcessingConfiguration();
+		var config = new DataProcessingOptions();
 		var request = new SelectPendingDataTasks(config, 30, CancellationToken.None);
 
 		request.Command.CommandText.ShouldContain("Attempts < MaxAttempts");

@@ -26,7 +26,7 @@ public sealed class UpdateDataTaskCompletedCount : DataRequest<int>
 	public UpdateDataTaskCompletedCount(
 		Guid dataTaskId,
 		long completedCount,
-		DataProcessingConfiguration configuration,
+		DataProcessingOptions configuration,
 		int sqlTimeOutSeconds,
 		CancellationToken cancellationToken)
 	{

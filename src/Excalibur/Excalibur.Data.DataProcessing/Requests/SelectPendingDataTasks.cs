@@ -20,7 +20,7 @@ public sealed class SelectPendingDataTasks : DataRequest<IEnumerable<DataTaskReq
 	/// <param name="sqlTimeOutSeconds">The SQL command timeout in seconds.</param>
 	/// <param name="cancellationToken">The cancellation token.</param>
 	public SelectPendingDataTasks(
-		DataProcessingConfiguration configuration,
+		DataProcessingOptions configuration,
 		int sqlTimeOutSeconds,
 		CancellationToken cancellationToken)
 	{

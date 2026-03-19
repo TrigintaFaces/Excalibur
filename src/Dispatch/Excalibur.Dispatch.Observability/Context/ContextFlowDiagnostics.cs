@@ -334,7 +334,9 @@ public sealed partial class ContextFlowDiagnostics(
 	/// </remarks>
 	public void Dispose()
 	{
-		// No resources to dispose - all dependencies are managed by DI container
+		_contextHistories.Clear();
+		while (_anomalies.TryDequeue(out _)) { }
+		Interlocked.Exchange(ref _anomalyCount, 0);
 	}
 
 	private static void CheckStaleTimestamps(IMessageContext context, List<ContextDiagnosticIssue> issues)
