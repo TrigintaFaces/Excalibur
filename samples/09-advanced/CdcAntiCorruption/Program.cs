@@ -76,7 +76,7 @@ builder.Services.AddCdcAntiCorruptionLayer();
 //
 // For this demo, use the in-memory source:
 builder.Services.AddSingleton<ILegacyCustomerSnapshotSource, InMemoryLegacyCustomerSnapshotSource>();
-builder.Services.AddDataProcessor<CustomerHistoryBackfillProcessor>(new DataProcessingConfiguration
+builder.Services.AddDataProcessor<CustomerHistoryBackfillProcessor>(new DataProcessingOptions
 {
 	QueueSize = 128,
 	ProducerBatchSize = 50,

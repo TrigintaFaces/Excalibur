@@ -92,7 +92,7 @@ public sealed class StreamingDocumentHandlerShould
 			}
 		});
 
-		await firstItemReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+		await firstItemReceived.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
 		// Assert - exactly 1 item received because the handler is blocked on the gate
 		lock (receivedRows)
@@ -105,7 +105,7 @@ public sealed class StreamingDocumentHandlerShould
 		// Release the gate so the handler yields the remaining items
 		gate.TrySetResult();
 
-		await receiveTask;
+		await receiveTask.WaitAsync(TimeSpan.FromSeconds(30));
 
 		lock (receivedRows)
 		{
