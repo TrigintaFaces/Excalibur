@@ -130,8 +130,8 @@ When CDC retention/windows are insufficient, this sample also shows a replay lan
 3. Re-dispatch through `SyncCustomerCommand` so business rules remain consistent.
 
 ```csharp
-builder.Services.AddSingleton<IOptions<DataProcessingConfiguration>>(
-    Options.Create(new DataProcessingConfiguration
+builder.Services.AddSingleton<IOptions<DataProcessingOptions>>(
+    Options.Create(new DataProcessingOptions
     {
         QueueSize = 128,
         ProducerBatchSize = 50,

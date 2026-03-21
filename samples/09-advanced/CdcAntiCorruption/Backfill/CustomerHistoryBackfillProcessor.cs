@@ -22,7 +22,7 @@ public sealed class CustomerHistoryBackfillProcessor : DataProcessor<LegacyCusto
 	/// </summary>
 	public CustomerHistoryBackfillProcessor(
 		IHostApplicationLifetime appLifetime,
-		IOptions<DataProcessingConfiguration> configuration,
+		IOptions<DataProcessingOptions> configuration,
 		IServiceProvider serviceProvider,
 		ILogger<CustomerHistoryBackfillProcessor> logger,
 		ILegacyCustomerSnapshotSource snapshotSource)
